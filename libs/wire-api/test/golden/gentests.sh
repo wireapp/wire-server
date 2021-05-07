@@ -179,6 +179,8 @@ echo
 # build again
 stack build --fast --test --bench --no-run-benchmarks --no-run-tests wire-api
 
+readarray -t EXTS < <(sed -rn '/^default-extensions:/,$ { s/^- (.*)/\1/ }' ../../package-defaults.yaml)
+
 # fix imports
 for module in "$GOLDEN_TESTDIR"/*; do
     name="Test.Wire.API.Golden.Generated.$(basename "$module")"
@@ -191,7 +193,10 @@ for module in "$GOLDEN_TESTDIR"/*; do
       -e '/^import/d' \
       -e "/^module/ r $dump" \
       "$module"
+    ormolu -m inplace -c ${EXTS[@]/#/'-o '} "$module"
 done
+
+ormolu -m inplace -c ${EXTS[@]/#/'-o '} "$GOLDEN_TESTDIR.hs"
 
 # build one final time
 stack build --fast --test --bench --no-run-benchmarks --no-run-tests wire-api

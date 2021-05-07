@@ -1,44 +1,65 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.TeamSearchVisibility_team where
-import Wire.API.Team.SearchVisibility ( TeamSearchVisibility(..) )
+
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 
 testObject_TeamSearchVisibility_team_1 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_1 = SearchVisibilityNoNameOutsideTeam
+testObject_TeamSearchVisibility_team_1 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_2 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_2 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_3 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_3 = SearchVisibilityNoNameOutsideTeam
+testObject_TeamSearchVisibility_team_3 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_4 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_4 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_5 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_5 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_6 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_6 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_7 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_7 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_8 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_8 = SearchVisibilityNoNameOutsideTeam
+testObject_TeamSearchVisibility_team_8 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_9 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_9 = SearchVisibilityStandard
+testObject_TeamSearchVisibility_team_9 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_10 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_10 = SearchVisibilityStandard
+testObject_TeamSearchVisibility_team_10 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_11 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_11 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_12 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_12 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_13 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_13 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_14 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_14 = SearchVisibilityStandard
+testObject_TeamSearchVisibility_team_14 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_15 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_15 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_16 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_16 = SearchVisibilityNoNameOutsideTeam
+testObject_TeamSearchVisibility_team_16 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_17 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_17 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_18 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_18 = SearchVisibilityNoNameOutsideTeam
+
 testObject_TeamSearchVisibility_team_19 :: TeamSearchVisibility
-testObject_TeamSearchVisibility_team_19 = SearchVisibilityNoNameOutsideTeam
+testObject_TeamSearchVisibility_team_19 = SearchVisibilityStandard
+
 testObject_TeamSearchVisibility_team_20 :: TeamSearchVisibility
 testObject_TeamSearchVisibility_team_20 = SearchVisibilityStandard

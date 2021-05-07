@@ -24,12 +24,12 @@ import Imports
 import Test.Tasty.HUnit
 import Type.Reflection (typeRep)
 
-testObjects :: forall a . (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
+testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
 testObjects objs = do
   allFilesExist <- and <$> traverse (uncurry testObject) objs
   assertBool "Some golden JSON files do not exist" allFilesExist
 
-testObject :: forall a . (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
+testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
 testObject obj path = do
   let actualValue = toJSON obj :: Value
       actualJson = encode actualValue

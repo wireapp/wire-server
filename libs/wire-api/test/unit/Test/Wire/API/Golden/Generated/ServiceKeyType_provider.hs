@@ -1,44 +1,65 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.ServiceKeyType_provider where
-import Wire.API.Provider.Service ( ServiceKeyType(..) )
+
+import Wire.API.Provider.Service (ServiceKeyType (..))
 
 testObject_ServiceKeyType_provider_1 :: ServiceKeyType
 testObject_ServiceKeyType_provider_1 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_2 :: ServiceKeyType
 testObject_ServiceKeyType_provider_2 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_3 :: ServiceKeyType
 testObject_ServiceKeyType_provider_3 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_4 :: ServiceKeyType
 testObject_ServiceKeyType_provider_4 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_5 :: ServiceKeyType
 testObject_ServiceKeyType_provider_5 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_6 :: ServiceKeyType
 testObject_ServiceKeyType_provider_6 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_7 :: ServiceKeyType
 testObject_ServiceKeyType_provider_7 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_8 :: ServiceKeyType
 testObject_ServiceKeyType_provider_8 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_9 :: ServiceKeyType
 testObject_ServiceKeyType_provider_9 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_10 :: ServiceKeyType
 testObject_ServiceKeyType_provider_10 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_11 :: ServiceKeyType
 testObject_ServiceKeyType_provider_11 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_12 :: ServiceKeyType
 testObject_ServiceKeyType_provider_12 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_13 :: ServiceKeyType
 testObject_ServiceKeyType_provider_13 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_14 :: ServiceKeyType
 testObject_ServiceKeyType_provider_14 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_15 :: ServiceKeyType
 testObject_ServiceKeyType_provider_15 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_16 :: ServiceKeyType
 testObject_ServiceKeyType_provider_16 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_17 :: ServiceKeyType
 testObject_ServiceKeyType_provider_17 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_18 :: ServiceKeyType
 testObject_ServiceKeyType_provider_18 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_19 :: ServiceKeyType
 testObject_ServiceKeyType_provider_19 = RsaServiceKey
+
 testObject_ServiceKeyType_provider_20 :: ServiceKeyType
 testObject_ServiceKeyType_provider_20 = RsaServiceKey

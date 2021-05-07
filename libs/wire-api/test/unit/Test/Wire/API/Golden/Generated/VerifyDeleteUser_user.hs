@@ -1,48 +1,69 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.VerifyDeleteUser_user where
-import Data.Code ( Key(Key, asciiKey), Value(Value, asciiValue) )
-import Data.Range ( unsafeRange )
-import Data.Text.Ascii ( AsciiChars(validate) )
-import Imports ( undefined, fromRight )
-import Wire.API.User ( VerifyDeleteUser(..) )
+
+import Data.Code (Key (Key, asciiKey), Value (Value, asciiValue))
+import Data.Range (unsafeRange)
+import Data.Text.Ascii (AsciiChars (validate))
+import Imports (fromRight, undefined)
+import Wire.API.User (VerifyDeleteUser (..))
 
 testObject_VerifyDeleteUser_user_1 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_1 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Z-gBGd666Vn22sadDkcP")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("_fYga9X")))))}}
+testObject_VerifyDeleteUser_user_1 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Zd0E7PAbtX63Snj90YXv")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("5rfJK3iplxf")))))}}
+
 testObject_VerifyDeleteUser_user_2 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_2 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("cM500LcPnAzlx0xBjzpf")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("EzcuCP9f2QfL0")))))}}
+testObject_VerifyDeleteUser_user_2 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("s48e7_P53jCRq78HcwiU")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("e1l63AUTj8r9-V-UPzdg")))))}}
+
 testObject_VerifyDeleteUser_user_3 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_3 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Bd2_4tN-=f-LcxN-=OTB")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("kjpmcmBSrGA3rmc22W-")))))}}
+testObject_VerifyDeleteUser_user_3 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("b0y=TFQAfoE_RZq574Z2")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("ZsSbzICF1f6rqrpIt")))))}}
+
 testObject_VerifyDeleteUser_user_4 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_4 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("D91CjG8CaelpBT01UHwg")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("ayvI-O=NIx")))))}}
+testObject_VerifyDeleteUser_user_4 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("GoiC6j6NhdBWPKinvc6j")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("Vg_NWfbdvJ8xl56YWAD")))))}}
+
 testObject_VerifyDeleteUser_user_5 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_5 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("RSreOFqOp-FbW_AkLSqS")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("ocHyi4")))))}}
+testObject_VerifyDeleteUser_user_5 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("VZleCLl8lhKpijYBZQxp")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("eAGAd=kP")))))}}
+
 testObject_VerifyDeleteUser_user_6 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_6 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("YDbl_XC1QKPw4W_K4rp2")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("wx76om6eg0DTK")))))}}
+testObject_VerifyDeleteUser_user_6 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("1m6Idt-8Z5xWCZCUnI2H")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("s8pkN3EAVU")))))}}
+
 testObject_VerifyDeleteUser_user_7 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_7 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("YLfKRWn5sFspoUFlcXz4")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("FUzGexGWZXXLqJmO")))))}}
+testObject_VerifyDeleteUser_user_7 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("GUyhsrPHJX3kUsIRwl7o")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("xbSGHeEI6Mlp")))))}}
+
 testObject_VerifyDeleteUser_user_8 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_8 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("RlUnACXnm1N2fKl09_p7")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("UvspKH4Psa6Yu")))))}}
+testObject_VerifyDeleteUser_user_8 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("aREjT9kV_k3n28smib=q")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("4XaaX1lunI0SVIdQF")))))}}
+
 testObject_VerifyDeleteUser_user_9 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_9 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("jzlcEPspkxH=izQMO6Yh")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("2VRsiv=zpD2PBx=yX")))))}}
+testObject_VerifyDeleteUser_user_9 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("ZTAxgwL1puDBVlJm7ISB")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("_O8MZmb7koe=-HHfv")))))}}
+
 testObject_VerifyDeleteUser_user_10 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_10 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("rp7NFgOrilqp0ds5BZJZ")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("lM8PlV3jpfwL")))))}}
+testObject_VerifyDeleteUser_user_10 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("iOznLTQU0YCvP-PFJVnw")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("5e6hcZ")))))}}
+
 testObject_VerifyDeleteUser_user_11 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_11 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("prPCBYKCLJvJ5PkPKGHY")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("yPJp577oj1TPK6W")))))}}
+testObject_VerifyDeleteUser_user_11 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("ITPDRKuIM0E9TCUWuMc4")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("GnTV8MhtczPmB")))))}}
+
 testObject_VerifyDeleteUser_user_12 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_12 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("akNZ7wCS=YeF1PWdB2hh")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("_iyVt3Lss")))))}}
+testObject_VerifyDeleteUser_user_12 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("JgyOMcGrMkAp=P6gCC42")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("r1AjgtYIwq4bJede")))))}}
+
 testObject_VerifyDeleteUser_user_13 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_13 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("LeE6kKxhqIe=-bm8hXyZ")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("y232Uoa9OLYu")))))}}
+testObject_VerifyDeleteUser_user_13 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("H=577C1Rz4bi6FTP3Fsu")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("NycA_22ZMY9yEpug7jrb")))))}}
+
 testObject_VerifyDeleteUser_user_14 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_14 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("7h8MYutqIzeKXczL1naR")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("bfJZhA")))))}}
+testObject_VerifyDeleteUser_user_14 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("WVR7aRLpUPokwVqUNvO=")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("x1YQXKDCBOhXSIlv4TM")))))}}
+
 testObject_VerifyDeleteUser_user_15 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_15 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("sqnlnpjbqL8oUsiFsP6P")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("PosE65=Eh31mFwqL5jZ")))))}}
+testObject_VerifyDeleteUser_user_15 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("7NsqcSFb1haHGW3T6afk")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("pNUQx7xtswWQZDKus3")))))}}
+
 testObject_VerifyDeleteUser_user_16 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_16 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("xquYkxwbz6Pyebp53oIy")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("rwz_AFhiKRWvnqnRF58")))))}}
+testObject_VerifyDeleteUser_user_16 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("pIRiVnNmSyYIPoPWw-Ge")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("mBaXfRCP5pcBl")))))}}
+
 testObject_VerifyDeleteUser_user_17 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_17 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Lo6r_OaRFL=P-3pz2YPF")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("COCYeO9wibKD")))))}}
+testObject_VerifyDeleteUser_user_17 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("-wW78mNmAvg=ObKVCxhP")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("YkGMHpzkep3_VBz")))))}}
+
 testObject_VerifyDeleteUser_user_18 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_18 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Eo_fvHVuBp2kRTr9tTzE")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("HxY1WO")))))}}
+testObject_VerifyDeleteUser_user_18 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("V_w1B5J=5XdUk5d9nGYg")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("WX-UIuIp17ybHeyx")))))}}
+
 testObject_VerifyDeleteUser_user_19 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_19 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("7JG5OFBFA76dhjpvxNE5")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("m=4=sw=I")))))}}
+testObject_VerifyDeleteUser_user_19 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("EfdiPJ-CCnEoldV-yqdD")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("op_PNw4M")))))}}
+
 testObject_VerifyDeleteUser_user_20 :: VerifyDeleteUser
-testObject_VerifyDeleteUser_user_20 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("nTYjAZR0N_iyb9CLTJRm")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("e66fUJB6mzLy9crQHBu")))))}}
+testObject_VerifyDeleteUser_user_20 = VerifyDeleteUser {verifyDeleteUserKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("KD9ei9WvBc9rlzpFS7If")))))}, verifyDeleteUserCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("kdbu6kPH")))))}}

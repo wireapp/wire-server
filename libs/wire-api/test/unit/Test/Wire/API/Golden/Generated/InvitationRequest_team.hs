@@ -1,58 +1,85 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.InvitationRequest_team where
+
 import Data.ISO3166_CountryCodes
-    ( CountryCode(HN, NE, BR, YE, MX, HT, IE, SX, AG, SZ) )
-import Imports ( Maybe(Nothing, Just) )
+  ( CountryCode (BJ, FJ, GH, LB, ME, NL, OM, PA, TC, TZ),
+  )
 import qualified Data.LanguageCodes
-    ( ISO639_1(HR, EO, SM, RM, MK, SL, IA, EN, LA, SS, SQ, LT) )
-import Wire.API.Team.Invitation ( InvitationRequest(..) )
+  ( ISO639_1 (AF, AR, DA, DV, KJ, KS, KU, LG, NN, NY, OM, SI),
+  )
+import Imports (Maybe (Just, Nothing))
+import Wire.API.Team.Invitation (InvitationRequest (..))
 import Wire.API.Team.Role
-    ( Role(RoleOwner, RoleMember, RoleAdmin, RoleExternalPartner) )
+  ( Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner),
+  )
 import Wire.API.User.Identity
-    ( Email(Email, emailLocal, emailDomain), Phone(Phone, fromPhone) )
+  ( Email (Email, emailDomain, emailLocal),
+    Phone (Phone, fromPhone),
+  )
 import Wire.API.User.Profile
-    ( Locale(Locale, lLanguage, lCountry),
-      Name(Name, fromName),
-      Country(Country, fromCountry),
-      Language(Language) )
+  ( Country (Country, fromCountry),
+    Language (Language),
+    Locale (Locale, lCountry, lLanguage),
+    Name (Name, fromName),
+  )
 
 testObject_InvitationRequest_team_1 :: InvitationRequest
-testObject_InvitationRequest_team_1 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.EO, lCountry = Just (Country {fromCountry = NE})}), irRole = Just RoleMember, irInviteeName = Just (Name {fromName = "6\1046404?Xu\163349>\1022949\NAK\\\45852s\179979D:\ACK\EOTBkH\DELo\1105270*i\18009$\NUL\DC2gwv\1064992\&0\SO\13895kt\1030521\DEL\NUL\142298\"}\183757/-/\172578B\\{M\30440?;\1019178\n\SYNV\1076800\179985\DLE\FSM\SYN\160582Su\22060\64685\SO\NAK\1039654Ps\ENQ\1084480\1103134\&7\1053172\DLE;c+\1049749b\DEL{\1070641\CAN\DLE"}), irInviteeEmail = Email {emailLocal = "", emailDomain = "\25334q0"}, irInviteePhone = Just (Phone {fromPhone = "+021968750"})}
+testObject_InvitationRequest_team_1 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.NN, lCountry = Nothing}), irRole = Just RoleOwner, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "/Y\164738\v}?", emailDomain = "\992922\1041097\178160\SO\1036829"}, irInviteePhone = Nothing}
+
 testObject_InvitationRequest_team_2 :: InvitationRequest
-testObject_InvitationRequest_team_2 = InvitationRequest {irLocale = Nothing, irRole = Just RoleExternalPartner, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "b;\r\ETXma", emailDomain = ""}, irInviteePhone = Just (Phone {fromPhone = "+06405863905483"})}
+testObject_InvitationRequest_team_2 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.AF, lCountry = Just (Country {fromCountry = GH})}), irRole = Nothing, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "E", emailDomain = "/"}, irInviteePhone = Just (Phone {fromPhone = "+68739032374"})}
+
 testObject_InvitationRequest_team_3 :: InvitationRequest
-testObject_InvitationRequest_team_3 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SM, lCountry = Just (Country {fromCountry = BR})}), irRole = Just RoleMember, irInviteeName = Just (Name {fromName = "yV\1035621I#\r\917802(H\SUBJ\1076970D^n*L\1077897\145631C)\1106204T\59129\STX)\fh\9496\1041404\&9\ENQ\1053729\42616\15427\b\19670`\t\1097633\"^\SOH\EOTZ?\1024964\21761R6\GS\ENQh^}n\1113447k\2859\1086123\t2Mf\SUB#\"\DC22\n</\992034\1043058\ESCE\996019\NAK\37969\1039066.6\ESC[\ACK9R\1072918M(g\vu"}), irInviteeEmail = Email {emailLocal = "", emailDomain = "\\\1062653"}, irInviteePhone = Just (Phone {fromPhone = "+113687447"})}
+testObject_InvitationRequest_team_3 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.LG, lCountry = Just (Country {fromCountry = TZ})}), irRole = Just RoleAdmin, irInviteeName = Just (Name {fromName = "\27175\1085444\v\182035\144967G\189107\1042607\ETX\180573\1047918\ETX\1075522ZG\1087064\STX+i\46576Ux\FS\FS5\ESC\ae\10301\36223(3\1009347\\\t\EOT\v@\ENQs\r#R\136368G'N^?\NAKB\f\FS\NULx\1024041@\34031\1105463\1058551`A]@\34846\133788*\1025332N;\ETX\FSh\bS\US\US\SO`^qU<\21803\SYN\1094791\ETX\1112073M\SI\1019355\4619=zM[\181520\161190\n\SI}\ENQ\1008012\aaZI\18628\ACKE#G^t\148685\DLE\157774LY\182624\&6vt\\"}), irInviteeEmail = Email {emailLocal = "\SYN", emailDomain = "\1107957Z\1034246we\1105089"}, irInviteePhone = Just (Phone {fromPhone = "+99763521777551"})}
+
 testObject_InvitationRequest_team_4 :: InvitationRequest
-testObject_InvitationRequest_team_4 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.RM, lCountry = Nothing}), irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "Q#\SYNd\tU|\RS1\EMT{\54231.YL1P\STX.{o\ETXV&~\STX\b<!J\99525q-){\1056229?`\CAN\4524\ETB\165695\v\70440R\1108516\b\DC1M2d\49481"}), irInviteeEmail = Email {emailLocal = "l", emailDomain = "L"}, irInviteePhone = Nothing}
+testObject_InvitationRequest_team_4 = InvitationRequest {irLocale = Nothing, irRole = Just RoleMember, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "", emailDomain = ""}, irInviteePhone = Just (Phone {fromPhone = "+2467751810"})}
+
 testObject_InvitationRequest_team_5 :: InvitationRequest
-testObject_InvitationRequest_team_5 = InvitationRequest {irLocale = Nothing, irRole = Just RoleOwner, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "\136204h[S", emailDomain = "\EOT"}, irInviteePhone = Just (Phone {fromPhone = "+26464888282"})}
+testObject_InvitationRequest_team_5 = InvitationRequest {irLocale = Nothing, irRole = Just RoleAdmin, irInviteeName = Just (Name {fromName = "\171800\1076860\1103443\CAN8=\n;}\169054M\ao\v3+\n"}), irInviteeEmail = Email {emailLocal = "", emailDomain = "\DEL\15723"}, irInviteePhone = Just (Phone {fromPhone = "+893213675"})}
+
 testObject_InvitationRequest_team_6 :: InvitationRequest
-testObject_InvitationRequest_team_6 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.MK, lCountry = Just (Country {fromCountry = YE})}), irRole = Nothing, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "\"\1050616!O\DC2", emailDomain = "'9\DC2kHc"}, irInviteePhone = Just (Phone {fromPhone = "+219042712314455"})}
+testObject_InvitationRequest_team_6 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.DA, lCountry = Just (Country {fromCountry = ME})}), irRole = Just RoleExternalPartner, irInviteeName = Just (Name {fromName = "\RSD[alw\RS\ACKP \999760\rO\175510'8\989959\1082925g W:8\v:-(`+\131521\ESC_\CAN\1105214\44926(\"&\DC2NZ\1082341\ACKS\SYNLOW|p\EM\194645\&1\175388"}), irInviteeEmail = Email {emailLocal = "\6559^\EOT\DC4", emailDomain = ".}\177921"}, irInviteePhone = Just (Phone {fromPhone = "+40418736542643"})}
+
 testObject_InvitationRequest_team_7 :: InvitationRequest
-testObject_InvitationRequest_team_7 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SL, lCountry = Nothing}), irRole = Nothing, irInviteeName = Just (Name {fromName = "\52176#!\34929\1100541\1076839v\t7S/'9\4252&3\35903\"9Q\1071213d\\\DELl\181969*e\GS@\\I\999257V;n:\137776\1012990B\DEL?@H$X\35225T\160453\16331\&2HV8F6\SI{\SO6[\993070\1074612\142324I\2092\999907\\l1v\987846\NULPS1$c\ETBp6x\96124C:US\158020\60169L "}), irInviteeEmail = Email {emailLocal = "|Z\1027663\1004071b\13769", emailDomain = "\SI\158816\1056657Si\NUL"}, irInviteePhone = Nothing}
+testObject_InvitationRequest_team_7 = InvitationRequest {irLocale = Nothing, irRole = Just RoleAdmin, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "g\NUL-J\65751", emailDomain = "\ETXH\1033960eU"}, irInviteePhone = Just (Phone {fromPhone = "+570029592986"})}
+
 testObject_InvitationRequest_team_8 :: InvitationRequest
-testObject_InvitationRequest_team_8 = InvitationRequest {irLocale = Nothing, irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "\158809\GSPZ\999279C\nJ(\USKEp@s\1096094|\NULi.|\FS^$\b\155194\\Vd\151090\n\1010797\42194\"\1088359-\n\ACK/1\ETX\1036031zE{f\DC3\1047064\1031200(\1084049\DLE{?\140026\&0\t%.\143878\n\72099f\DC3m{35l\"\988249\&0\ESC<\SIdrU\1001687"}), irInviteeEmail = Email {emailLocal = "$5ODQ\1096300", emailDomain = "n\DC3"}, irInviteePhone = Just (Phone {fromPhone = "+2421729268848"})}
+testObject_InvitationRequest_team_8 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KS, lCountry = Just (Country {fromCountry = NL})}), irRole = Nothing, irInviteeName = Just (Name {fromName = "\1036838&f\1104978\1021739j5\CANv]k\1034960\993099c[\1019257\1047325\EOTw.uL~/"}), irInviteeEmail = Email {emailLocal = "\1031836\SUBh\ETBb\SI", emailDomain = ""}, irInviteePhone = Just (Phone {fromPhone = "+6639325273"})}
+
 testObject_InvitationRequest_team_9 :: InvitationRequest
-testObject_InvitationRequest_team_9 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.IA, lCountry = Just (Country {fromCountry = MX})}), irRole = Just RoleAdmin, irInviteeName = Just (Name {fromName = "~+"}), irInviteeEmail = Email {emailLocal = "\t\178698D\181275G", emailDomain = "3\163093_\NULW\v"}, irInviteePhone = Just (Phone {fromPhone = "+013003227583"})}
+testObject_InvitationRequest_team_9 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KJ, lCountry = Just (Country {fromCountry = FJ})}), irRole = Just RoleAdmin, irInviteeName = Just (Name {fromName = "|H\181717/%\RSu\1019619\&7V\142010\62451*G\SOHE\993531,\1015423WGtY\SYN*Nd\156695{Pl"}), irInviteeEmail = Email {emailLocal = "\\\175244", emailDomain = ""}, irInviteePhone = Just (Phone {fromPhone = "+69141326"})}
+
 testObject_InvitationRequest_team_10 :: InvitationRequest
-testObject_InvitationRequest_team_10 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.EN, lCountry = Just (Country {fromCountry = HT})}), irRole = Nothing, irInviteeName = Just (Name {fromName = "\1046521$#\NUL\1008412\1100209M\EM\164683\54132&~:f\1084370\156022\DLEyt/q$\t\ESC\1108432\1096539\f\ACK\50819\STX\ENQ!\NUL\168473\25434\&7\187732)0\70018-R\52146`\"t3FU7YaoD_3?\180146zh"}), irInviteeEmail = Email {emailLocal = "\163122u\174356$", emailDomain = "U$$\1094370\142198"}, irInviteePhone = Nothing}
+testObject_InvitationRequest_team_10 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.NY, lCountry = Just (Country {fromCountry = OM})}), irRole = Just RoleMember, irInviteeName = Just (Name {fromName = "H\1008404\RS\45861\92335uv\1045159\DC2\1045852\SUB \160164=a\ESC4H,B\CAN\1039540GpV0\1044935;_\NUL\173370Z\DC1\28376\NAK6\32784'W9z\11986\t\59610r\150374\1057016\SYN_ge\35917\EOTD\94732o\an>\993583"}), irInviteeEmail = Email {emailLocal = "\1010285\f\ACK\DLE^s", emailDomain = "d"}, irInviteePhone = Just (Phone {fromPhone = "+3547398978719"})}
+
 testObject_InvitationRequest_team_11 :: InvitationRequest
-testObject_InvitationRequest_team_11 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.EN, lCountry = Just (Country {fromCountry = IE})}), irRole = Just RoleAdmin, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "K\bk71", emailDomain = "OKq\EM\EM#"}, irInviteePhone = Just (Phone {fromPhone = "+42189764819"})}
+testObject_InvitationRequest_team_11 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SI, lCountry = Nothing}), irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "\167004\41433\11577\74832h_5bb2}\46841\166935P\NUL\SOT*\US`b\170964\SI:4\n5\SUB\GS*T\1016149Bv\ESC\ETX\GS\1050773\175887Uu\r_\DLE)y\153990\EOT\b\US\DC4\FS\CAN?\1050027\149716\22398\NAK\SUB4\v 5\NULi\43113o=\tnG\37464\ETBiC\DC39\SOP\1026840\n\v\EM\SYNU\7800%\49334\DC2\USF\FS"}), irInviteeEmail = Email {emailLocal = "\SOH\NUL\1016497nJ", emailDomain = "t\STX."}, irInviteePhone = Just (Phone {fromPhone = "+861174152363"})}
+
 testObject_InvitationRequest_team_12 :: InvitationRequest
-testObject_InvitationRequest_team_12 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.LA, lCountry = Just (Country {fromCountry = SX})}), irRole = Just RoleExternalPartner, irInviteeName = Just (Name {fromName = "$\11726\&8\FS[\1013387\22816\&1ad\73742m<\147965\DC1Po\1108407d\US:\1113347\15095{\1057114@\51202>'\1054880~*&'lqIsQT\ENQ"}), irInviteeEmail = Email {emailLocal = "\170167", emailDomain = "\995030\nR\RS"}, irInviteePhone = Just (Phone {fromPhone = "+480565638"})}
+testObject_InvitationRequest_team_12 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.AR, lCountry = Just (Country {fromCountry = PA})}), irRole = Nothing, irInviteeName = Just (Name {fromName = "_\EM@\GS0\52658\1041209\1014911\FS\DLE\1100406!\1081838\SOc\US\NUL\SOH>\1074611\168456\EM\175538\&1}!h0\DLE\1053201w\EOT\1073681\&1aJ6c\GS\986890b\131925{\996638\131443\a\1094281"}), irInviteeEmail = Email {emailLocal = "\1108640\1081336", emailDomain = ""}, irInviteePhone = Just (Phone {fromPhone = "+498796466910243"})}
+
 testObject_InvitationRequest_team_13 :: InvitationRequest
-testObject_InvitationRequest_team_13 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SS, lCountry = Just (Country {fromCountry = AG})}), irRole = Nothing, irInviteeName = Just (Name {fromName = "\NAK\a6\1070724F=\1008534\1066459\DELi\f9v\CAN<u\n\164392\1065947}\DEL9x\1087605\&0\1089077\"Xx\\jD\1109548|Wg\n\65888\DC1\r\DC1Hh\28919\30342\STXH#\f\1066534L\155159\27765\42897\33932\r\1038172|\150548s\28292\1081546U\47235.r)F"}), irInviteeEmail = Email {emailLocal = "}\1047911\RS", emailDomain = ""}, irInviteePhone = Nothing}
+testObject_InvitationRequest_team_13 = InvitationRequest {irLocale = Nothing, irRole = Nothing, irInviteeName = Just (Name {fromName = "C\990664+\1033671\n#s\1072813\FSpb\SOH\1015233\1073302\&1\ETBE_\CANj\EMV\US\1063126\15431\1099470lO8\ACK\1056562\FS\SYN\CAN\DLE6\137862-beR!s\48584\ETB\v\1049375\984016xt\SIRf~w\1030329\DEL+_\70046\&91:,\1034030#cf\1056279\3624\2548\6959B\"\1097722F\t\1109914\1069782/\DEL\DLE'\1004715*\171262\&7\156200w\1061410H\59715x\DC32\EMt\163668o6\DC4F%=t\1003324\1097336=\NUL\ENQA\1101771\1011923\NUL\EOT[i\992519@\b\FS\f"}), irInviteeEmail = Email {emailLocal = "\NULr", emailDomain = "c,"}, irInviteePhone = Just (Phone {fromPhone = "+82438666720661"})}
+
 testObject_InvitationRequest_team_14 :: InvitationRequest
-testObject_InvitationRequest_team_14 = InvitationRequest {irLocale = Nothing, irRole = Just RoleOwner, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "\1046925}\SYN\1040642\a5", emailDomain = ""}, irInviteePhone = Just (Phone {fromPhone = "+00200197"})}
+testObject_InvitationRequest_team_14 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.DV, lCountry = Just (Country {fromCountry = LB})}), irRole = Just RoleAdmin, irInviteeName = Just (Name {fromName = "\NAKwGn\996611\149528\&1}\EOTgY.>=}"}), irInviteeEmail = Email {emailLocal = "", emailDomain = "\v"}, irInviteePhone = Just (Phone {fromPhone = "+08345603"})}
+
 testObject_InvitationRequest_team_15 :: InvitationRequest
-testObject_InvitationRequest_team_15 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SQ, lCountry = Just (Country {fromCountry = SZ})}), irRole = Just RoleAdmin, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = ":\141352=n\DC2", emailDomain = "w#%"}, irInviteePhone = Just (Phone {fromPhone = "+90119298580172"})}
+testObject_InvitationRequest_team_15 = InvitationRequest {irLocale = Nothing, irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "y\1104714\&5\1000317\710S\1019005\DC4\rH/_\DC3A\ETX\119343\&0w\GS?TQd*1&[?cHW}\21482\1021206\CAN\180566Q+\ETXmh\995371X\SO\ENQ\DC1^g\144398\bqrNV\SO\1095058WMe\a\ENQ"}), irInviteeEmail = Email {emailLocal = "U", emailDomain = "\1082936"}, irInviteePhone = Just (Phone {fromPhone = "+19939600"})}
+
 testObject_InvitationRequest_team_16 :: InvitationRequest
-testObject_InvitationRequest_team_16 = InvitationRequest {irLocale = Nothing, irRole = Just RoleExternalPartner, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "\GS\FS\164163", emailDomain = "_2<8\GSu"}, irInviteePhone = Nothing}
+testObject_InvitationRequest_team_16 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.OM, lCountry = Just (Country {fromCountry = BJ})}), irRole = Just RoleAdmin, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "\22759", emailDomain = "\SOH"}, irInviteePhone = Just (Phone {fromPhone = "+3394446441"})}
+
 testObject_InvitationRequest_team_17 :: InvitationRequest
-testObject_InvitationRequest_team_17 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.LT, lCountry = Nothing}), irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "\1069521\996037\1027805\15948\998400"}), irInviteeEmail = Email {emailLocal = "\181870L*", emailDomain = "6\"\RS\ACK"}, irInviteePhone = Just (Phone {fromPhone = "+89479829625937"})}
+testObject_InvitationRequest_team_17 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KJ, lCountry = Just (Country {fromCountry = TC})}), irRole = Just RoleExternalPartner, irInviteeName = Nothing, irInviteeEmail = Email {emailLocal = "3\fC\ETB\"", emailDomain = "\SOH0x\120290"}, irInviteePhone = Just (Phone {fromPhone = "+403706662"})}
+
 testObject_InvitationRequest_team_18 :: InvitationRequest
-testObject_InvitationRequest_team_18 = InvitationRequest {irLocale = Nothing, irRole = Nothing, irInviteeName = Just (Name {fromName = "w\50517\ENQc|\6028\1095515kS\ETXp\GS\ESC\47111\1085502e\1053081\183200\f\1080313XQ\ENQ\r\CAN\1001690k\1080723\rC"}), irInviteeEmail = Email {emailLocal = "", emailDomain = "v\NAK"}, irInviteePhone = Just (Phone {fromPhone = "+36613212"})}
+testObject_InvitationRequest_team_18 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KU, lCountry = Nothing}), irRole = Just RoleExternalPartner, irInviteeName = Just (Name {fromName = "8VPAp\137681\&2L<s\ACKt]\1051893\1028831G/\SIQb\1099332<\62973B\DC3\995191kJ&\1028424\DLE\a \66433\SO\987741\1099076$\99376\"u2g\ENQ[<.N;%\EMsm\43781*\1030957s\184809DsCowW-\1069896&EF=\\H\NAK,Z\rJ\ETBw-\STX\ahC`\1077061\52563\&1Ds^7Udh+e\fL Ld\ESCh&\1000121\1102718\1028691;\142313\a\985672Xp\26072\SOP\b\t\187311\1063310.\DEL\RSp"}), irInviteeEmail = Email {emailLocal = "\b\ACKb\n0", emailDomain = "UJj&\38833"}, irInviteePhone = Just (Phone {fromPhone = "+8522016506548"})}
+
 testObject_InvitationRequest_team_19 :: InvitationRequest
-testObject_InvitationRequest_team_19 = InvitationRequest {irLocale = Nothing, irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "C:Z\SOr\SI=?`d\1045263\3731\v\1055117\EM\t\154360H2\1084117\t\SYN9\1031209F?`0P\b^Iyq\94995\18567-jpmHf>1p \1004109x\GS\b\STX\1046973\989405"}), irInviteeEmail = Email {emailLocal = "\DEL", emailDomain = "R$l\1000415"}, irInviteePhone = Just (Phone {fromPhone = "+15753647239"})}
+testObject_InvitationRequest_team_19 = InvitationRequest {irLocale = Nothing, irRole = Just RoleAdmin, irInviteeName = Just (Name {fromName = "kl\ETX\EOT\SYN%s7\1031959fX\994905A\b7\DC1\DELD\EOT\DC1\165155s\DELg)dD\157274Rx[\1026892Tw\68117\RS\SUB\1049684z\\\SI\ENQ\17054l\1089470l|oKc\\(\187173\1101164=\33052\&2VI*\1095067\&2oTh&#+;o\5017dXA\12103=*\1074686Q\1032360{\994965\917585\&5}\GS9D\186360\1064921r\1080854P:<!|\1002411\v4Pt1\983861g\b\STX\152876\rfY\135334$\DEL_\54841\"\1035381\&8"}), irInviteeEmail = Email {emailLocal = "{:\1084510\43947", emailDomain = "q{(>}\177749"}, irInviteePhone = Just (Phone {fromPhone = "+858466407644169"})}
+
 testObject_InvitationRequest_team_20 :: InvitationRequest
-testObject_InvitationRequest_team_20 = InvitationRequest {irLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.HR, lCountry = Just (Country {fromCountry = HN})}), irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "$\164767r\v\1100438r\1050177\DC3P\1035889\39235>Er#\146770\161205\162406\163787\EM"}), irInviteeEmail = Email {emailLocal = "2\14206\&6x", emailDomain = "\1067480!A\1004653"}, irInviteePhone = Nothing}
+testObject_InvitationRequest_team_20 = InvitationRequest {irLocale = Nothing, irRole = Just RoleOwner, irInviteeName = Just (Name {fromName = "N\1014949\3115qE\1086743,\1069753\1076493\&3-19bY\"Iz|BpQ\1112885\"\ACKdfC\1095189p\SO\1038198%-Z\SUB\1082854!Z\156657d\va\174302\ESC\b\ESCg\DELb\b\1009771\995646X}\STX\\^\1091690\&9\58052\1113953"}), irInviteeEmail = Email {emailLocal = "\1086165X|J{", emailDomain = "^"}, irInviteePhone = Just (Phone {fromPhone = "+07068986589"})}

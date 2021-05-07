@@ -1,58 +1,90 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.ConversationCode_user where
-import Data.Code ( Key(Key, asciiKey), Value(Value, asciiValue) )
-import Data.Coerce ( coerce )
-import Data.Misc ( HttpsUrl(HttpsUrl) )
-import Data.Range ( unsafeRange )
-import Data.Text.Ascii ( AsciiChars(validate) )
-import Imports ( Maybe(Nothing, Just), undefined, fromRight )
+
+import Data.Code (Key (Key, asciiKey), Value (Value, asciiValue))
+import Data.Coerce (coerce)
+import Data.Misc (HttpsUrl (HttpsUrl))
+import Data.Range (unsafeRange)
+import Data.Text.Ascii (AsciiChars (validate))
+import Imports (Maybe (Just, Nothing), fromRight, undefined)
 import URI.ByteString
-    ( URIRef(URI, uriScheme, uriAuthority, uriPath, uriQuery,
-             uriFragment),
-      Authority(Authority, authorityUserInfo, authorityHost,
-                authorityPort),
-      Host(Host, hostBS),
-      Query(Query, queryPairs),
-      Scheme(Scheme, schemeBS) )
-import Wire.API.Conversation.Code ( ConversationCode(..) )
+  ( Authority
+      ( Authority,
+        authorityHost,
+        authorityPort,
+        authorityUserInfo
+      ),
+    Host (Host, hostBS),
+    Query (Query, queryPairs),
+    Scheme (Scheme, schemeBS),
+    URIRef
+      ( URI,
+        uriAuthority,
+        uriFragment,
+        uriPath,
+        uriQuery,
+        uriScheme
+      ),
+  )
+import Wire.API.Conversation.Code (ConversationCode (..))
 
 testObject_ConversationCode_user_1 :: ConversationCode
-testObject_ConversationCode_user_1 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("9Vw9fbGIGq5MUY2UyaEq")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("9VQ6NhZ8BBO")))))}, conversationUri = Nothing}
+testObject_ConversationCode_user_1 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("M0vnbETaqAgL8tv5Z1_x")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("sEG3Y60tIsd9P3")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_2 :: ConversationCode
-testObject_ConversationCode_user_2 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("FNEoIiudDsf=5z8WQ2Sc")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("PsPS23")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_2 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("NEN=eLUWHXclTp=_2Nap")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("lLz-9vR8ENum0kI-xWJs")))))}, conversationUri = Nothing}
+
 testObject_ConversationCode_user_3 :: ConversationCode
-testObject_ConversationCode_user_3 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Y5b2ejmmavggT_TLToK5")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("dv3T=B0d7omt")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_3 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("0=qjmkA4cwBtH_7sh1xk")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("XRuFWme95W-BwO_Ftz")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_4 :: ConversationCode
-testObject_ConversationCode_user_4 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("7fH1RFACa3a9ulQdfuPE")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("Y=3ZDi1bXW7gWM9RGcn")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_4 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("voBZnPMFx8w7qHTJMP7Y")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("fEPoIgD4yWs0mBa-bJ3")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_5 :: ConversationCode
-testObject_ConversationCode_user_5 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("x3YC27DVClm3EFcdcvvl")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("zZruNO")))))}, conversationUri = Nothing}
+testObject_ConversationCode_user_5 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("05wvfrdJeHp6rJprZgWB")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("3UvuxN9u")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_6 :: ConversationCode
-testObject_ConversationCode_user_6 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("QjgxhkpSu0MwXRerLGMP")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("l7SdenZB-_Rd")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_6 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("-luNrgw7W3X0kFR4izG0")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("ju-=kF9RH8Jd")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_7 :: ConversationCode
-testObject_ConversationCode_user_7 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("oEn3ROKP8Z4BXyO6A9XN")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("ogQd4KH")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_7 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("YUZI4FpWueY0v_l9_JQa")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("L7vTY6vgEeYGzTBtcL")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_8 :: ConversationCode
-testObject_ConversationCode_user_8 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("pITuryIn_CUtgpCjbGfv")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("kUK2QYavcFoBkzyGV")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_8 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("bY-JjZMrTX8teN75SHjn")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("rkSyHahGe=J-lDQ45S")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_9 :: ConversationCode
-testObject_ConversationCode_user_9 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("rqsP0kDPpDu4kcaVQmML")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("pM5-4yGtxiuxqg")))))}, conversationUri = Nothing}
+testObject_ConversationCode_user_9 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Keb12zuEIzF7IUsB6SfQ")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("-L5q5MU16hmMXL")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_10 :: ConversationCode
-testObject_ConversationCode_user_10 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("pVl3ICzhHKfd-lHEqHOq")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("NGDd2akXFfYy6XV")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_10 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("1zhL_Hp9mlkMM3OW47I8")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("2VrAbmBi1")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_11 :: ConversationCode
-testObject_ConversationCode_user_11 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("KVyMxCwAEYBRmd1xWwRi")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("Be8s7vcpOv")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_11 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("ReyDOsYF_D5HyDMX81FP")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("FRpchhjXoWB2")))))}, conversationUri = Nothing}
+
 testObject_ConversationCode_user_12 :: ConversationCode
-testObject_ConversationCode_user_12 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("P4tg3qjDnqqQbkU3c9hE")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("kNKEwjBN0bYn2ls")))))}, conversationUri = Nothing}
+testObject_ConversationCode_user_12 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("u2EODzrdg6Z7aAgci4MV")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("kMx3bFGd")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_13 :: ConversationCode
-testObject_ConversationCode_user_13 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("DpVl2QxpSGwOCQPq_ZAo")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("05SySW9q9l2g")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_13 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("16xoACse_WkiFLw1S6w7")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("3acAKsrSdrIHN")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_14 :: ConversationCode
-testObject_ConversationCode_user_14 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("pJYhvWrWPfOCuF8j8tr9")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("6703O1J4XS")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_14 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("skREPTCY5lQiIoT5_sCo")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("mCwcpFiVwi=1ORILCy5l")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_15 :: ConversationCode
-testObject_ConversationCode_user_15 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("xO5iK2WmwPXi2E2FBVB5")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("znQy4O")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_15 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("4VKcH84qTo23jJvTUv8O")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("wUEY-g7")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_16 :: ConversationCode
-testObject_ConversationCode_user_16 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("Xa7dcOooAoK21dT1QuKm")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("QLlJ4mr0P3w")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_16 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("2zRLkYlMAPXsQKL1CM3e")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("XXxpZiqgIwPzcfUBdZh0")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_17 :: ConversationCode
-testObject_ConversationCode_user_17 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("IPOa-TeDhah_SJvLqfs-")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("rn1jCAIo7")))))}, conversationUri = Nothing}
+testObject_ConversationCode_user_17 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("KXXYAV8HosezGSSpNhqR")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("-aQqXyAyXO21ucrJhBQ")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_18 :: ConversationCode
-testObject_ConversationCode_user_18 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("mOiXg-9hxmbvc9_vI_c3")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("H6C461r5a7IP=R9")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_18 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("jwP8Otm06gVqxYkvSEmm")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("tSN=4EHIKYVAJz=Ycax")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_19 :: ConversationCode
-testObject_ConversationCode_user_19 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("HvY3l9FxtPAVkCJd_adz")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("9vSa=PA6KQ-Ckg")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_19 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("gk_qLO=OSCUiGqJNRfE3")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("FHEnKf")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+
 testObject_ConversationCode_user_20 :: ConversationCode
-testObject_ConversationCode_user_20 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("CiMBD2jv5blREzuN1kxA")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("WKuAvgxDl_B")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}
+testObject_ConversationCode_user_20 = ConversationCode {conversationKey = Key {asciiKey = (unsafeRange ((fromRight undefined (validate ("xCco2bPKwJ6xf0DGH2a7")))))}, conversationCode = Value {asciiValue = (unsafeRange ((fromRight undefined (validate ("3jUkNeT")))))}, conversationUri = Just (coerce URI {uriScheme = Scheme {schemeBS = "https"}, uriAuthority = Just (Authority {authorityUserInfo = Nothing, authorityHost = Host {hostBS = "example.com"}, authorityPort = Nothing}), uriPath = "", uriQuery = Query {queryPairs = []}, uriFragment = Nothing})}

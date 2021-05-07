@@ -17,11 +17,11 @@
 
 module Test.Wire.API.Golden.Generator where
 
+import Data.Id
 import Imports
+import System.IO (Handle, hPutStr, hPutStrLn, openFile)
 import Test.Tasty.QuickCheck (Arbitrary (..), generate)
 import Type.Reflection (typeRep)
-
-import Data.Id
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
 import qualified Wire.API.Call.Config as Call.Config
@@ -66,7 +66,6 @@ import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
 import qualified Wire.API.Wrapped as Wrapped
-import System.IO (openFile, hPutStr, hPutStrLn, Handle)
 
 type Ref = IORef [(FilePath, [(String, FilePath)])]
 
@@ -76,19 +75,27 @@ type Ref = IORef [(FilePath, [(String, FilePath)])]
 -- patched Show instances for certain types. Furthermore, a
 -- substitution must be run on the generated code. This is done
 -- automatically by the gentests.sh script.
-generateBindingModule' :: forall a . (Arbitrary a, Show a)
-                       => String -> String -> Ref -> IO ()
+generateBindingModule' ::
+  forall a.
+  (Arbitrary a, Show a) =>
+  String ->
+  String ->
+  Ref ->
+  IO ()
 generateBindingModule' typeName section ref = do
   tmpdir <- getEnv "GOLDEN_TMPDIR"
   objects <- replicateM 20 (generate (arbitrary @a))
-  let escape c | isAlphaNum c = [c]
-               | ord c < 256 = ['_',
-                                intToDigit (ord c `div` 16),
-                                intToDigit (ord c `mod` 16)]
-               | otherwise = ""
+  let escape c
+        | isAlphaNum c = [c]
+        | ord c < 256 =
+          [ '_',
+            intToDigit (ord c `div` 16),
+            intToDigit (ord c `mod` 16)
+          ]
+        | otherwise = ""
       moduleName = (typeName >>= escape) <> "_" <> section
       varName n = "testObject_" <> moduleName <> "_" <> show n
-      fileName n =  varName n <> ".json"
+      fileName n = varName n <> ".json"
       numberedObjs = zip [1 :: Int ..] objects
       generateBinding h n o = do
         hPutStrLn h $ varName n <> " :: " <> typeName
@@ -100,8 +107,12 @@ generateBindingModule' typeName section ref = do
   hClose h
   putStrLn (moduleName <> " " <> section)
 
-generateBindingModule :: forall a . (Arbitrary a, Show a, Typeable a)
-                      => String -> Ref -> IO ()
+generateBindingModule ::
+  forall a.
+  (Arbitrary a, Show a, Typeable a) =>
+  String ->
+  Ref ->
+  IO ()
 generateBindingModule = generateBindingModule' @a (show (typeRep @a))
 
 generateImports :: Handle -> (FilePath, [(String, FilePath)]) -> IO ()

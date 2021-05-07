@@ -1,45 +1,68 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.EmailUpdate_user where
+
 import Wire.API.User
-    ( Email(Email, emailLocal, emailDomain), EmailUpdate(..) )
+  ( Email (Email, emailDomain, emailLocal),
+    EmailUpdate (..),
+  )
 
 testObject_EmailUpdate_user_1 :: EmailUpdate
-testObject_EmailUpdate_user_1 = EmailUpdate {euEmail = Email {emailLocal = "YX\DC3\ENQ\38008\DEL\NAKw\95101!\8554aW\135497EHH\59925", emailDomain = "W~\SOH`La=\1087096\NUL_\1038761\1015319\ETXQ)W_\1107406.\""}}
+testObject_EmailUpdate_user_1 = EmailUpdate {euEmail = Email {emailLocal = "<&\DELaW1q|0.n\EM", emailDomain = "p\1107865\1021976l_R\141868l=;\1049523\&7u\"\DLE1}wm{\CAN}"}}
+
 testObject_EmailUpdate_user_2 :: EmailUpdate
-testObject_EmailUpdate_user_2 = EmailUpdate {euEmail = Email {emailLocal = ">=U\DC4!\991789#\73896\ENQ\ETB\RS\17794-\991943+\1042186\ENQ\NUL\NUL\120866q:", emailDomain = "iourn$yk6e\SI\ETB\aM':k\DC1y?:[\40165f"}}
+testObject_EmailUpdate_user_2 = EmailUpdate {euEmail = Email {emailLocal = "C\78599|g\1035896(4", emailDomain = ""}}
+
 testObject_EmailUpdate_user_3 :: EmailUpdate
-testObject_EmailUpdate_user_3 = EmailUpdate {euEmail = Email {emailLocal = "\1016543\28467:\1008825\DEL\166157\v", emailDomain = "\"\1047876\&6\1069585u\DEL\DEL"}}
+testObject_EmailUpdate_user_3 = EmailUpdate {euEmail = Email {emailLocal = "uA76\1057701c\136605\DC3\148218\SOHU0]Ds$L", emailDomain = "/\16026 u\1112080\DC3Pq\GSev\25066\1029859\16008"}}
+
 testObject_EmailUpdate_user_4 :: EmailUpdate
-testObject_EmailUpdate_user_4 = EmailUpdate {euEmail = Email {emailLocal = "6V\27587\1061187mObIq\1023145\ETB\DC4<8$\144739\45553G\990068\173197", emailDomain = "\DEL\DC2"}}
+testObject_EmailUpdate_user_4 = EmailUpdate {euEmail = Email {emailLocal = ":|\172071WYA\a`OS\DC3\NAK\1060128\1109387u\v-\DC3F2B\1009753'z\ENQ}4[", emailDomain = "6\147383C\153603\1016221V\1091182\&8\"\SOHM\168763\58271l"}}
+
 testObject_EmailUpdate_user_5 :: EmailUpdate
-testObject_EmailUpdate_user_5 = EmailUpdate {euEmail = Email {emailLocal = "X\998872h,\"\bo]\19379*=H\16934\DLE\n\DC2]^\159072_\23036_|", emailDomain = "T3G\163182\f^\986752LNx)\9546\160150\ETB,0\12327(\7949N7\180777\NULvd"}}
+testObject_EmailUpdate_user_5 = EmailUpdate {euEmail = Email {emailLocal = "0a\10920\DC2n\FS!a;*l\55139Z\b\EM\NUL\NUL\1060546\RSj\\\95672_;\STX", emailDomain = "I\65075j\1014141byd\155419K\129140\74591\1098637mwP"}}
+
 testObject_EmailUpdate_user_6 :: EmailUpdate
-testObject_EmailUpdate_user_6 = EmailUpdate {euEmail = Email {emailLocal = "\137932\31079w\1074026$\GS)\STXA \DC4Z<3\n4V4\1085817\1103230\1007070\1003335", emailDomain = "f"}}
+testObject_EmailUpdate_user_6 = EmailUpdate {euEmail = Email {emailLocal = "\DELcom0$p\50570/\FS\1044616\1015174\SIN\1072010,", emailDomain = "\GS\1004969\155070,\41398/qeT&\152655\a\45871}\ETB\45684\1113465\1002232#\183342\&0\20887\&9),4F"}}
+
 testObject_EmailUpdate_user_7 :: EmailUpdate
-testObject_EmailUpdate_user_7 = EmailUpdate {euEmail = Email {emailLocal = "O4C\NAK\NAKT\175806h^=\NULf\fy\34686]\9125Q\995935\"z\135966E\1051698\156977Fl\983976\EM\1091547", emailDomain = "!`RK["}}
+testObject_EmailUpdate_user_7 = EmailUpdate {euEmail = Email {emailLocal = "-\53892\62061", emailDomain = "\a$\12768Be\1072209\fS7.\12322\NUL\2873\r+k>Z:E\ETXhX$?"}}
+
 testObject_EmailUpdate_user_8 :: EmailUpdate
-testObject_EmailUpdate_user_8 = EmailUpdate {euEmail = Email {emailLocal = "L\"^", emailDomain = "N\US\\!D\1097910GwG\ETXtjswAk#|\191055"}}
+testObject_EmailUpdate_user_8 = EmailUpdate {euEmail = Email {emailLocal = "\EMf\\\SOdD9#XfnL!\995008\ACK\FSZ\53254U", emailDomain = ")\34765\1018468x9~t)Dd;P\ESC\1024361.M(p\1050395pCz\1103678\1001284\SI\ENQ\ACK{\1016539\1101104"}}
+
 testObject_EmailUpdate_user_9 :: EmailUpdate
-testObject_EmailUpdate_user_9 = EmailUpdate {euEmail = Email {emailLocal = "`OV\134633\ETX\51389\US2hi\b3\1017714\DC1\74625\tH\191292\96836\190007x%*%E\986636\165308#\FS\US", emailDomain = "swD\95575\95260Ir"}}
+testObject_EmailUpdate_user_9 = EmailUpdate {euEmail = Email {emailLocal = "\FS\SI,n}\13385", emailDomain = "x8\GS"}}
+
 testObject_EmailUpdate_user_10 :: EmailUpdate
-testObject_EmailUpdate_user_10 = EmailUpdate {euEmail = Email {emailLocal = "Uc\1082881\131848zL)m\100184Rd] \t`z\GSQ\STX\984158\1047784]\1105969rf%\1108110\DEL", emailDomain = "i\DC1S\11999\NULH\NULFL\120219"}}
+testObject_EmailUpdate_user_10 = EmailUpdate {euEmail = Email {emailLocal = "r)\158517\SI\DEL\ETB\STX\1072857\DC4*$", emailDomain = "\27680\1111520h\1022893\27692\1014774|=Bb\177401X"}}
+
 testObject_EmailUpdate_user_11 :: EmailUpdate
-testObject_EmailUpdate_user_11 = EmailUpdate {euEmail = Email {emailLocal = "aP\186896\n\65307\DEL\1083470", emailDomain = "\1022727]~\161382\18359\SYNP\t\ESC0\GS\1012361BD!?K\EM9\19702t"}}
+testObject_EmailUpdate_user_11 = EmailUpdate {euEmail = Email {emailLocal = ".", emailDomain = "i4N\1006864f'\GSh\132316\189403\29546x54\48183h"}}
+
 testObject_EmailUpdate_user_12 :: EmailUpdate
-testObject_EmailUpdate_user_12 = EmailUpdate {euEmail = Email {emailLocal = "^\1007681\988922", emailDomain = ")\ETB\989079\t5\DC1'\983683^z0, w\55279\STX\ESC7\DC1\aF^\184704\92718,\SUB"}}
+testObject_EmailUpdate_user_12 = EmailUpdate {euEmail = Email {emailLocal = "\1066242\ENQo`\ENQebt*\119006!", emailDomain = "\152953\169628Fk\DC3\DC1Dq\SYN|0 c\fY\1088003\988616"}}
+
 testObject_EmailUpdate_user_13 :: EmailUpdate
-testObject_EmailUpdate_user_13 = EmailUpdate {euEmail = Email {emailLocal = "8\1113867?\150127!", emailDomain = "\NAK\28885\7893c\a\1026289t\DEL\nj\STX(\DC2C\1089482\160237w\DC4+~"}}
+testObject_EmailUpdate_user_13 = EmailUpdate {euEmail = Email {emailLocal = "5\1109085SV'\7023\169487fR\SOHa:L\184444\SOH`\CANY", emailDomain = "Yt3l5\145133\1054884j\1087288\1103021&"}}
+
 testObject_EmailUpdate_user_14 :: EmailUpdate
-testObject_EmailUpdate_user_14 = EmailUpdate {euEmail = Email {emailLocal = "t\184430\RS\"+v\ETX\45677\a\DC3\SUB\1017996\67295", emailDomain = "C\1063062g\157484\1103751E\ESC\NAK\DEL39\1102788fW\1099031\1006727\1019529Sg\STX\b\DC3^"}}
+testObject_EmailUpdate_user_14 = EmailUpdate {euEmail = Email {emailLocal = "\140912\993263r.", emailDomain = "\EM\54387\176848q\CANT:`]a$J\DC3'\179878\1010553"}}
+
 testObject_EmailUpdate_user_15 :: EmailUpdate
-testObject_EmailUpdate_user_15 = EmailUpdate {euEmail = Email {emailLocal = "", emailDomain = "}\SYNn<\145443\1005474O<>d\163627\r+\1043694e\45874u\DC2f?'\1019960nb-"}}
+testObject_EmailUpdate_user_15 = EmailUpdate {euEmail = Email {emailLocal = "8ao\5201Q", emailDomain = "8T\110875\FS\1001671\1104097\NUL\ETX\5639\ENQ\1078168HZ\185913[rr27\1037003\5689"}}
+
 testObject_EmailUpdate_user_16 :: EmailUpdate
-testObject_EmailUpdate_user_16 = EmailUpdate {euEmail = Email {emailLocal = "\1085498\ETBm\41838a", emailDomain = "\10025`t`\RS}b\66760"}}
+testObject_EmailUpdate_user_16 = EmailUpdate {euEmail = Email {emailLocal = "\SI\20925\"\DC2\rn\GS\1082759J(?]\US\1002518$7\136749\&7J\1019807p\EMi", emailDomain = "Q`6_\SYN\DC3\1055256\&5hv\23871\n\SI\171070)\64498\b\ENQ\nA\1450T\94210"}}
+
 testObject_EmailUpdate_user_17 :: EmailUpdate
-testObject_EmailUpdate_user_17 = EmailUpdate {euEmail = Email {emailLocal = "\1111656\2841\&6ET?f24\SOH\5042Q\DLEt\tot", emailDomain = "l[\"m\984505\SUB|$N\DLEH\1061855\FS\18526\1067504?|z9;^\42504"}}
+testObject_EmailUpdate_user_17 = EmailUpdate {euEmail = Email {emailLocal = "64A\999241\GS\DC1\DLE\7404\GSj", emailDomain = "\136875=\156122\f\ENQr\DC2Ga\25747\ETX/\55110G\NULk=\NAKq\1073443R}Ts\ETX\f\1027779\1088335\&2"}}
+
 testObject_EmailUpdate_user_18 :: EmailUpdate
-testObject_EmailUpdate_user_18 = EmailUpdate {euEmail = Email {emailLocal = "2\\\1010443O\1064480E626S\t\GSPa\EMG\ESC-\FS", emailDomain = "{`'\ETB\1072401F7H\984884\1041368=8\DLEk\1100086\1082935\rU"}}
+testObject_EmailUpdate_user_18 = EmailUpdate {euEmail = Email {emailLocal = "9L\ESC\DC3\32248/F\154604O\1061945>\bx;2\148788\&0\US", emailDomain = " {\"_\v\1092033\1041960\1066771\1088769\EMJ%\1005251yy\SUB\1040487t>xoC"}}
+
 testObject_EmailUpdate_user_19 :: EmailUpdate
-testObject_EmailUpdate_user_19 = EmailUpdate {euEmail = Email {emailLocal = "\986618\b\18616\EOT|\DLE?\1062901(\ETX\188868]\1052839'\STXe\63503", emailDomain = "\ACKT>%\1064383\164895\RS\187129\&1\19615\&5Y\\&n#k7\1047668\50330q"}}
+testObject_EmailUpdate_user_19 = EmailUpdate {euEmail = Email {emailLocal = "\178973\1040124E\FS\SUB\126215\NAKC%\988145\ACK\US\DC1a8\r\64887E\990883%\178650\185749;|\GS", emailDomain = "1+,\135308\&83"}}
+
 testObject_EmailUpdate_user_20 :: EmailUpdate
-testObject_EmailUpdate_user_20 = EmailUpdate {euEmail = Email {emailLocal = "ioRk\ETB4\32502\US-", emailDomain = "}p\ETX\191087<>\SUB1eP\NUL?O\985525\ESC\1112444N?\167051\28849`$\27807XA\37207\SOHb\143091"}}
+testObject_EmailUpdate_user_20 = EmailUpdate {euEmail = Email {emailLocal = "e\NAKV\bD\SOH88Kh\FS\169565D4\1089993\36544zg\RS", emailDomain = ":\174380D\ENQy+\DC4k>]\60696\ETB\FSr\1010033aWSw\a\6023\&6\RS\99409f"}}

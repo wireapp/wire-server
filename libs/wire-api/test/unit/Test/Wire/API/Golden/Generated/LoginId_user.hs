@@ -1,47 +1,70 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.LoginId_user where
-import Data.Handle ( Handle(Handle, fromHandle) )
+
+import Data.Handle (Handle (Handle, fromHandle))
 import Wire.API.User
-    ( Email(Email, emailLocal, emailDomain), Phone(Phone, fromPhone) )
-import Wire.API.User.Auth ( LoginId(..) )
+  ( Email (Email, emailDomain, emailLocal),
+    Phone (Phone, fromPhone),
+  )
+import Wire.API.User.Auth (LoginId (..))
 
 testObject_LoginId_user_1 :: LoginId
-testObject_LoginId_user_1 = LoginByHandle (Handle {fromHandle = "0z7hpxhck66f13dcgh"})
+testObject_LoginId_user_1 = LoginByEmail (Email {emailLocal = "~]z^?j\NAK\1088399\1112814X{)\1087092t\f", emailDomain = "\1113045\n\vL$\ENQY\NUL\DELUj?H%"})
+
 testObject_LoginId_user_2 :: LoginId
-testObject_LoginId_user_2 = LoginByHandle (Handle {fromHandle = "ovb2"})
+testObject_LoginId_user_2 = LoginByPhone (Phone {fromPhone = "+178807168"})
+
 testObject_LoginId_user_3 :: LoginId
-testObject_LoginId_user_3 = LoginByHandle (Handle {fromHandle = "aonlq_4cgl3ly09zhewoltcokr9r2zrphgzw_g5h0d.r3r1b7hvulb7bp08nab870i5z4mgwmm8a2-4htaeb"})
+testObject_LoginId_user_3 = LoginByEmail (Email {emailLocal = "0\1088863^\1000125\144267\NUL)|\183379:", emailDomain = "q6e/$\1033221Zb\1050001)\991223\&05i\20077~q\1071660\128584y"})
+
 testObject_LoginId_user_4 :: LoginId
-testObject_LoginId_user_4 = LoginByPhone (Phone {fromPhone = "+39533222418"})
+testObject_LoginId_user_4 = LoginByHandle (Handle {fromHandle = "7a8gg3v98"})
+
 testObject_LoginId_user_5 :: LoginId
-testObject_LoginId_user_5 = LoginByPhone (Phone {fromPhone = "+796381540237174"})
+testObject_LoginId_user_5 = LoginByPhone (Phone {fromPhone = "+041157889572"})
+
 testObject_LoginId_user_6 :: LoginId
-testObject_LoginId_user_6 = LoginByHandle (Handle {fromHandle = "ie-yl1t9w_o9.erd-1606zsc906-hm2uefpofdg98mqvik89v3l1lsxju53p8kx_ubzpkacb3ajo373ewdd34n8s0uxs33gm5qspj7yy193y8a194ao9viy0jprpan2.7k7p_yq.x50e4rsojtt1pf6wxni88pnt8zdo0q-nmf1zxynbohihe56injs"})
+testObject_LoginId_user_6 = LoginByPhone (Phone {fromPhone = "+2351341820189"})
+
 testObject_LoginId_user_7 :: LoginId
-testObject_LoginId_user_7 = LoginByEmail (Email {emailLocal = "\127039R\173253*Gt6m>Yt\1096089", emailDomain = "\1085030\DLER\1088735\&6\1095787\985235\1049439&\DLE3\EM\33903\ty\161216\22506\194697]I\73030\&3\EOT\ETB\b"})
+testObject_LoginId_user_7 = LoginByHandle (Handle {fromHandle = "lb"})
+
 testObject_LoginId_user_8 :: LoginId
-testObject_LoginId_user_8 = LoginByPhone (Phone {fromPhone = "+75810583021"})
+testObject_LoginId_user_8 = LoginByPhone (Phone {fromPhone = "+2831673805093"})
+
 testObject_LoginId_user_9 :: LoginId
-testObject_LoginId_user_9 = LoginByHandle (Handle {fromHandle = "mxhv9"})
+testObject_LoginId_user_9 = LoginByPhone (Phone {fromPhone = "+1091378734554"})
+
 testObject_LoginId_user_10 :: LoginId
-testObject_LoginId_user_10 = LoginByPhone (Phone {fromPhone = "+782000264323"})
+testObject_LoginId_user_10 = LoginByHandle (Handle {fromHandle = "z58-6fbjhtx11d8t6oplyijpkc2.fp_lf3kpk3_.qle4iecjun2xd0tpcordlg2bwv636v3cthpgwah3undqmuofgzp8ry6gc6g-n-kxnj7sl6771hxou7-t_ps_lu_t3.4ukz6dh6fkjq2i3aggtkbpzbd1162.qv.rbtb6e.90-xpayg65z9t9lk2aur452zcs9a"})
+
 testObject_LoginId_user_11 :: LoginId
-testObject_LoginId_user_11 = LoginByEmail (Email {emailLocal = "JE.ty\148715k\US,34\1081976 \168068\988496DR\v\"&l\ETBFT\1048530", emailDomain = "<v0\n\142296ML+S\b\74626\NAKa^c\25933\133037\fH4\1082101"})
+testObject_LoginId_user_11 = LoginByEmail (Email {emailLocal = "\154036\140469A\1031528ovP Ig\92578t';\6199\SOHC\29188\157632{\n%\1090626\v2\GS\180557\1112803&", emailDomain = "m\180009U{f&.3\3846\&1?Ew\30701G-"})
+
 testObject_LoginId_user_12 :: LoginId
-testObject_LoginId_user_12 = LoginByHandle (Handle {fromHandle = "66ckezb81ttnt3n7ajxp7sqhyss2h4bnomtbswx6qo19fmfnhd-p495sj.c4s4wg-9n97m-uoezwi2jnw93ifzvc6iub_qlm7n25l8b_y6j6mafqvn89uemc90mnmd95dz4.a_vsks81v1.1l_zenfj2._r9k1vtjlx72aox7wo_.z."})
+testObject_LoginId_user_12 = LoginByEmail (Email {emailLocal = "", emailDomain = "\18232\EM+h\ENQ(D\SO\28757\993545 \a\r1"})
+
 testObject_LoginId_user_13 :: LoginId
-testObject_LoginId_user_13 = LoginByHandle (Handle {fromHandle = "_j-.vz"})
+testObject_LoginId_user_13 = LoginByEmail (Email {emailLocal = "5-h\1094050\1011032&$og\1084464\26226\989383<%\2855\fGF-yJ\f*cK", emailDomain = "*g\EM\120758\&7$L\CAN\59033\57589\tV\1102330D\a\\yK\1090380T"})
+
 testObject_LoginId_user_14 :: LoginId
-testObject_LoginId_user_14 = LoginByEmail (Email {emailLocal = "K<3\1033808\1005793\CAN*\DLE\STX\1044756g\1069903\1072348\bx_DN\5372\&3", emailDomain = "yH\97394\US(\16195\180853\GS"})
+testObject_LoginId_user_14 = LoginByPhone (Phone {fromPhone = "+8668821360611"})
+
 testObject_LoginId_user_15 :: LoginId
-testObject_LoginId_user_15 = LoginByEmail (Email {emailLocal = "}\74083\32458\179817\1010834D\1110640\155692\\a\1038513\99866g\SYNF\181478\SO\1057545|%~\1114013\985077[\\a", emailDomain = ")+$c=y\155617\1102756\ENQ\"\1012450"})
+testObject_LoginId_user_15 = LoginByEmail (Email {emailLocal = "\ACK\ENQX\ACK&\94893\&8\1044677\&7E`Y'\DC1TV\ACK\DLE", emailDomain = "\GS\ESCj\999191,j\994949\1043277#a1)}\DC3Vk\SOHQ7&;"})
+
 testObject_LoginId_user_16 :: LoginId
-testObject_LoginId_user_16 = LoginByPhone (Phone {fromPhone = "+035053147413567"})
+testObject_LoginId_user_16 = LoginByEmail (Email {emailLocal = "\1013039\&1", emailDomain = "\v`\EM\49692v\1082687;F\18618\&0\4155Sgu%>\1076869y\v\1018080\NAK\133308\US\1025555\ACKs\SI\a\US"})
+
 testObject_LoginId_user_17 :: LoginId
-testObject_LoginId_user_17 = LoginByPhone (Phone {fromPhone = "+6165093774344"})
+testObject_LoginId_user_17 = LoginByHandle (Handle {fromHandle = "e3iusdy"})
+
 testObject_LoginId_user_18 :: LoginId
-testObject_LoginId_user_18 = LoginByEmail (Email {emailLocal = "\98060\1091384\f\28030SKg/\1081346a\DC3e\FSd\48470'\ENQ\1066427\SI\1079835\&9\DLEM0\ENQv", emailDomain = "\STXuH\NULIz\DC1"})
+testObject_LoginId_user_18 = LoginByHandle (Handle {fromHandle = "8vpices3usz1dfs4u2lf_e3jendod_szl1z111_eoj4b7k7ajj-xo.qzbw4espf3smnz_"})
+
 testObject_LoginId_user_19 :: LoginId
-testObject_LoginId_user_19 = LoginByHandle (Handle {fromHandle = "j2b.u0dg57jauhwv0t0jilb3o33fso3g8hjf-ybua3n43yehvahupcn85x.fxv_m"})
+testObject_LoginId_user_19 = LoginByHandle (Handle {fromHandle = "3jzpp2bo8"})
+
 testObject_LoginId_user_20 :: LoginId
-testObject_LoginId_user_20 = LoginByEmail (Email {emailLocal = "S", emailDomain = "\20420"})
+testObject_LoginId_user_20 = LoginByEmail (Email {emailLocal = "", emailDomain = "\155899"})

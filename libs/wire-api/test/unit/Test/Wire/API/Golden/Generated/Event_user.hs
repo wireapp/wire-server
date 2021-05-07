@@ -1,94 +1,181 @@
 {-# LANGUAGE OverloadedLists #-}
+
 module Test.Wire.API.Golden.Generated.Event_user where
-import Data.Id ( ClientId(ClientId, client), Id(Id) )
-import Data.Misc ( Milliseconds(Ms, ms) )
+
+import Data.Id (ClientId (ClientId, client), Id (Id))
+import Data.Misc (Milliseconds (Ms, ms))
+import qualified Data.UUID as UUID (fromString)
 import Imports
-    ( Bool(True, False), Maybe(Just, Nothing), read, fromJust )
-import qualified Data.UUID as UUID ( fromString )
+  ( Bool (False, True),
+    Maybe (Just, Nothing),
+    fromJust,
+    read,
+  )
 import Wire.API.Conversation
-    ( Access(InviteAccess, LinkAccess, PrivateAccess, CodeAccess),
-      AccessRole(ActivatedAccessRole, NonActivatedAccessRole,
-                 PrivateAccessRole),
-      ConvType(ConnectConv, SelfConv, One2OneConv),
-      Conversation(Conversation, cnvId, cnvType, cnvCreator, cnvAccess,
-                   cnvAccessRole, cnvName, cnvMembers, cnvTeam, cnvMessageTimer,
-                   cnvReceiptMode),
-      ConversationAccessUpdate(ConversationAccessUpdate, cupAccess,
-                               cupAccessRole),
-      ConversationMessageTimerUpdate(ConversationMessageTimerUpdate,
-                                     cupMessageTimer),
-      ConversationReceiptModeUpdate(ConversationReceiptModeUpdate,
-                                    cruReceiptMode),
-      ConversationRename(ConversationRename, cupName),
-      ReceiptMode(ReceiptMode, unReceiptMode),
-      ConvMembers(ConvMembers, cmSelf, cmOthers),
-      Member(Member, memId, memService, memOtrMuted, memOtrMutedStatus,
-             memOtrMutedRef, memOtrArchived, memOtrArchivedRef, memHidden,
-             memHiddenRef, memConvRoleName),
-      MutedStatus(MutedStatus, fromMutedStatus),
-      OtherMember(OtherMember, omId, omService, omConvRoleName) )
-import Wire.API.Conversation.Role ( parseRoleName )
+  ( Access (CodeAccess, InviteAccess, LinkAccess, PrivateAccess),
+    AccessRole (ActivatedAccessRole, NonActivatedAccessRole),
+    ConvMembers (ConvMembers, cmOthers, cmSelf),
+    ConvType (RegularConv),
+    Conversation
+      ( Conversation,
+        cnvAccess,
+        cnvAccessRole,
+        cnvCreator,
+        cnvId,
+        cnvMembers,
+        cnvMessageTimer,
+        cnvName,
+        cnvReceiptMode,
+        cnvTeam,
+        cnvType
+      ),
+    ConversationAccessUpdate
+      ( ConversationAccessUpdate,
+        cupAccess,
+        cupAccessRole
+      ),
+    ConversationMessageTimerUpdate
+      ( ConversationMessageTimerUpdate,
+        cupMessageTimer
+      ),
+    ConversationReceiptModeUpdate
+      ( ConversationReceiptModeUpdate,
+        cruReceiptMode
+      ),
+    Member
+      ( Member,
+        memConvRoleName,
+        memHidden,
+        memHiddenRef,
+        memId,
+        memOtrArchived,
+        memOtrArchivedRef,
+        memOtrMuted,
+        memOtrMutedRef,
+        memOtrMutedStatus,
+        memService
+      ),
+    MutedStatus (MutedStatus, fromMutedStatus),
+    OtherMember (OtherMember, omConvRoleName, omId, omService),
+    ReceiptMode (ReceiptMode, unReceiptMode),
+  )
+import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Conversation.Typing
-    ( TypingData(TypingData, tdStatus), TypingStatus(StoppedTyping) )
+  ( TypingData (TypingData, tdStatus),
+    TypingStatus (StoppedTyping),
+  )
 import Wire.API.Event.Conversation
-    ( Event(Event),
-      Connect(Connect, cRecipient, cMessage, cName, cEmail),
-      EventData(EdMembersJoin, EdMembersLeave, EdTyping, EdConnect,
-                EdConvAccessUpdate, EdConvReceiptModeUpdate,
-                EdConvMessageTimerUpdate, EdConvRename, EdOtrMessage,
-                EdMemberUpdate, EdConversation),
-      EventType(MemberJoin, MemberLeave, Typing, ConvConnect,
-                ConvAccessUpdate, ConvReceiptModeUpdate, ConvMessageTimerUpdate,
-                ConvRename, OtrMessageAdd, MemberStateUpdate, ConvCreate,
-                ConvDelete),
-      MemberUpdateData(MemberUpdateData, misTarget, misOtrMuted,
-                       misOtrMutedStatus, misOtrMutedRef, misOtrArchived,
-                       misOtrArchivedRef, misHidden, misHiddenRef, misConvRoleName),
-      OtrMessage(OtrMessage, otrSender, otrRecipient, otrCiphertext,
-                 otrData),
-      SimpleMember(SimpleMember, smId, smConvRoleName),
-      SimpleMembers(SimpleMembers, mMembers),
-      UserIdList(UserIdList, mUsers) )
+  ( Connect (Connect, cEmail, cMessage, cName, cRecipient),
+    Event (Event),
+    EventData
+      ( EdConnect,
+        EdConvAccessUpdate,
+        EdConvMessageTimerUpdate,
+        EdConvReceiptModeUpdate,
+        EdConversation,
+        EdMemberUpdate,
+        EdMembersJoin,
+        EdMembersLeave,
+        EdOtrMessage,
+        EdTyping
+      ),
+    EventType
+      ( ConvAccessUpdate,
+        ConvCodeDelete,
+        ConvConnect,
+        ConvCreate,
+        ConvDelete,
+        ConvMessageTimerUpdate,
+        ConvReceiptModeUpdate,
+        MemberJoin,
+        MemberLeave,
+        MemberStateUpdate,
+        OtrMessageAdd,
+        Typing
+      ),
+    MemberUpdateData
+      ( MemberUpdateData,
+        misConvRoleName,
+        misHidden,
+        misHiddenRef,
+        misOtrArchived,
+        misOtrArchivedRef,
+        misOtrMuted,
+        misOtrMutedRef,
+        misOtrMutedStatus,
+        misTarget
+      ),
+    OtrMessage
+      ( OtrMessage,
+        otrCiphertext,
+        otrData,
+        otrRecipient,
+        otrSender
+      ),
+    SimpleMember (SimpleMember, smConvRoleName, smId),
+    SimpleMembers (SimpleMembers, mMembers),
+    UserIdList (UserIdList, mUsers),
+  )
 import Wire.API.Provider.Service
-    ( ServiceRef(ServiceRef, _serviceRefId, _serviceRefProvider) )
+  ( ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider),
+  )
 
 testObject_Event_user_1 :: Event
-testObject_Event_user_1 = (Event (ConvCreate) ((Id (fromJust (UUID.fromString "00005191-0000-201b-0000-55a9000033fc")))) ((Id (fromJust (UUID.fromString "00004781-0000-54ed-0000-207200005164")))) (read "1864-04-25 10:28:08.751 UTC") (Just (EdConversation (Conversation {cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001"))), cnvType = SelfConv, cnvCreator = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002"))), cnvAccess = [InviteAccess,CodeAccess,LinkAccess], cnvAccessRole = ActivatedAccessRole, cnvName = Just "[u\1044729", cnvMembers = ConvMembers {cmSelf = Member {memId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))), memService = Nothing, memOtrMuted = False, memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), memOtrMutedRef = Just "", memOtrArchived = False, memOtrArchivedRef = Just "", memHidden = True, memHiddenRef = Nothing, memConvRoleName = (fromJust (parseRoleName "t_q9ghu99jr4ng7yjqiy69blsboe15thxfkvrprjko24m6q5xq77cfv5xbqpewpaelubro5x"))}, cmOthers = []}, cnvTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))), cnvMessageTimer = Just (Ms {ms = 8329955392048411}), cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -2})}))))
+testObject_Event_user_1 = (Event (ConvDelete) ((Id (fromJust (UUID.fromString "00005d81-0000-0d71-0000-1d8f00007d32")))) ((Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830")))) (read "1864-05-22 09:51:07.104 UTC") (Nothing))
+
 testObject_Event_user_2 :: Event
-testObject_Event_user_2 = (Event (MemberLeave) ((Id (fromJust (UUID.fromString "00005799-0000-54b7-0000-08b80000443b")))) ((Id (fromJust (UUID.fromString "0000168a-0000-0a36-0000-144e0000138a")))) (read "1864-04-16 17:17:51.075 UTC") (Just (EdMembersLeave (UserIdList {mUsers = [(Id (fromJust (UUID.fromString "0000291d-0000-7ed3-0000-5fc8000034a7"))),(Id (fromJust (UUID.fromString "00004e11-0000-6f06-0000-3cf800007d0b"))),(Id (fromJust (UUID.fromString "00002f1f-0000-42f6-0000-424a000015c4"))),(Id (fromJust (UUID.fromString "00005a57-0000-793c-0000-35d700001f11"))),(Id (fromJust (UUID.fromString "00004609-0000-5916-0000-534900002258"))),(Id (fromJust (UUID.fromString "0000781a-0000-3a1d-0000-404800006967"))),(Id (fromJust (UUID.fromString "000052b5-0000-7b0a-0000-27ff00007446"))),(Id (fromJust (UUID.fromString "000061e8-0000-212e-0000-49a60000332a"))),(Id (fromJust (UUID.fromString "00004893-0000-4916-0000-4747000078e4"))),(Id (fromJust (UUID.fromString "00004110-0000-1031-0000-765d000005d3"))),(Id (fromJust (UUID.fromString "000074c8-0000-665c-0000-63560000062d"))),(Id (fromJust (UUID.fromString "00007461-0000-25e6-0000-689600007aa7"))),(Id (fromJust (UUID.fromString "00002f91-0000-29af-0000-5cc700003a21"))),(Id (fromJust (UUID.fromString "00005e13-0000-44e1-0000-536400006d6e"))),(Id (fromJust (UUID.fromString "000002a8-0000-1ae8-0000-6c1100001c70"))),(Id (fromJust (UUID.fromString "00007670-0000-3f2f-0000-3b5e000042e8"))),(Id (fromJust (UUID.fromString "00007969-0000-2809-0000-53f600000522"))),(Id (fromJust (UUID.fromString "000024f7-0000-4487-0000-0ada0000424c"))),(Id (fromJust (UUID.fromString "00001ef5-0000-3ae7-0000-55ba000040ad"))),(Id (fromJust (UUID.fromString "00004598-0000-4efd-0000-44f400006708"))),(Id (fromJust (UUID.fromString "00007058-0000-0e6b-0000-66a300000887"))),(Id (fromJust (UUID.fromString "00002145-0000-782b-0000-7383000044b6"))),(Id (fromJust (UUID.fromString "0000367a-0000-5372-0000-6bab000050c2"))),(Id (fromJust (UUID.fromString "000041ea-0000-6c8f-0000-78cc0000450c"))),(Id (fromJust (UUID.fromString "00000268-0000-755d-0000-1088000055b8"))),(Id (fromJust (UUID.fromString "000038c2-0000-386a-0000-78ea00001cfd"))),(Id (fromJust (UUID.fromString "000064b6-0000-13b4-0000-772900001fe1")))]}))))
+testObject_Event_user_2 = (Event (ConvAccessUpdate) ((Id (fromJust (UUID.fromString "0000064d-0000-7a7f-0000-5749000029e1")))) ((Id (fromJust (UUID.fromString "00006a88-0000-2acb-0000-6aa0000061b2")))) (read "1864-06-05 23:01:18.769 UTC") (Just (EdConvAccessUpdate (ConversationAccessUpdate {cupAccess = [InviteAccess, LinkAccess, PrivateAccess, InviteAccess, InviteAccess], cupAccessRole = ActivatedAccessRole}))))
+
 testObject_Event_user_3 :: Event
-testObject_Event_user_3 = (Event (ConvAccessUpdate) ((Id (fromJust (UUID.fromString "000059e1-0000-54dd-0000-23430000284c")))) ((Id (fromJust (UUID.fromString "00006180-0000-679e-0000-679a00004af2")))) (read "1864-04-14 13:15:52.658 UTC") (Just (EdConvAccessUpdate (ConversationAccessUpdate {cupAccess = [LinkAccess,PrivateAccess,PrivateAccess,LinkAccess,InviteAccess,PrivateAccess], cupAccessRole = NonActivatedAccessRole}))))
+testObject_Event_user_3 = (Event (OtrMessageAdd) ((Id (fromJust (UUID.fromString "00006f8c-0000-00d6-0000-1568000001e9")))) ((Id (fromJust (UUID.fromString "00004b11-0000-5504-0000-55d800002188")))) (read "1864-04-27 15:44:23.844 UTC") (Just (EdOtrMessage (OtrMessage {otrSender = ClientId {client = "c"}, otrRecipient = ClientId {client = "f"}, otrCiphertext = "", otrData = Just ">\33032\SI\30584"}))))
+
 testObject_Event_user_4 :: Event
-testObject_Event_user_4 = (Event (ConvConnect) ((Id (fromJust (UUID.fromString "00006be0-0000-2eff-0000-4c0600006ef9")))) ((Id (fromJust (UUID.fromString "00003ec2-0000-3479-0000-11cd00005535")))) (read "1864-05-20 22:26:25.343 UTC") (Just (EdConnect (Connect {cRecipient = (Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000400000005"))), cMessage = Nothing, cName = Nothing, cEmail = Just "@^s*U\1099333X"}))))
+testObject_Event_user_4 = (Event (ConvCodeDelete) ((Id (fromJust (UUID.fromString "00004f04-0000-3939-0000-472d0000316b")))) ((Id (fromJust (UUID.fromString "00007c90-0000-766a-0000-01b700002ab7")))) (read "1864-05-12 00:59:09.2 UTC") (Nothing))
+
 testObject_Event_user_5 :: Event
-testObject_Event_user_5 = (Event (Typing) ((Id (fromJust (UUID.fromString "000016bc-0000-426a-0000-47f300001497")))) ((Id (fromJust (UUID.fromString "00006006-0000-1c61-0000-1729000021de")))) (read "1864-04-19 00:41:23.163 UTC") (Just (EdTyping (TypingData {tdStatus = StoppedTyping}))))
+testObject_Event_user_5 = (Event (MemberStateUpdate) ((Id (fromJust (UUID.fromString "00003c8c-0000-6394-0000-294b0000098b")))) ((Id (fromJust (UUID.fromString "00002a12-0000-73e1-0000-71f700002ec9")))) (read "1864-04-12 03:04:00.298 UTC") (Just (EdMemberUpdate (MemberUpdateData {misTarget = Nothing, misOtrMuted = Just False, misOtrMutedStatus = Nothing, misOtrMutedRef = Just "\94957", misOtrArchived = Just False, misOtrArchivedRef = Just "\SOHJ", misHidden = Nothing, misHiddenRef = Just "\b\t\CAN", misConvRoleName = Just (fromJust (parseRoleName "_smrwzjjyq92t3t9u1pettcfiga699uz98rpzdt4lviu8x9iv1di4uiebz2gmrxor2_g0mfzzsfonqvc"))}))))
+
 testObject_Event_user_6 :: Event
-testObject_Event_user_6 = (Event (MemberJoin) ((Id (fromJust (UUID.fromString "000046fa-0000-2530-0000-10be000019ed")))) ((Id (fromJust (UUID.fromString "000040e1-0000-5743-0000-5d21000029d3")))) (read "1864-05-09 23:49:05.817 UTC") (Just (EdMembersJoin (SimpleMembers {mMembers = [SimpleMember {smId = (Id (fromJust (UUID.fromString "00000028-0000-0042-0000-00620000001c"))), smConvRoleName = (fromJust (parseRoleName "bmdavsf6x834f855rgpprb26f2jto4topr_xw10p4_5um6l6t57sz449bh2ina843jsyl5ekq4ux7wmzxhrei2tyte8e3unumm21l3j97dc75nl1y"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000019-0000-0034-0000-00720000000a"))), smConvRoleName = (fromJust (parseRoleName "cgeccatta777jx47km_t9ax0et2ooq47uac98q1hck9fvi8ub9j5gpi9l16kzart14tatexbd2d4oqc9jvy64kcgk_d"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000039-0000-0055-0000-005d00000027"))), smConvRoleName = (fromJust (parseRoleName "u4pfnsmdnj1d2xakl1m8622mbcxq4eunmh44j4k85itl3u2eau1at4y8dcrlo2b"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000006e-0000-0066-0000-00450000000b"))), smConvRoleName = (fromJust (parseRoleName "sqflob20zwg_9vba9hr8vaoferdwsrjxtosfflwq_mmabkafkwsrmciwgaa5xddgmhc06if6_u6nwl8bqgzarplcuy7ykjh_o2nkiuurjq_9t97yf28m_l"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000035-0000-001d-0000-003a00000033"))), smConvRoleName = (fromJust (parseRoleName "n4cwukdmcnyccyppxsgvrx0hgbj62ojyig9gxl9r_in0tjpncxzmcscxzxrjya0ljyiwq0lmgryydp9k"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000004c-0000-0008-0000-007c0000006f"))), smConvRoleName = (fromJust (parseRoleName "hlvw_6dx1s_lhvkv2mc8fien2q0vlptayx"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000002-0000-005f-0000-002700000055"))), smConvRoleName = (fromJust (parseRoleName "deymip2fy11aeym9yiqek4epogd52u_gak3026fa88458qjk6ou4o_jidzx86am56ajc7nj0bs1ys8a2d9z40g2tb6"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000072-0000-004c-0000-00490000001d"))), smConvRoleName = (fromJust (parseRoleName "pcj_di2gk"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000059-0000-003e-0000-005f00000042"))), smConvRoleName = (fromJust (parseRoleName "e1hcoo_vjwmasqh27weecv477wbkde_ngu219ecn9_4vsm4xqp8_x_yudr89mobg4b5ghky2y47jj"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000053-0000-000d-0000-002600000051"))), smConvRoleName = (fromJust (parseRoleName "e0s"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000035-0000-005d-0000-001000000067"))), smConvRoleName = (fromJust (parseRoleName "_pasva9fju2udz0wm7v5y3r7ehs1xqlgt1z7kak0q0d5tmk_pgjiseh5u8688auaf_d3s"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000036-0000-007d-0000-00690000006a"))), smConvRoleName = (fromJust (parseRoleName "d9zehed8g7iaprh4"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000000e-0000-0008-0000-007e00000075"))), smConvRoleName = (fromJust (parseRoleName "1tpkg80p1wfif9n089winn2yhwuna7kkvhuy4dgv462c99873erqhnxg0p095q8tp097zqjaj"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000006-0000-000b-0000-00180000000a"))), smConvRoleName = (fromJust (parseRoleName "slhs6"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000002d-0000-0030-0000-00360000005f"))), smConvRoleName = (fromJust (parseRoleName "_846ivsttd4qlpi27mevy8jkv_dzjv83pirc6t2y9elezp1imy9tfrf_9tls1n39hp0n"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000045-0000-0001-0000-000e00000011"))), smConvRoleName = (fromJust (parseRoleName "uj5sdg596f57nyfvzffxcxind684v0ipwziaaafnt805uqkjdb2sdiddyt99canvznm2m_eye83d7jm2ryd3lin8tghcnz9ue80dflzzi"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000007b-0000-002d-0000-007f00000048"))), smConvRoleName = (fromJust (parseRoleName "26_9d2n2k9m_f8p922reu0inxxf_cvfemh3lvtxpmpvleem9"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000003b-0000-006d-0000-007100000046"))), smConvRoleName = (fromJust (parseRoleName "bf8igjh3uv3_3wsu7l7jca0h8s4na428l2kjj_852bmh46580620guugmqsgx6h6zy6zv5ra1l6x2zugebtdfchsb74i7qdfvsb_bvcpggicw4o5dz45elvjr9i43"))}]}))))
+testObject_Event_user_6 = (Event (ConvMessageTimerUpdate) ((Id (fromJust (UUID.fromString "00001fdb-0000-3127-0000-23ef00007183")))) ((Id (fromJust (UUID.fromString "0000705a-0000-0b62-0000-425c000049c8")))) (read "1864-05-09 05:44:41.382 UTC") (Just (EdConvMessageTimerUpdate (ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 5029817038083912})}))))
+
 testObject_Event_user_7 :: Event
-testObject_Event_user_7 = (Event (ConvConnect) ((Id (fromJust (UUID.fromString "00002d0e-0000-14b3-0000-7d070000326d")))) ((Id (fromJust (UUID.fromString "00005a5a-0000-18ec-0000-793800006855")))) (read "1864-05-09 08:45:35.068 UTC") (Just (EdConnect (Connect {cRecipient = (Id (fromJust (UUID.fromString "00000007-0000-0001-0000-000700000008"))), cMessage = Nothing, cName = Just "", cEmail = Just "\159733\1020807\176065jL\b\1024491"}))))
+testObject_Event_user_7 = (Event (Typing) ((Id (fromJust (UUID.fromString "00006ac1-0000-543e-0000-7c8f00000be7")))) ((Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e")))) (read "1864-04-18 05:01:13.761 UTC") (Just (EdTyping (TypingData {tdStatus = StoppedTyping}))))
+
 testObject_Event_user_8 :: Event
-testObject_Event_user_8 = (Event (ConvAccessUpdate) ((Id (fromJust (UUID.fromString "000051cc-0000-47fe-0000-2f5200007547")))) ((Id (fromJust (UUID.fromString "00003257-0000-7d52-0000-3f4000002e0a")))) (read "1864-06-08 07:16:23.761 UTC") (Just (EdConvAccessUpdate (ConversationAccessUpdate {cupAccess = [CodeAccess], cupAccessRole = NonActivatedAccessRole}))))
+testObject_Event_user_8 = (Event (ConvCodeDelete) ((Id (fromJust (UUID.fromString "00000892-0000-53c7-0000-0c870000027a")))) ((Id (fromJust (UUID.fromString "000008e8-0000-43fa-0000-4dd1000034cc")))) (read "1864-06-08 15:19:01.916 UTC") (Nothing))
+
 testObject_Event_user_9 :: Event
-testObject_Event_user_9 = (Event (ConvMessageTimerUpdate) ((Id (fromJust (UUID.fromString "00002a16-0000-4e17-0000-100800002881")))) ((Id (fromJust (UUID.fromString "0000338a-0000-4483-0000-46b000003228")))) (read "1864-05-27 00:28:35.482 UTC") (Just (EdConvMessageTimerUpdate (ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 6934023827000979})}))))
+testObject_Event_user_9 = (Event (ConvAccessUpdate) ((Id (fromJust (UUID.fromString "00004847-0000-1eb9-0000-2973000039ca")))) ((Id (fromJust (UUID.fromString "000044e3-0000-1c36-0000-42fd00006e01")))) (read "1864-05-21 16:22:14.886 UTC") (Just (EdConvAccessUpdate (ConversationAccessUpdate {cupAccess = [PrivateAccess, PrivateAccess, PrivateAccess, LinkAccess, InviteAccess, LinkAccess, CodeAccess], cupAccessRole = NonActivatedAccessRole}))))
+
 testObject_Event_user_10 :: Event
-testObject_Event_user_10 = (Event (ConvDelete) ((Id (fromJust (UUID.fromString "00002e89-0000-724b-0000-7ce400000528")))) ((Id (fromJust (UUID.fromString "000028e9-0000-6baf-0000-364300005e3c")))) (read "1864-04-13 18:02:54.018 UTC") (Nothing))
+testObject_Event_user_10 = (Event (ConvCreate) ((Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d")))) ((Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c")))) (read "1864-05-29 19:31:31.226 UTC") (Just (EdConversation (Conversation {cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), cnvType = RegularConv, cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))), cnvAccess = [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess], cnvAccessRole = NonActivatedAccessRole, cnvName = Just "\a\SO\r", cnvMembers = ConvMembers {cmSelf = Member {memId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), memService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))}), memOtrMuted = False, memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), memOtrMutedRef = Just "", memOtrArchived = True, memOtrArchivedRef = Just "", memHidden = True, memHiddenRef = Just "", memConvRoleName = (fromJust (parseRoleName "kf_7rcnb2oilvdmd9nelmwf52gikr4aqkhktyn5vjzg7lq1dnzym812q1innmegmx9a"))}, cmOthers = [OtherMember {omId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))), omService = Nothing, omConvRoleName = (fromJust (parseRoleName "4190csbyn6n7ooa8w4d7y9na9_a4m5hgvvmfnowu9zib_29nepamxsxl0gvq2hrfzp7obu_mtj43j0rd38jyd9r5j7xvf2ujge7s0pnt43g9cyal_ak2alwyf8uda"))}, OtherMember {omId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))}), omConvRoleName = (fromJust (parseRoleName "yv7zy3tkxrvz7aj3vvdv3e57pdi8euyuiatpvj48yl8ecw2xskacp737wl269wnts4rgbn1f93zbrkxs5oltt61e099wwzgztqpat4laqk6rqafvb_9aku2w"))}, OtherMember {omId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))}), omConvRoleName = (fromJust (parseRoleName "zsltc_f04kycbem134adefbzjuyd7"))}, OtherMember {omId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))}), omConvRoleName = (fromJust (parseRoleName "nm1gzd7dfqwcf_u3zfq991ylfmjavcs0s0gm6kjq532pjjflua6u5f_xk8dxm1t1g4s3mc2piv631phv19qvtix62s4q6_rc4xj5dh3wmoer_"))}]}, cnvTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))), cnvMessageTimer = Just (Ms {ms = 283898987885780}), cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})}))))
+
 testObject_Event_user_11 :: Event
-testObject_Event_user_11 = (Event (MemberJoin) ((Id (fromJust (UUID.fromString "000035a5-0000-2ed7-0000-364500001e6e")))) ((Id (fromJust (UUID.fromString "000026ce-0000-5726-0000-515a00006b97")))) (read "1864-05-11 16:44:42.935 UTC") (Just (EdMembersJoin (SimpleMembers {mMembers = [SimpleMember {smId = (Id (fromJust (UUID.fromString "00000008-0000-0066-0000-002f0000002c"))), smConvRoleName = (fromJust (parseRoleName "qy24axsepqr8gm74xrmi1iuoxr_9b60xmnbnwhr8zb_bn9a9lemvrnv0y"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000002b-0000-0042-0000-003f00000004"))), smConvRoleName = (fromJust (parseRoleName "bcj2d6ptcuwovivr5yclo_hih"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000000d-0000-003e-0000-006900000030"))), smConvRoleName = (fromJust (parseRoleName "hzvn5aqxwjhqydgcz0_lcsnd_3b74l5e3vorsmm8bimwcbht5we1cac_9"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000079-0000-0061-0000-00740000000b"))), smConvRoleName = (fromJust (parseRoleName "1g_20xtyrvzsh6s7e6xy2wb5_fr0hvf2ta3nhq3x4t54aox_37wcvr4jrdvip2a6"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000040-0000-0049-0000-006d00000063"))), smConvRoleName = (fromJust (parseRoleName "739qtwgapix63cpl7jbsivnfmhftkbrg4r_q6owvg39rt74hucye4ee28ukvnuzqf5ivspo88estaepzo4fzvcsvg4tvmnxn9y22qbpldpi8p5tg3e"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000076-0000-001e-0000-004c00000045"))), smConvRoleName = (fromJust (parseRoleName "remkbtxsa00dpez4srr8y2mmgmmhfdc_wfvnz4gquamw4wo36219zof7_2k37z67grtp5onaotadb8pvbiwav0m4"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000076-0000-0065-0000-000000000008"))), smConvRoleName = (fromJust (parseRoleName "ma_z1o790t08h4ht5pnndd1fmdmry739th9zxq5968a2z6z_9vuqebslptcutz_657xm0yey0yuofu_u7cvx5i1dnx8vtgi5a1ct809232p7m0keuq2"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000026-0000-0006-0000-006a00000078"))), smConvRoleName = (fromJust (parseRoleName "wciys7z_0vma8op48yyo66xkes0fcto1s5r8hbsxsbguriie8o85lhim83qabhsjm9bnelr8t3k47ql31oxd864d9vrftytal98hrgs_vp2k55fgqdotv6"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000003e-0000-0051-0000-00090000003e"))), smConvRoleName = (fromJust (parseRoleName "u6sk7xslo_df5leoamogxqfoiuqn3rts"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000005e-0000-0043-0000-007f0000006b"))), smConvRoleName = (fromJust (parseRoleName "ogqoz05q05"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000044-0000-001f-0000-00680000000a"))), smConvRoleName = (fromJust (parseRoleName "qguq60_fs0a7ffg7_gnbyjxnb65y7we_53xzjkq96ar_dusw_egqbpoylikuzcmb77teclj2c7zyf_8p_ws3kpjklvctpjx8rgyiid6pzqqsa_p1x13v9n2bj5ee"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000043-0000-0059-0000-004f0000004e"))), smConvRoleName = (fromJust (parseRoleName "6f"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000002d-0000-005f-0000-003900000043"))), smConvRoleName = (fromJust (parseRoleName "x1sz0ykyf6ucrwu8b"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000004a-0000-004a-0000-003c00000064"))), smConvRoleName = (fromJust (parseRoleName "k8tj613ewf_i74xm85sw5d65hp8_5fhwkec9okw8wtxfhp5gnu4a73vm6pk2oau07767f7xk"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000001a-0000-0063-0000-003500000075"))), smConvRoleName = (fromJust (parseRoleName "jb44m"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000002e-0000-0035-0000-001000000031"))), smConvRoleName = (fromJust (parseRoleName "zuacja2ms3lv7"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000065-0000-003f-0000-00080000002b"))), smConvRoleName = (fromJust (parseRoleName "n07yv8hoynl1l9kv231y7nae5lcf6747qvsnh6s8sng22qouyjk4bdf547f_1rujr85bna1auxnmkmpxuo3s4x8vyjz7cax0s"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000000f-0000-0071-0000-00580000002a"))), smConvRoleName = (fromJust (parseRoleName "7wreo3o"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000004a-0000-0015-0000-00060000002b"))), smConvRoleName = (fromJust (parseRoleName "2mr5y7ygynk_tb2uqzbv0uk5vs_hi91m5ox7im8fbh4cnket_jtjemox9zl69ve_r7im9xpu6xn8usi5hp0t6omdfdpenbvr"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000044-0000-0023-0000-00290000005b"))), smConvRoleName = (fromJust (parseRoleName "j2m54vvise1797tzor1zvucitjavvchf4jhjh_amsxhar7zl623et"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000012-0000-0054-0000-007f00000060"))), smConvRoleName = (fromJust (parseRoleName "ge_5f9znxir8eadl5mka1j74ve_zqo657vjbuxjgk01knindm_y17goigu8p10nwu3_8y_eu93vxy37e97jdocz4fbn0n2n4pvmhgwqf2"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000005b-0000-007b-0000-001800000076"))), smConvRoleName = (fromJust (parseRoleName "qd2uhiv4fj2tp7678i68g_5ln4znzw5akf7qgzqtzm9k1zlf_89e9b7ji3ce80jj"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000000b-0000-002e-0000-002b00000058"))), smConvRoleName = (fromJust (parseRoleName "5drsblb74l"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000066-0000-0058-0000-006900000046"))), smConvRoleName = (fromJust (parseRoleName "amuhbtig1pnoc4pzefm8s8fvnxqzeq5o1v1_6z7eze71ud6lvhaz99zmvwa5bqqntvxqw2"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000054-0000-0021-0000-005800000021"))), smConvRoleName = (fromJust (parseRoleName "pyyzny41ipqn14i9sqtkqfz5u3l4s_2ti9vdadmmn1_li37aukkn35ph305egovcqx306862ol8pf0v7zwqzpogu7ufpl5kkdp64xcn8y0uxlzivbcr"))}]}))))
+testObject_Event_user_11 = (Event (MemberStateUpdate) ((Id (fromJust (UUID.fromString "000031c2-0000-108c-0000-10a500000882")))) ((Id (fromJust (UUID.fromString "00005335-0000-2983-0000-46460000082f")))) (read "1864-05-03 06:49:41.178 UTC") (Just (EdMemberUpdate (MemberUpdateData {misTarget = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000000"))), misOtrMuted = Nothing, misOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), misOtrMutedRef = Just "v\1034354", misOtrArchived = Just True, misOtrArchivedRef = Just "v6", misHidden = Just False, misHiddenRef = Just "D", misConvRoleName = Just (fromJust (parseRoleName "spkf0ayk4c4obgc_l2lj54cljtj25ph"))}))))
+
 testObject_Event_user_12 :: Event
-testObject_Event_user_12 = (Event (ConvReceiptModeUpdate) ((Id (fromJust (UUID.fromString "00007972-0000-73af-0000-6ab2000042ea")))) ((Id (fromJust (UUID.fromString "0000334c-0000-31bc-0000-430900006d97")))) (read "1864-05-26 22:34:22.204 UTC") (Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 4956}}))))
+testObject_Event_user_12 = (Event (ConvDelete) ((Id (fromJust (UUID.fromString "00007474-0000-2a7b-0000-125900006ac9")))) ((Id (fromJust (UUID.fromString "00000795-0000-709d-0000-11270000007a")))) (read "1864-05-23 17:16:29.326 UTC") (Nothing))
+
 testObject_Event_user_13 :: Event
-testObject_Event_user_13 = (Event (ConvMessageTimerUpdate) ((Id (fromJust (UUID.fromString "000009fb-0000-75b8-0000-184d00001a6c")))) ((Id (fromJust (UUID.fromString "00006c51-0000-7c07-0000-5bf6000003ee")))) (read "1864-05-02 06:24:25.245 UTC") (Just (EdConvMessageTimerUpdate (ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 8721255434179911})}))))
+testObject_Event_user_13 = (Event (OtrMessageAdd) ((Id (fromJust (UUID.fromString "00006355-0000-5f6e-0000-592c0000680c")))) ((Id (fromJust (UUID.fromString "000029eb-0000-06f8-0000-514100000a84")))) (read "1864-05-21 03:22:42.926 UTC") (Just (EdOtrMessage (OtrMessage {otrSender = ClientId {client = "1f"}, otrRecipient = ClientId {client = "4"}, otrCiphertext = "\1016351\FS!kO5", otrData = Just "sz"}))))
+
 testObject_Event_user_14 :: Event
-testObject_Event_user_14 = (Event (ConvRename) ((Id (fromJust (UUID.fromString "00004507-0000-42f0-0000-5ad500004194")))) ((Id (fromJust (UUID.fromString "00007c7a-0000-105c-0000-05a20000184e")))) (read "1864-05-20 20:37:26.911 UTC") (Just (EdConvRename (ConversationRename {cupName = "\173124"}))))
+testObject_Event_user_14 = (Event (ConvReceiptModeUpdate) ((Id (fromJust (UUID.fromString "00000b98-0000-618d-0000-19e200004651")))) ((Id (fromJust (UUID.fromString "00004bee-0000-45a0-0000-2c0300005726")))) (read "1864-05-01 11:57:35.123 UTC") (Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -10505}}))))
+
 testObject_Event_user_15 :: Event
-testObject_Event_user_15 = (Event (ConvCreate) ((Id (fromJust (UUID.fromString "00003449-0000-2b3b-0000-124100002751")))) ((Id (fromJust (UUID.fromString "0000102d-0000-2a77-0000-6ef600006b96")))) (read "1864-05-11 02:56:38.438 UTC") (Just (EdConversation (Conversation {cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000000"))), cnvType = One2OneConv, cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000002"))), cnvAccess = [InviteAccess], cnvAccessRole = PrivateAccessRole, cnvName = Just "D", cnvMembers = ConvMembers {cmSelf = Member {memId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))), memService = Nothing, memOtrMuted = False, memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 1}), memOtrMutedRef = Nothing, memOtrArchived = False, memOtrArchivedRef = Nothing, memHidden = True, memHiddenRef = Just "", memConvRoleName = (fromJust (parseRoleName "_3zjqsrey3bsvfp7yoncrahph8q36g8e_1r3y7qlh846_vsbyfudfrtpewq69wwey8rtohvdrvhdyo95rertw9k5x_pjm7okesjahzi06fazj1hdl9sci"))}, cmOthers = [OtherMember {omId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))}), omConvRoleName = (fromJust (parseRoleName "bsp4t3xw0h26jj3508pm_xt6xp5dttukcngbyij3wrw2so80uwnbgmk5a57g2zu2s_bua0ck"))}]}, cnvTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000002"))), cnvMessageTimer = Just (Ms {ms = 7698296897656322}), cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})}))))
+testObject_Event_user_15 = (Event (ConvConnect) ((Id (fromJust (UUID.fromString "00005e43-0000-3b56-0000-7c270000538c")))) ((Id (fromJust (UUID.fromString "00007f28-0000-40b1-0000-56ab0000748d")))) (read "1864-05-25 01:31:49.802 UTC") (Just (EdConnect (Connect {cRecipient = (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000600000001"))), cMessage = Just "L", cName = Just "fq", cEmail = Just "\992986"}))))
+
 testObject_Event_user_16 :: Event
-testObject_Event_user_16 = (Event (OtrMessageAdd) ((Id (fromJust (UUID.fromString "00002733-0000-72dd-0000-72440000665e")))) ((Id (fromJust (UUID.fromString "0000035c-0000-23e2-0000-5c77000026cd")))) (read "1864-05-26 14:33:20.518 UTC") (Just (EdOtrMessage (OtrMessage {otrSender = ClientId {client = "9"}, otrRecipient = ClientId {client = "9"}, otrCiphertext = "k5", otrData = Nothing}))))
+testObject_Event_user_16 = (Event (ConvAccessUpdate) ((Id (fromJust (UUID.fromString "00004b59-0000-55d6-0000-5aad00007373")))) ((Id (fromJust (UUID.fromString "0000211e-0000-0b37-0000-563100003a5d")))) (read "1864-05-24 00:49:37.413 UTC") (Just (EdConvAccessUpdate (ConversationAccessUpdate {cupAccess = [], cupAccessRole = ActivatedAccessRole}))))
+
 testObject_Event_user_17 :: Event
-testObject_Event_user_17 = (Event (MemberStateUpdate) ((Id (fromJust (UUID.fromString "00003290-0000-7ff3-0000-030900005d29")))) ((Id (fromJust (UUID.fromString "00004e6c-0000-0b1d-0000-6dfe00005516")))) (read "1864-05-27 03:32:16.083 UTC") (Just (EdMemberUpdate (MemberUpdateData {misTarget = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))), misOtrMuted = Just False, misOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), misOtrMutedRef = Nothing, misOtrArchived = Just False, misOtrArchivedRef = Just "|\RS\DLE", misHidden = Just True, misHiddenRef = Nothing, misConvRoleName = Nothing}))))
+testObject_Event_user_17 = (Event (Typing) ((Id (fromJust (UUID.fromString "00006ac8-0000-1342-0000-76880000021d")))) ((Id (fromJust (UUID.fromString "0000145f-0000-2ce0-0000-4ca800006c72")))) (read "1864-04-17 07:39:54.846 UTC") (Just (EdTyping (TypingData {tdStatus = StoppedTyping}))))
+
 testObject_Event_user_18 :: Event
-testObject_Event_user_18 = (Event (ConvCreate) ((Id (fromJust (UUID.fromString "00001771-0000-35ad-0000-39a300000824")))) ((Id (fromJust (UUID.fromString "00006788-0000-27cb-0000-70d100003f0f")))) (read "1864-05-21 12:22:25.235 UTC") (Just (EdConversation (Conversation {cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000001"))), cnvType = ConnectConv, cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000000"))), cnvAccess = [], cnvAccessRole = ActivatedAccessRole, cnvName = Nothing, cnvMembers = ConvMembers {cmSelf = Member {memId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))), memService = Nothing, memOtrMuted = False, memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), memOtrMutedRef = Just "", memOtrArchived = False, memOtrArchivedRef = Just "", memHidden = True, memHiddenRef = Just "", memConvRoleName = (fromJust (parseRoleName "dl5ra181j3ebtz2vzpznyuoa5uj_vedq8u2b2oip5k20bxl3mw4q4h8ggnufabvfv473rbjf595f8k055slmb_6"))}, cmOthers = [OtherMember {omId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))}), omConvRoleName = (fromJust (parseRoleName "42ia6mz7rh"))}]}, cnvTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000002"))), cnvMessageTimer = Just (Ms {ms = 4451108038056003}), cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})}))))
+testObject_Event_user_18 = (Event (MemberLeave) ((Id (fromJust (UUID.fromString "0000303b-0000-23a9-0000-25de00002f80")))) ((Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017")))) (read "1864-04-12 01:28:25.705 UTC") (Just (EdMembersLeave (UserIdList {mUsers = [(Id (fromJust (UUID.fromString "00003fab-0000-40b8-0000-3b0c000014ef"))), (Id (fromJust (UUID.fromString "00001c48-0000-29ae-0000-62fc00001479"))), (Id (fromJust (UUID.fromString "00003254-0000-4f74-0000-6fc400003a01"))), (Id (fromJust (UUID.fromString "000051f3-0000-077d-0000-1b3d00003745"))), (Id (fromJust (UUID.fromString "000073a6-0000-7dec-0000-673c00005911"))), (Id (fromJust (UUID.fromString "0000535c-0000-3949-0000-14aa000076cb"))), (Id (fromJust (UUID.fromString "0000095f-0000-696f-0000-5ee200000ace"))), (Id (fromJust (UUID.fromString "00003861-0000-132e-0000-502500005207"))), (Id (fromJust (UUID.fromString "00007be5-0000-251a-0000-469400006f8d"))), (Id (fromJust (UUID.fromString "000078f6-0000-7e08-0000-56d10000390e"))), (Id (fromJust (UUID.fromString "0000517f-0000-26ef-0000-24c100002ae0"))), (Id (fromJust (UUID.fromString "000001c6-0000-16c9-0000-58ea00005d5e"))), (Id (fromJust (UUID.fromString "0000485b-0000-208e-0000-272200005214"))), (Id (fromJust (UUID.fromString "00004d24-0000-439c-0000-618c00001e77"))), (Id (fromJust (UUID.fromString "000077b4-0000-74a4-0000-26570000353e"))), (Id (fromJust (UUID.fromString "0000332a-0000-430c-0000-5fbc00001ca8"))), (Id (fromJust (UUID.fromString "000059c9-0000-6597-0000-667a00005744"))), (Id (fromJust (UUID.fromString "00005777-0000-7a37-0000-6e22000052d2"))), (Id (fromJust (UUID.fromString "0000430d-0000-4970-0000-0a9c00007b88"))), (Id (fromJust (UUID.fromString "0000530a-0000-305f-0000-71a0000035d4"))), (Id (fromJust (UUID.fromString "000005b8-0000-2691-0000-3a6000007dfb"))), (Id (fromJust (UUID.fromString "00003c9c-0000-0780-0000-7ad500001db8"))), (Id (fromJust (UUID.fromString "0000679a-0000-59cf-0000-279100003e58"))), (Id (fromJust (UUID.fromString "00005aba-0000-14f5-0000-5c2e0000642f"))), (Id (fromJust (UUID.fromString "000016b2-0000-56e8-0000-584600006914")))]}))))
+
 testObject_Event_user_19 :: Event
-testObject_Event_user_19 = (Event (ConvDelete) ((Id (fromJust (UUID.fromString "000056d6-0000-39dc-0000-32f400000047")))) ((Id (fromJust (UUID.fromString "00002dff-0000-73f6-0000-645a00007b5b")))) (read "1864-04-12 07:53:12.676 UTC") (Nothing))
+testObject_Event_user_19 = (Event (MemberJoin) ((Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565")))) ((Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf")))) (read "1864-05-12 20:29:47.483 UTC") (Just (EdMembersJoin (SimpleMembers {mMembers = [SimpleMember {smId = (Id (fromJust (UUID.fromString "00000055-0000-004d-0000-005100000037"))), smConvRoleName = (fromJust (parseRoleName "dlkagbmicz0f95d"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "0000004c-0000-0051-0000-00220000005c"))), smConvRoleName = (fromJust (parseRoleName "1me2in15nttjib_zx_qqx_c_mw4rw9bys2w4y78e6qhziu_85wj8vbnk6igkzld9unfvnl0oosp25i4btj6yehlq7q9em_mxsxodvq7nj_f5hqx"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000014-0000-0027-0000-003400000023"))), smConvRoleName = (fromJust (parseRoleName "31664ffg5sx2690yu2059f7hij_m5vmb80kig21u4h3fe8uwfbshhgkdydiv_nwjm3mo4fprgxkizazcvax0vvxwcvdax"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000001-0000-001f-0000-001500000009"))), smConvRoleName = (fromJust (parseRoleName "2e"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "0000005d-0000-0064-0000-00590000007d"))), smConvRoleName = (fromJust (parseRoleName "f3nxp18px4kup3nrarx5wsp1o_eh69"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000068-0000-007a-0000-005a0000006c"))), smConvRoleName = (fromJust (parseRoleName "fixso00nq4580z4ax9zs0sk3rej11c09rcj2ikbvnrg_io84n0eamqvwlz2icdo2u5jzzovta5j64kp0vg7e_21vs4r0hzv9"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000074-0000-0036-0000-00780000007d"))), smConvRoleName = (fromJust (parseRoleName "f9i5d2wd01ijp53en5bq8lch__jlnu8_v2xsgkctpin98byh1009f_v63"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "0000001c-0000-000a-0000-004800000063"))), smConvRoleName = (fromJust (parseRoleName "o_oqigzovv9oc2uxckvk5eofmc"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000056-0000-0028-0000-004f00000079"))), smConvRoleName = (fromJust (parseRoleName "5snj8s5t7nicihwspcp4sg4ny1pa1yb2s6601vjyxhksbciotoi_rvivybk1iviuz8buw"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "0000001e-0000-0054-0000-002300000053"))), smConvRoleName = (fromJust (parseRoleName "73e9u2hpffjb5ids29tbtcceg0i9v2"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "0000004d-0000-0027-0000-007500000042"))), smConvRoleName = (fromJust (parseRoleName "d2s4mc_qt1cc2rox8c9gak_qivlha7q259lsz7y5bz6dxsv8igx9r"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000050-0000-006e-0000-007000000057"))), smConvRoleName = (fromJust (parseRoleName "7d84htzo4bc9250rer4r8p47ykbesgatuz8wwkoe1m2xnfljpwoi01025ti548frbvdmtykqq4pn1qsoc3s"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "0000007a-0000-003c-0000-005300000013"))), smConvRoleName = (fromJust (parseRoleName "v7ldb8mov4an62t6"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000001-0000-0064-0000-005e00000072"))), smConvRoleName = (fromJust (parseRoleName "k7uigpk1wwfc0mffoafjqf3dejctneh21zilaup19435zntvwu8kqd3l0k7s938ex2hf_n7_7dld5z604_if5z88f3u2w28qarfdcw5rkczk4jb4n"))}, SimpleMember {smId = (Id (fromJust (UUID.fromString "00000020-0000-0012-0000-000500000036"))), smConvRoleName = (fromJust (parseRoleName "s6creybsl300lqkhu0wv_ikgattm3bd1r"))}]}))))
+
 testObject_Event_user_20 :: Event
-testObject_Event_user_20 = (Event (MemberJoin) ((Id (fromJust (UUID.fromString "000010ad-0000-3f70-0000-5faf00002b98")))) ((Id (fromJust (UUID.fromString "0000218d-0000-6a0a-0000-405d00000c91")))) (read "1864-05-04 08:54:49.963 UTC") (Just (EdMembersJoin (SimpleMembers {mMembers = [SimpleMember {smId = (Id (fromJust (UUID.fromString "00000031-0000-0076-0000-00370000006e"))), smConvRoleName = (fromJust (parseRoleName "jbgt_c76z4777"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000071-0000-0012-0000-007000000055"))), smConvRoleName = (fromJust (parseRoleName "gj8ehoydx0jix705w6z2demvzkn_n6k50iskqf2q__gpuh"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000000f-0000-007c-0000-003200000046"))), smConvRoleName = (fromJust (parseRoleName "64r26w_lphgl0poutoe8mufixv4junacnu7v8r_go0sr_sux0sflk_4ij73p1"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000047-0000-0007-0000-00540000003f"))), smConvRoleName = (fromJust (parseRoleName "j_9fdhhcjyzp9hxrzba__ibb7th7xx94_bogq870e0mfu67rij527cmwlwear0459v8yji9o1nz_2010kkpzztpucpj15sdblbofp4c6tqtkqabjwd2wjwamh5ifl"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000058-0000-0021-0000-005500000050"))), smConvRoleName = (fromJust (parseRoleName "l9dfwuid7ieinkt_r7h_qdx1rhehw9ke09uosvziru60v2cgisqyyvu8ody31_80ycd0zxi3chk2f08yar2iu5ncksqxt20y42d"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000031-0000-000b-0000-001400000000"))), smConvRoleName = (fromJust (parseRoleName "cf6kynwmxu3xft69nutaj69yatfxjdguuju"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000053-0000-0003-0000-00260000005f"))), smConvRoleName = (fromJust (parseRoleName "b9hoqyqr5a2au_ggqf8lpgsgup04cni6y4aj9s7dc0j9obu4czg5dw2gz9o35ifbmsgazz6uvd27sm61me38bdqiu1mpky02iwfnz4_ixdmlsxx32qaavk5ag5s2f"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "0000000e-0000-0068-0000-004100000005"))), smConvRoleName = (fromJust (parseRoleName "0tr2cp8il1dmg6vwa3z650id9r2dvap3291rxapmbpnxrxa3c68_gw2v_1_r5vbu0_3fv0sa635pvcpzmo06"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000006-0000-0042-0000-007f00000043"))), smConvRoleName = (fromJust (parseRoleName "65y8yfzx7l96lbiagcdew7kw27yu72q14q7"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000053-0000-0053-0000-006900000054"))), smConvRoleName = (fromJust (parseRoleName "4kl0o8_rl3sty9tspfborlj_7s0in00ps8tlutvly0v2hcdjp24cns3m2ewq9hqh5zz7vhd2ap9_j8vd"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000065-0000-0006-0000-003d0000004f"))), smConvRoleName = (fromJust (parseRoleName "wme43uv7vn4hlax1kuofdo0b"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000007-0000-0063-0000-003500000050"))), smConvRoleName = (fromJust (parseRoleName "x2el3zmi40tvej7euxbfcvctcz0ctetjlrayclyh6yrygep0o9q_3jdr740v45a5afrwxw3auf0wubz_uvboe9cj8tp_o3y4smyu73816555e4"))},SimpleMember {smId = (Id (fromJust (UUID.fromString "00000072-0000-0031-0000-004300000010"))), smConvRoleName = (fromJust (parseRoleName "xqi2ky2rzcm5agktgcq79xpdv1eror9zngj237r2so33o88jjuhlcjj134id5e61so6a_nc2p2wya6_7c9b4vzsw9dr13mwxz2cg31qlj_m0_6at7"))}]}))))
+testObject_Event_user_20 = (Event (MemberLeave) ((Id (fromJust (UUID.fromString "00000c88-0000-433f-0000-669100006374")))) ((Id (fromJust (UUID.fromString "00007547-0000-26d8-0000-52280000157c")))) (read "1864-04-21 23:40:54.462 UTC") (Just (EdMembersLeave (UserIdList {mUsers = [(Id (fromJust (UUID.fromString "00002e78-0000-23d9-0000-1cba00005025"))), (Id (fromJust (UUID.fromString "00003293-0000-6991-0000-533700000e73"))), (Id (fromJust (UUID.fromString "000075b1-0000-2e89-0000-6262000067a9"))), (Id (fromJust (UUID.fromString "00007f94-0000-39fc-0000-28c5000028ed"))), (Id (fromJust (UUID.fromString "000041f3-0000-3886-0000-735900007499"))), (Id (fromJust (UUID.fromString "00004014-0000-675c-0000-688600003ed7"))), (Id (fromJust (UUID.fromString "00002e75-0000-74cd-0000-529a000008c7"))), (Id (fromJust (UUID.fromString "00000cea-0000-4b67-0000-4a2600007dae"))), (Id (fromJust (UUID.fromString "00006b72-0000-1fae-0000-6647000025d0"))), (Id (fromJust (UUID.fromString "00003c64-0000-4b1f-0000-7bc900001c31"))), (Id (fromJust (UUID.fromString "00002cd3-0000-4520-0000-0d8c00004a16"))), (Id (fromJust (UUID.fromString "00003e8f-0000-66a2-0000-067600002d8f"))), (Id (fromJust (UUID.fromString "00004544-0000-0ce2-0000-1c2300007fbc"))), (Id (fromJust (UUID.fromString "000071ef-0000-44f4-0000-7dc500002e5f"))), (Id (fromJust (UUID.fromString "00007e40-0000-7f3a-0000-45a300002aee"))), (Id (fromJust (UUID.fromString "00006eec-0000-4bb0-0000-271000001e9f"))), (Id (fromJust (UUID.fromString "00001893-0000-272e-0000-5ccc0000561f"))), (Id (fromJust (UUID.fromString "00004d81-0000-2d5f-0000-43ec00005771"))), (Id (fromJust (UUID.fromString "00002521-0000-1a18-0000-3bc200005ce2"))), (Id (fromJust (UUID.fromString "000005f2-0000-3b01-0000-070000005296"))), (Id (fromJust (UUID.fromString "0000411b-0000-224b-0000-32650000061a"))), (Id (fromJust (UUID.fromString "00004880-0000-3a0b-0000-56b10000398a"))), (Id (fromJust (UUID.fromString "00002d6b-0000-4f28-0000-11110000309a"))), (Id (fromJust (UUID.fromString "0000357d-0000-2963-0000-7bb000002734"))), (Id (fromJust (UUID.fromString "00000f40-0000-657c-0000-7d25000019df"))), (Id (fromJust (UUID.fromString "00006350-0000-630b-0000-5f560000503e")))]}))))
