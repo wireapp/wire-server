@@ -29,6 +29,7 @@ import Data.Proxy
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
+import GHC.TypeLits (KnownNat, natVal)
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
@@ -302,26 +303,28 @@ viewFederationDomain = view (options . optSettings . setFederationDomain)
 
 --------------------------------------------------------------------------------
 
--- | Return type of a delete endpoint with status code 200
+-- | Return type of an endpoint with an empty response.
 --
--- In principle we could use 'WithStatus 200 NoContent' instead, and
--- avoid having ad-hoc instances, but servant-swagger does not support
--- 'WithStatus'.
-data DeleteResult = DeleteResult
+-- In principle we could use 'WithStatus n NoContent' instead, but
+-- Servant does not support it, so we would need orphan instances.
+--
+-- FUTUREWORK: merge with Empty200 in Brig.
+data EmptyResult n = EmptyResult
 
 instance
-  SwaggerMethod method =>
-  HasSwagger (Verb method 200 '[] DeleteResult)
+  (SwaggerMethod method, KnownNat n) =>
+  HasSwagger (Verb method n '[] (EmptyResult n))
   where
-  toSwagger _ = toSwagger (Proxy @(Verb method 200 '[] NoContent))
+  toSwagger _ = toSwagger (Proxy @(Verb method n '[] NoContent))
 
 instance
-  ReflectMethod method =>
-  HasServer (Verb method 200 '[] DeleteResult) context
+  (ReflectMethod method, KnownNat n) =>
+  HasServer (Verb method n '[] (EmptyResult n)) context
   where
-  type ServerT (Verb method 200 '[] DeleteResult) m = m DeleteResult
+  type ServerT (Verb method n '[] (EmptyResult n)) m = m (EmptyResult n)
   hoistServerWithContext _ _ nt s = nt s
 
-  route Proxy _ = noContentRouter method status200
+  route Proxy _ = noContentRouter method status
     where
       method = reflectMethod (Proxy :: Proxy method)
+      status = toEnum . fromInteger $ natVal (Proxy @n)

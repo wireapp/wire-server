@@ -57,7 +57,7 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (DeleteResult)
+import Galley.API.Util (EmptyResult (..))
 import Galley.App
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -222,17 +222,6 @@ data Api routes = Api
     -- FUTUREWORK: errorResponse Error.notConnected
     --             errorResponse Error.notATeamMember
     --             errorResponse (Error.operationDenied Public.CreateConversation)
-
-    -- createGroupConversation ::
-    --   routes
-    --     :- Summary "Create a new conversation"
-    --     :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-    --     :> ZUser
-    --     :> ZAuthServant 'ZAuthConn
-    --     :> "conversations"
-    --     :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-    --     :> Post '[Servant.JSON] (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
-
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
@@ -303,7 +292,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Delete '[] DeleteResult
+        :> Delete '[] (EmptyResult 200)
   }
   deriving (Generic)
 
