@@ -23,6 +23,7 @@ where
 import Imports
 import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
+import qualified Test.Wire.API.Golden.Generated as Golden.Generated
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
@@ -31,7 +32,6 @@ import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
 import qualified Test.Wire.API.User.Search as User.Search
-import qualified Test.Wire.API.Golden.Generated as Golden.Generated
 
 main :: IO ()
 main =
