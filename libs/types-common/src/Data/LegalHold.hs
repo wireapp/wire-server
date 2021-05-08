@@ -25,7 +25,7 @@ import Imports
 import Test.QuickCheck
 
 data UserLegalHoldStatus
-  = UserLegalHoldDisabled_
+  = UserLegalHoldDisabled
   | UserLegalHoldPending
   | UserLegalHoldEnabled
   | UserLegalHoldNoConsent
@@ -45,14 +45,14 @@ typeUserLegalHoldStatus =
       ]
 
 instance ToJSON UserLegalHoldStatus where
-  toJSON UserLegalHoldDisabled_ = "disabled"
+  toJSON UserLegalHoldDisabled = "disabled"
   toJSON UserLegalHoldPending = "pending"
   toJSON UserLegalHoldEnabled = "enabled"
   toJSON UserLegalHoldNoConsent = "no_consent"
 
 instance FromJSON UserLegalHoldStatus where
   parseJSON = withText "UserLegalHoldStatus" $ \case
-    "disabled" -> pure UserLegalHoldDisabled_
+    "disabled" -> pure UserLegalHoldDisabled
     "pending" -> pure UserLegalHoldPending
     "enabled" -> pure UserLegalHoldEnabled
     "no_consent" -> pure UserLegalHoldNoConsent
@@ -62,14 +62,14 @@ instance Cql UserLegalHoldStatus where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
-    0 -> pure $ UserLegalHoldDisabled_
+    0 -> pure $ UserLegalHoldDisabled
     1 -> pure $ UserLegalHoldPending
     2 -> pure $ UserLegalHoldEnabled
     3 -> pure $ UserLegalHoldNoConsent
     _ -> Left "fromCql: Invalid UserLegalHoldStatus"
   fromCql _ = Left "fromCql: UserLegalHoldStatus: CqlInt expected"
 
-  toCql UserLegalHoldDisabled_ = CqlInt 0
+  toCql UserLegalHoldDisabled = CqlInt 0
   toCql UserLegalHoldPending = CqlInt 1
   toCql UserLegalHoldEnabled = CqlInt 2
   toCql UserLegalHoldNoConsent = CqlInt 3

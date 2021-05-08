@@ -162,7 +162,7 @@ testRequestLegalHoldDevice = do
       liftIO $
         assertEqual
           "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldDisabled_
+          UserLegalHoldDisabled
           userStatus
     do
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
@@ -270,13 +270,13 @@ testGetLegalHoldDeviceStatus = do
       assertEqual
         "unexpected status"
         status
-        (UserLegalHoldStatusResponse UserLegalHoldDisabled_ Nothing Nothing)
+        (UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing)
   withDummyTestServiceForTeam owner tid $ \_chan -> do
     do
       UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
       liftIO $
         do
-          assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled_ userStatus
+          assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
           assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
           assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
     do
@@ -337,11 +337,11 @@ testDisableLegalHoldForUser = do
       ClientRemoved clientId' -> clientId' @?= someClientId
       _ -> assertBool "Unexpected event" False
     assertNotification mws $ \case
-      UserLegalHoldDisabled_' uid -> uid @?= member
+      UserLegalHoldDisabled' uid -> uid @?= member
       _ -> assertBool "Unexpected event" False
     -- Other users should also get the event
     assertNotification ows $ \case
-      UserLegalHoldDisabled_' uid -> uid @?= member
+      UserLegalHoldDisabled' uid -> uid @?= member
       _ -> assertBool "Unexpected event" False
     assertZeroLegalHoldDevices member
 
@@ -496,7 +496,7 @@ testRemoveLegalHoldFromTeam = do
       liftIO $
         assertEqual
           "After approval user legalhold status should be Disabled"
-          UserLegalHoldDisabled_
+          UserLegalHoldDisabled
           userStatus
       assertZeroLegalHoldDevices member
 
@@ -528,7 +528,7 @@ testEnablePerTeam = do
       liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" statusValue Public.TeamFeatureDisabled
     do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-      liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled_ status
+      liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
     viewLHS <- getSettingsTyped owner tid
     liftIO $
       assertEqual
@@ -611,9 +611,9 @@ testGetTeamMembersIncludesLHStatus = do
             ("legal hold status should be " <> msg)
             (Just status)
             (findMemberStatus members')
-  check UserLegalHoldDisabled_ "disabled when it is disabled for the team"
+  check UserLegalHoldDisabled "disabled when it is disabled for the team"
   withDummyTestServiceForTeam owner tid $ \_chan -> do
-    check UserLegalHoldDisabled_ "disabled on new team members"
+    check UserLegalHoldDisabled "disabled on new team members"
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     check UserLegalHoldPending "pending after requesting device"
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
@@ -886,7 +886,7 @@ publicKeyNotMatchingService =
 -- brig-types. (Look for toPushFormat in the code) We should refactor. To make
 -- our lives a bit easier we are going to  copy these datatypes from brig verbatim
 data UserEvent
-  = UserLegalHoldDisabled_' !UserId
+  = UserLegalHoldDisabled' !UserId
   | UserLegalHoldEnabled' !UserId
   | LegalHoldClientRequested LegalHoldClientRequestedData
   deriving (Generic)
@@ -916,7 +916,7 @@ instance FromJSON UserEvent where
     tag :: Text <- o .: "type"
     case tag of
       "user.legalhold-enable" -> UserLegalHoldEnabled' <$> o .: "id"
-      "user.legalhold-disable" -> UserLegalHoldDisabled_' <$> o .: "id"
+      "user.legalhold-disable" -> UserLegalHoldDisabled' <$> o .: "id"
       "user.legalhold-request" ->
         LegalHoldClientRequested
           <$> ( LegalHoldClientRequestedData
