@@ -336,8 +336,9 @@ createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
     initialStatus Binding = PendingActive -- Team becomes Active after User account activation
     initialStatus NonBinding = Active
 
-deleteTeam :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => TeamId -> m ()
+deleteTeam :: forall m. (MonadClient m, Log.MonadLogger m, MonadThrow m) => TeamId -> m ()
 deleteTeam tid = do
+  -- TODO: delete service_whitelist records that mention this team
   retry x5 $ write Cql.markTeamDeleted (params Quorum (PendingDelete, tid))
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
   removeTeamMembers mems
@@ -345,17 +346,25 @@ deleteTeam tid = do
   removeConvs cnvs
   retry x5 $ write Cql.deleteTeam (params Quorum (Deleted, tid))
   where
+    removeConvs :: Page TeamConversation -> m ()
     removeConvs cnvs = do
       for_ (result cnvs) $ removeTeamConv tid . view conversationId
       unless (null $ result cnvs) $
         removeConvs =<< liftClient (nextPage cnvs)
+
+    removeTeamMembers ::
+      Page
+        ( UserId,
+          Permissions,
+          Maybe UserId,
+          Maybe UTCTimeMillis,
+          Maybe UserLegalHoldStatus
+        ) ->
+      m ()
     removeTeamMembers mems = do
-      tMembers <- mapM newTeamMember' (result mems)
-      for_ tMembers $ removeTeamMember tid . view userId
+      mapM_ (removeTeamMember tid . view _1) (result mems)
       unless (null $ result mems) $
         removeTeamMembers =<< liftClient (nextPage mems)
-
--- TODO: delete service_whitelist records that mention this team
 
 addTeamMember :: MonadClient m => TeamId -> TeamMember -> m ()
 addTeamMember t m =
