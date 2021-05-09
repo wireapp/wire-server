@@ -15,7 +15,7 @@ From ``wire-server-deploy/ansible``:
 
   cp inventory/demo/hosts.example-demo.ini inventory/demo/hosts.ini
 
-Open hosts.ini and replace `X.X.X.X` with the IP address of your virtual machine that you use for ssh access.  You can try using ``sed -i 's/X.X.X.X/1.2.3.4/g' hosts.ini``.
+Open hosts.ini and replace `X.X.X.X` with the IP address of your virtual machine that you use for ssh access.  You can try using ``sed -i 's/X.X.X.X/1.2.3.4/g' inventory/demo/hosts.ini``.
 
 
 How to install kubernetes
