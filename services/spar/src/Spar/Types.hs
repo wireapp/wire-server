@@ -22,7 +22,9 @@
 -- for them.
 module Spar.Types where
 
-import Control.Lens (makeLenses)
+import Cassandra (ColumnType (TextColumn), Cql (..), Value (CqlText))
+import Cassandra.CQL (Tagged (Tagged))
+import Control.Lens (makeLenses, view)
 import Control.Monad.Except
 import Crypto.Hash (SHA512 (..), hash)
 import Data.Aeson
@@ -32,6 +34,7 @@ import qualified Data.Binary.Builder as BB (fromByteString)
 import Data.ByteArray.Encoding (Base (..), convertToBase)
 import qualified Data.ByteString.Builder as Builder
 import Data.ByteString.Conversion
+import Data.CaseInsensitive (foldCase)
 import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
@@ -49,6 +52,7 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
 import System.Logger.Extended (LogFormat)
+import qualified Text.Email.Parser as Email
 import URI.ByteString
 import Util.Options
 import Web.Cookie
@@ -311,3 +315,32 @@ instance FromJSON SsoSettings where
 instance ToJSON SsoSettings where
   toJSON SsoSettings {defaultSsoCode} =
     object ["default_sso_code" .= defaultSsoCode]
+
+-- | Used as a lookup key for 'UnqualifiedNameID' that only depends on the
+-- lowercase version of the identifier. Use 'normalizeUnqualifiedNameId' or
+-- 'normalizeQualifiedNameId' to create values.
+newtype NormalizedUNameID = NormalizedUNameID {unNormalizedUNameID :: Text}
+  deriving stock (Eq, Ord, Generic)
+
+instance Cql NormalizedUNameID where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unNormalizedUNameID
+  fromCql (CqlText t) = pure $ NormalizedUNameID t
+  fromCql _ = Left "NormalizedNameID: expected CqlText"
+
+normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
+normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
+  where
+    nameIdTxt :: SAML.UnqualifiedNameID -> ST
+    nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEmail (SAML.Email txt)) = cs $ Email.toByteString txt
+    nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDWindows txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDKerberos txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEntity uri) = renderURI uri
+    nameIdTxt (SAML.UNameIDPersistent txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDTransient txt) = SAML.unsafeFromXmlText txt
+
+-- | Qualifiers are ignored.
+normalizeQualifiedNameId :: SAML.NameID -> NormalizedUNameID
+normalizeQualifiedNameId = normalizeUnqualifiedNameId . view SAML.nameID

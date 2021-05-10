@@ -259,10 +259,10 @@ getVerdictFormat req =
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
+insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, normalizeQualifiedNameId subject, subject, uid)
   where
-    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
-    ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
+    ins :: PrepQuery W (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId) ()
+    ins = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
 
 -- | Sometimes we only need to know if it's none or more, so this function returns the first one.
 getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
@@ -271,7 +271,7 @@ getSAMLAnyUserByIssuer issuer =
     <$$> (retry x1 . query1 sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE issuer = ? LIMIT 1"
+    sel = "SELECT uid FROM user_v2 WHERE issuer = ? LIMIT 1"
 
 -- | Sometimes (eg., for IdP deletion), we can start anywhere with deleting all users in an
 -- IdP, and if we don't get all users we just try again when we're done with these.
@@ -281,25 +281,58 @@ getSAMLSomeUsersByIssuer issuer =
     <$$> (retry x1 . query sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
-    sel = "SELECT sso_id, uid FROM user WHERE issuer = ? LIMIT 2000"
+    sel = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ? LIMIT 2000"
 
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getSAMLUser (SAML.UserRef tenant subject) =
-  runIdentity
-    <$$> (retry x1 . query1 sel $ params Quorum (tenant, subject))
+getSAMLUser uref = do
+  mbUid <- getSAMLUserNew uref
+  case mbUid of
+    Nothing -> migrateLegacy uref
+    Just uid -> pure $ Just uid
   where
-    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
+    getSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserNew (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params Quorum (tenant, normalizeQualifiedNameId subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, NormalizedUNameID) (Identity UserId)
+        sel = "SELECT uid FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
+
+    migrateLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    migrateLegacy uref' = do
+      mbUid <- getSAMLUserLegacy uref'
+      for mbUid $ \uid -> do
+        insertSAMLUser uref' uid
+        pure uid
+
+    getSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserLegacy (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params Quorum (tenant, subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
+        sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
 deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
 deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
-    del = "DELETE FROM user WHERE issuer = ?"
+    del = "DELETE FROM user_v2 WHERE issuer = ?"
+
+deleteSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+deleteSAMLUser uref = do
+  deleteSAMLUserLegacy uref
+  deleteSAMLUserNew uref
+  where
+    deleteSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+    deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, normalizeQualifiedNameId subject)
+      where
+        del :: PrepQuery W (SAML.Issuer, NormalizedUNameID) ()
+        del = "DELETE FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
 
 -- | Delete a user from the saml users table.
-deleteSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-deleteSAMLUser (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+deleteSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
   where
     del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
     del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
