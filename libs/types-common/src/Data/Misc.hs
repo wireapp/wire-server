@@ -220,7 +220,7 @@ newtype Milliseconds = Ms
   { ms :: Word64
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num)
+  deriving newtype (Num, ToSchema)
 
 -- only generate values which can be represented exactly by double
 -- precision floating points

@@ -67,13 +67,16 @@ module Wire.API.Conversation
   )
 where
 
+import Control.Lens (at, (<>~), (?~), _Just)
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Misc
+import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
+import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Test.QuickCheck as QC
@@ -122,6 +125,43 @@ modelConversation = Doc.defineModel "Conversation" $ do
   -- Doc.property "team"
   Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
     Doc.description "Per-conversation message timer (can be null)"
+
+data Nullable a
+
+instance ToSchema a => ToSchema (Nullable a) where
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @a)
+      <&> (schema . description . _Just) <>~ " (can be null)"
+
+instance ToSchema Conversation where
+  declareNamedSchema _ = do
+    idSchema <- declareSchemaRef (Proxy @ConvId)
+    typeSchema <- declareSchemaRef (Proxy @ConvType)
+    membersSchema <- declareSchemaRef (Proxy @ConvMembers)
+    receiptModeSchema <- declareSchemaRef (Proxy @ReceiptMode)
+    pure $
+      NamedSchema (Just "Conversation") $
+        mempty
+          & description ?~ "A conversation object as returned from the server"
+          & properties . at "id" ?~ idSchema
+          & properties . at "type" ?~ typeSchema
+          & properties . at "creator"
+            ?~ Inline
+              ( toSchema (Proxy @UserId)
+                  & description ?~ "The creator's user ID"
+              )
+          & properties . at "name"
+            ?~ Inline
+              ( toSchema (Proxy @(Nullable Text))
+                  & description ?~ "The conversation name"
+              )
+          & properties . at "members" ?~ membersSchema
+          & properties . at "message_timer"
+            ?~ Inline
+              ( toSchema (Proxy @(Nullable Milliseconds))
+                  & description ?~ "Per-conversation message timer"
+              )
+          & properties . at "receipt_mode" ?~ receiptModeSchema
 
 instance ToJSON Conversation where
   toJSON c =
@@ -179,6 +219,29 @@ data ConversationList a = ConversationList
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (ConversationList a))
 
+class ConversationListItem a where
+  convListItemName :: Proxy a -> Text
+
+instance ConversationListItem ConvId where
+  convListItemName _ = "conversation IDs"
+
+instance ConversationListItem Conversation where
+  convListItemName _ = "conversations"
+
+instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
+  declareNamedSchema _ = do
+    listSchema <- declareSchemaRef (Proxy @[a])
+    pure $
+      NamedSchema (Just "ConversationList") $
+        mempty
+          & description ?~ "Object holding a list of " <> convListItemName (Proxy @a)
+          & properties . at "conversations" ?~ listSchema
+          & properties . at "has_more"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Indicator that the server has more conversations than returned"
+              )
+
 instance ToJSON a => ToJSON (ConversationList a) where
   toJSON (ConversationList l m) =
     object
@@ -207,6 +270,15 @@ data Access
     CodeAccess
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Access)
+
+instance ToSchema Access where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "Access") $
+        mempty
+          & description ?~ "How users can join conversations "
+          & type_ ?~ SwaggerString
+          & enum_ ?~ ["private", "invite", "link", "code"]
 
 typeAccess :: Doc.DataType
 typeAccess = Doc.string . Doc.enum $ cs . encode <$> [(minBound :: Access) ..]
@@ -243,6 +315,15 @@ data AccessRole
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AccessRole)
 
+instance ToSchema AccessRole where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "AccessRole") $
+        mempty
+          & description ?~ "Which users can join conversations"
+          & type_ ?~ SwaggerString
+          & enum_ ?~ ["private", "team", "activated", "non_activated"]
+
 instance ToJSON AccessRole where
   toJSON PrivateAccessRole = String "private"
   toJSON TeamAccessRole = String "team"
@@ -269,6 +350,16 @@ data ConvType
 typeConversationType :: Doc.DataType
 typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
 
+instance ToSchema ConvType where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "ConvType") $
+        mempty
+          & description ?~ "Conversation type (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
+          & type_ ?~ SwaggerInteger
+          & minimum_ ?~ 0
+          & maximum_ ?~ 3
+
 instance ToJSON ConvType where
   toJSON RegularConv = Number 0
   toJSON SelfConv = Number 1
@@ -293,6 +384,11 @@ instance FromJSON ConvType where
 newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
   deriving stock (Eq, Ord, Show)
   deriving newtype (Arbitrary)
+
+instance ToSchema ReceiptMode where
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @Int32)
+      <&> (schema . description) ?~ "Conversation receipt mode"
 
 instance ToJSON ReceiptMode where
   toJSON = toJSON . unReceiptMode
@@ -355,6 +451,7 @@ instance Arbitrary NewConvManaged where
 
 newtype NewConvUnmanaged = NewConvUnmanaged NewConv
   deriving stock (Eq, Show)
+  deriving newtype (ToSchema)
 
 -- | Used to describe a 'NewConvUnmanaged'.
 modelNewConversation :: Doc.Model
@@ -376,6 +473,46 @@ modelNewConversation = Doc.defineModel "NewConversation" $ do
   Doc.property "receipt_mode" (Doc.int32 (Doc.min 0)) $ do
     Doc.description "Conversation receipt mode"
     Doc.optional
+
+instance ToSchema NewConv where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "NewConversation") $
+        mempty
+          & description ?~ "JSON object to create a new conversation"
+          & properties . at "users"
+            ?~ Inline
+              ( toSchema (Proxy @[UserId])
+                  & description ?~ "List of user IDs (excluding the requestor) to be part of this conversation"
+              )
+          & properties . at "name"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "The conversation name"
+              )
+          & properties . at "team"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe ConvTeamInfo))
+                  & description ?~ "Team information of this conversation"
+              )
+          & properties . at "access"
+            ?~ Inline
+              (toSchema (Proxy @(Set Access)))
+          & properties . at "access_role"
+            ?~ Inline
+              (toSchema (Proxy @(Maybe AccessRole)))
+          & properties . at "message_timer"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Milliseconds))
+                  & minimum_ ?~ 0
+                  & description ?~ "Per-conversation message timer"
+              )
+          & properties . at "receipt_mode"
+            ?~ Inline
+              (toSchema (Proxy @(Maybe ReceiptMode)))
+          & properties . at "conversation_role"
+            ?~ Inline
+              (toSchema (Proxy @RoleName))
 
 instance ToJSON NewConvUnmanaged where
   toJSON (NewConvUnmanaged nc) = newConvToJSON nc
@@ -439,6 +576,23 @@ data ConvTeamInfo = ConvTeamInfo
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConvTeamInfo)
+
+instance ToSchema ConvTeamInfo where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "TeamInfo") $
+        mempty
+          & description ?~ "Team information"
+          & properties . at "teamid"
+            ?~ Inline
+              ( toSchema (Proxy @TeamId)
+                  & description ?~ "Team ID"
+              )
+          & properties . at "managed"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether this is a managed team conversation"
+              )
 
 modelTeamInfo :: Doc.Model
 modelTeamInfo = Doc.defineModel "TeamInfo" $ do

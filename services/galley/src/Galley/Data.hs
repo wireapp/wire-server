@@ -547,9 +547,9 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
 conversationIdsOf ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   UserId ->
-  Range 1 32 (List ConvId) ->
+  [ConvId] ->
   m [ConvId]
-conversationIdsOf usr (fromList . fromRange -> cids) = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
 createConversation ::
   MonadClient m =>

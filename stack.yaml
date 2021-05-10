@@ -176,10 +176,10 @@ extra-deps:
 - git: https://github.com/wireapp/servant-swagger.git
   commit: 23e9afafadaade29d21181b935286087457171e3
 
-# For changes from https://github.com/haskell-servant/servant/pull/1376
+# For changes from https://github.com/haskell-servant/servant/pull/1420
 # Not released to hackage yet
-- git: https://github.com/haskell-servant/servant.git
-  commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+- git: https://github.com/wireapp/servant.git
+  commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   subdirs:
   - servant
   - servant-server
