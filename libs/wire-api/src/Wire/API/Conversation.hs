@@ -40,6 +40,7 @@ module Wire.API.Conversation
 
     -- * invite
     Invite (..),
+    InviteQualified (..),
     newInvite,
 
     -- * update

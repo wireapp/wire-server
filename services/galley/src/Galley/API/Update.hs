@@ -64,6 +64,7 @@ import Data.Id
 import Data.List.Extra (nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Time
@@ -438,21 +439,23 @@ joinConversation zusr zcon cnv access = do
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
-  invite <- fromJsonBody req
-  handleUpdateResult <$> addMembers zusr zcon cid invite
+  (Invite u r) <- fromJsonBody req
+  domain <- viewFederationDomain
+  let qInvite = Public.InviteQualified (fmap (flip Qualified domain) u) r
+  handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
 addMembersQH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.InviteQualified -> Galley Response
 addMembersQH (zusr ::: zcon ::: cid ::: req) = do
   invite <- fromJsonBody req
   handleUpdateResult <$> addMembers zusr zcon cid invite
 
-addMembers :: UserId -> ConnId -> ConvId -> Public.Invite -> Galley UpdateResult
+addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing convNotFound
   mems <- botsAndUsers (Data.convMembers conv)
   self <- getSelfMember zusr (snd mems)
   ensureActionAllowed AddConversationMember self
-  let invitedUsers = toList $ invUsers invite
+  let invitedUsers = toList $ Public.invQUsers invite
   toAdd <- fromMemberSize <$> checkedMemberAddSize invitedUsers
   let newUsers = filter (notIsMember conv) (toList toAdd)
   ensureMemberLimit (toList $ Data.convMembers conv) newUsers
@@ -806,6 +809,9 @@ ensureMemberLimit old new = do
 
 notIsMember :: Data.Conversation -> UserId -> Bool
 notIsMember cc u = not $ isMember u (Data.convMembers cc)
+
+notIsMember' :: Data.Conversation -> Qualified UserId -> Bool
+notIsMember' cc u = not $ isMember u (Data.convMembers cc)
 
 ensureConvMember :: [LocalMember] -> UserId -> Galley ()
 ensureConvMember users usr =

@@ -69,8 +69,6 @@ data T
 
 data STo
 
-data Remote a
-
 type AssetId = Id A
 
 type InvitationId = Id I

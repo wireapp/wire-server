@@ -135,6 +135,7 @@ import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event, EventType (..), teamConversations, teamMembers)
 import Galley.Types.Teams.Intra
@@ -456,7 +457,8 @@ conversation ::
   m (Maybe Conversation)
 conversation conv = do
   cdata <- async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-  mbConv <- toConv conv <$> members conv <*> wait cdata
+  remoteMembers <- async $ retry x1 (query1 Cql.selectRemoteMembers (params Quorum (Identity [conv])))
+  mbConv <- toConv conv <$> members conv <*> wait cdata -- <*> wait remoteMembers
   return mbConv >>= conversationGC
 
 {- "Garbage collect" the conversation, i.e. the conversation may be
@@ -500,7 +502,8 @@ toConv ::
 toConv cid mms conv =
   f mms <$> conv
   where
-    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms ti del timer rm
+    remoteMembers = [] -- TODO
+    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMembers ti del timer rm
 
 conversationMeta :: MonadClient m => ConvId -> m (Maybe ConversationMeta)
 conversationMeta conv =
@@ -569,10 +572,10 @@ createConversation usr name acc role others tinfo mtimer recpt othersConversatio
       addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
   -- FUTUREWORK: split users into list of remote and local users
-  let remoteUsers :: [(RemoteUserId, RoleName)]
+  let remoteUsers :: [(Remote UserId, RoleName)]
       remoteUsers = []
-  mems <- snd <$> addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others)) remoteUsers
-  return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
+  (_, mems, rMems) <- addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others)) remoteUsers
+  return $ newConv conv RegularConv usr mems rMems acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
 createSelfConversation usr name = do
@@ -581,7 +584,7 @@ createSelfConversation usr name = do
   retry x5 $
     write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
   mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
-  return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing
+  return $ newConv conv SelfConv usr (toList mems) [] [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation ::
   MonadClient m =>
@@ -600,7 +603,8 @@ createConnectConversation a b name conn = do
   -- when the other user accepts the connection request.
   mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
   let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
-  return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
+  let remoteMembers = [] -- FUTUREWORK: federated connections
+  return (newConv conv ConnectConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
 createOne2OneConversation ::
   MonadClient m =>
@@ -622,7 +626,8 @@ createOne2OneConversation a b name ti = do
       addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
   mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
-  return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing Nothing
+  let remoteMembers = [] -- FUTUREWORK: federated one2one
+  return $ newConv conv One2OneConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name ti Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
@@ -661,6 +666,7 @@ newConv ::
   ConvType ->
   UserId ->
   [LocalMember] ->
+  [RemoteMember] ->
   [Access] ->
   AccessRole ->
   Maybe (Range 1 256 Text) ->
@@ -668,7 +674,7 @@ newConv ::
   Maybe Milliseconds ->
   Maybe ReceiptMode ->
   Conversation
-newConv cid ct usr mems acc role name tid mtimer rMode =
+newConv cid ct usr mems rMems acc role name tid mtimer rMode =
   Conversation
     { convId = cid,
       convType = ct,
@@ -677,6 +683,7 @@ newConv cid ct usr mems acc role name tid mtimer rMode =
       convAccess = acc,
       convAccessRole = role,
       convMembers = mems,
+      convRemoteMembers = rMems,
       convTeam = tid,
       convDeleted = Nothing,
       convMessageTimer = mtimer,
@@ -759,12 +766,12 @@ addMembersUnchecked t conv orig usrs = addLocalMembersUncheckedWithRole t conv (
 -- | Add only local members to a local conversation.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addLocalMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, [LocalMember])
-addLocalMembersUncheckedWithRole t conv orig lusers = addMembersUncheckedWithRole t conv orig (toList lusers) []
+addLocalMembersUncheckedWithRole t conv orig lusers = (\(a, b, _) -> (a, b)) <$> addMembersUncheckedWithRole t conv orig (toList lusers) []
 
 -- | Add members to a local conversation.
 -- Conversation is local, so we can add any member to it (including remote ones).
 -- Please make sure the conversation doesn't exceed the maximum size!
-addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> [(UserId, RoleName)] -> [(RemoteUserId, RoleName)] -> m (Event, [LocalMember])
+addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> m (Event, [LocalMember], [RemoteMember])
 addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
@@ -798,8 +805,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
         addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser)
   -- FUTUREWORK: also include remote users in the event!
   let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ lusrs)
-  -- FUTUREWORK: also include the remote users here!
-  return (e, fmap (uncurry newMemberWithRole) lusrs)
+  return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)
@@ -835,7 +841,7 @@ updateMember cid uid mup = do
 removeLocalMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
 removeLocalMembers conv orig localVictims = removeMembers conv orig localVictims []
 
-removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> [RemoteUserId] -> m Event
+removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> [Remote UserId] -> m Event
 removeMembers conv orig localVictims remoteVictims = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do

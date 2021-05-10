@@ -27,7 +27,7 @@ module Data.Qualified
 
     -- * Qualified
     Qualified (..),
-    RemoteUserId,
+    Remote,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionQualified,
@@ -43,7 +43,7 @@ import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
-import Data.Id (Id (toUUID), UserId)
+import Data.Id (Id (toUUID))
 import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
@@ -99,7 +99,7 @@ data Qualified a = Qualified
   }
   deriving stock (Eq, Ord, Show, Generic, Functor)
 
-type RemoteUserId = Tagged "remote" (Qualified UserId)
+type Remote a = Tagged "remote" (Qualified a)
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors

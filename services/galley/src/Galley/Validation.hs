@@ -65,7 +65,7 @@ checkedMemberAddSize [] = throwErr "List must be of at least size 1"
 checkedMemberAddSize l@(x : xs) = do
   o <- view options
   let minV :: Integer = 1
-      limit = (o ^. optSettings . setMaxConvSize)
+      limit = o ^. optSettings . setMaxConvSize
   if within l minV (fromIntegral limit)
     then return (ConvMemberAddSizeChecked $ list1 x xs)
     else throwErr (errorMsg minV limit "")
