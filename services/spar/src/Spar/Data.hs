@@ -110,7 +110,7 @@ import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 13
+schemaVersion = 14
 
 ----------------------------------------------------------------------
 -- helpers
