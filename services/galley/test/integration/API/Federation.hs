@@ -21,8 +21,10 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens
+import Data.Id (Id (..))
 import Data.List1
 import Data.Qualified (Qualified (..))
+import Data.UUID.V4 (nextRandom)
 import Galley.Types
 import Imports
 import Test.Tasty
@@ -36,7 +38,8 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "federation"
-    [ test s "getConversations (/federation/conversations/get-by-ids) : All Found" getConversationsAllFound
+    [ test s "getConversations: All Found" getConversationsAllFound,
+      test s "getConversations: Conversations user is not a part of are excluded from result" getConversationsNotPartOf
     ]
 
 getConversationsAllFound :: TestM ()
@@ -77,3 +80,21 @@ getConversationsAllFound = do
       "other members mismatch"
       (Just [])
       ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+
+getConversationsNotPartOf :: TestM ()
+getConversationsNotPartOf = do
+  -- FUTUREWORK: make alice / bob remote users
+  [alice, bob] <- randomUsers 2
+  connectUsers alice (singleton bob)
+  -- create & get one2one conv
+  cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
+  getConvs alice (Just $ Left [cnvId cnv1]) Nothing !!! do
+    const 200 === statusCode
+    const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
+
+  fedGalleyClient <- view tsFedGalleyClient
+  localDomain <- viewFederationDomain
+  rando <- Id <$> liftIO nextRandom
+  let randoQualified = Qualified rando localDomain
+  GetConversationsResponse cs <- FedGalley.getConversations fedGalleyClient (GetConversationsRequest randoQualified [cnvId cnv1])
+  liftIO $ assertEqual "conversation list not empty" [] cs

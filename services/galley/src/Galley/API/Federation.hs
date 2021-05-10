@@ -40,7 +40,7 @@ getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = d
   localDomain <- viewFederationDomain
   convs <- Data.conversations gcrConvIds
   if domain == localDomain
-    then GetConversationsResponse <$> for convs (Mapping.conversationView uid)
+    then GetConversationsResponse . catMaybes <$> for convs (Mapping.conversationViewMaybe uid)
     else error "FUTUREWORK: implement & exstend integration test when schema ready"
 
 updateConversationMembership :: ConversationMemberUpdate -> Galley ()
