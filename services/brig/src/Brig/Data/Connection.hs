@@ -26,6 +26,7 @@ module Brig.Data.Connection
     lookupConnections,
     lookupConnectionStatus,
     lookupContactList,
+    lookupContactListWithRelation,
     countConnections,
     deleteConnections,
   )
@@ -111,12 +112,16 @@ lookupConnectionStatus from to =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect (params Quorum (from, to)))
 
--- | For a given user 'A', lookup the list of users that form his contact list,
--- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
+-- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
 lookupContactList u =
-  map fst . filter ((== Accepted) . snd)
-    <$> retry x1 (query contactsSelect (params Quorum (Identity u)))
+  fst <$$> (filter ((== Accepted) . snd) <$> lookupContactListWithRelation u)
+
+-- | For a given user 'A', lookup the list of users that form his contact list,
+-- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
+lookupContactListWithRelation :: UserId -> AppIO [(UserId, Relation)]
+lookupContactListWithRelation u =
+  retry x1 (query contactsSelect (params Quorum (Identity u)))
 
 -- | Count the number of connections a user has in a specific relation status.
 -- Note: The count is eventually consistent.

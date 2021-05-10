@@ -76,6 +76,8 @@ type Brig = Request -> Request
 
 type Cannon = Request -> Request
 
+type Gundeck = Request -> Request
+
 type CargoHold = Request -> Request
 
 type Galley = Request -> Request
@@ -388,7 +390,7 @@ sendLoginCode b p typ force =
             "force" .= force
           ]
 
-postConnection :: Brig -> UserId -> UserId -> Http ResponseLBS
+postConnection :: Brig -> UserId -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 postConnection brig from to =
   post $
     brig
@@ -402,7 +404,7 @@ postConnection brig from to =
       RequestBodyLBS . encode $
         ConnectionRequest to "some conv name" (Message "some message")
 
-putConnection :: Brig -> UserId -> UserId -> Relation -> Http ResponseLBS
+putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
     brig
@@ -414,7 +416,7 @@ putConnection brig from to r =
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
-connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
+connectUsers :: Brig -> UserId -> List1 UserId -> (MonadIO m, MonadHttp m) => m ()
 connectUsers b u = mapM_ connectTo
   where
     connectTo v = do
@@ -438,7 +440,7 @@ putHandle brig usr h =
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
 
-createUserWithHandle :: Brig -> Http (Handle, User)
+createUserWithHandle :: Brig -> (MonadCatch m, MonadIO m, MonadHttp m) => m (Handle, User)
 createUserWithHandle brig = do
   u <- randomUser brig
   h <- randomHandle

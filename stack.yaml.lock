@@ -534,54 +534,54 @@ packages:
     subdir: servant
     name: servant
     version: 0.18.2
-    git: https://github.com/haskell-servant/servant.git
+    git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 2809
-      sha256: 952540fb295f50de371c8a98222eaf28146ef0e4366b986dd7b601c0ea9a5d00
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+      sha256: 22348fceac7bca97f5c349d9db0b157e401ed273d151d8cbcbd767f4d06791e8
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant
-    git: https://github.com/haskell-servant/servant.git
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+    git: https://github.com/wireapp/servant.git
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-server
     name: servant-server
     version: 0.18.2
-    git: https://github.com/haskell-servant/servant.git
+    git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 2727
-      sha256: bda5fc5c3e70633dec238284bc0f626bae432d39758ab0905875388d587fc3d0
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+      sha256: 55d3c9747550555f3861b5fabfe7cc0385c64ccaf3e5b051aa3064bddb8661ad
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-server
-    git: https://github.com/haskell-servant/servant.git
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+    git: https://github.com/wireapp/servant.git
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-client
     name: servant-client
     version: 0.18.2
-    git: https://github.com/haskell-servant/servant.git
+    git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 1346
-      sha256: 9d869b0c40bdd0ce19dcbcf7f5c9fedcf66f5fa1d2b404b87c57788aab69f330
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+      sha256: 9245621a9097c0b4d5ecbd61616d00c69112e1539db8803a0fda010de484e7ba
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-client
-    git: https://github.com/haskell-servant/servant.git
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+    git: https://github.com/wireapp/servant.git
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-client-core
     name: servant-client-core
     version: 0.18.2
-    git: https://github.com/haskell-servant/servant.git
+    git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 1444
-      sha256: 1c26c72febd94ac29c006dfd50123608259f7e48844c71b4088d6608735c0949
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+      sha256: b5a7abf78d2ee0887bf05d7d4ba71e3c689b65a9b2e7386c394f4bdb6ff8e55d
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-client-core
-    git: https://github.com/haskell-servant/servant.git
-    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+    git: https://github.com/wireapp/servant.git
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:

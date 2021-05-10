@@ -32,6 +32,7 @@ module Wire.API.Conversation.Role
     -- * RoleName
     RoleName,
     fromRoleName,
+    parseRoleName,
     wireConvRoleNames,
     roleNameWireAdmin,
     roleNameWireMember,
@@ -54,14 +55,20 @@ where
 
 import Cassandra.CQL hiding (Set)
 import Control.Applicative (optional)
+import Control.Lens (at, (?~))
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
+import Data.Proxy (Proxy (..))
 import Data.Range (fromRange, genRangeText)
 import qualified Data.Set as Set
+import Data.Swagger (NamedSchema (..), Referenced (Inline), Schema, description, schema)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Lens (properties)
+import Data.Swagger.Schema hiding (constructorTagModifier)
+import Deriving.Swagger hiding (camelTo2)
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -91,6 +98,20 @@ modelConversationRole = Doc.defineModel "ConversationRole" $ do
       \custom roles can have the same prefix)"
   Doc.property "actions" (Doc.array typeConversationRoleAction) $
     Doc.description "The set of actions allowed for this role"
+
+instance ToSchema ConversationRole where
+  declareNamedSchema _ = do
+    conversationRoleSchema <-
+      declareSchemaRef (Proxy @RoleName)
+    let convRoleSchema :: Schema =
+          mempty
+            & properties . at "conversation_role" ?~ conversationRoleSchema
+            & properties . at "actions"
+              ?~ Inline
+                ( toSchema (Proxy @[Action])
+                    & description ?~ "The set of actions allowed for this role"
+                )
+    pure (NamedSchema (Just "ConversationRole") convRoleSchema)
 
 instance ToJSON ConversationRole where
   toJSON cr =
@@ -140,6 +161,7 @@ data ConversationRolesList = ConversationRolesList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationRolesList)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (LabelMappings '["convRolesList" ':-> "conversation_roles"])] ConversationRolesList)
 
 modelConversationRolesList :: Doc.Model
 modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
@@ -167,6 +189,14 @@ instance FromJSON ConversationRolesList where
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable)
+
+instance ToSchema RoleName where
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @Text)
+      <&> (schema . description)
+      ?~ "Role name, between 2 and 128 chars, 'wire_' prefix \
+         \is reserved for roles designed by Wire (i.e., no \
+         \custom roles can have the same prefix)"
 
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
@@ -237,6 +267,7 @@ data Action
   | DeleteConversation
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Action)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToSnake] Action)
 
 typeConversationRoleAction :: Doc.DataType
 typeConversationRoleAction =

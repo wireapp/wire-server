@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 87ff976816fc00aa2b6043f192680ac989c0751cb4fc0999669d50ba4ac38eb8
+-- hash: 95bd17ea247e837bf979ac8f48ca2a20fe52692cb59a50838440ac4749af57b1
 
 name:           galley
 version:        0.83.0
@@ -124,6 +124,8 @@ library
     , servant
     , servant-server
     , servant-swagger
+    , servant-swagger-ui
+    , sop-core
     , split >=0.2
     , ssl-util >=0.1
     , stm >=2.4

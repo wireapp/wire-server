@@ -164,6 +164,7 @@ postConvOk = do
     rsp <-
       postConv alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing
         <!! const 201 === statusCode
+    print rsp
     cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])

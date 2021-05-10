@@ -37,6 +37,8 @@ module Wire.API.Team.Member
     teamMemberListType,
     HardTruncationLimit,
     hardTruncationLimit,
+    NewListType (..),
+    toNewListType,
     ListType (..),
     teamMemberListJson,
 
@@ -68,6 +70,8 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Schema (ToSchema)
+import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, StripPrefix)
 import GHC.TypeLits
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -195,10 +199,33 @@ type HardTruncationLimit = (2000 :: Nat)
 hardTruncationLimit :: Integral a => a
 hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
 
+-- | Like 'ListType', but without backwards-compatible and boolean-blind json serialization.
+data NewListType
+  = NewListComplete
+  | NewListTruncated
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewListType)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "New", CamelToSnake)] NewListType)
+
+-- This replaces the previous `hasMore` but has no boolean blindness. At the API level
+-- though we do want this to remain true/false
+instance ToJSON NewListType where
+  toJSON NewListComplete = String "list_complete"
+  toJSON NewListTruncated = String "list_truncated"
+
+instance FromJSON NewListType where
+  parseJSON (String "list_complete") = pure NewListComplete
+  parseJSON (String "list_truncated") = pure NewListTruncated
+  parseJSON bad = fail $ "NewListType: " <> cs (encode bad)
+
+toNewListType :: ListType -> NewListType
+toNewListType ListComplete = NewListComplete
+toNewListType ListTruncated = NewListTruncated
+
 data ListType
   = ListComplete
   | ListTruncated
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ListType)
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level

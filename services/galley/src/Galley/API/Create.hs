@@ -16,11 +16,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Create
-  ( createGroupConversationH,
+  ( createGroupConversation,
     internalCreateManagedConversationH,
-    createSelfConversationH,
-    createOne2OneConversationH,
+    createSelfConversation,
+    createOne2OneConversation,
     createConnectConversationH,
+    ConversationResponses,
   )
 where
 
@@ -29,6 +30,7 @@ import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
@@ -46,7 +48,25 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Servant (Headers, WithStatus (..))
+import qualified Servant
+import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
+
+-- Servant helpers ------------------------------------------------------
+
+type ConversationResponses =
+  '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
+     WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
+   ]
+
+conversationResponse :: ConversationResponse -> Union ConversationResponses
+conversationResponse (ConversationExisted c) =
+  Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+conversationResponse (ConversationCreated c) =
+  S . Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+
+-------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -54,16 +74,16 @@ import qualified Wire.API.Conversation as Public
 -- | The public-facing endpoint for creating group conversations.
 --
 -- See Note [managed conversations].
-createGroupConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
-createGroupConversationH (zusr ::: zcon ::: req) = do
-  newConv <- fromJsonBody req
-  handleConversationResponse <$> createGroupConversation zusr zcon newConv
-
-createGroupConversation :: UserId -> ConnId -> Public.NewConvUnmanaged -> Galley ConversationResponse
-createGroupConversation zusr zcon wrapped@(Public.NewConvUnmanaged body) = do
-  case newConvTeam body of
-    Nothing -> createRegularGroupConv zusr zcon wrapped
-    Just tinfo -> createTeamGroupConv zusr zcon tinfo body
+createGroupConversation ::
+  UserId ->
+  ConnId ->
+  Public.NewConvUnmanaged ->
+  Galley (Union ConversationResponses)
+createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
+  conversationResponse
+    <$> case newConvTeam body of
+      Nothing -> createRegularGroupConv user conn wrapped
+      Just tinfo -> createTeamGroupConv user conn tinfo body
 
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
@@ -145,25 +165,17 @@ createTeamGroupConv zusr zcon tinfo body = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversationH :: UserId -> Galley Response
-createSelfConversationH zusr = do
-  handleConversationResponse <$> createSelfConversation zusr
-
-createSelfConversation :: UserId -> Galley ConversationResponse
-createSelfConversation zusr = do
-  c <- Data.conversation (Id . toUUID $ zusr)
-  maybe create (conversationExisted zusr) c
+createSelfConversation :: UserId -> Galley (Union ConversationResponses)
+createSelfConversation zusr =
+  conversationResponse <$> do
+    c <- Data.conversation (Id . toUUID $ zusr)
+    maybe create (conversationExisted zusr) c
   where
     create = do
       c <- Data.createSelfConversation zusr Nothing
       conversationCreated zusr c
 
-createOne2OneConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
-createOne2OneConversationH (zusr ::: zcon ::: req) = do
-  newConv <- fromJsonBody req
-  handleConversationResponse <$> createOne2OneConversation zusr zcon newConv
-
-createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
+createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley (Union ConversationResponses)
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   otherUserId <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
   (x, y) <- toUUIDs zusr otherUserId
@@ -179,7 +191,8 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
-  maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
+  resp <- maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
+  pure (conversationResponse resp)
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u

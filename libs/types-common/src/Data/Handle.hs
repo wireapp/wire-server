@@ -46,7 +46,7 @@ import Util.Attoparsec (takeUpToWhile)
 -- | Also called username.
 newtype Handle = Handle
   {fromHandle :: Text}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable, ToSchema, ToParamSchema)
 
 instance FromHttpApiData Handle where
