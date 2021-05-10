@@ -204,6 +204,13 @@ requestDevice zusr tid uid = do
     Just UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice
     Nothing -> throwM teamMemberNotFound
   where
+    -- LH service should be idempotent in device creation, ie. return the existing device on
+    -- multiple calls to `/init`, like here:
+    -- https://github.com/wireapp/legalhold/blob/e0a241162b9dbc841f12fbc57c8a1e1093c7e83a/src/main/java/com/wire/bots/hold/resource/InitiateResource.java#L42
+    --
+    -- This will still work if the LH service creates two new device on two consecutive calls
+    -- to `/init`, but there may be race conditions, eg. when updating and enabling a pending
+    -- device at (almost) the same time.
     provisionLHDevice :: Galley ()
     provisionLHDevice = do
       (lastPrekey', prekeys) <- requestDeviceFromService
