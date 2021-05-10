@@ -32,6 +32,7 @@ module Wire.API.Conversation.Role
     -- * RoleName
     RoleName,
     fromRoleName,
+    parseRoleName,
     wireConvRoleNames,
     roleNameWireAdmin,
     roleNameWireMember,
