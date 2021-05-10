@@ -112,6 +112,7 @@ import Control.Arrow (second)
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
 import Data.ByteString.Conversion hiding (parser)
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..))
@@ -457,10 +458,10 @@ conversation ::
   m (Maybe Conversation)
 conversation conv = do
   cdata <- async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-  mbConv <- toConv conv <$> members conv <*> wait cdata -- <*> wait remoteMembers
+  remoteMems <- async $ lookupRemoteMembers conv
+  mbConv <- toConv conv <$> members conv <*> wait remoteMems <*> wait cdata
   return mbConv >>= conversationGC
 
--- remoteMembers <- async $ retry x1 (query1 Cql.selectRemoteMembers (params Quorum (Identity [conv])))
 --
 {- "Garbage collect" the conversation, i.e. the conversation may be
    marked as deleted, in which case we delete it and return Nothing -}
@@ -481,8 +482,9 @@ conversations ::
 conversations [] = return []
 conversations ids = do
   convs <- async fetchConvs
-  mems <- memberLists ids
-  cs <- zipWith3 toConv ids mems <$> wait convs
+  mems <- async $ memberLists ids
+  remoteMems <- async $ remoteMemberLists ids
+  cs <- zipWith4 toConv ids <$> wait mems <*> wait remoteMems <*> wait convs
   foldrM flatten [] (zip ids cs)
   where
     fetchConvs = do
@@ -498,13 +500,13 @@ conversations ids = do
 toConv ::
   ConvId ->
   [LocalMember] ->
+  [RemoteMember] ->
   Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
   Maybe Conversation
-toConv cid mms conv =
+toConv cid mms remoteMems conv =
   f mms <$> conv
   where
-    remoteMembers = [] -- TODO
-    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMembers ti del timer rm
+    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
 conversationMeta :: MonadClient m => ConvId -> m (Maybe ConversationMeta)
 conversationMeta conv =
@@ -732,6 +734,23 @@ member cnv usr =
   fmap (join @Maybe) . traverse toMember
     =<< retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
 
+remoteMemberLists ::
+  (MonadClient m) =>
+  [ConvId] ->
+  m [[RemoteMember]]
+remoteMemberLists convs = do
+  mems <- retry x1 $ query Cql.selectRemoteMembers (params Quorum (Identity convs))
+  let convMembers = foldr (insert . mkMem) Map.empty mems
+  return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
+  where
+    insert (conv, mem) acc =
+      let f = (Just . maybe [mem] (mem :))
+       in Map.alter f conv acc
+    mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
+
+toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
+toRemoteMember u d = RemoteMember (Remote (Qualified u d))
+
 memberLists ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   [ConvId] ->
@@ -750,6 +769,9 @@ memberLists convs = do
 
 members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [LocalMember]
 members conv = join <$> memberLists [conv]
+
+lookupRemoteMembers :: (MonadClient m) => ConvId -> m [RemoteMember]
+lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
 
 -- | Add a member to a local conversation, as an admin.
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, [LocalMember])
