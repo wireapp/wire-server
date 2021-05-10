@@ -66,10 +66,6 @@ conversationResponse (ConversationExisted c) =
 conversationResponse (ConversationCreated c) =
   S . Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
 
--- conversationExtract :: ConversationResponse -> Headers '[Servant.Header "Location" ConvId] Public.Conversation
--- conversationExtract (ConversationExisted c) = Servant.addHeader (cnvId c) c
--- conversationExtract (ConversationCreated c) = Servant.addHeader (cnvId c) c
-
 -------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------

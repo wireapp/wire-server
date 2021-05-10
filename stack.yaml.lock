@@ -536,13 +536,13 @@ packages:
     version: 0.18.2
     git: https://github.com/wireapp/servant.git
     pantry-tree:
-      size: 2810
-      sha256: e03a032acce955d713de18535450f09d32bb436831d484c4a5d310336b0dc790
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+      size: 2809
+      sha256: 22348fceac7bca97f5c349d9db0b157e401ed273d151d8cbcbd767f4d06791e8
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant
     git: https://github.com/wireapp/servant.git
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-server
     name: servant-server
@@ -550,12 +550,12 @@ packages:
     git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 2727
-      sha256: 474b5a833075a66a411b97cf85ee5deaed219d221333b32543f0bb98ec38ffdf
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+      sha256: 55d3c9747550555f3861b5fabfe7cc0385c64ccaf3e5b051aa3064bddb8661ad
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-server
     git: https://github.com/wireapp/servant.git
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-client
     name: servant-client
@@ -563,12 +563,12 @@ packages:
     git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 1346
-      sha256: 9d869b0c40bdd0ce19dcbcf7f5c9fedcf66f5fa1d2b404b87c57788aab69f330
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+      sha256: 9245621a9097c0b4d5ecbd61616d00c69112e1539db8803a0fda010de484e7ba
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-client
     git: https://github.com/wireapp/servant.git
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     subdir: servant-client-core
     name: servant-client-core
@@ -576,12 +576,12 @@ packages:
     git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 1444
-      sha256: 1c26c72febd94ac29c006dfd50123608259f7e48844c71b4088d6608735c0949
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+      sha256: b5a7abf78d2ee0887bf05d7d4ba71e3c689b65a9b2e7386c394f4bdb6ff8e55d
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
   original:
     subdir: servant-client-core
     git: https://github.com/wireapp/servant.git
-    commit: 3fb8141cd76bb4d3f4f9453d6db6627f10c0e5dd
+    commit: a4e15fe75f294816d9ead19ed8a48cae8e0b76e7
 - completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:

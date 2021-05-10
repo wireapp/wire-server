@@ -171,7 +171,7 @@ data Api routes = Api
     getConversationIds ::
       routes
         :- Summary "Get all conversation IDs."
-        -- TODO: add note "At most 1000 IDs are returned per request"
+        -- FUTUREWORK: add bounds to swagger schema for Range
         :> ZUser
         :> "conversations"
         :> "ids"
