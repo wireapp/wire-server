@@ -147,6 +147,7 @@ instance
   route _ = Servant.route (Proxy @(InternalAuth ztype :> api))
   hoistServerWithContext _ pc nt s =
     Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
+
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
