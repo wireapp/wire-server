@@ -575,7 +575,7 @@ createConversation usr name acc role others tinfo mtimer recpt othersConversatio
       addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
   -- FUTUREWORK: split users into list of remote and local users
-  let remoteUsers :: [(Remote UserId, RoleName)]
+  let remoteUsers :: [Remote UserId]
       remoteUsers = []
   (_, mems, rMems) <- addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others)) remoteUsers
   return $ newConv conv RegularConv usr mems rMems acc role name (cnvTeamId <$> tinfo) mtimer recpt
@@ -746,9 +746,9 @@ remoteMemberLists convs = do
     insert (conv, mem) acc =
       let f = (Just . maybe [mem] (mem :))
        in Map.alter f conv acc
-    mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
+    mkMem (cnv, domain, usr) = (cnv, toRemoteMember usr domain)
 
-toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
+toRemoteMember :: UserId -> Domain -> RemoteMember
 toRemoteMember u d = RemoteMember (Remote (Qualified u d))
 
 memberLists ::
@@ -794,7 +794,7 @@ addLocalMembersUncheckedWithRole t conv orig lusers = (\(a, b, _) -> (a, b)) <$>
 -- | Add members to a local conversation.
 -- Conversation is local, so we can add any member to it (including remote ones).
 -- Please make sure the conversation doesn't exceed the maximum size!
-addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> m (Event, [LocalMember], [RemoteMember])
+addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> [(UserId, RoleName)] -> [Remote UserId] -> m (Event, [LocalMember], [RemoteMember])
 addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
@@ -818,7 +818,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
-      for_ chunk $ \(u, _r) -> do
+      for_ chunk $ \u -> do
         -- User is remote, so we only add it to the member_remote_user
         -- table, but the reverse mapping has to be done on the remote
         -- backend; so we assume an additional call to their backend has
@@ -828,7 +828,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
         addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser)
   -- FUTUREWORK: also include remote users in the event!
   let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ lusrs)
-  return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
+  return (e, fmap (uncurry newMemberWithRole) lusrs, fmap RemoteMember rusrs)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)

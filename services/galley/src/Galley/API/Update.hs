@@ -470,7 +470,7 @@ addMembers zusr zcon convId invite = do
       ensureAccessRole (Data.convAccessRole conv) (zip newLocals $ repeat Nothing)
       ensureConnectedOrSameTeam zusr newLocals
     Just ti -> teamConvChecks ti newLocals conv
-  addToConversation mems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
+  addToConversation mems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) newRemotes conv
   where
     userIsMember u = (^. userId . to (== u))
     teamConvChecks tid newUsers conv = do
@@ -783,7 +783,7 @@ rmBot zusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [LocalMember]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
+addToConversation :: ([BotMember], [LocalMember]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> [Remote UserId] -> Data.Conversation -> Galley UpdateResult
 addToConversation _ _ _ [] [] _ = pure Unchanged
 addToConversation (bots, others) (usr, usrRole) conn locals remotes c = do
   ensureGroupConv c
