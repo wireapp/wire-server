@@ -457,10 +457,11 @@ conversation ::
   m (Maybe Conversation)
 conversation conv = do
   cdata <- async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-  remoteMembers <- async $ retry x1 (query1 Cql.selectRemoteMembers (params Quorum (Identity [conv])))
   mbConv <- toConv conv <$> members conv <*> wait cdata -- <*> wait remoteMembers
   return mbConv >>= conversationGC
 
+-- remoteMembers <- async $ retry x1 (query1 Cql.selectRemoteMembers (params Quorum (Identity [conv])))
+--
 {- "Garbage collect" the conversation, i.e. the conversation may be
    marked as deleted, in which case we delete it and return Nothing -}
 conversationGC ::
@@ -754,9 +755,9 @@ members conv = join <$> memberLists [conv]
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, [LocalMember])
 addMember t c u = addMembersUnchecked t c u (singleton u)
 
--- | Add local members to a local conversation.
-addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked (List1 (UserId, RoleName)) -> m (Event, [LocalMember])
-addMembersWithRole t c orig mems = addLocalMembersUncheckedWithRole t c orig (fromMemberSize mems)
+-- | Add members to a local conversation.
+addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked -> m (Event, [LocalMember], [RemoteMember])
+addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (sizeCheckedLocals mems) (sizeCheckedRemotes mems)
 
 -- | Add members to a local conversation, all as admins.
 -- Please make sure the conversation doesn't exceed the maximum size!

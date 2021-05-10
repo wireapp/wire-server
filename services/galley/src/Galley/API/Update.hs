@@ -94,6 +94,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (failure, setStatus, _1, _2)
 import Network.Wai.Utilities
+import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Event.Conversation as Public
@@ -430,12 +431,13 @@ joinConversation zusr zcon cnv access = do
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   let newUsers = filter (notIsMember conv) [zusr]
-  ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+  -- FUTUREWORK: remote users?
+  ensureMemberLimit (toList $ Data.convMembers conv) newUsers []
   -- NOTE: When joining conversations, all users become members
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
   mems <- botsAndUsers (Data.convMembers conv)
-  addToConversation mems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) conv
+  addToConversation mems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) [] conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
@@ -456,17 +458,19 @@ addMembers zusr zcon convId invite = do
   self <- getSelfMember zusr (snd mems)
   ensureActionAllowed AddConversationMember self
   let invitedUsers = toList $ Public.invQUsers invite
-  toAdd <- fromMemberSize <$> checkedMemberAddSize invitedUsers
-  let newUsers = filter (notIsMember conv) (toList toAdd)
-  ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+  domain <- viewFederationDomain
+  let (invitedRemotes, invitedLocals) = partitionRemoteOrLocalIds' domain invitedUsers
+  let newLocals = filter (notIsMember conv) invitedLocals
+  let newRemotes = filter (notIsMember' conv) invitedRemotes
+  ensureMemberLimit (toList $ Data.convMembers conv) newLocals newRemotes
   ensureAccess conv InviteAccess
-  ensureConvRoleNotElevated self (invRoleName invite)
+  ensureConvRoleNotElevated self (invQRoleName invite)
   case Data.convTeam conv of
     Nothing -> do
-      ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
-      ensureConnectedOrSameTeam zusr newUsers
-    Just ti -> teamConvChecks ti newUsers conv
-  addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
+      ensureAccessRole (Data.convAccessRole conv) (zip newLocals $ repeat Nothing)
+      ensureConnectedOrSameTeam zusr newLocals
+    Just ti -> teamConvChecks ti newLocals conv
+  addToConversation mems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
     teamConvChecks tid newUsers conv = do
@@ -745,7 +749,7 @@ addBot zusr zcon b = do
       ensureGroupConv c
       ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
-        ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b ^. addBotId)]
+        ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b ^. addBotId)] []
       return (bots, users)
     teamConvChecks cid tid = do
       tcv <- Data.teamConversation tid cid
@@ -779,14 +783,14 @@ rmBot zusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [LocalMember]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
-addToConversation _ _ _ [] _ = pure Unchanged
-addToConversation (bots, others) (usr, usrRole) conn xs c = do
+addToConversation :: ([BotMember], [LocalMember]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
+addToConversation _ _ _ [] [] _ = pure Unchanged
+addToConversation (bots, others) (usr, usrRole) conn locals remotes c = do
   ensureGroupConv c
-  mems <- checkedMemberAddSize xs
+  mems <- checkedMemberAddSize locals remotes
   now <- liftIO getCurrentTime
-  -- FUTUREWORK: do we need to handle remote users here, too?
-  (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
+  (e, mm, _remotes) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
+  -- FUTUREWORK: send events to '_remotes' users here, too
   let allMembers = nubOrdOn memId (toList mm <> others)
   for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> allMembers)) $ \p ->
     push1 $ p & pushConn ?~ conn
@@ -800,18 +804,18 @@ ensureGroupConv c = case Data.convType c of
   ConnectConv -> throwM invalidConnectOp
   _ -> return ()
 
-ensureMemberLimit :: [LocalMember] -> [UserId] -> Galley ()
-ensureMemberLimit old new = do
+ensureMemberLimit :: [LocalMember] -> [UserId] -> [Remote UserId] -> Galley ()
+ensureMemberLimit old newLocals newRemotes = do
   o <- view options
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
-  when (length old + length new > maxSize) $
+  when (length old + length newLocals + length newRemotes > maxSize) $
     throwM tooManyMembers
 
 notIsMember :: Data.Conversation -> UserId -> Bool
 notIsMember cc u = not $ isMember u (Data.convMembers cc)
 
-notIsMember' :: Data.Conversation -> Qualified UserId -> Bool
-notIsMember' cc u = not $ isMember u (Data.convMembers cc)
+notIsMember' :: Data.Conversation -> Remote UserId -> Bool
+notIsMember' cc u = not $ isRemoteMember u (Data.convRemoteMembers cc)
 
 ensureConvMember :: [LocalMember] -> UserId -> Galley ()
 ensureConvMember users usr =
