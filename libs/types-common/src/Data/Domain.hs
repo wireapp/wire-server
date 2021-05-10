@@ -29,6 +29,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
+import qualified Data.Schema as P
 import Data.String.Conversions (cs)
 import Data.Swagger (ToSchema (..))
 import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
@@ -63,6 +64,8 @@ import Util.Attoparsec (takeUpToWhile)
 newtype Domain = Domain {_domainText :: Text}
   deriving stock (Eq, Ord, Generic, Show)
   deriving newtype (ToParamSchema, ToSchema)
+
+instance P.ToSchema Domain where schema = P.genericToSchema
 
 domainText :: Domain -> Text
 domainText = _domainText

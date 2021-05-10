@@ -73,10 +73,12 @@ import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.Id
 import Data.Json.Util
+import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified)
+import qualified Data.Schema as P
 import Data.String.Conversions (cs)
 import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
@@ -627,12 +629,19 @@ data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
   deriving (Arbitrary) via (GenericUniform Invite)
 
 data InviteQualified = InviteQualified
-  { invQUsers :: List1 (Qualified UserId),
+  { invQUsers :: [Qualified UserId],
     -- | This role name is to be applied to all users
     invQRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InviteQualified)
+
+instance P.ToSchema InviteQualified where
+  schema =
+    P.object "InviteQualified" $
+      InviteQualified
+        <$> invQUsers P..= P.field "qualified_users" P.schema
+        <*> invQRoleName P..= P.field "conversation_role" P.schema
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin

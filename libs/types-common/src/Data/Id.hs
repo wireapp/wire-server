@@ -37,6 +37,7 @@ import qualified Data.Char as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
+import qualified Data.Schema as P
 import Data.String.Conversions (cs)
 import Data.Swagger (ToSchema (..))
 import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
@@ -146,6 +147,8 @@ instance ToJSONKey (Id a) where
 
 instance FromJSONKey (Id a) where
   fromJSONKey = FromJSONKeyTextParser idFromText
+
+instance P.ToSchema (Id a) where schema = P.genericToSchema
 
 randomId :: (Functor m, MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom

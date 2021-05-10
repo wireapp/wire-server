@@ -39,6 +39,9 @@ module Galley.API.Update
     updateOtherMemberH,
     removeMemberH,
 
+    -- * Servant
+    UpdateResponses,
+
     -- * Talking
     postOtrMessageH,
     postProtoOtrMessageH,
@@ -94,6 +97,9 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (failure, setStatus, _1, _2)
 import Network.Wai.Utilities
+import Servant (NoContent, respond)
+import Servant.API (NoContent (NoContent))
+import Servant.API.UVerb
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
@@ -446,10 +452,17 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   let qInvite = Public.InviteQualified (fmap (flip Qualified domain) u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
-addMembersQH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.InviteQualified -> Galley Response
-addMembersQH (zusr ::: zcon ::: cid ::: req) = do
-  invite <- fromJsonBody req
-  handleUpdateResult <$> addMembers zusr zcon cid invite
+type UpdateResponses =
+  '[ WithStatus 200 Public.Event,
+     NoContent
+   ]
+
+addMembersQH :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (Union UpdateResponses)
+addMembersQH zusr zcon convId invite = mapUpdateToServant =<< addMembers zusr zcon convId invite
+
+mapUpdateToServant :: UpdateResult -> Galley (Union UpdateResponses)
+mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
+mapUpdateToServant Unchanged = Servant.respond NoContent
 
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do

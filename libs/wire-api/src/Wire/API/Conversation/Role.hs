@@ -63,6 +63,7 @@ import Data.ByteString.Conversion
 import Data.Hashable
 import Data.Proxy (Proxy (..))
 import Data.Range (fromRange, genRangeText)
+import qualified Data.Schema as P
 import qualified Data.Set as Set
 import Data.Swagger (NamedSchema (..), Referenced (Inline), Schema, description, schema)
 import qualified Data.Swagger.Build.Api as Doc
@@ -189,6 +190,8 @@ instance FromJSON ConversationRolesList where
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable)
+
+instance P.ToSchema RoleName where schema = P.genericToSchema
 
 instance ToSchema RoleName where
   declareNamedSchema _ =

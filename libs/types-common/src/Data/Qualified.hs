@@ -49,6 +49,7 @@ import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
 import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
+import qualified Data.Schema as P
 import Data.String.Conversions (cs)
 import Data.Swagger
 import Data.Swagger.Declare (Declare, DeclareT)
@@ -101,6 +102,13 @@ data Qualified a = Qualified
     qDomain :: Domain
   }
   deriving stock (Eq, Ord, Show, Generic, Functor)
+
+instance (P.ToSchema a) => P.ToSchema (Qualified a) where
+  schema =
+    P.object "Qualified" $
+      Qualified
+        <$> qUnqualified P..= P.field "id" P.schema
+        <*> qDomain P..= P.field "domain" P.schema
 
 type Remote a = Tagged "remote" (Qualified a)
 

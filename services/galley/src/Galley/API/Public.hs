@@ -251,6 +251,17 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
         :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
+    addMembersToConversationV2 ::
+      routes
+        :- Summary "Add qualified members to an existing conversation."
+        :> ZUser
+        :> ZAuthServant 'ZAuthConn
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> "v2"
+        :> ReqBody '[Servant.JSON] Public.InviteQualified
+        :> UVerb 'POST '[Servant.JSON] Update.UpdateResponses,
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -916,13 +927,6 @@ sitemap = do
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse Error.notConnected
     errorResponse Error.convAccessDenied
-
-  -- TODO: discuss naming for this endpoint. Or should we augment 'Invite' with qualified members and keep this endpoint?
-  post "/conversations/:cnv/qualified-members" (continue Update.addMembersQH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.InviteQualified
 
   get "/conversations/:cnv/self" (continue Query.getSelfH) $
     zauthUserId
