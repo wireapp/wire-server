@@ -52,9 +52,6 @@ settings:
         config:
           enforceAppLock: false
           inactivityTimeoutSecs: 60
-  legalholdEnabledTeams:
-  - f0869dc8-a760-11eb-b1c5-a7b08fd5a221  # That one Customer
-  - f38a9aba-a760-11eb-b062-93b75bd81631  # Galactic Overloard and friends
 
 logLevel: Info
 logNetStrings: false
