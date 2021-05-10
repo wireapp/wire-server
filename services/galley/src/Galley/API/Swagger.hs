@@ -87,6 +87,8 @@ type GalleyRoutesPublic =
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
       -- :> ReqBody '[JSON] RemoveLegalHoldSettingsRequest
       :> Verb 'DELETE 204 '[] NoContent
+    :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "consent"
+      :> Post '[] NoContent
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
       :> Post '[] NoContent
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId :> "approve"

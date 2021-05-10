@@ -21,6 +21,7 @@ module Galley.API.LegalHold
     removeSettingsH,
     removeSettings',
     getUserStatusH,
+    grantConsentH,
     requestDeviceH,
     approveDeviceH,
     disableForUserH,
@@ -31,7 +32,7 @@ where
 import Brig.Types.Client.Prekey
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
-import Control.Lens (view, (^.))
+import Control.Lens (to, view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
@@ -45,6 +46,7 @@ import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
+import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types.Status (status201, status204)
@@ -178,6 +180,37 @@ getUserStatus tid uid = do
         Just lstKey -> pure lstKey
       let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
       pure (Just lastKey, Just clientId)
+
+-- | Change 'UserLegalHoldStatus' from no consent to disabled.  FUTUREWORK:
+-- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
+-- out).
+grantConsentH :: UserId ::: TeamId ::: JSON -> Galley Response
+grantConsentH (zusr ::: tid ::: _) = do
+  grantConsent zusr tid >>= \case
+    GrantConsentSuccess -> pure $ empty & setStatus status201
+    GrantConsentAlreadyGranted -> pure $ empty & setStatus status204
+
+data GrantConsentResult
+  = GrantConsentSuccess
+  | GrantConsentAlreadyGranted
+
+grantConsent :: UserId -> TeamId -> Galley GrantConsentResult
+grantConsent zusr tid = do
+  assertLegalHoldEnabled tid
+  userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid zusr
+
+  view (options . Opts.optSettings . to Opts.legalHoldEnabledForInstance) >>= \case
+    True -> pure ()
+    False -> throwM legalHoldNotEnabled
+
+  case userLHStatus of
+    Nothing ->
+      throwM teamMemberNotFound
+    Just UserLegalHoldNoConsent ->
+      LegalHoldData.setUserLegalHoldStatus tid zusr UserLegalHoldDisabled $> GrantConsentSuccess
+    Just UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
+    Just UserLegalHoldPending -> pure GrantConsentAlreadyGranted
+    Just UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
 
 -- | Request to provision a device on the legal hold service for a user
 requestDeviceH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
