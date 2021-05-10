@@ -157,23 +157,6 @@ stack build --fast --test --bench --no-run-benchmarks wire-api |
             echo "{-# OPTIONS_GHC -dumpdir $GOLDEN_TMPDIR/dump #-}"
             echo "{-# LANGUAGE OverloadedLists #-}"
             echo ""
-            echo "-- This file is part of the Wire Server implementation."
-            echo "--"
-            echo "-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>"
-            echo "--"
-            echo "-- This program is free software: you can redistribute it and/or modify it under"
-            echo "-- the terms of the GNU Affero General Public License as published by the Free"
-            echo "-- Software Foundation, either version 3 of the License, or (at your option) any"
-            echo "-- later version."
-            echo "--"
-            echo "-- This program is distributed in the hope that it will be useful, but WITHOUT"
-            echo "-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS"
-            echo "-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more"
-            echo "-- details."
-            echo "--"
-            echo "-- You should have received a copy of the GNU Affero General Public License along"
-            echo "-- with this program. If not, see <https://www.gnu.org/licenses/>."
-            echo ""
             echo "module Test.Wire.API.Golden.Generated.$module where"
             echo ""
             gen_imports
@@ -215,6 +198,7 @@ for module in "$GOLDEN_TESTDIR"/*; do
 done
 
 ormolu -m inplace -c ${EXTS[@]/#/'-o '} "$GOLDEN_TESTDIR.hs"
+( cd ../.. && headroom run -a -s libs/wire-api/test/unit/Test/Wire/API/Golden/ )
 
 # build one final time
 stack build --fast --test --bench --no-run-benchmarks --no-run-tests wire-api

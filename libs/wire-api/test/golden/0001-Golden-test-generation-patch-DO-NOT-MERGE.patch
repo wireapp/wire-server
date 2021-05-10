@@ -1,4 +1,4 @@
-From 5384be525e79b5714d52d9fc5bb81676db73beba Mon Sep 17 00:00:00 2001
+From a97173fa6d3dfeedee1826754ca9a7c9647e753c Mon Sep 17 00:00:00 2001
 From: Paolo Capriotti <paolo@capriotti.io>
 Date: Thu, 6 May 2021 09:35:09 +0200
 Subject: [PATCH] Golden test generation patch (DO NOT MERGE)
@@ -735,7 +735,7 @@ index 9fc77aab5..a47768ca3 100644
  languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
  
 diff --git a/libs/wire-api/test/unit/Main.hs b/libs/wire-api/test/unit/Main.hs
-index a3f583d5f..1deac023c 100644
+index 828342664..1deac023c 100644
 --- a/libs/wire-api/test/unit/Main.hs
 +++ b/libs/wire-api/test/unit/Main.hs
 @@ -15,6 +15,8 @@
@@ -747,11 +747,18 @@ index a3f583d5f..1deac023c 100644
  module Main
    ( main,
    )
-@@ -31,21 +33,7 @@ import qualified Test.Wire.API.Team.Member as Team.Member
+@@ -23,7 +25,6 @@ where
+ import Imports
+ import Test.Tasty
+ import qualified Test.Wire.API.Call.Config as Call.Config
+-import qualified Test.Wire.API.Golden.Generated as Golden.Generated
+ import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
+ import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
+ import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
+@@ -32,20 +33,7 @@ import qualified Test.Wire.API.Team.Member as Team.Member
  import qualified Test.Wire.API.User as User
  import qualified Test.Wire.API.User.RichInfo as User.RichInfo
  import qualified Test.Wire.API.User.Search as User.Search
--import qualified Test.Wire.API.Golden.Generated as Golden.Generated
 +import qualified Test.Wire.API.Golden.Generator as Golden.Generator
  
  main :: IO ()
