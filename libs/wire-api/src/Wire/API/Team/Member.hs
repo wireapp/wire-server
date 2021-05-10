@@ -63,6 +63,7 @@ where
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types (Parser)
+import qualified Data.HashMap.Strict as HM
 import Data.Id (UserId)
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), typeUserLegalHoldStatus)
@@ -258,11 +259,18 @@ modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
     Doc.description "the team member to add"
 
 instance ToJSON NewTeamMember where
-  toJSON t = object ["member" .= _ntmNewTeamMember t]
+  toJSON t = object ["member" .= mem]
+    where
+      mem = Object . HM.fromList . fltr . HM.toList $ o
+      Object o = toJSON . _ntmNewTeamMember $ t
+      fltr = filter ((`elem` ["user", "permissions", "created_by", "created_at"]) . fst)
 
 instance FromJSON NewTeamMember where
-  parseJSON = withObject "add team member" $ \o ->
-    NewTeamMember <$> o .: "member"
+  parseJSON = withObject "add team member" $ \o -> do
+    mem <- o .: "member"
+    if (_legalHoldStatus mem == defUserLegalHoldStatus)
+      then pure $ NewTeamMember mem
+      else fail "legalhold_status field cannot be set in NewTeamMember"
 
 --------------------------------------------------------------------------------
 -- TeamMemberDeleteData
