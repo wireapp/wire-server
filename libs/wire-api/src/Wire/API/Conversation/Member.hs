@@ -41,10 +41,14 @@ module Wire.API.Conversation.Member
   )
 where
 
+import Control.Lens (at, (?~))
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
+import Data.Proxy (Proxy (Proxy))
+import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
+import Deriving.Swagger
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -65,6 +69,23 @@ modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
     Doc.description "The user ID of the requestor"
   Doc.property "others" (Doc.unique (Doc.array (Doc.ref modelOtherMember))) $
     Doc.description "All other current users of this conversation"
+
+instance ToSchema ConvMembers where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "ConvMembers") $
+        mempty
+          & description ?~ "Users of a conversation"
+          & properties . at "self"
+            ?~ Inline
+              ( toSchema (Proxy @Member)
+                  & description ?~ "The requesting user"
+              )
+          & properties . at "others"
+            ?~ Inline
+              ( toSchema (Proxy @[OtherMember])
+                  & description ?~ "All other current users of this conversation"
+              )
 
 instance ToJSON ConvMembers where
   toJSON mm =
@@ -124,6 +145,53 @@ modelMember = Doc.defineModel "Member" $ do
     Doc.description "The reference to the owning service, if the member is a 'bot'."
     Doc.optional
 
+instance ToSchema Member where
+  declareNamedSchema _ = do
+    idSchema <- declareSchemaRef (Proxy @UserId)
+    mutedStatusSchema <- declareSchemaRef (Proxy @MutedStatus)
+    roleNameSchema <- declareSchemaRef (Proxy @RoleName)
+    pure $
+      NamedSchema (Just "Member") $
+        mempty
+          & properties . at "id" ?~ idSchema
+          & properties . at "otr_muted"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether the conversation is muted"
+              )
+          & properties . at "otr_muted_ref"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "A reference point for (un)muting"
+              )
+          & properties . at "otr_muted_status" ?~ mutedStatusSchema
+          & properties . at "otr_archived"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether the conversation is archived"
+              )
+          & properties . at "otr_archived_ref"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "A reference point for (un)archiving"
+              )
+          & properties . at "hidden"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether the conversation is hidden"
+              )
+          & properties . at "hidden_ref"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "A reference point for (un)hiding"
+              )
+          & properties . at "service"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe ServiceRef))
+                  & description ?~ "The reference to the owning service, if the member is a 'bot'."
+              )
+          & properties . at "conversation_role" ?~ roleNameSchema
+
 instance ToJSON Member where
   toJSON m =
     object
@@ -162,7 +230,7 @@ instance FromJSON Member where
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
+  deriving newtype (Num, FromJSON, ToJSON, Arbitrary, ToSchema)
 
 data OtherMember = OtherMember
   { omId :: UserId,
@@ -171,6 +239,12 @@ data OtherMember = OtherMember
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtherMember)
+  deriving
+    (ToSchema)
+    via ( CustomSwagger
+            '[FieldLabelModifier (StripPrefix "om", CamelToSnake)]
+            ServiceRef -- TODO: attach descriptions
+        )
 
 instance Ord OtherMember where
   compare a b = compare (omId a) (omId b)
@@ -272,8 +346,10 @@ instance FromJSON MemberUpdate where
 
 instance Arbitrary MemberUpdate where
   arbitrary =
-    (getGenericUniform <$> arbitrary)
+    (removeMuteStatus . getGenericUniform <$> arbitrary)
       `QC.suchThat` (isRight . validateMemberUpdate)
+    where
+      removeMuteStatus mup = mup {mupOtrMuteStatus = Nothing}
 
 validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
 validateMemberUpdate u =
@@ -298,7 +374,9 @@ data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform OtherMemberUpdate)
+
+instance Arbitrary OtherMemberUpdate where
+  arbitrary = OtherMemberUpdate . Just <$> arbitrary
 
 modelOtherMemberUpdate :: Doc.Model
 modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do

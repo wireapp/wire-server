@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Move to Brig.User.RPC or similar.
+-- FUTUREWORK: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events
     onUserEvent,
@@ -36,6 +36,7 @@ module Brig.IO.Intra
     -- * Clients
     Brig.IO.Intra.newClient,
     rmClient,
+    lookupPushToken,
 
     -- * Account Deletion
     rmUser,
@@ -686,6 +687,20 @@ rmClient u c = do
         )
   where
     expected = [status200, status204, status404]
+
+lookupPushToken :: UserId -> AppIO [Push.PushToken]
+lookupPushToken uid = do
+  g <- view gundeck
+  rsp <-
+    rpc'
+      "gundeck"
+      (g :: Request)
+      ( method GET
+          . paths ["i", "push-tokens", toByteString' uid]
+          . zUser uid
+          . expect2xx
+      )
+  responseJsonMaybe rsp & maybe (pure []) (pure . pushTokens)
 
 -------------------------------------------------------------------------------
 -- Team Management

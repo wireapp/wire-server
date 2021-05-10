@@ -27,10 +27,10 @@ import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (^.))
 import qualified Data.Metrics.Middleware as M
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Text (unpack)
-import Galley.API (sitemap)
+import qualified Galley.API as API
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
@@ -78,21 +78,25 @@ mkApp o = do
     versionCheck Data.schemaVersion
   return (middlewares l m $ servantApp e, e)
   where
-    rtree = compile sitemap
+    rtree = compile API.sitemap
     app e r k = runGalley e r (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e r =
       Servant.serve
-        -- we don't host any Servant endpoints yet, but will add some for the
-        -- federation API, replacing the empty API.
-        (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
-        (Servant.emptyServer :<|> Servant.Tagged (app e))
+        (Proxy @CombinedAPI)
+        ( API.swaggerDocsAPI
+            :<|> Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
+            :<|> Servant.Tagged (app e)
+        )
         r
+
     middlewares l m =
-      waiPrometheusMiddleware sitemap
+      servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
         . catchErrors l [Right m]
         . GZip.gunzip
         . GZip.gzip GZip.def
+
+type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do

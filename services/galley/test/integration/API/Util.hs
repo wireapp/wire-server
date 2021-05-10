@@ -1298,8 +1298,11 @@ randomUserWithClient lk = do
 newNonce :: TestM (Id ())
 newNonce = randomId
 
-fromBS :: (HasCallStack, FromByteString a, MonadFail m) => ByteString -> m a
-fromBS = maybe (fail "fromBS: no parse") return . fromByteString
+fromBS :: (HasCallStack, FromByteString a, MonadIO m) => ByteString -> m a
+fromBS bs =
+  case fromByteString bs of
+    Nothing -> liftIO $ assertFailure "fromBS: no parse"
+    Just x -> pure x
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =

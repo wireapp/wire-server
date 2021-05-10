@@ -50,7 +50,9 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Schema
 import Data.Text as Text
+import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -160,6 +162,7 @@ data Relation
   | Cancelled
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Relation)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToSnake] Relation)
 
 typeRelation :: Doc.DataType
 typeRelation =

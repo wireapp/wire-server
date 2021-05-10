@@ -25,10 +25,12 @@ import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import Data.Qualified (Remote)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
+import GHC.TypeLits (KnownNat, natVal)
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
@@ -46,6 +48,11 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
+import Servant (HasServer (..), ReflectMethod, Verb)
+import Servant.API (NoContent, ReflectMethod (reflectMethod))
+import Servant.Server.Internal (noContentRouter)
+import Servant.Swagger
+import Servant.Swagger.Internal
 import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 
@@ -298,3 +305,31 @@ canDeleteMember deleter deletee
 
 viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
+
+--------------------------------------------------------------------------------
+
+-- | Return type of an endpoint with an empty response.
+--
+-- In principle we could use 'WithStatus n NoContent' instead, but
+-- Servant does not support it, so we would need orphan instances.
+--
+-- FUTUREWORK: merge with Empty200 in Brig.
+data EmptyResult n = EmptyResult
+
+instance
+  (SwaggerMethod method, KnownNat n) =>
+  HasSwagger (Verb method n '[] (EmptyResult n))
+  where
+  toSwagger _ = toSwagger (Proxy @(Verb method n '[] NoContent))
+
+instance
+  (ReflectMethod method, KnownNat n) =>
+  HasServer (Verb method n '[] (EmptyResult n)) context
+  where
+  type ServerT (Verb method n '[] (EmptyResult n)) m = m (EmptyResult n)
+  hoistServerWithContext _ _ nt s = nt s
+
+  route Proxy _ = noContentRouter method status
+    where
+      method = reflectMethod (Proxy :: Proxy method)
+      status = toEnum . fromInteger $ natVal (Proxy @n)

@@ -17,18 +17,19 @@
 
 module Galley.API.Query
   ( getBotConversationH,
-    getConversationH,
-    getConversationRolesH,
-    getConversationIdsH,
-    getConversationsH,
+    getConversation,
+    getConversationRoles,
+    getConversationIds,
+    getConversations,
     getSelfH,
     internalGetMemberH,
     getConversationMetaH,
   )
 where
 
-import Data.ByteString.Conversion
+import Data.CommaSeparatedList
 import Data.Id as Id
+import Data.Proxy
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -63,18 +64,10 @@ getBotConversation zbot zcnv = do
       | otherwise =
         Just (OtherMember (memId m) (memService m) (memConvRoleName m))
 
-getConversationH :: UserId ::: ConvId ::: JSON -> Galley Response
-getConversationH (zusr ::: cnv ::: _) = do
-  json <$> getConversation zusr cnv
-
 getConversation :: UserId -> ConvId -> Galley Public.Conversation
 getConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
-
-getConversationRolesH :: UserId ::: ConvId ::: JSON -> Galley Response
-getConversationRolesH (zusr ::: cnv ::: _) = do
-  json <$> getConversationRoles zusr cnv
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do
@@ -83,33 +76,39 @@ getConversationRoles zusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getConversationIdsH :: UserId ::: Maybe ConvId ::: Range 1 1000 Int32 ::: JSON -> Galley Response
-getConversationIdsH (zusr ::: start ::: size ::: _) = do
-  json <$> getConversationIds zusr start size
-
-getConversationIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Galley (Public.ConversationList ConvId)
-getConversationIds zusr start size = do
+getConversationIds :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
+getConversationIds zusr start msize = do
+  let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- Data.conversationIdRowsFrom zusr start size
   pure $
     Public.ConversationList
       (Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
 
-getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List ConvId)) ConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
-getConversationsH (zusr ::: range ::: size ::: _) =
-  json <$> getConversations zusr range size
-
-getConversations :: UserId -> Maybe (Either (Range 1 32 (List ConvId)) ConvId) -> Range 1 500 Int32 -> Galley (Public.ConversationList Public.Conversation)
-getConversations zusr range size =
-  withConvIds zusr range size $ \more ids -> do
-    let localConvIds = ids
-    -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
-    cs <-
-      Data.conversations localConvIds
-        >>= filterM removeDeleted
-        >>= filterM (pure . isMember zusr . Data.convMembers)
-    flip Public.ConversationList more <$> mapM (Mapping.conversationView zusr) cs
+getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
+getConversations user mids mstart msize = do
+  (more, ids) <- getIds mids
+  let localConvIds = ids
+  -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
+  cs <-
+    Data.conversations localConvIds
+      >>= filterM removeDeleted
+      >>= filterM (pure . isMember user . Data.convMembers)
+  flip Public.ConversationList more <$> mapM (Mapping.conversationView user) cs
   where
+    size = fromMaybe (toRange (Proxy @32)) msize
+
+    -- get ids and has_more flag
+    getIds (Just ids) =
+      (False,)
+        <$> Data.conversationIdsOf
+          user
+          (fromCommaSeparatedList (fromRange ids))
+    getIds Nothing = do
+      r <- Data.conversationIdsFrom user mstart (rcast size)
+      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
+      pure (hasMore, Data.resultSetResult r)
+
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
@@ -150,34 +149,3 @@ getConversationMeta cnv = do
     else do
       Data.deleteConversation cnv
       pure Nothing
-
------------------------------------------------------------------------------
--- Internal
-
--- | Invoke the given continuation 'k' with a list of conversation IDs
--- which are looked up based on:
---
--- * just limited by size
--- * an (exclusive) starting point (conversation ID) and size
--- * a list of conversation IDs
---
--- The last case returns those conversation IDs which have an associated
--- user. Additionally 'k' is passed in a 'hasMore' indication (which is
--- always false if the third lookup-case is used).
-withConvIds ::
-  UserId ->
-  Maybe (Either (Range 1 32 (List ConvId)) ConvId) ->
-  Range 1 500 Int32 ->
-  (Bool -> [ConvId] -> Galley a) ->
-  Galley a
-withConvIds usr range size k = case range of
-  Nothing -> do
-    r <- Data.conversationIdsFrom usr Nothing (rcast size)
-    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
-  Just (Right c) -> do
-    r <- Data.conversationIdsFrom usr (Just c) (rcast size)
-    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
-  Just (Left cc) -> do
-    ids <- Data.conversationIdsOf usr cc
-    k False ids
-{-# INLINE withConvIds #-}

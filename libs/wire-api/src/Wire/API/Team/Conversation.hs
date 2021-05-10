@@ -38,9 +38,11 @@ module Wire.API.Team.Conversation
   )
 where
 
-import Control.Lens (makeLenses)
-import Data.Aeson
+import Control.Lens (At (at), makeLenses, over, (?~))
+import Data.Aeson hiding (fieldLabelModifier)
 import Data.Id (ConvId)
+import Data.Proxy
+import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -54,6 +56,22 @@ data TeamConversation = TeamConversation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamConversation)
+
+instance ToSchema TeamConversation where
+  declareNamedSchema _ = do
+    idSchema <- declareSchemaRef (Proxy @ConvId)
+    let managed =
+          toSchema (Proxy @Bool)
+            & description ?~ "Indicates if this is a managed team conversation."
+    pure $
+      NamedSchema (Just "TeamConversation") $
+        mempty
+          & description ?~ "team conversation data"
+          & over
+            properties
+            ( (at "managed" ?~ Inline managed)
+                . (at "conversation" ?~ idSchema)
+            )
 
 newTeamConversation :: ConvId -> Bool -> TeamConversation
 newTeamConversation = TeamConversation
@@ -83,8 +101,18 @@ instance FromJSON TeamConversation where
 newtype TeamConversationList = TeamConversationList
   { _teamConversations :: [TeamConversation]
   }
+  deriving (Generic)
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+
+instance ToSchema TeamConversationList where
+  declareNamedSchema _ = do
+    convs <- declareSchema (Proxy @[TeamConversation])
+    pure $
+      NamedSchema (Just "TeamConversationList") $
+        mempty
+          & description ?~ "team conversation list"
+          & properties . at "conversations" ?~ Inline convs
 
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList

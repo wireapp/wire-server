@@ -67,7 +67,7 @@ import Data.Aeson
 import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
-import Data.Json.Util (ToJSONObject (toJSONObject), toUTCTimeMillis, (#))
+import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis, (#))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
@@ -149,8 +149,10 @@ instance Arbitrary Event where
     Event typ
       <$> arbitrary
       <*> arbitrary
-      <*> arbitrary
+      <*> (milli <$> arbitrary)
       <*> genEventData typ
+    where
+      milli = fromUTCTimeMillis . toUTCTimeMillis
 
 data EventType
   = MemberJoin

@@ -22,6 +22,7 @@ where
 
 import qualified API.Calling as Calling
 import qualified API.Federation
+import qualified API.Internal
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
@@ -78,6 +79,7 @@ data Config = Config
   -- internal endpoints
   { brig :: Endpoint,
     cannon :: Endpoint,
+    gundeck :: Endpoint,
     cargohold :: Endpoint,
     federatorInternal :: Endpoint,
     galley :: Endpoint,
@@ -96,6 +98,7 @@ runTests :: Config -> Opts.Opts -> [String] -> IO ()
 runTests iConf brigOpts otherArgs = do
   let b = mkRequest $ brig iConf
       c = mkRequest $ cannon iConf
+      gd = mkRequest $ gundeck iConf
       ch = mkRequest $ cargohold iConf
       g = mkRequest $ galley iConf
       n = mkRequest $ nginz iConf
@@ -128,6 +131,7 @@ runTests iConf brigOpts otherArgs = do
   federationEnd2End <- Federation.End2end.spec brigOpts mg b f brigTwo
   federationEndpoints <- API.Federation.tests mg b fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
+  internalApi <- API.Internal.tests brigOpts mg b (brig iConf) gd
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
@@ -146,7 +150,8 @@ runTests iConf brigOpts otherArgs = do
           createIndex,
           userPendingActivation,
           browseTeam,
-          federationEndpoints
+          federationEndpoints,
+          internalApi
         ]
         <> [federationEnd2End | includeFederationTests]
   where
