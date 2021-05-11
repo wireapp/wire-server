@@ -40,10 +40,13 @@ import qualified Data.Currency as Currency
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.ProtocolBuffers (encodeMessage)
+import Data.Qualified (Qualified)
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
@@ -81,12 +84,11 @@ import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Timeout
 import Web.Cookie
+import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
-import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (Qualified)
-import qualified Wire.API.Conversation as Public
+import qualified Wire.API.Team.Member as Member
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -138,7 +140,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
   setHandle owner
   mems <- replicateM n $ do
     member1 <- randomUser
-    addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+    addTeamMemberInternal tid member1 (rolePermissions RoleMember) Nothing
     setHandle member1
     pure member1
   SQS.ensureQueueEmpty
@@ -291,20 +293,20 @@ getTeamMemberInternal tid mid = do
   r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
   responseJsonError r
 
-addTeamMember :: HasCallStack => UserId -> TeamId -> TeamMember -> TestM ()
-addTeamMember usr tid mem = do
+addTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
+addTeamMember usr tid muid mperms mmbinv = do
   g <- view tsGalley
-  let payload = json (newNewTeamMember mem)
+  let payload = json (newNewTeamMember muid mperms mmbinv)
   post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
     !!! const 200 === statusCode
 
-addTeamMemberInternal :: HasCallStack => TeamId -> TeamMember -> TestM ()
-addTeamMemberInternal tid mem = addTeamMemberInternal' tid mem !!! const 200 === statusCode
+addTeamMemberInternal :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
+addTeamMemberInternal tid muid mperms mmbinv = addTeamMemberInternal' tid muid mperms mmbinv !!! const 200 === statusCode
 
-addTeamMemberInternal' :: HasCallStack => TeamId -> TeamMember -> TestM ResponseLBS
-addTeamMemberInternal' tid mem = do
+addTeamMemberInternal' :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ResponseLBS
+addTeamMemberInternal' tid muid mperms mmbinv = do
   g <- view tsGalley
-  let payload = json (newNewTeamMember mem)
+  let payload = json (newNewTeamMember muid mperms mmbinv)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
 
 addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
@@ -351,7 +353,7 @@ addUserToTeamWithSSO hasEmail tid = do
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
 makeOwner owner mem tid = do
   galley <- view tsGalley
-  let changeMember = newNewTeamMember (mem & permissions .~ fullPermissions)
+  let changeMember = newNewTeamMember (mem ^. Member.userId) fullPermissions (mem ^. Member.invitation)
   put
     ( galley
         . paths ["teams", toByteString' tid, "members"]

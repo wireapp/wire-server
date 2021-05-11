@@ -734,7 +734,7 @@ addTeamMember u tid (minvmeta, role) = do
     _ -> False
   where
     prm = Team.rolePermissions role
-    bdy = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
+    bdy = Team.newNewTeamMember u prm minvmeta
     req =
       paths ["i", "teams", toByteString' tid, "members"]
         . header "Content-Type" "application/json"

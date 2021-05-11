@@ -172,6 +172,7 @@ data Api routes = Api
         :> ZUser
         :> "conversations"
         :> Capture "cnv" ConvId
+        :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
     getConversationIds ::
       routes

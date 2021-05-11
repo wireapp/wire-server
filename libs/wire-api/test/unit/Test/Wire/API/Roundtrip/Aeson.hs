@@ -204,7 +204,6 @@ tests =
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,
-      testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldServiceInfo,
       testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldService,
