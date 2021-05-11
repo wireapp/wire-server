@@ -28,7 +28,6 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Declare as S
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -219,7 +218,7 @@ testNonEmptySchema =
     let sch = S.toSchema (Proxy @NonEmptyTest)
     case InsOrdHashMap.lookup "nl" $ sch ^. S.properties of
       Nothing -> assertFailure "expected schema to have a property called 'nl'"
-      Just (S.Ref _) -> assertFailure  "expected property 'nl' to have inline schema"
+      Just (S.Ref _) -> assertFailure "expected property 'nl' to have inline schema"
       Just (S.Inline nlSch) -> do
         assertEqual "type should be Array" (Just S.SwaggerArray) (nlSch ^. S.type_)
         assertEqual "minItems should be 1" (Just 1) (nlSch ^. S.minItems)
