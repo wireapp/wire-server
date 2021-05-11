@@ -261,7 +261,7 @@ modelNewTeamMember :: Doc.Model
 modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
   Doc.description "Required data when creating new team members"
   Doc.property "member" (Doc.ref modelTeamMember) $
-    Doc.description "the team member to add"
+    Doc.description "the team member to add (the legalhold_status field must be null or missing!)"
 
 instance ToJSON NewTeamMember where
   toJSON t = object ["member" .= mem]
