@@ -143,8 +143,8 @@ we can produce a schema for `Invite` as follows:
 ```haskell
 inviteSchema :: ValueSchema NamedSwaggerDoc Invite
 inviteSchema = object "Invite" $ Invite
-  <$> users .= field "users" (named "List UserId" $ array schema)
-  <*> permissions .= field "permissions" (named "NonEmptyList Permission" $ nonEmptyArray schema) 
+  <$> users .= field "users" (array schema)
+  <*> permissions .= field "permissions" (nonEmptyArray schema)
 ```
 
 Here, we cannot use `schema` to deduce the schema for the list or the

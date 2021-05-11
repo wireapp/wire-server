@@ -216,12 +216,13 @@ testNonEmptyToJSON =
 testNonEmptySchema :: TestTree
 testNonEmptySchema =
   testCase "NonEmpty Schema" $ do
-    let defs = S.execDeclare (S.declareSchemaRef (Proxy @NonEmptyTest)) mempty
-    case InsOrdHashMap.lookup "something" defs of
-      Nothing -> assertFailure "Expected to find 'something' in definitions"
-      Just somethingSch -> do
-        assertEqual "type should be Array" (Just S.SwaggerArray) (somethingSch ^. S.type_)
-        assertEqual "minItems should be 1" (Just 1) (somethingSch ^. S.minItems)
+    let sch = S.toSchema (Proxy @NonEmptyTest)
+    case InsOrdHashMap.lookup "nl" $ sch ^. S.properties of
+      Nothing -> assertFailure "expected schema to have a property called 'nl'"
+      Just (S.Ref _) -> assertFailure  "expected property 'nl' to have inline schema"
+      Just (S.Inline nlSch) -> do
+        assertEqual "type should be Array" (Just S.SwaggerArray) (nlSch ^. S.type_)
+        assertEqual "minItems should be 1" (Just 1) (nlSch ^. S.minItems)
 
 ---
 
@@ -350,4 +351,4 @@ newtype NonEmptyTest = NonEmptyTest {nl :: NonEmpty Text}
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema NonEmptyTest
 
 instance ToSchema NonEmptyTest where
-  schema = object "NonEmptyTest" $ NonEmptyTest <$> nl .= field "nl" (named "something" $ nonEmptyArray schema)
+  schema = object "NonEmptyTest" $ NonEmptyTest <$> nl .= field "nl" (nonEmptyArray schema)
