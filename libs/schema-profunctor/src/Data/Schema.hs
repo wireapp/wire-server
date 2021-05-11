@@ -320,7 +320,7 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
 
 nonEmptyArray ::
   forall ndoc doc a.
-  (HasArray ndoc doc, HasName ndoc, S.HasMinItems doc (Maybe Integer)) =>
+  (HasArray ndoc doc, HasName ndoc, HasMinItems doc (Maybe Integer)) =>
   ValueSchema ndoc a ->
   ValueSchema doc (NonEmpty a)
 nonEmptyArray sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
@@ -329,7 +329,7 @@ nonEmptyArray sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     r = A.withArray (T.unpack name) $ \arr -> case V.toList arr of
       [] -> A.parseFail "Unexpected empty array found while parsing a NonEmpty"
       (x : xs) -> mapM (schemaIn sch) (x :| xs)
-    s = mkArray (schemaDoc sch) & S.minItems ?~ 1
+    s = mkArray (schemaDoc sch) & minItems ?~ (1 :: Integer)
     w xs = A.Array . V.fromList <$> mapM (schemaOut sch) (NonEmpty.toList xs)
 
 -- | Ad-hoc class for types corresponding to a JSON primitive types.
@@ -517,7 +517,10 @@ instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
           & S.type_ ?~ S.SwaggerArray
           & S.items ?~ S.SwaggerItemsObject ref
 
-instance S.HasMinItems SwaggerDoc (Maybe Integer) where
+class HasMinItems s a where
+  minItems :: Lens' s a
+
+instance HasMinItems SwaggerDoc (Maybe Integer) where
   minItems =
     lens
       (\(WithDeclare _ s) -> s & view S.minItems)
