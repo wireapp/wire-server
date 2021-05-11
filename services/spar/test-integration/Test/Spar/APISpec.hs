@@ -35,6 +35,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
+import qualified Data.Text as T
 import Data.Text.Ascii (decodeBase64, validateBase64)
 import qualified Data.UUID as UUID hiding (fromByteString, null)
 import qualified Data.UUID.V4 as UUID (nextRandom)
@@ -318,6 +319,40 @@ specFinalizeLogin = do
     context "AuthnResponse contains assertions that have been offered before" $ do
       it "rejects" $ do
         pending
+    context "IdP changes response format" $ do
+      it "treats NameId case-insensitively" $ do
+        (_ownerid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        spmeta <- getTestSPMetadata
+
+        let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
+            loginSuccess sparresp = liftIO $ do
+              statusCode sparresp `shouldBe` 200
+
+        let loginWithSubject subj = do
+              authnreq <- negotiateAuthnRequest idp
+              authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
+              loginSuccess =<< submitAuthnResponse authnresp
+              ssoid <- getSsoidViaAuthResp authnresp
+              ssoToUidSpar tid ssoid
+
+        let createEmailSubject email = do
+              uname <- either (error . show) pure (SAML.mkUNameIDEmail email)
+              let subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
+              pure subj
+
+        suffix <- cs <$> replicateM 7 (getRandomR ('a', 'z'))
+        let randEmail = "email_" <> suffix <> "@example.com"
+
+        subj <- createEmailSubject randEmail
+        mbId1 <- loginWithSubject subj
+
+        subjUpper <- createEmailSubject (T.toUpper randEmail)
+        mbId2 <- loginWithSubject subjUpper
+
+        liftIO $ do
+          mbId1 `shouldSatisfy` isJust
+          mbId2 `shouldSatisfy` isJust
+          mbId1 `shouldBe` mbId2
 
 specBindingUsers :: SpecWith TestEnv
 specBindingUsers = describe "binding existing users to sso identities" $ do
@@ -410,11 +445,6 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             (cs @_ @String . fromJust . responseBody $ sparresp)
               `shouldContain` ("<title>wire:sso:error:" <> cs errorlabel <> "</title>")
             hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
-        getSsoidViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar UserSSOId
-        getSsoidViaAuthResp aresp = do
-          parsed :: AuthnResponse <-
-            either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-          either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
         initialBind :: HasCallStack => UserId -> IdP -> SignPrivCreds -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
         initialBind = initialBind' Just
         initialBind' ::
@@ -1133,6 +1163,22 @@ specScimAndSAML = do
         bdy :: LBS <- maybe (error "no self body") pure $ responseBody self
         either error pure $ eitherDecode bdy
     liftIO $ userId (selfUser selfbdy) `shouldBe` userid
+  it "SCIM-provisioned users can login with any qualifiers to NameId" $ do
+    (tok, (_, tid, idp, (_, privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+    (usr, subj) <- ScimT.randomScimUserWithSubject
+    scimStoredUser <- ScimT.createUser tok usr
+    let subjectWithQualifier :: NameID =
+          either (error . show) id $
+            mkNameID subj (Just "https://federation.foobar.com/nidp/saml2/metadata") (Just "https://prod-nginz-https.wire.com/sso/finalize-login") Nothing
+
+    authnreq <- negotiateAuthnRequest idp
+    spmeta <- getTestSPMetadata
+    authnresp :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subjectWithQualifier privcreds idp spmeta authnreq True
+
+    ssoid <- getSsoidViaAuthResp authnresp
+    mid <- ssoToUidSpar tid ssoid
+
+    liftIO $ mid `shouldBe` Just (ScimT.scimUserId scimStoredUser)
 
 specAux :: SpecWith TestEnv
 specAux = do
@@ -1247,3 +1293,9 @@ specSsoSettings = do
 -- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 -- TODO: what tests can go to saml2-web-sso package?
+
+getSsoidViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar UserSSOId
+getSsoidViaAuthResp aresp = do
+  parsed :: AuthnResponse <-
+    either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
+  either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
