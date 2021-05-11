@@ -243,6 +243,11 @@ instance FromJSON ListType where
 --------------------------------------------------------------------------------
 -- NewTeamMember
 
+-- | Like 'TeamMember', but we can receive this from the clients.  Clients are not allowed to
+-- set 'UserLegalHoldStatus', so both 'newNewTeamMember and {To,From}JSON make sure that is
+-- always the default.  I decided to keep the 'TeamMember' inside (rather than making an
+-- entirely new type because (1) it's a smaller change and I'm in a hurry; (2) it encodes the
+-- identity relationship between the fields that *do* occur in both more explicit.
 newtype NewTeamMember = NewTeamMember
   { _ntmNewTeamMember :: TeamMember
   }
