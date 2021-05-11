@@ -21,6 +21,7 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List1
 import Galley.Types
@@ -38,8 +39,27 @@ tests s =
   testGroup
     "Conversation roles"
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
-      test s "conversation roles member (and upgrade)" handleConversationRoleMember
+      test s "conversation roles member (and upgrade)" handleConversationRoleMember,
+      test s "get all conversation roles" testAllConversationRoles
     ]
+
+testAllConversationRoles :: TestM ()
+testAllConversationRoles = do
+  alice <- randomUser
+  bob <- randomUser
+  chuck <- randomUser
+  connectUsers alice (list1 bob [chuck])
+  let role = roleNameWireAdmin
+  c <- decodeConvId <$> postConvWithRole alice [bob] (Just "gossip") [] Nothing Nothing role
+  g <- view tsGalley
+  get
+    ( g
+        . paths ["conversations", toByteString' c, "roles"]
+        . zUser alice
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right (ConversationRolesList [convRoleWireAdmin, convRoleWireMember])) === responseJsonEither
 
 handleConversationRoleAdmin :: TestM ()
 handleConversationRoleAdmin = do
