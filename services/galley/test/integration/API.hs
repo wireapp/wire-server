@@ -39,10 +39,13 @@ import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
+import Data.Domain (Domain (Domain))
 import Data.Id
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -108,6 +111,7 @@ tests s =
           test s "add past members" postMembersOk3,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
+          test s "add remote members" testAddRemoteMember,
           test s "remove members" deleteMembersOk,
           test s "fail to remove members from self conv." deleteMembersFailSelf,
           test s "fail to remove members from 1:1 conv." deleteMembersFailO2O,
@@ -856,6 +860,20 @@ leaveConnectConversation = do
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
   let c = fromMaybe (error "invalid connect conversation") (cnvId <$> responseJsonUnsafe bdy)
   deleteMember alice alice c !!! const 403 === statusCode
+
+-- This test adds a non existent remote user and expects a 200. This is of
+-- course not correct. When we implement a remote call, we must mock it by
+-- mocking the federator and expecting a successful response from the remote.
+-- Additionally, another test must be added to deal with error scenarios of
+-- federation.
+testAddRemoteMember :: TestM ()
+testAddRemoteMember = do
+  alice <- randomUser
+  bobId <- randomId
+  let remoteBob = Qualified bobId (Domain "far-away.example.com")
+  conv <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  postQualifiedMembers alice (remoteBob :| []) conv
+    !!! const 200 === statusCode
 
 postMembersOk :: TestM ()
 postMembersOk = do

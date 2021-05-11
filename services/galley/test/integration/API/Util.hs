@@ -84,6 +84,9 @@ import Web.Cookie
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
+import Data.List.NonEmpty (NonEmpty)
+import Data.Qualified (Qualified)
+import qualified Wire.API.Conversation as Public
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -671,6 +674,18 @@ getConvIds u r s = do
       . zConn "conn"
       . zType "access"
       . convRange r s
+
+postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
+postQualifiedMembers zusr invitees conv = do
+  g <- view tsGalley
+  let invite = Public.InviteQualified invitees roleNameWireAdmin
+  post $
+    g
+      . paths ["conversations", toByteString' conv, "members", "v2"]
+      . zUser zusr
+      . zConn "conn"
+      . zType "access"
+      . json invite
 
 postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
 postMembers u us c = do
