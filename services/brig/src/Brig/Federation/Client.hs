@@ -79,3 +79,8 @@ searchUsers :: Domain -> SearchRequest -> FederationAppIO (Public.SearchResult P
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm
+
+getUserClients :: Domain -> GetUserClients -> FederationAppIO UserClients
+getUserClients domain guc = do
+  Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
+  executeFederated domain $ FederatedBrig.getUserClients clientRoutes guc
