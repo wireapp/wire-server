@@ -33,18 +33,21 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
+import Data.Qualified (Qualified (..), Remote)
 import Data.Range
 import Data.String.Conversions (cs)
+import Data.Time.Clock.POSIX (getCurrentTime)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Error (convNotFound)
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember)
+import Galley.API.Util (JSON, botsAndUsers, getSelfMember, isMember)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -60,7 +63,7 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Predicate hiding (err)
 import qualified Network.Wai.Predicate as P
-import Network.Wai.Routing hiding (route)
+import Network.Wai.Routing hiding (route, toList)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
 import Servant.API hiding (JSON)
@@ -73,14 +76,17 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
 
 data InternalApi routes = InternalApi
-  { iAddRemoteUser ::
+  { iAddRemoteUserUnchecked ::
       routes
         :- "i"
+        :> "users"
+        :> Capture "usr" UserId -- TODO: Use ZUser instead
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "add-remote-unchecked"
-        :> Get '[Servant.JSON] Public.Conversation,
-    iDeleteRemoteUser ::
+        :> ReqBody '[Servant.JSON] Public.InviteQualified
+        :> Post '[Servant.JSON] NoContent,
+    iDeleteRemoteUserUnchecked ::
       routes
         :- "i"
         :> "conversations"
@@ -96,13 +102,25 @@ servantSitemap :: ServerT ServantAPI Galley
 servantSitemap =
   genericServerT $
     InternalApi
-      { iAddRemoteUser = addRemoteUserUnchecked,
-        iDeleteRemoteUser = deleteRemoteUserUnchecked
+      { iAddRemoteUserUnchecked = addRemoteUserUnchecked,
+        iDeleteRemoteUserUnchecked = deleteRemoteUserUnchecked
       }
 
-addRemoteUserUnchecked :: ConvId -> Galley Public.Conversation
-addRemoteUserUnchecked = do
-  undefined
+-- Internal function to use in tests: for testing the cql queries without all the authorization / remote backend concerns.
+addRemoteUserUnchecked :: UserId -> ConvId -> Public.InviteQualified -> Galley NoContent
+addRemoteUserUnchecked zusr convId invite = do
+  conv <- Data.conversation convId >>= ifNothing convNotFound
+  mems <- botsAndUsers (Data.convMembers conv)
+  selfMem <- getSelfMember zusr (snd mems)
+  now <- liftIO getCurrentTime
+  let rolename = memConvRoleName selfMem
+  let invitees = toList $ Public.invQUsers invite
+  -- TODO: this remote tagging business doesn't work well. Perhaps we can use
+  -- something different than this Tagged stuff as it's not intuitive to use at
+  -- all. Can't we simply wrap remote users in a different data type?
+  let toRemote = undefined -- Remote -- ERROR: Data constructor Remote not in scope. Duh.
+  void $ Data.addMembersUncheckedWithRole now convId (zusr, rolename) [] (toRemote <$> invitees)
+  pure NoContent
 
 deleteRemoteUserUnchecked :: ConvId -> Galley Public.Conversation
 deleteRemoteUserUnchecked = do

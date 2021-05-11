@@ -78,6 +78,7 @@ module Galley.Data
     -- * Conversation Members
     addMember,
     addMembersWithRole,
+    addMembersUncheckedWithRole, -- for tests
     member,
     members,
     removeMember,
