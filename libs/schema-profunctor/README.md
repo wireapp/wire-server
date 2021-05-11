@@ -128,6 +128,31 @@ values. This can be done using the `object` combinator, which
 incidentally also takes a name for the schema and uses it for both the
 documentation and parsing errors.
 
+### Lists
+
+Consider the following record:
+
+```haskell
+data Invite = Invite
+  { users :: NonEmpty UserId
+  , permissions :: [Permission] }
+```
+
+we can produce a schema for `Invite` as follows:
+
+```haskell
+inviteSchema :: ValueSchema NamedSwaggerDoc Invite
+inviteSchema = object "Invite" $ Invite
+  <$> users .= field "users" (array schema)
+  <*> permissions .= field "permissions" (nonEmptyArray schema)
+```
+
+Here, we cannot use `schema` to deduce the schema for the list or the
+NonEmpty list, as there are no instances for `ToSchema [a]` or
+`ToSchema (NonEmpty a)`. So, the combinators `array` and
+`nonEmptyArray` can be used to derive a schema for these if there are
+`ToSchema` instances for `UserId` and `Permission`.
+
 ### Sum types
 
 Let us now look at a similar example, but based on sum types.

@@ -31,6 +31,7 @@ tests:
       - aeson
       - aeson-qq
       - imports
+      - insert-ordered-containers
       - lens
       - schema-profunctor
       - swagger2
