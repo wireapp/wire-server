@@ -267,7 +267,9 @@ instance ToJSON NewTeamMember where
   toJSON t = object ["member" .= mem]
     where
       mem = Object . HM.fromList . fltr . HM.toList $ o
-      Object o = toJSON . _ntmNewTeamMember $ t
+      o = case toJSON (_ntmNewTeamMember t) of
+        Object o_ -> o_
+        _ -> error "impossible"
       fltr = filter ((`elem` ["user", "permissions", "created_by", "created_at"]) . fst)
 
 instance FromJSON NewTeamMember where
