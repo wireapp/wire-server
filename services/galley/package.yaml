@@ -180,7 +180,10 @@ executables:
     - quickcheck-instances
     - random
     - retry
+    - servant
     - servant-swagger
+    - servant-client
+    - servant-client-core
     - string-conversions
     - tagged
     - tasty >=0.8

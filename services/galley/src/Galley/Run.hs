@@ -31,6 +31,7 @@ import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Text (unpack)
 import qualified Galley.API as API
+import Galley.API.Federation (federationSitemap)
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
@@ -45,9 +46,11 @@ import Network.Wai.Utilities.Server
 import Servant (Proxy (Proxy))
 import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.API as Servant
+import Servant.API.Generic (ToServantApi, genericApi)
 import qualified Servant.Server as Servant
 import qualified System.Logger.Class as Log
 import Util.Options
+import qualified Wire.API.Federation.API.Galley as FederationGalley
 
 run :: Opts -> IO ()
 run o = do
@@ -86,6 +89,7 @@ mkApp o = do
         (Proxy @CombinedAPI)
         ( API.swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
+            :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
         r
@@ -96,7 +100,7 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
 
-type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> Servant.Raw
+type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do
