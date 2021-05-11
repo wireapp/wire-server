@@ -67,7 +67,7 @@ import Control.Comonad
 import Control.Lens hiding (element, enum, (.=))
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
