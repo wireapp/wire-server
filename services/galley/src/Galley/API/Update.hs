@@ -449,7 +449,7 @@ addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Gal
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
   (Invite u r) <- fromJsonBody req
   domain <- viewFederationDomain
-  let qInvite = Public.InviteQualified (fmap (flip Qualified domain) u) r
+  let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
 type UpdateResponses =

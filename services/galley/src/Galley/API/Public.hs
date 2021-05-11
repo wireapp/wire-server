@@ -152,6 +152,10 @@ instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
+-- FUTUREWORK: Make a PR to the servant-swagger package with this instance
+instance ToSchema Servant.NoContent where
+  declareNamedSchema _ = declareNamedSchema (Proxy @())
+
 data Api routes = Api
   { -- Conversations
 
@@ -334,6 +338,7 @@ servantSitemap =
         createGroupConversation = Create.createGroupConversation,
         createSelfConversation = Create.createSelfConversation,
         createOne2OneConversation = Create.createOne2OneConversation,
+        addMembersToConversationV2 = Update.addMembersQH,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,

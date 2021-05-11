@@ -79,6 +79,7 @@ import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
 import Wire.API.User (UserIdList (..))
+import qualified Data.Swagger as S
 
 --------------------------------------------------------------------------------
 -- Event
@@ -91,6 +92,10 @@ data Event = Event
     evtData :: Maybe EventData
   }
   deriving stock (Eq, Show, Generic)
+
+-- TODO: Merge work from https://github.com/wireapp/wire-server/pull/1482
+instance S.ToSchema Event where
+  declareNamedSchema _ = pure $ S.NamedSchema Nothing mempty
 
 modelEvent :: Doc.Model
 modelEvent = Doc.defineModel "Event" $ do

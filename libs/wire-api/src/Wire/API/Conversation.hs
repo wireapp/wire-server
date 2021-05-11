@@ -629,19 +629,20 @@ data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
   deriving (Arbitrary) via (GenericUniform Invite)
 
 data InviteQualified = InviteQualified
-  { invQUsers :: [Qualified UserId],
+  { invQUsers :: NonEmpty (Qualified UserId),
     -- | This role name is to be applied to all users
     invQRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InviteQualified)
+  deriving (ToJSON, FromJSON, ToSchema) via (P.Schema InviteQualified)
 
 instance P.ToSchema InviteQualified where
   schema =
     P.object "InviteQualified" $
       InviteQualified
-        <$> invQUsers P..= P.field "qualified_users" P.schema
-        <*> invQRoleName P..= P.field "conversation_role" P.schema
+        <$> invQUsers P..= P.field "qualified_users" (P.nonEmptyArray P.schema)
+        <*> invQRoleName P..= P.field "conversation_role" P.schema -- TODO: Default to roleNameWireAdmin
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -662,17 +663,6 @@ instance ToJSON Invite where
 instance FromJSON Invite where
   parseJSON = withObject "invite object" $ \o ->
     Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
-
-instance ToJSON InviteQualified where
-  toJSON i =
-    object
-      [ "qualified_users" .= invQUsers i,
-        "conversation_role" .= invQRoleName i
-      ]
-
-instance FromJSON InviteQualified where
-  parseJSON = withObject "invite object" $ \o ->
-    InviteQualified <$> o .: "qualified_users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- update
