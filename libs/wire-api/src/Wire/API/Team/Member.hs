@@ -254,8 +254,8 @@ newtype NewTeamMember = NewTeamMember
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
 
-newNewTeamMember :: TeamMember -> NewTeamMember
-newNewTeamMember = NewTeamMember
+newNewTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> NewTeamMember
+newNewTeamMember uid perms mbinv = NewTeamMember $ TeamMember uid perms mbinv UserLegalHoldDisabled
 
 modelNewTeamMember :: Doc.Model
 modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do

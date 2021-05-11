@@ -479,7 +479,7 @@ testAddTeamMember = do
   Util.connectUsers (mem1 ^. userId) (list1 (mem2 ^. userId) [])
   tid <- Util.createNonBindingTeam "foo" owner [mem1, mem2]
   mem3 <- newTeamMember' p1 <$> Util.randomUser
-  let payload = json (newNewTeamMember mem3)
+  let payload = json (newNewTeamMember (mem3 ^. userId) (mem3 ^. permissions) (mem3 ^. invitation))
   Util.connectUsers (mem1 ^. userId) (list1 (mem3 ^. userId) [])
   Util.connectUsers (mem2 ^. userId) (list1 (mem3 ^. userId) [])
   -- `mem1` lacks permission to add new team members
