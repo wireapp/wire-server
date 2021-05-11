@@ -329,13 +329,11 @@ deleteSAMLUser uref = do
       where
         del :: PrepQuery W (SAML.Issuer, NormalizedUNameID) ()
         del = "DELETE FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
-
--- | Delete a user from the saml users table.
-deleteSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
-  where
-    del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
-    del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
+    deleteSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+    deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+      where
+        del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
+        del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
 
 ----------------------------------------------------------------------
 -- bind cookies
