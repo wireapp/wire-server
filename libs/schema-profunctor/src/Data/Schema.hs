@@ -521,10 +521,7 @@ class HasMinItems s a where
   minItems :: Lens' s a
 
 instance HasMinItems SwaggerDoc (Maybe Integer) where
-  minItems =
-    lens
-      (\(WithDeclare _ s) -> s & view S.minItems)
-      (\(WithDeclare d s) mInt -> WithDeclare d $ s & S.minItems .~ mInt)
+  minItems = declared . S.minItems
 
 instance HasEnum NamedSwaggerDoc where
   mkEnum name labels =
