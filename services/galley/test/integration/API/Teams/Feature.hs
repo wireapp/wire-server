@@ -33,7 +33,6 @@ import Test.Tasty
 import TestHelpers (test)
 import TestSetup
 import qualified Wire.API.Team.Feature as Public
-import qualified Wire.API.Team.Member as Public
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -51,7 +50,7 @@ testSSO = do
   member <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid (Public.newTeamMember member (rolePermissions RoleMember) Nothing)
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getSSO :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getSSO = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
@@ -82,7 +81,7 @@ testLegalHold = do
   member <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid (Public.newTeamMember member (rolePermissions RoleMember) Nothing)
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getLegalHold :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getLegalHold = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
@@ -115,7 +114,7 @@ testSearchVisibility = do
   member <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid (Public.newTeamMember member (rolePermissions RoleMember) Nothing)
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   g <- view tsGalley
   let getTeamSearchVisibility ::
@@ -182,7 +181,7 @@ testSimpleFlag = do
   member <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid (Public.newTeamMember member (rolePermissions RoleMember) Nothing)
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlag expected =
