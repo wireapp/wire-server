@@ -319,7 +319,8 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
 
 nonEmptyArray ::
-  forall ndoc doc a.(HasArray ndoc doc, HasName ndoc, S.HasMinItems doc (Maybe Integer)) =>
+  forall ndoc doc a.
+  (HasArray ndoc doc, HasName ndoc, S.HasMinItems doc (Maybe Integer)) =>
   ValueSchema ndoc a ->
   ValueSchema doc (NonEmpty a)
 nonEmptyArray sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
