@@ -36,7 +36,7 @@ import Test.QuickCheck.Gen (generate)
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
-import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
+import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Message (UserClientMap (..), UserClients (..))
 
@@ -55,7 +55,9 @@ tests m brig fedBrigClient =
         test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
         test m "GET /federation/users/prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
         test m "GET /federation/users/prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
-        test m "POST /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient)
+        test m "POST /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
+        test m "POST /federation/users/clients : 200" (testGetUserClients brig fedBrigClient),
+        test m "POST /federation/users/clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -182,3 +184,31 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
       "should return the UserClientMap"
       ucm
       ucmResponse
+
+addTestClients :: Brig -> UserId -> [Int] -> Http [Client]
+addTestClients brig uid idxs =
+  for idxs $ \idx -> do
+    let (pk, lk) = (somePrekeys !! idx, someLastPrekeys !! idx)
+    client :: Client <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk] lk)
+    pure client
+
+testGetUserClients :: Brig -> FedBrigClient -> Http ()
+testGetUserClients brig fedBrigClient = do
+  uid1 <- userId <$> randomUser brig
+  clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
+  UserClients userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [uid1])
+  liftIO $
+    assertEqual
+      "client set for user should match"
+      (Just (Set.fromList (fmap clientId clients)))
+      (Map.lookup uid1 userClients)
+
+testGetUserClientsNotFound :: FedBrigClient -> Http ()
+testGetUserClientsNotFound fedBrigClient = do
+  absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
+  UserClients userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [absentUserId])
+  liftIO $
+    assertEqual
+      "client set for user should match"
+      (Just (Set.fromList []))
+      (Map.lookup absentUserId userClients)
