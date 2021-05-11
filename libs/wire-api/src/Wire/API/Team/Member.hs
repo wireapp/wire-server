@@ -268,7 +268,7 @@ instance ToJSON NewTeamMember where
 instance FromJSON NewTeamMember where
   parseJSON = withObject "add team member" $ \o -> do
     mem <- o .: "member"
-    if (_legalHoldStatus mem == defUserLegalHoldStatus)
+    if (_legalHoldStatus mem == UserLegalHoldDisabled)
       then pure $ NewTeamMember mem
       else fail "legalhold_status field cannot be set in NewTeamMember"
 
