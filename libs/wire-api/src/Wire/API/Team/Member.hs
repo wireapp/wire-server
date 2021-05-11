@@ -255,7 +255,7 @@ newtype NewTeamMember = NewTeamMember
 
 instance Arbitrary NewTeamMember where
   arbitrary = newNewTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
-  shrink (NewTeamMember (TeamMember uid perms mbinv _)) = [newNewTeamMember uid perms Nothing]
+  shrink (NewTeamMember (TeamMember uid perms _mbinv _)) = [newNewTeamMember uid perms Nothing]
 
 newNewTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> NewTeamMember
 newNewTeamMember uid perms mbinv = NewTeamMember $ TeamMember uid perms mbinv UserLegalHoldDisabled
