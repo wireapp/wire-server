@@ -319,18 +319,18 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
 
 nonEmptyArray ::
-  forall ndoc doc a.
   (HasArray ndoc doc, HasName ndoc, HasMinItems doc (Maybe Integer)) =>
   ValueSchema ndoc a ->
   ValueSchema doc (NonEmpty a)
-nonEmptyArray sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+nonEmptyArray sch = setMinItems 1 $ NonEmpty.toList .= array sch `withParser` check
   where
-    name = maybe "non-empty array" ("non-empty array of " <>) (getName (schemaDoc sch))
-    r = A.withArray (T.unpack name) $ \arr -> case V.toList arr of
-      [] -> A.parseFail "Unexpected empty array found while parsing a NonEmpty"
-      (x : xs) -> mapM (schemaIn sch) (x :| xs)
-    s = mkArray (schemaDoc sch) & minItems ?~ (1 :: Integer)
-    w xs = A.Array . V.fromList <$> mapM (schemaOut sch) (NonEmpty.toList xs)
+    check =
+      maybe (fail "Unexpected empty array found while parsing a NonEmpty") pure
+        . NonEmpty.nonEmpty
+
+-- Putting this in `where` clause causes compile error, maybe a bug in GHC?
+setMinItems :: (HasMinItems doc (Maybe Integer)) => Integer -> ValueSchema doc a -> ValueSchema doc a
+setMinItems m = doc . minItems ?~ m
 
 -- | Ad-hoc class for types corresponding to a JSON primitive types.
 class A.ToJSON a => With a where
