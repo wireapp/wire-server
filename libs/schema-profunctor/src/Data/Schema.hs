@@ -42,6 +42,7 @@ module Data.Schema
     field,
     fieldWithDocModifier,
     array,
+    nonEmptyArray,
     enum,
     opt,
     optWithDefault,
@@ -66,7 +67,8 @@ import Control.Comonad
 import Control.Lens hiding (element, enum, (.=))
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
@@ -316,6 +318,19 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     s = mkArray (schemaDoc sch)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
 
+nonEmptyArray ::
+  forall ndoc doc a.(HasArray ndoc doc, HasName ndoc, S.HasMinItems doc (Maybe Integer)) =>
+  ValueSchema ndoc a ->
+  ValueSchema doc (NonEmpty a)
+nonEmptyArray sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+  where
+    name = maybe "non-empty array" ("non-empty array of " <>) (getName (schemaDoc sch))
+    r = A.withArray (T.unpack name) $ \arr -> case V.toList arr of
+      [] -> A.parseFail "Unexpected empty array found while parsing a NonEmpty"
+      (x : xs) -> mapM (schemaIn sch) (x :| xs)
+    s = mkArray (schemaDoc sch) & S.minItems ?~ 1
+    w xs = A.Array . V.fromList <$> mapM (schemaOut sch) (NonEmpty.toList xs)
+
 -- | Ad-hoc class for types corresponding to a JSON primitive types.
 class A.ToJSON a => With a where
   with :: String -> (a -> A.Parser b) -> A.Value -> A.Parser b
@@ -492,13 +507,20 @@ instance HasObject SwaggerDoc NamedSwaggerDoc where
   mkObject name decl = S.NamedSchema (Just name) <$> decl
   unmkObject = fmap S._namedSchemaSchema
 
-instance HasSchemaRef doc => HasArray doc SwaggerDoc where
+instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
   mkArray = fmap f . schemaRef
     where
+      f :: S.Referenced S.Schema -> S.Schema
       f ref =
         mempty
           & S.type_ ?~ S.SwaggerArray
           & S.items ?~ S.SwaggerItemsObject ref
+
+instance S.HasMinItems SwaggerDoc (Maybe Integer) where
+  minItems =
+    lens
+      (\(WithDeclare _ s) -> s & view S.minItems)
+      (\(WithDeclare d s) mInt -> WithDeclare d $ s & S.minItems .~ mInt)
 
 instance HasEnum NamedSwaggerDoc where
   mkEnum name labels =
@@ -563,10 +585,6 @@ instance ToSchema Char where schema = genericToSchema
 instance ToSchema String where schema = genericToSchema
 
 instance ToSchema Bool where schema = genericToSchema
-
-instance (S.ToSchema a, A.ToJSON a, A.FromJSON a) => ToSchema [a] where schema = genericToSchema
-
-instance (S.ToSchema a, A.ToJSON a, A.FromJSON a) => ToSchema (NonEmpty a) where schema = genericToSchema
 
 swaggerDoc :: forall a. S.ToSchema a => NamedSwaggerDoc
 swaggerDoc = unrunDeclare (S.declareNamedSchema (Proxy @a))
