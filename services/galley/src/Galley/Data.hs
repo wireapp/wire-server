@@ -129,6 +129,7 @@ import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
+import qualified Galley.Options as Opts
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
@@ -247,11 +248,16 @@ teamConversationsForPagination tid start (fromRange -> max) =
 teamMembersForFanout :: TeamId -> Galley TeamMemberList
 teamMembersForFanout t = fanoutLimit >>= teamMembersWithLimit t
 
-teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m TeamMemberList
+teamMembersWithLimit ::
+  forall m.
+  (MonadThrow m, MonadClient m, MonadReader Env m) =>
+  TeamId ->
+  Range 1 HardTruncationLimit Int32 ->
+  m TeamMemberList
 teamMembersWithLimit t (fromRange -> limit) = do
   -- NOTE: We use +1 as size and then trim it due to the semantics of C* when getting a page with the exact same size
   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) (limit + 1)))
-  ms <- mapM newTeamMember' . take (fromIntegral limit) $ result pageTuple
+  ms <- mapM (newTeamMember' t) . take (fromIntegral limit) $ result pageTuple
   pure $
     if hasMore pageTuple
       then newTeamMemberList ms ListTruncated
@@ -274,7 +280,7 @@ teamMembersCollectedWithPagination tid = do
   collectTeamMembersPaginated [] mems
   where
     collectTeamMembersPaginated acc mems = do
-      tMembers <- mapM newTeamMember' (result mems)
+      tMembers <- mapM (newTeamMember' tid) (result mems)
       if (null $ result mems)
         then collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
         else return (tMembers ++ acc)
@@ -282,12 +288,17 @@ teamMembersCollectedWithPagination tid = do
 -- Lookup only specific team members: this is particularly useful for large teams when
 -- needed to look up only a small subset of members (typically 2, user to perform the action
 -- and the target user)
-teamMembersLimited :: forall m. (MonadThrow m, MonadClient m) => TeamId -> [UserId] -> m [TeamMember]
+teamMembersLimited ::
+  forall m.
+  (MonadThrow m, MonadClient m, MonadReader Env m) =>
+  TeamId ->
+  [UserId] ->
+  m [TeamMember]
 teamMembersLimited t u =
-  mapM newTeamMember'
+  mapM (newTeamMember' t)
     =<< retry x1 (query Cql.selectTeamMembers' (params Quorum (t, u)))
 
-teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
+teamMember :: forall m. (MonadThrow m, MonadClient m, MonadReader Env m) => TeamId -> UserId -> m (Maybe TeamMember)
 teamMember t u = newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
   where
     newTeamMember'' ::
@@ -296,7 +307,7 @@ teamMember t u = newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (pa
       m (Maybe TeamMember)
     newTeamMember'' _ Nothing = pure Nothing
     newTeamMember'' uid (Just (perms, minvu, minvt, mulhStatus)) =
-      Just <$> newTeamMember' (uid, perms, minvu, minvt, mulhStatus)
+      Just <$> newTeamMember' t (uid, perms, minvu, minvt, mulhStatus)
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u =
@@ -932,18 +943,28 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 -- | Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
 -- other is 'Just', which can only be caused by inconsistent database content.
 --
--- TODO: newTeamMember' needs to take LH feature flag and legalholdEnabledTeams as
--- argument(s), and fill in userlegalholdnoconsent / disabled based on that.  if feature
--- enabled: disabled; if enabledforteams: ...
---
--- FUTUREWORK: if we implement full, explicit consent, we will remove legalholdEnabledTeams,
--- and ghc will point us to this function during refactoring.  (i think.)
+-- `newTeamMember'` reads 'setLegalholdEnabledTeams' from 'Env' and fill in
+-- 'UserLegalHoldNoConsent' or 'UserLegalHoldDisabled' based on that.
 newTeamMember' ::
-  (MonadThrow m, MonadClient m) =>
+  (MonadThrow m, MonadReader Env m) =>
+  TeamId ->
   (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
   m TeamMember
-newTeamMember' (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = mk minvu minvt
+newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
+  whitelist <- view (options . Opts.optSettings . Opts.setLegalholdEnabledTeams)
+  grantImplicitConsent whitelist <$> mk minvu minvt
   where
+    grantImplicitConsent :: Maybe [TeamId] -> TeamMember -> TeamMember
+    grantImplicitConsent (Just ((tid `elem`) -> True)) mem =
+      mem & legalHoldStatus %~ \case
+        UserLegalHoldNoConsent -> UserLegalHoldDisabled
+        -- the other cases don't change; we just enumerate them to catch future changes in
+        -- 'UserLegalHoldStatus' better.
+        UserLegalHoldDisabled -> UserLegalHoldDisabled
+        UserLegalHoldPending -> UserLegalHoldPending
+        UserLegalHoldEnabled -> UserLegalHoldEnabled
+    grantImplicitConsent _ mem = mem
+
     mk (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
     mk Nothing Nothing = pure $ TeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
@@ -959,7 +980,7 @@ withTeamMembersWithChunks tid action = do
   handleMembers mems
   where
     handleMembers mems = do
-      tMembers <- mapM newTeamMember' (result mems)
+      tMembers <- mapM (newTeamMember' tid) (result mems)
       action tMembers
       when (hasMore mems) $
         handleMembers =<< liftClient (nextPage mems)
