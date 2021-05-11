@@ -199,7 +199,7 @@ updatePermissions from tid (to, perm) galley =
     !!! const 200
     === statusCode
   where
-    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm Nothing
+    changeMember = Team.newNewTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do

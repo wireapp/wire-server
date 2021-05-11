@@ -865,8 +865,7 @@ ensureNotTooLargeForLegalHold tid mems = do
       throwM tooManyTeamMembersOnTeamWithLegalhold
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
-addTeamMemberInternal tid origin originConn newMem memList = do
-  let new = newMem ^. ntmNewTeamMember
+addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
   Log.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
