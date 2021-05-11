@@ -55,10 +55,10 @@ where
 
 import Cassandra.CQL hiding (Set)
 import Control.Applicative (optional)
+import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.TH as A
-import Control.Lens (at, (?~))
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
@@ -194,11 +194,12 @@ newtype RoleName = RoleName {fromRoleName :: Text}
 instance ToSchema RoleName where
   schema =
     (S.schema . description ?~ desc) $
-    RoleName <$> fromRoleName .= text "RoleName"
+      RoleName <$> fromRoleName .= text "RoleName"
     where
-      desc = "Role name, between 2 and 128 chars, 'wire_' prefix \
-             \is reserved for roles designed by Wire (i.e., no \
-             \custom roles can have the same prefix)"
+      desc =
+        "Role name, between 2 and 128 chars, 'wire_' prefix \
+        \is reserved for roles designed by Wire (i.e., no \
+        \custom roles can have the same prefix)"
 
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName

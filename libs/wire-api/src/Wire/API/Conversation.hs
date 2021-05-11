@@ -68,18 +68,18 @@ module Wire.API.Conversation
 where
 
 import Control.Applicative
+import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
-import Control.Lens (at, (?~))
 import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Misc
-import Data.Schema
-import qualified Data.Swagger as S
 import Data.Proxy (Proxy (Proxy))
+import Data.Schema
 import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Test.QuickCheck as QC
@@ -129,13 +129,16 @@ instance ToSchema Conversation where
         <*> cnvName .= lax (field "name" (optWithDefault A.Null schema))
         <*> cnvMembers .= field "members" schema
         <* const ("0.0" :: Text) .= optional (field "last_event" schema)
-        <* const ("1970-01-01T00:00:00.000Z" :: Text) .=
-             optional (field "last_event_time" schema)
+        <* const ("1970-01-01T00:00:00.000Z" :: Text)
+          .= optional (field "last_event_time" schema)
         <*> cnvTeam .= lax (field "team" (optWithDefault A.Null schema))
-        <*> cnvMessageTimer .= lax
-              (fieldWithDocModifier "message_timer"
-               (description ?~ "Per-conversation message timer (can be null)")
-               (optWithDefault A.Null schema))
+        <*> cnvMessageTimer
+          .= lax
+            ( fieldWithDocModifier
+                "message_timer"
+                (description ?~ "Per-conversation message timer (can be null)")
+                (optWithDefault A.Null schema)
+            )
         <*> cnvReceiptMode .= lax (field "receipt_mode" (optWithDefault A.Null schema))
 
 modelConversation :: Doc.Model
@@ -238,13 +241,13 @@ data Access
 instance ToSchema Access where
   schema =
     (S.schema . description ?~ "How users can join conversations") $
-    enum @Text "Access" $
-      mconcat
-        [ element "private" PrivateAccess,
-          element "invite" InviteAccess,
-          element "link" LinkAccess,
-          element "code" CodeAccess
-        ]
+      enum @Text "Access" $
+        mconcat
+          [ element "private" PrivateAccess,
+            element "invite" InviteAccess,
+            element "link" LinkAccess,
+            element "code" CodeAccess
+          ]
 
 typeAccess :: Doc.DataType
 typeAccess = Doc.string . Doc.enum $ cs . A.encode <$> [(minBound :: Access) ..]
@@ -270,13 +273,13 @@ data AccessRole
 instance ToSchema AccessRole where
   schema =
     (S.schema . description ?~ "Which users can join conversations") $
-    enum @Text "Access" $
-      mconcat
-        [ element "private" PrivateAccessRole,
-          element "team" TeamAccessRole,
-          element "activated" ActivatedAccessRole,
-          element "non_activated" NonActivatedAccessRole
-        ]
+      enum @Text "Access" $
+        mconcat
+          [ element "private" PrivateAccessRole,
+            element "team" TeamAccessRole,
+            element "activated" ActivatedAccessRole,
+            element "non_activated" NonActivatedAccessRole
+          ]
 
 data ConvType
   = RegularConv
@@ -314,8 +317,9 @@ newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ReceiptMode
 
 instance ToSchema ReceiptMode where
-  schema = (S.schema . description ?~ "Conversation receipt mode") $
-    ReceiptMode <$> unReceiptMode .= schema
+  schema =
+    (S.schema . description ?~ "Conversation receipt mode") $
+      ReceiptMode <$> unReceiptMode .= schema
 
 --------------------------------------------------------------------------------
 -- create

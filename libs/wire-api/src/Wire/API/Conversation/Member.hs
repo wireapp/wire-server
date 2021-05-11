@@ -42,13 +42,13 @@ module Wire.API.Conversation.Member
 where
 
 import Control.Applicative
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import Data.Id
 import Data.Json.Util
 import Data.Schema
 import qualified Data.Swagger as S
-import Control.Lens ((?~))
-import Data.Id
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Test.QuickCheck as QC
