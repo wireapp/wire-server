@@ -89,6 +89,7 @@ mkApp o = do
         (Proxy @CombinedAPI)
         ( API.swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
+            :<|> Servant.hoistServer (Proxy @Internal.ServantAPI) (toServantHandler e) Internal.servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
@@ -100,7 +101,7 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
 
-type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
+type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do

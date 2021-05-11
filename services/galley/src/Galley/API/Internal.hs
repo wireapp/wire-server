@@ -17,6 +17,9 @@
 
 module Galley.API.Internal
   ( sitemap,
+    servantSitemap,
+    InternalApi,
+    ServantAPI,
     deleteLoop,
     safeForever,
   )
@@ -60,8 +63,50 @@ import qualified Network.Wai.Predicate as P
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
+import Servant.API hiding (JSON)
+import qualified Servant.API as Servant
+import Servant.API.Generic
+import Servant.Server
+import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
+import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
+
+data InternalApi routes = InternalApi
+  { iAddRemoteUser ::
+      routes
+        :- "i"
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "add-remote-unchecked"
+        :> Get '[Servant.JSON] Public.Conversation,
+    iDeleteRemoteUser ::
+      routes
+        :- "i"
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "delete-remote-unchecked"
+        :> Get '[Servant.JSON] Public.Conversation
+  }
+  deriving (Generic)
+
+type ServantAPI = ToServantApi InternalApi
+
+servantSitemap :: ServerT ServantAPI Galley
+servantSitemap =
+  genericServerT $
+    InternalApi
+      { iAddRemoteUser = addRemoteUserUnchecked,
+        iDeleteRemoteUser = deleteRemoteUserUnchecked
+      }
+
+addRemoteUserUnchecked :: ConvId -> Galley Public.Conversation
+addRemoteUserUnchecked = do
+  undefined
+
+deleteRemoteUserUnchecked :: ConvId -> Galley Public.Conversation
+deleteRemoteUserUnchecked = do
+  undefined
 
 sitemap :: Routes a Galley ()
 sitemap = do
