@@ -75,7 +75,7 @@ import Data.Swagger.Schema (ToSchema)
 import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, StripPrefix)
 import GHC.TypeLits
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..), arbitrary, shrink)
 import Wire.API.Team.Permission (Permissions, modelPermissions)
 
 --------------------------------------------------------------------------------
@@ -252,7 +252,10 @@ newtype NewTeamMember = NewTeamMember
   { _ntmNewTeamMember :: TeamMember
   }
   deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
+
+instance Arbitrary NewTeamMember where
+  arbitrary = newNewTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
+  shrink (NewTeamMember (TeamMember uid perms mbinv _)) = [newNewTeamMember uid perms Nothing]
 
 newNewTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> NewTeamMember
 newNewTeamMember uid perms mbinv = NewTeamMember $ TeamMember uid perms mbinv UserLegalHoldDisabled
