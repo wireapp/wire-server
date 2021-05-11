@@ -66,6 +66,7 @@ import Control.Comonad
 import Control.Lens hiding (element, enum, (.=))
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
+import Data.List.NonEmpty (NonEmpty)
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
@@ -562,6 +563,10 @@ instance ToSchema Char where schema = genericToSchema
 instance ToSchema String where schema = genericToSchema
 
 instance ToSchema Bool where schema = genericToSchema
+
+instance (S.ToSchema a, A.ToJSON a, A.FromJSON a) => ToSchema [a] where schema = genericToSchema
+
+instance (S.ToSchema a, A.ToJSON a, A.FromJSON a) => ToSchema (NonEmpty a) where schema = genericToSchema
 
 swaggerDoc :: forall a. S.ToSchema a => NamedSwaggerDoc
 swaggerDoc = unrunDeclare (S.declareNamedSchema (Proxy @a))
