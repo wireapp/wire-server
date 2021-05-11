@@ -872,8 +872,13 @@ testAddRemoteMember = do
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "far-away.example.com")
   conv <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  postQualifiedMembers alice (remoteBob :| []) conv
-    !!! const 200 === statusCode
+  e :: Event <- responseJsonUnsafe <$> (postQualifiedMembers alice (remoteBob :| []) conv <!! const 200 === statusCode)
+  liftIO $ do
+    evtConv e @?= conv
+    evtType e @?= MemberJoin
+    -- TODO: implement returning remote users in the event.
+    -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
+    evtFrom e @?= alice
 
 postMembersOk :: TestM ()
 postMembersOk = do
@@ -884,7 +889,12 @@ postMembersOk = do
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  postMembers alice (singleton eve) conv !!! const 200 === statusCode
+  e <- responseJsonUnsafe <$> (postMembers alice (singleton eve) conv <!! const 200 === statusCode)
+  liftIO $ do
+    evtConv e @?= conv
+    evtType e @?= MemberJoin
+    evtData e @?= Just (EdMembersJoin (SimpleMembers [SimpleMember eve roleNameWireAdmin]))
+    evtFrom e @?= alice
   -- Check that last_event markers are set for all members
   forM_ [alice, bob, chuck, eve] $ \u -> do
     _ <- getSelfMember u conv <!! const 200 === statusCode
