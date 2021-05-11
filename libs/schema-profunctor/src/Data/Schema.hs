@@ -42,6 +42,7 @@ module Data.Schema
     field,
     fieldWithDocModifier,
     array,
+    nonEmptyArray,
     enum,
     opt,
     optWithDefault,
@@ -66,6 +67,8 @@ import Control.Comonad
 import Control.Lens hiding (element, enum, (.=))
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
@@ -315,6 +318,20 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     s = mkArray (schemaDoc sch)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
 
+nonEmptyArray ::
+  (HasArray ndoc doc, HasName ndoc, HasMinItems doc (Maybe Integer)) =>
+  ValueSchema ndoc a ->
+  ValueSchema doc (NonEmpty a)
+nonEmptyArray sch = setMinItems 1 $ NonEmpty.toList .= array sch `withParser` check
+  where
+    check =
+      maybe (fail "Unexpected empty array found while parsing a NonEmpty") pure
+        . NonEmpty.nonEmpty
+
+-- Putting this in `where` clause causes compile error, maybe a bug in GHC?
+setMinItems :: (HasMinItems doc (Maybe Integer)) => Integer -> ValueSchema doc a -> ValueSchema doc a
+setMinItems m = doc . minItems ?~ m
+
 -- | Ad-hoc class for types corresponding to a JSON primitive types.
 class A.ToJSON a => With a where
   with :: String -> (a -> A.Parser b) -> A.Value -> A.Parser b
@@ -491,13 +508,20 @@ instance HasObject SwaggerDoc NamedSwaggerDoc where
   mkObject name decl = S.NamedSchema (Just name) <$> decl
   unmkObject = fmap S._namedSchemaSchema
 
-instance HasSchemaRef doc => HasArray doc SwaggerDoc where
+instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
   mkArray = fmap f . schemaRef
     where
+      f :: S.Referenced S.Schema -> S.Schema
       f ref =
         mempty
           & S.type_ ?~ S.SwaggerArray
           & S.items ?~ S.SwaggerItemsObject ref
+
+class HasMinItems s a where
+  minItems :: Lens' s a
+
+instance HasMinItems SwaggerDoc (Maybe Integer) where
+  minItems = declared . S.minItems
 
 instance HasEnum NamedSwaggerDoc where
   mkEnum name labels =

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7b92e2c70fd68f7cce33fa4220b2043db55f50573a8367aa15003721e0e80e07
+-- hash: c5a1cfd90c204643acfba845b0bf156d09e5efbd3173ed84a5facac6e5b77b9f
 
 name:           schema-profunctor
 version:        0.1.0
@@ -54,6 +54,7 @@ test-suite schemas-tests
     , aeson-qq
     , base >=4 && <5
     , imports
+    , insert-ordered-containers
     , lens
     , schema-profunctor
     , swagger2

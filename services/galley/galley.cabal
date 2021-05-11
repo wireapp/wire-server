@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 526734f841c041af940b9bdebc89025f3558f9fccd892f8a077bff3f7bfbf8f8
+-- hash: a3a0bbaf483250a5b1f0ba2fbc6140b93580c9835e4ad46fdb15af95553b6979
 
 name:           galley
 version:        0.83.0
@@ -29,6 +29,7 @@ library
       Galley.API.Create
       Galley.API.CustomBackend
       Galley.API.Error
+      Galley.API.Federation
       Galley.API.Internal
       Galley.API.LegalHold
       Galley.API.Mapping
@@ -182,6 +183,7 @@ executable galley-integration
   other-modules:
       API
       API.CustomBackend
+      API.Federation
       API.MessageTimer
       API.Roles
       API.SQS
@@ -244,6 +246,9 @@ executable galley-integration
     , raw-strings-qq >=1.0
     , retry
     , safe >=0.3
+    , servant
+    , servant-client
+    , servant-client-core
     , servant-swagger
     , ssl-util
     , string-conversions

@@ -23,6 +23,8 @@ import Control.Applicative
 import Control.Lens (Prism', at, prism', (?~), (^.))
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, decode, encode, fromJSON)
 import Data.Aeson.QQ
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
@@ -47,7 +49,11 @@ tests =
       testUser1ToJSON,
       testUser1FromJSON,
       testUser2ToJSON,
-      testUser2FromJSON
+      testUser2FromJSON,
+      testNonEmptyParseFailure,
+      testNonEmptyParseSuccess,
+      testNonEmptyToJSON,
+      testNonEmptySchema
     ]
 
 testFooToJSON :: TestTree
@@ -174,6 +180,49 @@ testUser2FromJSON =
       (Just exampleUser2)
       (decode exampleUser2JSON)
 
+testNonEmptyParseFailure :: TestTree
+testNonEmptyParseFailure =
+  testCase "NonEmpty parse failure" $ do
+    let invalidJSON = [aesonQQ|{"nl": []}|]
+    case fromJSON @NonEmptyTest invalidJSON of
+      Success _ -> assertFailure "fromJSON should fail"
+      Error err -> do
+        assertEqual
+          "fromJSON error should mention that list is not empty"
+          "Unexpected empty array found while parsing a NonEmpty"
+          err
+
+testNonEmptyParseSuccess :: TestTree
+testNonEmptyParseSuccess =
+  testCase "NonEmpty parse success" $ do
+    let json = [aesonQQ|{"nl": ["something", "other thing"]}|]
+        expected = NonEmptyTest ("something" :| ["other thing"])
+    assertEqual
+      "fromJSON should mention that list is not empty"
+      (Success expected)
+      (fromJSON json)
+
+testNonEmptyToJSON :: TestTree
+testNonEmptyToJSON =
+  testCase "NonEmpty ToJSON" $ do
+    let expected = [aesonQQ|{"nl": ["something", "other thing"]}|]
+        testVal = NonEmptyTest ("something" :| ["other thing"])
+    assertEqual
+      "fromJSON should mention that list is not empty"
+      expected
+      (toJSON testVal)
+
+testNonEmptySchema :: TestTree
+testNonEmptySchema =
+  testCase "NonEmpty Schema" $ do
+    let sch = S.toSchema (Proxy @NonEmptyTest)
+    case InsOrdHashMap.lookup "nl" $ sch ^. S.properties of
+      Nothing -> assertFailure "expected schema to have a property called 'nl'"
+      Just (S.Ref _) -> assertFailure "expected property 'nl' to have inline schema"
+      Just (S.Inline nlSch) -> do
+        assertEqual "type should be Array" (Just S.SwaggerArray) (nlSch ^. S.type_)
+        assertEqual "minItems should be 1" (Just 1) (nlSch ^. S.minItems)
+
 ---
 
 data A = A {thing :: Text, other :: Int}
@@ -295,3 +344,10 @@ exampleUser2 = User "Bob" Nothing (Just 100)
 
 exampleUser2JSON :: LByteString
 exampleUser2JSON = "{\"expire\":100,\"name\":\"Bob\"}"
+
+newtype NonEmptyTest = NonEmptyTest {nl :: NonEmpty Text}
+  deriving stock (Eq, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema NonEmptyTest
+
+instance ToSchema NonEmptyTest where
+  schema = object "NonEmptyTest" $ NonEmptyTest <$> nl .= field "nl" (nonEmptyArray schema)
