@@ -33,6 +33,8 @@ module Data.Range
     errorMsg,
     unsafeRange,
     fromRange,
+    rangedSchema,
+    untypedRangedSchema,
     rcast,
     rnil,
     rcons,
@@ -72,6 +74,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
 import Data.List1 (List1, toNonEmpty)
 import qualified Data.Map as Map
+import Data.Schema
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
@@ -79,7 +82,8 @@ import Data.Singletons
 import Data.Singletons.Prelude.Num
 import Data.Singletons.Prelude.Ord
 import Data.Singletons.TypeLits
-import Data.Swagger (ParamSchema, ToParamSchema (..), ToSchema (..), maxItems, maxLength, maximum_, minItems, minLength, minimum_)
+import Data.Swagger (ParamSchema, ToParamSchema (..))
+import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
 import qualified Data.Text.Ascii as Ascii
@@ -116,6 +120,31 @@ instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
       msg :: Bounds a => SNat n -> SNat m -> Aeson.Parser (Range n m a)
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
 
+rangedSchema ::
+  (Within a n m, Bounds b) =>
+  SNat n ->
+  SNat m ->
+  SchemaP d v w a b ->
+  SchemaP d v w a (Range n m b)
+rangedSchema sn sm sch = Range <$> untypedRangedSchema (get sn) (get sm) sch
+  where
+    get = toInteger . fromSing
+
+untypedRangedSchema ::
+  Bounds b =>
+  Integer ->
+  Integer ->
+  SchemaP d v w a b ->
+  SchemaP d v w a b
+untypedRangedSchema n m sch = sch `withParser` check
+  where
+    check x =
+      x <$ guard (within x n m)
+        <|> fail (errorMsg n m "")
+
+instance (Within a n m, ToSchema a) => ToSchema (Range n m a) where
+  schema = fromRange .= rangedSchema sing sing schema
+
 instance (Within a n m, Cql a) => Cql (Range n m a) where
   ctype = retag (ctype :: Tagged a ColumnType)
   toCql = toCql . fromRange
@@ -151,30 +180,30 @@ instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word64) where toPa
 instance (ToParamSchema a, KnownNat n, KnownNat m) => ToParamSchema (Range n m [a]) where
   toParamSchema _ =
     toParamSchema (Proxy @[a])
-      & minItems ?~ fromKnownNat (Proxy @n)
-      & maxItems ?~ fromKnownNat (Proxy @m)
+      & S.minItems ?~ fromKnownNat (Proxy @n)
+      & S.maxItems ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m String) where
   toParamSchema _ =
     toParamSchema (Proxy @String)
-      & maxLength ?~ fromKnownNat (Proxy @n)
-      & minLength ?~ fromKnownNat (Proxy @m)
+      & S.maxLength ?~ fromKnownNat (Proxy @n)
+      & S.minLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m T.Text) where
   toParamSchema _ =
     toParamSchema (Proxy @T.Text)
-      & maxLength ?~ fromKnownNat (Proxy @n)
-      & minLength ?~ fromKnownNat (Proxy @m)
+      & S.maxLength ?~ fromKnownNat (Proxy @n)
+      & S.minLength ?~ fromKnownNat (Proxy @m)
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m TL.Text) where
   toParamSchema _ =
     toParamSchema (Proxy @TL.Text)
-      & maxLength ?~ fromKnownNat (Proxy @n)
-      & minLength ?~ fromKnownNat (Proxy @m)
+      & S.maxLength ?~ fromKnownNat (Proxy @n)
+      & S.minLength ?~ fromKnownNat (Proxy @m)
 
-instance ToSchema a => ToSchema (Range n m a) where
+instance S.ToSchema a => S.ToSchema (Range n m a) where
   declareNamedSchema _ =
-    declareNamedSchema (Proxy @a)
+    S.declareNamedSchema (Proxy @a)
 
 instance (Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) where
   parseUrlPiece t = do
@@ -256,8 +285,8 @@ rsingleton = Range . pure
 rangedNumToParamSchema :: forall a n m t. (ToParamSchema a, Num a, KnownNat n, KnownNat m) => Proxy (Range n m a) -> ParamSchema t
 rangedNumToParamSchema _ =
   toParamSchema (Proxy @a)
-    & minimum_ ?~ fromKnownNat (Proxy @n)
-    & maximum_ ?~ fromKnownNat (Proxy @m)
+    & S.minimum_ ?~ fromKnownNat (Proxy @n)
+    & S.maximum_ ?~ fromKnownNat (Proxy @m)
 
 -----------------------------------------------------------------------------
 

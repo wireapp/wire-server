@@ -55,20 +55,20 @@ where
 
 import Cassandra.CQL hiding (Set)
 import Control.Applicative (optional)
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.TH as A
 import Control.Lens (at, (?~))
-import Data.Aeson
-import Data.Aeson.TH
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
 import Data.Proxy (Proxy (..))
 import Data.Range (fromRange, genRangeText)
+import Data.Schema
 import qualified Data.Set as Set
-import Data.Swagger (NamedSchema (..), Referenced (Inline), Schema, description, schema)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Swagger.Lens (properties)
-import Data.Swagger.Schema hiding (constructorTagModifier)
-import Deriving.Swagger hiding (camelTo2)
+import qualified Deriving.Swagger as S
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -99,25 +99,25 @@ modelConversationRole = Doc.defineModel "ConversationRole" $ do
   Doc.property "actions" (Doc.array typeConversationRoleAction) $
     Doc.description "The set of actions allowed for this role"
 
-instance ToSchema ConversationRole where
+instance S.ToSchema ConversationRole where
   declareNamedSchema _ = do
     conversationRoleSchema <-
-      declareSchemaRef (Proxy @RoleName)
-    let convRoleSchema :: Schema =
+      S.declareSchemaRef (Proxy @RoleName)
+    let convRoleSchema :: S.Schema =
           mempty
-            & properties . at "conversation_role" ?~ conversationRoleSchema
-            & properties . at "actions"
-              ?~ Inline
-                ( toSchema (Proxy @[Action])
+            & S.properties . at "conversation_role" ?~ conversationRoleSchema
+            & S.properties . at "actions"
+              ?~ S.Inline
+                ( S.toSchema (Proxy @[Action])
                     & description ?~ "The set of actions allowed for this role"
                 )
-    pure (NamedSchema (Just "ConversationRole") convRoleSchema)
+    pure (S.NamedSchema (Just "ConversationRole") convRoleSchema)
 
 instance ToJSON ConversationRole where
   toJSON cr =
-    object
-      [ "conversation_role" .= roleToRoleName cr,
-        "actions" .= roleActions cr
+    A.object
+      [ "conversation_role" A..= roleToRoleName cr,
+        "actions" A..= roleActions cr
       ]
 
 roleActions :: ConversationRole -> Set Action
@@ -134,9 +134,9 @@ roleToRoleName ConvRoleWireMember = roleNameWireMember
 roleToRoleName (ConvRoleCustom l _) = l
 
 instance FromJSON ConversationRole where
-  parseJSON = withObject "conversationRole" $ \o -> do
-    role <- o .: "conversation_role"
-    actions <- o .: "actions"
+  parseJSON = A.withObject "conversationRole" $ \o -> do
+    role <- o A..: "conversation_role"
+    actions <- o A..: "actions"
     case (toConvRole role (Just $ Actions actions)) of
       Just cr -> return cr
       Nothing -> fail ("Failed to parse: " ++ show o)
@@ -161,7 +161,7 @@ data ConversationRolesList = ConversationRolesList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationRolesList)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (LabelMappings '["convRolesList" ':-> "conversation_roles"])] ConversationRolesList)
+  deriving (S.ToSchema) via (S.CustomSwagger '[S.FieldLabelModifier (S.LabelMappings '["convRolesList" 'S.:-> "conversation_roles"])] ConversationRolesList)
 
 modelConversationRolesList :: Doc.Model
 modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
@@ -171,14 +171,14 @@ modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
 
 instance ToJSON ConversationRolesList where
   toJSON (ConversationRolesList r) =
-    object
-      [ "conversation_roles" .= r
+    A.object
+      [ "conversation_roles" A..= r
       ]
 
 instance FromJSON ConversationRolesList where
-  parseJSON = withObject "ConversationRolesList" $ \o ->
+  parseJSON = A.withObject "ConversationRolesList" $ \o ->
     ConversationRolesList
-      <$> o .: "conversation_roles"
+      <$> o A..: "conversation_roles"
 
 --------------------------------------------------------------------------------
 -- RoleName
@@ -188,23 +188,20 @@ instance FromJSON ConversationRolesList where
 -- expose this constructor outside of this module.
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, ToByteString, Hashable)
+  deriving newtype (ToByteString, Hashable)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RoleName
 
 instance ToSchema RoleName where
-  declareNamedSchema _ =
-    declareNamedSchema (Proxy @Text)
-      <&> (schema . description)
-      ?~ "Role name, between 2 and 128 chars, 'wire_' prefix \
-         \is reserved for roles designed by Wire (i.e., no \
-         \custom roles can have the same prefix)"
+  schema =
+    (S.schema . description ?~ desc) $
+    RoleName <$> fromRoleName .= text "RoleName"
+    where
+      desc = "Role name, between 2 and 128 chars, 'wire_' prefix \
+             \is reserved for roles designed by Wire (i.e., no \
+             \custom roles can have the same prefix)"
 
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
-
-instance FromJSON RoleName where
-  parseJSON =
-    withText "RoleName" $
-      maybe (fail "Invalid RoleName") pure . parseRoleName
 
 deriving instance Cql RoleName
 
@@ -267,7 +264,7 @@ data Action
   | DeleteConversation
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Action)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToSnake] Action)
+  deriving (S.ToSchema) via (S.CustomSwagger '[S.ConstructorTagModifier S.CamelToSnake] Action)
 
 typeConversationRoleAction :: Doc.DataType
 typeConversationRoleAction =
@@ -284,4 +281,4 @@ typeConversationRoleAction =
         "delete_conversation"
       ]
 
-deriveJSON defaultOptions {constructorTagModifier = camelTo2 '_'} ''Action
+A.deriveJSON A.defaultOptions {A.constructorTagModifier = A.camelTo2 '_'} ''Action

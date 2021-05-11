@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 834afdfc4382421afa9c1504a81d55a58a7cb28919d61bcc029e67de5deb891b
+-- hash: 7fd84f1f51dec9df323be55a1918088a5ae0cbc017ecd8fb42e3219d5b13b6d4
 
 name:           wire-api
 version:        0.1.0
@@ -109,6 +109,7 @@ library
     , pem >=0.2
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
+    , schema-profunctor
     , string-conversions
     , swagger >=0.1
     , swagger2

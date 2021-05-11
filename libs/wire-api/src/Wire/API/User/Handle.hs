@@ -29,13 +29,14 @@ module Wire.API.User.Handle
   )
 where
 
-import Control.Lens ((.~), (?~))
-import Data.Aeson
+import Control.Applicative
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import Data.Id (UserId)
-import Data.Proxy (Proxy (..))
-import Data.Qualified (Qualified (..), deprecatedUnqualifiedSchemaRef)
+import Data.Qualified (Qualified (..), deprecatedSchema)
 import Data.Range
-import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -46,6 +47,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 newtype UserHandleInfo = UserHandleInfo {userHandleId :: Qualified UserId}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserHandleInfo
 
 modelUserHandleInfo :: Doc.Model
 modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
@@ -54,29 +56,12 @@ modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
     Doc.description "ID of the user owning the handle"
 
 instance ToSchema UserHandleInfo where
-  declareNamedSchema _ = do
-    qualifiedIdSchema <- declareSchemaRef (Proxy @(Qualified UserId))
-    unqualifiedIdSchema <- deprecatedUnqualifiedSchemaRef (Proxy @UserId) "qualified_user"
-    pure $
-      NamedSchema
-        (Just "UserHandleInfo")
-        $ mempty
-          & type_ ?~ SwaggerObject
-          & properties
-            .~ [ ("user", unqualifiedIdSchema),
-                 ("qualified_user", qualifiedIdSchema)
-               ]
-
-instance ToJSON UserHandleInfo where
-  toJSON (UserHandleInfo u) =
-    object
-      [ "user" .= qUnqualified u, -- For backwards compatibility
-        "qualified_user" .= u
-      ]
-
-instance FromJSON UserHandleInfo where
-  parseJSON = withObject "UserHandleInfo" $ \o ->
-    UserHandleInfo <$> o .: "qualified_user"
+  schema =
+    object "UserHandleInfo" $
+      UserHandleInfo
+        <$> userHandleId .= field "qualified_user" schema
+        <* (qUnqualified . userHandleId)
+          .= optional (field "user" (deprecatedSchema "qualified_user" schema))
 
 --------------------------------------------------------------------------------
 -- CheckHandles
@@ -102,13 +87,13 @@ modelCheckHandles = Doc.defineModel "CheckHandles" $ do
 
 instance ToJSON CheckHandles where
   toJSON (CheckHandles l n) =
-    object
-      [ "handles" .= l,
-        "return" .= n
+    A.object
+      [ "handles" A..= l,
+        "return" A..= n
       ]
 
 instance FromJSON CheckHandles where
-  parseJSON = withObject "CheckHandles" $ \o ->
+  parseJSON = A.withObject "CheckHandles" $ \o ->
     CheckHandles
-      <$> o .: "handles"
-      <*> o .:? "return" .!= unsafeRange 1
+      <$> o A..: "handles"
+      <*> o A..:? "return" A..!= unsafeRange 1

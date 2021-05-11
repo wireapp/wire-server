@@ -43,6 +43,7 @@ library:
   - pem >=0.2
   - protobuf >=0.2
   - quickcheck-instances >=0.3.16
+  - schema-profunctor
   - string-conversions
   - swagger >=0.1
   - swagger2

@@ -94,21 +94,11 @@ module Wire.API.User
   )
 where
 
+import Control.Applicative
 import Control.Error.Safe (rightMay)
 import Control.Lens (over, view, (.~), (?~))
-import Data.Aeson
-  ( FromJSON (parseJSON),
-    KeyValue ((.=)),
-    Object,
-    ToJSON (toJSON),
-    Value (Object),
-    object,
-    withObject,
-    (.!=),
-    (.:),
-    (.:?),
-  )
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
@@ -123,7 +113,8 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
-import Data.Swagger (HasExample (example), NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, description, genericDeclareNamedSchema, properties, required, schema, type_)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
@@ -160,11 +151,11 @@ modelUserIdList = Doc.defineModel "UserIdList" $ do
     Doc.description "the array of team conversations"
 
 instance FromJSON UserIdList where
-  parseJSON = withObject "user-ids-payload" $ \o ->
-    UserIdList <$> o .: "user_ids"
+  parseJSON = A.withObject "user-ids-payload" $ \o ->
+    UserIdList <$> o A..: "user_ids"
 
 instance ToJSON UserIdList where
-  toJSON e = object ["user_ids" .= mUsers e]
+  toJSON e = A.object ["user_ids" A..= mUsers e]
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
@@ -174,17 +165,17 @@ instance ToJSON UserIdList where
 newtype LimitedQualifiedUserIdList (max :: Nat) = LimitedQualifiedUserIdList
   {qualifiedUsers :: Range 1 max [Qualified UserId]}
   deriving stock (Eq, Show, Generic)
-  deriving (ToSchema) via CustomSwagger '[FieldLabelModifier CamelToSnake] (LimitedQualifiedUserIdList max)
+  deriving (S.ToSchema) via CustomSwagger '[FieldLabelModifier CamelToSnake] (LimitedQualifiedUserIdList max)
 
 instance (KnownNat max, LTE 1 max) => Arbitrary (LimitedQualifiedUserIdList max) where
   arbitrary = LimitedQualifiedUserIdList <$> arbitrary
 
 instance LTE 1 max => FromJSON (LimitedQualifiedUserIdList max) where
-  parseJSON = withObject "LimitedQualifiedUserIdList" $ \o ->
-    LimitedQualifiedUserIdList <$> o .: "qualified_users"
+  parseJSON = A.withObject "LimitedQualifiedUserIdList" $ \o ->
+    LimitedQualifiedUserIdList <$> o A..: "qualified_users"
 
 instance LTE 1 max => ToJSON (LimitedQualifiedUserIdList max) where
-  toJSON e = object ["qualified_users" .= qualifiedUsers e]
+  toJSON e = A.object ["qualified_users" A..= qualifiedUsers e]
 
 --------------------------------------------------------------------------------
 -- UserProfile
@@ -211,30 +202,27 @@ data UserProfile = UserProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserProfile)
 
--- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
--- mark 'deleted' as optional, but it is not a 'Maybe'
 instance ToSchema UserProfile where
-  declareNamedSchema _ = do
-    idSchema <- deprecatedUnqualifiedSchemaRef (Proxy @UserId) "qualified_id"
-    genericSchema <-
-      genericDeclareNamedSchema
-        ( swaggerOptions
-            @'[ FieldLabelModifier
-                  ( StripPrefix "profile",
-                    CamelToSnake,
-                    LabelMappings
-                      '[ "pict" ':-> "picture",
-                         "expire" ':-> "expires_at"
-                       ]
-                  )
-              ]
-        )
-        (Proxy @UserProfile)
-    pure $
-      genericSchema
-        & over (schema . required) (List.delete "deleted")
-        & over (schema . properties) (InsOrdHashMap.insert "id" idSchema)
+  schema =
+    object "UserProfile" $
+      UserProfile
+        <$> profileQualifiedId .= field "qualified_id" schema
+        <* (qUnqualified . profileQualifiedId)
+          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+        <*> profileName .= field "name" schema
+        <*> profilePict .= (field "picture" schema <|> pure noPict)
+        <*> profileAssets .= (field "assets" (array schema) <|> pure [])
+        <*> profileAccentId .= field "accent_id" schema
+        <*> ((\del -> if del then Just True else Nothing) . profileDeleted)
+          .= fmap (fromMaybe False) (opt (field "deleted" schema))
+        <*> profileService .= opt (field "service" schema)
+        <*> profileHandle .= opt (field "handle" schema)
+        <*> profileLocale .= opt (field "locale" schema)
+        <*> profileExpire .= opt (field "expires_at" schema)
+        <*> profileTeam .= opt (field "team" schema)
+        <*> profileEmail .= opt (field "email" schema)
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
@@ -264,40 +252,6 @@ modelUser = Doc.defineModel "User" $ do
     Doc.description "Team ID"
     Doc.optional
 
-instance ToJSON UserProfile where
-  toJSON u =
-    object $
-      "id" .= qUnqualified (profileQualifiedId u)
-        # "qualified_id" .= profileQualifiedId u
-        # "name" .= profileName u
-        # "picture" .= profilePict u
-        # "assets" .= profileAssets u
-        # "accent_id" .= profileAccentId u
-        # "deleted" .= (if profileDeleted u then Just True else Nothing)
-        # "service" .= profileService u
-        # "handle" .= profileHandle u
-        # "locale" .= profileLocale u
-        # "expires_at" .= profileExpire u
-        # "team" .= profileTeam u
-        # "email" .= profileEmail u
-        # []
-
-instance FromJSON UserProfile where
-  parseJSON = withObject "UserProfile" $ \o ->
-    UserProfile
-      <$> o .: "qualified_id"
-      <*> o .: "name"
-      <*> o .:? "picture" .!= noPict
-      <*> o .:? "assets" .!= []
-      <*> o .: "accent_id"
-      <*> o .:? "deleted" .!= False
-      <*> o .:? "service"
-      <*> o .:? "handle"
-      <*> o .:? "locale"
-      <*> o .:? "expires_at"
-      <*> o .:? "team"
-      <*> o .:? "email"
-
 --------------------------------------------------------------------------------
 -- SelfProfile
 
@@ -307,14 +261,14 @@ newtype SelfProfile = SelfProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SelfProfile)
-  deriving newtype (ToSchema)
+  deriving newtype (S.ToSchema)
 
 instance ToJSON SelfProfile where
   toJSON (SelfProfile u) = toJSON u
 
 instance FromJSON SelfProfile where
-  parseJSON = withObject "SelfProfile" $ \o ->
-    SelfProfile <$> parseJSON (Object o)
+  parseJSON = A.withObject "SelfProfile" $ \o ->
+    SelfProfile <$> parseJSON (A.Object o)
 
 --------------------------------------------------------------------------------
 -- User
@@ -357,11 +311,11 @@ data User = User
 -- mark 'deleted' as optional, but it is not a 'Maybe'
 -- and we need to manually add the identity schema fields at the top level
 -- instead of nesting them under the 'identity' field.
-instance ToSchema User where
+instance S.ToSchema User where
   declareNamedSchema _ = do
-    identityProperties <- view (schema . properties) <$> declareNamedSchema (Proxy @UserIdentity)
+    identityProperties <- view (S.schema . S.properties) <$> S.declareNamedSchema (Proxy @UserIdentity)
     genericSchema <-
-      genericDeclareNamedSchema
+      S.genericDeclareNamedSchema
         ( swaggerOptions
             @'[ FieldLabelModifier
                   ( StripPrefix "user",
@@ -377,52 +331,52 @@ instance ToSchema User where
         (Proxy @User)
     pure $
       genericSchema
-        & over (schema . required) (List.delete "deleted")
+        & over (S.schema . S.required) (List.delete "deleted")
         -- The UserIdentity fields need to be flat-included, not be in a sub-object
-        & over (schema . properties) (InsOrdHashMap.delete "identity")
-        & over (schema . properties) (InsOrdHashMap.union identityProperties)
+        & over (S.schema . S.properties) (InsOrdHashMap.delete "identity")
+        & over (S.schema . S.properties) (InsOrdHashMap.union identityProperties)
 
 -- FUTUREWORK:
 -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToJSON User where
   toJSON u =
-    object $
-      "id" .= userId u
-        # "qualified_id" .= userQualifiedId u
-        # "name" .= userDisplayName u
-        # "picture" .= userPict u
-        # "assets" .= userAssets u
-        # "email" .= userEmail u
-        # "phone" .= userPhone u
-        # "accent_id" .= userAccentId u
-        # "deleted" .= (if userDeleted u then Just True else Nothing)
-        # "locale" .= userLocale u
-        # "service" .= userService u
-        # "handle" .= userHandle u
-        # "expires_at" .= userExpire u
-        # "team" .= userTeam u
-        # "sso_id" .= userSSOId u
-        # "managed_by" .= userManagedBy u
+    A.object $
+      "id" A..= userId u
+        # "qualified_id" A..= userQualifiedId u
+        # "name" A..= userDisplayName u
+        # "picture" A..= userPict u
+        # "assets" A..= userAssets u
+        # "email" A..= userEmail u
+        # "phone" A..= userPhone u
+        # "accent_id" A..= userAccentId u
+        # "deleted" A..= (if userDeleted u then Just True else Nothing)
+        # "locale" A..= userLocale u
+        # "service" A..= userService u
+        # "handle" A..= userHandle u
+        # "expires_at" A..= userExpire u
+        # "team" A..= userTeam u
+        # "sso_id" A..= userSSOId u
+        # "managed_by" A..= userManagedBy u
         # []
 
 instance FromJSON User where
-  parseJSON = withObject "user" $ \o -> do
-    ssoid <- o .:? "sso_id"
+  parseJSON = A.withObject "user" $ \o -> do
+    ssoid <- o A..:? "sso_id"
     User
-      <$> o .: "id"
-      <*> o .: "qualified_id"
+      <$> o A..: "id"
+      <*> o A..: "qualified_id"
       <*> parseIdentity ssoid o
-      <*> o .: "name"
-      <*> o .:? "picture" .!= noPict
-      <*> o .:? "assets" .!= []
-      <*> o .: "accent_id"
-      <*> o .:? "deleted" .!= False
-      <*> o .: "locale"
-      <*> o .:? "service"
-      <*> o .:? "handle"
-      <*> o .:? "expires_at"
-      <*> o .:? "team"
-      <*> o .:? "managed_by" .!= ManagedByWire
+      <*> o A..: "name"
+      <*> o A..:? "picture" A..!= noPict
+      <*> o A..:? "assets" A..!= []
+      <*> o A..: "accent_id"
+      <*> o A..:? "deleted" A..!= False
+      <*> o A..: "locale"
+      <*> o A..:? "service"
+      <*> o A..:? "handle"
+      <*> o A..:? "expires_at"
+      <*> o A..:? "team"
+      <*> o A..:? "managed_by" A..!= ManagedByWire
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -631,44 +585,44 @@ type ExpiresIn = Range 1 604800 Integer
 
 instance ToJSON NewUser where
   toJSON u =
-    object $
-      "name" .= newUserDisplayName u
-        # "uuid" .= newUserUUID u
-        # "email" .= newUserEmail u
-        # "email_code" .= newUserEmailCode u
-        # "picture" .= newUserPict u
-        # "assets" .= newUserAssets u
-        # "phone" .= newUserPhone u
-        # "phone_code" .= newUserPhoneCode u
-        # "accent_id" .= newUserAccentId u
-        # "label" .= newUserLabel u
-        # "locale" .= newUserLocale u
-        # "password" .= newUserPassword u
-        # "expires_in" .= newUserExpiresIn u
-        # "sso_id" .= newUserSSOId u
-        # "managed_by" .= newUserManagedBy u
+    A.object $
+      "name" A..= newUserDisplayName u
+        # "uuid" A..= newUserUUID u
+        # "email" A..= newUserEmail u
+        # "email_code" A..= newUserEmailCode u
+        # "picture" A..= newUserPict u
+        # "assets" A..= newUserAssets u
+        # "phone" A..= newUserPhone u
+        # "phone_code" A..= newUserPhoneCode u
+        # "accent_id" A..= newUserAccentId u
+        # "label" A..= newUserLabel u
+        # "locale" A..= newUserLocale u
+        # "password" A..= newUserPassword u
+        # "expires_in" A..= newUserExpiresIn u
+        # "sso_id" A..= newUserSSOId u
+        # "managed_by" A..= newUserManagedBy u
         # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 instance FromJSON NewUser where
-  parseJSON = withObject "new-user" $ \o -> do
-    ssoid <- o .:? "sso_id"
-    newUserDisplayName <- o .: "name"
-    newUserUUID <- o .:? "uuid"
+  parseJSON = A.withObject "new-user" $ \o -> do
+    ssoid <- o A..:? "sso_id"
+    newUserDisplayName <- o A..: "name"
+    newUserUUID <- o A..:? "uuid"
     newUserIdentity <- parseIdentity ssoid o
-    newUserPict <- o .:? "picture"
-    newUserAssets <- o .:? "assets" .!= []
-    newUserAccentId <- o .:? "accent_id"
-    newUserEmailCode <- o .:? "email_code"
-    newUserPhoneCode <- o .:? "phone_code"
-    newUserLabel <- o .:? "label"
-    newUserLocale <- o .:? "locale"
-    newUserPassword <- o .:? "password"
+    newUserPict <- o A..:? "picture"
+    newUserAssets <- o A..:? "assets" A..!= []
+    newUserAccentId <- o A..:? "accent_id"
+    newUserEmailCode <- o A..:? "email_code"
+    newUserPhoneCode <- o A..:? "phone_code"
+    newUserLabel <- o A..:? "label"
+    newUserLocale <- o A..:? "locale"
+    newUserPassword <- o A..:? "password"
     newUserOrigin <- parseNewUserOrigin newUserPassword newUserIdentity ssoid o
-    newUserExpires <- o .:? "expires_in"
+    newUserExpires <- o A..:? "expires_in"
     newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
       _ -> return newUserExpires
-    newUserManagedBy <- o .:? "managed_by"
+    newUserManagedBy <- o A..:? "managed_by"
     return NewUser {..}
 
 -- FUTUREWORK: align more with FromJSON instance?
@@ -740,24 +694,24 @@ data NewUserOrigin
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewUserOrigin)
 
-jsonNewUserOrigin :: NewUserOrigin -> [Aeson.Pair]
+jsonNewUserOrigin :: NewUserOrigin -> [A.Pair]
 jsonNewUserOrigin = \case
-  NewUserOriginInvitationCode inv -> ["invitation_code" .= inv]
-  NewUserOriginTeamUser (NewTeamMember tc) -> ["team_code" .= tc]
-  NewUserOriginTeamUser (NewTeamCreator team) -> ["team" .= team]
-  NewUserOriginTeamUser (NewTeamMemberSSO ti) -> ["team_id" .= ti]
+  NewUserOriginInvitationCode inv -> ["invitation_code" A..= inv]
+  NewUserOriginTeamUser (NewTeamMember tc) -> ["team_code" A..= tc]
+  NewUserOriginTeamUser (NewTeamCreator team) -> ["team" A..= team]
+  NewUserOriginTeamUser (NewTeamMemberSSO ti) -> ["team_id" A..= ti]
 
 parseNewUserOrigin ::
   Maybe PlainTextPassword ->
   Maybe UserIdentity ->
   Maybe UserSSOId ->
-  Object ->
-  Aeson.Parser (Maybe NewUserOrigin)
+  A.Object ->
+  A.Parser (Maybe NewUserOrigin)
 parseNewUserOrigin pass uid ssoid o = do
-  invcode <- o .:? "invitation_code"
-  teamcode <- o .:? "team_code"
-  team <- o .:? "team"
-  teamid <- o .:? "team_id"
+  invcode <- o A..:? "invitation_code"
+  teamcode <- o A..:? "team_code"
+  team <- o A..:? "team"
+  teamid <- o A..:? "team_id"
   result <- case (invcode, teamcode, team, ssoid, teamid) of
     (Just a, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
     (Nothing, Just a, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
@@ -785,10 +739,10 @@ newtype InvitationCode = InvitationCode
 -- If neither are present, it will not fail, but return Nothing.
 --
 -- FUTUREWORK: Why is the SSO ID passed separately?
-parseIdentity :: Maybe UserSSOId -> Object -> Aeson.Parser (Maybe UserIdentity)
+parseIdentity :: Maybe UserSSOId -> A.Object -> A.Parser (Maybe UserIdentity)
 parseIdentity ssoid o =
   if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
-    then Just <$> parseJSON (Object o)
+    then Just <$> parseJSON (A.Object o)
     else pure Nothing
 
 --------------------------------------------------------------------------------
@@ -814,13 +768,13 @@ data BindingNewTeamUser = BindingNewTeamUser
 
 instance ToJSON BindingNewTeamUser where
   toJSON (BindingNewTeamUser (BindingNewTeam t) c) =
-    object $
-      "currency" .= c
+    A.object $
+      "currency" A..= c
         # newTeamJson t
 
 instance FromJSON BindingNewTeamUser where
-  parseJSON j@(Object o) = do
-    c <- o .:? "currency"
+  parseJSON j@(A.Object o) = do
+    c <- o A..:? "currency"
     t <- parseJSON j
     return $ BindingNewTeamUser t c
   parseJSON _ = fail "parseJSON BindingNewTeamUser: must be an object"
@@ -852,20 +806,20 @@ modelUserUpdate = Doc.defineModel "UserUpdate" $ do
 
 instance ToJSON UserUpdate where
   toJSON u =
-    object $
-      "name" .= uupName u
-        # "picture" .= uupPict u
-        # "assets" .= uupAssets u
-        # "accent_id" .= uupAccentId u
+    A.object $
+      "name" A..= uupName u
+        # "picture" A..= uupPict u
+        # "assets" A..= uupAssets u
+        # "accent_id" A..= uupAccentId u
         # []
 
 instance FromJSON UserUpdate where
-  parseJSON = withObject "UserUpdate" $ \o ->
+  parseJSON = A.withObject "UserUpdate" $ \o ->
     UserUpdate
-      <$> o .:? "name"
-      <*> o .:? "picture"
-      <*> o .:? "assets"
-      <*> o .:? "accent_id"
+      <$> o A..:? "name"
+      <*> o A..:? "picture"
+      <*> o A..:? "assets"
+      <*> o A..:? "accent_id"
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
@@ -888,16 +842,16 @@ modelChangePassword = Doc.defineModel "ChangePassword" $ do
 
 instance ToJSON PasswordChange where
   toJSON (PasswordChange old new) =
-    object
-      [ "old_password" .= old,
-        "new_password" .= new
+    A.object
+      [ "old_password" A..= old,
+        "new_password" A..= new
       ]
 
 instance FromJSON PasswordChange where
-  parseJSON = withObject "PasswordChange" $ \o ->
+  parseJSON = A.withObject "PasswordChange" $ \o ->
     PasswordChange
-      <$> o .:? "old_password"
-      <*> o .: "new_password"
+      <$> o A..:? "old_password"
+      <*> o A..: "new_password"
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
   deriving stock (Eq, Show, Generic)
@@ -910,11 +864,11 @@ modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
     Doc.description "Locale to be set"
 
 instance ToJSON LocaleUpdate where
-  toJSON l = object ["locale" .= luLocale l]
+  toJSON l = A.object ["locale" A..= luLocale l]
 
 instance FromJSON LocaleUpdate where
-  parseJSON = withObject "locale-update" $ \o ->
-    LocaleUpdate <$> o .: "locale"
+  parseJSON = A.withObject "locale-update" $ \o ->
+    LocaleUpdate <$> o A..: "locale"
 
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
@@ -927,11 +881,11 @@ modelEmailUpdate = Doc.defineModel "EmailUpdate" $ do
     Doc.description "Email"
 
 instance ToJSON EmailUpdate where
-  toJSON e = object ["email" .= euEmail e]
+  toJSON e = A.object ["email" A..= euEmail e]
 
 instance FromJSON EmailUpdate where
-  parseJSON = withObject "email-update" $ \o ->
-    EmailUpdate <$> o .: "email"
+  parseJSON = A.withObject "email-update" $ \o ->
+    EmailUpdate <$> o A..: "email"
 
 newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
   deriving stock (Eq, Show, Generic)
@@ -944,11 +898,11 @@ modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
     Doc.description "E.164 phone number"
 
 instance ToJSON PhoneUpdate where
-  toJSON p = object ["phone" .= puPhone p]
+  toJSON p = A.object ["phone" A..= puPhone p]
 
 instance FromJSON PhoneUpdate where
-  parseJSON = withObject "phone-update" $ \o ->
-    PhoneUpdate <$> o .: "phone"
+  parseJSON = A.withObject "phone-update" $ \o ->
+    PhoneUpdate <$> o A..: "phone"
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
   deriving stock (Eq, Show, Generic)
@@ -961,22 +915,22 @@ modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
     Doc.description "Handle to set"
 
 instance ToJSON HandleUpdate where
-  toJSON h = object ["handle" .= huHandle h]
+  toJSON h = A.object ["handle" A..= huHandle h]
 
 instance FromJSON HandleUpdate where
-  parseJSON = withObject "handle-update" $ \o ->
-    HandleUpdate <$> o .: "handle"
+  parseJSON = A.withObject "handle-update" $ \o ->
+    HandleUpdate <$> o A..: "handle"
 
 newtype NameUpdate = NameUpdate {nuHandle :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
 
 instance ToJSON NameUpdate where
-  toJSON h = object ["name" .= nuHandle h]
+  toJSON h = A.object ["name" A..= nuHandle h]
 
 instance FromJSON NameUpdate where
-  parseJSON = withObject "name-update" $ \o ->
-    NameUpdate <$> o .: "name"
+  parseJSON = A.withObject "name-update" $ \o ->
+    NameUpdate <$> o A..: "name"
 
 -----------------------------------------------------------------------------
 -- Account Deletion
@@ -1000,13 +954,13 @@ modelDelete = Doc.defineModel "Delete" $ do
 
 instance ToJSON DeleteUser where
   toJSON d =
-    object $
-      "password" .= deleteUserPassword d
+    A.object $
+      "password" A..= deleteUserPassword d
         # []
 
 instance FromJSON DeleteUser where
-  parseJSON = withObject "DeleteUser" $ \o ->
-    DeleteUser <$> o .:? "password"
+  parseJSON = A.withObject "DeleteUser" $ \o ->
+    DeleteUser <$> o A..:? "password"
 
 -- | Payload for verifying account deletion via a code.
 data VerifyDeleteUser = VerifyDeleteUser
@@ -1029,16 +983,16 @@ mkVerifyDeleteUser = VerifyDeleteUser
 
 instance ToJSON VerifyDeleteUser where
   toJSON d =
-    object
-      [ "key" .= verifyDeleteUserKey d,
-        "code" .= verifyDeleteUserCode d
+    A.object
+      [ "key" A..= verifyDeleteUserKey d,
+        "code" A..= verifyDeleteUserCode d
       ]
 
 instance FromJSON VerifyDeleteUser where
-  parseJSON = withObject "VerifyDeleteUser" $ \o ->
+  parseJSON = A.withObject "VerifyDeleteUser" $ \o ->
     VerifyDeleteUser
-      <$> o .: "key"
-      <*> o .: "code"
+      <$> o A..: "key"
+      <*> o A..: "code"
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
@@ -1047,11 +1001,11 @@ newtype DeletionCodeTimeout = DeletionCodeTimeout
   deriving newtype (Arbitrary)
 
 instance ToJSON DeletionCodeTimeout where
-  toJSON (DeletionCodeTimeout t) = object ["expires_in" .= t]
+  toJSON (DeletionCodeTimeout t) = A.object ["expires_in" A..= t]
 
 instance FromJSON DeletionCodeTimeout where
-  parseJSON = withObject "DeletionCodeTimeout" $ \o ->
-    DeletionCodeTimeout <$> o .: "expires_in"
+  parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
+    DeletionCodeTimeout <$> o A..: "expires_in"
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]
@@ -1060,29 +1014,29 @@ data ListUsersQuery
 
 instance FromJSON ListUsersQuery where
   parseJSON =
-    withObject "ListUsersQuery" $ \o -> do
-      mUids <- ListUsersByIds <$$> o .:? "qualified_ids"
-      mHandles <- ListUsersByHandles <$$> o .:? "qualified_handles"
+    A.withObject "ListUsersQuery" $ \o -> do
+      mUids <- ListUsersByIds <$$> o A..:? "qualified_ids"
+      mHandles <- ListUsersByHandles <$$> o A..:? "qualified_handles"
       case (mUids, mHandles) of
         (Just uids, Nothing) -> pure uids
         (Nothing, Just handles) -> pure handles
         (_, _) -> fail "exactly one of qualified_ids or qualified_handles must be provided."
 
 instance ToJSON ListUsersQuery where
-  toJSON (ListUsersByIds uids) = object ["qualified_ids" .= uids]
-  toJSON (ListUsersByHandles handles) = object ["qualified_handles" .= handles]
+  toJSON (ListUsersByIds uids) = A.object ["qualified_ids" A..= uids]
+  toJSON (ListUsersByHandles handles) = A.object ["qualified_handles" A..= handles]
 
 -- NB: It is not possible to specific mutually exclusive fields in swagger2, so
 -- here we write it in description and modify the example to have the correct
 -- JSON.
-instance ToSchema ListUsersQuery where
+instance S.ToSchema ListUsersQuery where
   declareNamedSchema _ = do
-    uids <- declareSchemaRef (Proxy @[Qualified UserId])
-    handles <- declareSchemaRef (Proxy @(Range 1 4 [Qualified Handle]))
+    uids <- S.declareSchemaRef (Proxy @[Qualified UserId])
+    handles <- S.declareSchemaRef (Proxy @(Range 1 4 [Qualified Handle]))
     return $
-      NamedSchema (Just "ListUsersQuery") $
+      S.NamedSchema (Just "ListUsersQuery") $
         mempty
-          & type_ ?~ SwaggerObject
-          & description ?~ "exactly one of qualifie_ids or qualified_handles must be provided."
-          & properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
-          & example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
+          & S.type_ ?~ S.SwaggerObject
+          & S.description ?~ "exactly one of qualifie_ids or qualified_handles must be provided."
+          & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
+          & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])

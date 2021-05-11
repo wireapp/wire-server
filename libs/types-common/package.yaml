@@ -37,6 +37,7 @@ library:
   - QuickCheck >=2.9
   - quickcheck-instances >=0.3.16
   - random >=1.1
+  - schema-profunctor
   - scientific >=0.3.4
   - servant-server
   - singletons >=2.0
