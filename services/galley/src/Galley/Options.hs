@@ -15,7 +15,43 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Options where
+module Galley.Options
+  ( Settings,
+    setHttpPoolSize,
+    setMaxTeamSize,
+    setMaxFanoutSize,
+    setMaxConvSize,
+    setIntraListing,
+    setConversationCodeURI,
+    setConcurrentDeletionEvents,
+    setDeleteConvThrottleMillis,
+    setFederationDomain,
+    setEnableIndexedBillingTeamMembers,
+    setFeatureFlags,
+    setLegalHoldTeamsWhitelist,
+    defConcurrentDeletionEvents,
+    defDeleteConvThrottleMillis,
+    defFanoutLimit,
+    JournalOpts (JournalOpts),
+    awsQueueName,
+    awsEndpoint,
+    Opts,
+    optGalley,
+    optCassandra,
+    optBrig,
+    optGundeck,
+    optSpar,
+    optFederator,
+    optDiscoUrl,
+    optSettings,
+    optJournal,
+    optLogLevel,
+    optLogNetStrings,
+    optLogFormat,
+    validateOpts,
+    teamWhitelistedForLHAndImplicitConsent,
+  )
+where
 
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens hiding (Level, (.=))

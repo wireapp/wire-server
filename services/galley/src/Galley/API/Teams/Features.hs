@@ -187,8 +187,7 @@ setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigi
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
-  featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
-  case featureLegalHold of
+  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledByDefault -> do
       let defaultStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
       status <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid

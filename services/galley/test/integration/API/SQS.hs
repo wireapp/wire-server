@@ -34,7 +34,7 @@ import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
 import Galley.Aws
 import qualified Galley.Aws as Aws
-import Galley.Options (JournalOpts (..))
+import Galley.Options (JournalOpts)
 import Imports
 import qualified Network.AWS as AWS
 import qualified Network.AWS.SQS as SQS
