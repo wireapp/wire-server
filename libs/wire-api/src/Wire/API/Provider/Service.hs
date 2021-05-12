@@ -55,8 +55,9 @@ module Wire.API.Provider.Service
 where
 
 import qualified Cassandra.CQL as Cql
-import Control.Lens (makeLenses)
-import Data.Aeson
+import Control.Lens (makeLenses, (?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
@@ -66,11 +67,12 @@ import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Range (Range)
-import Data.Swagger (ToSchema (..))
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text as Text
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
-import Deriving.Swagger (CamelToSnake, CustomSwagger, FieldLabelModifier, StripPrefix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
@@ -86,7 +88,14 @@ data ServiceRef = ServiceRef
   }
   deriving stock (Ord, Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceRef)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "_serviceRef", CamelToSnake)] ServiceRef)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ServiceRef
+
+instance ToSchema ServiceRef where
+  schema =
+    object "ServiceRef" $
+      ServiceRef
+        <$> _serviceRefId .= field "id" schema
+        <*> _serviceRefProvider .= field "provider" schema
 
 makeLenses ''ServiceRef
 
@@ -100,17 +109,6 @@ modelServiceRef = Doc.defineModel "ServiceRef" $ do
     Doc.description "Service ID"
   Doc.property "provider" Doc.bytes' $
     Doc.description "Provider ID"
-
-instance FromJSON ServiceRef where
-  parseJSON = withObject "ServiceRef" $ \o ->
-    ServiceRef <$> o .: "id" <*> o .: "provider"
-
-instance ToJSON ServiceRef where
-  toJSON r =
-    object
-      [ "id" .= _serviceRefId r,
-        "provider" .= _serviceRefProvider r
-      ]
 
 --------------------------------------------------------------------------------
 -- ServiceKey
@@ -126,37 +124,30 @@ data ServiceKey = ServiceKey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceKey)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ServiceKey
 
-instance ToJSON ServiceKey where
-  toJSON k =
-    object
-      [ "type" .= serviceKeyType k,
-        "size" .= serviceKeySize k,
-        "pem" .= serviceKeyPEM k
-      ]
-
-instance FromJSON ServiceKey where
-  parseJSON = withObject "ServiceKey" $ \o ->
-    ServiceKey
-      <$> o .: "type"
-      <*> o .: "size"
-      <*> o .: "pem"
+instance ToSchema ServiceKey where
+  schema =
+    object "ServiceKey" $
+      ServiceKey
+        <$> serviceKeyType .= field "type" schema
+        <*> serviceKeySize .= field "size" schema
+        <*> serviceKeyPEM .= field "pem" schema
 
 -- | Other types may be supported in the future.
 data ServiceKeyType
   = RsaServiceKey
   deriving stock (Eq, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceKeyType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ServiceKeyType
 
-instance ToJSON ServiceKeyType where
-  toJSON RsaServiceKey = String "rsa"
-
-instance FromJSON ServiceKeyType where
-  parseJSON (String "rsa") = pure RsaServiceKey
-  parseJSON _ = fail "Invalid service key type. Expected string 'rsa'."
+instance ToSchema ServiceKeyType where
+  schema =
+    enum @Text "ServiceKeyType" (element "rsa" RsaServiceKey)
 
 newtype ServiceKeyPEM = ServiceKeyPEM {unServiceKeyPEM :: PEM}
   deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ServiceKeyPEM
 
 instance ToByteString ServiceKeyPEM where
   builder = BB.lazyByteString . pemWriteLBS . unServiceKeyPEM
@@ -169,13 +160,26 @@ instance FromByteString ServiceKeyPEM where
       Right [k] -> pure (ServiceKeyPEM k)
       Right _ -> fail "Too many sections in PEM format. Expected 1."
 
-instance ToJSON ServiceKeyPEM where
-  toJSON = String . Text.decodeUtf8 . toByteString'
-
-instance FromJSON ServiceKeyPEM where
-  parseJSON =
-    withText "ServiceKeyPEM" $
-      either fail pure . runParser parser . Text.encodeUtf8
+instance ToSchema ServiceKeyPEM where
+  schema =
+    S.schema . S.example ?~ pem $
+      (Text.decodeUtf8 . toByteString')
+        .= parsedText
+          "ServiceKeyPEM"
+          (runParser parser . Text.encodeUtf8)
+    where
+      pem =
+        A.String . Text.unlines $
+          [ "-----BEGIN PUBLIC KEY-----",
+            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
+            "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
+            "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
+            "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
+            "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
+            "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
+            "nQIDAQAB",
+            "-----END PUBLIC KEY-----"
+          ]
 
 instance Arbitrary ServiceKeyPEM where
   arbitrary =
@@ -216,32 +220,32 @@ data Service = Service
 
 instance ToJSON Service where
   toJSON s =
-    object $
-      "id" .= serviceId s
-        # "name" .= serviceName s
-        # "summary" .= serviceSummary s
-        # "description" .= serviceDescr s
-        # "base_url" .= serviceUrl s
-        # "auth_tokens" .= serviceTokens s
-        # "public_keys" .= serviceKeys s
-        # "assets" .= serviceAssets s
-        # "tags" .= serviceTags s
-        # "enabled" .= serviceEnabled s
+    A.object $
+      "id" A..= serviceId s
+        # "name" A..= serviceName s
+        # "summary" A..= serviceSummary s
+        # "description" A..= serviceDescr s
+        # "base_url" A..= serviceUrl s
+        # "auth_tokens" A..= serviceTokens s
+        # "public_keys" A..= serviceKeys s
+        # "assets" A..= serviceAssets s
+        # "tags" A..= serviceTags s
+        # "enabled" A..= serviceEnabled s
         # []
 
 instance FromJSON Service where
-  parseJSON = withObject "Service" $ \o ->
+  parseJSON = A.withObject "Service" $ \o ->
     Service
-      <$> o .: "id"
-      <*> o .: "name"
-      <*> o .: "summary"
-      <*> o .: "description"
-      <*> o .: "base_url"
-      <*> o .: "auth_tokens"
-      <*> o .: "public_keys"
-      <*> o .: "assets"
-      <*> o .: "tags"
-      <*> o .: "enabled"
+      <$> o A..: "id"
+      <*> o A..: "name"
+      <*> o A..: "summary"
+      <*> o A..: "description"
+      <*> o A..: "base_url"
+      <*> o A..: "auth_tokens"
+      <*> o A..: "public_keys"
+      <*> o A..: "assets"
+      <*> o A..: "tags"
+      <*> o A..: "enabled"
 
 -- | A /secret/ bearer token used to authenticate and authorise requests @towards@
 -- a 'Service' via inclusion in the HTTP 'Authorization' header.
@@ -270,28 +274,28 @@ data ServiceProfile = ServiceProfile
 
 instance ToJSON ServiceProfile where
   toJSON s =
-    object $
-      "id" .= serviceProfileId s
-        # "provider" .= serviceProfileProvider s
-        # "name" .= serviceProfileName s
-        # "summary" .= serviceProfileSummary s
-        # "description" .= serviceProfileDescr s
-        # "assets" .= serviceProfileAssets s
-        # "tags" .= serviceProfileTags s
-        # "enabled" .= serviceProfileEnabled s
+    A.object $
+      "id" A..= serviceProfileId s
+        # "provider" A..= serviceProfileProvider s
+        # "name" A..= serviceProfileName s
+        # "summary" A..= serviceProfileSummary s
+        # "description" A..= serviceProfileDescr s
+        # "assets" A..= serviceProfileAssets s
+        # "tags" A..= serviceProfileTags s
+        # "enabled" A..= serviceProfileEnabled s
         # []
 
 instance FromJSON ServiceProfile where
-  parseJSON = withObject "ServiceProfile" $ \o ->
+  parseJSON = A.withObject "ServiceProfile" $ \o ->
     ServiceProfile
-      <$> o .: "id"
-      <*> o .: "provider"
-      <*> o .: "name"
-      <*> o .: "summary"
-      <*> o .: "description"
-      <*> o .: "assets"
-      <*> o .: "tags"
-      <*> o .: "enabled"
+      <$> o A..: "id"
+      <*> o A..: "provider"
+      <*> o A..: "name"
+      <*> o A..: "summary"
+      <*> o A..: "description"
+      <*> o A..: "assets"
+      <*> o A..: "tags"
+      <*> o A..: "enabled"
 
 --------------------------------------------------------------------------------
 -- ServiceProfilePage
@@ -305,16 +309,16 @@ data ServiceProfilePage = ServiceProfilePage
 
 instance ToJSON ServiceProfilePage where
   toJSON p =
-    object
-      [ "has_more" .= serviceProfilePageHasMore p,
-        "services" .= serviceProfilePageResults p
+    A.object
+      [ "has_more" A..= serviceProfilePageHasMore p,
+        "services" A..= serviceProfilePageResults p
       ]
 
 instance FromJSON ServiceProfilePage where
-  parseJSON = withObject "ServiceProfilePage" $ \o ->
+  parseJSON = A.withObject "ServiceProfilePage" $ \o ->
     ServiceProfilePage
-      <$> o .: "has_more"
-      <*> o .: "services"
+      <$> o A..: "has_more"
+      <*> o A..: "services"
 
 --------------------------------------------------------------------------------
 -- NewService
@@ -335,28 +339,28 @@ data NewService = NewService
 
 instance ToJSON NewService where
   toJSON s =
-    object $
-      "name" .= newServiceName s
-        # "summary" .= newServiceSummary s
-        # "description" .= newServiceDescr s
-        # "base_url" .= newServiceUrl s
-        # "public_key" .= newServiceKey s
-        # "auth_token" .= newServiceToken s
-        # "assets" .= newServiceAssets s
-        # "tags" .= newServiceTags s
+    A.object $
+      "name" A..= newServiceName s
+        # "summary" A..= newServiceSummary s
+        # "description" A..= newServiceDescr s
+        # "base_url" A..= newServiceUrl s
+        # "public_key" A..= newServiceKey s
+        # "auth_token" A..= newServiceToken s
+        # "assets" A..= newServiceAssets s
+        # "tags" A..= newServiceTags s
         # []
 
 instance FromJSON NewService where
-  parseJSON = withObject "NewService" $ \o ->
+  parseJSON = A.withObject "NewService" $ \o ->
     NewService
-      <$> o .: "name"
-      <*> o .: "summary"
-      <*> o .: "description"
-      <*> o .: "base_url"
-      <*> o .: "public_key"
-      <*> o .:? "auth_token"
-      <*> o .:? "assets" .!= []
-      <*> o .: "tags"
+      <$> o A..: "name"
+      <*> o A..: "summary"
+      <*> o A..: "description"
+      <*> o A..: "base_url"
+      <*> o A..: "public_key"
+      <*> o A..:? "auth_token"
+      <*> o A..:? "assets" A..!= []
+      <*> o A..: "tags"
 
 -- | Response data upon adding a new service.
 data NewServiceResponse = NewServiceResponse
@@ -371,16 +375,16 @@ data NewServiceResponse = NewServiceResponse
 
 instance ToJSON NewServiceResponse where
   toJSON r =
-    object $
-      "id" .= rsNewServiceId r
-        # "auth_token" .= rsNewServiceToken r
+    A.object $
+      "id" A..= rsNewServiceId r
+        # "auth_token" A..= rsNewServiceToken r
         # []
 
 instance FromJSON NewServiceResponse where
-  parseJSON = withObject "NewServiceResponse" $ \o ->
+  parseJSON = A.withObject "NewServiceResponse" $ \o ->
     NewServiceResponse
-      <$> o .: "id"
-      <*> o .:? "auth_token"
+      <$> o A..: "id"
+      <*> o A..:? "auth_token"
 
 --------------------------------------------------------------------------------
 -- UpdateService
@@ -398,22 +402,22 @@ data UpdateService = UpdateService
 
 instance ToJSON UpdateService where
   toJSON u =
-    object $
-      "name" .= updateServiceName u
-        # "summary" .= updateServiceSummary u
-        # "description" .= updateServiceDescr u
-        # "assets" .= updateServiceAssets u
-        # "tags" .= updateServiceTags u
+    A.object $
+      "name" A..= updateServiceName u
+        # "summary" A..= updateServiceSummary u
+        # "description" A..= updateServiceDescr u
+        # "assets" A..= updateServiceAssets u
+        # "tags" A..= updateServiceTags u
         # []
 
 instance FromJSON UpdateService where
-  parseJSON = withObject "UpdateService" $ \o ->
+  parseJSON = A.withObject "UpdateService" $ \o ->
     UpdateService
-      <$> o .:? "name"
-      <*> o .:? "summary"
-      <*> o .:? "description"
-      <*> o .:? "assets"
-      <*> o .:? "tags"
+      <$> o A..:? "name"
+      <*> o A..:? "summary"
+      <*> o A..:? "description"
+      <*> o A..:? "assets"
+      <*> o A..:? "tags"
 
 --------------------------------------------------------------------------------
 -- UpdateServiceConn
@@ -435,22 +439,22 @@ mkUpdateServiceConn pw = UpdateServiceConn pw Nothing Nothing Nothing Nothing
 
 instance ToJSON UpdateServiceConn where
   toJSON u =
-    object $
-      "password" .= updateServiceConnPassword u
-        # "base_url" .= updateServiceConnUrl u
-        # "public_keys" .= updateServiceConnKeys u
-        # "auth_tokens" .= updateServiceConnTokens u
-        # "enabled" .= updateServiceConnEnabled u
+    A.object $
+      "password" A..= updateServiceConnPassword u
+        # "base_url" A..= updateServiceConnUrl u
+        # "public_keys" A..= updateServiceConnKeys u
+        # "auth_tokens" A..= updateServiceConnTokens u
+        # "enabled" A..= updateServiceConnEnabled u
         # []
 
 instance FromJSON UpdateServiceConn where
-  parseJSON = withObject "UpdateServiceConn" $ \o ->
+  parseJSON = A.withObject "UpdateServiceConn" $ \o ->
     UpdateServiceConn
-      <$> o .: "password"
-      <*> o .:? "base_url"
-      <*> o .:? "public_keys"
-      <*> o .:? "auth_tokens"
-      <*> o .:? "enabled"
+      <$> o A..: "password"
+      <*> o A..:? "base_url"
+      <*> o A..:? "public_keys"
+      <*> o A..:? "auth_tokens"
+      <*> o A..:? "enabled"
 
 --------------------------------------------------------------------------------
 -- DeleteService
@@ -463,13 +467,13 @@ newtype DeleteService = DeleteService
 
 instance ToJSON DeleteService where
   toJSON d =
-    object
-      [ "password" .= deleteServicePassword d
+    A.object
+      [ "password" A..= deleteServicePassword d
       ]
 
 instance FromJSON DeleteService where
-  parseJSON = withObject "DeleteService" $ \o ->
-    DeleteService <$> o .: "password"
+  parseJSON = A.withObject "DeleteService" $ \o ->
+    DeleteService <$> o A..: "password"
 
 --------------------------------------------------------------------------------
 -- UpdateServiceWhitelist
@@ -484,15 +488,15 @@ data UpdateServiceWhitelist = UpdateServiceWhitelist
 
 instance ToJSON UpdateServiceWhitelist where
   toJSON u =
-    object
-      [ "provider" .= updateServiceWhitelistProvider u,
-        "id" .= updateServiceWhitelistService u,
-        "whitelisted" .= updateServiceWhitelistStatus u
+    A.object
+      [ "provider" A..= updateServiceWhitelistProvider u,
+        "id" A..= updateServiceWhitelistService u,
+        "whitelisted" A..= updateServiceWhitelistStatus u
       ]
 
 instance FromJSON UpdateServiceWhitelist where
-  parseJSON = withObject "UpdateServiceWhitelist" $ \o ->
+  parseJSON = A.withObject "UpdateServiceWhitelist" $ \o ->
     UpdateServiceWhitelist
-      <$> o .: "provider"
-      <*> o .: "id"
-      <*> o .: "whitelisted"
+      <$> o A..: "provider"
+      <*> o A..: "id"
+      <*> o A..: "whitelisted"

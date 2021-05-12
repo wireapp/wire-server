@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
@@ -30,24 +31,22 @@ module Data.Qualified
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionQualified,
-    deprecatedUnqualifiedSchemaRef,
+    deprecatedSchema,
   )
 where
 
 import Control.Applicative (optional)
-import Control.Lens (view, (.~), (?~))
-import Data.Aeson (FromJSON, ToJSON, withObject, (.:), (.=))
-import qualified Data.Aeson as Aeson
+import Control.Lens ((?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
 import qualified Data.Map as Map
-import Data.Proxy (Proxy (..))
+import Data.Schema
 import Data.String.Conversions (cs)
-import Data.Swagger
-import Data.Swagger.Declare (Declare, DeclareT)
+import qualified Data.Swagger as S
 import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
@@ -121,56 +120,43 @@ partitionQualified = foldr add mempty
 renderQualifiedId :: Qualified (Id a) -> Text
 renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
-deprecatedUnqualifiedSchemaRef :: ToSchema a => Proxy a -> Text -> Declare (Definitions Schema) (Referenced Schema)
-deprecatedUnqualifiedSchemaRef p newField =
-  Inline
-    . (description ?~ ("Deprecated, use " <> newField))
-    . view schema
-    <$> declareNamedSchema p
+deprecatedSchema :: Text -> ValueSchema NamedSwaggerDoc a -> ValueSchema SwaggerDoc a
+deprecatedSchema new = (doc . description ?~ ("Deprecated, use " <> new)) . unnamed
+
+qualifiedSchema ::
+  Text ->
+  Text ->
+  ValueSchema NamedSwaggerDoc a ->
+  ValueSchema NamedSwaggerDoc (Qualified a)
+qualifiedSchema name fieldName sch =
+  object ("Qualified " <> name) $
+    Qualified
+      <$> qUnqualified .= field fieldName sch
+      <*> qDomain .= field "domain" schema
 
 instance ToSchema (Qualified (Id a)) where
-  declareNamedSchema _ =
-    declareQualifiedSchema "Qualified Id" "id" =<< declareSchemaRef (Proxy @(Id a))
-
-instance ToJSON (Qualified (Id a)) where
-  toJSON qu =
-    Aeson.object
-      [ "id" .= qUnqualified qu,
-        "domain" .= qDomain qu
-      ]
-
-instance FromJSON (Qualified (Id a)) where
-  parseJSON = withObject "QualifiedUserId" $ \o ->
-    Qualified <$> o .: "id" <*> o .: "domain"
-
-declareQualifiedSchema :: Text -> Text -> Referenced Schema -> DeclareT (Definitions Schema) Identity NamedSchema
-declareQualifiedSchema qualifiedSchemaName unqualifiedFieldName unqualifiedSchemaRef = do
-  domainSchema <- declareSchemaRef (Proxy @Domain)
-  return $
-    NamedSchema (Just qualifiedSchemaName) $
-      mempty
-        & type_ ?~ SwaggerObject
-        & properties
-          .~ [ (unqualifiedFieldName, unqualifiedSchemaRef),
-               ("domain", domainSchema)
-             ]
-
-----------------------------------------------------------------------
+  schema = qualifiedSchema "UserId" "id" schema
 
 instance ToSchema (Qualified Handle) where
-  declareNamedSchema _ =
-    declareQualifiedSchema "Qualified Handle" "handle" =<< declareSchemaRef (Proxy @Handle)
+  schema = qualifiedSchema "Handle" "handle" schema
+
+instance ToJSON (Qualified (Id a)) where
+  toJSON = schemaToJSON
+
+instance FromJSON (Qualified (Id a)) where
+  parseJSON = schemaParseJSON
+
+instance S.ToSchema (Qualified (Id a)) where
+  declareNamedSchema = schemaToSwagger
 
 instance ToJSON (Qualified Handle) where
-  toJSON qh =
-    Aeson.object
-      [ "handle" .= qUnqualified qh,
-        "domain" .= qDomain qh
-      ]
+  toJSON = schemaToJSON
 
 instance FromJSON (Qualified Handle) where
-  parseJSON = withObject "Qualified Handle" $ \o ->
-    Qualified <$> o .: "handle" <*> o .: "domain"
+  parseJSON = schemaParseJSON
+
+instance S.ToSchema (Qualified Handle) where
+  declareNamedSchema = schemaToSwagger
 
 ----------------------------------------------------------------------
 -- ARBITRARY
