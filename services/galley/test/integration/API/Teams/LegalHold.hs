@@ -261,8 +261,8 @@ testGetLegalHoldDeviceStatus = do
     liftIO $
       assertEqual
         "unexpected status"
+        (UserLegalHoldStatusResponse UserLegalHoldNoConsent Nothing Nothing)
         status
-        (UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing)
   withDummyTestServiceForTeam owner tid $ \_chan -> do
     do
       UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
