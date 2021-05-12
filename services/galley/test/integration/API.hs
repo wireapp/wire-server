@@ -872,7 +872,7 @@ testAddRemoteMember = do
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "far-away.example.com")
   conv <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  e :: Event <- responseJsonUnsafe <$> (postQualifiedMembers alice (remoteBob :| []) conv <!! const 200 === statusCode)
+  e <- responseJsonUnsafe <$> (postQualifiedMembers alice (remoteBob :| []) conv <!! const 200 === statusCode)
   liftIO $ do
     evtConv e @?= conv
     evtType e @?= MemberJoin
