@@ -688,12 +688,16 @@ deleteSettings mPassword uid tid = do
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
-  resp <- getUserStatus uid tid <!! testResponse 200 Nothing
+  g <- view tsGalley
+  getUserStatusTyped' g uid tid
+
+getUserStatusTyped' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> m UserLegalHoldStatusResponse
+getUserStatusTyped' g uid tid = do
+  resp <- getUserStatus' g uid tid <!! testResponse 200 Nothing
   return $ responseJsonUnsafe resp
 
-getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-getUserStatus uid tid = do
-  g <- view tsGalley
+getUserStatus' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> TeamId -> m ResponseLBS
+getUserStatus' g uid tid = do
   get $
     g
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
@@ -704,6 +708,17 @@ getUserStatus uid tid = do
 approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword -> UserId -> UserId -> TeamId -> TestM ResponseLBS
 approveLegalHoldDevice mPassword zusr uid tid = do
   g <- view tsGalley
+  approveLegalHoldDevice' g mPassword zusr uid tid
+
+approveLegalHoldDevice' ::
+  (HasCallStack, MonadHttp m, MonadIO m) =>
+  GalleyR ->
+  Maybe PlainTextPassword ->
+  UserId ->
+  UserId ->
+  TeamId ->
+  m ResponseLBS
+approveLegalHoldDevice' g mPassword zusr uid tid = do
   put $
     g
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid, "approve"]
@@ -754,6 +769,10 @@ assertZeroLegalHoldDevices uid = do
 requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do
   g <- view tsGalley
+  requestLegalHoldDevice' g zusr uid tid
+
+requestLegalHoldDevice' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> UserId -> TeamId -> m ResponseLBS
+requestLegalHoldDevice' g zusr uid tid = do
   post $
     g
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]

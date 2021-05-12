@@ -85,7 +85,6 @@ import Web.Cookie
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
-import qualified Wire.API.Team.Member as Member
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -281,6 +280,10 @@ bulkGetTeamMembersTruncated usr tid uids trnc = do
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember getter tid gettee = do
   g <- view tsGalley
+  getTeamMember' g getter tid gettee
+
+getTeamMember' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> UserId -> m TeamMember
+getTeamMember' g getter tid gettee = do
   r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
   responseJsonError r
 
@@ -350,7 +353,7 @@ addUserToTeamWithSSO hasEmail tid = do
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
 makeOwner owner mem tid = do
   galley <- view tsGalley
-  let changeMember = newNewTeamMember (mem ^. Member.userId) fullPermissions (mem ^. Member.invitation)
+  let changeMember = newNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
   put
     ( galley
         . paths ["teams", toByteString' tid, "members"]
