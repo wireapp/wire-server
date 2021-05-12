@@ -45,7 +45,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -873,14 +873,19 @@ testAddRemoteMember = do
   alice <- randomUser
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "far-away.example.com")
-  conv <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  e <- responseJsonUnsafe <$> (postQualifiedMembers alice (remoteBob :| []) conv <!! const 200 === statusCode)
+  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  e <- responseJsonUnsafe <$> (postQualifiedMembers alice (remoteBob :| []) convId <!! const 200 === statusCode)
   liftIO $ do
-    evtConv e @?= conv
+    evtConv e @?= convId
     evtType e @?= MemberJoin
     -- TODO: implement returning remote users in the event.
     -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
     evtFrom e @?= alice
+  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
+  liftIO $ do
+    let actual = cmOthers $ cnvMembers conv
+    let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
+    assertEqual "other members should include remoteBob" expected actual
 
 postMembersOk :: TestM ()
 postMembersOk = do
@@ -1170,25 +1175,27 @@ removeUser :: TestM ()
 removeUser = do
   c <- view tsCannon
   alice <- randomUser
-  bob <- randomUser
-  carl <- randomUser
-  connectUsers alice (list1 bob [carl])
-  conv1 <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
-  conv2 <- decodeConvId <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-  conv3 <- decodeConvId <$> postConv alice [carl] (Just "gossip3") [] Nothing Nothing
-  WS.bracketR3 c alice bob carl $ \(wsA, wsB, wsC) -> do
-    deleteUser bob
+  bob <- randomQualifiedUser
+  carl <- randomQualifiedUser
+  let carl' = qUnqualified carl
+  let bob' = qUnqualified bob
+  connectUsers alice (list1 bob' [carl'])
+  conv1 <- decodeConvId <$> postConv alice [bob'] (Just "gossip") [] Nothing Nothing
+  conv2 <- decodeConvId <$> postConv alice [bob', carl'] (Just "gossip2") [] Nothing Nothing
+  conv3 <- decodeConvId <$> postConv alice [carl'] (Just "gossip3") [] Nothing Nothing
+  WS.bracketR3 c alice bob' carl' $ \(wsA, wsB, wsC) -> do
+    deleteUser bob'
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        matchMemberLeave conv1 bob
+        matchMemberLeave conv1 bob'
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        matchMemberLeave conv2 bob
+        matchMemberLeave conv2 bob'
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
   mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
-  let other u = find ((== u) . omId) . cmOthers
+  let other u = find ((== u) . omQualifiedId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
     (mems2 >>= other bob) @?= Nothing

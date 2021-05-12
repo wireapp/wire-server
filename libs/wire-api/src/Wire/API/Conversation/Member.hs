@@ -46,6 +46,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
+import Data.Qualified
 import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import Deriving.Swagger
@@ -233,7 +234,7 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving newtype (Num, FromJSON, ToJSON, Arbitrary, ToSchema)
 
 data OtherMember = OtherMember
-  { omId :: UserId,
+  { omQualifiedId :: Qualified UserId,
     omService :: Maybe ServiceRef,
     omConvRoleName :: RoleName
   }
@@ -247,7 +248,7 @@ data OtherMember = OtherMember
         )
 
 instance Ord OtherMember where
-  compare a b = compare (omId a) (omId b)
+  compare a b = compare (omQualifiedId a) (omQualifiedId b)
 
 modelOtherMember :: Doc.Model
 modelOtherMember = Doc.defineModel "OtherMember" $ do
@@ -260,7 +261,8 @@ modelOtherMember = Doc.defineModel "OtherMember" $ do
 instance ToJSON OtherMember where
   toJSON m =
     object $
-      "id" .= omId m
+      "id" .= qUnqualified (omQualifiedId m) -- DEPRECATED
+        # "qualified_id" .= omQualifiedId m
         # "status" .= (0 :: Int) -- TODO: Remove
         # "service" .= omService m
         # "conversation_role" .= omConvRoleName m
@@ -269,7 +271,7 @@ instance ToJSON OtherMember where
 instance FromJSON OtherMember where
   parseJSON = withObject "other-member" $ \o ->
     OtherMember
-      <$> o .: "id"
+      <$> o .: "qualified_id"
       <*> o .:? "service"
       <*> o .:? "conversation_role" .!= roleNameWireAdmin
 

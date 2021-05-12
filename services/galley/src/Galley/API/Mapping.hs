@@ -20,12 +20,17 @@
 module Galley.API.Mapping where
 
 import Control.Monad.Catch
+import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import qualified Data.List as List
+import Data.Qualified (Qualified (Qualified))
+import Data.Tagged (unTagged)
+import Galley.API.Util (viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Types (convId)
 import qualified Galley.Types.Conversations.Members as Internal
+import Galley.Types.Conversations.Roles (roleNameWireMember)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -53,18 +58,30 @@ conversationView uid conv = do
 -- Returns 'Nothing' when the user is not part of the conversation.
 conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
 conversationViewMaybe u Data.Conversation {..} = do
-  let mm = toList convMembers
-  let (me, them) = List.partition ((u ==) . Internal.memId) mm
+  domain <- viewFederationDomain
+  let (me, localThem) = List.partition ((u ==) . Internal.memId) convMembers
+  let localMembers = localToOther domain <$> localThem
+  let remoteMembers = remoteToOther <$> convRemoteMembers
   for (listToMaybe me) $ \m -> do
-    let mems = Public.ConvMembers (toMember m) (toOther <$> them)
+    let mems = Public.ConvMembers (toMember m) (localMembers <> remoteMembers)
     return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
   where
-    toOther :: Internal.LocalMember -> Public.OtherMember
-    toOther x =
+    localToOther :: Domain -> Internal.LocalMember -> Public.OtherMember
+    localToOther domain x =
       Public.OtherMember
-        { Public.omId = Internal.memId x,
+        { Public.omQualifiedId = Qualified (Internal.memId x) domain,
           Public.omService = Internal.memService x,
           Public.omConvRoleName = Internal.memConvRoleName x
+        }
+
+    remoteToOther :: Internal.RemoteMember -> Public.OtherMember
+    remoteToOther x =
+      Public.OtherMember
+        { Public.omQualifiedId = unTagged (Internal.rmId x),
+          Public.omService = Nothing,
+          -- FUTUREWORK(federation): support conversation roles for remote members
+          -- Currently assume them to be WireMember always
+          Public.omConvRoleName = roleNameWireMember
         }
 
 toMember :: Internal.LocalMember -> Public.Member
