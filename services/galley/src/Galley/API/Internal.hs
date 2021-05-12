@@ -33,7 +33,6 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
-import Data.Qualified (Qualified (..), Remote)
 import Data.Range
 import Data.String.Conversions (cs)
 import Data.Time.Clock.POSIX (getCurrentTime)
