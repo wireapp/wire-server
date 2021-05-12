@@ -22,7 +22,6 @@ import Data.Aeson.Types (parseEither)
 import Data.Id (ConvId)
 import Imports
 import qualified Test.Tasty as T
-import Test.Tasty.ExpectedFailure (ignoreTest)
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
@@ -80,12 +79,12 @@ tests =
       testRoundTrip @Asset.AssetRetention,
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
-      currentlyFailing (testRoundTrip @Asset.Asset), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Asset.Asset,
       testRoundTrip @Asset.Resumable.ResumableSettings,
       testRoundTrip @Asset.Resumable.TotalSize,
       testRoundTrip @Asset.Resumable.ChunkSize,
       testRoundTrip @Asset.Resumable.Offset,
-      currentlyFailing (testRoundTrip @Asset.Resumable.ResumableAsset), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Asset.Resumable.ResumableAsset,
       testRoundTrip @Call.Config.TurnHost,
       testRoundTrip @Call.Config.Scheme,
       testRoundTrip @Call.Config.Transport,
@@ -100,9 +99,9 @@ tests =
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
-      currentlyFailing (testRoundTrip @Conversation.Conversation), -- flaky, fails for large sizes because of rounding error in cnvMessageTimer
-      currentlyFailing (testRoundTrip @Conversation.NewConvUnmanaged),
-      currentlyFailing (testRoundTrip @Conversation.NewConvManaged),
+      testRoundTrip @Conversation.Conversation,
+      testRoundTrip @Conversation.NewConvUnmanaged,
+      testRoundTrip @Conversation.NewConvManaged,
       testRoundTrip @(Conversation.ConversationList ConvId),
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
@@ -114,18 +113,18 @@ tests =
       testRoundTrip @Conversation.ConversationRename,
       testRoundTrip @Conversation.ConversationAccessUpdate,
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
-      currentlyFailing (testRoundTrip @Conversation.ConversationMessageTimerUpdate),
+      testRoundTrip @Conversation.ConversationMessageTimerUpdate,
       testRoundTrip @Conversation.Bot.AddBot,
-      currentlyFailing (testRoundTrip @Conversation.Bot.AddBotResponse),
-      currentlyFailing (testRoundTrip @Conversation.Bot.RemoveBotResponse),
+      testRoundTrip @Conversation.Bot.AddBotResponse,
+      testRoundTrip @Conversation.Bot.RemoveBotResponse,
       testRoundTrip @Conversation.Bot.UpdateBotPrekeys,
       testRoundTrip @Conversation.Code.ConversationCode,
-      currentlyFailing (testRoundTrip @Conversation.Member.MemberUpdate),
+      testRoundTrip @Conversation.Member.MemberUpdate,
       testRoundTrip @Conversation.Member.MutedStatus,
       testRoundTrip @Conversation.Member.Member,
       testRoundTrip @Conversation.Member.OtherMember,
       testRoundTrip @Conversation.Member.ConvMembers,
-      currentlyFailing (testRoundTrip @Conversation.Member.OtherMemberUpdate),
+      testRoundTrip @Conversation.Member.OtherMemberUpdate,
       testRoundTrip @Conversation.Role.RoleName,
       testRoundTrip @Conversation.Role.Action,
       testRoundTrip @Conversation.Role.ConversationRole,
@@ -133,19 +132,19 @@ tests =
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @Conversation.Typing.TypingData,
       testRoundTrip @CustomBackend.CustomBackend,
-      currentlyFailing (testRoundTrip @Event.Conversation.Event), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.SimpleMembers,
       testRoundTrip @Event.Conversation.Connect,
       testRoundTrip @Event.Conversation.MemberUpdateData,
       testRoundTrip @Event.Conversation.OtrMessage,
-      currentlyFailing (testRoundTrip @Event.Team.Event), -- flaky, fails because of TeamUpdateData
+      testRoundTrip @Event.Team.Event,
       testRoundTrip @Event.Team.EventType,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
-      currentlyFailing (testRoundTrip @Message.ClientMismatch), -- because ToJSON is rounding UTCTime
+      testRoundTrip @Message.ClientMismatch,
       testRoundTrip @Notification.QueuedNotification,
       testRoundTrip @Notification.QueuedNotificationList,
       testRoundTrip @Properties.PropertyKey,
@@ -191,7 +190,7 @@ tests =
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
-      currentlyFailing (testRoundTrip @Team.TeamUpdateData), -- "no update data specified" if all fields are 'Nothing'
+      testRoundTrip @Team.TeamUpdateData,
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
@@ -205,7 +204,6 @@ tests =
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,
-      testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldServiceInfo,
       testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldService,
@@ -219,6 +217,7 @@ tests =
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceRemove,
       testRoundTrip @Team.Member.TeamMember,
       testRoundTrip @Team.Member.ListType,
+      testRoundTrip @Team.Member.NewListType,
       testRoundTrip @Team.Member.TeamMemberList,
       testRoundTrip @Team.Member.NewTeamMember,
       testRoundTrip @Team.Member.TeamMemberDeleteData,
@@ -314,8 +313,6 @@ tests =
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int)
     ]
-  where
-    currentlyFailing = ignoreTest
 
 testRoundTrip ::
   forall a.

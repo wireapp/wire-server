@@ -30,16 +30,16 @@ module Galley.API.Teams
     uncheckedDeleteTeam,
     addTeamMemberH,
     getTeamNotificationsH,
+    getTeamConversationRoles,
     getTeamMembersH,
     getTeamMembersCSVH,
     bulkGetTeamMembersH,
     getTeamMemberH,
     deleteTeamMemberH,
     updateTeamMemberH,
-    getTeamConversationsH,
-    getTeamConversationH,
-    getTeamConversationRolesH,
-    deleteTeamConversationH,
+    getTeamConversations,
+    getTeamConversation,
+    deleteTeamConversation,
     getSearchVisibilityH,
     setSearchVisibilityH,
     getSearchVisibilityInternalH,
@@ -353,10 +353,6 @@ uncheckedDeleteTeam zusr zcon tid = do
       let ee' = bots `zip` repeat e
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
-
-getTeamConversationRolesH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamConversationRolesH (zusr ::: tid ::: _) = do
-  json <$> getTeamConversationRoles zusr tid
 
 getTeamConversationRoles :: UserId -> TeamId -> Galley Public.ConversationRolesList
 getTeamConversationRoles zusr tid = do
@@ -750,20 +746,12 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
-getTeamConversationsH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamConversationsH (zusr ::: tid ::: _) = do
-  json <$> getTeamConversations zusr tid
-
 getTeamConversations :: UserId -> TeamId -> Galley Public.TeamConversationList
 getTeamConversations zusr tid = do
   tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
   Public.newTeamConversationList <$> Data.teamConversations tid
-
-getTeamConversationH :: UserId ::: TeamId ::: ConvId ::: JSON -> Galley Response
-getTeamConversationH (zusr ::: tid ::: cid ::: _) = do
-  json <$> getTeamConversation zusr tid cid
 
 getTeamConversation :: UserId -> TeamId -> ConvId -> Galley Public.TeamConversation
 getTeamConversation zusr tid cid = do
@@ -772,12 +760,7 @@ getTeamConversation zusr tid cid = do
     throwM (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwM convNotFound) pure
 
-deleteTeamConversationH :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Galley Response
-deleteTeamConversationH (zusr ::: zcon ::: tid ::: cid ::: _) = do
-  deleteTeamConversation zusr zcon tid cid
-  pure empty
-
-deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
+deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley (EmptyResult 200)
 deleteTeamConversation zusr zcon tid cid = do
   (bots, cmems) <- botsAndUsers =<< Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
@@ -791,6 +774,7 @@ deleteTeamConversation zusr zcon tid cid = do
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
+  pure EmptyResult
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSearchVisibilityH (uid ::: tid ::: _) = do
@@ -881,8 +865,7 @@ ensureNotTooLargeForLegalHold tid mems = do
       throwM tooManyTeamMembersOnTeamWithLegalhold
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
-addTeamMemberInternal tid origin originConn newMem memList = do
-  let new = newMem ^. ntmNewTeamMember
+addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
   Log.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")

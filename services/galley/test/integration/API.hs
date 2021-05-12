@@ -23,6 +23,7 @@ module API
 where
 
 import qualified API.CustomBackend as CustomBackend
+import qualified API.Federation as Federation
 import qualified API.MessageTimer as MessageTimer
 import qualified API.Roles as Roles
 import API.SQS
@@ -70,7 +71,8 @@ tests s =
       MessageTimer.tests s,
       Roles.tests s,
       CustomBackend.tests s,
-      TeamFeature.tests s
+      TeamFeature.tests s,
+      Federation.tests s
     ]
   where
     mainTests =
@@ -162,6 +164,7 @@ postConvOk = do
     rsp <-
       postConv alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing
         <!! const 201 === statusCode
+    print rsp
     cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])

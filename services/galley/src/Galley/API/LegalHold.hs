@@ -157,14 +157,15 @@ getUserStatus :: TeamId -> UserId -> Galley Public.UserLegalHoldStatusResponse
 getUserStatus tid uid = do
   mTeamMember <- Data.teamMember tid uid
   teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
-  statusResponse <- case view legalHoldStatus teamMember of
-    UserLegalHoldDisabled ->
-      pure $ UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing
-    status@UserLegalHoldPending -> makeResponse status
-    status@UserLegalHoldEnabled -> makeResponse status
-  pure $ statusResponse
+  let status = view legalHoldStatus teamMember
+  (mlk, lcid) <- case status of
+    UserLegalHoldDisabled -> pure (Nothing, Nothing)
+    UserLegalHoldPending -> makeResponseDetails
+    UserLegalHoldEnabled -> makeResponseDetails
+  pure $ UserLegalHoldStatusResponse status mlk lcid
   where
-    makeResponse status = do
+    makeResponseDetails :: Galley (Maybe LastPrekey, Maybe ClientId)
+    makeResponseDetails = do
       mLastKey <- fmap snd <$> LegalHoldData.selectPendingPrekeys uid
       lastKey <- case mLastKey of
         Nothing -> do
@@ -175,7 +176,7 @@ getUserStatus tid uid = do
           throwM internalError
         Just lstKey -> pure lstKey
       let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
-      pure $ Public.UserLegalHoldStatusResponse status (Just lastKey) (Just clientId)
+      pure (Just lastKey, Just clientId)
 
 -- | Request to provision a device on the legal hold service for a user
 requestDeviceH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -210,6 +211,7 @@ requestDevice zusr tid uid = do
       LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
       LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
       Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
+
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
     requestDeviceFromService = do
       LegalHoldData.dropPendingPrekeys uid
@@ -287,17 +289,20 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
   uidMembership <- Data.teamMember tid uid
-  if userLHNotDisabled uidMembership
-    then disableLH >> pure DisableLegalHoldSuccess
-    else pure DisableLegalHoldWasNotEnabled
+  if not $ userLHEnabled uidMembership
+    then pure DisableLegalHoldWasNotEnabled
+    else disableLH $> DisableLegalHoldSuccess
   where
     -- If not enabled nor pending, then it's disabled
-    userLHNotDisabled target = do
+    userLHEnabled :: Maybe TeamMember -> Bool
+    userLHEnabled target = do
       case fmap (view legalHoldStatus) target of
         Just UserLegalHoldEnabled -> True
         Just UserLegalHoldPending -> True
         Just UserLegalHoldDisabled -> False
-        Nothing -> False -- Never been set
+        Nothing -> {- Never been set -} False
+
+    disableLH :: Galley ()
     disableLH = do
       ensureReAuthorised zusr mPassword
       Client.removeLegalHoldClientFromUser uid

@@ -23,6 +23,7 @@
 
 module Data.Range
   ( Range,
+    toRange,
     LTE,
     Within,
     Bounds (..),
@@ -96,6 +97,9 @@ newtype Range (n :: Nat) (m :: Nat) a = Range
   { fromRange :: a
   }
   deriving (Eq, Ord, Show)
+
+toRange :: (LTE n x, LTE x m, KnownNat x, Num a) => Proxy x -> Range n m a
+toRange = Range . fromIntegral . natVal
 
 instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range n m a) where
   minBound = unsafeRange (fromKnownNat (Proxy @n) :: a)

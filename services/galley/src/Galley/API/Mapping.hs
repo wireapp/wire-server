@@ -24,6 +24,7 @@ import Data.Id (UserId, idToText)
 import qualified Data.List as List
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Data.Types (convId)
 import qualified Galley.Types.Conversations.Members as Internal
 import Imports
 import Network.HTTP.Types.Status
@@ -32,13 +33,31 @@ import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (+++))
 import qualified Wire.API.Conversation as Public
 
+-- | View for a given user of a stored conversation.
+-- Throws "bad-state" when the user is not part of the conversation.
 conversationView :: UserId -> Data.Conversation -> Galley Public.Conversation
-conversationView u Data.Conversation {..} = do
+conversationView uid conv = do
+  mbConv <- conversationViewMaybe uid conv
+  maybe memberNotFound pure mbConv
+  where
+    memberNotFound = do
+      Log.err . msg $
+        val "User "
+          +++ idToText uid
+          +++ val " is not a member of conv "
+          +++ idToText (convId conv)
+      throwM badState
+    badState = Error status500 "bad-state" "Bad internal member state."
+
+-- | View for a given user of a stored conversation.
+-- Returns 'Nothing' when the user is not part of the conversation.
+conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
+conversationViewMaybe u Data.Conversation {..} = do
   let mm = toList convMembers
   let (me, them) = List.partition ((u ==) . Internal.memId) mm
-  m <- maybe memberNotFound return (listToMaybe me)
-  let mems = Public.ConvMembers (toMember m) (toOther <$> them)
-  return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
+  for (listToMaybe me) $ \m -> do
+    let mems = Public.ConvMembers (toMember m) (toOther <$> them)
+    return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
   where
     toOther :: Internal.LocalMember -> Public.OtherMember
     toOther x =
@@ -47,14 +66,6 @@ conversationView u Data.Conversation {..} = do
           Public.omService = Internal.memService x,
           Public.omConvRoleName = Internal.memConvRoleName x
         }
-    memberNotFound = do
-      Log.err . msg $
-        val "User "
-          +++ idToText u
-          +++ val " is not a member of conv "
-          +++ idToText convId
-      throwM badState
-    badState = Error status500 "bad-state" "Bad internal member state."
 
 toMember :: Internal.LocalMember -> Public.Member
 toMember x@Internal.Member {..} =

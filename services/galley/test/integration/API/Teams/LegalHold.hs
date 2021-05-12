@@ -138,7 +138,7 @@ testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = do
   (owner, tid) <- createBindingTeam
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   -- Can't request a device if team feature flag is disabled
   requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
@@ -189,11 +189,11 @@ testApproveLegalHoldDevice = do
   (owner, tid) <- createBindingTeam
   member <- do
     usr <- randomUser
-    addTeamMemberInternal tid $ newTeamMember usr (rolePermissions RoleMember) Nothing
+    addTeamMemberInternal tid usr (rolePermissions RoleMember) Nothing
     pure usr
   member2 <- do
     usr <- randomUser
-    addTeamMemberInternal tid $ newTeamMember usr (rolePermissions RoleMember) Nothing
+    addTeamMemberInternal tid usr (rolePermissions RoleMember) Nothing
     pure usr
   outsideContact <- do
     usr <- randomUser
@@ -252,7 +252,7 @@ testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
   (owner, tid) <- createBindingTeam
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   forM_ [owner, member] $ \uid -> do
     status <- getUserStatusTyped uid tid
@@ -301,7 +301,7 @@ testDisableLegalHoldForUser :: TestM ()
 testDisableLegalHoldForUser = do
   (owner, tid) <- createBindingTeam
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   cannon <- view tsCannon
   WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
@@ -342,7 +342,7 @@ testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = do
   (owner, tid) <- createBindingTeam
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   newService <- newLegalHoldService
   -- not allowed to create if team setting is disabled
@@ -400,7 +400,7 @@ testGetLegalHoldTeamSettings = do
   (owner, tid) <- createBindingTeam
   stranger <- randomUser
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   newService <- newLegalHoldService
   let lhapp :: Chan () -> Application
@@ -444,7 +444,7 @@ testRemoveLegalHoldFromTeam = do
   (owner, tid) <- createBindingTeam
   stranger <- randomUser
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member noPermissions Nothing
+  addTeamMemberInternal tid member noPermissions Nothing
   ensureQueueEmpty
   -- fails if LH for team is disabled
   deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-not-enabled")
@@ -494,7 +494,7 @@ testEnablePerTeam :: TestM ()
 testEnablePerTeam = do
   (owner, tid) <- createBindingTeam
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   do
     status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
@@ -563,7 +563,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
   -- user without team can't add LH device
   tryout member
   -- team member can't add LH device
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   tryout member
   -- team owner can't add LH device
@@ -589,7 +589,7 @@ testGetTeamMembersIncludesLHStatus :: TestM ()
 testGetTeamMembersIncludesLHStatus = do
   (owner, tid) <- createBindingTeam
   member <- randomUser
-  addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
       findMemberStatus ms =
