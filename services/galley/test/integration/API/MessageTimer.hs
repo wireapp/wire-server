@@ -24,6 +24,7 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
+import qualified Data.LegalHold as LH
 import Data.List1
 import Data.Misc
 import Galley.Types
@@ -36,6 +37,7 @@ import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import TestHelpers
 import TestSetup
+import qualified Wire.API.Team.Member as Member
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -101,7 +103,7 @@ messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
   [owner, member, guest] <- randomUsers 3
   connectUsers owner (list1 member [guest])
-  tid <- createNonBindingTeam "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
+  tid <- createNonBindingTeam "team" owner [Member.TeamMember member Teams.fullPermissions Nothing LH.UserLegalHoldDisabled]
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
   -- Try to change the timer (as a non admin, guest user) and observe failure
