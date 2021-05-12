@@ -66,11 +66,6 @@ instance ToHttpApiData Handle where
 instance FromByteString Handle where
   parser = handleParser
 
--- instance FromJSON Handle where
---   parseJSON =
---     withText "Handle" $
---       either (fail . ("Invalid handle: " <>)) pure . parseHandleEither
-
 parseHandle :: Text -> Maybe Handle
 parseHandle = either (const Nothing) Just . parseHandleEither
 

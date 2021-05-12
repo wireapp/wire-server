@@ -181,14 +181,6 @@ instance ToSchema ServiceKeyPEM where
         "ServiceKeyPEM"
         (runParser parser . Text.encodeUtf8)
 
--- instance ToJSON ServiceKeyPEM where
---   toJSON = String . Text.decodeUtf8 . toByteString'
-
--- instance FromJSON ServiceKeyPEM where
---   parseJSON =
---     withText "ServiceKeyPEM" $
---       either fail pure . runParser parser . Text.encodeUtf8
-
 instance Arbitrary ServiceKeyPEM where
   arbitrary =
     case pemParseBS (BS.unlines key) of

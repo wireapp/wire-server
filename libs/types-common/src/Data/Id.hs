@@ -120,14 +120,6 @@ instance ToSchema (Id a) where
           )
           (pure . A.toJSON . UUID.toText)
 
--- idFromText = maybe (fail "UUID.fromText failed") (pure . Id) . UUID.fromText
-
--- instance ToJSON (Id a) where
---   toJSON (Id uuid) = toJSON $ UUID.toText uuid
-
--- instance FromJSON (Id a) where
---   parseJSON = withText "Id a" idFromText
-
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
 instance Show (Id a) where
