@@ -19,6 +19,18 @@ BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
 
+# This ensures that focused unit tests written in hspec fail. This is supposed
+# to help us avoid merging PRs with focused tests. This will not catch focused
+# integration tests as they are run in kubernetes where this Makefile doesn't
+# get executed. This is set here as the CI uses this Makefile, this could live
+# in several Makefiles we have in this repository, but there is little point of
+# doing so.
+#
+# Additionally, if stack is being used with nix, environment variables do not
+# make it into the shell where hspec is run, to tackle that this variable is
+# also exported in stack-deps.nix.
+export HSPEC_OPTIONS = --fail-on-focused
+
 default: fast
 
 init:

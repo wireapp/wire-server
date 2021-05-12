@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3790baee5069274fe9bfc65d84fda950c25ec4559bc416ffa6ca2af4246396fe
+-- hash: abdb4f7cbc0efe9930f931386d8728eb66be3134c65194a5637704e45e5506fa
 
 name:           wire-api-federation
 version:        0.1.0
@@ -102,6 +102,7 @@ test-suite spec
     , text >=0.11
     , time >=1.8
     , types-common
+    , warp
     , wire-api
     , wire-api-federation
   default-language: Haskell2010
