@@ -17,13 +17,16 @@
 
 module Galley.Options where
 
+import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens hiding (Level, (.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
+import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
-import Galley.Types.Teams (FeatureFlags (..), HardTruncationLimit, hardTruncationLimit)
+import Galley.Types.Teams (FeatureFlags (..), FeatureLegalHold (..), HardTruncationLimit, flagLegalHold, hardTruncationLimit)
 import Imports
+import qualified System.Logger as Log
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -67,7 +70,10 @@ data Settings = Settings
     -- the owners.
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
-    _setFeatureFlags :: !FeatureFlags
+    _setFeatureFlags :: !FeatureFlags,
+    -- | Enable LH only for a selected number of teams, and give those team members implicit
+    -- consent.  See 'validateOpts' below for relevant constraints.
+    _setLegalHoldTeamsWhitelist :: !(Maybe [TeamId])
   }
   deriving (Show, Generic)
 
@@ -129,3 +135,31 @@ data Opts = Opts
 deriveFromJSON toOptionFieldName ''Opts
 
 makeLenses ''Opts
+
+----------------------------------------------------------------------
+
+validateOpts :: Log.Logger -> Opts -> IO ()
+validateOpts logger opts = do
+  let lhWhitelist = opts ^. optSettings . setLegalHoldTeamsWhitelist
+      lhWhitelistingEnabled =
+        (opts ^. optSettings . setFeatureFlags . flagLegalHold)
+          == FeatureLegalHoldWhitelistTeamsAndImplicitConsent
+
+      err :: String -> IO ()
+      err message = do
+        Log.err logger (Log.msg message)
+        throwIO $ ErrorCall message
+
+  unless (maybe True (not . null) lhWhitelist) $
+    err
+      "settings.setLegalHoldTeamsWhitelist must not contain an empty list; remove the \
+      \attribute or provide at least one team."
+
+  unless (isNothing lhWhitelist || lhWhitelistingEnabled) $
+    -- Rationale: '_setLegalHoldTeamsWhitelist' is a way to make LH available to selected
+    -- teams only; it is not required if `_setFeatureFlags` enables it for all.  To avoid
+    -- misconfiguration due to a wrong understanding of the settings, doing this produces an
+    -- error.
+    err
+      "If settings.setLegalHoldTeamsWhitelist is provided, settings.featureFlags.flagLegalHold \
+      \must be FeatureLegalHoldWhitelistTeamsAndImplicitConsent."
