@@ -464,6 +464,21 @@ mapUpdateToServant :: UpdateResult -> Galley (Union UpdateResponses)
 mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
 mapUpdateToServant Unchanged = Servant.respond NoContent
 
+-- FUTUREWORK(federation): Before 'addMembers' in its current form can be made
+-- public by exposing 'addMembersToConversationV2' (currently hidden using /i/
+-- prefix), i.e. by allowing remote members to be actually added in any environment,
+-- we need the following checks/implementation:
+--  - (1) Remote qualified users must exist before they can be added (a call to the
+--  respective backend should be made): Avoid clients making up random Ids, and
+--  increase the chances that the updateConversationMembership call suceeds
+--  - (2) A call must be made to the remote backend informing it that this user is
+--  now part of that conversation. Use and implement 'updateConversationMemberships'.
+--    - that call should probably be made *after* inserting the conversation membership
+--    happens in this backend.
+--    - 'updateConversationMemberships' should send an event to the affected
+--    users informing them they have joined a remote conversation.
+--  - (3) Events should support remote / qualified users, too.
+--  These checks need tests :)
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing convNotFound

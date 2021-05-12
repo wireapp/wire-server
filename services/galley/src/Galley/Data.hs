@@ -78,7 +78,6 @@ module Galley.Data
     -- * Conversation Members
     addMember,
     addMembersWithRole,
-    addMembersUncheckedWithRole, -- for tests
     member,
     members,
     removeMember,
@@ -472,7 +471,6 @@ conversation conv = do
   mbConv <- toConv conv <$> members conv <*> wait remoteMems <*> wait cdata
   return mbConv >>= conversationGC
 
---
 {- "Garbage collect" the conversation, i.e. the conversation may be
    marked as deleted, in which case we delete it and return Nothing -}
 conversationGC ::
@@ -832,7 +830,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
         -- User is remote, so we only add it to the member_remote_user
         -- table, but the reverse mapping has to be done on the remote
         -- backend; so we assume an additional call to their backend has
-        -- been (or will be) made separately.
+        -- been (or will be) made separately. See Galley.API.Update.addMembers
         let remoteUser = qUnqualified (unTagged u)
         let remoteDomain = qDomain (unTagged u)
         addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser, role)

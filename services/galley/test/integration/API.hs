@@ -868,6 +868,7 @@ leaveConnectConversation = do
 -- mocking the federator and expecting a successful response from the remote.
 -- Additionally, another test must be added to deal with error scenarios of
 -- federation.
+-- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
   alice <- randomUser

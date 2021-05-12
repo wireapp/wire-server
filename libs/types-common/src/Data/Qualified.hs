@@ -42,6 +42,7 @@ import Control.Lens (view, (.~), (?~))
 import Data.Aeson (FromJSON, ToJSON, withObject, (.:), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Bifunctor (first)
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
@@ -109,6 +110,10 @@ instance (P.ToSchema a) => P.ToSchema (Qualified a) where
         <$> qUnqualified P..= P.field "id" P.schema
         <*> qDomain P..= P.field "domain" P.schema
 
+-- | A type to differentiate between generally Qualified values, and values
+-- where it is known if they are coming from a Remote backend or not.
+-- Use 'toRemote' or 'partitionRemoteOrLocalIds\'' to get Remote values and use
+-- 'unTagged' to convert from a Remote value back to a plain Qualified one.
 type Remote a = Tagged "remote" (Qualified a)
 
 -- | Convert a Qualified something to a Remote something.
@@ -128,10 +133,7 @@ partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
     else ([qualifiedId], mempty)
 
 partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remote a], [a])
-partitionRemoteOrLocalIds' localDomain = foldMap $ \qualifiedId ->
-  if qDomain qualifiedId == localDomain
-    then (mempty, [qUnqualified qualifiedId])
-    else ([toRemote qualifiedId], mempty)
+partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemote) $ partitionRemoteOrLocalIds localDomain xs
 
 -- | Index a list of qualified values by domain
 partitionQualified :: [Qualified a] -> Map Domain [a]

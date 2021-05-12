@@ -191,6 +191,7 @@ newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable)
 
+-- TODO: use instance from https://github.com/wireapp/wire-server/pull/1482
 instance P.ToSchema RoleName where schema = P.genericToSchema
 
 instance ToSchema RoleName where

@@ -24,8 +24,8 @@ import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
--- This migration replaces the remote identifiers delete din migration 48 with separate tables.
--- This change occurs because we decided to stop using opaque Ids and to be explict with remote identifiers.
+-- This migration replaces the remote identifiers deleted in migration 48 with separate tables.
+-- This change occurs because we decided to stop using opaque Ids. Instead, we'll be explict with remote identifiers.
 -- Since two backends may have a conversation or user with the same UUID
 -- (whether by chance or maliciously so), this change guarantees we don't
 -- accidentally override information about a conversation on one backend by

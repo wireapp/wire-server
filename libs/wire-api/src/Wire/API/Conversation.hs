@@ -642,7 +642,7 @@ instance P.ToSchema InviteQualified where
     P.object "InviteQualified" $
       InviteQualified
         <$> invQUsers P..= P.field "qualified_users" (P.nonEmptyArray P.schema)
-        <*> invQRoleName P..= P.field "conversation_role" P.schema -- TODO: Default to roleNameWireAdmin
+        <*> invQRoleName P..= (P.field "conversation_role" P.schema <|> pure roleNameWireAdmin)
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin

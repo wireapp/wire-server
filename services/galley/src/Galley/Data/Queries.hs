@@ -284,8 +284,9 @@ updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
 updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
 
 -- Federated conversations -----------------------------------------------------
--- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations
--- TODO: support other conversation attributes such as conv_role, etc
+--
+-- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations for a user.
+-- FUTUREWORK(federation): support other conversation attributes such as muted, archived, etc
 
 -- local conversation with remote members
 
@@ -300,6 +301,7 @@ selectRemoteMembers = "select conv, user_remote_domain, user_remote_id, conversa
 
 -- local user with remote conversations
 
+-- FUTUREWORK: actually make use of these cql statements.
 insertRemoteUserConv :: PrepQuery W (UserId, Domain, ConvId) ()
 insertRemoteUserConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
 

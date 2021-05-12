@@ -65,6 +65,7 @@ newtype Domain = Domain {_domainText :: Text}
   deriving stock (Eq, Ord, Generic, Show)
   deriving newtype (ToParamSchema, ToSchema)
 
+-- TODO: use instance from https://github.com/wireapp/wire-server/pull/1482
 instance P.ToSchema Domain where schema = P.genericToSchema
 
 domainText :: Domain -> Text

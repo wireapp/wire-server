@@ -148,6 +148,7 @@ instance ToJSONKey (Id a) where
 instance FromJSONKey (Id a) where
   fromJSONKey = FromJSONKeyTextParser idFromText
 
+-- TODO: use instance from https://github.com/wireapp/wire-server/pull/1482
 instance P.ToSchema (Id a) where schema = P.genericToSchema
 
 randomId :: (Functor m, MonadIO m) => m (Id a)
