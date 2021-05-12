@@ -36,7 +36,7 @@ module Data.Json.Util
 where
 
 import qualified Cassandra as CQL
-import Control.Lens (coerced, (%~))
+import Control.Lens (coerced, (%~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
@@ -88,7 +88,12 @@ newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
 instance ToSchema UTCTimeMillis where
   schema =
     UTCTimeMillis <$> showUTCTimeMillis
-      .= mkSchema (swaggerDoc @UTCTime) parseJSON (pure . A.String . pack)
+      .= mkSchema swagger parseJSON (pure . A.String . pack)
+    where
+      swagger = S.NamedSchema (Just "UTCTimeMillis") <$> mempty
+        & S.schema . S.type_ ?~ S.SwaggerString
+        & S.schema . S.format ?~ "yyyy-mm-ddThh:MM:ss.qqq"
+        & S.schema . S.example ?~ "2021-05-12T10:52:02.671Z"
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
