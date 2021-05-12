@@ -161,11 +161,12 @@ instance FromByteString ServiceKeyPEM where
       Right _ -> fail "Too many sections in PEM format. Expected 1."
 
 instance ToSchema ServiceKeyPEM where
-  schema = S.schema . S.example ?~ pem $
-    (Text.decodeUtf8 . toByteString')
-      .= parsedText
-        "ServiceKeyPEM"
-        (runParser parser . Text.encodeUtf8)
+  schema =
+    S.schema . S.example ?~ pem $
+      (Text.decodeUtf8 . toByteString')
+        .= parsedText
+          "ServiceKeyPEM"
+          (runParser parser . Text.encodeUtf8)
     where
       pem =
         A.String . Text.unlines $

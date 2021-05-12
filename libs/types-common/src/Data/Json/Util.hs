@@ -90,10 +90,11 @@ instance ToSchema UTCTimeMillis where
     UTCTimeMillis <$> showUTCTimeMillis
       .= mkSchema swagger parseJSON (pure . A.String . pack)
     where
-      swagger = S.NamedSchema (Just "UTCTimeMillis") <$> mempty
-        & S.schema . S.type_ ?~ S.SwaggerString
-        & S.schema . S.format ?~ "yyyy-mm-ddThh:MM:ss.qqq"
-        & S.schema . S.example ?~ "2021-05-12T10:52:02.671Z"
+      swagger =
+        S.NamedSchema (Just "UTCTimeMillis") <$> mempty
+          & S.schema . S.type_ ?~ S.SwaggerString
+          & S.schema . S.format ?~ "yyyy-mm-ddThh:MM:ss.qqq"
+          & S.schema . S.example ?~ "2021-05-12T10:52:02.671Z"
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis

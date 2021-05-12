@@ -146,13 +146,18 @@ data Email = Email
     emailDomain :: Text
   }
   deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
 
 instance ToSchema Email where
-  -- TODO: reimplement
-  schema = genericToSchema
-
-instance S.ToSchema Email where
-  declareNamedSchema _ = S.declareNamedSchema (Proxy @Text)
+  schema =
+    fromEmail
+      .= parsedText
+        "Email"
+        ( maybe
+            (Left "Invalid email. Expected '<local>@<domain>'.")
+            pure
+            . parseEmail
+        )
 
 instance Show Email where
   show = Text.unpack . fromEmail
@@ -162,15 +167,6 @@ instance ToByteString Email where
 
 instance FromByteString Email where
   parser = parser >>= maybe (fail "Invalid email") return . parseEmail
-
-instance ToJSON Email where
-  toJSON = A.String . fromEmail
-
-instance FromJSON Email where
-  parseJSON =
-    A.withText "email" $
-      maybe (fail "Invalid email. Expected '<local>@<domain>'.") return
-        . parseEmail
 
 instance Arbitrary Email where
   arbitrary = do
