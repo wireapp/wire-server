@@ -685,13 +685,21 @@ testNotInWhitelist = do
   cannon <- view tsCannon
   WS.bracketR2 cannon member member $ \(_ws, _ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
     do
-      () <- error "TODO: whether enabelling works or not i don't care, but Public.TeamFeatureDisabled is failing, need to look into that."
+      -- enable NOT-whitelisted team should fail
+      withLHWhitelist tid' (putEnabledM' g id tid Public.TeamFeatureEnabled)
+        !!! testResponse 403 (Just "legalhold-whitelisted-only")
 
-      putEnabled' id tid Public.TeamFeatureEnabled -- should work (idempotency)
-        !!! testResponse 200 Nothing
+      -- disable whitelisted team should fail
+      withLHWhitelist tid (putEnabledM' g id tid Public.TeamFeatureDisabled)
+        !!! testResponse 403 (Just "legalhold-whitelisted-only")
 
-      putEnabled' id tid Public.TeamFeatureDisabled -- should fail (whitelist enforced)
-        !!! testResponse 403 (Just "legalhold-not-enabled")
+      -- enable whitelisted team should fail (no need for this to work)
+      withLHWhitelist tid (putEnabledM' g id tid Public.TeamFeatureEnabled)
+        !!! testResponse 403 (Just "legalhold-whitelisted-only")
+
+      -- disable NOT-whitelisted team should fail (no need for this to work)
+      withLHWhitelist tid' (putEnabledM' g id tid Public.TeamFeatureDisabled)
+        !!! testResponse 403 (Just "legalhold-whitelisted-only")
 
     do
       -- members have not granted consent implicitly...
@@ -807,11 +815,20 @@ renewToken tok = do
       . expect2xx
 
 putEnabled :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putEnabled tid enabled = void $ putEnabled' expect2xx tid enabled
+putEnabled tid enabled = do
+  g <- view tsGalley
+  putEnabledM g tid enabled
+
+putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.TeamFeatureStatusValue -> m ()
+putEnabledM g tid enabled = void $ putEnabledM' g expect2xx tid enabled
 
 putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
   g <- view tsGalley
+  putEnabledM' g extra tid enabled
+
+putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatusValue -> m ResponseLBS
+putEnabledM' g extra tid enabled = do
   put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
