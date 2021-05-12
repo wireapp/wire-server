@@ -46,6 +46,7 @@ import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
+import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types.Status (status201, status204)
@@ -62,11 +63,18 @@ assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHold
 
 isLegalHoldEnabled :: TeamId -> Galley Bool
 isLegalHoldEnabled tid = do
-  statusValue <- Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
-  return $ case statusValue of
-    Just Public.TeamFeatureEnabled -> True
-    Just Public.TeamFeatureDisabled -> False
-    Nothing -> False
+  view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> do
+      pure False
+    FeatureLegalHoldDisabledByDefault -> do
+      statusValue <- Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
+      return $ case statusValue of
+        Just Public.TeamFeatureEnabled -> True
+        Just Public.TeamFeatureDisabled -> False
+        Nothing -> False
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+      view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
+        <&> maybe (False {- reasonable default, even though this is impossible -}) (tid `elem`)
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do

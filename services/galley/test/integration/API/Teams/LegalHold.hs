@@ -685,6 +685,15 @@ testNotInWhitelist = do
   cannon <- view tsCannon
   WS.bracketR2 cannon member member $ \(_ws, _ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
     do
+      () <- error "TODO: whether enabelling works or not i don't care, but Public.TeamFeatureDisabled is failing, need to look into that."
+
+      putEnabled' id tid Public.TeamFeatureEnabled -- should work (idempotency)
+        !!! testResponse 200 Nothing
+
+      putEnabled' id tid Public.TeamFeatureDisabled -- should fail (whitelist enforced)
+        !!! testResponse 403 (Just "legalhold-not-enabled")
+
+    do
       -- members have not granted consent implicitly...
       lhs <- view legalHoldStatus <$> withLHWhitelist tid' (getTeamMember' g member tid member)
       liftIO $ assertEqual "" lhs UserLegalHoldNoConsent
