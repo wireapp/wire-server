@@ -237,7 +237,7 @@ newtype ClientId = ClientId
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 
 instance ToSchema ClientId where
-  schema = ClientId <$> client .= text "ClientId"
+  schema = client .= parsedText "ClientId" clientIdFromByteString
 
 newClientId :: Word64 -> ClientId
 newClientId = ClientId . toStrict . toLazyText . hexadecimal
