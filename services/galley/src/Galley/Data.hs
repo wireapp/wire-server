@@ -114,7 +114,7 @@ import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
-import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
@@ -929,7 +929,7 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 
 -- Internal utilities
 newTeamMember' :: (MonadThrow m, MonadClient m) => (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
-newTeamMember' (uid, perms, minvu, minvt, fromMaybe UserLegalHoldDisabled -> lhStatus) = mk minvu minvt
+newTeamMember' (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = mk minvu minvt
   where
     mk (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
     mk Nothing Nothing = pure $ TeamMember uid perms Nothing lhStatus

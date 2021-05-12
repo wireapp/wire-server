@@ -21,6 +21,7 @@ module Galley.API.LegalHold
     removeSettingsH,
     removeSettings',
     getUserStatusH,
+    grantConsentH,
     requestDeviceH,
     approveDeviceH,
     disableForUserH,
@@ -31,7 +32,7 @@ where
 import Brig.Types.Client.Prekey
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
-import Control.Lens (view, (^.))
+import Control.Lens (to, view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
@@ -145,7 +146,7 @@ removeSettings' tid = do
       let uid = member ^. Team.userId
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -159,6 +160,7 @@ getUserStatus tid uid = do
   teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
   let status = view legalHoldStatus teamMember
   (mlk, lcid) <- case status of
+    UserLegalHoldNoConsent -> pure (Nothing, Nothing)
     UserLegalHoldDisabled -> pure (Nothing, Nothing)
     UserLegalHoldPending -> makeResponseDetails
     UserLegalHoldEnabled -> makeResponseDetails
@@ -177,6 +179,31 @@ getUserStatus tid uid = do
         Just lstKey -> pure lstKey
       let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
       pure (Just lastKey, Just clientId)
+
+-- | Change 'UserLegalHoldStatus' from no consent to disabled.  FUTUREWORK:
+-- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
+-- out).
+grantConsentH :: UserId ::: TeamId ::: JSON -> Galley Response
+grantConsentH (zusr ::: tid ::: _) = do
+  grantConsent zusr tid >>= \case
+    GrantConsentSuccess -> pure $ empty & setStatus status201
+    GrantConsentAlreadyGranted -> pure $ empty & setStatus status204
+
+data GrantConsentResult
+  = GrantConsentSuccess
+  | GrantConsentAlreadyGranted
+
+grantConsent :: UserId -> TeamId -> Galley GrantConsentResult
+grantConsent zusr tid = do
+  userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid zusr
+  case userLHStatus of
+    Nothing ->
+      throwM teamMemberNotFound
+    Just UserLegalHoldNoConsent ->
+      LegalHoldData.setUserLegalHoldStatus tid zusr UserLegalHoldDisabled $> GrantConsentSuccess
+    Just UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
+    Just UserLegalHoldPending -> pure GrantConsentAlreadyGranted
+    Just UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
 
 -- | Request to provision a device on the legal hold service for a user
 requestDeviceH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -202,6 +229,7 @@ requestDevice zusr tid uid = do
     Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
     Just UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice
     Just UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice
+    Just UserLegalHoldNoConsent -> throwM userLegalHoldNoConsent
     Nothing -> throwM teamMemberNotFound
   where
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,
@@ -307,7 +335,8 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
         Just UserLegalHoldEnabled -> True
         Just UserLegalHoldPending -> True
         Just UserLegalHoldDisabled -> False
-        Nothing -> {- Never been set -} False
+        Just UserLegalHoldNoConsent -> False
+        Nothing -> {- user not found -} False
 
     disableLH :: Galley ()
     disableLH = do

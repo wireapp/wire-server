@@ -203,6 +203,9 @@ legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
 
+userLegalHoldNoConsent :: Error
+userLegalHoldNoConsent = Error status409 "legalhold-no-consent" "user has not given consent to using legal hold"
+
 userLegalHoldNotPending :: Error
 userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
 

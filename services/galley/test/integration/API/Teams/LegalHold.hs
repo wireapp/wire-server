@@ -117,7 +117,7 @@ tests s =
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
-      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold)
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
@@ -148,6 +148,38 @@ testRequestLegalHoldDevice = do
   -- clients
   WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
     do
+      -- test device creation without consent
+      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
+      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
+      liftIO $
+        assertEqual
+          "User with insufficient permissions should be unable to start flow"
+          UserLegalHoldNoConsent
+          userStatus
+
+    do
+      requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-no-consent")
+      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
+      liftIO $
+        assertEqual
+          "User with insufficient permissions should be unable to start flow"
+          UserLegalHoldNoConsent
+          userStatus
+
+    do
+      -- test granting consent
+      lhs <- view legalHoldStatus <$> getTeamMember member tid member
+      liftIO $ assertEqual "" lhs UserLegalHoldNoConsent
+
+      grantConsent tid member
+      lhs' <- view legalHoldStatus <$> getTeamMember member tid member
+      liftIO $ assertEqual "" lhs' UserLegalHoldDisabled
+
+      grantConsent tid member
+      lhs'' <- view legalHoldStatus <$> getTeamMember member tid member
+      liftIO $ assertEqual "" lhs'' UserLegalHoldDisabled
+
+    do
       requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
       liftIO $
@@ -155,6 +187,7 @@ testRequestLegalHoldDevice = do
           "User with insufficient permissions should be unable to start flow"
           UserLegalHoldDisabled
           userStatus
+
     do
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
@@ -209,6 +242,7 @@ testApproveLegalHoldDevice = do
   cannon <- view tsCannon
   WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
     \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam owner tid $ \chan -> do
+      grantConsent tid member
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
       liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClient userId' teamId') -> do
         assertEqual "userId == member" userId' member
@@ -264,6 +298,7 @@ testGetLegalHoldDeviceStatus = do
         (UserLegalHoldStatusResponse UserLegalHoldNoConsent Nothing Nothing)
         status
   withDummyTestServiceForTeam owner tid $ \_chan -> do
+    grantConsent tid member
     do
       UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
       liftIO $
@@ -307,6 +342,7 @@ testDisableLegalHoldForUser = do
   ensureQueueEmpty
   cannon <- view tsCannon
   WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
+    grantConsent tid member
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     assertNotification mws $ \case
@@ -455,6 +491,7 @@ testRemoveLegalHoldFromTeam = do
     postSettings owner tid newService !!! testResponse 201 Nothing
     -- enable legalhold for member
     do
+      grantConsent tid member
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
       approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
@@ -508,6 +545,7 @@ testEnablePerTeam = do
     let statusValue = Public.tfwoStatus status
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.TeamFeatureEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
+    grantConsent tid member
     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     do
@@ -606,9 +644,12 @@ testGetTeamMembersIncludesLHStatus = do
             ("legal hold status should be " <> msg)
             (Just status)
             (findMemberStatus members')
-  check UserLegalHoldDisabled "disabled when it is disabled for the team"
+
+  check UserLegalHoldNoConsent "disabled when it is disabled for the team"
   withDummyTestServiceForTeam owner tid $ \_chan -> do
-    check UserLegalHoldDisabled "disabled on new team members"
+    check UserLegalHoldNoConsent "no_consent on new team members"
+    grantConsent tid member
+    check UserLegalHoldDisabled "disabled on team members that have granted consent"
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     check UserLegalHoldPending "pending after requesting device"
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
@@ -767,6 +808,24 @@ assertZeroLegalHoldDevices uid = do
 
 ---------------------------------------------------------------------
 --- Device helpers
+
+grantConsent :: HasCallStack => TeamId -> UserId -> TestM ()
+grantConsent tid zusr = do
+  g <- view tsGalley
+  grantConsent' g tid zusr
+
+grantConsent' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> UserId -> m ()
+grantConsent' = grantConsent'' expect2xx
+
+grantConsent'' :: (HasCallStack, MonadHttp m, MonadIO m) => (Bilge.Request -> Bilge.Request) -> GalleyR -> TeamId -> UserId -> m ()
+grantConsent'' expectation g tid zusr = do
+  void . post $
+    g
+      . paths ["teams", toByteString' tid, "legalhold", "consent"]
+      . zUser zusr
+      . zConn "conn"
+      . zType "access"
+      . expectation
 
 requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do

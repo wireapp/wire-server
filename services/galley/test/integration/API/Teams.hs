@@ -991,7 +991,7 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
   owner <- Util.randomUser
   member <- Util.randomUser
   Util.connectUsers owner (list1 member [])
-  tid <- Util.createNonBindingTeam "foo" owner [Member.TeamMember member perms Nothing LH.UserLegalHoldDisabled]
+  tid <- Util.createNonBindingTeam "foo" owner [Member.TeamMember member perms Nothing LH.defUserLegalHoldStatus]
   cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
   resp <- updateTeamConv member cid (ConversationRename "not gossip")
   -- FUTUREWORK: Ensure that the team role _really_ does not matter
@@ -1958,7 +1958,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
-newTeamMember' perms uid = Member.TeamMember uid perms Nothing LH.UserLegalHoldDisabled
+newTeamMember' perms uid = Member.TeamMember uid perms Nothing LH.defUserLegalHoldStatus
 
 -- NOTE: all client functions calling @{/i,}/teams/*/features/*@ can be replaced by
 -- hypothetical functions 'getTeamFeatureFlag', 'getTeamFeatureFlagInternal',
