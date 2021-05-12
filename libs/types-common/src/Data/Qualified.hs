@@ -112,7 +112,7 @@ instance (P.ToSchema a) => P.ToSchema (Qualified a) where
 
 type Remote a = Tagged "remote" (Qualified a)
 
-pattern Remote :: a -> Tagged "remote" a
+pattern Remote :: Qualified a -> Remote a
 pattern Remote x = Tagged x
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
