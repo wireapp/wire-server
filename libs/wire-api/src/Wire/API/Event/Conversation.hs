@@ -68,6 +68,7 @@ import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis, (#))
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
@@ -79,7 +80,6 @@ import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
 import Wire.API.User (UserIdList (..))
-import qualified Data.Swagger as S
 
 --------------------------------------------------------------------------------
 -- Event
