@@ -55,7 +55,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -63,34 +63,17 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain
 import Data.Handle (Handle, parseHandle)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import Data.Swagger
-  ( HasInfo (info),
-    HasProperties (properties),
-    HasRequired (required),
-    HasSchema (..),
-    HasTitle (title),
-    NamedSchema (..),
-    Swagger,
-    SwaggerType (SwaggerObject),
-    ToSchema (..),
-    declareSchemaRef,
-    description,
-    type_,
-  )
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
-import GHC.TypeLits (KnownNat, KnownSymbol, Nat, Symbol, symbolVal)
-import GHC.TypeNats (natVal)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -101,14 +84,15 @@ import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.API.Generic (ToServantApi, (:-))
 import qualified Servant
-import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.Server.Generic (genericServerT)
+import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
+import qualified Wire.API.Public.Brig as BrigAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.User as Public
@@ -121,42 +105,42 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
-import qualified Wire.API.Public.Brig as API
 
 -- User API -----------------------------------------------------------
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type ServantAPI = API.OutsideWorldAPI
+type ServantAPI = BrigAPI.ServantAPI
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
+swaggerDocsAPI = swaggerSchemaUIServer BrigAPI.swagger
 
 servantSitemap :: ServerT ServantAPI Handler
-servantSitemap = API.Api
-  { 
-    checkUserExistsUnqualified = checkUserExistsUnqualifiedH,
-    checkUserExistsQualified = checkUserExistsH,
-    getUserUnqualified = getUserUnqualifiedH,
-    getUserQualified = getUserH,
-    getSelf = getSelf,
-    getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
-    getUserByHandleQualfied = getUserByHandleH,
-    listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
-    listUsersByIdsOrHandles = listUsersByIdsOrHandles,
-    getUserClientsUnqualified = getUserClientsUnqualified,
-    getUserClientsQualified = getUserClientsQualified,
-    getUserClientUnqualified = getUserClientUnqualified,
-    getUserClientQualified = getUserClientQualified,
-    listClientsBulk = listClientsBulk,
-    listClientsBulkV2 = listClientsBulkV2,
-    getUsersPrekeysClientUnqualified = getPrekeyUnqualifiedH,
-    getUsersPrekeysClientQualified = getPrekeyH,
-    getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
-    getUsersPrekeyBundleQualified = getPrekeyBundleH,
-    getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
-    getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH
-  }
+servantSitemap =
+  genericServerT $
+    BrigAPI.Api
+      { BrigAPI.checkUserExistsUnqualified = checkUserExistsUnqualifiedH,
+        BrigAPI.checkUserExistsQualified = checkUserExistsH,
+        BrigAPI.getUserUnqualified = getUserUnqualifiedH,
+        BrigAPI.getUserQualified = getUserH,
+        BrigAPI.getSelf = getSelf,
+        BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
+        BrigAPI.getUserByHandleQualfied = getUserByHandleH,
+        BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
+        BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
+        BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
+        BrigAPI.getUserClientsQualified = getUserClientsQualified,
+        BrigAPI.getUserClientUnqualified = getUserClientUnqualified,
+        BrigAPI.getUserClientQualified = getUserClientQualified,
+        BrigAPI.listClientsBulk = listClientsBulk,
+        BrigAPI.listClientsBulkV2 = listClientsBulkV2,
+        BrigAPI.getUsersPrekeysClientUnqualified = getPrekeyUnqualifiedH,
+        BrigAPI.getUsersPrekeysClientQualified = getPrekeyH,
+        BrigAPI.getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
+        BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
+        BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
+        BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH
+      }
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -254,7 +238,9 @@ sitemap o = do
     Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
     Doc.errorResponse userKeyExists
 
-  head "/self/password" (continue checkPasswordExistsH) $
+  head
+    "/self/password"
+    (continue checkPasswordExistsH)
     zauthUserId
   document "HEAD" "checkPassword" $ do
     Doc.summary "Check that your password is set"
@@ -723,7 +709,7 @@ sitemap o = do
   Calling.routesPublic
 
 apiDocs :: Opts -> Routes Doc.ApiBuilder Handler ()
-apiDocs o = do
+apiDocs o =
   get
     "/users/api-docs"
     ( \(_ ::: url) k ->
@@ -743,7 +729,7 @@ setPropertyH (u ::: c ::: k ::: req) = do
   empty <$ setProperty u c propkey propval
 
 setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> Handler ()
-setProperty u c propkey propval = do
+setProperty u c propkey propval =
   API.setProperty u c propkey propval !>> propDataError
 
 safeParsePropertyKey :: Public.PropertyKey -> Handler Public.PropertyKey
@@ -845,7 +831,7 @@ rmClientH (req ::: usr ::: con ::: clt ::: _) = do
   empty <$ rmClient body usr con clt
 
 rmClient :: Public.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
-rmClient body usr con clt = do
+rmClient body usr con clt =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
 updateClientH :: JsonRequest Public.UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
@@ -854,7 +840,7 @@ updateClientH (req ::: usr ::: clt ::: _) = do
   empty <$ updateClient body usr clt
 
 updateClient :: Public.UpdateClient -> UserId -> ClientId -> Handler ()
-updateClient body usr clt = do
+updateClient body usr clt =
   API.updateClient usr clt body !>> clientError
 
 listClientsH :: UserId ::: JSON -> Handler Response
@@ -878,7 +864,7 @@ getUserClientsUnqualified uid = do
   API.pubClient <$$> API.lookupClients (Qualified uid localdomain) !>> clientError
 
 getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
-getUserClientsQualified domain uid = do
+getUserClientsQualified domain uid =
   API.pubClient <$$> API.lookupClients (Qualified uid domain) !>> clientError
 
 getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
@@ -887,11 +873,11 @@ getUserClientUnqualified uid cid = do
   x <- API.pubClient <$$> API.lookupClient (Qualified uid localdomain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
-listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
-listClientsBulk _zusr limitedUids = do
+listClientsBulk :: UserId -> Range 1 BrigAPI.MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk _zusr limitedUids =
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
-listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
 getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
@@ -905,7 +891,7 @@ getClient zusr clientId = do
   API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
-getRichInfoH (self ::: user ::: _) = do
+getRichInfoH (self ::: user ::: _) =
   json <$> getRichInfo self user
 
 getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
@@ -1000,24 +986,24 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
 checkUserExistsUnqualifiedH self uid = do
   domain <- viewFederationDomain
   checkUserExistsH self domain uid
 
-checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
 checkUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists
-    then Servant.respond Empty200
-    else Servant.respond Empty404
+    then Servant.respond BrigAPI.Empty200
+    else Servant.respond BrigAPI.Empty404
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
   isJust <$> getUser self qualifiedUserId
 
 getSelf :: UserId -> Handler Public.SelfProfile
-getSelf self = do
+getSelf self =
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
 getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
@@ -1092,7 +1078,7 @@ updateUserH (uid ::: conn ::: req) = do
   return empty
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
-changePhoneH (u ::: c ::: req) = do
+changePhoneH (u ::: c ::: req) =
   setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
 
 changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler ()
@@ -1132,7 +1118,7 @@ changeLocaleH (u ::: conn ::: req) = do
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
 checkHandleH :: UserId ::: Text -> Handler Response
-checkHandleH (_uid ::: hndl) = do
+checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
     API.CheckHandleInvalid -> throwE (StdError invalidHandle)
     API.CheckHandleFound -> pure $ setStatus status200 empty
@@ -1161,7 +1147,7 @@ getUserByHandleH self domain handle = do
     Just u -> pure u
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
-changeHandleH (u ::: conn ::: req) = do
+changeHandleH (u ::: conn ::: req) =
   empty <$ (changeHandle u conn =<< parseJsonBody req)
 
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
@@ -1171,7 +1157,7 @@ changeHandle u conn (Public.HandleUpdate h) = do
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
-beginPasswordResetH (_ ::: req) = do
+beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset :: Public.NewPasswordReset -> Handler ()
@@ -1190,7 +1176,7 @@ completePasswordResetH (_ ::: req) = do
   return empty
 
 sendActivationCodeH :: JsonRequest Public.SendActivationCode -> Handler Response
-sendActivationCodeH req = do
+sendActivationCodeH req =
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -1213,7 +1199,7 @@ customerExtensionCheckBlockedDomains email = do
       Left _ ->
         pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
       Right domain ->
-        when (domain `elem` blockedDomains) $ do
+        when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
@@ -1295,7 +1281,7 @@ activate :: Public.Activate -> Handler ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
     API.preverify tgt code !>> actError
-    return $ ActivationRespDryRun
+    return ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
     return $ case result of

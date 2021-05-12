@@ -25,7 +25,6 @@ where
 
 import Brig.API.Error (fedError)
 import Brig.API.Handler
-import Brig.API.Util (ZAuthServant)
 import Brig.App
 import qualified Brig.Data.User as DB
 import qualified Brig.Federation.Client as Federation
@@ -60,6 +59,7 @@ import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Federation.API.Brig as FedBrig
+import Wire.API.Public.Brig (ZAuthServant)
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import qualified Wire.API.User.Search as Public

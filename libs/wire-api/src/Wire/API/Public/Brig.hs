@@ -19,67 +19,27 @@
 
 module Wire.API.Public.Brig where
 
-import Control.Lens ( (<>~), (?~) )
-import Data.Aeson ( ToJSON(toJSON) )
-import Data.CommaSeparatedList ( CommaSeparatedList )
-import Data.Domain ( Domain )
-import Data.Handle ( Handle )
+import Control.Lens ((<>~), (?~))
+import Data.Aeson hiding (json)
+import Data.CommaSeparatedList (CommaSeparatedList)
+import Data.Domain
+import Data.Handle
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-    ( singleton )
-import Data.Id as Id ( ClientId, UserId )
-import Data.Proxy ( Proxy(Proxy) )
-import Data.Qualified ( Qualified )
-import Data.Range ( Range )
+import Data.Id as Id
+import Data.Qualified (Qualified (..))
+import Data.Range
 import Data.Swagger
-import Imports
-    ( ($), Generic, Maybe(Just), (.), Set, Text, (<&>), (&) )
-import Servant.API
-    ( type (:>),
-      HasStatus,
-      Summary,
-      UVerb,
-      JSON,
-      Capture,
-      Get,
-      Capture',
-      Description,
-      QueryParam',
-      Optional,
-      Strict,
-      ReqBody,
-      Post,
-      Header',
-      Required,
-      WithStatus,
-      StdMethod(HEAD) )
-import Servant.API.Generic ((:-), ToServantApi)
-import Servant.Swagger ( HasSwagger(..) )
-import Servant.Swagger.Internal
+import Imports hiding (head)
+import Servant (JSON)
+import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant.API.Generic
+import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Servant.Server
-    ( HasContextEntry,
-      type (.++),
-      DefaultErrorFormatters,
-      ErrorFormatters,
-      HasServer(..) )
 import Wire.API.User
-    ( LimitedQualifiedUserIdList,
-      ListUsersQuery,
-      SelfProfile,
-      UserProfile )
-import Wire.API.User.Activation ()
-import Wire.API.User.Auth ()
 import Wire.API.User.Client
-    ( PubClient,
-      QualifiedUserClientMap,
-      QualifiedUserClients,
-      UserClientMap,
-      UserClients )
 import Wire.API.User.Client.Prekey
-    ( ClientPrekey, Prekey, PrekeyBundle )
-import Wire.API.User.Handle ( UserHandleInfo )
+import Wire.API.User.Handle
 import Wire.API.UserMap
-    ( QualifiedUserMap, WrappedQualifiedUserMap )
 
 -- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
@@ -113,7 +73,6 @@ instance
   hoistServerWithContext _ pc nt s =
     hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
-
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
@@ -144,8 +103,7 @@ instance ToSchema Empty404 where
     declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
 
 data Api routes = Api
-  { 
-    -- Note [document responses]
+  { -- Note [document responses]
     --
     -- Ideally we want to document responses with UVerb and swagger, but this is
     -- currently not possible due to this issue:
@@ -164,7 +122,6 @@ data Api routes = Api
         :> "users"
         :> CaptureUserId "uid"
         :> UVerb 'HEAD '[JSON] CheckUserExistsResponse,
-
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -179,7 +136,6 @@ data Api routes = Api
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
         :> UVerb 'HEAD '[JSON] CheckUserExistsResponse,
-
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -193,7 +149,6 @@ data Api routes = Api
         :> "users"
         :> CaptureUserId "uid"
         :> Get '[JSON] UserProfile,
-
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -208,14 +163,12 @@ data Api routes = Api
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
         :> Get '[JSON] UserProfile,
-
     getSelf ::
       routes
         :- Summary "Get your own profile"
         :> ZAuthServant
         :> "self"
         :> Get '[JSON] SelfProfile,
-
     -- See Note [document responses]
     -- The responses looked like this:
     --   Doc.returns (Doc.ref modelUserHandleInfo)
@@ -229,7 +182,6 @@ data Api routes = Api
         :> "handles"
         :> Capture' '[Description "The user handle"] "handle" Handle
         :> Get '[JSON] UserHandleInfo,
-
     -- See Note [document responses]
     -- The responses looked like this:
     --   Doc.returns (Doc.ref modelUserHandleInfo)
@@ -244,7 +196,6 @@ data Api routes = Api
         :> Capture "domain" Domain
         :> Capture' '[Description "The user handle"] "handle" Handle
         :> Get '[JSON] UserProfile,
-
     -- See Note [ephemeral user sideeffect]
     listUsersByUnqualifiedIdsOrHandles ::
       routes
@@ -255,7 +206,6 @@ data Api routes = Api
         :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
         :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
         :> Get '[JSON] [UserProfile],
-
     -- See Note [ephemeral user sideeffect]
     listUsersByIdsOrHandles ::
       routes
@@ -265,7 +215,6 @@ data Api routes = Api
         :> "list-users"
         :> ReqBody '[JSON] ListUsersQuery
         :> Post '[JSON] [UserProfile],
-
     getUserClientsUnqualified ::
       routes
         :- Summary "Get all of a user's clients (deprecated)."
@@ -273,7 +222,6 @@ data Api routes = Api
         :> CaptureUserId "uid"
         :> "clients"
         :> Get '[JSON] [PubClient],
-
     getUserClientsQualified ::
       routes
         :- Summary "Get all of a user's clients."
@@ -282,7 +230,6 @@ data Api routes = Api
         :> CaptureUserId "uid"
         :> "clients"
         :> Get '[JSON] [PubClient],
-
     getUserClientUnqualified ::
       routes
         :- Summary "Get a specific client of a user (deprecated)."
@@ -291,7 +238,6 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> Get '[JSON] PubClient,
-
     getUserClientQualified ::
       routes
         :- Summary "Get a specific client of a user."
@@ -301,7 +247,6 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> Get '[JSON] PubClient,
-
     listClientsBulk ::
       routes
         :- Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
@@ -310,7 +255,6 @@ data Api routes = Api
         :> "list-clients"
         :> ReqBody '[JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
         :> Post '[JSON] (QualifiedUserMap (Set PubClient)),
-
     listClientsBulkV2 ::
       routes
         :- Summary "List all clients for a set of user ids"
@@ -320,7 +264,6 @@ data Api routes = Api
         :> "v2"
         :> ReqBody '[JSON] (LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
         :> Post '[JSON] (WrappedQualifiedUserMap (Set PubClient)),
-
     getUsersPrekeysClientUnqualified ::
       routes
         :- Summary "(deprecated) Get a prekey for a specific client of a user."
@@ -329,7 +272,6 @@ data Api routes = Api
         :> "prekeys"
         :> CaptureClientId "client"
         :> Get '[JSON] ClientPrekey,
-
     getUsersPrekeysClientQualified ::
       routes
         :- Summary "Get a prekey for a specific client of a user."
@@ -339,7 +281,6 @@ data Api routes = Api
         :> "prekeys"
         :> CaptureClientId "client"
         :> Get '[JSON] ClientPrekey,
-
     getUsersPrekeyBundleUnqualified ::
       routes
         :- Summary "(deprecated) Get a prekey for each client of a user."
@@ -347,7 +288,6 @@ data Api routes = Api
         :> CaptureUserId "uid"
         :> "prekeys"
         :> Get '[JSON] PrekeyBundle,
-
     getUsersPrekeyBundleQualified ::
       routes
         :- Summary "Get a prekey for each client of a user."
@@ -356,31 +296,30 @@ data Api routes = Api
         :> CaptureUserId "uid"
         :> "prekeys"
         :> Get '[JSON] PrekeyBundle,
-
     getMultiUserPrekeyBundleUnqualified ::
       routes
         :- Summary
-          "(deprecated)  Given a map of user IDs to client IDs return a \
-          \prekey for each one. You can't request information for more users than \
-          \maximum conversation size."
+             "(deprecated)  Given a map of user IDs to client IDs return a \
+             \prekey for each one. You can't request information for more users than \
+             \maximum conversation size."
         :> "users"
         :> "prekeys"
         :> ReqBody '[JSON] UserClients
         :> Post '[JSON] (UserClientMap (Maybe Prekey)),
-
     getMultiUserPrekeyBundleQualified ::
       routes
         :- Summary
-          "Given a map of domain to (map of user IDs to client IDs) return a \
-          \prekey for each one. You can't request information for more users than \
-          \maximum conversation size."
+             "Given a map of domain to (map of user IDs to client IDs) return a \
+             \prekey for each one. You can't request information for more users than \
+             \maximum conversation size."
         :> "users"
         :> "list-prekeys"
         :> ReqBody '[JSON] QualifiedUserClients
         :> Post '[JSON] (QualifiedUserClientMap (Maybe Prekey))
   }
+  deriving (Generic)
 
-type OutsideWorldAPI = ToServantApi Api
+type ServantAPI = ToServantApi Api
 
 swagger :: Swagger
-swagger = toSwagger (Proxy @OutsideWorldAPI)
+swagger = toSwagger (Proxy @ServantAPI)
