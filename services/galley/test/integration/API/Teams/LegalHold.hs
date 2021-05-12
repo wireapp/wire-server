@@ -173,6 +173,7 @@ testRequestLegalHoldDevice = do
           "requestLegalHoldDevice when already pending should leave status as Pending"
           UserLegalHoldPending
           userStatus
+
     cassState <- view tsCass
     liftIO $ do
       storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
@@ -594,6 +595,7 @@ testGetTeamMembersIncludesLHStatus = do
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
+
   let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
       findMemberStatus ms =
         ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
