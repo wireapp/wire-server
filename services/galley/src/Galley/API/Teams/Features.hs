@@ -195,6 +195,10 @@ getLegalholdStatusInternal tid = do
       pure (fromMaybe defaultStatus status)
     FeatureLegalHoldDisabledPermanently -> do
       pure (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+      view (options . optSettings . to (`teamWhitelistedForLHAndImplicitConsent` tid)) <&> \case
+        True -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
+        False -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
@@ -205,6 +209,8 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
         pure ()
       FeatureLegalHoldDisabledPermanently -> do
         throwM legalHoldFeatureFlagNotEnabled
+      FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+        throwM legalHoldWhitelistedOnly
   case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
     -- FUTUREWORK: We cannot enable legalhold on large teams right now

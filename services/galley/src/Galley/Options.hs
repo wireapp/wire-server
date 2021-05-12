@@ -163,3 +163,6 @@ validateOpts logger opts = do
     err
       "If settings.setLegalHoldTeamsWhitelist is provided, settings.featureFlags.flagLegalHold \
       \must be FeatureLegalHoldWhitelistTeamsAndImplicitConsent."
+
+teamWhitelistedForLHAndImplicitConsent :: Settings -> TeamId -> Bool
+teamWhitelistedForLHAndImplicitConsent settings tid = maybe False (tid `elem`) $ settings ^. setLegalHoldTeamsWhitelist
