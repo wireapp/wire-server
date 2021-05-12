@@ -462,8 +462,7 @@ createTeamMember brigreq galleyreq teamid perms = do
     postUser name False (Just ssoid) (Just teamid) brigreq
       <!! const 201 === statusCode
   let nobody :: UserId = Brig.userId (responseJsonUnsafe @Brig.User resp)
-      tmem :: Galley.TeamMember = Galley.newTeamMember nobody perms Nothing
-  addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
+  addTeamMember galleyreq teamid (Galley.newNewTeamMember nobody perms Nothing)
   pure nobody
 
 -- | FUTUREWORK(fisx): use the specified & supported flows for scaffolding; this is a hack
@@ -590,7 +589,7 @@ promoteTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestSpar ()
 promoteTeamMember usr tid memid = do
   gly <- view teGalley
   let bdy :: Galley.NewTeamMember
-      bdy = Galley.newNewTeamMember $ Galley.newTeamMember memid Galley.fullPermissions Nothing
+      bdy = Galley.newNewTeamMember memid Galley.fullPermissions Nothing
   call $
     put (gly . paths ["teams", toByteString' tid, "members"] . zAuthAccess usr "conn" . json bdy)
       !!! const 200 === statusCode
