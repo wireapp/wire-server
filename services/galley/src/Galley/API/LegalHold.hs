@@ -25,7 +25,7 @@ module Galley.API.LegalHold
     requestDeviceH,
     approveDeviceH,
     disableForUserH,
-    isLegalHoldEnabled,
+    isLegalHoldEnabledForTeam,
   )
 where
 
@@ -58,11 +58,11 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 
-assertLegalHoldEnabled :: TeamId -> Galley ()
-assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
+assertLegalHoldEnabledForTeam :: TeamId -> Galley ()
+assertLegalHoldEnabledForTeam tid = unlessM (isLegalHoldEnabledForTeam tid) $ throwM legalHoldNotEnabled
 
-isLegalHoldEnabled :: TeamId -> Galley Bool
-isLegalHoldEnabled tid = do
+isLegalHoldEnabledForTeam :: TeamId -> Galley Bool
+isLegalHoldEnabledForTeam tid = do
   view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> do
       pure False
@@ -83,7 +83,7 @@ createSettingsH (zusr ::: tid ::: req ::: _) = do
 
 createSettings :: UserId -> TeamId -> Public.NewLegalHoldService -> Galley Public.ViewLegalHoldService
 createSettings zusr tid newService = do
-  assertLegalHoldEnabled tid
+  assertLegalHoldEnabledForTeam tid
   zusrMembership <- Data.teamMember tid zusr
   -- let zothers = map (view userId) membs
   -- Log.debug $
@@ -106,7 +106,7 @@ getSettings :: UserId -> TeamId -> Galley Public.ViewLegalHoldService
 getSettings zusr tid = do
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck (ViewTeamFeature Public.TeamFeatureLegalHold) zusrMembership
-  isenabled <- isLegalHoldEnabled tid
+  isenabled <- isLegalHoldEnabledForTeam tid
   mresult <- LegalHoldData.getSettings tid
   pure $ case (isenabled, mresult) of
     (False, _) -> Public.ViewLegalHoldServiceDisabled
@@ -121,7 +121,7 @@ removeSettingsH (zusr ::: tid ::: req ::: _) = do
 
 removeSettings :: UserId -> TeamId -> Public.RemoveLegalHoldSettingsRequest -> Galley ()
 removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
-  assertLegalHoldEnabled tid
+  assertLegalHoldEnabledForTeam tid
   zusrMembership <- Data.teamMember tid zusr
   -- let zothers = map (view userId) membs
   -- Log.debug $
@@ -226,7 +226,7 @@ data RequestDeviceResult
 
 requestDevice :: UserId -> TeamId -> UserId -> Galley RequestDeviceResult
 requestDevice zusr tid uid = do
-  assertLegalHoldEnabled tid
+  assertLegalHoldEnabledForTeam tid
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.requestDevice")
@@ -277,7 +277,7 @@ approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
 
 approveDevice :: UserId -> TeamId -> UserId -> ConnId -> Public.ApproveLegalHoldForUserRequest -> Galley ()
 approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPassword) = do
-  assertLegalHoldEnabled tid
+  assertLegalHoldEnabledForTeam tid
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.approveDevice")

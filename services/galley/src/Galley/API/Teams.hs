@@ -861,7 +861,7 @@ ensureNotTooLargeForLegalHold :: TeamId -> TeamMemberList -> Galley ()
 ensureNotTooLargeForLegalHold tid mems = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   when (length (mems ^. teamMembers) >= limit) $ do
-    lhEnabled <- isLegalHoldEnabled tid
+    lhEnabled <- isLegalHoldEnabledForTeam tid
     when lhEnabled $
       throwM tooManyTeamMembersOnTeamWithLegalhold
 
@@ -954,7 +954,7 @@ canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 -- This could be extended for more checks, for now we test only legalhold
 canUserJoinTeam :: TeamId -> Galley ()
 canUserJoinTeam tid = do
-  lhEnabled <- isLegalHoldEnabled tid
+  lhEnabled <- isLegalHoldEnabledForTeam tid
   when (lhEnabled) $
     checkTeamSize
   where
