@@ -825,6 +825,7 @@ withDummyTestServiceForTeam owner tid go = do
       putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
       postSettings owner tid newService !!! testResponse 201 Nothing
       go chan
+
     dummyService :: Chan (Wai.Request, LBS) -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     dummyService ch req cont = do
       reqBody <- Wai.strictRequestBody req
@@ -837,16 +838,21 @@ withDummyTestServiceForTeam owner tid go = do
           cont respondOk
         (["legalhold", "remove"], "POST", Just _) -> cont respondOk
         _ -> cont respondBad
+
     initiateResp :: Wai.Response
     initiateResp =
       Wai.json $
         NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
+
     respondOk :: Wai.Response
     respondOk = responseLBS status200 mempty mempty
+
     respondBad :: Wai.Response
     respondBad = responseLBS status404 mempty mempty
+
     missingAuth :: Wai.Response
     missingAuth = responseLBS status400 mempty "no authorization header"
+
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name req = lookup (fromString name) $ requestHeaders req
 
