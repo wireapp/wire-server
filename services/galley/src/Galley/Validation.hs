@@ -52,7 +52,7 @@ rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 newtype ConvSizeChecked a = ConvSizeChecked {fromConvSize :: a}
 
 -- Between 1 and setMaxConvSize
-data ConvMemberAddSizeChecked = ConvMemberAddSizeChecked {sizeCheckedLocals :: [(UserId, RoleName)], sizeCheckedRemotes :: [Remote UserId]}
+data ConvMemberAddSizeChecked = ConvMemberAddSizeChecked {sizeCheckedLocals :: [(UserId, RoleName)], sizeCheckedRemotes :: [(Remote UserId, RoleName)]}
 
 checkedConvSize :: Bounds a => a -> Galley (ConvSizeChecked a)
 checkedConvSize x = do
@@ -63,7 +63,7 @@ checkedConvSize x = do
     then return (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
-checkedMemberAddSize :: [(UserId, RoleName)] -> [Remote UserId] -> Galley ConvMemberAddSizeChecked
+checkedMemberAddSize :: [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Galley ConvMemberAddSizeChecked
 checkedMemberAddSize [] [] = throwErr "List of members (local or remote) to be added must be of at least size 1"
 checkedMemberAddSize locals remotes = do
   o <- view options

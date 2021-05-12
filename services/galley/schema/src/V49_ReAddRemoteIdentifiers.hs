@@ -56,6 +56,7 @@ migration = Migration 49 "Add tables for remote users in local conversations or 
         conv uuid,
         user_remote_domain text,
         user_remote_id uuid,
+        conversation_role text,
         PRIMARY KEY (conv, user_remote_domain, user_remote_id)
       ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
     |]

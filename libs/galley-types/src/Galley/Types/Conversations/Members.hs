@@ -33,8 +33,9 @@ import Wire.API.Provider.Service (ServiceRef)
 
 type LocalMember = InternalMember Id.UserId
 
-newtype RemoteMember = RemoteMember
-  { rmId :: Remote UserId
+data RemoteMember = RemoteMember
+  { rmId :: Remote UserId,
+    rmConvRoleName :: RoleName
   }
   deriving stock (Show)
 

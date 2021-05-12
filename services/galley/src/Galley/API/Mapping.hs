@@ -30,7 +30,6 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Types (convId)
 import qualified Galley.Types.Conversations.Members as Internal
-import Galley.Types.Conversations.Roles (roleNameWireMember)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -79,9 +78,7 @@ conversationViewMaybe u Data.Conversation {..} = do
       Public.OtherMember
         { Public.omQualifiedId = unTagged (Internal.rmId x),
           Public.omService = Nothing,
-          -- FUTUREWORK(federation): support conversation roles for remote members
-          -- Currently assume them to be WireMember always
-          Public.omConvRoleName = roleNameWireMember
+          Public.omConvRoleName = Internal.rmConvRoleName x
         }
 
 toMember :: Internal.LocalMember -> Public.Member

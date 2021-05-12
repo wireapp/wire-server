@@ -878,7 +878,7 @@ testAddRemoteMember = do
   liftIO $ do
     evtConv e @?= convId
     evtType e @?= MemberJoin
-    -- TODO: implement returning remote users in the event.
+    -- FUTUREWORK: implement returning remote users in the event.
     -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
     evtFrom e @?= alice
   conv <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
