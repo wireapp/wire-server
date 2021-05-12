@@ -807,7 +807,7 @@ readServiceKey fp = liftIO $ do
   return (ServiceKeyPEM k)
 
 -- FUTUREWORK: run this test suite against an actual LH service (by changing URL and key in
--- the config file), and see if it works as well as with out mock service.
+-- the config file), and see if it works as well as with our mock service.
 withDummyTestServiceForTeam ::
   forall a.
   HasCallStack =>
