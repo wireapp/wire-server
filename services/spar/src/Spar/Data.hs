@@ -319,10 +319,13 @@ deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity 
     del :: PrepQuery W (Identity SAML.Issuer) ()
     del = "DELETE FROM user_v2 WHERE issuer = ?"
 
-deleteSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-deleteSAMLUser uref = do
-  deleteSAMLUserLegacy uref
-  deleteSAMLUserNew uref
+deleteSAMLUser :: (HasCallStack, MonadClient m) => UserId -> SAML.UserRef -> m ()
+deleteSAMLUser uid uref = do
+  muidUref <- getSAMLUser uref
+  for_ muidUref $ \uidUref ->
+    when (uidUref == uid) $ do
+      deleteSAMLUserLegacy uref
+      deleteSAMLUserNew uref
   where
     deleteSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
     deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, normalizeQualifiedNameId subject)

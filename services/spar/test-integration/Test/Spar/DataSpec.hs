@@ -132,7 +132,7 @@ spec = do
             muid <- runSparCass (Data.getSAMLUser uref)
             liftIO $ muid `shouldBe` Just uid
           do
-            () <- runSparCass $ Data.deleteSAMLUser uref
+            () <- runSparCass $ Data.deleteSAMLUser uid uref
             muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isNothing
             liftIO $ muid `shouldBe` Nothing
     describe "BindCookie" $ do
