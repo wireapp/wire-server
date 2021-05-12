@@ -180,7 +180,7 @@ codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
 
 cannotEnableLegalHoldServiceLargeTeam :: Error
-cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for.)"
+cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members.)"
 
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
