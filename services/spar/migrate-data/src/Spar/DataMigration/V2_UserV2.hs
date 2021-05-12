@@ -14,9 +14,12 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deferred-type-errors #-}
+
 module Spar.DataMigration.V2_UserV2 where
 
 import Cassandra
+import qualified Conduit as C
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as CL
@@ -28,7 +31,7 @@ import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances ()
 import Spar.DataMigration.Types (logger)
 import Spar.DataMigration.Types hiding (logger)
-import Spar.Types (NormalizedUNameID, normalizeQualifiedNameId, unNormalizedUNameID)
+import Spar.Types (NormalizedUNameID (unNormalizedUNameID), normalizeQualifiedNameId)
 import qualified System.Logger as Log
 
 migration :: Migration
@@ -39,97 +42,132 @@ migration =
       action = migrationAction
     }
 
-type DebugMap = Map (SAML.Issuer, NormalizedUNameID) [(SAML.NameID, UserId)]
+-- row in spar.user
+-- primary key are the first two entries
+type OldRow = (SAML.Issuer, CqlSafe SAML.NameID, UserId)
 
-data OwnEnv = OwnEnv
-  { migEnv :: Env,
-    debugMap :: IORef DebugMap
-  }
+-- row in spar.user_v2
+-- primary key are the first two entries
+type NewRow = (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId)
 
-type EnvIO = ReaderT OwnEnv IO
+-- Roughly equivalent to a mapping NewRow->[OldRow]. If there are multiple
+-- entries per key this means there is a collision of tow old rows to a new row
+type MigrationMapInverse = Map (SAML.Issuer, NormalizedUNameID) [(SAML.NameID, UserId)]
+
+type EnvIO = ReaderT Env IO
+
+-- Resolve collisions in MigrationMapInverse
+-- Left =~ collision could not be resolved
+-- Right =~ collision could be resolved to 1 "winner"
+type CollisionResolver =
+  (SAML.Issuer, NormalizedUNameID) ->
+  [(SAML.NameID, UserId)] ->
+  EnvIO (Either [(SAML.NameID, UserId)] (SAML.NameID, UserId))
+
+-- | Use this if you want to paginate without crashing
+newtype CqlSafe a = CqlSafe {unCqlSafe :: Either String a}
+
+instance Cql a => Cql (CqlSafe a) where
+  ctype = Tagged $ untag (ctype @a)
+  toCql _ = error "CqlSafe is not meant for serialization"
+  fromCql val =
+    case fromCql @a val of
+      Left err -> Right $ CqlSafe (Left err)
+      Right x -> Right $ CqlSafe (Right x)
 
 logInfo :: String -> EnvIO ()
 logInfo msg = do
-  logger_ <- asks (logger . migEnv)
+  logger_ <- asks logger
   Log.info logger_ (Log.msg msg)
 
 runSpar :: Client a -> EnvIO a
 runSpar cl = do
-  cass <- asks (sparCassandra . migEnv)
+  cass <- asks sparCassandra
   runClient cass cl
 
 migrationAction :: Env -> IO ()
-migrationAction env = do
-  let action = case dryRun env of
-        DryRun -> runFindCollisions
-        NoDryRun -> performMigration
-  dbgInput <- newIORef Map.empty
-  runReaderT action (OwnEnv env dbgInput)
+migrationAction env =
+  flip runReaderT env $
+    case dryRun env of
+      DryRun -> performDryRun
+      NoDryRun -> logInfo "TODO: perform real migration here"
 
-performMigration :: EnvIO ()
-performMigration = do
-  runConduit $
-    zipSources
-      (CL.sourceList [(1 :: Int32) ..])
-      readLegacyEntries
-      .| migratePage
-
-migratePage :: ConduitM (Int32, [(SAML.Issuer, SAML.NameID, UserId)]) Void EnvIO ()
-migratePage = go
+insertNewRow :: NewRow -> EnvIO ()
+insertNewRow newRow = do
+  runSpar $ write insert (params Quorum newRow)
   where
-    go :: ConduitM (Int32, [(SAML.Issuer, SAML.NameID, UserId)]) Void EnvIO ()
-    go = do
-      mbPage <- await
-      for_ mbPage $ \(page, rows) -> lift $ do
-        logInfo $ "page " <> show page
-        for_ rows $ \tpl ->
-          runSpar $ write insert (params Quorum (migrate tpl))
-
-    insert :: PrepQuery W (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId) ()
+    insert :: PrepQuery W NewRow ()
     insert = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
 
-migrate :: (SAML.Issuer, SAML.NameID, UserId) -> (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId)
-migrate (issuer, nid, uid) = (issuer, normalizeQualifiedNameId nid, nid, uid)
+migrate :: OldRow -> Either String NewRow
+migrate (issuer, nidSafe, uid) =
+  unCqlSafe nidSafe <&> \nid -> (issuer, normalizeQualifiedNameId nid, nid, uid)
 
-readLegacyEntries :: ConduitM () [(SAML.Issuer, SAML.NameID, UserId)] EnvIO ()
+readLegacyEntries :: ConduitM () [OldRow] EnvIO ()
 readLegacyEntries = do
-  pSize <- lift $ asks (pageSize . migEnv)
+  pSize <- lift $ asks pageSize
   transPipe runSpar $
     paginateC select (paramsP Quorum () pSize) x5
   where
-    select :: PrepQuery R () (SAML.Issuer, SAML.NameID, UserId)
+    select :: PrepQuery R () OldRow
     select = "SELECT issuer, sso_id, uid FROM user"
 
-runFindCollisions :: EnvIO ()
-runFindCollisions = do
+collectMapping :: EnvIO MigrationMapInverse
+collectMapping = do
+  migMapInv <- liftIO (newIORef Map.empty)
   runConduit $
     zipSources
       (CL.sourceList [(1 :: Int32) ..])
       readLegacyEntries
-      .| collectDebugMap
-  findCollisions =<< (readIORef =<< asks debugMap)
-
-collectDebugMap :: ConduitM (Int32, [(SAML.Issuer, SAML.NameID, UserId)]) Void EnvIO ()
-collectDebugMap = go
+      .| C.mapM_C (collect migMapInv)
+  liftIO $ readIORef migMapInv
   where
-    go :: ConduitM (Int32, [(SAML.Issuer, SAML.NameID, UserId)]) Void EnvIO ()
-    go = do
-      dbgMap_ <- asks debugMap
-      mbPage <- await
-      for_ mbPage $ \(page, rows) -> lift $ do
-        logInfo $ "page " <> show page
-        for_ rows $ \tpl -> do
-          let (issuer, normNid, nid, uid) = migrate tpl
-          modifyIORef dbgMap_ (Map.insertWith (<>) (issuer, normNid) [(nid, uid)])
+    collect :: IORef MigrationMapInverse -> (Int32, [OldRow]) -> EnvIO ()
+    collect migMapInv (page, rows) = do
+      logInfo $ "page " <> show page
+      for_ rows $ \tpl@(_, _, uid) -> do
+        case migrate tpl of
+          Left err -> do
+            logInfo $ "Failed to parse row for user " <> show uid <> " with error " <> err
+          Right (issuer, normNid, nid, uid') ->
+            modifyIORef migMapInv (Map.insertWith (<>) (issuer, normNid) [(nid, uid')])
 
-findCollisions :: DebugMap -> EnvIO ()
-findCollisions debugMap = do
-  logInfo "Looking for collisions..."
-  for_ (Map.toList debugMap) $ \((issuer, normId), matches) ->
-    when (length matches > 1) $ do
-      let matches' = nubBy (\(_nid1, uid1) (_nid2, uid2) -> uid1 == uid2) matches
-      when (length matches' > 1) $ do
-        logInfo (unlines ["Collisions found for", show issuer, cs . unNormalizedUNameID $ normId])
-        for_ matches' $ \(nid, uid) ->
-          logInfo $ unwords [show uid, show nid]
-  logInfo "...done"
+filterResolved :: CollisionResolver -> MigrationMapInverse -> ConduitM () NewRow EnvIO ()
+filterResolved resolver migMapInv =
+  C.yieldMany (Map.assocs migMapInv) .| go
+  where
+    go :: ConduitM ((SAML.Issuer, NormalizedUNameID), [(SAML.NameID, UserId)]) NewRow EnvIO ()
+    go = do
+      mbAssoc <- await
+      for_ mbAssoc $ \(new@(issuer, nid), olds) -> do
+        lift (resolver new olds) >>= \case
+          Left olds' ->
+            lift $ logInfo $ unwords ["Couldnt resolve collisision of", show issuer, cs (unNormalizedUNameID nid), show (fmap snd olds')]
+          Right (nameId, uid) -> yield (issuer, nid, nameId, uid)
+        go
+
+-- for debugging only
+nothingResolver :: CollisionResolver
+nothingResolver _ [old] = pure (Right old)
+nothingResolver _ olds = pure (Left olds)
+
+activatedResolver :: CollisionResolver
+activatedResolver _ [] = pure (Left [])
+activatedResolver _ [x] = pure (Right x)
+activatedResolver _ olds = do
+  olds' <- filterM isActivated olds
+  case olds' of
+    [old] -> pure (Right old)
+    _ -> pure (Left olds')
+  where
+    isActivated (_, _uid) = error "TODO: ask brig's DB if user is acitvated"
+
+performDryRun :: EnvIO ()
+performDryRun = do
+  migMapInv <- collectMapping
+  runConduit $
+    filterResolved nothingResolver migMapInv
+      .| C.sinkNull
+
+performMigration :: EnvIO ()
+performMigration = error "TODO"
