@@ -144,20 +144,6 @@ data ServiceKeyType
 instance ToSchema ServiceKeyType where
   schema =
     enum @Text "ServiceKeyType" (element "rsa" RsaServiceKey)
-      & S.schema . S.example ?~ pem
-    where
-      pem =
-        A.String . Text.unlines $
-          [ "-----BEGIN PUBLIC KEY-----",
-            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
-            "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
-            "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
-            "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
-            "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
-            "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
-            "nQIDAQAB",
-            "-----END PUBLIC KEY-----"
-          ]
 
 newtype ServiceKeyPEM = ServiceKeyPEM {unServiceKeyPEM :: PEM}
   deriving stock (Eq, Show)
@@ -175,11 +161,24 @@ instance FromByteString ServiceKeyPEM where
       Right _ -> fail "Too many sections in PEM format. Expected 1."
 
 instance ToSchema ServiceKeyPEM where
-  schema =
+  schema = S.schema . S.example ?~ pem $
     (Text.decodeUtf8 . toByteString')
       .= parsedText
         "ServiceKeyPEM"
         (runParser parser . Text.encodeUtf8)
+    where
+      pem =
+        A.String . Text.unlines $
+          [ "-----BEGIN PUBLIC KEY-----",
+            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
+            "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
+            "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
+            "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
+            "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
+            "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
+            "nQIDAQAB",
+            "-----END PUBLIC KEY-----"
+          ]
 
 instance Arbitrary ServiceKeyPEM where
   arbitrary =
