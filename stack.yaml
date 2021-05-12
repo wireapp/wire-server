@@ -169,6 +169,7 @@ extra-deps:
 - wai-route-0.4.0
 
 # Not updated on Stackage yet
+- semver-0.4.0.1
 - QuickCheck-2.14
 - splitmix-0.0.4 # needed for QuickCheck
 - servant-mock-0.8.7

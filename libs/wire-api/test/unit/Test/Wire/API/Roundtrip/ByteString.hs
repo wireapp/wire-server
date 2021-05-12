@@ -38,6 +38,7 @@ import qualified Wire.API.Team.Role as Team.Role
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Activation as User.Activation
 import qualified Wire.API.User.Auth as User.Auth
+import qualified Wire.API.User.Client.Info as User.Client.Info
 import qualified Wire.API.User.Identity as User.Identity
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
@@ -72,6 +73,7 @@ tests =
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.ActivationKey,
       testRoundTrip @User.Auth.CookieLabel,
+      testRoundTrip @User.Client.Info.Platform,
       testRoundTrip @User.Identity.Email,
       testRoundTrip @User.Identity.Phone,
       testRoundTrip @User.InvitationCode,

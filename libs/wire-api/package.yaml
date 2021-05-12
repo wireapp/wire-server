@@ -13,6 +13,11 @@ dependencies:
 - containers >=0.5
 - imports
 - types-common >=0.16
+- semver >=0.3.4
+- servant >=0.18.2
+- binary >=0.18.2
+- hspec >=0.18.2
+- mtl >=2.2.2
 library:
   source-dirs: src
   dependencies:

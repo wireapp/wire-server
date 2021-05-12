@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e2230c6ad00d4a6e952f1c9410e32bda65e5f523e4c5f365a78d0c38f337519b
+-- hash: 94ed876c8bf57992adccaa0ddb1017fc72bc8cfd90b5dcb5166e21ee7fa856ba
 
 name:           wire-api
 version:        0.1.0
@@ -62,6 +62,7 @@ library
       Wire.API.User.Activation
       Wire.API.User.Auth
       Wire.API.User.Client
+      Wire.API.User.Client.Info
       Wire.API.User.Client.Prekey
       Wire.API.User.Handle
       Wire.API.User.Identity
@@ -84,6 +85,7 @@ library
     , attoparsec >=0.10
     , base >=4 && <5
     , base64-bytestring >=1.0
+    , binary >=0.18.2
     , bytestring >=0.9
     , bytestring-conversion >=0.2
     , case-insensitive
@@ -99,6 +101,7 @@ library
     , generic-random >=1.2
     , hashable
     , hostname-validate
+    , hspec >=0.18.2
     , imports
     , insert-ordered-containers
     , iproute >=1.5
@@ -106,10 +109,13 @@ library
     , iso639 >=0.1
     , lens >=4.12
     , mime >=0.4
+    , mtl >=2.2.2
     , pem >=0.2
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
     , schema-profunctor
+    , semver >=0.3.4
+    , servant >=0.18.2
     , string-conversions
     , swagger >=0.1
     , swagger2
@@ -371,18 +377,23 @@ test-suite wire-api-tests
       aeson >=0.6
     , aeson-qq
     , base
+    , binary >=0.18.2
     , bytestring
     , bytestring-conversion
     , cassava
     , containers >=0.5
     , currency-codes
     , directory
+    , hspec >=0.18.2
     , imports
     , iso3166-country-codes
     , iso639
     , lens
     , mime
+    , mtl >=2.2.2
     , pem
+    , semver >=0.3.4
+    , servant >=0.18.2
     , string-conversions
     , swagger2
     , tasty
