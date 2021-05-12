@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c990bca1c0951c9ee339bd7db566df5ca3e30e53a8333169a3f0596536cd811e
+-- hash: f2f18a609c84c31556bd0a5e24c9feaa08f1120c8027eeff171788deffe5728e
 
 name:           wire-api
 version:        0.1.0
@@ -68,6 +68,7 @@ library
       Wire.API.User.Activation
       Wire.API.User.Auth
       Wire.API.User.Client
+      Wire.API.User.Client.Info
       Wire.API.User.Client.Prekey
       Wire.API.User.Handle
       Wire.API.User.Identity
@@ -114,6 +115,7 @@ library
     , hashable
     , hostname-validate
     , hscim
+    , hspec >=0.18.2
     , http-api-data
     , http-media
     , imports
@@ -130,6 +132,7 @@ library
     , quickcheck-instances >=0.3.16
     , saml2-web-sso
     , schema-profunctor
+    , semver >=0.3.4
     , servant
     , servant-multipart
     , servant-server
@@ -397,18 +400,23 @@ test-suite wire-api-tests
       aeson >=0.6
     , aeson-qq
     , base
+    , binary >=0.18.2
     , bytestring
     , bytestring-conversion
     , cassava
     , containers >=0.5
     , currency-codes
     , directory
+    , hspec >=0.18.2
     , imports
     , iso3166-country-codes
     , iso639
     , lens
     , mime
+    , mtl >=2.2.2
     , pem
+    , semver >=0.3.4
+    , servant >=0.18.2
     , string-conversions
     , swagger2
     , tasty
