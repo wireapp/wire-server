@@ -683,7 +683,8 @@ postQualifiedMembers zusr invitees conv = do
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g
-      . paths ["conversations", toByteString' conv, "members", "v2"]
+      -- FUTUREWORK: use an endpoint without /i/ once it's ready.
+      . paths ["i", "conversations", toByteString' conv, "members", "v2"]
       . zUser zusr
       . zConn "conn"
       . zType "access"

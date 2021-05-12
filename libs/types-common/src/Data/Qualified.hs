@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -29,7 +28,7 @@ module Data.Qualified
     -- * Qualified
     Qualified (..),
     Remote,
-    pattern Remote,
+    toRemote,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionRemoteOrLocalIds',
@@ -112,8 +111,9 @@ instance (P.ToSchema a) => P.ToSchema (Qualified a) where
 
 type Remote a = Tagged "remote" (Qualified a)
 
-pattern Remote :: Qualified a -> Remote a
-pattern Remote x = Tagged x
+-- | Convert a Qualified something to a Remote something.
+toRemote :: Qualified a -> Remote a
+toRemote = Tagged
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors
@@ -131,7 +131,7 @@ partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remot
 partitionRemoteOrLocalIds' localDomain = foldMap $ \qualifiedId ->
   if qDomain qualifiedId == localDomain
     then (mempty, [qUnqualified qualifiedId])
-    else ([Remote qualifiedId], mempty)
+    else ([toRemote qualifiedId], mempty)
 
 -- | Index a list of qualified values by domain
 partitionQualified :: [Qualified a] -> Map Domain [a]

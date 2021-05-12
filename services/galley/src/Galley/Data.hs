@@ -759,7 +759,7 @@ remoteMemberLists convs = do
     mkMem (cnv, domain, usr) = (cnv, toRemoteMember usr domain)
 
 toRemoteMember :: UserId -> Domain -> RemoteMember
-toRemoteMember u d = RemoteMember (Remote (Qualified u d))
+toRemoteMember u d = RemoteMember (toRemote (Qualified u d))
 
 memberLists ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>

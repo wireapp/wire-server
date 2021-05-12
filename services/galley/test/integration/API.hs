@@ -144,6 +144,8 @@ status = do
   g <- view tsGalley
   get (g . path "/i/status")
     !!! const 200 === statusCode
+  Bilge.head (g . path "/i/status")
+    !!! const 200 === statusCode
 
 metrics :: TestM ()
 metrics = do

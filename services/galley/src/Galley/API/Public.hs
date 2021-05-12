@@ -261,6 +261,7 @@ data Api routes = Api
         :- Summary "Add qualified members to an existing conversation."
         :> ZUser
         :> ZAuthServant 'ZAuthConn
+        :> "i" -- FUTUREWORK: remove this /i/ once it's ready.
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "members"

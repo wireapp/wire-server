@@ -35,18 +35,16 @@ import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
 import Data.Range
 import Data.String.Conversions (cs)
-import Data.Time.Clock.POSIX (getCurrentTime)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error (convNotFound)
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, botsAndUsers, getSelfMember, isMember)
+import Galley.API.Util (JSON, isMember)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -71,27 +69,19 @@ import Servant.API.Generic
 import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
-import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
 
 data InternalApi routes = InternalApi
-  { iAddRemoteUserUnchecked ::
+  { iStatusGet ::
       routes
         :- "i"
-        :> "users"
-        :> Capture "usr" UserId -- TODO: Use ZUser instead
-        :> "conversations"
-        :> Capture "cnv" ConvId
-        :> "add-remote-unchecked"
-        :> ReqBody '[Servant.JSON] Public.InviteQualified
-        :> Post '[Servant.JSON] NoContent,
-    iDeleteRemoteUserUnchecked ::
+        :> "status"
+        :> Get '[Servant.JSON] NoContent,
+    iStatusHead ::
       routes
         :- "i"
-        :> "conversations"
-        :> Capture "cnv" ConvId
-        :> "delete-remote-unchecked"
-        :> Get '[Servant.JSON] Public.Conversation
+        :> "status"
+        :> Verb 'HEAD 200 '[Servant.JSON] NoContent
   }
   deriving (Generic)
 
@@ -101,35 +91,12 @@ servantSitemap :: ServerT ServantAPI Galley
 servantSitemap =
   genericServerT $
     InternalApi
-      { iAddRemoteUserUnchecked = addRemoteUserUnchecked,
-        iDeleteRemoteUserUnchecked = deleteRemoteUserUnchecked
+      { iStatusGet = pure NoContent,
+        iStatusHead = pure NoContent
       }
-
--- Internal function to use in tests: for testing the cql queries without all the authorization / remote backend concerns.
-addRemoteUserUnchecked :: UserId -> ConvId -> Public.InviteQualified -> Galley NoContent
-addRemoteUserUnchecked zusr convId invite = do
-  conv <- Data.conversation convId >>= ifNothing convNotFound
-  mems <- botsAndUsers (Data.convMembers conv)
-  selfMem <- getSelfMember zusr (snd mems)
-  now <- liftIO getCurrentTime
-  let rolename = memConvRoleName selfMem
-  let invitees = toList $ Public.invQUsers invite
-  -- TODO: this remote tagging business doesn't work well. Perhaps we can use
-  -- something different than this Tagged stuff as it's not intuitive to use at
-  -- all. Can't we simply wrap remote users in a different data type?
-  let toRemote = undefined -- Remote -- ERROR: Data constructor Remote not in scope. Duh.
-  void $ Data.addMembersUncheckedWithRole now convId (zusr, rolename) [] (toRemote <$> invitees)
-  pure NoContent
-
-deleteRemoteUserUnchecked :: ConvId -> Galley Public.Conversation
-deleteRemoteUserUnchecked = do
-  undefined
 
 sitemap :: Routes a Galley ()
 sitemap = do
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true
-
   -- Conversation API (internal) ----------------------------------------
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
