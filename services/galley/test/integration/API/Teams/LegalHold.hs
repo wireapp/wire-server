@@ -98,6 +98,7 @@ onlyIfLhEnabled action = do
 
 tests :: IO TestSetup -> TestTree
 tests s =
+  -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
   testGroup
     "Teams LegalHold API"
     [ test s "swagger / json consistency" (onlyIfLhEnabled testSwaggerJsonConsistency),
@@ -116,10 +117,7 @@ tests s =
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
-      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold)
-      -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
-      -- tested
-
+      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
@@ -599,7 +597,9 @@ testGetTeamMembersIncludesLHStatus = do
   let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
       findMemberStatus ms =
         ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
-  let check status msg = do
+
+  let check :: HasCallStack => UserLegalHoldStatus -> String -> TestM ()
+      check status msg = do
         members' <- view teamMembers <$> getTeamMembers owner tid
         liftIO $
           assertEqual
