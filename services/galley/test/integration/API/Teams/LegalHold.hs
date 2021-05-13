@@ -717,7 +717,7 @@ testNotInWhitelist = do
       UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid' (getUserStatusTyped' g member tid)
       liftIO $
         assertEqual
-          "requestLegalHoldDevice should set user status to Pending"
+          "requestLegalHoldDevice should leave user status in Disabled"
           UserLegalHoldDisabled
           userStatus
 
