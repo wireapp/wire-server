@@ -128,13 +128,14 @@ These events are sent to the user, all team members (including admins) and conne
 
 ## Whitelisting and implicit consent
 
-[NB: This is work in progress; we introduce implicit consent to
-replace it with proper, explicit consent in the future.]
-
 This release introduces a notion of intial "consent" to legalhold
-(LH): In addition to the popup before getting exposed to LH devices,
-users needs to grant their consent to even have the option of being
-exposed.
+(LH): In addition to the popup before getting exposed to LH devices
+(either by getting assigned one or by entering a conversation or
+connection with one present), users needs to grant their consent to
+even have the option of being exposed.  Until they do, they may be
+blocked from using wire by their team admin (if they are a team user),
+but they cannot be assigned a LH device, and they cannot enter
+conversations with LH devices present.
 
 For now, there is on way in the UI for the user to grant consent.
 Instead, "implict consent" can be given by the site operator for any
@@ -153,3 +154,15 @@ Since consent is required for LH to work, users in teams that are not
 whitelisted cannot be assigned LH devices (pull request #1502), and
 they are blocked or removed from conversations that are exposed to LH
 devices (TODO: name the PRs where this happens).
+
+### Implementation status and future work
+
+The notion of consent is introduced to make it explicit, ie. users
+would have UI components to grant consent themselves, and there would
+be clear feedback in situations where communication is blocked for
+lack of consent, so that these situations can be resolved offline.
+
+Whitelisting and implicit consent is a short cut.  The server side
+already implements granting explicit consent, but until the UI is
+ready, site operators have the option of allowing LH to function on a
+fixed set of teams.
