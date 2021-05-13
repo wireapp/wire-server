@@ -4,13 +4,20 @@
 
 ## Release Notes
 
-   for on-prem folks who already use LH:
-    - change galley.yaml to FeatureLegalHoldEnabledForWhitelist your teams
-    - that's it!  no other changes needed.  (i think?)
+This release introduces a notion of "consent" to legalhold (LH).  If
+you are using LH on your site, follow the instructions in
+https://github.com/wireapp/wire-server/blob/develop/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
+after the upgrade.  **Legalhold will not work as expected until you
+change `galley.conf` as described!
+
+TODO: the above link will start working after #1502 has been merged,
+but it should be frozen to a commit to make sure it'll keep working
+when the document changes again.
 
 
 
 ## Features
+ - [legalhold] Whitelisting Teams for LH with implicit consent (#1502)
 
 ## Bug fixes and other updates
 

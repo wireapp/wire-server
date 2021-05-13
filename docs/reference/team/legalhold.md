@@ -125,3 +125,31 @@ New legalhold disabled event:
 ```
 
 These events are sent to the user, all team members (including admins) and connections.
+
+## Whitelisting and implicit consent
+
+[NB: This is work in progress; we introduce implicit consent to
+replace it with proper, explicit consent in the future.]
+
+This release introduces a notion of intial "consent" to legalhold
+(LH): In addition to the popup before getting exposed to LH devices,
+users needs to grant their consent to even have the option of being
+exposed.
+
+For now, there is on way in the UI for the user to grant consent.
+Instead, "implict consent" can be given by the site operator for any
+team in the server configuration file `galley.yaml`:
+
+```yaml
+  featureFlags:
+    # [...]
+    legalhold: whiteliste-teams-and-implicit-consent
+  legalHoldTeamsWhitelist:
+  - 14172c08-b3c8-11eb-a763-6fe8c2ea993d
+  - 162d7894-b3c8-11eb-b137-074ff453399d
+```
+
+Since consent is required for LH to work, users in teams that are not
+whitelisted cannot be assigned LH devices (pull request #1502), and
+they are blocked or removed from conversations that are exposed to LH
+devices (TODO: name the PRs where this happens).
