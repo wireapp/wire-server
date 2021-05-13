@@ -259,13 +259,13 @@ instance ToJSON FeatureSSO where
 instance FromJSON FeatureLegalHold where
   parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
   parseJSON (String "disabled-by-default") = pure $ FeatureLegalHoldDisabledByDefault
-  parseJSON (String "whiteliste-teams-and-implicit-consent") = pure FeatureLegalHoldWhitelistTeamsAndImplicitConsent
+  parseJSON (String "whitelist-teams-and-implicit-consent") = pure FeatureLegalHoldWhitelistTeamsAndImplicitConsent
   parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
 
 instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
-  toJSON FeatureLegalHoldWhitelistTeamsAndImplicitConsent = String "whiteliste-teams-and-implicit-consent"
+  toJSON FeatureLegalHoldWhitelistTeamsAndImplicitConsent = String "whitelist-teams-and-implicit-consent"
 
 instance FromJSON FeatureTeamSearchVisibility where
   parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityEnabledByDefault
