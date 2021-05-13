@@ -334,7 +334,7 @@ addUserToTeamWithRole' role inviter tid = do
   let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
-  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
+  inviteeCode <- getInvitationCode tid (inInvitation inv)
   r <-
     post
       ( brig . path "/register"
@@ -390,18 +390,27 @@ zAuthAccess u conn =
     . zConn conn
     . zType "access"
 
-getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM (Maybe InvitationCode)
+getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM InvitationCode
 getInvitationCode t ref = do
   brig <- view tsBrig
-  r <-
-    get
-      ( brig
-          . path "/i/teams/invitation-code"
-          . queryItem "team" (toByteString' t)
-          . queryItem "invitation_id" (toByteString' ref)
-      )
-  let lbs = fromMaybe "" $ responseBody r
-  return $ fromByteString . fromMaybe (error "No code?") $ Text.encodeUtf8 <$> (lbs ^? key "code" . _String)
+
+  let getm :: TestM (Maybe InvitationCode)
+      getm = do
+        r <-
+          get
+            ( brig
+                . path "/i/teams/invitation-code"
+                . queryItem "team" (toByteString' t)
+                . queryItem "invitation_id" (toByteString' ref)
+            )
+        let lbs = fromMaybe "" $ responseBody r
+        return $ fromByteString . Text.encodeUtf8 =<< (lbs ^? key "code" . _String)
+
+  fromMaybe (error "No code?")
+    <$> retrying
+      (constantDelay 800000 <> limitRetries 3)
+      (\_ -> pure . isNothing)
+      (\_ -> getm)
 
 -- Note that here we don't make use of the datatype because NewConv has a default
 -- and therefore cannot be unset. However, given that this is to test the legacy
