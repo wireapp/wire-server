@@ -2,6 +2,24 @@
 
 # [2021-xx-xx]
 
+
+
+TODO: group and categorize these PRs:
+ - Port instances to schemas library (#1482)
+ - wire-api-federator: Make client tests more reliable (#1491)
+ - galley: Serve conversation role list on the correct path (#1499)
+ - Remove duplicated roundtrip test (#1498)
+ - schema-profunctor: Add combinator for nonEmptyArray (#1497)
+ - Federation: Add RPC getConversations (#1493)
+ - Golden tests for JSON instances (#1486)
+ - galley: Convert conversation endpoints to servant (#1444)
+ - Fix Arbitrary instances and enable corresponding roundtrip tests (#1492)
+ - wire-api-fed: Mark flaky tests as pending (#1488)
+ - RFC: Schemas for documented bidirectional JSON encoding (#1474)
+ - Prepare remote conversations: Remove Opaque/Mapped Ids, delete remote identifiers from member/user tables. (#1478)
+
+
+
 ## Release Notes
 
 This release introduces a notion of "consent" to legalhold (LH).  If
@@ -24,6 +42,9 @@ when the document changes again.
 ## Documentation
 
 ## Internal changes
+ - Cleanup (no change in behavior) (#1494, #1501)
+ - Internal end-point for ejpd request processing. (#1484)
+ - Fix: NewTeamMember vs. UserLegalHoldStatus (increase robustness against rogue clients) (#1496)
 
 -->
 
