@@ -144,7 +144,7 @@ team in the server configuration file `galley.yaml`:
 ```yaml
   featureFlags:
     # [...]
-    legalhold: whiteliste-teams-and-implicit-consent
+    legalhold: whitelist-teams-and-implicit-consent
   legalHoldTeamsWhitelist:
   - 14172c08-b3c8-11eb-a763-6fe8c2ea993d
   - 162d7894-b3c8-11eb-b137-074ff453399d
