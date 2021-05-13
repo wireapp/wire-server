@@ -23,7 +23,6 @@
 module Wire.API.Team.Member
   ( -- * TeamMember
     TeamMember (..),
-    newTeamMember,
     userId,
     permissions,
     invitation,
@@ -89,13 +88,6 @@ data TeamMember = TeamMember
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamMember)
-
-newTeamMember ::
-  UserId ->
-  Permissions ->
-  Maybe (UserId, UTCTimeMillis) ->
-  TeamMember
-newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHoldDisabled
 
 modelTeamMember :: Doc.Model
 modelTeamMember = Doc.defineModel "TeamMember" $ do

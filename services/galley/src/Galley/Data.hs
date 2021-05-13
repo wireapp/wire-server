@@ -108,8 +108,9 @@ import Brig.Types.Code
 import Cassandra
 import Cassandra.Util
 import Control.Arrow (second)
+import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens hiding ((<|))
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
@@ -140,6 +141,7 @@ import Imports hiding (Set, max)
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import UnliftIO (async, mapConcurrently, wait)
+import Wire.API.Team.Member
 
 -- We use this newtype to highlight the fact that the 'Page' wrapped in here
 -- can not reliably used for paging.
@@ -927,7 +929,11 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 
 -- Internal utilities
 newTeamMember' :: (MonadThrow m, MonadClient m) => (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
-newTeamMember' (uid, perms, minvu, minvt, mlhStatus) = newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+newTeamMember' (uid, perms, minvu, minvt, fromMaybe UserLegalHoldDisabled -> lhStatus) = mk minvu minvt
+  where
+    mk (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
+    mk Nothing Nothing = pure $ TeamMember uid perms Nothing lhStatus
+    mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 -- | Invoke the given action with a list of TeamMemberRows IDs
 -- which are looked up based on:

@@ -40,6 +40,7 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
 import Data.Id
+import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc (HttpsUrl, PlainTextPassword (..))
@@ -75,6 +76,7 @@ import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as U
 
@@ -989,7 +991,7 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
   owner <- Util.randomUser
   member <- Util.randomUser
   Util.connectUsers owner (list1 member [])
-  tid <- Util.createNonBindingTeam "foo" owner [newTeamMember member perms Nothing]
+  tid <- Util.createNonBindingTeam "foo" owner [Member.TeamMember member perms Nothing LH.UserLegalHoldDisabled]
   cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
   resp <- updateTeamConv member cid (ConversationRename "not gossip")
   -- FUTUREWORK: Ensure that the team role _really_ does not matter
@@ -1956,7 +1958,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
-newTeamMember' perms uid = newTeamMember uid perms Nothing
+newTeamMember' perms uid = Member.TeamMember uid perms Nothing LH.UserLegalHoldDisabled
 
 -- NOTE: all client functions calling @{/i,}/teams/*/features/*@ can be replaced by
 -- hypothetical functions 'getTeamFeatureFlag', 'getTeamFeatureFlagInternal',
