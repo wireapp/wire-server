@@ -191,7 +191,7 @@ validateOpts logger opts = do
       "settings.setLegalHoldTeamsWhitelist must not contain an empty list; remove the \
       \attribute or provide at least one team."
 
-  unless (isNothing lhWhitelist || lhWhitelistingEnabled) $
+  unless (if lhWhitelistingEnabled then isJust lhWhitelist else isNothing lhWhitelist) $
     -- Rationale: '_setLegalHoldTeamsWhitelist' is a way to make LH available to selected
     -- teams only; it is not required if `_setFeatureFlags` enables it for all.  To avoid
     -- misconfiguration due to a wrong understanding of the settings, doing this produces an
