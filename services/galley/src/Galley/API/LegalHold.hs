@@ -74,7 +74,9 @@ isLegalHoldEnabledForTeam tid = do
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
-        <&> maybe (False {- reasonable default, even though this is impossible -}) (tid `elem`)
+        <&> maybe
+          (False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -})
+          (tid `elem`)
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
