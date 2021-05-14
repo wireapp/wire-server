@@ -1,6 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
