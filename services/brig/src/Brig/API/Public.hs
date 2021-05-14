@@ -141,7 +141,8 @@ servantSitemap =
         BrigAPI.getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
         BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
         BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
-        BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH
+        BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
+        BrigAPI.searchContacts = Search.search
       }
 
 -- Note [ephemeral user sideeffect]

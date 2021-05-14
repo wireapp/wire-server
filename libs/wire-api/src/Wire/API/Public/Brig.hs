@@ -25,7 +25,7 @@ import Data.Handle
 import Data.Id as Id
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger
+import Data.Swagger hiding (Contact)
 import Imports hiding (head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -37,6 +37,7 @@ import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
+import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
@@ -256,7 +257,16 @@ data Api routes = Api
         :> "users"
         :> "list-prekeys"
         :> ReqBody '[JSON] QualifiedUserClients
-        :> Post '[JSON] (QualifiedUserClientMap (Maybe Prekey))
+        :> Post '[JSON] (QualifiedUserClientMap (Maybe Prekey)),
+    searchContacts ::
+      routes :- Summary "Search for users"
+        :> ZAuthServant
+        :> "search"
+        :> "contacts"
+        :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
+        :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
+        :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
+        :> Get '[Servant.JSON] (SearchResult Contact)
   }
   deriving (Generic)
 

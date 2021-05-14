@@ -18,8 +18,7 @@
 module Brig.User.API.Search
   ( routesPublic,
     routesInternal,
-    API,
-    servantSitemap,
+    search,
   )
 where
 
@@ -53,32 +52,13 @@ import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
-import Servant hiding (Handler, JSON)
-import qualified Servant
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Federation.API.Brig as FedBrig
-import Wire.API.Public.Brig (ZAuthServant)
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import qualified Wire.API.User.Search as Public
-
-type SearchContacts =
-  Summary "Search for users"
-    :> ZAuthServant
-    :> "search"
-    :> "contacts"
-    :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
-    :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
-    :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
-    :> Get '[Servant.JSON] (Public.SearchResult Public.Contact)
-
-type API = SearchContacts
-
-servantSitemap :: ServerT API Handler
-servantSitemap =
-  search
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
