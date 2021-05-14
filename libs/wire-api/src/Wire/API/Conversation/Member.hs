@@ -176,6 +176,7 @@ data OtherMember = OtherMember
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtherMember)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema OtherMember
 
 omId :: OtherMember -> UserId
 omId = qUnqualified . omQualifiedId
@@ -202,24 +203,6 @@ modelOtherMember = Doc.defineModel "OtherMember" $ do
   Doc.property "service" (Doc.ref modelServiceRef) $ do
     Doc.description "The reference to the owning service, if the member is a 'bot'."
     Doc.optional
-
--- TODO: derive instances from Schema
-instance ToJSON OtherMember where
-  toJSON m =
-    A.object $
-      "id" A..= omId m -- DEPRECATED
-        # "qualified_id" A..= omQualifiedId m
-        # "status" A..= (0 :: Int) -- TODO: Remove
-        # "service" A..= omService m
-        # "conversation_role" A..= omConvRoleName m
-        # []
-
-instance FromJSON OtherMember where
-  parseJSON = A.withObject "other-member" $ \o ->
-    OtherMember
-      <$> o A..: "qualified_id"
-      <*> o A..:? "service"
-      <*> o A..:? "conversation_role" A..!= roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- Member Updates
