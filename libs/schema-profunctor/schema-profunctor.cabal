@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c5a1cfd90c204643acfba845b0bf156d09e5efbd3173ed84a5facac6e5b77b9f
+-- hash: eda6cd33e347f4b27392f1940d886ea6917bfc1041e526bb7352502e95d6933a
 
 name:           schema-profunctor
 version:        0.1.0
@@ -36,6 +36,7 @@ library
     , profunctors
     , swagger2 >=2 && <2.7
     , text
+    , transformers
     , vector
   default-language: Haskell2010
 
