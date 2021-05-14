@@ -73,6 +73,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
+import qualified Wire.API.Connection as Public
 import Wire.API.User
 import Wire.API.User.RichInfo
 
@@ -165,6 +166,12 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
+
+  put "/i/connections/:from/:to" (continue updateConnectionH) $
+    accept "application" "json"
+      .&. capture "from"
+      .&. capture "to"
+      .&. jsonRequest @Public.ConnectionUpdate
 
   -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
   -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
@@ -492,6 +499,15 @@ revokeIdentityH :: Either Email Phone -> Handler Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
   return $ setStatus status200 empty
+
+updateConnectionH :: JSON ::: UserId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
+updateConnectionH (_ ::: self ::: other ::: req) = do
+  newStatus <- Public.cuStatus <$> parseJsonBody req
+  -- TODO : Can 4th argument be Nothing here?
+  mc <- API.updateConnection self other newStatus Nothing !>> connError
+  return $ case mc of
+    Just c -> json (c :: Public.UserConnection)
+    Nothing -> setStatus status204 empty
 
 checkBlacklistH :: Either Email Phone -> Handler Response
 checkBlacklistH emailOrPhone = do

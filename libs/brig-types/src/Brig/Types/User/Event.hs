@@ -54,8 +54,11 @@ data UserEvent
 data ConnectionEvent = ConnectionUpdated
   { ucConn :: !UserConnection,
     ucPrev :: !(Maybe Relation),
-    ucName :: !(Maybe Name)
+    ucName :: !(Maybe Name),
+    ucReason :: !(Maybe ConnectionUpdatedReason)
   }
+
+data ConnectionUpdatedReason = ConnectionUpdatedMissingLegalholdConsent
 
 data PropertyEvent
   = PropertySet !UserId !PropertyKey !PropertyValue

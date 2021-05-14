@@ -17,6 +17,7 @@
 
 module Galley.Intra.User
   ( getConnections,
+    putConnection,
     deleteBot,
     reAuthUser,
     lookupActivatedUsers,
@@ -35,6 +36,7 @@ import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), User
 import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
+import Data.Aeson (encode)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
@@ -47,6 +49,7 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Wire.API.Connection (ConnectionUpdate (..), UserConnection)
 import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -68,6 +71,25 @@ getConnections uFrom uTo rlt = do
   parseResponse (Error status502 "server-error") r
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
+
+putConnection :: UserId -> UserId -> Relation -> Galley (Either Status (Maybe UserConnection))
+putConnection from to relation = do
+  (h, p) <- brigReq
+  response <-
+    call "brig" $
+      method PUT . host h . port p
+        . paths ["/i/connections", toByteString' from, toByteString' to]
+        . contentJson
+        . body payload
+  case (responseStatus $ response) of
+    Status 200 _ ->
+      Right <$> parseResponse (Error status502 "server-error") response
+    Status 204 _ ->
+      pure (Right Nothing)
+    status ->
+      pure (Left status)
+  where
+    payload = RequestBodyLBS . encode $ ConnectionUpdate relation
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
 deleteBot :: ConvId -> BotId -> Galley ()

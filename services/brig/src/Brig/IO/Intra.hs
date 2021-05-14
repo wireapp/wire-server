@@ -407,13 +407,17 @@ toPushFormat (UserEvent (UserIdentityRemoved (UserIdentityRemovedData i e p))) =
                 # []
             )
       ]
-toPushFormat (ConnectionEvent (ConnectionUpdated uc _ name)) =
+toPushFormat (ConnectionEvent (ConnectionUpdated uc _ name reason)) =
   Just $
     M.fromList $
       "type" .= ("user.connection" :: Text)
         # "connection" .= uc
         # "user" .= case name of
           Just n -> Just $ object ["name" .= n]
+          Nothing -> Nothing
+        # "reason" .= case reason of
+          Just ConnectionUpdatedMissingLegalholdConsent ->
+            Just $ object ["reason" .= ("missing-legalhold-consent" :: Text)]
           Nothing -> Nothing
         # []
 toPushFormat (UserEvent (UserSuspended i)) =
@@ -487,7 +491,7 @@ toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
           ]
 
 toApsData :: Event -> Maybe ApsData
-toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
+toApsData (ConnectionEvent (ConnectionUpdated uc _ name _)) =
   case (ucStatus uc, name) of
     (Pending, Just n) -> Just $ apsConnRequest n
     (Accepted, Just n) -> Just $ apsConnAccept n

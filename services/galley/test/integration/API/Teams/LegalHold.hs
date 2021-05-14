@@ -29,6 +29,7 @@ import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Client
+import Brig.Types.Intra (ConnectionStatus (ConnectionStatus))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
@@ -42,7 +43,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (FromJSON, withObject, (.:))
+import Data.Aeson.Types (FromJSON, withObject, (.:), (.:?))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
@@ -85,6 +86,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import qualified Wire.API.Connection as Conn
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
@@ -140,7 +142,30 @@ tests s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
-              test s "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked" testNoConsentBlockOne2OneConv,
+              test
+                s
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
+                (testNoConsentBlockOne2OneConv False False False),
+              test
+                s
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
+                (testNoConsentBlockOne2OneConv False True False),
+              test
+                s
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
+                (testNoConsentBlockOne2OneConv False True True),
+              test
+                s
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
+                (testNoConsentBlockOne2OneConv True False False),
+              test
+                s
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
+                (testNoConsentBlockOne2OneConv True True False),
+              test
+                s
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
+                (testNoConsentBlockOne2OneConv True True True),
               test s "If LH is activated for other user in group conv, this user gets removed with helpful message" testNoConsentBlockGroupConv
             ]
         ]
@@ -256,6 +281,9 @@ testApproveLegalHoldDevice = do
     connectUsers member (List1.singleton usr)
     pure usr
   stranger <- randomUser
+  grantConsent tid owner
+  grantConsent tid member
+  grantConsent tid member2
   ensureQueueEmpty
   -- not allowed to approve if team setting is disabled
   approveLegalHoldDevice (Just defPassword) owner member tid
@@ -263,7 +291,6 @@ testApproveLegalHoldDevice = do
   cannon <- view tsCannon
   WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
     \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam owner tid $ \chan -> do
-      grantConsent tid member
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
       liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClient userId' teamId') -> do
         assertEqual "userId == member" userId' member
@@ -302,7 +329,9 @@ testApproveLegalHoldDevice = do
       assertNotification ows pluck'
       -- We send to all members of a team. which includes the team-settings
       assertNotification member2Ws pluck'
-      assertNotification outsideContactWs pluck'
+      when False $ do
+        -- this doesn't work any more since consent (personal users cannot grant consent).
+        assertNotification outsideContactWs pluck'
       assertNoNotification strangerWs
 
 testGetLegalHoldDeviceStatus :: TestM ()
@@ -785,11 +814,74 @@ testNoConsentBlockDeviceHandshake = do
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
   pure ()
 
-testNoConsentBlockOne2OneConv :: TestM ()
-testNoConsentBlockOne2OneConv = do
-  -- "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked"
-  -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-429
-  pure ()
+-- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
+testNoConsentBlockOne2OneConv :: Bool -> Bool -> Bool -> TestM ()
+testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
+  (legalholder :: UserId, tid) <- createBindingTeam
+  peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
+  galley <- view tsGalley
+
+  let doEnableLH = do
+        -- register & (possibly) approve LH device for legalholder
+        withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
+        when approveLH $
+          withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
+        liftIO $
+          assertEqual
+            "approving should change status to Enabled"
+            (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending)
+            userStatus
+
+      doDisableLH = do
+        -- remove (only) LH device again
+        withLHWhitelist tid (disableLegalHoldForUser' galley (Just defPassword) tid legalholder legalholder)
+          !!! testResponse 200 Nothing
+
+  cannon <- view tsCannon
+
+  if connectFirst
+    then do
+      WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+        postConnection legalholder peer !!! const 201 === statusCode
+        doEnableLH
+
+        assertConnections legalholder [ConnectionStatus legalholder peer Conn.Blocked]
+        assertConnections peer [ConnectionStatus peer legalholder Conn.Blocked]
+
+        forM_ [legalholderWs, peerWs] $ \ws -> do
+          -- (if this fails, it may be because there are other messages in the queue, but i
+          -- think we implemented this in a way that doens't trip over wrong orderings.)
+          assertNotification ws $
+            \case
+              (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name reason) -> do
+                rel @?= Conn.Blocked
+                reason @?= Just Ev.ConnectionUpdatedMissingLegalholdConsent
+
+        forM_ [(legalholder, peer), (peer, legalholder)] $ \(one, two) -> do
+          putConnection one two Conn.Accepted
+            !!!
+            -- (other label, or test for 403 and ignore label would also be acceptable.)
+            testResponse 412 (Just "missing-legalhold-consent")
+
+        assertConnections legalholder [ConnectionStatus legalholder peer Conn.Blocked]
+        assertConnections peer [ConnectionStatus peer legalholder Conn.Blocked]
+
+        do
+          -- (again, other label / 4xx status code would also be fine.)
+          postOtrMessageJson !!! testResponse 412 (Just "missing-legalhold-consent")
+          postOtrMessageProto !!! testResponse 412 (Just "missing-legalhold-consent")
+
+        do
+          doDisableLH
+          assertConnections legalholder [ConnectionStatus legalholder peer Conn.Accepted]
+          assertConnections peer [ConnectionStatus peer legalholder Conn.Accepted]
+
+          postOtrMessageJson !!! const 201 === statusCode
+          postOtrMessageProto !!! const 201 === statusCode
+    else do
+      doEnableLH
+      postConnection legalholder peer !!! do testResponse 412 (Just "legalhold-missing-consent")
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do
@@ -930,12 +1022,38 @@ disableLegalHoldForUser ::
   TestM ResponseLBS
 disableLegalHoldForUser mPassword tid zusr uid = do
   g <- view tsGalley
+  disableLegalHoldForUser' g mPassword tid zusr uid
+
+disableLegalHoldForUser' ::
+  (HasCallStack, MonadHttp m, MonadIO m) =>
+  GalleyR ->
+  Maybe PlainTextPassword ->
+  TeamId ->
+  UserId ->
+  UserId ->
+  m ResponseLBS
+disableLegalHoldForUser' g mPassword tid zusr uid = do
   delete $
     g
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
       . zUser zusr
       . zType "access"
       . json (DisableLegalHoldForUserRequest mPassword)
+
+postOtrMessageJson :: TestM ResponseLBS
+postOtrMessageJson = do
+  {-
+    post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
+      zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. def Public.OtrReportAllMissing filterMissing
+        .&. jsonRequest @Public.NewOtrMessage
+  -}
+  undefined
+
+postOtrMessageProto :: TestM ResponseLBS
+postOtrMessageProto = undefined
 
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
@@ -1038,7 +1156,7 @@ withDummyTestServiceForTeam owner tid go = do
       postSettings owner tid newService !!! testResponse 201 Nothing
       go chan
 
-    dummyService :: Chan (Wai.Request, LBS) -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
+    dummyService :: Chan (Wai.Request, LBS) -> Wai.Application
     dummyService ch req cont = do
       reqBody <- Wai.strictRequestBody req
       writeChan ch (req, reqBody)
@@ -1186,6 +1304,10 @@ deriving instance Show Ev.PropertyEvent
 
 deriving instance Show Ev.ConnectionEvent
 
+deriving instance Show Ev.ConnectionUpdatedReason
+
+deriving instance Eq Ev.ConnectionUpdatedReason
+
 -- (partial implementation, just good enough to make the tests work)
 instance FromJSON Ev.Event where
   parseJSON ev = flip (withObject "Ev.Event") ev $ \o -> do
@@ -1193,6 +1315,7 @@ instance FromJSON Ev.Event where
     if
         | typ `elem` ["user.legalhold-request", "user.legalhold-enable", "user.legalhold-disable"] -> Ev.UserEvent <$> Aeson.parseJSON ev
         | typ `elem` ["user.client-add", "user.client-remove"] -> Ev.ClientEvent <$> Aeson.parseJSON ev
+        | typ `elem` ["user.connection"] -> Ev.ConnectionEvent <$> Aeson.parseJSON ev
         | otherwise -> fail $ "Ev.Event: unsupported event type: " <> show typ
 
 -- (partial implementation, just good enough to make the tests work)
@@ -1231,6 +1354,21 @@ instance FromJSON Ev.ClientEvent where
           Nothing
           Nothing
           Nothing
+
+instance FromJSON Ev.ConnectionEvent where
+  parseJSON = Aeson.withObject "ConnectionEvent" $ \o -> do
+    tag :: Text <- o .: "type"
+    case tag of
+      "user.connection" ->
+        Ev.ConnectionUpdated
+          <$> o .: "connection"
+          <*> pure Nothing
+          <*> pure Nothing
+          <*> (traverse parseReason =<< (o .:? "reason"))
+      x -> fail $ "unspported event type: " ++ show x
+    where
+      parseReason (Aeson.String "missing-legalhold-consent") = pure Ev.ConnectionUpdatedMissingLegalholdConsent
+      parseReason bad = fail $ "connection event: unknown reason: " <> show bad
 
 assertNotification :: (HasCallStack, FromJSON a, MonadIO m) => WS.WebSocket -> (a -> Assertion) -> m ()
 assertNotification ws predicate =

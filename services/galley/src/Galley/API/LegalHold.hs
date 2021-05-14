@@ -37,8 +37,13 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
+import qualified Data.Map.Strict as Map
 import Data.Misc
+import Data.Proxy
+import Data.Qualified (Qualified, partitionRemoteOrLocalIds)
+import Data.Range (toRange)
 import Galley.API.Error
+import Galley.API.Query (iterateConversations)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -46,6 +51,7 @@ import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
+import Galley.Intra.User (putConnection)
 import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
@@ -55,6 +61,8 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Wire.API.Connection (Relation (..))
+import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..), cnvType)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 
@@ -156,7 +164,7 @@ removeSettings' tid = do
       let uid = member ^. Team.userId
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
+      changeLegalholdStatus tid uid UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -210,7 +218,7 @@ grantConsent zusr tid = do
     Nothing ->
       throwM teamMemberNotFound
     Just UserLegalHoldNoConsent ->
-      LegalHoldData.setUserLegalHoldStatus tid zusr UserLegalHoldDisabled $> GrantConsentSuccess
+      changeLegalholdStatus tid zusr UserLegalHoldDisabled $> GrantConsentSuccess
     Just UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
     Just UserLegalHoldPending -> pure GrantConsentAlreadyGranted
     Just UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
@@ -254,7 +262,7 @@ requestDevice zusr tid uid = do
       (lastPrekey', prekeys) <- requestDeviceFromService
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
+      changeLegalholdStatus tid uid UserLegalHoldPending
       Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
@@ -303,7 +311,7 @@ approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPasswo
   LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-  LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
+  changeLegalholdStatus tid uid UserLegalHoldEnabled
   where
     assertUserLHPending :: Galley ()
     assertUserLHPending = do
@@ -356,4 +364,55 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+      changeLegalholdStatus tid uid UserLegalHoldDisabled
+
+changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> Galley ()
+changeLegalholdStatus tid uid lhStatus = do
+  LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
+  when (hasLH lhStatus) $
+    iterateConversations uid (toRange (Proxy @500)) $ \convs ->
+      block1on1s uid (filter ((== One2OneConv) . cnvType) convs)
+  where
+    hasLH :: UserLegalHoldStatus -> Bool
+    hasLH = \case
+      UserLegalHoldDisabled -> False
+      UserLegalHoldPending -> True
+      UserLegalHoldEnabled -> True
+      UserLegalHoldNoConsent -> False
+
+    hasGrantedConsent :: UserLegalHoldStatus -> Bool
+    hasGrantedConsent = \case
+      UserLegalHoldDisabled -> True
+      UserLegalHoldPending -> True
+      UserLegalHoldEnabled -> True
+      UserLegalHoldNoConsent -> False
+
+    block1on1s :: UserId -> [Conversation] -> Galley ()
+    block1on1s userLegalhold convs = do
+      Log.info $ Log.msg @Text "-------------------------------------------------------------- block1on1s"
+
+      let otherUids :: [Qualified UserId] =
+            concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
+      ownDomain <- viewFederationDomain
+      let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
+      -- FUTUREWORK: Handle remoteUsers here when federation is implemented
+      for_ (chunksOf 32 localUids) $ \uids -> do
+        teamsOfUsers <- Data.usersTeams uids
+        for_ uids $ \user ->
+          case Map.lookup user teamsOfUsers of
+            Nothing ->
+              blockConnection user userLegalhold
+            Just team -> do
+              mMember <- Data.teamMember team user
+              for_ mMember $ \member ->
+                unless (hasGrantedConsent (member ^. legalHoldStatus)) $ do
+                  blockConnection user userLegalhold
+
+    chunksOf :: Int -> [any] -> [[any]]
+    chunksOf _maxSize [] = []
+    chunksOf maxSize uids = case splitAt maxSize uids of (h, t) -> h : chunksOf maxSize t
+
+    blockConnection :: UserId -> UserId -> Galley ()
+    blockConnection userA userB = do
+      void $ putConnection userA userB Blocked -- TODO: see ticket, needs to be different Relation statue.
+      void $ putConnection userB userA Blocked

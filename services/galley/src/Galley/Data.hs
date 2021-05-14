@@ -45,6 +45,7 @@ module Galley.Data
     teamMembersCollectedWithPagination,
     teamMembersLimited,
     userTeams,
+    usersTeams,
     oneUserTeam,
     Galley.Data.teamBinding,
     teamCreationTime,
@@ -308,6 +309,11 @@ userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u =
   map runIdentity
     <$> retry x1 (query Cql.selectUserTeams (params Quorum (Identity u)))
+
+usersTeams :: MonadClient m => [UserId] -> m (Map UserId TeamId)
+usersTeams uids = do
+  pairs <- retry x1 (query Cql.selectUsersTeams (params Quorum (Identity uids)))
+  pure $ foldl' (\m (k, v) -> Map.insert k v m) Map.empty pairs
 
 oneUserTeam :: MonadClient m => UserId -> m (Maybe TeamId)
 oneUserTeam u =

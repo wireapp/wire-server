@@ -100,8 +100,8 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       s2o' <- Data.insertConnection self crUser Sent (Just crMessage) cnv
       o2s' <- Data.insertConnection crUser self Pending (Just crMessage) cnv
       e2o <- ConnectionUpdated o2s' (ucStatus <$> o2s) <$> Data.lookupName self
-      e2s <- pure $ ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
-      mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
+      let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing Nothing
+      mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o Nothing, e2s]
       return s2o'
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
       (Accepted, Accepted) -> return $ ConnectionExists s2o
@@ -127,8 +127,8 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
           if (cnvType <$> cnv) == Just ConnectConv
             then Data.updateConnection o2s Blocked
             else Data.updateConnection o2s Accepted
-      e2o <- lift $ ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
-      e2s <- pure $ ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
+      e2o <- lift $ ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self <*> pure Nothing
+      let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing Nothing
       lift $ mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
       return $ ConnectionExists s2o'
     resend s2o o2s = do
@@ -202,7 +202,7 @@ updateConnection self other newStatus conn = do
       | old == new -> return Nothing
     _ -> throwE $ InvalidTransition self newStatus
   lift . for_ s2o' $ \c ->
-    let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
+    let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing Nothing -- TODO: add ConnectionUpdatedMissingLegalholdConsent if necessary!
      in Intra.onConnectionEvent self conn e2s
   return s2o'
   where
@@ -221,7 +221,7 @@ updateConnection self other newStatus conn = do
           if (cnvType <$> cnv) /= Just ConnectConv
             then Data.updateConnection o2s Accepted
             else Data.updateConnection o2s Blocked
-        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
+        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self <*> pure Nothing
         Intra.onConnectionEvent self conn e2o
       lift $ Just <$> Data.updateConnection s2o Accepted
     block s2o = lift $ do
@@ -242,7 +242,7 @@ updateConnection self other newStatus conn = do
           if (cnvType <$> cnv) /= Just ConnectConv
             then Data.updateConnection o2s Accepted
             else Data.updateConnection o2s Blocked
-        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
+        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self <*> pure Nothing
         Intra.onConnectionEvent self conn e2o
       lift $ Just <$> Data.updateConnection s2o new
     cancel s2o o2s = do
@@ -251,7 +251,7 @@ updateConnection self other newStatus conn = do
           . msg (val "Cancelling connection")
       lift . for_ (ucConvId s2o) $ Intra.blockConv (ucFrom s2o) conn
       o2s' <- lift $ Data.updateConnection o2s Cancelled
-      let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
+      let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing Nothing
       lift $ Intra.onConnectionEvent self conn e2o
       change s2o Cancelled
     change c s = lift $ Just <$> Data.updateConnection c s
@@ -300,7 +300,7 @@ autoConnect from (Set.toList -> to) conn = do
       return (o, c)
     -- Note: The events sent to the users who got auto-connected to 'from'
     --       get the user name of the user whom they got connected to included.
-    toEvent self uc = ConnectionUpdated uc Nothing (mfilter (const $ ucFrom uc /= from) self)
+    toEvent self uc = ConnectionUpdated uc Nothing (mfilter (const $ ucFrom uc /= from) self) Nothing
 
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO UserConnectionList
 lookupConnections from start size = do

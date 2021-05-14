@@ -21,6 +21,7 @@ module Galley.API.Query
     getConversationRoles,
     getConversationIds,
     getConversations,
+    iterateConversations,
     getSelfH,
     internalGetMemberH,
     getConversationMetaH,
@@ -116,6 +117,19 @@ getConversations user mids mstart msize = do
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
+
+iterateConversations :: UserId -> Range 1 500 Int32 -> ([Public.Conversation] -> Galley ()) -> Galley ()
+iterateConversations uid pageSize handleConvs = go Nothing
+  where
+    go mbConv = do
+      convResult <- getConversations uid Nothing mbConv (Just pageSize)
+      handleConvs (convList convResult)
+      case convList convResult of
+        (conv : rest) ->
+          if convHasMore convResult
+            then go (Just (maximum (cnvId <$> (conv : rest))))
+            else pure ()
+        _ -> pure ()
 
 getSelfH :: UserId ::: ConvId -> Galley Response
 getSelfH (zusr ::: cnv) = do

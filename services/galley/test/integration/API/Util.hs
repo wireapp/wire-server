@@ -23,7 +23,7 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Brig.Types.Intra (UserAccount (..))
+import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Exception (finally)
@@ -1187,12 +1187,28 @@ connectUsersWith fn u us = mapM connectTo us
           )
       return (r1, r2)
 
+-- | A copy of 'postConnection' from Brig integration tests.
+postConnection :: UserId -> UserId -> TestM ResponseLBS
+postConnection from to = do
+  brig <- view tsBrig
+  post $
+    brig
+      . path "/connections"
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
+  where
+    payload =
+      RequestBodyLBS . encode $
+        ConnectionRequest to "some conv name" (Message "some message")
+
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
 putConnection from to r = do
-  b <- view tsBrig
+  brig <- view tsBrig
   put $
-    b
+    brig
       . paths ["/connections", toByteString' to]
       . contentJson
       . body payload
@@ -1200,6 +1216,18 @@ putConnection from to r = do
       . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
+
+-- | A copy of `assertConnections from Brig integration tests.
+assertConnections :: HasCallStack => UserId -> [ConnectionStatus] -> TestM ()
+assertConnections u cstat = do
+  brig <- view tsBrig
+  listConnections brig u !!! do
+    const 200 === statusCode
+    const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
+  where
+    check xs = all (`elem` xs) cstat
+    status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
+    listConnections brig usr = get $ brig . path "connections" . zUser usr
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser

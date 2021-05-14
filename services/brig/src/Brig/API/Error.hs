@@ -72,6 +72,7 @@ connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedE
 connError (ConnectInvalidEmail _ _) = StdError invalidEmail
 connError ConnectInvalidPhone {} = StdError invalidPhone
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
+connError ConnectMissingLegalholdConsent = StdError missingLegalholdConsent
 
 actError :: ActivationError -> Error
 actError (UserKeyExists _) = StdError userKeyExists
@@ -476,6 +477,9 @@ propertyManagedByScim prop = Wai.Error status403 "managed-by-scim" $ "Updating \
 
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."
+
+missingLegalholdConsent :: Wai.Error
+missingLegalholdConsent = Wai.Error status412 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
 
 ownerDeletingSelf :: Wai.Error
 ownerDeletingSelf =
