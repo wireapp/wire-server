@@ -489,16 +489,19 @@ testUpdateClient opts brig = do
   get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
+
   -- check if label has been updated
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
+
   -- via `/users/:uid/clients/:client`, only `id` and `class` are visible:
   get (brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
+
   -- via `/users/:domain/:uid/clients/:client`, only `id` and `class` are visible:
   let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   get (brig . paths ["users", toByteString' localdomain, toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
@@ -508,6 +511,7 @@ testUpdateClient opts brig = do
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
 
   let update' = UpdateClient [] Nothing Nothing
+
   -- empty update should be a no-op
   put
     ( brig
@@ -518,6 +522,7 @@ testUpdateClient opts brig = do
     )
     !!! const 200
     === statusCode
+
   -- check if label is still present
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
