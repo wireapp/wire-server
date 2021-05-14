@@ -1158,6 +1158,7 @@ CREATE TABLE brig_test.clients (
     lat double,
     lon double,
     model text,
+    supported_features list<int>,
     tstamp timestamp,
     type int,
     PRIMARY KEY (user, client)

@@ -547,6 +547,17 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelClient)
     Doc.response 200 "Client" Doc.end
 
+  get "/clients/:client/supported-features" (continue getClientSupportedFeaturesH) $
+    zauthUserId
+      .&. capture "client"
+      .&. accept "application" "json"
+  document "GET" "getClientSupportedFeatureList" $ do
+    Doc.summary "Read back what the client has been posting about itself."
+    Doc.parameter Doc.Path "client" Doc.bytes' $
+      Doc.description "Client ID"
+    Doc.returns (Doc.ref Public.modelClientSupportedFeatureList)
+    Doc.response 200 "Client" Doc.end
+
   get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
     zauthUserId
       .&. capture "client"
@@ -934,6 +945,12 @@ getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
   localdomain <- viewFederationDomain
   API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
+
+getClientSupportedFeaturesH :: UserId ::: ClientId ::: JSON -> Handler Response
+getClientSupportedFeaturesH (uid ::: cid ::: _) = json <$> getClientSupportedFeatures uid cid
+
+getClientSupportedFeatures :: UserId -> ClientId -> Handler Public.SupportedClientFeatureList
+getClientSupportedFeatures uid cid = lift $ API.lookupLocalClientSupportedFeatures uid cid
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =
