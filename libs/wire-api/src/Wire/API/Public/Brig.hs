@@ -19,12 +19,9 @@
 
 module Wire.API.Public.Brig where
 
-import Control.Lens ((<>~), (?~))
-import Data.Aeson hiding (json)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.Qualified (Qualified (..))
 import Data.Range
@@ -35,72 +32,16 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
+import Wire.API.Public
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.UserMap
 
--- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
--- shows the "Authorization" header in the swagger docs, but expects the
--- "Z-Auth" header in the server. This helps keep the swagger docs usable
--- through nginz.
-data ZAuthServant
-
-type InternalAuth = Header' '[Required, Strict] "Z-User" UserId
-
-instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
-      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
-      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
-    where
-      secScheme =
-        SecurityScheme
-          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
-            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
-          }
-
-instance
-  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasServer api ctx
-  ) =>
-  HasServer (ZAuthServant :> api) ctx
-  where
-  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
-
-  route _ = route (Proxy @(InternalAuth :> api))
-  hoistServerWithContext _ pc nt s =
-    hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
-
-type CaptureUserId name = Capture' '[Description "User Id"] name UserId
-
-type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
-
 type MaxUsersForListClientsBulk = 500
 
 type CheckUserExistsResponse = [Empty200, Empty404]
-
-data Empty200 = Empty200
-  deriving (Generic)
-  deriving (HasStatus) via (WithStatus 200 Empty200)
-
-instance ToSchema Empty200 where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
-
-instance ToJSON Empty200 where
-  toJSON _ = toJSON ("" :: Text)
-
-data Empty404 = Empty404
-  deriving (Generic)
-  deriving (HasStatus) via (WithStatus 404 Empty404)
-
-instance ToJSON Empty404 where
-  toJSON _ = toJSON ("" :: Text)
-
-instance ToSchema Empty404 where
-  declareNamedSchema _ =
-    declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
 
 data Api routes = Api
   { -- Note [document responses]

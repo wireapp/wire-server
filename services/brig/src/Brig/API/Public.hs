@@ -92,7 +92,9 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
+import Wire.API.Public (Empty200 (..), Empty404 (..))
 import qualified Wire.API.Public.Brig as BrigAPI
+import qualified Wire.API.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.User as Public
@@ -113,7 +115,7 @@ type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 type ServantAPI = BrigAPI.ServantAPI
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer BrigAPI.swagger
+swaggerDocsAPI = swaggerSchemaUIServer (BrigAPI.swagger <> GalleyAPI.swaggerDoc)
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
@@ -995,8 +997,8 @@ checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUs
 checkUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists
-    then Servant.respond BrigAPI.Empty200
-    else Servant.respond BrigAPI.Empty404
+    then Servant.respond Empty200
+    else Servant.respond Empty404
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =

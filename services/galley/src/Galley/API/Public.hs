@@ -21,32 +21,19 @@ module Galley.API.Public
     apiDocs,
     apiDocsTeamsLegalhold,
     filterMissing, -- for tests
-    ServantAPI,
     servantSitemap,
-    SwaggerDocsAPI,
-    swaggerDocsAPI,
   )
 where
 
-import Control.Lens ((.~), (<>~), (?~))
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
-import Data.CommaSeparatedList
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (ConnId, ConvId, TeamId, UserId)
+import Data.Id (TeamId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
-import Data.Swagger (ApiKeyLocation (ApiKeyHeader), ApiKeyParams (..), SecurityRequirement (..), SecurityScheme (..), SecuritySchemeType (SecuritySchemeApiKey))
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
-import Data.Swagger.Internal (Swagger)
-import Data.Swagger.Lens (info, security, securityDefinitions, title)
-import qualified Data.Swagger.Lens as SwaggerLens
-import Data.Swagger.Schema (ToSchema (..))
 import Data.Text.Encoding (decodeLatin1)
-import GHC.Base (Symbol)
-import GHC.TypeLits (KnownSymbol)
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
@@ -57,7 +44,6 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (EmptyResult (..))
 import Galley.App
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -70,23 +56,18 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
-import qualified Servant
-import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Server.Generic (genericServerT)
-import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
-import Servant.Swagger.UI (SwaggerSchemaUI, swaggerSchemaUIServer)
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
-import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
+import qualified Wire.API.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
-import qualified Wire.API.Team.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
@@ -95,239 +76,21 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
--- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
--- shows the "Authorization" header in the swagger docs, but expects the
--- "Z-Auth" header in the server. This helps keep the swagger docs usable
--- through nginz.
-data ZUserType = ZAuthUser | ZAuthConn
-
-type family ZUserHeader (ztype :: ZUserType) :: Symbol where
-  ZUserHeader 'ZAuthUser = "Z-User"
-  ZUserHeader 'ZAuthConn = "Z-Connection"
-
-type family ZUserParam (ztype :: ZUserType) :: * where
-  ZUserParam 'ZAuthUser = UserId
-  ZUserParam 'ZAuthConn = ConnId
-
-data ZAuthServant (ztype :: ZUserType)
-
-type InternalAuth ztype =
-  Header'
-    '[Servant.Required, Servant.Strict]
-    (ZUserHeader ztype)
-    (ZUserParam ztype)
-
-type ZUser = ZAuthServant 'ZAuthUser
-
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser :> api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
-      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
-      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
-    where
-      secScheme =
-        SecurityScheme
-          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
-            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
-          }
-
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
-
-instance
-  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasServer api ctx,
-    KnownSymbol (ZUserHeader ztype),
-    FromHttpApiData (ZUserParam ztype)
-  ) =>
-  HasServer (ZAuthServant ztype :> api) ctx
-  where
-  type ServerT (ZAuthServant ztype :> api) m = ServerT (InternalAuth ztype :> api) m
-
-  route _ = Servant.route (Proxy @(InternalAuth ztype :> api))
-  hoistServerWithContext _ pc nt s =
-    Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
-
--- FUTUREWORK: Make a PR to the servant-swagger package with this instance
-instance ToSchema a => ToSchema (Headers ls a) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @a)
-
-data Api routes = Api
-  { -- Conversations
-
-    getConversation ::
-      routes
-        :- Summary "Get a conversation by ID"
-        :> ZUser
-        :> "conversations"
-        :> Capture "cnv" ConvId
-        :> Get '[Servant.JSON] Public.Conversation,
-    getConversationRoles ::
-      routes
-        :- Summary "Get existing roles available for the given conversation"
-        :> ZUser
-        :> "conversations"
-        :> Capture "cnv" ConvId
-        :> "roles"
-        :> Get '[Servant.JSON] Public.ConversationRolesList,
-    getConversationIds ::
-      routes
-        :- Summary "Get all conversation IDs."
-        -- FUTUREWORK: add bounds to swagger schema for Range
-        :> ZUser
-        :> "conversations"
-        :> "ids"
-        :> QueryParam'
-             [ Optional,
-               Strict,
-               Description "Conversation ID to start from (exclusive)"
-             ]
-             "start"
-             ConvId
-        :> QueryParam'
-             [ Optional,
-               Strict,
-               Description "Maximum number of IDs to return"
-             ]
-             "size"
-             (Range 1 1000 Int32)
-        :> Get '[Servant.JSON] (Public.ConversationList ConvId),
-    getConversations ::
-      routes
-        :- Summary "Get all conversations"
-        :> ZUser
-        :> "conversations"
-        :> QueryParam'
-             [ Optional,
-               Strict,
-               Description "Mutually exclusive with 'start' (at most 32 IDs per request)"
-             ]
-             "ids"
-             (Range 1 32 (CommaSeparatedList ConvId))
-        :> QueryParam'
-             [ Optional,
-               Strict,
-               Description "Conversation ID to start from (exclusive)"
-             ]
-             "start"
-             ConvId
-        :> QueryParam'
-             [ Optional,
-               Strict,
-               Description "Maximum number of conversations to return"
-             ]
-             "size"
-             (Range 1 500 Int32)
-        :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
-    -- This endpoint can lead to the following events being sent:
-    -- - ConvCreate event to members
-    -- FUTUREWORK: errorResponse Error.notConnected
-    --             errorResponse Error.notATeamMember
-    --             errorResponse (Error.operationDenied Public.CreateConversation)
-    createGroupConversation ::
-      routes
-        :- Summary "Create a new conversation"
-        :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-        :> ZUser
-        :> ZAuthServant 'ZAuthConn
-        :> "conversations"
-        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
-    createSelfConversation ::
-      routes
-        :- Summary "Create a self-conversation"
-        :> ZUser
-        :> "conversations"
-        :> "self"
-        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
-    -- This endpoint can lead to the following events being sent:
-    -- - ConvCreate event to members
-    -- TODO: add note: "On 201, the conversation ID is the `Location` header"
-    createOne2OneConversation ::
-      routes
-        :- Summary "Create a 1:1 conversation"
-        :> ZUser
-        :> ZAuthServant 'ZAuthConn
-        :> "conversations"
-        :> "one2one"
-        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
-    -- Team Conversations
-
-    getTeamConversationRoles ::
-      -- FUTUREWORK: errorResponse Error.notATeamMember
-      routes
-        :- Summary "Get existing roles available for the given team"
-        :> ZUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "conversations"
-        :> "roles"
-        :> Get '[Servant.JSON] Public.ConversationRolesList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
-    getTeamConversations ::
-      routes
-        :- Summary "Get team conversations"
-        :> ZUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "conversations"
-        :> Get '[Servant.JSON] Public.TeamConversationList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
-    getTeamConversation ::
-      routes
-        :- Summary "Get one team conversation"
-        :> ZUser
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "conversations"
-        :> Capture "cid" ConvId
-        :> Get '[Servant.JSON] Public.TeamConversation,
-    -- FUTUREWORK: errorResponse (Error.actionDenied Public.DeleteConversation)
-    --             errorResponse Error.notATeamMember
-    deleteTeamConversation ::
-      routes
-        :- Summary "Remove a team conversation"
-        :> ZUser
-        :> ZAuthServant 'ZAuthConn
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "conversations"
-        :> Capture "cid" ConvId
-        :> Delete '[] (EmptyResult 200)
-  }
-  deriving (Generic)
-
-type ServantAPI = ToServantApi Api
-
-type SwaggerDocsAPI = "galley-api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
-
--- FUTUREWORK: At the moment this only shows endpoints from galley, but we should
--- combine the swagger 2.0 endpoints here as well from other services
-swaggerDoc :: Swagger
-swaggerDoc =
-  toSwagger (Proxy @ServantAPI)
-    & info . title .~ "Wire-Server API as Swagger 2.0 "
-    & info . SwaggerLens.description ?~ "NOTE: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints."
-
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
-
-servantSitemap :: ServerT ServantAPI Galley
+servantSitemap :: ServerT GalleyAPI.ServantAPI Galley
 servantSitemap =
   genericServerT $
-    Api
-      { getConversation = Query.getConversation,
-        getConversationRoles = Query.getConversationRoles,
-        getConversationIds = Query.getConversationIds,
-        getConversations = Query.getConversations,
-        createGroupConversation = Create.createGroupConversation,
-        createSelfConversation = Create.createSelfConversation,
-        createOne2OneConversation = Create.createOne2OneConversation,
-        getTeamConversationRoles = Teams.getTeamConversationRoles,
-        getTeamConversations = Teams.getTeamConversations,
-        getTeamConversation = Teams.getTeamConversation,
-        deleteTeamConversation = Teams.deleteTeamConversation
+    GalleyAPI.Api
+      { GalleyAPI.getConversation = Query.getConversation,
+        GalleyAPI.getConversationRoles = Query.getConversationRoles,
+        GalleyAPI.getConversationIds = Query.getConversationIds,
+        GalleyAPI.getConversations = Query.getConversations,
+        GalleyAPI.createGroupConversation = Create.createGroupConversation,
+        GalleyAPI.createSelfConversation = Create.createSelfConversation,
+        GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
+        GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
+        GalleyAPI.getTeamConversations = Teams.getTeamConversations,
+        GalleyAPI.getTeamConversation = Teams.getTeamConversation,
+        GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation
       }
 
 sitemap :: Routes ApiBuilder Galley ()
