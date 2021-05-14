@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2b6698e0b290002d31c638cc18d639d15568d912baab323324c52cca4dfd8cfc
+-- hash: 5b72bd21ef9fa1bafaa1b01714719431544ba9f8c0d548195d58af2d0af019f5
 
 name:           spar
 version:        0.1
@@ -22,8 +22,6 @@ library
   exposed-modules:
       Spar.API
       Spar.API.Swagger
-      Spar.API.Types
-      Spar.API.Util
       Spar.App
       Spar.Data
       Spar.Data.Instances
@@ -38,7 +36,6 @@ library
       Spar.Scim.Swagger
       Spar.Scim.Types
       Spar.Scim.User
-      Spar.Types
   other-modules:
       Paths_spar
   hs-source-dirs:

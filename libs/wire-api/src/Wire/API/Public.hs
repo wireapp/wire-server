@@ -139,3 +139,22 @@ instance
     where
       method = reflectMethod (Proxy :: Proxy method)
       status = toEnum . fromInteger $ natVal (Proxy @n)
+
+-- | A type-level tag that lets us omit any branch from Swagger docs.
+-- 
+-- Those are likely to be:
+--
+--   * Endpoints for which we can't generate Swagger docs.
+--   * The endpoint that serves Swagger docs.
+--   * Internal endpoints.
+data OmitDocs
+
+instance HasSwagger (OmitDocs :> a) where
+  toSwagger _ = mempty
+
+instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
+  type ServerT (OmitDocs :> api) m = ServerT api m
+
+  route _ = route (Proxy :: Proxy api)
+  hoistServerWithContext _ pc nt s =
+    hoistServerWithContext (Proxy :: Proxy api) pc nt s

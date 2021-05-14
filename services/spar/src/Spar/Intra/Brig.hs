@@ -78,10 +78,10 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission)
-import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified System.Logger.Class as Log
 import qualified Text.Email.Parser
 import Web.Cookie
+import Wire.API.Scim (ValidExternalId (..), runValidExternalId)
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
@@ -427,19 +427,17 @@ getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
 -- permission check fails or the user is not in status 'Active'.
 getZUsrCheckPerm ::
   (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m, IsPerm perm, Show perm) =>
-  Maybe UserId ->
+  UserId ->
   perm ->
   m TeamId
-getZUsrCheckPerm Nothing _ = throwSpar SparMissingZUsr
-getZUsrCheckPerm (Just uid) perm = do
+getZUsrCheckPerm uid perm = do
   getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
       (\teamid -> teamid <$ Galley.assertHasPermission teamid perm uid)
 
-authorizeScimTokenManagement :: (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) => Maybe UserId -> m TeamId
-authorizeScimTokenManagement Nothing = throwSpar SparMissingZUsr
-authorizeScimTokenManagement (Just uid) = do
+authorizeScimTokenManagement :: (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) => UserId -> m TeamId
+authorizeScimTokenManagement uid = do
   getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
@@ -448,11 +446,10 @@ authorizeScimTokenManagement (Just uid) = do
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::
   (HasCallStack, MonadSparToBrig m) =>
-  Maybe UserId ->
+  UserId ->
   Maybe PlainTextPassword ->
   m ()
-ensureReAuthorised Nothing _ = throwSpar SparMissingZUsr
-ensureReAuthorised (Just uid) secret = do
+ensureReAuthorised uid secret = do
   resp <-
     call $
       method GET

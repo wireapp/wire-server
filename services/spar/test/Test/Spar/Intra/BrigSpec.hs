@@ -27,7 +27,7 @@ import Data.String.Conversions (ST, cs)
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Intra.Brig
-import Spar.Scim.Types
+import Wire.API.Scim
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)

@@ -100,7 +100,7 @@ import GHC.TypeLits (KnownSymbol)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import Spar.Types
+import Wire.API.Spar
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky

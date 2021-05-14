@@ -1,10 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -19,22 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Servant-based API description types for Spar.
-module Spar.API.Types where
+module Wire.API.Public.Spar where
 
 import Data.Id
 import Data.Proxy
-import Data.String.Conversions (ST, cs)
+import Data.String.Conversions (ST)
 import Imports
 import qualified SAML2.WebSSO as SAML
+import Web.Scim.Capabilities.MetaSchema as Scim.Meta
+import Web.Scim.Class.Auth as Scim.Auth
+import Web.Scim.Class.User as Scim.User
 import Servant
+import Servant.API.Generic (ToServantApi, (:-))
 import Servant.API.Extended
 import Servant.Multipart
-import Spar.API.Util
-import Spar.Error
-import Spar.Scim (APIScim)
-import Spar.Types
 import qualified URI.ByteString as URI
+import Wire.API.Public
+import Wire.API.Spar
+import Wire.API.Scim
 
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.
@@ -117,7 +115,7 @@ type APIAuthReqPrecheck =
 --   * Block implicit creation for a short time window, and ask all existing users to use that time
 --     window to bind.
 type APIAuthReq =
-  Header "Z-User" UserId
+  ZUser
     :> QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
     -- (SAML.APIAuthReq from here on, except for the cookies)
@@ -137,12 +135,12 @@ type APIAuthResp =
     :> Post '[PlainText] Void
 
 type APIIDP =
-  Header "Z-User" UserId :> IdpGet
-    :<|> Header "Z-User" UserId :> IdpGetRaw
-    :<|> Header "Z-User" UserId :> IdpGetAll
-    :<|> Header "Z-User" UserId :> IdpCreate
-    :<|> Header "Z-User" UserId :> IdpUpdate
-    :<|> Header "Z-User" UserId :> IdpDelete
+  ZUser :> IdpGet
+    :<|> ZUser :> IdpGetRaw
+    :<|> ZUser :> IdpGetAll
+    :<|> ZUser :> IdpCreate
+    :<|> ZUser :> IdpUpdate
+    :<|> ZUser :> IdpDelete
 
 type IdpGetRaw = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
 
@@ -166,9 +164,6 @@ type IdpDelete =
     :> QueryParam' '[Optional, Strict] "purge" Bool
     :> DeleteNoContent
 
-instance MakeCustomError "wai-error" IdPMetadataInfo where
-  makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs
-
 type SsoSettingsGet =
   Get '[JSON] SsoSettings
 
@@ -182,3 +177,41 @@ sparSPIssuer = SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRes
 
 sparResponseURI :: SAML.HasConfig m => m URI.URI
 sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
+
+-- SCIM
+
+type APIScim =
+  OmitDocs :> "v2" :> ScimSiteAPI SparTag
+    :<|> "auth-tokens" :> APIScimToken
+
+type ScimSiteAPI tag = ToServantApi (ScimSite tag)
+
+-- | This is similar to 'Scim.Site', but does not include the 'Scim.GroupAPI',
+-- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
+data ScimSite tag route = ScimSite
+  { config ::
+      route
+        :- ToServantApi Scim.Meta.ConfigSite,
+    users ::
+      route
+        :- Header "Authorization" (Scim.Auth.AuthData tag)
+        :> "Users"
+        :> ToServantApi (Scim.User.UserSite tag)
+  }
+  deriving (Generic)
+
+type APIScimToken =
+  ZUser :> APIScimTokenCreate
+    :<|> ZUser :> APIScimTokenDelete
+    :<|> ZUser :> APIScimTokenList
+
+type APIScimTokenCreate =
+  ReqBody '[JSON] CreateScimToken
+    :> Post '[JSON] CreateScimTokenResponse
+
+type APIScimTokenDelete =
+  QueryParam' '[Required, Strict] "id" ScimTokenId
+    :> DeleteNoContent
+
+type APIScimTokenList =
+  Get '[JSON] ScimTokenList

@@ -37,9 +37,9 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
-import Spar.Scim.Types
+import Wire.API.Scim
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
-import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
+import Wire.API.Spar (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
 import Test.QuickCheck (arbitrary, generate)
 import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML

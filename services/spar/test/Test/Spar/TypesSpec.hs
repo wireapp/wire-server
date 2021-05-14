@@ -22,7 +22,7 @@ module Test.Spar.TypesSpec where
 import Data.Id
 import Data.UUID
 import Imports
-import Spar.Types
+import Wire.API.Spar
 import Test.Hspec
 import Test.Spar.Roundtrip.ByteString (testRoundTrip)
 import URI.ByteString

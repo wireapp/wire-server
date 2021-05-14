@@ -36,7 +36,7 @@ import qualified Servant
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import Spar.Orphans ()
-import Spar.Types (IdP)
+import Wire.API.Spar (IdP)
 import qualified Text.XML as XML
 import qualified Text.XML.DSig as DSig
 import URI.ByteString as URI

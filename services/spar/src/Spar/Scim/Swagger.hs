@@ -39,7 +39,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Orphans ()
 import Spar.Scim (CreateScimToken, CreateScimTokenResponse (..), ScimTokenList (..))
-import Spar.Types (ScimToken, ScimTokenInfo)
+import Wire.API.Spar (ScimToken, ScimTokenInfo)
 
 instance ToParamSchema ScimToken where
   toParamSchema _ = toParamSchema (Proxy @Text)

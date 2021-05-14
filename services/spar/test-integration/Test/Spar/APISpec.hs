@@ -65,10 +65,10 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
-import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
-import Spar.Scim.Types
-import Spar.Types
+import Wire.API.Public.Spar
+import Wire.API.Scim
+import Wire.API.Spar
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
 import Util.Core

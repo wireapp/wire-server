@@ -20,7 +20,7 @@
 
 -- | A "default" module for types used in Spar, unless there's a better / more specific place
 -- for them.
-module Spar.Types where
+module Wire.API.Spar where
 
 import Control.Lens (makeLenses)
 import Control.Monad.Except

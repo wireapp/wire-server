@@ -43,8 +43,8 @@ import Servant
 import qualified Servant.Multipart as SM
 import Servant.Swagger
 import Spar.Orphans ()
-import Spar.Types
 import qualified URI.ByteString as URI
+import Wire.API.Spar
 
 -- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
 

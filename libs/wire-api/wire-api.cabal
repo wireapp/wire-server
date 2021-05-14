@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ce7eec8cb05b09bb7524182222158e4b56394e6228625415bcaf30659201ac81
+-- hash: 75282b0e1df2641640e4fcc44b83eab2d29e42d837191d1b20652749ae92ab9a
 
 name:           wire-api
 version:        0.1.0
@@ -47,8 +47,11 @@ library
       Wire.API.Public.Brig
       Wire.API.Public.Combined
       Wire.API.Public.Galley
+      Wire.API.Public.Spar
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
+      Wire.API.Scim
+      Wire.API.Spar
       Wire.API.Swagger
       Wire.API.Team
       Wire.API.Team.Conversation
@@ -88,32 +91,44 @@ library
     , attoparsec >=0.10
     , base >=4 && <5
     , base64-bytestring >=1.0
+    , binary
     , bytestring >=0.9
     , bytestring-conversion >=0.2
     , case-insensitive
     , cassandra-util
     , cassava >=0.5
     , containers >=0.5
+    , cookie
+    , cryptonite
     , currency-codes >=2.0
     , deriving-aeson >=0.2
     , deriving-swagger2
     , email-validate >=2.0
     , errors
+    , extended
     , extra
     , generic-random >=1.2
+    , ghc-prim
     , hashable
     , hostname-validate
+    , hscim
+    , http-api-data
+    , http-media
     , imports
     , insert-ordered-containers
     , iproute >=1.5
     , iso3166-country-codes >=0.2
     , iso639 >=0.1
     , lens >=4.12
+    , memory
     , mime >=0.4
+    , mtl
     , pem >=0.2
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
+    , saml2-web-sso
     , servant
+    , servant-multipart
     , servant-server
     , servant-swagger
     , string-conversions

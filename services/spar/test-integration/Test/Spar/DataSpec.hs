@@ -33,8 +33,8 @@ import Imports
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
-import Spar.Scim.Types
-import Spar.Types
+import Wire.API.Scim
+import Wire.API.Spar
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core

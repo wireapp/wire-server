@@ -31,7 +31,7 @@ import Data.Proxy (Proxy (Proxy))
 import Imports
 import Servant.Swagger (validateEveryToJSON)
 import Spar.API as API
-import Spar.Types (IdPMetadataInfo (IdPMetadataValue), SsoSettings)
+import Wire.API.Spar (IdPMetadataInfo (IdPMetadataValue), SsoSettings)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Test.QuickCheck (property)
 

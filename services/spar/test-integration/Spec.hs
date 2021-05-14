@@ -35,7 +35,7 @@ import Data.Text (pack)
 import Imports
 import Servant.API (toHeader)
 import Spar.Run (mkApp)
-import Spar.Scim.Types
+import Wire.API.Scim
 import System.Environment (withArgs)
 import System.Random (randomRIO)
 import Test.Hspec

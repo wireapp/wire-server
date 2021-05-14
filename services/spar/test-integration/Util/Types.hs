@@ -51,7 +51,7 @@ import Imports
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import qualified Spar.App as Spar
-import Spar.Types
+import Wire.API.Spar
 import Util.Options
 
 type BrigReq = Request -> Request

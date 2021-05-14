@@ -47,8 +47,8 @@ import Spar.App (Spar, sparCtxOpts, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
-import Spar.Scim.Types
-  ( APIScimToken,
+import Wire.API.Public.Spar (APIScimToken)
+import Wire.API.Scim (
     CreateScimToken (CreateScimToken),
     CreateScimTokenResponse (..),
     ScimTokenList (..),
@@ -56,7 +56,7 @@ import Spar.Scim.Types
     createScimTokenDescr,
     createScimTokenPassword,
   )
-import Spar.Types
+import Wire.API.Spar
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
@@ -91,7 +91,7 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   -- | Who is trying to create a token
-  Maybe UserId ->
+  UserId ->
   -- | Request body
   CreateScimToken ->
   Spar CreateScimTokenResponse
@@ -137,7 +137,7 @@ createScimToken zusr CreateScimToken {..} = do
 -- Delete a token belonging to user's team.
 deleteScimToken ::
   -- | Who is trying to delete a token
-  Maybe UserId ->
+  UserId ->
   ScimTokenId ->
   Spar NoContent
 deleteScimToken zusr tokenid = do
@@ -151,7 +151,7 @@ deleteScimToken zusr tokenid = do
 -- metadata about them.
 listScimTokens ::
   -- | Who is trying to list tokens
-  Maybe UserId ->
+  UserId ->
   Spar ScimTokenList
 listScimTokens zusr = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr

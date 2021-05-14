@@ -54,7 +54,7 @@
 -- pseudo-code: @\email -> entityNameID (parseURI ("email:" <> renderEmail email))@.
 module Spar.Scim
   ( -- * Reexports
-    module Spar.Scim.Types,
+    module Wire.API.Scim,
     module Spar.Scim.Auth,
     module Spar.Scim.User,
 
@@ -80,7 +80,8 @@ import Spar.Error
     throwSpar,
   )
 import Spar.Scim.Auth
-import Spar.Scim.Types
+import Wire.API.Public.Spar
+import Wire.API.Scim
 import Spar.Scim.User
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth

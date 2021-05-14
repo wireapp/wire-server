@@ -58,8 +58,6 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
-import Spar.Types (IdP, Opts' (..))
-import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
@@ -73,6 +71,8 @@ import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
+import Wire.API.Spar (IdP)
+import qualified Wire.API.Spar as Spar.Types
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
