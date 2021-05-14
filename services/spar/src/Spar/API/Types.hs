@@ -25,7 +25,6 @@ module Spar.API.Types where
 import Data.Id
 import Data.Proxy
 import Data.String.Conversions (ST, cs)
-import Data.Swagger hiding (Header (..))
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant
@@ -50,13 +49,8 @@ type API =
     :<|> "scim" :> APIScim
     :<|> OmitDocs :> "i" :> APIINTERNAL
 
--- | API with internal endpoints and so on removed from the docs; see
--- 'OutsideWorld' for more details.
-type OutsideWorldAPI = OutsideWorld API
-
 type APISSO =
-  OmitDocs :> "api-docs" :> Get '[JSON] Swagger
-    :<|> "metadata" :> SAML.APIMeta
+  "metadata" :> SAML.APIMeta
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
     :<|> APIAuthResp

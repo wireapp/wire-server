@@ -38,7 +38,7 @@ import Test.QuickCheck (property)
 spec :: Spec
 spec = do
   -- Note: SCIM types are not validated because their content-type is 'SCIM'.
-  validateEveryToJSON (Proxy @API.OutsideWorldAPI)
+  validateEveryToJSON (Proxy @API.API)
   it "api consistency" $ do
     pathsConsistencyCheck (routesToPaths @API.API) `shouldBe` mempty
   it "roundtrip: IdPMetadataInfo" . property $ \(val :: IdPMetadataInfo) -> do

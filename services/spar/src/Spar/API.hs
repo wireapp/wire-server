@@ -29,7 +29,6 @@ module Spar.API
 
     -- * API types
     API,
-    OutsideWorldAPI,
 
     -- ** Individual API pieces
     APIAuthReqPrecheck,
@@ -57,7 +56,6 @@ import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import Servant.Swagger
 import Spar.API.Swagger ()
 import Spar.API.Types
 import Spar.App
@@ -87,8 +85,7 @@ api opts =
 
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts =
-  pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> SAML.meta appName sparSPIssuer sparResponseURI
+  SAML.meta appName sparSPIssuer sparResponseURI
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
     :<|> authresp
