@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingVia #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -14,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE DerivingVia #-}
 
 module Wire.API.Public where
 
@@ -23,7 +25,8 @@ import Data.Aeson hiding (json)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.Swagger
-import GHC.TypeLits (KnownNat, natVal)
+import GHC.Base (Symbol)
+import GHC.TypeLits (KnownNat, KnownSymbol, natVal)
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Server.Internal (noContentRouter)
@@ -31,15 +34,32 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal (SwaggerMethod)
 import Servant.Swagger.Internal.Orphans ()
 
--- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
+-- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
 -- "Z-Auth" header in the server. This helps keep the swagger docs usable
 -- through nginz.
-data ZAuthServant
+data ZUserType = ZAuthUser | ZAuthConn
 
-type InternalAuth = Header' '[Required, Strict] "Z-User" UserId
+type family ZUserHeader (ztype :: ZUserType) :: Symbol where
+  ZUserHeader 'ZAuthUser = "Z-User"
+  ZUserHeader 'ZAuthConn = "Z-Connection"
 
-instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
+type family ZUserParam (ztype :: ZUserType) :: * where
+  ZUserParam 'ZAuthUser = UserId
+  ZUserParam 'ZAuthConn = ConnId
+
+data ZAuthServant (ztype :: ZUserType)
+
+type InternalAuth ztype =
+  Header'
+    '[Servant.Required, Servant.Strict]
+    (ZUserHeader ztype)
+    (ZUserParam ztype)
+
+type ZUser = ZAuthServant 'ZAuthUser
+type ZConn = ZAuthServant 'ZAuthConn
+
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
@@ -51,21 +71,26 @@ instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
             _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
           }
 
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn :> api) where
+  toSwagger _ = toSwagger (Proxy @api)
+
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasServer api ctx
+    HasServer api ctx,
+    KnownSymbol (ZUserHeader ztype),
+    FromHttpApiData (ZUserParam ztype)
   ) =>
-  HasServer (ZAuthServant :> api) ctx
+  HasServer (ZAuthServant ztype :> api) ctx
   where
-  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
+  type ServerT (ZAuthServant ztype :> api) m = ServerT (InternalAuth ztype :> api) m
 
-  route _ = route (Proxy @(InternalAuth :> api))
+  route _ = Servant.route (Proxy @(InternalAuth ztype :> api))
   hoistServerWithContext _ pc nt s =
-    hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
+    Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
 
-type CaptureUserId name = Capture' '[Description "User Id"] name UserId
-
-type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
+-- FUTUREWORK: Make a PR to the servant-swagger package with this instance
+instance ToSchema a => ToSchema (Headers ls a) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
 -- TODO: remove
 data Empty200 = Empty200

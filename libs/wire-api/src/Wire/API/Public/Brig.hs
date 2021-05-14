@@ -32,7 +32,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Public
+import Wire.API.Public (ZUser, Empty200, Empty404)
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -43,6 +43,10 @@ import Wire.API.UserMap
 type MaxUsersForListClientsBulk = 500
 
 type CheckUserExistsResponse = [Empty200, Empty404]
+
+type CaptureUserId name = Capture' '[Description "User Id"] name UserId
+
+type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 data Api routes = Api
   { -- Note [document responses]
@@ -60,7 +64,7 @@ data Api routes = Api
     checkUserExistsUnqualified ::
       routes
         :- Summary "Check if a user ID exists (deprecated)"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> CaptureUserId "uid"
         :> UVerb 'HEAD '[JSON] CheckUserExistsResponse,
@@ -73,7 +77,7 @@ data Api routes = Api
     checkUserExistsQualified ::
       routes
         :- Summary "Check if a user ID exists"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
@@ -87,7 +91,7 @@ data Api routes = Api
     getUserUnqualified ::
       routes
         :- Summary "Get a user by UserId (deprecated)"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> CaptureUserId "uid"
         :> Get '[JSON] UserProfile,
@@ -100,7 +104,7 @@ data Api routes = Api
     getUserQualified ::
       routes
         :- Summary "Get a user by Domain and UserId"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
@@ -108,7 +112,7 @@ data Api routes = Api
     getSelf ::
       routes
         :- Summary "Get your own profile"
-        :> ZAuthServant
+        :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile,
     -- See Note [document responses]
@@ -119,7 +123,7 @@ data Api routes = Api
     getHandleInfoUnqualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> "handles"
         :> Capture' '[Description "The user handle"] "handle" Handle
@@ -132,7 +136,7 @@ data Api routes = Api
     getUserByHandleQualfied ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> "by-handle"
         :> Capture "domain" Domain
@@ -143,7 +147,7 @@ data Api routes = Api
       routes
         :- Summary "List users (deprecated)"
         :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
         :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
@@ -153,7 +157,7 @@ data Api routes = Api
       routes
         :- Summary "List users"
         :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-        :> ZAuthServant
+        :> ZUser
         :> "list-users"
         :> ReqBody '[JSON] ListUsersQuery
         :> Post '[JSON] [UserProfile],
@@ -192,7 +196,7 @@ data Api routes = Api
     listClientsBulk ::
       routes
         :- Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> "list-clients"
         :> ReqBody '[JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
@@ -200,7 +204,7 @@ data Api routes = Api
     listClientsBulkV2 ::
       routes
         :- Summary "List all clients for a set of user ids"
-        :> ZAuthServant
+        :> ZUser
         :> "users"
         :> "list-clients"
         :> "v2"
@@ -260,7 +264,7 @@ data Api routes = Api
         :> Post '[JSON] (QualifiedUserClientMap (Maybe Prekey)),
     searchContacts ::
       routes :- Summary "Search for users"
-        :> ZAuthServant
+        :> ZUser
         :> "search"
         :> "contacts"
         :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
