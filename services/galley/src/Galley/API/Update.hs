@@ -238,7 +238,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       _ -> return ()
   -- Update Cassandra & send an event
   now <- liftIO getCurrentTime
-  let accessEvent = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
+  let accessEvent = Event ConvAccessUpdate cnv usr now (EdConvAccessUpdate body)
   Data.updateConversationAccess cnv targetAccess targetRole
   pushEvent accessEvent users bots zcon
   -- Remove users and bots
@@ -279,7 +279,7 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.Conversatio
       -- Update Cassandra & send an event
       Data.updateConversationReceiptMode cnv target
       now <- liftIO getCurrentTime
-      let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate receiptModeUpdate)
+      let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (EdConvReceiptModeUpdate receiptModeUpdate)
       pushEvent receiptEvent users bots zcon
       pure receiptEvent
 
@@ -303,7 +303,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
     update users bots = do
       -- update cassandra & send event
       now <- liftIO getCurrentTime
-      let timerEvent = Event ConvMessageTimerUpdate cnv usr now (Just $ EdConvMessageTimerUpdate timerUpdate)
+      let timerEvent = Event ConvMessageTimerUpdate cnv usr now (EdConvMessageTimerUpdate timerUpdate)
       Data.updateConversationMessageTimer cnv target
       pushEvent timerEvent users bots zcon
       pure timerEvent
@@ -338,7 +338,7 @@ addCode usr zcon cnv = do
       Data.insertCode code
       now <- liftIO getCurrentTime
       conversationCode <- createCode code
-      let event = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate conversationCode)
+      let event = Event ConvCodeUpdate cnv usr now (EdConvCodeUpdate conversationCode)
       pushEvent event users bots zcon
       pure $ CodeAdded event
     Just code -> do
@@ -363,7 +363,7 @@ rmCode usr zcon cnv = do
   key <- mkKey cnv
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
-  let event = Event ConvCodeDelete cnv usr now Nothing
+  let event = Event ConvCodeDelete cnv usr now EdConvCodeDelete
   pushEvent event users bots zcon
   pure event
 
@@ -638,7 +638,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
       -- use recipient's client's self conversation on broadcast
       -- (with federation, this might not work for remote members)
       conv = fromMaybe (selfConv $ memId m) cnv
-      e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
+      e = Event OtrMessageAdd conv usr now (EdOtrMessage o)
       r = recipient m & recipientClients .~ RecipientClientsSome (singleton c)
    in case newBotMember m of
         Just b -> ((b, e) : toBots, toUsers)
@@ -672,7 +672,7 @@ updateConversationName zusr zcon cnv convRename = do
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
-  let e = Event ConvRename cnv zusr now (Just $ EdConvRename convRename)
+  let e = Event ConvRename cnv zusr now (EdConvRename convRename)
   for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
@@ -690,7 +690,7 @@ isTyping zusr zcon cnv typingData = do
   unless (zusr `isMember` mm) $
     throwM convNotFound
   now <- liftIO getCurrentTime
-  let e = Event Typing cnv zusr now (Just $ EdTyping typingData)
+  let e = Event Typing cnv zusr now (EdTyping typingData)
   for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
@@ -756,7 +756,7 @@ rmBot zusr zcon b = do
     then pure Unchanged
     else do
       t <- liftIO getCurrentTime
-      let evd = Just (EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)]))
+      let evd = EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)])
       let e = Event MemberLeave (Data.convId c) zusr t evd
       for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
@@ -819,7 +819,7 @@ processUpdateMemberEvent ::
 processUpdateMemberEvent zusr zcon cid users target update = do
   up <- Data.updateMember cid (memId target) update
   now <- liftIO getCurrentTime
-  let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
+  let e = Event MemberStateUpdate cid zusr now (EdMemberUpdate up)
   let recipients = fmap recipient (target : filter ((/= memId target) . memId) users)
   for_ (newPush ListComplete (evtFrom e) (ConvEvent e) recipients) $ \p ->
     push1 $

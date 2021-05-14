@@ -1011,7 +1011,7 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtConv e @?= conv
   evtType e @?= OtrMessageAdd
   evtFrom e @?= usr
-  evtData e @?= Just (EdOtrMessage (OtrMessage from to txt (Just evData)))
+  evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 -- | This assumes the default role name
 wsAssertMemberJoin :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
@@ -1024,7 +1024,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtConv e @?= conv
   evtType e @?= MemberJoin
   evtFrom e @?= usr
-  evtData e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x role) new))
+  evtData e @?= EdMembersJoin (SimpleMembers (fmap (\x -> SimpleMember x role) new))
 
 wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1034,7 +1034,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtType e @?= MemberStateUpdate
   evtFrom e @?= usr
   case evtData e of
-    Just (Galley.Types.EdMemberUpdate mis) -> do
+    Galley.Types.EdMemberUpdate mis -> do
       assertEqual "target" (Just target) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
@@ -1046,7 +1046,7 @@ wsAssertConvAccessUpdate conv usr new n = do
   evtConv e @?= conv
   evtType e @?= ConvAccessUpdate
   evtFrom e @?= usr
-  evtData e @?= Just (EdConvAccessUpdate new)
+  evtData e @?= EdConvAccessUpdate new
 
 wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
@@ -1055,7 +1055,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtConv e @?= conv
   evtType e @?= ConvMessageTimerUpdate
   evtFrom e @?= usr
-  evtData e @?= Just (EdConvMessageTimerUpdate new)
+  evtData e @?= EdConvMessageTimerUpdate new
 
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
@@ -1064,9 +1064,9 @@ wsAssertMemberLeave conv usr old n = do
   evtConv e @?= conv
   evtType e @?= MemberLeave
   evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (Just (EdMembersLeave (UserIdList old)))
+  sorted (evtData e) @?= sorted (EdMembersLeave (UserIdList old))
   where
-    sorted (Just (EdMembersLeave (UserIdList m))) = Just (EdMembersLeave (UserIdList (sort m)))
+    sorted (EdMembersLeave (UserIdList m)) = EdMembersLeave (UserIdList (sort m))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
@@ -1100,7 +1100,7 @@ decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
 decodeConvCodeEvent r = case responseJsonUnsafe r of
-  (Event ConvCodeUpdate _ _ _ (Just (EdConvCodeUpdate c))) -> c
+  (Event ConvCodeUpdate _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId

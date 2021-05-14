@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -75,7 +76,7 @@ module Data.Text.Ascii
 where
 
 import Cassandra hiding (Ascii)
-import Data.Aeson
+import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Data.Attoparsec.ByteString (Parser)
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Base64 as B64
@@ -83,6 +84,8 @@ import qualified Data.ByteString.Base64.URL as B64Url
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
 import Imports
@@ -131,11 +134,17 @@ instance AsciiChars c => FromByteString (AsciiText c) where
 instance AsciiChars c => IsString (AsciiText c) where
   fromString = unsafeString validate
 
-instance ToJSON (AsciiText r) where
-  toJSON = String . toText
+instance AsciiChars c => ToSchema (AsciiText c) where
+  schema = toText .= parsedText "ASCII" validate
+
+instance AsciiChars c => ToJSON (AsciiText c) where
+  toJSON = schemaToJSON
 
 instance AsciiChars c => FromJSON (AsciiText c) where
-  parseJSON = withText "ASCII" $ either fail pure . validate
+  parseJSON = schemaParseJSON
+
+instance AsciiChars c => S.ToSchema (AsciiText c) where
+  declareNamedSchema = schemaToSwagger
 
 instance AsciiChars c => Cql (AsciiText c) where
   ctype = Tagged AsciiColumn

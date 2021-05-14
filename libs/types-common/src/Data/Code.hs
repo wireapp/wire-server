@@ -31,7 +31,9 @@ import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Range
+import Data.Schema
 import Data.Scientific (toBoundedInteger)
+import qualified Data.Swagger as S
 import Data.Text.Ascii
 import Data.Time.Clock
 import Imports
@@ -40,12 +42,28 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
 newtype Key = Key {asciiKey :: Range 20 20 AsciiBase64Url}
   deriving (Eq, Show)
-  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
+  deriving newtype
+    ( FromJSON,
+      ToJSON,
+      ToSchema,
+      S.ToSchema,
+      FromByteString,
+      ToByteString,
+      Arbitrary
+    )
 
 -- | A secret value bound to a 'Key' and a 'Timeout'.
 newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
   deriving (Eq, Show)
-  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
+  deriving newtype
+    ( FromJSON,
+      ToJSON,
+      ToSchema,
+      S.ToSchema,
+      FromByteString,
+      ToByteString,
+      Arbitrary
+    )
 
 newtype Timeout = Timeout
   {timeoutDiffTime :: NominalDiffTime}

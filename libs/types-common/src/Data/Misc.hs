@@ -256,6 +256,7 @@ newtype HttpsUrl = HttpsUrl
   { httpsUrl :: URIRef Absolute
   }
   deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema HttpsUrl
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
 mkHttpsUrl uri =
@@ -275,13 +276,10 @@ instance ToByteString HttpsUrl where
 instance FromByteString HttpsUrl where
   parser = either fail pure . mkHttpsUrl =<< uriParser strictURIParserOptions
 
-instance FromJSON HttpsUrl where
-  parseJSON =
-    A.withText "HttpsUrl" $
-      either fail return . runParser parser . encodeUtf8
-
-instance ToJSON HttpsUrl where
-  toJSON = toJSON . decodeUtf8 . toByteString'
+instance ToSchema HttpsUrl where
+  schema =
+    (decodeUtf8 . toByteString')
+      .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
 
 instance Cql HttpsUrl where
   ctype = Tagged BlobColumn

@@ -1654,7 +1654,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtConv e @?= conv
         evtType e @?= MemberJoin
         evtFrom e @?= usr
-        evtData e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new)))
+        evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
@@ -1666,7 +1666,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtConv e @?= conv
         evtType e @?= MemberLeave
         evtFrom e @?= usr
-        evtData e @?= Just (EdMembersLeave (UserIdList old))
+        evtData e @?= EdMembersLeave (UserIdList old)
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
 wsAssertConvDelete ws conv from = void $
@@ -1678,7 +1678,7 @@ wsAssertConvDelete ws conv from = void $
         evtConv e @?= conv
         evtType e @?= ConvDelete
         evtFrom e @?= from
-        evtData e @?= Nothing
+        evtData e @?= EdConvDelete
 
 wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
@@ -1690,7 +1690,7 @@ wsAssertMessage ws conv fromu fromc to txt = void $
         evtConv e @?= conv
         evtType e @?= OtrMessageAdd
         evtFrom e @?= fromu
-        evtData e @?= Just (EdOtrMessage (OtrMessage fromc to txt (Just "data")))
+        evtData e @?= EdOtrMessage (OtrMessage fromc to txt (Just "data"))
 
 svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
 svcAssertMemberJoin buf usr new cnv = liftIO $ do
@@ -1701,7 +1701,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
       assertEqual "event type" MemberJoin (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (Just (EdMembersJoin msg)) (evtData e)
+      assertEqual "event data" (EdMembersJoin msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
 svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
@@ -1713,7 +1713,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event type" MemberLeave (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (Just (EdMembersLeave msg)) (evtData e)
+      assertEqual "event data" (EdMembersLeave msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
 svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> UserId -> ConversationAccessUpdate -> ConvId -> m ()
@@ -1724,7 +1724,7 @@ svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
       assertEqual "event type" ConvAccessUpdate (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (Just (EdConvAccessUpdate upd)) (evtData e)
+      assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
 
 svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
@@ -1735,7 +1735,7 @@ svcAssertConvDelete buf usr cnv = liftIO $ do
       assertEqual "event type" ConvDelete (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" Nothing (evtData e)
+      assertEqual "event data" EdConvDelete (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
 svcAssertBotCreated :: MonadIO m => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
@@ -1758,7 +1758,7 @@ svcAssertMessage buf from msg cnv = liftIO $ do
       assertEqual "event type" OtrMessageAdd (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" from (evtFrom e)
-      assertEqual "event data" (Just (EdOtrMessage msg)) (evtData e)
+      assertEqual "event data" (EdOtrMessage msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
 svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
@@ -1769,7 +1769,7 @@ svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
       assertEqual "event type" ConvDelete (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" Nothing (evtData e)
+      assertEqual "event data" EdConvDelete (evtData e)
     -- We ignore every other message type
     Just (TestBotMessage _) ->
       svcAssertEventuallyConvDelete buf usr cnv

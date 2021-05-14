@@ -177,7 +177,7 @@ postConvOk = do
       evtType e @?= ConvCreate
       evtFrom e @?= alice
       case evtData e of
-        Just (EdConversation c') -> assertConvEquals cnv c'
+        EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
 postCryptoMessage1 :: TestM ()
@@ -981,7 +981,7 @@ putConvRenameOk = do
       evtConv e @?= conv
       evtType e @?= ConvRename
       evtFrom e @?= bob
-      evtData e @?= Just (EdConvRename (ConversationRename "gossip++"))
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putMemberOtrMuteOk :: TestM ()
 putMemberOtrMuteOk = do
@@ -1044,7 +1044,7 @@ putMemberOk update = do
       evtType e @?= MemberStateUpdate
       evtFrom e @?= bob
       case evtData e of
-        Just (EdMemberUpdate mis) -> do
+        EdMemberUpdate mis -> do
           assertEqual "otr_muted" (mupOtrMute update) (misOtrMuted mis)
           assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
           assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
@@ -1106,7 +1106,7 @@ putReceiptModeOk = do
       evtType e @?= ConvReceiptModeUpdate
       evtFrom e @?= alice
       case evtData e of
-        Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode))) ->
+        EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)) ->
           assertEqual "modes should match" mode 0
         _ -> assertFailure "Unexpected event data"
 
@@ -1172,4 +1172,4 @@ removeUser = do
       evtConv e @?= conv
       evtType e @?= MemberLeave
       evtFrom e @?= u
-      evtData e @?= Just (EdMembersLeave (UserIdList [u]))
+      evtData e @?= EdMembersLeave (UserIdList [u])
