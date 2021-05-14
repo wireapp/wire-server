@@ -55,7 +55,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -68,6 +68,7 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -115,7 +116,19 @@ type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 type ServantAPI = BrigAPI.ServantAPI
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer (BrigAPI.swagger <> GalleyAPI.swaggerDoc)
+swaggerDocsAPI =
+  swaggerSchemaUIServer $
+    (BrigAPI.swagger <> GalleyAPI.swaggerDoc)
+      & S.info . S.title .~ "Wire-Server API as Swagger 2.0 "
+      & S.info . S.description ?~ desc
+  where
+    desc =
+      "NOTE: only a few endpoints are visible here at the moment, \
+      \more will come as we migrate them to Swagger 2.0. In the \
+      \meantime please also look at the old swagger docs link for \
+      \the not-yet-migrated endpoints. See \
+      \https://docs.wire.com/understand/api-client-perspective/swagger.html \
+      \for the old endpoints."
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
