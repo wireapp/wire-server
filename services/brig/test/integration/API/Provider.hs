@@ -1925,7 +1925,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   let Just bcnv = responseJsonMaybe _rs
   liftIO $ do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
-  assertEqual "members" [OtherMember (Qualified uid localDomain) Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
+    assertEqual "members" [OtherMember (Qualified uid localDomain) Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
   mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
   let other = listToMaybe (cmOthers mems)
