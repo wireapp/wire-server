@@ -35,6 +35,9 @@ module TestSetup
     TestM (..),
     TestSetup (..),
     FedGalleyClient,
+    GalleyR,
+    BrigR,
+    CannonR,
   )
 where
 

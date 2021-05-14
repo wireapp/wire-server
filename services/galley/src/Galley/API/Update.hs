@@ -1007,23 +1007,37 @@ checkOtrRecipients usr sid prs vms vcs val now
   | not (Clients.null missing) = MissingOtrRecipients mismatch
   | otherwise = ValidOtrRecipients mismatch yield
   where
+    yield :: [(LocalMember, ClientId, Text)]
     yield = foldrOtrRecipients next [] prs
+
+    next :: r ~ [(LocalMember, ClientId, c)] => UserId -> ClientId -> c -> r -> r
     next u c t rs
       | Just m <- member u c = (m, c, t) : rs
       | otherwise = rs
+
     member :: UserId -> ClientId -> Maybe LocalMember
     member u c
       | Just m <- Map.lookup u vmembers,
         Clients.contains u c vclients =
         Just m
       | otherwise = Nothing
+
     -- Valid recipient members & clients
+    vmembers :: Map UserId (InternalMember UserId)
     vmembers = Map.fromList $ map (\m -> (memId m, m)) vms
+
+    vclients :: Clients
     vclients = Clients.rmClient usr sid vcs
+
     -- Proposed (given) recipients
+    recipients :: Map UserId (Map ClientId Text)
     recipients = userClientMap (otrRecipientsMap prs)
+
+    given :: Clients
     given = Clients.fromMap (Map.map Map.keysSet recipients)
+
     -- Differences between valid and proposed recipients
+    missing, unknown, deleted, redundant :: Clients
     missing = filterMissing (Clients.diff vclients given)
     unknown = Clients.diff given vcs
     deleted = Clients.filter (`Map.member` vmembers) unknown
@@ -1032,6 +1046,8 @@ checkOtrRecipients usr sid prs vms vcs val now
         & if Clients.contains usr sid given
           then Clients.insert usr sid
           else id
+
+    mismatch :: ClientMismatch
     mismatch =
       ClientMismatch
         { cmismatchTime = now,
@@ -1039,6 +1055,8 @@ checkOtrRecipients usr sid prs vms vcs val now
           redundantClients = UserClients (Clients.toMap redundant),
           deletedClients = UserClients (Clients.toMap deleted)
         }
+
+    filterMissing :: Clients -> Clients
     filterMissing miss = case val of
       OtrReportAllMissing -> miss
       OtrIgnoreAllMissing -> Clients.nil

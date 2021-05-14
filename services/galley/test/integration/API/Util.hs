@@ -88,7 +88,6 @@ import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
-import qualified Wire.API.Team.Member as Member
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -284,6 +283,10 @@ bulkGetTeamMembersTruncated usr tid uids trnc = do
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember getter tid gettee = do
   g <- view tsGalley
+  getTeamMember' g getter tid gettee
+
+getTeamMember' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> UserId -> m TeamMember
+getTeamMember' g getter tid gettee = do
   r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
   responseJsonError r
 
@@ -334,7 +337,7 @@ addUserToTeamWithRole' role inviter tid = do
   let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
-  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
+  inviteeCode <- getInvitationCode tid (inInvitation inv)
   r <-
     post
       ( brig . path "/register"
@@ -353,7 +356,7 @@ addUserToTeamWithSSO hasEmail tid = do
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
 makeOwner owner mem tid = do
   galley <- view tsGalley
-  let changeMember = newNewTeamMember (mem ^. Member.userId) fullPermissions (mem ^. Member.invitation)
+  let changeMember = newNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
   put
     ( galley
         . paths ["teams", toByteString' tid, "members"]
@@ -390,18 +393,27 @@ zAuthAccess u conn =
     . zConn conn
     . zType "access"
 
-getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM (Maybe InvitationCode)
+getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM InvitationCode
 getInvitationCode t ref = do
   brig <- view tsBrig
-  r <-
-    get
-      ( brig
-          . path "/i/teams/invitation-code"
-          . queryItem "team" (toByteString' t)
-          . queryItem "invitation_id" (toByteString' ref)
-      )
-  let lbs = fromMaybe "" $ responseBody r
-  return $ fromByteString . fromMaybe (error "No code?") $ Text.encodeUtf8 <$> (lbs ^? key "code" . _String)
+
+  let getm :: TestM (Maybe InvitationCode)
+      getm = do
+        r <-
+          get
+            ( brig
+                . path "/i/teams/invitation-code"
+                . queryItem "team" (toByteString' t)
+                . queryItem "invitation_id" (toByteString' ref)
+            )
+        let lbs = fromMaybe "" $ responseBody r
+        return $ fromByteString . Text.encodeUtf8 =<< (lbs ^? key "code" . _String)
+
+  fromMaybe (error "No code?")
+    <$> retrying
+      (constantDelay 800000 <> limitRetries 3)
+      (\_ -> pure . isNothing)
+      (\_ -> getm)
 
 -- Note that here we don't make use of the datatype because NewConv has a default
 -- and therefore cannot be unset. However, given that this is to test the legacy

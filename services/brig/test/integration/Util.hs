@@ -764,7 +764,8 @@ retryWhileN n f m =
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other
 --   services will fail.
 --
---   Beware: Not all async parts of brig are running in this.
+--   Beware: (1) Not all async parts of brig are running in this.  (2) other services will
+--   see the old, unaltered brig.
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
