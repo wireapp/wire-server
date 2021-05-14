@@ -492,13 +492,6 @@ packages:
   original:
     hackage: wai-route-0.4.0
 - completed:
-    hackage: semver-0.4.0.1@sha256:a4f77491e1e7c8101e203748f6122918224590a44f81c39fefc62e27b448868d,2035
-    pantry-tree:
-      size: 572
-      sha256: d2d25c86a59c99f482f9692982f800e73d65681d27ece9b40e56dfa7a3a60863
-  original:
-    hackage: semver-0.4.0.1
-- completed:
     hackage: QuickCheck-2.14@sha256:3f536a4b86bef7ec39025f04ef8d76c5ac5a78ba0b42e660b25d0a8f9c811045,7004
     pantry-tree:
       size: 2203
