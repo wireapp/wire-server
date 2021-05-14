@@ -58,6 +58,7 @@ library:
   - servant-multipart
   - servant-server
   - servant-swagger
+  - schema-profunctor
   - string-conversions
   - swagger >=0.1
   - swagger2

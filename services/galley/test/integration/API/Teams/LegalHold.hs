@@ -130,6 +130,9 @@ tests s =
 -- | Make sure the ToSchema and ToJSON instances are in sync for all of the swagger docs.
 -- (this is more of a unit test, but galley doesn't have any, and it seems not worth it to
 -- start another test suite just for this one line.)
+--
+-- UPDATE(fisx): galley does have unit tests now!  (and of course the "not worth it" was
+-- deeply misguided from me.)
 testSwaggerJsonConsistency :: TestM ()
 testSwaggerJsonConsistency = do
   liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
@@ -685,12 +688,16 @@ deleteSettings mPassword uid tid = do
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
-  resp <- getUserStatus uid tid <!! testResponse 200 Nothing
+  g <- view tsGalley
+  getUserStatusTyped' g uid tid
+
+getUserStatusTyped' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> m UserLegalHoldStatusResponse
+getUserStatusTyped' g uid tid = do
+  resp <- getUserStatus' g uid tid <!! testResponse 200 Nothing
   return $ responseJsonUnsafe resp
 
-getUserStatus :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-getUserStatus uid tid = do
-  g <- view tsGalley
+getUserStatus' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> TeamId -> m ResponseLBS
+getUserStatus' g uid tid = do
   get $
     g
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
@@ -701,6 +708,17 @@ getUserStatus uid tid = do
 approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword -> UserId -> UserId -> TeamId -> TestM ResponseLBS
 approveLegalHoldDevice mPassword zusr uid tid = do
   g <- view tsGalley
+  approveLegalHoldDevice' g mPassword zusr uid tid
+
+approveLegalHoldDevice' ::
+  (HasCallStack, MonadHttp m, MonadIO m) =>
+  GalleyR ->
+  Maybe PlainTextPassword ->
+  UserId ->
+  UserId ->
+  TeamId ->
+  m ResponseLBS
+approveLegalHoldDevice' g mPassword zusr uid tid = do
   put $
     g
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid, "approve"]
@@ -751,6 +769,10 @@ assertZeroLegalHoldDevices uid = do
 requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do
   g <- view tsGalley
+  requestLegalHoldDevice' g zusr uid tid
+
+requestLegalHoldDevice' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> UserId -> TeamId -> m ResponseLBS
+requestLegalHoldDevice' g zusr uid tid = do
   post $
     g
       . paths ["teams", toByteString' tid, "legalhold", toByteString' uid]
@@ -785,7 +807,7 @@ readServiceKey fp = liftIO $ do
   return (ServiceKeyPEM k)
 
 -- FUTUREWORK: run this test suite against an actual LH service (by changing URL and key in
--- the config file), and see if it works as well as with out mock service.
+-- the config file), and see if it works as well as with our mock service.
 withDummyTestServiceForTeam ::
   forall a.
   HasCallStack =>
@@ -803,6 +825,7 @@ withDummyTestServiceForTeam owner tid go = do
       putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
       postSettings owner tid newService !!! testResponse 201 Nothing
       go chan
+
     dummyService :: Chan (Wai.Request, LBS) -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     dummyService ch req cont = do
       reqBody <- Wai.strictRequestBody req
@@ -815,16 +838,21 @@ withDummyTestServiceForTeam owner tid go = do
           cont respondOk
         (["legalhold", "remove"], "POST", Just _) -> cont respondOk
         _ -> cont respondBad
+
     initiateResp :: Wai.Response
     initiateResp =
       Wai.json $
         NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
+
     respondOk :: Wai.Response
     respondOk = responseLBS status200 mempty mempty
+
     respondBad :: Wai.Response
     respondBad = responseLBS status404 mempty mempty
+
     missingAuth :: Wai.Response
     missingAuth = responseLBS status400 mempty "no authorization header"
+
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name req = lookup (fromString name) $ requestHeaders req
 

@@ -32,7 +32,6 @@ module Galley.Types.Teams
     FeatureSSO (..),
     FeatureLegalHold (..),
     FeatureTeamSearchVisibility (..),
-    newTeamMemberRaw,
     notTeamMember,
     findTeamMember,
     isTeamMember,
@@ -59,7 +58,6 @@ module Galley.Types.Teams
     teamListTeams,
     teamListHasMore,
     TeamMember,
-    newTeamMember,
     userId,
     permissions,
     invitation,
@@ -127,13 +125,9 @@ module Galley.Types.Teams
   )
 where
 
-import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (makeLenses, view, (^.))
-import Control.Monad.Catch
 import Data.Aeson
 import Data.Id (UserId)
-import Data.Json.Util
-import Data.LegalHold (UserLegalHoldStatus (..))
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -278,25 +272,6 @@ instance FromJSON FeatureTeamSearchVisibility where
 instance ToJSON FeatureTeamSearchVisibility where
   toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
   toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
-
--- | For being called in "Galley.Data".  Throws an exception if one of invitation timestamp
--- and inviter is 'Nothing' and the other is 'Just', which can only be caused by inconsistent
--- database content.
--- FUTUREWORK: We should do a DB scan and check whether this is _ever_ the case. This logic could
--- be applied to anything that we store in Cassandra
-newTeamMemberRaw ::
-  MonadThrow m =>
-  UserId ->
-  Permissions ->
-  Maybe UserId ->
-  Maybe UTCTimeMillis ->
-  UserLegalHoldStatus ->
-  m TeamMember
-newTeamMemberRaw uid perms (Just invu) (Just invt) lhStatus =
-  pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
-newTeamMemberRaw uid perms Nothing Nothing lhStatus =
-  pure $ TeamMember uid perms Nothing lhStatus
-newTeamMemberRaw _ _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags

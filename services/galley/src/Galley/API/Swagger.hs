@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -42,7 +41,6 @@ import Data.Misc
 import Data.Proxy
 import Data.Swagger hiding (Header (..))
 import Data.Swagger.Declare (Declare)
-import Data.Text as Text (unlines)
 import Data.UUID (UUID)
 import Imports
 import Servant.API hiding (Header)
@@ -109,23 +107,6 @@ type GalleyRoutesInternal =
 
 instance ToSchema HttpsUrl where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
-
-instance ToSchema ServiceKeyPEM where
-  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)
-    where
-      tweak = fmap $ schema . example ?~ pem
-      pem =
-        String . Text.unlines $
-          [ "-----BEGIN PUBLIC KEY-----",
-            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
-            "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
-            "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
-            "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
-            "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
-            "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
-            "nQIDAQAB",
-            "-----END PUBLIC KEY-----"
-          ]
 
 instance ToSchema (Fingerprint Rsa) where
   declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Text)

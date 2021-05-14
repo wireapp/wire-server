@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -56,23 +55,20 @@ module Wire.API.User.Profile
 where
 
 import Control.Applicative (optional)
-import Control.Error (hush)
-import Control.Lens ((<>~), (?~))
-import Data.Aeson hiding ((<?>))
-import qualified Data.Aeson.Types as Json
+import Control.Error (hush, note)
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import Data.Attoparsec.ByteString.Char8 (takeByteString)
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.ISO3166_CountryCodes
-import Data.Json.Util ((#))
 import Data.LanguageCodes
-import Data.Proxy (Proxy (..))
 import Data.Range
-import Data.Swagger (Referenced (Inline), ToSchema (..), enum_, genericDeclareNamedSchema, properties, schema)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
-import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, FieldLabelModifier, StripPrefix, SwaggerOptions (..))
-import qualified GHC.Exts as IsList
+import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, StripPrefix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Orphans ()
@@ -86,8 +82,9 @@ import Wire.API.User.Orphans ()
 newtype Name = Name
   {fromName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromByteString, ToByteString, ToSchema)
+  deriving newtype (FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Name
 
 mkName :: Text -> Either String Name
 mkName txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
@@ -99,17 +96,16 @@ modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
     Doc.description "User name"
 
 -- FUTUREWORK: use @Range 1 128 Text@ and deriving this instance.
-instance FromJSON Name where
-  parseJSON x =
-    Name . fromRange
-      <$> (parseJSON x :: Json.Parser (Range 1 128 Text))
+instance ToSchema Name where
+  schema = Name <$> fromName .= untypedRangedSchema 1 128 schema
 
 --------------------------------------------------------------------------------
 -- Colour
 
 newtype ColourId = ColourId {fromColourId :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, FromJSON, ToJSON, ToSchema, Arbitrary)
+  deriving newtype (Num, ToSchema, Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ColourId
 
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
@@ -124,19 +120,20 @@ data Asset = ImageAsset
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Asset)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Asset
 
--- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to add
--- 'type'
 instance ToSchema Asset where
-  declareNamedSchema _ = do
-    namedSchema <-
-      genericDeclareNamedSchema
-        (swaggerOptions @'[FieldLabelModifier (StripPrefix "asset", CamelToSnake)])
-        (Proxy @Asset)
-    let typeSchema = Inline $ mempty & enum_ ?~ [Json.String "image"]
-    pure $
-      namedSchema
-        & schema . properties <>~ IsList.fromList [("type", typeSchema)]
+  schema =
+    object "UserAsset" $
+      ImageAsset
+        <$> assetKey .= field "key" schema
+        <*> assetSize .= opt (field "size" schema)
+        <* const () .= field "type" typeSchema
+    where
+      typeSchema :: ValueSchema NamedSwaggerDoc ()
+      typeSchema =
+        enum @Text @NamedSwaggerDoc "AssetType" $
+          element "image" ()
 
 modelAsset :: Doc.Model
 modelAsset = Doc.defineModel "UserAsset" $ do
@@ -155,27 +152,10 @@ typeAssetType =
       [ "image"
       ]
 
-instance ToJSON Asset where
-  toJSON (ImageAsset k s) =
-    object $
-      "type" .= ("image" :: Text)
-        # "key" .= k
-        # "size" .= s
-        # []
-
-instance FromJSON Asset where
-  parseJSON = withObject "Asset" $ \o -> do
-    typ <- o .: "type"
-    key <- o .: "key"
-    siz <- o .:? "size"
-    case (typ :: Text) of
-      "image" -> pure (ImageAsset key siz)
-      _ -> fail $ "Invalid asset type: " ++ show typ
-
 data AssetSize = AssetComplete | AssetPreview
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "Asset", CamelToSnake)] AssetSize)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AssetSize
 
 typeAssetSize :: Doc.DataType
 typeAssetSize =
@@ -185,16 +165,13 @@ typeAssetSize =
         "complete"
       ]
 
-instance ToJSON AssetSize where
-  toJSON AssetPreview = String "preview"
-  toJSON AssetComplete = String "complete"
-
-instance FromJSON AssetSize where
-  parseJSON = withText "AssetSize" $ \s ->
-    case s of
-      "preview" -> pure AssetPreview
-      "complete" -> pure AssetComplete
-      _ -> fail $ "Invalid asset size: " ++ show s
+instance ToSchema AssetSize where
+  schema =
+    enum @Text "AssetSize" $
+      asum
+        [ element "preview" AssetPreview,
+          element "complete" AssetComplete
+        ]
 
 --------------------------------------------------------------------------------
 -- Locale
@@ -205,18 +182,12 @@ data Locale = Locale
   }
   deriving stock (Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Locale)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Locale
 
 instance ToSchema Locale where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
-
-instance FromJSON Locale where
-  parseJSON =
-    withText "locale" $
-      maybe (fail "Invalid locale. Expected <ISO 639-1>(-<ISO 3166-1-alpha2>)? format") return
-        . parseLocale
-
-instance ToJSON Locale where
-  toJSON = String . locToText
+  schema = locToText .= parsedText "Locale" (note err . parseLocale)
+    where
+      err = "Invalid locale. Expected <ISO 639-1>(-<ISO 3166-1-alpha2>)? format"
 
 instance Show Locale where
   show = Text.unpack . locToText
@@ -237,7 +208,7 @@ parseLocale = hush . parseOnly localeParser
 
 newtype Language = Language {fromLanguage :: ISO639_1}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Arbitrary, ToSchema)
+  deriving newtype (Arbitrary, S.ToSchema)
 
 languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
@@ -253,7 +224,7 @@ parseLanguage = hush . parseOnly languageParser
 
 newtype Country = Country {fromCountry :: CountryCode}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Arbitrary, ToSchema)
+  deriving newtype (Arbitrary, S.ToSchema)
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
@@ -289,7 +260,7 @@ data ManagedBy
     ManagedByScim
   deriving stock (Eq, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ManagedBy)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ManagedBy", CamelToSnake)] ManagedBy)
+  deriving (S.ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ManagedBy", CamelToSnake)] ManagedBy)
 
 typeManagedBy :: Doc.DataType
 typeManagedBy =
@@ -301,12 +272,12 @@ typeManagedBy =
 
 instance ToJSON ManagedBy where
   toJSON =
-    String . \case
+    A.String . \case
       ManagedByWire -> "wire"
       ManagedByScim -> "scim"
 
 instance FromJSON ManagedBy where
-  parseJSON = withText "ManagedBy" $ \case
+  parseJSON = A.withText "ManagedBy" $ \case
     "wire" -> pure ManagedByWire
     "scim" -> pure ManagedByScim
     other -> fail $ "Invalid ManagedBy: " ++ show other
@@ -329,12 +300,14 @@ defaultManagedBy = ManagedByWire
 -- Deprecated
 
 -- | DEPRECATED
-newtype Pict = Pict {fromPict :: [Object]}
+newtype Pict = Pict {fromPict :: [A.Object]}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, ToSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Pict
 
-instance FromJSON Pict where
-  parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
+instance ToSchema Pict where
+  schema =
+    named "Pict" $
+      Pict <$> fromPict .= untypedRangedSchema 0 10 (array jsonObject)
 
 instance Arbitrary Pict where
   arbitrary = pure $ Pict []

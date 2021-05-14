@@ -59,8 +59,9 @@ where
 
 import Cassandra
 import Control.Lens (makeLenses, (.~), (?~), (^.))
-import Data.Aeson
-import qualified Data.Aeson.Types as Json
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64 as B64
@@ -71,7 +72,8 @@ import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
-import Data.Swagger (HasProperties (properties), HasRequired (required), HasType (type_), NamedSchema (..), SwaggerType (SwaggerObject), ToSchema (..), declareSchemaRef)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -120,10 +122,10 @@ instance Read Port where
   readsPrec n = map (first Port) . readsPrec n
 
 instance ToJSON IpAddr where
-  toJSON (IpAddr ip) = String (Text.pack $ show ip)
+  toJSON (IpAddr ip) = A.String (Text.pack $ show ip)
 
 instance FromJSON IpAddr where
-  parseJSON = withText "IpAddr" $ \txt ->
+  parseJSON = A.withText "IpAddr" $ \txt ->
     case readMaybe (Text.unpack txt) of
       Nothing -> fail "Failed parsing IP address."
       Just ip -> return (IpAddr ip)
@@ -173,26 +175,26 @@ modelLocation = Doc.defineModel "Location" $ do
     Doc.description "Longitude"
 
 instance ToJSON Location where
-  toJSON p = object ["lat" .= (p ^. latitude), "lon" .= (p ^. longitude)]
+  toJSON p = A.object ["lat" A..= (p ^. latitude), "lon" A..= (p ^. longitude)]
 
 instance FromJSON Location where
-  parseJSON = withObject "Location" $ \o ->
+  parseJSON = A.withObject "Location" $ \o ->
     location
-      <$> (Latitude <$> o .: "lat")
-      <*> (Longitude <$> o .: "lon")
+      <$> (Latitude <$> o A..: "lat")
+      <*> (Longitude <$> o A..: "lon")
 
-instance ToSchema Location where
+instance S.ToSchema Location where
   declareNamedSchema _ = do
-    doubleSchema <- declareSchemaRef (Proxy @Double)
+    doubleSchema <- S.declareSchemaRef (Proxy @Double)
     return $
-      NamedSchema (Just "Location") $
+      S.NamedSchema (Just "Location") $
         mempty
-          & type_ ?~ SwaggerObject
-          & properties
+          & S.type_ ?~ S.SwaggerObject
+          & S.properties
             .~ [ ("lat", doubleSchema),
                  ("lon", doubleSchema)
                ]
-          & required .~ ["lat", "lon"]
+          & S.required .~ ["lat", "lon"]
 
 instance Arbitrary Location where
   arbitrary = Location <$> arbitrary <*> arbitrary
@@ -220,7 +222,8 @@ newtype Milliseconds = Ms
   { ms :: Word64
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, ToSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Milliseconds
+  deriving newtype (Num)
 
 -- only generate values which can be represented exactly by double
 -- precision floating points
@@ -235,11 +238,8 @@ msToInt64 = fromIntegral . min (fromIntegral (maxBound @Int64)) . ms
 int64ToMs :: Int64 -> Milliseconds
 int64ToMs = Ms . fromIntegral . max 0
 
-instance ToJSON Milliseconds where
-  toJSON = toJSON . msToInt64
-
-instance FromJSON Milliseconds where
-  parseJSON = fmap int64ToMs . parseJSON
+instance ToSchema Milliseconds where
+  schema = int64ToMs <$> msToInt64 .= schema
 
 instance Cql Milliseconds where
   ctype = Tagged BigIntColumn
@@ -276,7 +276,7 @@ instance FromByteString HttpsUrl where
 
 instance FromJSON HttpsUrl where
   parseJSON =
-    withText "HttpsUrl" $
+    A.withText "HttpsUrl" $
       either fail return . runParser parser . encodeUtf8
 
 instance ToJSON HttpsUrl where
@@ -306,11 +306,11 @@ newtype Fingerprint a = Fingerprint
 
 instance FromJSON (Fingerprint Rsa) where
   parseJSON =
-    withText "Fingerprint" $
+    A.withText "Fingerprint" $
       either fail (pure . Fingerprint) . B64.decode . encodeUtf8
 
 instance ToJSON (Fingerprint Rsa) where
-  toJSON = String . decodeUtf8 . B64.encode . fingerprintBytes
+  toJSON = A.String . decodeUtf8 . B64.encode . fingerprintBytes
 
 instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn
@@ -339,7 +339,7 @@ instance Show PlainTextPassword where
 instance FromJSON PlainTextPassword where
   parseJSON x =
     PlainTextPassword . fromRange
-      <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
+      <$> (parseJSON x :: A.Parser (Range 6 1024 Text))
 
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
