@@ -46,7 +46,6 @@ dependencies:
   - http-types
   - imports
   - insert-ordered-containers
-  - interpolate
   - lens
   - memory
   - metrics-wai

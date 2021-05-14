@@ -56,7 +56,6 @@ import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import Spar.API.Swagger ()
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Error
@@ -64,7 +63,6 @@ import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
-import Spar.Scim.Swagger ()
 import Wire.API.Spar
 import Wire.API.Public.Spar
 import qualified URI.ByteString as URI

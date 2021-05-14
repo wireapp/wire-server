@@ -20,6 +20,7 @@ module Wire.API.Public.Spar where
 import Data.Id
 import Data.Proxy
 import Data.String.Conversions (ST)
+import Data.Swagger (Swagger)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
@@ -29,6 +30,7 @@ import Servant
 import Servant.API.Generic (ToServantApi, (:-))
 import Servant.API.Extended
 import Servant.Multipart
+import Servant.Swagger (toSwagger)
 import qualified URI.ByteString as URI
 import Wire.API.Public
 import Wire.API.Spar
@@ -215,3 +217,6 @@ type APIScimTokenDelete =
 
 type APIScimTokenList =
   Get '[JSON] ScimTokenList
+
+swaggerDoc :: Swagger
+swaggerDoc = toSwagger (Proxy @API)

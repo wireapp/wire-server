@@ -47,7 +47,6 @@ import Network.Wai.Utilities.Request (lookupRequestId)
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import Spar.API (API, app)
-import Spar.API.Swagger ()
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()

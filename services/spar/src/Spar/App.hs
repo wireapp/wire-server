@@ -79,7 +79,6 @@ import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import Spar.API.Swagger ()
 import qualified Spar.Data as Data
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra

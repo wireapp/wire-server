@@ -7,6 +7,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -15,6 +16,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -41,14 +43,16 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.Scim where
 
-import Control.Lens (Prism', makeLenses, prism')
+import Control.Lens (Prism', makeLenses, prism', (.~), (?~), mapped)
 import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle)
-import Data.Id (UserId)
+import Data.Id (UserId, TeamId, ScimTokenId)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
+import Data.Proxy
+import Data.Time.Clock (UTCTime)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
@@ -67,6 +71,7 @@ import Wire.API.User.Profile as BT
 import Wire.API.User.Identity (Email)
 import Wire.API.Spar (ScimToken, ScimTokenInfo)
 import qualified Wire.API.User.RichInfo as RI
+import Data.Swagger hiding (Operation)
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -148,8 +153,8 @@ instance Aeson.ToJSON ScimUserExtra where
   toJSON (ScimUserExtra rif) = Aeson.toJSON rif
 
 instance Scim.Patchable ScimUserExtra where
-  applyOperation (ScimUserExtra (RI.RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
-    | schema == RI.richInfoMapURN =
+  applyOperation (ScimUserExtra (RI.RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema sch)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
+    | sch == RI.richInfoMapURN =
       let rinf = RI.richInfoMap $ RI.fromRichInfoAssocList rinfRaw
           unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . (`RI.RichInfoMapAndList` mempty)
        in unrinf <$> case o of
@@ -160,7 +165,7 @@ instance Scim.Patchable ScimUserExtra where
                 (Just (Aeson.String textVal)) ->
                   pure $ Map.insert ciAttrName textVal rinf
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
-    | schema == RI.richInfoAssocListURN =
+    | sch == RI.richInfoAssocListURN =
       let rinf = RI.richInfoAssocList $ RI.fromRichInfoAssocList rinfRaw
           unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . (mempty `RI.RichInfoMapAndList`)
           matchesAttrName (RI.RichField k _) = k == ciAttrName
@@ -214,7 +219,7 @@ runValidExternalId :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> 
 runValidExternalId doUref doEmail = \case
   EmailAndUref _ uref -> doUref uref
   UrefOnly uref -> doUref uref
-  EmailOnly email -> doEmail email
+  EmailOnly em -> doEmail em
 
 veidUref :: Prism' ValidExternalId SAML.UserRef
 veidUref = prism' UrefOnly $
@@ -226,9 +231,9 @@ veidUref = prism' UrefOnly $
 veidEmail :: Prism' ValidExternalId Email
 veidEmail = prism' EmailOnly $
   \case
-    EmailAndUref email _ -> Just email
+    EmailAndUref em _ -> Just em
     UrefOnly _ -> Nothing
-    EmailOnly email -> Just email
+    EmailOnly em -> Just em
 
 makeLenses ''ValidScimUser
 makeLenses ''ValidExternalId
@@ -299,3 +304,72 @@ instance Aeson.ToJSON ScimTokenList where
     Aeson.object
       [ "tokens" Aeson..= scimTokenListTokens
       ]
+
+-- Swagger
+
+instance ToParamSchema ScimToken where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToSchema ScimToken where
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @Text)
+      & mapped . schema . description ?~ "Authentication token"
+
+instance ToSchema ScimTokenInfo where
+  declareNamedSchema _ = do
+    teamSchema <- declareSchemaRef (Proxy @TeamId)
+    idSchema <- declareSchemaRef (Proxy @ScimTokenId)
+    createdAtSchema <- declareSchemaRef (Proxy @UTCTime)
+    idpSchema <- declareSchemaRef (Proxy @SAML.IdPId)
+    descrSchema <- declareSchemaRef (Proxy @Text)
+    return $
+      NamedSchema (Just "ScimTokenInfo") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("team", teamSchema),
+                 ("id", idSchema),
+                 ("created_at", createdAtSchema),
+                 ("idp", idpSchema),
+                 ("description", descrSchema)
+               ]
+          & required .~ ["team", "id", "created_at", "description"]
+
+instance ToSchema CreateScimToken where
+  declareNamedSchema _ = do
+    textSchema <- declareSchemaRef (Proxy @Text)
+    return $
+      NamedSchema (Just "CreateScimToken") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("description", textSchema),
+                 ("password", textSchema)
+               ]
+          & required .~ ["description"]
+
+instance ToSchema CreateScimTokenResponse where
+  declareNamedSchema _ = do
+    tokenSchema <- declareSchemaRef (Proxy @ScimToken)
+    infoSchema <- declareSchemaRef (Proxy @ScimTokenInfo)
+    return $
+      NamedSchema (Just "CreateScimTokenResponse") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("token", tokenSchema),
+                 ("info", infoSchema)
+               ]
+          & required .~ ["token", "info"]
+
+instance ToSchema ScimTokenList where
+  declareNamedSchema _ = do
+    infoListSchema <- declareSchemaRef (Proxy @[ScimTokenInfo])
+    return $
+      NamedSchema (Just "ScimTokenList") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("tokens", infoListSchema)
+               ]
+          & required .~ ["tokens"]

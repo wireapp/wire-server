@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -22,7 +24,7 @@
 -- for them.
 module Wire.API.Spar where
 
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Crypto.Hash (SHA512 (..), hash)
 import Data.Aeson
@@ -36,6 +38,8 @@ import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions
+import Data.Swagger
+import qualified Data.Swagger as Swagger
 import qualified Data.Text as ST
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time
@@ -48,15 +52,27 @@ import SAML2.WebSSO (Assertion, AuthnRequest, ID, IdPConfig, IdPId, SimpleSetCoo
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
+import qualified Servant.Multipart as SM
+import Servant.Swagger (HasSwagger (..))
 import System.Logger.Extended (LogFormat)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
 import Web.HttpApiData
+import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.X509 as X509
+import Data.UUID
 
 type SetBindCookie = SimpleSetCookie "zbind"
 
 newtype BindCookie = BindCookie {fromBindCookie :: ST}
+
+instance ToParamSchema SetBindCookie where
+  toParamSchema _ = toParamSchema (Proxy @String)
+
+instance ToParamSchema BindCookie where
+  toParamSchema _ = toParamSchema (Proxy @String)
 
 -- | Extract @zbind@ cookie from HTTP header contents if it exists.
 bindCookieFromHeader :: ST -> Maybe BindCookie
@@ -132,8 +148,8 @@ instance FromJSON IdPMetadataInfo where
     either fail (pure . IdPMetadataValue raw) (SAML.decode (cs raw))
 
 instance ToJSON IdPMetadataInfo where
-  toJSON (IdPMetadataValue _ xml) =
-    object ["value" .= SAML.encode xml]
+  toJSON (IdPMetadataValue _ x) =
+    object ["value" .= SAML.encode x]
 
 ----------------------------------------------------------------------------
 -- SCIM
@@ -311,3 +327,104 @@ instance FromJSON SsoSettings where
 instance ToJSON SsoSettings where
   toJSON SsoSettings {defaultSsoCode} =
     object ["default_sso_code" .= defaultSsoCode]
+
+-- Swagger instances
+
+-- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
+
+-- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
+
+-- | The options to use for schema generation. Must match the options used
+-- for 'ToJSON' instances elsewhere.
+samlSchemaOptions :: SchemaOptions
+samlSchemaOptions = fromAesonOptions deriveJSONOptions
+
+instance ToSchema SAML.XmlText where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToParamSchema SAML.IdPId where
+  toParamSchema _ = toParamSchema (Proxy @UUID)
+
+instance ToSchema SAML.IdPId where
+  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
+
+instance ToSchema SAML.AuthnRequest where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.NameIdPolicy where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.NameIDFormat where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+-- TODO: would be nice to add an example here, but that only works for json?
+
+instance ToSchema a => ToSchema (SAML.IdPConfig a) where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.IdPMetadata where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema IdPMetadataInfo where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "IdPMetadataInfo") $
+        mempty
+          & properties .~ properties_
+          & minProperties ?~ 1
+          & maxProperties ?~ 1
+          & type_ .~ Just SwaggerObject
+    where
+      properties_ :: InsOrdHashMap Text (Referenced Schema)
+      properties_ =
+        InsOrdHashMap.fromList
+          [ ("value", Inline (toSchema (Proxy @String)))
+          ]
+
+instance ToSchema IdPList where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema WireIdP where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema (SAML.ID SAML.AuthnRequest) where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.Issuer where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema SAML.Time where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema X509.SignedCertificate where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema SAML.SPMetadata where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema URI where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToParamSchema URI where
+  toParamSchema _ = toParamSchema (Proxy @String)
+
+instance ToSchema Void where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema RawIdPMetadata where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema SsoSettings where
+  declareNamedSchema =
+    genericDeclareNamedSchema
+      defaultSchemaOptions
+        { Swagger.fieldLabelModifier = \case
+            "defaultSsoCode" -> "default_sso_code"
+            other -> other
+        }
+
+instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
+  toSwagger _proxy = toSwagger (Proxy @route)

@@ -96,6 +96,7 @@ import qualified Wire.API.Properties as Public
 import Wire.API.Public (Empty200 (..), Empty404 (..))
 import qualified Wire.API.Public.Brig as BrigAPI
 import qualified Wire.API.Public.Galley as GalleyAPI
+import qualified Wire.API.Public.Spar as SparAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.User as Public
@@ -108,6 +109,7 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Data.String.Interpolate as QQ
 
 -- User API -----------------------------------------------------------
 
@@ -118,17 +120,41 @@ type ServantAPI = BrigAPI.ServantAPI
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    (BrigAPI.swagger <> GalleyAPI.swaggerDoc)
+    (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> SparAPI.swaggerDoc)
       & S.info . S.title .~ "Wire-Server API as Swagger 2.0 "
       & S.info . S.description ?~ desc
   where
-    desc =
-      "NOTE: only a few endpoints are visible here at the moment, \
-      \more will come as we migrate them to Swagger 2.0. In the \
-      \meantime please also look at the old swagger docs link for \
-      \the not-yet-migrated endpoints. See \
-      \https://docs.wire.com/understand/api-client-perspective/swagger.html \
-      \for the old endpoints."
+    desc = Text.pack [QQ.i|
+# Overview
+
+`/sso/metadata` will be requested by the IdPs to learn how to talk to wire.
+
+`/sso/initiate-login`, `/sso/finalize-login` are for the SAML authentication handshake performed by a user in order to log into wire.  They are not exactly standard in their details: they may return HTML or XML; redirect to error URLs instead of throwing errors, etc.
+
+`/identity-providers` end-points are for use in the team settings page when IdPs are registered.  They talk json.
+
+
+# Configuring IdPs
+
+IdPs usually allow you to copy the metadata into your clipboard.  That should contain all the details you need to post the idp in your team under `/identity-providers`.  (Team id is derived from the authorization credentials of the request.)
+
+## okta.com
+
+Okta will ask you to provide two URLs when you set it up for talking to wireapp:
+
+1. The `Single sign on URL`.  This is the end-point that accepts the user's credentials after successful authentication against the IdP.  Choose `/sso/finalize-login` with schema and hostname of the wire server you are configuring.
+
+2. The `Audience URI`.  You can find this in the metadata returned by the `/sso/metadata` end-point.  It is the contents of the `md:OrganizationURL` element.
+
+## centrify.com
+
+Centrify allows you to upload the metadata xml document that you get from the `/sso/metadata` end-point.  You can also enter the metadata url and have centrify retrieve the xml, but to guarantee integrity of the setup, the metadata should be copied from the team settings page and pasted into the centrify setup page without any URL indirections.
+
+## microsoft azure active directory
+
+(coming up.)
+
+**NOTE**: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints. |]
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =

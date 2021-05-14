@@ -109,9 +109,7 @@ instance
             Right v -> return v
 
 instance
-  ( HasSwagger (ReqBody' '[Required, Strict] cts a :> api),
-    MakeCustomError tag a
-  ) =>
+  HasSwagger (ReqBody' '[Required, Strict] cts a :> api) =>
   HasSwagger (ReqBodyCustomError cts tag a :> api)
   where
   toSwagger Proxy = toSwagger (Proxy @(ReqBody' '[Required, Strict] cts a :> api))

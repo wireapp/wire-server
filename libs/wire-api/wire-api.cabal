@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 75282b0e1df2641640e4fcc44b83eab2d29e42d837191d1b20652749ae92ab9a
+-- hash: f60b157f701c672790e078af3fb3039c143ab00d62cfb3b4274b98e625750ee7
 
 name:           wire-api
 version:        0.1.0
@@ -141,6 +141,7 @@ library
     , uri-bytestring >=0.2
     , uuid >=1.3
     , vector >=0.12
+    , x509
     , zauth
   default-language: Haskell2010
 

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5b72bd21ef9fa1bafaa1b01714719431544ba9f8c0d548195d58af2d0af019f5
+-- hash: 8fa1869af508f4de9c71089a0e60691231ea9007a54d9d73554bffa16b9aff12
 
 name:           spar
 version:        0.1
@@ -21,7 +21,6 @@ build-type:     Simple
 library
   exposed-modules:
       Spar.API
-      Spar.API.Swagger
       Spar.App
       Spar.Data
       Spar.Data.Instances
@@ -33,7 +32,6 @@ library
       Spar.Run
       Spar.Scim
       Spar.Scim.Auth
-      Spar.Scim.Swagger
       Spar.Scim.Types
       Spar.Scim.User
   other-modules:
@@ -72,7 +70,6 @@ library
     , http-types
     , imports
     , insert-ordered-containers
-    , interpolate
     , lens
     , memory
     , metrics-wai
@@ -144,7 +141,6 @@ executable spar
     , http-types
     , imports
     , insert-ordered-containers
-    , interpolate
     , lens
     , memory
     , metrics-wai
@@ -237,7 +233,6 @@ executable spar-integration
     , http-types
     , imports
     , insert-ordered-containers
-    , interpolate
     , lens
     , lens-aeson
     , memory
@@ -322,7 +317,6 @@ executable spar-migrate-data
     , http-types
     , imports
     , insert-ordered-containers
-    , interpolate
     , lens
     , memory
     , metrics-wai
@@ -409,7 +403,6 @@ executable spar-schema
     , http-types
     , imports
     , insert-ordered-containers
-    , interpolate
     , lens
     , memory
     , metrics-wai
@@ -494,7 +487,6 @@ test-suite spec
     , http-types
     , imports
     , insert-ordered-containers
-    , interpolate
     , lens
     , lens-aeson
     , memory
