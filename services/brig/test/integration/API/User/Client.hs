@@ -49,7 +49,14 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (..), UserClients (..))
+import Wire.API.User.Client
+  ( QualifiedUserClientMap (..),
+    QualifiedUserClients (..),
+    SupportedClientFeature (ClientSupportsLegalHold),
+    SupportedClientFeatureList (SupportedClientFeatureList),
+    UserClientMap (..),
+    UserClients (..),
+  )
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
@@ -476,7 +483,7 @@ testUpdateClient opts brig = do
     const (Just PhoneClient) === (clientClass <=< responseJsonMaybe)
     const (Just "featurephone") === (clientModel <=< responseJsonMaybe)
   let newPrekey = somePrekeys !! 2
-  let update = UpdateClient [newPrekey] Nothing (Just "label")
+  let update = UpdateClient [newPrekey] Nothing (Just "label") Nothing
   put
     ( brig
         . paths ["clients", toByteString' (clientId c)]
@@ -510,7 +517,7 @@ testUpdateClient opts brig = do
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
 
-  let update' = UpdateClient [] Nothing Nothing
+  let update' = UpdateClient [] Nothing Nothing Nothing
 
   -- empty update should be a no-op
   put
@@ -527,6 +534,29 @@ testUpdateClient opts brig = do
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
+
+  -- update supported client features
+  let checkUpdate :: HasCallStack => Maybe [SupportedClientFeature] -> [SupportedClientFeature] -> Http ()
+      checkUpdate featuresIn featuresOut = do
+        let update'' = UpdateClient [] Nothing Nothing featuresIn
+        put
+          ( brig
+              . paths ["clients", toByteString' (clientId c)]
+              . zUser uid
+              . contentJson
+              . body (RequestBodyLBS $ encode update'')
+          )
+          !!! const 200
+          === statusCode
+
+        getClientSupportedFeatures brig uid (clientId c) !!! do
+          const 200 === statusCode
+          const (Just (SupportedClientFeatureList featuresOut)) === responseJsonMaybe
+
+  checkUpdate (Just [ClientSupportsLegalHold]) [ClientSupportsLegalHold]
+  checkUpdate Nothing [ClientSupportsLegalHold]
+  checkUpdate (Just []) []
+  checkUpdate Nothing []
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()

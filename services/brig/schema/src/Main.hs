@@ -73,6 +73,7 @@ import qualified V60_AddFederationIdMapping
 import qualified V61_team_invitation_email
 import qualified V62_RemoveFederationIdMapping
 import qualified V63_AddUsersPendingActivation
+import qualified V64_ClientFeatures
 import qualified V9
 
 main :: IO ()
@@ -135,7 +136,8 @@ main = do
       V60_AddFederationIdMapping.migration,
       V61_team_invitation_email.migration,
       V62_RemoveFederationIdMapping.migration,
-      V63_AddUsersPendingActivation.migration
+      V63_AddUsersPendingActivation.migration,
+      V64_ClientFeatures.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

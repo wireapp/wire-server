@@ -36,6 +36,8 @@ module Wire.API.User.Client
     NewClient (..),
     newClient,
     UpdateClient (..),
+    SupportedClientFeature (..),
+    SupportedClientFeatureList (..),
     RmClient (..),
 
     -- * re-exports
@@ -51,6 +53,8 @@ module Wire.API.User.Client
     modelUserClients,
     modelNewClient,
     modelUpdateClient,
+    modelClientSupportedFeatureList,
+    typeSupportedClientFeature,
     modelDeleteClient,
     modelClient,
     modelSigkeys,
@@ -58,6 +62,7 @@ module Wire.API.User.Client
   )
 where
 
+import qualified Cassandra as Cql
 import Control.Lens ((?~), (^.))
 import Data.Aeson
 import Data.Domain (Domain)
@@ -517,7 +522,8 @@ instance FromJSON NewClient where
 data UpdateClient = UpdateClient
   { updateClientPrekeys :: [Prekey],
     updateClientLastKey :: Maybe LastPrekey,
-    updateClientLabel :: Maybe Text
+    updateClientLabel :: Maybe Text,
+    updateClientSupportedFeatures :: Maybe [SupportedClientFeature]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateClient)
@@ -540,6 +546,9 @@ modelUpdateClient = Doc.defineModel "UpdateClient" $ do
   Doc.property "label" Doc.string' $ do
     Doc.description "A new name for this client."
     Doc.optional
+  Doc.property "supported-features" typeSupportedClientFeature $ do
+    Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
+    Doc.optional
 
 instance ToJSON UpdateClient where
   toJSON c =
@@ -547,6 +556,7 @@ instance ToJSON UpdateClient where
       "prekeys" .= updateClientPrekeys c
         # "lastkey" .= updateClientLastKey c
         # "label" .= updateClientLabel c
+        # "supported-features" .= updateClientSupportedFeatures c
         # []
 
 instance FromJSON UpdateClient where
@@ -555,6 +565,54 @@ instance FromJSON UpdateClient where
       <$> o .:? "prekeys" .!= []
       <*> o .:? "lastkey"
       <*> o .:? "label"
+      <*> o .:? "supported-features"
+
+-- FUTUREWORK: add golden tests for this?
+data SupportedClientFeatureList = SupportedClientFeatureList {fromSupportedClientFeatureList :: [SupportedClientFeature]}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SupportedClientFeatureList)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "fromSupportedClient", CamelToSnake)] SupportedClientFeatureList)
+
+modelClientSupportedFeatureList :: Doc.Model
+modelClientSupportedFeatureList = Doc.defineModel "SupportedClientFeatureList" $ do
+  Doc.description "Hints provided by the client for the backend so it can behavior in a backwards-compatible way."
+  Doc.property "feature_list" (Doc.array typeSupportedClientFeature) $ do
+    Doc.description "Array containing all supported features."
+
+instance ToJSON SupportedClientFeatureList where
+  toJSON (SupportedClientFeatureList l) = object ["feature_list" .= l]
+
+instance FromJSON SupportedClientFeatureList where
+  parseJSON = withObject "SupportedClientFeatureList" $ \obj -> SupportedClientFeatureList <$> obj .: "feature_list"
+
+data SupportedClientFeature = ClientSupportsLegalHold
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SupportedClientFeature)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ClientSupports", LowerCase)] SupportedClientFeature)
+
+typeSupportedClientFeature :: Doc.DataType
+typeSupportedClientFeature =
+  Doc.string $
+    Doc.enum
+      [ "legalhold"
+      ]
+
+instance ToJSON SupportedClientFeature where
+  toJSON ClientSupportsLegalHold = String "legalhold"
+
+instance FromJSON SupportedClientFeature where
+  parseJSON (String "legalhold") = pure ClientSupportsLegalHold
+  parseJSON _ = fail "SupportedClientFeature"
+
+instance Cql.Cql SupportedClientFeature where
+  ctype = Cql.Tagged Cql.IntColumn
+
+  toCql ClientSupportsLegalHold = Cql.CqlInt 1
+
+  fromCql (Cql.CqlInt i) = case i of
+    1 -> return ClientSupportsLegalHold
+    n -> Left $ "Unexpected SupportedClientFeature value: " ++ show n
+  fromCql _ = Left "SupportedClientFeature value: int expected"
 
 --------------------------------------------------------------------------------
 -- RmClient
