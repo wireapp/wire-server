@@ -28,6 +28,7 @@ import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownNat, KnownSymbol, natVal)
 import Imports hiding (head)
+import Servant.API.Modifiers (FoldLenient, FoldRequired)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Server.Internal (noContentRouter)
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -48,19 +49,23 @@ type family ZUserParam (ztype :: ZUserType) :: * where
   ZUserParam 'ZAuthUser = UserId
   ZUserParam 'ZAuthConn = ConnId
 
-data ZAuthServant (ztype :: ZUserType)
+data ZAuthServant (ztype :: ZUserType) (opts :: [*])
 
-type InternalAuth ztype =
+type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
+
+type InternalAuth ztype opts =
   Header'
-    '[Servant.Required, Servant.Strict]
+    opts
     (ZUserHeader ztype)
     (ZUserParam ztype)
 
-type ZUser = ZAuthServant 'ZAuthUser
+type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
 
-type ZConn = ZAuthServant 'ZAuthConn
+type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser :> api) where
+type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Strict]
+
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
@@ -72,22 +77,23 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser :> api) where
             _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
           }
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn :> api) where
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn _opts :> api) where
   toSwagger _ = toSwagger (Proxy @api)
 
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    SBoolI (FoldLenient opts), SBoolI (FoldRequired opts),
     HasServer api ctx,
     KnownSymbol (ZUserHeader ztype),
     FromHttpApiData (ZUserParam ztype)
   ) =>
-  HasServer (ZAuthServant ztype :> api) ctx
+  HasServer (ZAuthServant ztype opts :> api) ctx
   where
-  type ServerT (ZAuthServant ztype :> api) m = ServerT (InternalAuth ztype :> api) m
+  type ServerT (ZAuthServant ztype opts :> api) m = ServerT (InternalAuth ztype opts :> api) m
 
-  route _ = Servant.route (Proxy @(InternalAuth ztype :> api))
+  route _ = Servant.route (Proxy @(InternalAuth ztype opts :> api))
   hoistServerWithContext _ pc nt s =
-    Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
+    Servant.hoistServerWithContext (Proxy @(InternalAuth ztype opts :> api)) pc nt s
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
