@@ -72,6 +72,7 @@ import Util.Core
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
+import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
@@ -439,7 +440,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           NameID ->
           TestSpar (SignedAuthnResponse, ResponseLBS)
         reBindSame' tweakcookies uid idp privCreds subj = do
-          (authnReq, Just (SimpleSetCookie bindCky)) <- do
+          (authnReq, Just (SetBindCookie (SimpleSetCookie bindCky))) <- do
             negotiateAuthnRequest' DoInitiateBind idp (header "Z-User" $ toByteString' uid)
           spmeta <- getTestSPMetadata
           authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True

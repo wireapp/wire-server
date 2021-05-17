@@ -321,7 +321,7 @@ insertBindCookie ::
 insertBindCookie cky uid ttlNDT = do
   env <- ask
   TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
-  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ cky
   retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
   where
     ins :: PrepQuery W (ST, UserId, Int32) ()

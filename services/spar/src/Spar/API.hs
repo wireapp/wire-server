@@ -146,7 +146,7 @@ initializeBindCookie zusr authreqttl = do
     if isJust zusr
       then liftIO $ Just . cs . ES.encode <$> randBytes 32
       else pure Nothing
-  cky <- SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
+  cky <- fmap SetBindCookie . SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 

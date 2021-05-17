@@ -139,7 +139,7 @@ spec = do
             liftIO $ muid `shouldBe` Nothing
     describe "BindCookie" $ do
       let mkcky :: TestSpar SetBindCookie
-          mkcky = runSimpleSP . SAML.toggleCookie "/" . Just . (,1) . UUID.toText =<< liftIO UUID.nextRandom
+          mkcky = fmap SetBindCookie . runSimpleSP . SAML.toggleCookie "/" . Just . (,1) . UUID.toText =<< liftIO UUID.nextRandom
       it "insert and get are \"inverses\"" $ do
         uid <- nextWireId
         cky <- mkcky

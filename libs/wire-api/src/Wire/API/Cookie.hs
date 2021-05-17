@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -26,14 +26,16 @@ import Data.Swagger
 import Imports
 import SAML2.WebSSO (SimpleSetCookie)
 import qualified SAML2.WebSSO as SAML
+import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
 import Web.Cookie
 
-type SetBindCookie = SimpleSetCookie "zbind"
-
-newtype BindCookie = BindCookie {fromBindCookie :: ST}
+newtype SetBindCookie = SetBindCookie {getSimpleSetCookie :: SimpleSetCookie "zbind"}
+  deriving (Eq, Show, FromHttpApiData, ToHttpApiData)
 
 instance ToParamSchema SetBindCookie where
   toParamSchema _ = toParamSchema (Proxy @String)
+
+newtype BindCookie = BindCookie {fromBindCookie :: ST}
 
 instance ToParamSchema BindCookie where
   toParamSchema _ = toParamSchema (Proxy @String)
@@ -46,4 +48,4 @@ bindCookieFromHeader = fmap BindCookie . lookup "zbind" . parseCookiesText . cs
 -- accepted any @proxy :: Symbol -> *@ rather than just 'Proxy'.)
 
 setBindCookieValue :: HasCallStack => SetBindCookie -> BindCookie
-setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
+setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie
