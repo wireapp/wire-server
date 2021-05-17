@@ -30,23 +30,22 @@ import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
-import qualified Wire.API.Federation.API.Brig as API
+import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 
-federationSitemap :: ServerT (ToServantApi API.Api) Handler
+federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap =
   genericServerT $
-    API.Api {
-      API.getUserByHandle = getUserByHandle,
-      API.getUsersByIds = getUsersByIds,
-      API.getPrekey = getPrekey,
-      API.getPrekeyBundle = getPrekeyBundle,
-      API.getMultiPrekeyBundle = getMultiPrekeyBundle,
-      API.searchUsers = searchUsers
-    }
+    FederationAPIBrig.Api
+      getUserByHandle
+      getUsersByIds
+      claimPrekey
+      getPrekeyBundle
+      getMultiPrekeyBundle
+      searchUsers
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do
@@ -61,8 +60,8 @@ getUsersByIds :: [UserId] -> Handler [UserProfile]
 getUsersByIds uids =
   lift (API.lookupLocalProfiles Nothing uids)
 
-getPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
-getPrekey (user, client) = lift (Data.claimPrekey user client)
+claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
+claimPrekey (user, client) = lift (Data.claimPrekey user client)
 
 getPrekeyBundle :: UserId -> Handler PrekeyBundle
 getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)

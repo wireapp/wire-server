@@ -146,7 +146,7 @@ testClaimPrekeySuccess brig fedBrigClient = do
   let uid = userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
-  mkey <- FedBrig.getPrekey fedBrigClient (uid, clientId c)
+  mkey <- FedBrig.claimPrekey fedBrigClient (uid, clientId c)
   liftIO $
     assertEqual
       "should return prekey 1"
