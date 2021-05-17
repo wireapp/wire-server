@@ -6,7 +6,7 @@ MKFILE_DIR = $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 DOCKER_USER   ?= quay.io/wire
 DOCKER_IMAGE  = alpine-sphinx
-DOCKER_TAG    ?= latest
+DOCKER_TAG    ?= 0.0.32
 
 # You can set these variables (with a ?=) from the command line, and also
 # from the environment.
