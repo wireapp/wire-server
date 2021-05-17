@@ -596,7 +596,7 @@ createSelfConversation usr name = do
   now <- liftIO getCurrentTime
   retry x5 $
     write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-  mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
+  mems <- snd <$> addLocalMembersUnchecked now conv usr (singleton usr)
   return $ newConv conv SelfConv usr (toList mems) [] [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation ::
@@ -614,7 +614,7 @@ createConnectConversation a b name conn = do
     write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
-  mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
+  mems <- snd <$> addLocalMembersUnchecked now conv a' (singleton a')
   let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
   let remoteMembers = [] -- FUTUREWORK: federated connections
   return (newConv conv ConnectConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
@@ -638,7 +638,7 @@ createOne2OneConversation a b name ti = do
       setConsistency Quorum
       addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
-  mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
+  mems <- snd <$> addLocalMembersUnchecked now conv a' (list1 a' [b'])
   let remoteMembers = [] -- FUTUREWORK: federated one2one
   return $ newConv conv One2OneConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name ti Nothing Nothing
 
@@ -785,7 +785,7 @@ lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
 
 -- | Add a member to a local conversation, as an admin.
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, [LocalMember])
-addMember t c u = addMembersUnchecked t c u (singleton u)
+addMember t c u = addLocalMembersUnchecked t c u (singleton u)
 
 -- | Add members to a local conversation.
 addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked -> m (Event, [LocalMember], [RemoteMember])
@@ -793,8 +793,8 @@ addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (sizeChe
 
 -- | Add members to a local conversation, all as admins.
 -- Please make sure the conversation doesn't exceed the maximum size!
-addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, [LocalMember])
-addMembersUnchecked t conv orig usrs = addLocalMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
+addLocalMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, [LocalMember])
+addLocalMembersUnchecked t conv orig usrs = addLocalMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
 
 -- | Add only local members to a local conversation.
 -- Please make sure the conversation doesn't exceed the maximum size!

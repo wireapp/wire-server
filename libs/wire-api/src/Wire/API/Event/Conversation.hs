@@ -92,7 +92,7 @@ data Event = Event
   }
   deriving stock (Eq, Show, Generic)
 
--- TODO: Merge work from https://github.com/wireapp/wire-server/pull/1482
+-- TODO: Merge work from https://github.com/wireapp/wire-server/pull/1506
 instance S.ToSchema Event where
   declareNamedSchema _ = pure $ S.NamedSchema Nothing mempty
 
