@@ -32,7 +32,7 @@ import Text.RawString.QQ
 -- information about a conversation on another backend.
 migration :: Migration
 migration = Migration 49 "Add tables for remote users in local conversations or remote conversations in local membership" $ do
-  -- The user_remote (similar to the user) table answers the question:
+  -- The user_remote_conv (similar to the user) table answers the question:
   -- Which conversations am I a member of?
   -- With federation one now also needs to know: Where are these conversations located?
   -- This table stores *local* users who are part of *remote* conversations

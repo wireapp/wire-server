@@ -863,11 +863,11 @@ leaveConnectConversation = do
   let c = fromMaybe (error "invalid connect conversation") (cnvId <$> responseJsonUnsafe bdy)
   deleteMember alice alice c !!! const 403 === statusCode
 
--- This test adds a non existent remote user and expects a 200. This is of
--- course not correct. When we implement a remote call, we must mock it by
--- mocking the federator and expecting a successful response from the remote.
--- Additionally, another test must be added to deal with error scenarios of
--- federation.
+-- This test adds a non existent remote user to a local conversation and expects
+-- a 200. This is of course not correct. When we implement a remote call, we
+-- must mock it by mocking the federator and expecting a successful response
+-- from the remote.  Additionally, another test must be added to deal with error
+-- scenarios of federation.
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do

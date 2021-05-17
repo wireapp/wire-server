@@ -116,6 +116,7 @@ renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
   renderLocal localPart <> "@" <> domainText domain
 
+-- FUTUREWORK: we probably want to use the primed function everywhere. Refactor these two functions to only have one.
 partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
 partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
   if qDomain qualifiedId == localDomain
