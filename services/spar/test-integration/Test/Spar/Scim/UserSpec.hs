@@ -67,7 +67,7 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.User.Saml (IdP)
+import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.Team.Invitation (Invitation (..))

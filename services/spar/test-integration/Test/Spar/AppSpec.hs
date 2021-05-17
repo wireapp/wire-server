@@ -42,7 +42,7 @@ import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
 import Web.Cookie
-import Wire.API.User.Saml (IdP)
+import Wire.API.User.IdentityProvider (IdP)
 
 spec :: SpecWith TestEnv
 spec = describe "accessVerdict" $ do

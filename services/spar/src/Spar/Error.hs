@@ -59,7 +59,8 @@ import Servant
 import Servant.API.Extended
 import qualified System.Logger.Class as Log
 import qualified Web.Scim.Schema.Error as Scim
-import Wire.API.User.Saml (IdPMetadataInfo, TTLError)
+import Wire.API.User.IdentityProvider (IdPMetadataInfo)
+import Wire.API.User.Saml (TTLError)
 
 type SparError = SAML.Error SparCustomError
 

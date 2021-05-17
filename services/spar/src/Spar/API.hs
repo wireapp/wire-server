@@ -66,6 +66,7 @@ import Spar.Scim
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
+import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 
 app :: Env -> Application

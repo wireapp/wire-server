@@ -24,14 +24,12 @@
 -- for them.
 module Wire.API.User.Saml where
 
-import Control.Lens (makeLenses, (.~), (?~))
+import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.ByteString.Builder as Builder
-import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (TeamId, UserId)
+import Data.Id (UserId)
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions
 import Data.Swagger
@@ -39,13 +37,11 @@ import qualified Data.Swagger as Swagger
 import qualified Data.Text as ST
 import Data.Time
 import Data.UUID
-import Data.X509 as X509
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import Imports
-import Network.HTTP.Media ((//))
 import SAML2.Util (parseURI', renderURI)
-import SAML2.WebSSO (Assertion, AuthnRequest, ID, IdPConfig, IdPId)
+import SAML2.WebSSO (Assertion, AuthnRequest, ID, IdPId)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
@@ -55,74 +51,7 @@ import System.Logger.Extended (LogFormat)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
-
-----------------------------------------------------------------------------
--- Identity provider
-
--- | The identity provider type used in Spar.
-type IdP = IdPConfig WireIdP
-
-data WireIdP = WireIdP
-  { _wiTeam :: TeamId,
-    -- | list of issuer names that this idp has replaced, most recent first.  this is used
-    -- for finding users that are still stored under the old issuer, see
-    -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
-    _wiOldIssuers :: [SAML.Issuer],
-    -- | the issuer that has replaced this one.  this is set iff a new issuer is created
-    -- with the @"replaces"@ query parameter, and it is used to decide whether users not
-    -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
-    _wiReplacedBy :: Maybe SAML.IdPId
-  }
-  deriving (Eq, Show, Generic)
-
-makeLenses ''WireIdP
-
-deriveJSON deriveJSONOptions ''WireIdP
-
--- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
--- allow extensibility later on.
-data IdPList = IdPList
-  { _idplProviders :: [IdP]
-  }
-  deriving (Eq, Show, Generic)
-
-makeLenses ''IdPList
-
-deriveJSON deriveJSONOptions ''IdPList
-
--- | JSON-encoded information about metadata: @{"value": <xml>}@.  (Here we could also
--- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
--- from the server against the pinned one and the metadata url in the metadata against the one
--- we fetched the xml from, but it's unclear what the benefit would be.)
-data IdPMetadataInfo = IdPMetadataValue Text SAML.IdPMetadata
-  deriving (Eq, Show, Generic)
-
--- | We want to store the raw xml text from the registration request in the database for
--- trouble shooting, but @SAML.XML@ only gives us access to the xml tree, not the raw text.
--- 'RawXML' helps with that.
-data RawXML
-
-instance Accept RawXML where
-  contentType Proxy = "application" // "xml"
-
-instance MimeUnrender RawXML IdPMetadataInfo where
-  mimeUnrender Proxy raw = IdPMetadataValue (cs raw) <$> mimeUnrender (Proxy @SAML.XML) raw
-
-instance MimeRender RawXML RawIdPMetadata where
-  mimeRender Proxy (RawIdPMetadata raw) = cs raw
-
-newtype RawIdPMetadata = RawIdPMetadata Text
-  deriving (Eq, Show, Generic)
-
-instance FromJSON IdPMetadataInfo where
-  parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
-    raw <- obj .: "value"
-    either fail (pure . IdPMetadataValue raw) (SAML.decode (cs raw))
-
-instance ToJSON IdPMetadataInfo where
-  toJSON (IdPMetadataValue _ x) =
-    object ["value" .= SAML.encode x]
-
+import Wire.API.User.IdentityProvider
 
 ----------------------------------------------------------------------------
 -- Requests and verdicts
@@ -233,19 +162,11 @@ instance ToJSON SsoSettings where
 
 -- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
 
--- | The options to use for schema generation. Must match the options used
--- for 'ToJSON' instances elsewhere.
-samlSchemaOptions :: SchemaOptions
-samlSchemaOptions = fromAesonOptions deriveJSONOptions
-
 instance ToSchema SAML.XmlText where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToSchema SAML.IdPId where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
 instance ToSchema SAML.AuthnRequest where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
@@ -259,61 +180,16 @@ instance ToSchema SAML.NameIDFormat where
 instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
--- TODO: would be nice to add an example here, but that only works for json?
-
-instance ToSchema a => ToSchema (SAML.IdPConfig a) where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.IdPMetadata where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema IdPMetadataInfo where
-  declareNamedSchema _ =
-    pure $
-      NamedSchema (Just "IdPMetadataInfo") $
-        mempty
-          & properties .~ properties_
-          & minProperties ?~ 1
-          & maxProperties ?~ 1
-          & type_ .~ Just SwaggerObject
-    where
-      properties_ :: InsOrdHashMap Text (Referenced Schema)
-      properties_ =
-        InsOrdHashMap.fromList
-          [ ("value", Inline (toSchema (Proxy @String)))
-          ]
-
-instance ToSchema IdPList where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema WireIdP where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
 instance ToSchema (SAML.ID SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.Issuer where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema SAML.Time where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToSchema X509.SignedCertificate where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
 instance ToSchema SAML.SPMetadata where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
-instance ToSchema URI where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToParamSchema URI where
-  toParamSchema _ = toParamSchema (Proxy @String)
-
 instance ToSchema Void where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToSchema RawIdPMetadata where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema SsoSettings where

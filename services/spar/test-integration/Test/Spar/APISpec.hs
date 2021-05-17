@@ -73,8 +73,8 @@ import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
 import Wire.API.Routes.Public.Spar
+import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
-import Wire.API.User.Saml
 
 spec :: SpecWith TestEnv
 spec = do

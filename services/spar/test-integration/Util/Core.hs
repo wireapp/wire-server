@@ -198,6 +198,7 @@ import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
+import Wire.API.User.IdentityProvider
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv

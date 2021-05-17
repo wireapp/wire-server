@@ -33,7 +33,8 @@ import Servant.Swagger (validateEveryToJSON)
 import Spar.API as API
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Test.QuickCheck (property)
-import Wire.API.User.Saml (IdPMetadataInfo (IdPMetadataValue), SsoSettings)
+import Wire.API.User.IdentityProvider (IdPMetadataInfo (IdPMetadataValue))
+import Wire.API.User.Saml (SsoSettings)
 
 spec :: Spec
 spec = do

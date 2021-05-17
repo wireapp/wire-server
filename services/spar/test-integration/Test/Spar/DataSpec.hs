@@ -41,6 +41,7 @@ import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
 import Wire.API.Cookie
+import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
 import Wire.API.User.Saml
 
