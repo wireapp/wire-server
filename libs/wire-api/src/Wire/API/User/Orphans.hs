@@ -23,11 +23,58 @@ module Wire.API.User.Orphans where
 
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
-import Data.Swagger (ToSchema (..))
+import Data.Proxy
+import Data.Swagger
+import Data.UUID
 import Imports
+import qualified SAML2.WebSSO as SAML
+import Servant.API
+import qualified Servant.Multipart as SM
+import Servant.Swagger
+import Wire.API.User.IdentityProvider
 
 deriving instance Generic ISO639_1
+
+-- Swagger instances
 
 instance ToSchema ISO639_1
 
 instance ToSchema CountryCode
+
+-- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
+-- FUTUREWORK: maybe avoid orphans altogether by defining schema instances manually
+
+-- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
+
+instance ToSchema SAML.XmlText where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToParamSchema SAML.IdPId where
+  toParamSchema _ = toParamSchema (Proxy @UUID)
+
+instance ToSchema SAML.AuthnRequest where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.NameIdPolicy where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.NameIDFormat where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema (SAML.ID SAML.AuthnRequest) where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.Time where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.SPMetadata where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema Void where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
+  toSwagger _proxy = toSwagger (Proxy @route)

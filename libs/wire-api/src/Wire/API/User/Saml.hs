@@ -1,7 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -26,17 +25,15 @@ module Wire.API.User.Saml where
 
 import Control.Lens (makeLenses)
 import Control.Monad.Except
-import Data.Aeson
-import Data.Aeson.TH
+import Data.Aeson hiding (fieldLabelModifier)
+import Data.Aeson.TH hiding (fieldLabelModifier)
 import qualified Data.ByteString.Builder as Builder
 import Data.Id (UserId)
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions
 import Data.Swagger
-import qualified Data.Swagger as Swagger
 import qualified Data.Text as ST
 import Data.Time
-import Data.UUID
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import Imports
@@ -44,14 +41,11 @@ import SAML2.Util (parseURI', renderURI)
 import SAML2.WebSSO (Assertion, AuthnRequest, ID, IdPId)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
-import Servant.API as Servant hiding (MkLink, URI (..))
-import qualified Servant.Multipart as SM
-import Servant.Swagger (HasSwagger (..))
 import System.Logger.Extended (LogFormat)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
-import Wire.API.User.IdentityProvider
+import Wire.API.User.Orphans ()
 
 ----------------------------------------------------------------------------
 -- Requests and verdicts
@@ -158,48 +152,12 @@ instance ToJSON SsoSettings where
 
 -- Swagger instances
 
--- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
-
--- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
-
-instance ToSchema SAML.XmlText where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToParamSchema SAML.IdPId where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToSchema SAML.AuthnRequest where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.NameIdPolicy where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.NameIDFormat where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema (SAML.ID SAML.AuthnRequest) where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.Time where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.SPMetadata where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToSchema Void where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
 instance ToSchema SsoSettings where
   declareNamedSchema =
     genericDeclareNamedSchema
       defaultSchemaOptions
-        { Swagger.fieldLabelModifier = \case
+        { fieldLabelModifier = \case
             "defaultSsoCode" -> "default_sso_code"
             other -> other
         }
 
-instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
-  toSwagger _proxy = toSwagger (Proxy @route)
