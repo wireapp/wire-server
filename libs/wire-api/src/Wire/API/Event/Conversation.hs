@@ -67,6 +67,7 @@ import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis, (#))
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
@@ -90,6 +91,10 @@ data Event = Event
     evtData :: Maybe EventData
   }
   deriving stock (Eq, Show, Generic)
+
+-- TODO: Merge work from https://github.com/wireapp/wire-server/pull/1506
+instance S.ToSchema Event where
+  declareNamedSchema _ = pure $ S.NamedSchema Nothing mempty
 
 modelEvent :: Doc.Model
 modelEvent = Doc.defineModel "Event" $ do

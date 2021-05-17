@@ -27,8 +27,11 @@ module Data.Qualified
 
     -- * Qualified
     Qualified (..),
+    Remote,
+    toRemote,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
+    partitionRemoteOrLocalIds',
     partitionQualified,
     deprecatedSchema,
   )
@@ -38,6 +41,7 @@ import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Bifunctor (first)
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
@@ -46,12 +50,13 @@ import qualified Data.Map as Map
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
+import Data.Tagged
 import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
 ----------------------------------------------------------------------
--- OPTIONALLY QUALIFIED
+-- OPTIONALLY QUALIFIED -- FUTUREWORK: remove optionally qualified, not used
 
 data OptionallyQualified a = OptionallyQualified
   { oqUnqualified :: a,
@@ -95,17 +100,31 @@ data Qualified a = Qualified
   }
   deriving stock (Eq, Ord, Show, Generic, Functor)
 
+-- | A type to differentiate between generally Qualified values, and values
+-- where it is known if they are coming from a Remote backend or not.
+-- Use 'toRemote' or 'partitionRemoteOrLocalIds\'' to get Remote values and use
+-- 'unTagged' to convert from a Remote value back to a plain Qualified one.
+type Remote a = Tagged "remote" (Qualified a)
+
+-- | Convert a Qualified something to a Remote something.
+toRemote :: Qualified a -> Remote a
+toRemote = Tagged
+
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors
 renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
   renderLocal localPart <> "@" <> domainText domain
 
+-- FUTUREWORK: we probably want to use the primed function everywhere. Refactor these two functions to only have one.
 partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
 partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
   if qDomain qualifiedId == localDomain
     then (mempty, [qUnqualified qualifiedId])
     else ([qualifiedId], mempty)
+
+partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remote a], [a])
+partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemote) $ partitionRemoteOrLocalIds localDomain xs
 
 -- | Index a list of qualified values by domain
 partitionQualified :: [Qualified a] -> Map Domain [a]

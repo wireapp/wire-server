@@ -152,6 +152,10 @@ instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
+-- FUTUREWORK: Make a PR to the servant-swagger package with this instance
+instance ToSchema Servant.NoContent where
+  declareNamedSchema _ = declareNamedSchema (Proxy @())
+
 data Api routes = Api
   { -- Conversations
 
@@ -252,6 +256,18 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
         :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
+    addMembersToConversationV2 ::
+      routes
+        :- Summary "Add qualified members to an existing conversation: WIP, inaccessible for clients until ready"
+        :> ZUser
+        :> ZAuthServant 'ZAuthConn
+        :> "i" -- FUTUREWORK: remove this /i/ once it's ready. See comment on 'Update.addMembers'
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> "v2"
+        :> ReqBody '[Servant.JSON] Public.InviteQualified
+        :> UVerb 'POST '[Servant.JSON] Update.UpdateResponses,
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -324,6 +340,7 @@ servantSitemap =
         createGroupConversation = Create.createGroupConversation,
         createSelfConversation = Create.createSelfConversation,
         createOne2OneConversation = Create.createOne2OneConversation,
+        addMembersToConversationV2 = Update.addMembersQH,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,

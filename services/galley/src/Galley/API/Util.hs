@@ -26,6 +26,7 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
+import Data.Qualified (Remote)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
@@ -39,6 +40,7 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options (optSettings, setFederationDomain)
 import Galley.Types
+import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
@@ -210,6 +212,9 @@ isBot = isJust . memService
 
 isMember :: (Eq a, Foldable m) => a -> m (InternalMember a) -> Bool
 isMember u = isJust . find ((u ==) . memId)
+
+isRemoteMember :: (Foldable m) => Remote UserId -> m RemoteMember -> Bool
+isRemoteMember u = isJust . find ((u ==) . rmId)
 
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convMembers c)

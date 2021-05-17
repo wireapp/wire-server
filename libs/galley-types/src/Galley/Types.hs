@@ -25,6 +25,7 @@ module Galley.Types
     -- * re-exports
     Conversation (..),
     LocalMember,
+    RemoteMember,
     InternalMember (..),
     ConvMembers (..),
     OtherMember (..),
@@ -76,7 +77,7 @@ import Data.Id (ClientId, ConvId, TeamId, UserId)
 import Data.Json.Util ((#))
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
-import Galley.Types.Conversations.Members (InternalMember (..), LocalMember)
+import Galley.Types.Conversations.Members (InternalMember (..), LocalMember, RemoteMember)
 import Imports
 import Wire.API.Conversation hiding (Member (..))
 import Wire.API.Conversation.Code

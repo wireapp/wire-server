@@ -18,7 +18,7 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
-import Data.Id (Id, Remote)
+import Data.Id (Id)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
@@ -250,7 +250,7 @@ inactivityTimeoutTooLow = Error status400 "inactivity-timeout-too-low" "applock 
 --------------------------------------------------------------------------------
 -- Federation
 
-federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Error
+federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id a)) -> Error
 federationNotEnabled qualifiedIds =
   Error
     status403
