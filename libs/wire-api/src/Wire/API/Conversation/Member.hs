@@ -177,15 +177,12 @@ data OtherMember = OtherMember
   deriving (Arbitrary) via (GenericUniform OtherMember)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema OtherMember
 
-omId :: OtherMember -> UserId
-omId = qUnqualified . omQualifiedId
-
 instance ToSchema OtherMember where
   schema =
     object "OtherMember" $
       OtherMember
         <$> omQualifiedId .= field "qualified_id" schema
-        <* omId .= optional (field "id" schema)
+        <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
         <*> omService .= opt (fieldWithDocModifier "service" (description ?~ desc) schema)
         <*> omConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
         <* const (0 :: Int) .= optional (fieldWithDocModifier "status" (description ?~ "deprecated") schema) -- TODO: remove
