@@ -14,9 +14,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-deferred-type-errors #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
-module Spar.DataMigration.V2_UserV2 where
+module Spar.DataMigration.V2_UserV2 (migration) where
 
 import Cassandra
 import qualified Conduit as C
@@ -33,14 +33,6 @@ import Spar.DataMigration.Types (logger)
 import Spar.DataMigration.Types hiding (logger)
 import Spar.Types (NormalizedUNameID (unNormalizedUNameID), normalizeQualifiedNameId)
 import qualified System.Logger as Log
-
-migration :: Migration
-migration =
-  Migration
-    { version = MigrationVersion 2,
-      text = "Migrate to spar.user_v2",
-      action = migrationAction
-    }
 
 -- row in spar.user
 -- primary key are the first two entries
@@ -75,6 +67,39 @@ instance Cql a => Cql (CqlSafe a) where
       Left err -> Right $ CqlSafe (Left err)
       Right x -> Right $ CqlSafe (Right x)
 
+migration :: Migration
+migration =
+  Migration
+    { version = MigrationVersion 2,
+      text = "Migrate to spar.user_v2",
+      action = \env ->
+        flip runReaderT env $
+          case dryRun env of
+            DryRun -> performDryRun
+            NoDryRun -> performMigration
+    }
+
+performDryRun :: EnvIO ()
+performDryRun = do
+  migMapInv <- collectMapping
+  runConduit $
+    filterResolved activatedResolver migMapInv
+      .| C.sinkNull
+
+performMigration :: EnvIO ()
+performMigration = do
+  migMapInv <- collectMapping
+  runConduit $
+    filterResolved activatedResolver migMapInv
+      .| CL.mapM_ insertNewRow
+  where
+    insertNewRow :: NewRow -> EnvIO ()
+    insertNewRow newRow = do
+      runSpar $ write insert (params Quorum newRow)
+      where
+        insert :: PrepQuery W NewRow ()
+        insert = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
+
 logInfo :: String -> EnvIO ()
 logInfo msg = do
   logger_ <- asks logger
@@ -85,58 +110,45 @@ runSpar cl = do
   cass <- asks sparCassandra
   runClient cass cl
 
-migrationAction :: Env -> IO ()
-migrationAction env =
-  flip runReaderT env $
-    case dryRun env of
-      DryRun -> performDryRun
-      NoDryRun -> logInfo "TODO: perform real migration here"
-
-insertNewRow :: NewRow -> EnvIO ()
-insertNewRow newRow = do
-  runSpar $ write insert (params Quorum newRow)
-  where
-    insert :: PrepQuery W NewRow ()
-    insert = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
-
-migrate :: OldRow -> Either String NewRow
-migrate (issuer, nidSafe, uid) =
-  unCqlSafe nidSafe <&> \nid -> (issuer, normalizeQualifiedNameId nid, nid, uid)
-
-readLegacyEntries :: ConduitM () [OldRow] EnvIO ()
-readLegacyEntries = do
-  pSize <- lift $ asks pageSize
-  transPipe runSpar $
-    paginateC select (paramsP Quorum () pSize) x5
-  where
-    select :: PrepQuery R () OldRow
-    select = "SELECT issuer, sso_id, uid FROM user"
-
 collectMapping :: EnvIO MigrationMapInverse
 collectMapping = do
+  -- todo: replace with fold
   migMapInv <- liftIO (newIORef Map.empty)
   runConduit $
     zipSources
       (CL.sourceList [(1 :: Int32) ..])
-      readLegacyEntries
+      readOldRows
       .| C.mapM_C (collect migMapInv)
   liftIO $ readIORef migMapInv
   where
+    readOldRows :: ConduitT () [OldRow] EnvIO ()
+    readOldRows = do
+      pSize <- lift $ asks pageSize
+      transPipe runSpar $
+        paginateC select (paramsP Quorum () pSize) x5
+      where
+        select :: PrepQuery R () OldRow
+        select = "SELECT issuer, sso_id, uid FROM user"
+
     collect :: IORef MigrationMapInverse -> (Int32, [OldRow]) -> EnvIO ()
     collect migMapInv (page, rows) = do
       logInfo $ "page " <> show page
-      for_ rows $ \tpl@(_, _, uid) -> do
-        case migrate tpl of
+      for_ rows $ \row@(_, _, uid) -> do
+        case migrateRow row of
           Left err -> do
             logInfo $ "Failed to parse row for user " <> show uid <> " with error " <> err
           Right (issuer, normNid, nid, uid') ->
             modifyIORef migMapInv (Map.insertWith (<>) (issuer, normNid) [(nid, uid')])
 
-filterResolved :: CollisionResolver -> MigrationMapInverse -> ConduitM () NewRow EnvIO ()
+    migrateRow :: OldRow -> Either String NewRow
+    migrateRow (issuer, nidSafe, uid) =
+      unCqlSafe nidSafe <&> \nid -> (issuer, normalizeQualifiedNameId nid, nid, uid)
+
+filterResolved :: CollisionResolver -> MigrationMapInverse -> ConduitT () NewRow EnvIO ()
 filterResolved resolver migMapInv =
   C.yieldMany (Map.assocs migMapInv) .| go
   where
-    go :: ConduitM ((SAML.Issuer, NormalizedUNameID), [(SAML.NameID, UserId)]) NewRow EnvIO ()
+    go :: ConduitT ((SAML.Issuer, NormalizedUNameID), [(SAML.NameID, UserId)]) NewRow EnvIO ()
     go = do
       mbAssoc <- await
       for_ mbAssoc $ \(new@(issuer, nid), olds) -> do
@@ -161,13 +173,3 @@ activatedResolver _ olds = do
     _ -> pure (Left olds')
   where
     isActivated (_, _uid) = error "TODO: ask brig's DB if user is acitvated"
-
-performDryRun :: EnvIO ()
-performDryRun = do
-  migMapInv <- collectMapping
-  runConduit $
-    filterResolved nothingResolver migMapInv
-      .| C.sinkNull
-
-performMigration :: EnvIO ()
-performMigration = error "TODO"
