@@ -611,6 +611,13 @@ sitemap = do
       .&. accept "application" "json"
 
   -- This endpoint can lead to the following events being sent:
+  -- - tbd. (currently, there are not events, but maybe there should be.)  (fisx, 2021-05-10)
+  post "/teams/:tid/legalhold/consent" (continue LegalHold.grantConsentH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+
+  -- This endpoint can lead to the following events being sent:
   -- - LegalHoldClientRequested event to contacts of the user the device is requested for,
   --   if they didn't already have a legalhold client (via brig)
   post "/teams/:tid/legalhold/:uid" (continue LegalHold.requestDeviceH) $

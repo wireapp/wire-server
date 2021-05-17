@@ -171,7 +171,7 @@ createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
 
 createNonBindingTeam :: UserId -> ConnId -> Public.NonBindingNewTeam -> Galley TeamId
 createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
-  let owner = Public.TeamMember zusr fullPermissions Nothing LH.UserLegalHoldDisabled
+  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
           . maybe [] fromRange
@@ -194,7 +194,7 @@ createBindingTeamH (zusr ::: tid ::: req ::: _) = do
 
 createBindingTeam :: UserId -> TeamId -> BindingNewTeam -> Galley TeamId
 createBindingTeam zusr tid (BindingNewTeam body) = do
-  let owner = Public.TeamMember zusr fullPermissions Nothing LH.UserLegalHoldDisabled
+  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
   pure tid
@@ -861,7 +861,7 @@ ensureNotTooLargeForLegalHold :: TeamId -> TeamMemberList -> Galley ()
 ensureNotTooLargeForLegalHold tid mems = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   when (length (mems ^. teamMembers) >= limit) $ do
-    lhEnabled <- isLegalHoldEnabled tid
+    lhEnabled <- isLegalHoldEnabledForTeam tid
     when lhEnabled $
       throwM tooManyTeamMembersOnTeamWithLegalhold
 
@@ -954,7 +954,7 @@ canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 -- This could be extended for more checks, for now we test only legalhold
 canUserJoinTeam :: TeamId -> Galley ()
 canUserJoinTeam tid = do
-  lhEnabled <- isLegalHoldEnabled tid
+  lhEnabled <- isLegalHoldEnabledForTeam tid
   when (lhEnabled) $
     checkTeamSize
   where
