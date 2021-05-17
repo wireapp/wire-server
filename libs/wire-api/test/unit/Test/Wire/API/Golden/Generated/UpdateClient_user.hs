@@ -21,7 +21,7 @@ module Test.Wire.API.Golden.Generated.UpdateClient_user where
 
 import Imports (Maybe (Just, Nothing))
 import Wire.API.User.Client
-  ( SupportedClientFeature (ClientSupportsLegalHold),
+  ( SupportedClientFeature (ClientSupportsLegalholdImplicitConsent),
     UpdateClient (..),
   )
 import Wire.API.User.Client.Prekey
@@ -88,4 +88,4 @@ testObject_UpdateClient_user_19 :: UpdateClient
 testObject_UpdateClient_user_19 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "b"}, Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("\191090t\96624\113765i")), updateClientLabel = Just "\f&QO\"u\t-\\", updateClientSupportedFeatures = Nothing}
 
 testObject_UpdateClient_user_20 :: UpdateClient
-testObject_UpdateClient_user_20 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("\DC4 }Kg\ve3")), updateClientLabel = Just "\ESC\EOT\SOHccn\US{Y5", updateClientSupportedFeatures = Just [ClientSupportsLegalHold]}
+testObject_UpdateClient_user_20 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}, Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("\DC4 }Kg\ve3")), updateClientLabel = Just "\ESC\EOT\SOHccn\US{Y5", updateClientSupportedFeatures = Just [ClientSupportsLegalholdImplicitConsent]}
