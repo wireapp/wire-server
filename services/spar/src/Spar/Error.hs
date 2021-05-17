@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -56,10 +55,8 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
 import qualified SAML2.WebSSO as SAML
 import Servant
-import Servant.API.Extended
 import qualified System.Logger.Class as Log
 import qualified Web.Scim.Schema.Error as Scim
-import Wire.API.User.IdentityProvider (IdPMetadataInfo)
 import Wire.API.User.Saml (TTLError)
 
 type SparError = SAML.Error SparCustomError
@@ -225,7 +222,3 @@ parseResponse serviceName resp = do
 
   bdy <- maybe (err "no body") pure $ responseBody resp
   either (err . cs) pure $ eitherDecode' bdy
-
--- TODO: where should this go?
-instance MakeCustomError "wai-error" IdPMetadataInfo where
-  makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs
