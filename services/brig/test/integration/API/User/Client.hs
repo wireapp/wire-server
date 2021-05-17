@@ -536,8 +536,8 @@ testUpdateClient opts brig = do
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
   -- update supported client features
-  let checkUpdate :: HasCallStack => Maybe [SupportedClientFeature] -> [SupportedClientFeature] -> Http ()
-      checkUpdate featuresIn featuresOut = do
+  let checkUpdate :: HasCallStack => Maybe [SupportedClientFeature] -> Bool -> [SupportedClientFeature] -> Http ()
+      checkUpdate featuresIn respStatusOk featuresOut = do
         let update'' = UpdateClient [] Nothing Nothing featuresIn
         put
           ( brig
@@ -546,17 +546,20 @@ testUpdateClient opts brig = do
               . contentJson
               . body (RequestBodyLBS $ encode update'')
           )
-          !!! const 200
-          === statusCode
+          !!! if respStatusOk
+            then do
+              const 200 === statusCode
+            else do
+              const 409 === statusCode
+              const (Just "client-feature-cannot-be-removed") === fmap Error.label . responseJsonMaybe
 
         getClientSupportedFeatures brig uid (clientId c) !!! do
           const 200 === statusCode
           const (Just (SupportedClientFeatureList featuresOut)) === responseJsonMaybe
 
-  checkUpdate (Just [ClientSupportsLegalholdImplicitConsent]) [ClientSupportsLegalholdImplicitConsent]
-  checkUpdate Nothing [ClientSupportsLegalholdImplicitConsent]
-  checkUpdate (Just []) []
-  checkUpdate Nothing []
+  checkUpdate (Just [ClientSupportsLegalholdImplicitConsent]) True [ClientSupportsLegalholdImplicitConsent]
+  checkUpdate Nothing True [ClientSupportsLegalholdImplicitConsent]
+  checkUpdate (Just []) False [ClientSupportsLegalholdImplicitConsent]
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()

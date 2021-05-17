@@ -64,6 +64,7 @@ import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import qualified Data.Set as Set
 import Galley.Types (UserClientMap (..), UserClients (..))
 import Imports
 import Network.Wai.Utilities
@@ -136,7 +137,11 @@ updateClient u c r = do
   unless ok $
     throwE ClientNotFound
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
-  for_ (updateClientSupportedFeatures r) $ lift . Data.updateClientSupportedFeatures u c . Just
+  for_ (updateClientSupportedFeatures r) $ \features' -> do
+    features <- fromMaybe [] <$> Data.lookupClientSupportedFeatures u c
+    if Set.fromList features `Set.isSubsetOf` Set.fromList features'
+      then lift . Data.updateClientSupportedFeatures u c . Just $ features'
+      else throwE ClientFeaturesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
 
