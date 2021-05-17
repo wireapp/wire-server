@@ -55,8 +55,8 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Scim
 import Wire.API.User.RichInfo
+import Wire.API.User.Scim
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.

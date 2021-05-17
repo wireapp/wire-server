@@ -35,8 +35,8 @@ import Web.Scim.Class.User as Scim.User
 import Wire.API.Cookie
 import Wire.API.Routes.Public
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Scim
 import Wire.API.User.Saml
+import Wire.API.User.Scim
 
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.

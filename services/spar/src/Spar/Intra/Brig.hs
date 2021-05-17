@@ -81,9 +81,9 @@ import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission)
 import qualified System.Logger.Class as Log
 import qualified Text.Email.Parser
 import Web.Cookie
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalId)
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
+import Wire.API.User.Scim (ValidExternalId (..), runValidExternalId)
 
 ----------------------------------------------------------------------
 

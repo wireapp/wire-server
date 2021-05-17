@@ -46,13 +46,13 @@ module Wire.API.User.Scim where
 
 import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~))
 import Control.Monad.Except (throwError)
-import Crypto.Hash.Algorithms (SHA512)
 import Crypto.Hash (hash)
+import Crypto.Hash.Algorithms (SHA512)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Attoparsec.ByteString (string)
 import qualified Data.Binary.Builder as BB
-import Data.ByteArray.Encoding (convertToBase, Base (..))
+import Data.ByteArray.Encoding (Base (..), convertToBase)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle)

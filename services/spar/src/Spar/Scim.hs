@@ -162,4 +162,3 @@ server conf =
 -- newtype-less form that's easier to work with.
 _Spar :: Iso' (Spar a) (Env -> IO (Either SparError a))
 _Spar = coerced
-

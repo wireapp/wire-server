@@ -191,14 +191,14 @@ import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
-import Wire.API.User.Scim (runValidExternalId)
-import Wire.API.User.Saml
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim (runValidExternalId)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
