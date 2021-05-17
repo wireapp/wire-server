@@ -51,7 +51,7 @@ import qualified Servant.Server as Servant
 import qualified System.Logger.Class as Log
 import Util.Options
 import qualified Wire.API.Federation.API.Galley as FederationGalley
-import qualified Wire.API.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 run :: Opts -> IO ()
 run o = do

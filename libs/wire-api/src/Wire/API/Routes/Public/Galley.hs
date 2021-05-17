@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Public.Galley where
+module Wire.API.Routes.Public.Galley where
 
 import Data.CommaSeparatedList
 import Data.Id (ConvId, TeamId)
@@ -32,7 +32,7 @@ import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Event.Team as Public ()
-import Wire.API.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import qualified Wire.API.Team.Conversation as Public
 
 type ConversationResponses =

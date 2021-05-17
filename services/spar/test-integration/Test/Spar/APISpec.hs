@@ -72,7 +72,7 @@ import Util.Core
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
-import Wire.API.Public.Spar
+import Wire.API.Routes.Public.Spar
 import Wire.API.Scim
 import Wire.API.Spar
 

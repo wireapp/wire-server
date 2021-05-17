@@ -65,7 +65,7 @@ import qualified Wire.API.CustomBackend as Public
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
-import qualified Wire.API.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Feature as Public

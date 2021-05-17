@@ -52,7 +52,7 @@ import qualified Spar.Intra.Brig as Intra.Brig
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
-import Wire.API.Public.Spar (APIScimToken)
+import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.Scim
   ( CreateScimToken (CreateScimToken),
     CreateScimTokenResponse (..),

@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Public.Brig where
+module Wire.API.Routes.Public.Brig where
 
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
@@ -32,7 +32,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Public (Empty200, Empty404, ZUser)
+import Wire.API.Routes.Public (Empty200, Empty404, ZUser)
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey

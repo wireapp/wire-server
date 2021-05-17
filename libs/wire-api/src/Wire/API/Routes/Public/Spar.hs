@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Public.Spar where
+module Wire.API.Routes.Public.Spar where
 
 import Data.Id
 import Data.Proxy
@@ -32,7 +32,7 @@ import qualified URI.ByteString as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
 import Web.Scim.Class.User as Scim.User
-import Wire.API.Public
+import Wire.API.Routes.Public
 import Wire.API.Scim
 import Wire.API.Spar
 

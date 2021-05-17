@@ -64,7 +64,7 @@ import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
 import qualified URI.ByteString as URI
-import Wire.API.Public.Spar
+import Wire.API.Routes.Public.Spar
 import Wire.API.Spar
 
 app :: Env -> Application

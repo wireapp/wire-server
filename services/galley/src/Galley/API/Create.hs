@@ -52,7 +52,7 @@ import Servant (WithStatus (..))
 import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
-import Wire.API.Public.Galley (ConversationResponses)
+import Wire.API.Routes.Public.Galley (ConversationResponses)
 
 -- Servant helpers ------------------------------------------------------
 

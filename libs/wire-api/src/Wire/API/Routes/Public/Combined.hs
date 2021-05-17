@@ -1,8 +1,8 @@
-module Wire.API.Public.Combined where
+module Wire.API.Routes.Public.Combined where
 
 -- import Data.Swagger
 
--- import qualified Wire.API.Public.Brig as Brig
+-- import qualified Wire.API.Routes.Public.Brig as Brig
 
 -- swagger :: Swagger
 -- swagger = Brig.swagger {- <> Galley.swagger -}

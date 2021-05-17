@@ -93,10 +93,10 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
-import Wire.API.Public (Empty200 (..), Empty404 (..))
-import qualified Wire.API.Public.Brig as BrigAPI
-import qualified Wire.API.Public.Galley as GalleyAPI
-import qualified Wire.API.Public.Spar as SparAPI
+import Wire.API.Routes.Public (Empty200 (..), Empty404 (..))
+import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.User as Public

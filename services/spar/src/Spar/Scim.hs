@@ -88,7 +88,7 @@ import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
-import Wire.API.Public.Spar
+import Wire.API.Routes.Public.Spar
 import Wire.API.Scim
 
 -- | SCIM config for our server.
