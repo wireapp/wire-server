@@ -30,7 +30,7 @@ import Spar.Intra.Brig
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)
-import Wire.API.Scim
+import Wire.API.User.Scim
 
 mkuri :: ST -> URI
 mkuri = either (error . show) id . parseURI laxURIParserOptions . cs

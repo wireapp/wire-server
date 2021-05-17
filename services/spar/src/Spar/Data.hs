@@ -105,7 +105,8 @@ import URI.ByteString
 import qualified Web.Cookie as Cky
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
-import Wire.API.Spar
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.

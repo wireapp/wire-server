@@ -40,7 +40,8 @@ import SAML2.Util (parseURI')
 import qualified SAML2.WebSSO as SAML
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import URI.ByteString
-import Wire.API.Spar
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 
 instance Cql SAML.XmlText where
   ctype = Tagged TextColumn

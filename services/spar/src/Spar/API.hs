@@ -65,7 +65,7 @@ import Spar.Orphans ()
 import Spar.Scim
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Public.Spar
-import Wire.API.Spar
+import Wire.API.User.Saml
 
 app :: Env -> Application
 app ctx =

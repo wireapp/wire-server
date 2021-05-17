@@ -3,6 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -41,22 +42,34 @@
 -- * Our wrappers over @hscim@ types (like 'ValidScimUser').
 -- * Servant-based API types.
 -- * Request and response types for SCIM-related endpoints.
-module Wire.API.Scim where
+module Wire.API.User.Scim where
 
 import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~))
 import Control.Monad.Except (throwError)
-import qualified Data.Aeson as Aeson
+import Crypto.Hash.Algorithms (SHA512)
+import Crypto.Hash (hash)
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import Data.Attoparsec.ByteString (string)
+import qualified Data.Binary.Builder as BB
+import Data.ByteArray.Encoding (convertToBase, Base (..))
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle)
 import Data.Id (ScimTokenId, TeamId, UserId)
+import Data.Json.Util ((#))
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
 import Data.Proxy
+import Data.String.Conversions (cs)
 import Data.Swagger hiding (Operation)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
+import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
+import Web.HttpApiData (parseHeaderWithPrefix)
 import Web.Scim.AttrName (AttrName (..))
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.Group as Scim.Group
@@ -68,10 +81,10 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.Spar (ScimToken, ScimTokenInfo)
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import qualified Wire.API.User.RichInfo as RI
+import Wire.API.User.Saml ()
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -82,6 +95,80 @@ userSchemas =
     Scim.CustomSchema RI.richInfoAssocListURN,
     Scim.CustomSchema RI.richInfoMapURN
   ]
+
+----------------------------------------------------------------------------
+-- Token
+
+-- | > docs/reference/provisioning/scim-token.md {#RefScimToken}
+--
+-- A bearer token that authorizes a provisioning tool to perform actions with a team. Each
+-- token corresponds to one team.
+--
+-- For SCIM authentication and token handling logic, see "Spar.Scim.Auth".
+newtype ScimToken = ScimToken {fromScimToken :: Text}
+  deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+
+newtype ScimTokenHash = ScimTokenHash {fromScimTokenHash :: Text}
+  deriving (Eq, Show)
+
+instance FromByteString ScimTokenHash where
+  parser = string "sha512:" *> (ScimTokenHash <$> parser)
+
+instance ToByteString ScimTokenHash where
+  builder (ScimTokenHash t) = BB.fromByteString "sha512:" <> builder t
+
+data ScimTokenLookupKey
+  = ScimTokenLookupKeyHashed ScimTokenHash
+  | ScimTokenLookupKeyPlaintext ScimToken
+  deriving (Eq, Show)
+
+hashScimToken :: ScimToken -> ScimTokenHash
+hashScimToken token =
+  let digest = hash @ByteString @SHA512 (encodeUtf8 (fromScimToken token))
+   in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
+
+-- | Metadata that we store about each token.
+data ScimTokenInfo = ScimTokenInfo
+  { -- | Which team can be managed with the token
+    stiTeam :: !TeamId,
+    -- | Token ID, can be used to eg. delete the token
+    stiId :: !ScimTokenId,
+    -- | Time of token creation
+    stiCreatedAt :: !UTCTime,
+    -- | IdP that created users will "belong" to
+    stiIdP :: !(Maybe SAML.IdPId),
+    -- | Free-form token description, can be set
+    --   by the token creator as a mental aid
+    stiDescr :: !Text
+  }
+  deriving (Eq, Show)
+
+instance FromHttpApiData ScimToken where
+  parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
+  parseQueryParam p = ScimToken <$> parseQueryParam p
+
+instance ToHttpApiData ScimToken where
+  toHeader (ScimToken s) = "Bearer " <> encodeUtf8 s
+  toQueryParam (ScimToken s) = toQueryParam s
+
+instance FromJSON ScimTokenInfo where
+  parseJSON = A.withObject "ScimTokenInfo" $ \o -> do
+    stiTeam <- o A..: "team"
+    stiId <- o A..: "id"
+    stiCreatedAt <- o A..: "created_at"
+    stiIdP <- o A..:? "idp"
+    stiDescr <- o A..: "description"
+    pure ScimTokenInfo {..}
+
+instance ToJSON ScimTokenInfo where
+  toJSON s =
+    A.object $
+      "team" A..= stiTeam s
+        # "id" A..= stiId s
+        # "created_at" A..= stiCreatedAt s
+        # "idp" A..= stiIdP s
+        # "description" A..= stiDescr s
+        # []
 
 ----------------------------------------------------------------------------
 -- @hscim@ extensions and wrappers
@@ -146,11 +233,11 @@ data ScimUserExtra = ScimUserExtra
 
 makeLenses ''ScimUserExtra
 
-instance Aeson.FromJSON ScimUserExtra where
-  parseJSON v = ScimUserExtra <$> Aeson.parseJSON v
+instance A.FromJSON ScimUserExtra where
+  parseJSON v = ScimUserExtra <$> A.parseJSON v
 
-instance Aeson.ToJSON ScimUserExtra where
-  toJSON (ScimUserExtra rif) = Aeson.toJSON rif
+instance A.ToJSON ScimUserExtra where
+  toJSON (ScimUserExtra rif) = A.toJSON rif
 
 instance Scim.Patchable ScimUserExtra where
   applyOperation (ScimUserExtra (RI.RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema sch)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
@@ -162,7 +249,7 @@ instance Scim.Patchable ScimUserExtra where
               pure $ Map.delete ciAttrName rinf
             _AddOrReplace ->
               case val of
-                (Just (Aeson.String textVal)) ->
+                (Just (A.String textVal)) ->
                   pure $ Map.insert ciAttrName textVal rinf
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | sch == RI.richInfoAssocListURN =
@@ -174,7 +261,7 @@ instance Scim.Patchable ScimUserExtra where
               pure $ filter (not . matchesAttrName) rinf
             _AddOrReplace ->
               case val of
-                (Just (Aeson.String textVal)) ->
+                (Just (A.String textVal)) ->
                   let newField = RI.RichField ciAttrName textVal
                       replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
                       newRichInfo =
@@ -250,18 +337,18 @@ data CreateScimToken = CreateScimToken
   }
   deriving (Eq, Show)
 
-instance Aeson.FromJSON CreateScimToken where
-  parseJSON = Aeson.withObject "CreateScimToken" $ \o -> do
-    createScimTokenDescr <- o Aeson..: "description"
-    createScimTokenPassword <- o Aeson..:? "password"
+instance A.FromJSON CreateScimToken where
+  parseJSON = A.withObject "CreateScimToken" $ \o -> do
+    createScimTokenDescr <- o A..: "description"
+    createScimTokenPassword <- o A..:? "password"
     pure CreateScimToken {..}
 
 -- Used for integration tests
-instance Aeson.ToJSON CreateScimToken where
+instance A.ToJSON CreateScimToken where
   toJSON CreateScimToken {..} =
-    Aeson.object
-      [ "description" Aeson..= createScimTokenDescr,
-        "password" Aeson..= createScimTokenPassword
+    A.object
+      [ "description" A..= createScimTokenDescr,
+        "password" A..= createScimTokenPassword
       ]
 
 -- | Type used for the response of 'APIScimTokenCreate'.
@@ -272,17 +359,17 @@ data CreateScimTokenResponse = CreateScimTokenResponse
   deriving (Eq, Show)
 
 -- Used for integration tests
-instance Aeson.FromJSON CreateScimTokenResponse where
-  parseJSON = Aeson.withObject "CreateScimTokenResponse" $ \o -> do
-    createScimTokenResponseToken <- o Aeson..: "token"
-    createScimTokenResponseInfo <- o Aeson..: "info"
+instance A.FromJSON CreateScimTokenResponse where
+  parseJSON = A.withObject "CreateScimTokenResponse" $ \o -> do
+    createScimTokenResponseToken <- o A..: "token"
+    createScimTokenResponseInfo <- o A..: "info"
     pure CreateScimTokenResponse {..}
 
-instance Aeson.ToJSON CreateScimTokenResponse where
+instance A.ToJSON CreateScimTokenResponse where
   toJSON CreateScimTokenResponse {..} =
-    Aeson.object
-      [ "token" Aeson..= createScimTokenResponseToken,
-        "info" Aeson..= createScimTokenResponseInfo
+    A.object
+      [ "token" A..= createScimTokenResponseToken,
+        "info" A..= createScimTokenResponseInfo
       ]
 
 -- | Type used for responses of endpoints that return a list of SCIM tokens.
@@ -294,15 +381,15 @@ data ScimTokenList = ScimTokenList
   }
   deriving (Eq, Show)
 
-instance Aeson.FromJSON ScimTokenList where
-  parseJSON = Aeson.withObject "ScimTokenList" $ \o -> do
-    scimTokenListTokens <- o Aeson..: "tokens"
+instance A.FromJSON ScimTokenList where
+  parseJSON = A.withObject "ScimTokenList" $ \o -> do
+    scimTokenListTokens <- o A..: "tokens"
     pure ScimTokenList {..}
 
-instance Aeson.ToJSON ScimTokenList where
+instance A.ToJSON ScimTokenList where
   toJSON ScimTokenList {..} =
-    Aeson.object
-      [ "tokens" Aeson..= scimTokenListTokens
+    A.object
+      [ "tokens" A..= scimTokenListTokens
       ]
 
 -- Swagger

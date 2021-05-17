@@ -190,8 +190,8 @@ import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Routes.Public.Spar
-import Wire.API.Scim (runValidExternalId)
-import Wire.API.Spar
+import Wire.API.User.Scim (runValidExternalId)
+import Wire.API.User.Saml
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation

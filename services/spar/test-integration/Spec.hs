@@ -48,7 +48,7 @@ import qualified Test.Spar.Scim.AuthSpec
 import qualified Test.Spar.Scim.UserSpec
 import Util
 import Web.Scim.Test.Acceptance (AcceptanceConfig (..), AcceptanceQueryConfig (..), microsoftAzure)
-import Wire.API.Scim
+import Wire.API.User.Scim
 
 main :: IO ()
 main = do

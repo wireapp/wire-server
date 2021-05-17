@@ -88,8 +88,8 @@ import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
-import Wire.API.Scim (ValidExternalId (..))
-import Wire.API.Spar
+import Wire.API.User.Scim (ValidExternalId (..))
+import Wire.API.User.Saml
 import Wire.API.User.Identity (Email (..))
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}

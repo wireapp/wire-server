@@ -44,7 +44,6 @@ import qualified SAML2.WebSSO.Test.Util as SAML
 import Spar.Scim
 import Text.RawString.QQ (r)
 import Util
-import Wire.API.Spar (ScimToken (..), ScimTokenInfo (..), ScimTokenLookupKey (..), hashScimToken)
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
 spec :: SpecWith TestEnv

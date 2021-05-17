@@ -84,8 +84,9 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import qualified Wire.API.Scim as ST
-import Wire.API.Spar (IdP, ScimTokenInfo (..), derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
+import qualified Wire.API.User.Scim as ST
+import Wire.API.User.Saml (IdP, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
+import Wire.API.User.Scim (ScimTokenInfo (..))
 import Wire.API.User (Email)
 import qualified Wire.API.User.RichInfo as RI
 

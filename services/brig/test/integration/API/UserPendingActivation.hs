@@ -65,8 +65,8 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
-import Wire.API.Scim (CreateScimToken (..), ScimUserExtra (ScimUserExtra))
-import Wire.API.Spar hiding (Opts)
+import Wire.API.User.Scim (CreateScimToken (..), ScimUserExtra (ScimUserExtra))
+import Wire.API.User.Saml hiding (Opts)
 import Wire.API.User.RichInfo (RichInfo)
 
 tests :: Opts -> Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree

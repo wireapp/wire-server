@@ -32,7 +32,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API.ContentTypes
 import Spar.Scim
 import Test.QuickCheck
-import Wire.API.Spar
+import Wire.API.User.Saml
 
 instance Arbitrary IdPList where
   arbitrary = do

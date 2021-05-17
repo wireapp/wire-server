@@ -53,15 +53,8 @@ import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
-import Wire.API.Scim
-  ( CreateScimToken (CreateScimToken),
-    CreateScimTokenResponse (..),
-    ScimTokenList (..),
-    SparTag,
-    createScimTokenDescr,
-    createScimTokenPassword,
-  )
-import Wire.API.Spar
+import Wire.API.User.Saml (maxScimTokens)
+import Wire.API.User.Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Scim.Class.Auth.AuthDB SparTag Spar where

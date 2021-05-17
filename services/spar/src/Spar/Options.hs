@@ -38,7 +38,7 @@ import qualified SAML2.WebSSO as SAML
 import Text.Ascii (ascii)
 import URI.ByteString as URI
 import Wire.API.Routes.Public.Spar
-import Wire.API.Spar
+import Wire.API.User.Saml
 
 type OptsRaw = Opts' (Maybe ())
 

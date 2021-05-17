@@ -22,28 +22,21 @@
 
 -- | A "default" module for types used in Spar, unless there's a better / more specific place
 -- for them.
-module Wire.API.Spar where
+module Wire.API.User.Saml where
 
 import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
-import Crypto.Hash (SHA512 (..), hash)
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Attoparsec.ByteString (string)
-import qualified Data.Binary.Builder as BB (fromByteString)
-import Data.ByteArray.Encoding (Base (..), convertToBase)
 import qualified Data.ByteString.Builder as Builder
-import Data.ByteString.Conversion
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (ScimTokenId, TeamId, UserId)
-import Data.Json.Util
+import Data.Id (TeamId, UserId)
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions
 import Data.Swagger
 import qualified Data.Swagger as Swagger
 import qualified Data.Text as ST
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time
 import Data.UUID
 import Data.X509 as X509
@@ -62,7 +55,6 @@ import System.Logger.Extended (LogFormat)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
-import Web.HttpApiData
 
 type SetBindCookie = SimpleSetCookie "zbind"
 
@@ -151,79 +143,6 @@ instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue _ x) =
     object ["value" .= SAML.encode x]
 
-----------------------------------------------------------------------------
--- SCIM
-
--- | > docs/reference/provisioning/scim-token.md {#RefScimToken}
---
--- A bearer token that authorizes a provisioning tool to perform actions with a team. Each
--- token corresponds to one team.
---
--- For SCIM authentication and token handling logic, see "Spar.Scim.Auth".
-newtype ScimToken = ScimToken {fromScimToken :: Text}
-  deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
-
-newtype ScimTokenHash = ScimTokenHash {fromScimTokenHash :: Text}
-  deriving (Eq, Show)
-
-instance FromByteString ScimTokenHash where
-  parser = string "sha512:" *> (ScimTokenHash <$> parser)
-
-instance ToByteString ScimTokenHash where
-  builder (ScimTokenHash t) = BB.fromByteString "sha512:" <> builder t
-
-data ScimTokenLookupKey
-  = ScimTokenLookupKeyHashed ScimTokenHash
-  | ScimTokenLookupKeyPlaintext ScimToken
-  deriving (Eq, Show)
-
-hashScimToken :: ScimToken -> ScimTokenHash
-hashScimToken token =
-  let digest = hash @ByteString @SHA512 (encodeUtf8 (fromScimToken token))
-   in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
-
--- | Metadata that we store about each token.
-data ScimTokenInfo = ScimTokenInfo
-  { -- | Which team can be managed with the token
-    stiTeam :: !TeamId,
-    -- | Token ID, can be used to eg. delete the token
-    stiId :: !ScimTokenId,
-    -- | Time of token creation
-    stiCreatedAt :: !UTCTime,
-    -- | IdP that created users will "belong" to
-    stiIdP :: !(Maybe IdPId),
-    -- | Free-form token description, can be set
-    --   by the token creator as a mental aid
-    stiDescr :: !Text
-  }
-  deriving (Eq, Show)
-
-instance FromHttpApiData ScimToken where
-  parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
-  parseQueryParam p = ScimToken <$> parseQueryParam p
-
-instance ToHttpApiData ScimToken where
-  toHeader (ScimToken s) = "Bearer " <> encodeUtf8 s
-  toQueryParam (ScimToken s) = toQueryParam s
-
-instance FromJSON ScimTokenInfo where
-  parseJSON = withObject "ScimTokenInfo" $ \o -> do
-    stiTeam <- o .: "team"
-    stiId <- o .: "id"
-    stiCreatedAt <- o .: "created_at"
-    stiIdP <- o .:? "idp"
-    stiDescr <- o .: "description"
-    pure ScimTokenInfo {..}
-
-instance ToJSON ScimTokenInfo where
-  toJSON s =
-    object $
-      "team" .= stiTeam s
-        # "id" .= stiId s
-        # "created_at" .= stiCreatedAt s
-        # "idp" .= stiIdP s
-        # "description" .= stiDescr s
-        # []
 
 ----------------------------------------------------------------------------
 -- Requests and verdicts

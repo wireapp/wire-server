@@ -54,7 +54,7 @@ import Spar.Orphans ()
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
-import Wire.API.Spar as Types
+import Wire.API.User.Saml as Types
 
 ----------------------------------------------------------------------
 -- cassandra
