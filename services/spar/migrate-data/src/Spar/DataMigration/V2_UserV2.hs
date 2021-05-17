@@ -21,6 +21,7 @@ module Spar.DataMigration.V2_UserV2 (migration) where
 import Cassandra
 import qualified Conduit as C
 import Data.Conduit
+import qualified Data.Conduit.Combinators as CC
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as CL
 import Data.Id
@@ -83,14 +84,14 @@ performDryRun :: EnvIO ()
 performDryRun = do
   migMapInv <- collectMapping
   runConduit $
-    filterResolved activatedResolver migMapInv
+    filterResolved resolveNothing migMapInv
       .| C.sinkNull
 
 performMigration :: EnvIO ()
 performMigration = do
   migMapInv <- collectMapping
   runConduit $
-    filterResolved activatedResolver migMapInv
+    filterResolved resolveViaActivated migMapInv
       .| CL.mapM_ insertNewRow
   where
     insertNewRow :: NewRow -> EnvIO ()
@@ -112,14 +113,10 @@ runSpar cl = do
 
 collectMapping :: EnvIO MigrationMapInverse
 collectMapping = do
-  -- todo: replace with fold
-  migMapInv <- liftIO (newIORef Map.empty)
   runConduit $
-    zipSources
-      (CL.sourceList [(1 :: Int32) ..])
-      readOldRows
-      .| C.mapM_C (collect migMapInv)
-  liftIO $ readIORef migMapInv
+    zipSources (CL.sourceList [(1 :: Int32) ..]) readOldRows
+      .| migrateRows
+      .| CC.foldl collect Map.empty
   where
     readOldRows :: ConduitT () [OldRow] EnvIO ()
     readOldRows = do
@@ -130,15 +127,22 @@ collectMapping = do
         select :: PrepQuery R () OldRow
         select = "SELECT issuer, sso_id, uid FROM user"
 
-    collect :: IORef MigrationMapInverse -> (Int32, [OldRow]) -> EnvIO ()
-    collect migMapInv (page, rows) = do
-      logInfo $ "page " <> show page
-      for_ rows $ \row@(_, _, uid) -> do
-        case migrateRow row of
-          Left err -> do
-            logInfo $ "Failed to parse row for user " <> show uid <> " with error " <> err
-          Right (issuer, normNid, nid, uid') ->
-            modifyIORef migMapInv (Map.insertWith (<>) (issuer, normNid) [(nid, uid')])
+    migrateRows :: ConduitT (Int32, [OldRow]) NewRow EnvIO ()
+    migrateRows = do
+      mb <- await
+      case mb of
+        Just (page, rows) -> do
+          lift $ logInfo $ "page " <> show page
+          for_ rows $ \row@(_, _, uid) -> do
+            case migrateRow row of
+              Left err -> do
+                lift $ logInfo $ "Failed to parse row for user " <> show uid <> " with error " <> err
+              Right newRow -> yield newRow
+          migrateRows
+        Nothing -> pure ()
+
+    collect :: MigrationMapInverse -> NewRow -> MigrationMapInverse
+    collect migMapInv (issuer, normNid, nid, uid') = Map.insertWith (<>) (issuer, normNid) [(nid, uid')] migMapInv
 
     migrateRow :: OldRow -> Either String NewRow
     migrateRow (issuer, nidSafe, uid) =
@@ -159,14 +163,15 @@ filterResolved resolver migMapInv =
         go
 
 -- for debugging only
-nothingResolver :: CollisionResolver
-nothingResolver _ [old] = pure (Right old)
-nothingResolver _ olds = pure (Left olds)
+-- TODO: remove
+resolveNothing :: CollisionResolver
+resolveNothing _ [old] = pure (Right old)
+resolveNothing _ olds = pure (Left olds)
 
-activatedResolver :: CollisionResolver
-activatedResolver _ [] = pure (Left [])
-activatedResolver _ [x] = pure (Right x)
-activatedResolver _ olds = do
+resolveViaActivated :: CollisionResolver
+resolveViaActivated _ [] = pure (Left [])
+resolveViaActivated _ [x] = pure (Right x)
+resolveViaActivated _ olds = do
   olds' <- filterM isActivated olds
   case olds' of
     [old] -> pure (Right old)
