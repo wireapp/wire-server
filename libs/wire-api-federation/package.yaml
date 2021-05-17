@@ -54,3 +54,4 @@ tests:
       - mu-rpc
       - network
       - retry
+      - warp

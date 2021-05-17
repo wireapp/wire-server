@@ -180,7 +180,7 @@ codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
 
 cannotEnableLegalHoldServiceLargeTeam :: Error
-cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams."
+cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members.)"
 
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
@@ -194,6 +194,9 @@ legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "lega
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
 
+legalHoldWhitelistedOnly :: Error
+legalHoldWhitelistedOnly = Error status403 "legalhold-whitelisted-only" "legal hold is enabled for teams via server config and cannot be changed here"
+
 legalHoldFeatureFlagNotEnabled :: Error
 legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
 
@@ -202,6 +205,9 @@ legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not
 
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+userLegalHoldNoConsent :: Error
+userLegalHoldNoConsent = Error status409 "legalhold-no-consent" "user has not given consent to using legal hold"
 
 userLegalHoldNotPending :: Error
 userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"

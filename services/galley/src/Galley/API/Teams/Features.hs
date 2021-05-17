@@ -187,14 +187,9 @@ setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigi
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
-  featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
-  case featureLegalHold of
-    FeatureLegalHoldDisabledByDefault -> do
-      let defaultStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-      status <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
-      pure (fromMaybe defaultStatus status)
-    FeatureLegalHoldDisabledPermanently -> do
-      pure (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
+  isLegalHoldEnabledForTeam tid <&> \case
+    True -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
+    False -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
@@ -205,6 +200,8 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
         pure ()
       FeatureLegalHoldDisabledPermanently -> do
         throwM legalHoldFeatureFlagNotEnabled
+      FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+        throwM legalHoldWhitelistedOnly
   case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
     -- FUTUREWORK: We cannot enable legalhold on large teams right now

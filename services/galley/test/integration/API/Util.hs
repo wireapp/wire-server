@@ -40,6 +40,7 @@ import qualified Data.Currency as Currency
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc
@@ -135,7 +136,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
   setHandle owner
   mems <- replicateM n $ do
     member1 <- randomUser
-    addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+    addTeamMemberInternal tid member1 (rolePermissions RoleMember) Nothing
     setHandle member1
     pure member1
   SQS.ensureQueueEmpty
@@ -279,6 +280,10 @@ bulkGetTeamMembersTruncated usr tid uids trnc = do
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember getter tid gettee = do
   g <- view tsGalley
+  getTeamMember' g getter tid gettee
+
+getTeamMember' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> UserId -> m TeamMember
+getTeamMember' g getter tid gettee = do
   r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
   responseJsonError r
 
@@ -288,20 +293,20 @@ getTeamMemberInternal tid mid = do
   r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
   responseJsonError r
 
-addTeamMember :: HasCallStack => UserId -> TeamId -> TeamMember -> TestM ()
-addTeamMember usr tid mem = do
+addTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
+addTeamMember usr tid muid mperms mmbinv = do
   g <- view tsGalley
-  let payload = json (newNewTeamMember mem)
+  let payload = json (newNewTeamMember muid mperms mmbinv)
   post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
     !!! const 200 === statusCode
 
-addTeamMemberInternal :: HasCallStack => TeamId -> TeamMember -> TestM ()
-addTeamMemberInternal tid mem = addTeamMemberInternal' tid mem !!! const 200 === statusCode
+addTeamMemberInternal :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
+addTeamMemberInternal tid muid mperms mmbinv = addTeamMemberInternal' tid muid mperms mmbinv !!! const 200 === statusCode
 
-addTeamMemberInternal' :: HasCallStack => TeamId -> TeamMember -> TestM ResponseLBS
-addTeamMemberInternal' tid mem = do
+addTeamMemberInternal' :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ResponseLBS
+addTeamMemberInternal' tid muid mperms mmbinv = do
   g <- view tsGalley
-  let payload = json (newNewTeamMember mem)
+  let payload = json (newNewTeamMember muid mperms mmbinv)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
 
 addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
@@ -329,7 +334,7 @@ addUserToTeamWithRole' role inviter tid = do
   let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
-  Just inviteeCode <- getInvitationCode tid (inInvitation inv)
+  inviteeCode <- getInvitationCode tid (inInvitation inv)
   r <-
     post
       ( brig . path "/register"
@@ -348,7 +353,7 @@ addUserToTeamWithSSO hasEmail tid = do
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
 makeOwner owner mem tid = do
   galley <- view tsGalley
-  let changeMember = newNewTeamMember (mem & permissions .~ fullPermissions)
+  let changeMember = newNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
   put
     ( galley
         . paths ["teams", toByteString' tid, "members"]
@@ -385,18 +390,27 @@ zAuthAccess u conn =
     . zConn conn
     . zType "access"
 
-getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM (Maybe InvitationCode)
+getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM InvitationCode
 getInvitationCode t ref = do
   brig <- view tsBrig
-  r <-
-    get
-      ( brig
-          . path "/i/teams/invitation-code"
-          . queryItem "team" (toByteString' t)
-          . queryItem "invitation_id" (toByteString' ref)
-      )
-  let lbs = fromMaybe "" $ responseBody r
-  return $ fromByteString . fromMaybe (error "No code?") $ Text.encodeUtf8 <$> (lbs ^? key "code" . _String)
+
+  let getm :: TestM (Maybe InvitationCode)
+      getm = do
+        r <-
+          get
+            ( brig
+                . path "/i/teams/invitation-code"
+                . queryItem "team" (toByteString' t)
+                . queryItem "invitation_id" (toByteString' ref)
+            )
+        let lbs = fromMaybe "" $ responseBody r
+        return $ fromByteString . Text.encodeUtf8 =<< (lbs ^? key "code" . _String)
+
+  fromMaybe (error "No code?")
+    <$> retrying
+      (constantDelay 800000 <> limitRetries 3)
+      (\_ -> pure . isNothing)
+      (\_ -> getm)
 
 -- Note that here we don't make use of the datatype because NewConv has a default
 -- and therefore cannot be unset. However, given that this is to test the legacy

@@ -168,6 +168,7 @@ data Api routes = Api
         :> ZUser
         :> "conversations"
         :> Capture "cnv" ConvId
+        :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
     getConversationIds ::
       routes
@@ -607,6 +608,13 @@ sitemap = do
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
+      .&. accept "application" "json"
+
+  -- This endpoint can lead to the following events being sent:
+  -- - tbd. (currently, there are not events, but maybe there should be.)  (fisx, 2021-05-10)
+  post "/teams/:tid/legalhold/consent" (continue LegalHold.grantConsentH) $
+    zauthUserId
+      .&. capture "tid"
       .&. accept "application" "json"
 
   -- This endpoint can lead to the following events being sent:
