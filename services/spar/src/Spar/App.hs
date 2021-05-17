@@ -88,6 +88,7 @@ import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.Cookie
 import Wire.API.User.Scim (ValidExternalId (..))
 import Wire.API.User.Saml
 import Wire.API.User.Identity (Email (..))

@@ -189,6 +189,7 @@ import URI.ByteString
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
+import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim (runValidExternalId)
 import Wire.API.User.Saml

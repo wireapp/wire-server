@@ -45,7 +45,7 @@ import GHC.Types (Symbol)
 import Imports
 import Network.HTTP.Media ((//))
 import SAML2.Util (parseURI', renderURI)
-import SAML2.WebSSO (Assertion, AuthnRequest, ID, IdPConfig, IdPId, SimpleSetCookie)
+import SAML2.WebSSO (Assertion, AuthnRequest, ID, IdPConfig, IdPId)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
@@ -55,26 +55,6 @@ import System.Logger.Extended (LogFormat)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
-
-type SetBindCookie = SimpleSetCookie "zbind"
-
-newtype BindCookie = BindCookie {fromBindCookie :: ST}
-
-instance ToParamSchema SetBindCookie where
-  toParamSchema _ = toParamSchema (Proxy @String)
-
-instance ToParamSchema BindCookie where
-  toParamSchema _ = toParamSchema (Proxy @String)
-
--- | Extract @zbind@ cookie from HTTP header contents if it exists.
-bindCookieFromHeader :: ST -> Maybe BindCookie
-bindCookieFromHeader = fmap BindCookie . lookup "zbind" . parseCookiesText . cs
-
--- (we could rewrite this as @SAML.cookieName SetBindCookie@ if 'cookieName'
--- accepted any @proxy :: Symbol -> *@ rather than just 'Proxy'.)
-
-setBindCookieValue :: HasCallStack => SetBindCookie -> BindCookie
-setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
 
 ----------------------------------------------------------------------------
 -- Identity provider

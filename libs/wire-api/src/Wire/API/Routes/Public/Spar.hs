@@ -32,6 +32,7 @@ import qualified URI.ByteString as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
 import Web.Scim.Class.User as Scim.User
+import Wire.API.Cookie
 import Wire.API.Routes.Public
 import Wire.API.User.Scim
 import Wire.API.User.Saml

@@ -64,6 +64,7 @@ import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
 import qualified URI.ByteString as URI
+import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Saml
 
