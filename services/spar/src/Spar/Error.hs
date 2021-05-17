@@ -59,7 +59,7 @@ import Servant
 import Servant.API.Extended
 import qualified System.Logger.Class as Log
 import qualified Web.Scim.Schema.Error as Scim
-import Wire.API.Spar (TTLError, IdPMetadataInfo)
+import Wire.API.Spar (IdPMetadataInfo, TTLError)
 
 type SparError = SAML.Error SparCustomError
 
@@ -228,4 +228,3 @@ parseResponse serviceName resp = do
 -- TODO: where should this go?
 instance MakeCustomError "wai-error" IdPMetadataInfo where
   makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs
-

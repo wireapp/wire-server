@@ -36,13 +36,13 @@ import qualified Servant
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import Spar.Orphans ()
-import Wire.API.Spar (IdP)
 import qualified Text.XML as XML
 import qualified Text.XML.DSig as DSig
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
 import Web.Cookie
+import Wire.API.Spar (IdP)
 
 spec :: SpecWith TestEnv
 spec = describe "accessVerdict" $ do

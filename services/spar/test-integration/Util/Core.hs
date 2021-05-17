@@ -177,8 +177,6 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
-import Wire.API.Scim (runValidExternalId)
-import Wire.API.Spar
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -191,12 +189,14 @@ import URI.ByteString
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
+import Wire.API.Public.Spar
+import Wire.API.Scim (runValidExternalId)
+import Wire.API.Spar
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
-import Wire.API.Public.Spar
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv

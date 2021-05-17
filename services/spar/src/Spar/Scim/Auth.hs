@@ -47,9 +47,14 @@ import Spar.App (Spar, sparCtxOpts, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
+-- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
+-- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
+import qualified Web.Scim.Class.Auth as Scim.Class.Auth
+import qualified Web.Scim.Handler as Scim
+import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Public.Spar (APIScimToken)
-import Wire.API.Scim (
-    CreateScimToken (CreateScimToken),
+import Wire.API.Scim
+  ( CreateScimToken (CreateScimToken),
     CreateScimTokenResponse (..),
     ScimTokenList (..),
     SparTag,
@@ -57,11 +62,6 @@ import Wire.API.Scim (
     createScimTokenPassword,
   )
 import Wire.API.Spar
--- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
--- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
-import qualified Web.Scim.Class.Auth as Scim.Class.Auth
-import qualified Web.Scim.Handler as Scim
-import qualified Web.Scim.Schema.Error as Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Scim.Class.Auth.AuthDB SparTag Spar where

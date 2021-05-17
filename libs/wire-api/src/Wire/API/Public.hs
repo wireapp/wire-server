@@ -57,6 +57,7 @@ type InternalAuth ztype =
     (ZUserParam ztype)
 
 type ZUser = ZAuthServant 'ZAuthUser
+
 type ZConn = ZAuthServant 'ZAuthConn
 
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser :> api) where
@@ -141,7 +142,7 @@ instance
       status = toEnum . fromInteger $ natVal (Proxy @n)
 
 -- | A type-level tag that lets us omit any branch from Swagger docs.
--- 
+--
 -- Those are likely to be:
 --
 --   * Endpoints for which we can't generate Swagger docs.

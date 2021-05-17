@@ -69,7 +69,6 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
-import Wire.API.Spar (IdP, ScimTokenInfo (..), derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
@@ -86,6 +85,7 @@ import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
 import qualified Wire.API.Scim as ST
+import Wire.API.Spar (IdP, ScimTokenInfo (..), derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User (Email)
 import qualified Wire.API.User.RichInfo as RI
 

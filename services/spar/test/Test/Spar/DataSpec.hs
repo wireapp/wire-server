@@ -23,8 +23,8 @@ import Data.Time
 import Imports
 import SAML2.WebSSO (Time (Time), addTime)
 import Spar.Data
-import Wire.API.Spar
 import Test.Hspec
+import Wire.API.Spar
 
 spec :: Spec
 spec = do

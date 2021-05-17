@@ -37,9 +37,7 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
-import Wire.API.Scim
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
-import Wire.API.Spar (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
 import Test.QuickCheck (arbitrary, generate)
 import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
@@ -56,6 +54,8 @@ import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.Scim
+import Wire.API.Spar (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
 import Wire.API.User.RichInfo
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;

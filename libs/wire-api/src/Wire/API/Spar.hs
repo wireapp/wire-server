@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -34,6 +34,8 @@ import qualified Data.Binary.Builder as BB (fromByteString)
 import Data.ByteArray.Encoding (Base (..), convertToBase)
 import qualified Data.ByteString.Builder as Builder
 import Data.ByteString.Conversion
+import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
@@ -43,6 +45,8 @@ import qualified Data.Swagger as Swagger
 import qualified Data.Text as ST
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time
+import Data.UUID
+import Data.X509 as X509
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import Imports
@@ -59,10 +63,6 @@ import URI.ByteString
 import Util.Options
 import Web.Cookie
 import Web.HttpApiData
-import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.X509 as X509
-import Data.UUID
 
 type SetBindCookie = SimpleSetCookie "zbind"
 

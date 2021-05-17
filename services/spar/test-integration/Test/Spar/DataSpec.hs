@@ -33,8 +33,6 @@ import Imports
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
-import Wire.API.Scim
-import Wire.API.Spar
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -42,6 +40,8 @@ import Util.Scim
 import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
+import Wire.API.Scim
+import Wire.API.Spar
 
 spec :: SpecWith TestEnv
 spec = do

@@ -6,8 +6,8 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -43,15 +43,16 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.Scim where
 
-import Control.Lens (Prism', makeLenses, prism', (.~), (?~), mapped)
+import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~))
 import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle)
-import Data.Id (UserId, TeamId, ScimTokenId)
+import Data.Id (ScimTokenId, TeamId, UserId)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
 import Data.Proxy
+import Data.Swagger hiding (Operation)
 import Data.Time.Clock (UTCTime)
 import Imports
 import qualified SAML2.WebSSO as SAML
@@ -67,11 +68,10 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.User.Profile as BT
-import Wire.API.User.Identity (Email)
 import Wire.API.Spar (ScimToken, ScimTokenInfo)
+import Wire.API.User.Identity (Email)
+import Wire.API.User.Profile as BT
 import qualified Wire.API.User.RichInfo as RI
-import Data.Swagger hiding (Operation)
 
 ----------------------------------------------------------------------------
 -- Schemas

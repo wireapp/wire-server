@@ -78,4 +78,3 @@ scimActiveFlagToAccountStatus oldstatus = \case
       Deleted -> Deleted -- this shouldn't happen, but it's harmless if it does.
       Ephemeral -> Ephemeral
       PendingInvitation -> PendingInvitation -- (do not activate: see 'scimActiveFlagFromAccountStatus')
-

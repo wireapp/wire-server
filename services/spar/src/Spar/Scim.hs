@@ -80,8 +80,6 @@ import Spar.Error
     throwSpar,
   )
 import Spar.Scim.Auth
-import Wire.API.Public.Spar
-import Wire.API.Scim
 import Spar.Scim.User
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
@@ -90,6 +88,8 @@ import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
+import Wire.API.Public.Spar
+import Wire.API.Scim
 
 -- | SCIM config for our server.
 --

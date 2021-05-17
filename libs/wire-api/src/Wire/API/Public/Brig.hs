@@ -32,7 +32,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Public (ZUser, Empty200, Empty404)
+import Wire.API.Public (Empty200, Empty404, ZUser)
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey

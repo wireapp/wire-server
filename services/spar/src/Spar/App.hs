@@ -84,12 +84,12 @@ import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
-import Wire.API.Scim (ValidExternalId (..))
-import Wire.API.Spar
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.Scim (ValidExternalId (..))
+import Wire.API.Spar
 import Wire.API.User.Identity (Email (..))
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}

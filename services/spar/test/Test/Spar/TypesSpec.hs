@@ -22,12 +22,12 @@ module Test.Spar.TypesSpec where
 import Data.Id
 import Data.UUID
 import Imports
-import Wire.API.Spar
 import Test.Hspec
 import Test.Spar.Roundtrip.ByteString (testRoundTrip)
 import URI.ByteString
 import URI.ByteString.QQ
 import Web.Cookie
+import Wire.API.Spar
 
 spec :: Spec
 spec = do

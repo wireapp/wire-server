@@ -63,9 +63,9 @@ import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
-import Wire.API.Spar
-import Wire.API.Public.Spar
 import qualified URI.ByteString as URI
+import Wire.API.Public.Spar
+import Wire.API.Spar
 
 app :: Env -> Application
 app ctx =

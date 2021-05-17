@@ -100,12 +100,12 @@ import GHC.TypeLits (KnownSymbol)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import Wire.API.Spar
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
+import Wire.API.Spar
 import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.

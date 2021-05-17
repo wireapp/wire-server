@@ -66,15 +66,15 @@ import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import qualified Spar.Intra.Brig as Intra
-import Wire.API.Public.Spar
-import Wire.API.Scim
-import Wire.API.Spar
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
 import Util.Core
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
+import Wire.API.Public.Spar
+import Wire.API.Scim
+import Wire.API.Spar
 
 spec :: SpecWith TestEnv
 spec = do

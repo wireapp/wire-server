@@ -23,18 +23,18 @@ import Data.String.Conversions (ST)
 import Data.Swagger (Swagger)
 import Imports
 import qualified SAML2.WebSSO as SAML
-import Web.Scim.Capabilities.MetaSchema as Scim.Meta
-import Web.Scim.Class.Auth as Scim.Auth
-import Web.Scim.Class.User as Scim.User
 import Servant
-import Servant.API.Generic (ToServantApi, (:-))
 import Servant.API.Extended
+import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Multipart
 import Servant.Swagger (toSwagger)
 import qualified URI.ByteString as URI
+import Web.Scim.Capabilities.MetaSchema as Scim.Meta
+import Web.Scim.Class.Auth as Scim.Auth
+import Web.Scim.Class.User as Scim.User
 import Wire.API.Public
-import Wire.API.Spar
 import Wire.API.Scim
+import Wire.API.Spar
 
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.

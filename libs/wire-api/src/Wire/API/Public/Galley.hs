@@ -32,14 +32,13 @@ import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Event.Team as Public ()
-import Wire.API.Public (EmptyResult, ZUser, ZConn)
+import Wire.API.Public (EmptyResult, ZConn, ZUser)
 import qualified Wire.API.Team.Conversation as Public
 
 type ConversationResponses =
   '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
      WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
    ]
-
 
 data Api routes = Api
   { -- Conversations

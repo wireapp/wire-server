@@ -27,10 +27,10 @@ import Data.String.Conversions (ST, cs)
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Intra.Brig
-import Wire.API.Scim
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)
+import Wire.API.Scim
 
 mkuri :: ST -> URI
 mkuri = either (error . show) id . parseURI laxURIParserOptions . cs
