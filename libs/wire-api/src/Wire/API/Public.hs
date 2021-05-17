@@ -28,8 +28,8 @@ import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownNat, KnownSymbol, natVal)
 import Imports hiding (head)
-import Servant.API.Modifiers (FoldLenient, FoldRequired)
 import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant.API.Modifiers (FoldLenient, FoldRequired)
 import Servant.Server.Internal (noContentRouter)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal (SwaggerMethod)
@@ -82,7 +82,8 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn _opts :> api) whe
 
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    SBoolI (FoldLenient opts), SBoolI (FoldRequired opts),
+    SBoolI (FoldLenient opts),
+    SBoolI (FoldRequired opts),
     HasServer api ctx,
     KnownSymbol (ZUserHeader ztype),
     FromHttpApiData (ZUserParam ztype)
