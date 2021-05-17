@@ -48,7 +48,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "users"
-        :> "by-handle"
+        :> "get-by-handle"
         :> ReqBody '[JSON] Handle
         :> Post '[JSON] (Maybe UserProfile),
     getUsersByIds ::
@@ -58,7 +58,7 @@ data Api routes = Api
         :> "get-by-ids"
         :> ReqBody '[JSON] [UserId]
         :> Post '[JSON] [UserProfile],
-    claimPrekey ::
+    getPrekey ::
       routes
         :- "federation"
         :> "users"

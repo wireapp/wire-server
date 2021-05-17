@@ -56,7 +56,7 @@ getUsersByIds domain uids = do
 claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
 claimPrekey (Qualified user domain) client = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
-  executeFederated domain $ FederatedBrig.claimPrekey clientRoutes (user, client)
+  executeFederated domain $ FederatedBrig.getPrekey clientRoutes (user, client)
 
 claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
