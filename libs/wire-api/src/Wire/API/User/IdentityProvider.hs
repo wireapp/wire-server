@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -29,15 +27,13 @@ import Data.Id (TeamId)
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions
 import Data.Swagger
-import Data.UUID
-import Data.X509 as X509
 import Imports
 import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
-import URI.ByteString
+import Wire.API.User.Orphans (samlSchemaOptions)
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig WireIdP
@@ -105,29 +101,16 @@ instance ToJSON IdPMetadataInfo where
 
 -- Swagger instances
 
--- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
-
--- | The options to use for schema generation. Must match the options used
--- for 'ToJSON' instances elsewhere.
-samlSchemaOptions :: SchemaOptions
-samlSchemaOptions = fromAesonOptions deriveJSONOptions
-
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema WireIdP where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToSchema SAML.IdPId where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-
 -- TODO: would be nice to add an example here, but that only works for json?
 
-instance ToSchema a => ToSchema (SAML.IdPConfig a) where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.IdPMetadata where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+instance ToSchema RawIdPMetadata where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema IdPMetadataInfo where
   declareNamedSchema _ =
@@ -144,18 +127,3 @@ instance ToSchema IdPMetadataInfo where
         InsOrdHashMap.fromList
           [ ("value", Inline (toSchema (Proxy @String)))
           ]
-
-instance ToSchema RawIdPMetadata where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToSchema SAML.Issuer where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToSchema URI where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToParamSchema URI where
-  toParamSchema _ = toParamSchema (Proxy @String)
-
-instance ToSchema X509.SignedCertificate where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
