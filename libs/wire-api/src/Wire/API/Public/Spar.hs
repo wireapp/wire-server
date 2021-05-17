@@ -117,7 +117,7 @@ type APIAuthReqPrecheck =
 --   * Block implicit creation for a short time window, and ask all existing users to use that time
 --     window to bind.
 type APIAuthReq =
-  ZUser
+  ZOptUser
     :> QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
     -- (SAML.APIAuthReq from here on, except for the cookies)
@@ -137,12 +137,12 @@ type APIAuthResp =
     :> Post '[PlainText] Void
 
 type APIIDP =
-  ZUser :> IdpGet
-    :<|> ZUser :> IdpGetRaw
-    :<|> ZUser :> IdpGetAll
-    :<|> ZUser :> IdpCreate
-    :<|> ZUser :> IdpUpdate
-    :<|> ZUser :> IdpDelete
+  ZOptUser :> IdpGet
+    :<|> ZOptUser :> IdpGetRaw
+    :<|> ZOptUser :> IdpGetAll
+    :<|> ZOptUser :> IdpCreate
+    :<|> ZOptUser :> IdpUpdate
+    :<|> ZOptUser :> IdpDelete
 
 type IdpGetRaw = Capture "id" SAML.IdPId :> "raw" :> Get '[RawXML] RawIdPMetadata
 
@@ -203,9 +203,9 @@ data ScimSite tag route = ScimSite
   deriving (Generic)
 
 type APIScimToken =
-  ZUser :> APIScimTokenCreate
-    :<|> ZUser :> APIScimTokenDelete
-    :<|> ZUser :> APIScimTokenList
+  ZOptUser :> APIScimTokenCreate
+    :<|> ZOptUser :> APIScimTokenDelete
+    :<|> ZOptUser :> APIScimTokenList
 
 type APIScimTokenCreate =
   ReqBody '[JSON] CreateScimToken

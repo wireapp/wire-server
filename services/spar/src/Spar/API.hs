@@ -119,12 +119,13 @@ authreqPrecheck msucc merr idpid =
 authreq ::
   NominalDiffTime ->
   DoInitiate ->
-  UserId ->
+  Maybe UserId ->
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
   Spar (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-authreq _ DoInitiateLogin _ _ _ _ = throwSpar SparInitLoginWithAuth
+authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
+authreq _ DoInitiateBind Nothing _ _ _ = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
@@ -136,12 +137,15 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
-initializeBindCookie :: UserId -> NominalDiffTime -> Spar SetBindCookie
+initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar SetBindCookie
 initializeBindCookie zusr authreqttl = do
   DerivedOpts {derivedOptsBindCookiePath} <- asks (derivedOpts . sparCtxOpts)
-  msecret <- liftIO $ Just . cs . ES.encode <$> randBytes 32
+  msecret <-
+    if isJust zusr
+      then liftIO $ Just . cs . ES.encode <$> randBytes 32
+      else pure Nothing
   cky <- SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
-  wrapMonadClientWithEnv $ Data.insertBindCookie cky zusr authreqttl
+  forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 
 redirectURLMaxLength :: Int
@@ -188,13 +192,13 @@ ssoSettings = do
 ----------------------------------------------------------------------------
 -- IdP API
 
-idpGet :: UserId -> SAML.IdPId -> Spar IdP
+idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   pure idp
 
-idpGetRaw :: UserId -> SAML.IdPId -> Spar RawIdPMetadata
+idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -202,7 +206,7 @@ idpGetRaw zusr idpid = do
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar SparIdPNotFound
 
-idpGetAll :: UserId -> Spar IdPList
+idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
@@ -216,7 +220,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: UserId -> SAML.IdPId -> Maybe Bool -> Spar NoContent
+idpDelete :: Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -266,11 +270,11 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Spar IdP
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Spar IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml midpid
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar IdP
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar IdP
 idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
@@ -336,10 +340,10 @@ validateNewIdP _idpMetadata teamId mReplaces = do
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate :: UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar IdP
+idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
-idpUpdateXML :: UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar IdP
+idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   Galley.assertSSOEnabled teamid
@@ -356,7 +360,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 validateIdPUpdate ::
   forall m.
   (HasCallStack, m ~ Spar) =>
-  UserId ->
+  Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
   m (TeamId, IdP)
@@ -398,10 +402,11 @@ withDebugLog msg showval action = do
 
 authorizeIdP ::
   (HasCallStack, MonadError SparError m, SAML.SP m, Galley.MonadSparToGalley m, Brig.MonadSparToBrig m) =>
-  UserId ->
+  Maybe UserId ->
   IdP ->
   m TeamId
-authorizeIdP zusr idp = do
+authorizeIdP Nothing _ = throwSpar (SparNoPermission (cs $ show CreateUpdateDeleteIdp))
+authorizeIdP (Just zusr) idp = do
   let teamid = idp ^. SAML.idpExtraInfo . wiTeam
   Galley.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure teamid

@@ -427,17 +427,19 @@ getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
 -- permission check fails or the user is not in status 'Active'.
 getZUsrCheckPerm ::
   (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m, IsPerm perm, Show perm) =>
-  UserId ->
+  Maybe UserId ->
   perm ->
   m TeamId
-getZUsrCheckPerm uid perm = do
+getZUsrCheckPerm Nothing _ = throwSpar SparMissingZUsr
+getZUsrCheckPerm (Just uid) perm = do
   getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
       (\teamid -> teamid <$ Galley.assertHasPermission teamid perm uid)
 
-authorizeScimTokenManagement :: (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) => UserId -> m TeamId
-authorizeScimTokenManagement uid = do
+authorizeScimTokenManagement :: (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) => Maybe UserId -> m TeamId
+authorizeScimTokenManagement Nothing = throwSpar SparMissingZUsr
+authorizeScimTokenManagement (Just uid) = do
   getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
@@ -446,10 +448,11 @@ authorizeScimTokenManagement uid = do
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::
   (HasCallStack, MonadSparToBrig m) =>
-  UserId ->
+  Maybe UserId ->
   Maybe PlainTextPassword ->
   m ()
-ensureReAuthorised uid secret = do
+ensureReAuthorised Nothing _ = throwSpar SparMissingZUsr
+ensureReAuthorised (Just uid) secret = do
   resp <-
     call $
       method GET

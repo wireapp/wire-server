@@ -91,7 +91,7 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   -- | Who is trying to create a token
-  UserId ->
+  Maybe UserId ->
   -- | Request body
   CreateScimToken ->
   Spar CreateScimTokenResponse
@@ -137,7 +137,7 @@ createScimToken zusr CreateScimToken {..} = do
 -- Delete a token belonging to user's team.
 deleteScimToken ::
   -- | Who is trying to delete a token
-  UserId ->
+  Maybe UserId ->
   ScimTokenId ->
   Spar NoContent
 deleteScimToken zusr tokenid = do
@@ -151,7 +151,7 @@ deleteScimToken zusr tokenid = do
 -- metadata about them.
 listScimTokens ::
   -- | Who is trying to list tokens
-  UserId ->
+  Maybe UserId ->
   Spar ScimTokenList
 listScimTokens zusr = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
