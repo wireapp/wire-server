@@ -52,7 +52,7 @@ import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client
   ( QualifiedUserClientMap (..),
     QualifiedUserClients (..),
-    SupportedClientFeature (ClientSupportsLegalHold),
+    SupportedClientFeature (ClientSupportsLegalholdImplicitConsent),
     SupportedClientFeatureList (SupportedClientFeatureList),
     UserClientMap (..),
     UserClients (..),
@@ -553,8 +553,8 @@ testUpdateClient opts brig = do
           const 200 === statusCode
           const (Just (SupportedClientFeatureList featuresOut)) === responseJsonMaybe
 
-  checkUpdate (Just [ClientSupportsLegalHold]) [ClientSupportsLegalHold]
-  checkUpdate Nothing [ClientSupportsLegalHold]
+  checkUpdate (Just [ClientSupportsLegalholdImplicitConsent]) [ClientSupportsLegalholdImplicitConsent]
+  checkUpdate Nothing [ClientSupportsLegalholdImplicitConsent]
   checkUpdate (Just []) []
   checkUpdate Nothing []
 

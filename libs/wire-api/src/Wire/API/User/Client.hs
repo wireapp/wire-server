@@ -80,7 +80,18 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Data.Typeable (typeRep)
 import Data.UUID (toASCIIBytes)
-import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, FieldLabelModifier, LabelMapping ((:->)), LabelMappings, LowerCase, StripPrefix, StripSuffix)
+import Deriving.Swagger
+  ( CamelToKebab,
+    CamelToSnake,
+    ConstructorTagModifier,
+    CustomSwagger,
+    FieldLabelModifier,
+    LabelMapping ((:->)),
+    LabelMappings,
+    LowerCase,
+    StripPrefix,
+    StripSuffix,
+  )
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
 import Wire.API.User.Auth (CookieLabel)
@@ -585,32 +596,32 @@ instance ToJSON SupportedClientFeatureList where
 instance FromJSON SupportedClientFeatureList where
   parseJSON = withObject "SupportedClientFeatureList" $ \obj -> SupportedClientFeatureList <$> obj .: "feature_list"
 
-data SupportedClientFeature = ClientSupportsLegalHold
+data SupportedClientFeature = ClientSupportsLegalHoldImplicitConsent
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SupportedClientFeature)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ClientSupports", LowerCase)] SupportedClientFeature)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ClientSupports", CamelToKebab)] SupportedClientFeature)
 
 typeSupportedClientFeature :: Doc.DataType
 typeSupportedClientFeature =
   Doc.string $
     Doc.enum
-      [ "legalhold"
+      [ "legalhold-implicit-consent"
       ]
 
 instance ToJSON SupportedClientFeature where
-  toJSON ClientSupportsLegalHold = String "legalhold"
+  toJSON ClientSupportsLegalholdImplicitConsent = String "legalhold-implicit-consent"
 
 instance FromJSON SupportedClientFeature where
-  parseJSON (String "legalhold") = pure ClientSupportsLegalHold
+  parseJSON (String "legalhold-implicit-consent") = pure ClientSupportsLegalholdImplicitConsent
   parseJSON _ = fail "SupportedClientFeature"
 
 instance Cql.Cql SupportedClientFeature where
   ctype = Cql.Tagged Cql.IntColumn
 
-  toCql ClientSupportsLegalHold = Cql.CqlInt 1
+  toCql ClientSupportsLegalholdImplicitConsent = Cql.CqlInt 1
 
   fromCql (Cql.CqlInt i) = case i of
-    1 -> return ClientSupportsLegalHold
+    1 -> return ClientSupportsLegalholdImplicitConsent
     n -> Left $ "Unexpected SupportedClientFeature value: " ++ show n
   fromCql _ = Left "SupportedClientFeature value: int expected"
 
