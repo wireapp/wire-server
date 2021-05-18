@@ -53,6 +53,7 @@ tests =
       testTaggedObjectFromJSON,
       testTaggedObject2ToJSON,
       testTaggedObject2FromJSON,
+      testTaggedObject3FromJSON,
       testNonEmptyParseFailure,
       testNonEmptyParseSuccess,
       testNonEmptyToJSON,
@@ -214,6 +215,16 @@ testTaggedObject2FromJSON =
       "fromJSON should match example"
       (Success exampleTaggedObject2)
       (fromJSON exampleTaggedObject2JSON)
+
+testTaggedObject3FromJSON :: TestTree
+testTaggedObject3FromJSON =
+  testCase "fromJSON TaggedObject failure" $
+    case fromJSON @TaggedObject exampleTaggedObject3JSON of
+      Success _ -> assertFailure "fromJSON should fail"
+      Error err -> do
+        assertBool
+          "fromJSON error should mention missing key"
+          ("\"tag1_data\"" `isInfixOf` err)
 
 testNonEmptyParseFailure :: TestTree
 testNonEmptyParseFailure =
@@ -431,6 +442,9 @@ exampleTaggedObject2 = TO Tag2 (Obj2 44)
 
 exampleTaggedObject2JSON :: Value
 exampleTaggedObject2JSON = [aesonQQ| {"tag": "tag2", "obj": { "tag2_data": 44 } } |]
+
+exampleTaggedObject3JSON :: Value
+exampleTaggedObject3JSON = [aesonQQ| {"tag": "tag1", "obj": { "tag2_data": 44 } } |]
 
 -- non empty
 
