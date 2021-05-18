@@ -1165,9 +1165,8 @@ listClientsH (zusr ::: _) =
   json <$> listClients zusr
 
 listClients :: UserId -> Handler [Public.Client]
-listClients zusr = do
-  localdomain <- viewFederationDomain
-  API.lookupClients (Qualified zusr localdomain) !>> clientError
+listClients zusr =
+  lift $ API.lookupLocalClients zusr
 
 getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientH (zusr ::: clt ::: _) =
@@ -1178,16 +1177,16 @@ getClientH (zusr ::: clt ::: _) =
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
-  API.pubClient <$$> API.lookupClients (Qualified uid localdomain) !>> clientError
+  API.lookupPubClients (Qualified uid localdomain) !>> clientError
 
 getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
 getUserClientsQualified domain uid = do
-  API.pubClient <$$> API.lookupClients (Qualified uid domain) !>> clientError
+  API.lookupPubClients (Qualified uid domain) !>> clientError
 
 getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
 getUserClientUnqualified uid cid = do
   localdomain <- viewFederationDomain
-  x <- API.pubClient <$$> API.lookupClient (Qualified uid localdomain) cid !>> clientError
+  x <- API.lookupPubClient (Qualified uid localdomain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
@@ -1199,13 +1198,12 @@ listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public
 
 getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
 getUserClientQualified domain uid cid = do
-  x <- API.pubClient <$$> API.lookupClient (Qualified uid domain) cid !>> clientError
+  x <- API.lookupPubClient (Qualified uid domain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
-  localdomain <- viewFederationDomain
-  API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
+  lift $ API.lookupLocalClient zusr clientId
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) = do
