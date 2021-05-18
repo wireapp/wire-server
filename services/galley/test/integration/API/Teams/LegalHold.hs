@@ -85,8 +85,8 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
+import qualified Wire.API.Team.Feature as Public
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do

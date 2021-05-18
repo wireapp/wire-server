@@ -50,8 +50,8 @@ import Data.Kind (Constraint)
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Swagger hiding (name)
-import Data.Swagger.Declare (Declare)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Declare (Declare)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Deriving.Aeson
