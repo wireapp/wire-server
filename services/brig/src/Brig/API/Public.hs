@@ -96,6 +96,7 @@ import qualified Wire.API.Properties as Public
 import Wire.API.Routes.Public (Empty200 (..), Empty404 (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
@@ -119,7 +120,7 @@ type ServantAPI = BrigAPI.ServantAPI
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> SparAPI.swaggerDoc)
+    (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> LegalHoldAPI.swaggerDoc <> SparAPI.swaggerDoc)
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ desc
   where
