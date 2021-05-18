@@ -18,7 +18,7 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
-import Data.Id (Id, Remote)
+import Data.Id (Id)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
@@ -194,6 +194,9 @@ legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "lega
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
 
+legalHoldWhitelistedOnly :: Error
+legalHoldWhitelistedOnly = Error status403 "legalhold-whitelisted-only" "legal hold is enabled for teams via server config and cannot be changed here"
+
 legalHoldFeatureFlagNotEnabled :: Error
 legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
 
@@ -202,6 +205,9 @@ legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not
 
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+userLegalHoldNoConsent :: Error
+userLegalHoldNoConsent = Error status409 "legalhold-no-consent" "user has not given consent to using legal hold"
 
 userLegalHoldNotPending :: Error
 userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
@@ -244,7 +250,7 @@ inactivityTimeoutTooLow = Error status400 "inactivity-timeout-too-low" "applock 
 --------------------------------------------------------------------------------
 -- Federation
 
-federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Error
+federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id a)) -> Error
 federationNotEnabled qualifiedIds =
   Error
     status403

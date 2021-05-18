@@ -4,7 +4,20 @@
 
 ## Release Notes
 
+This release introduces a notion of "consent" to legalhold (LH).  If
+you are using LH on your site, follow the instructions in
+https://github.com/wireapp/wire-server/blob/develop/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
+after the upgrade.  **Legalhold will not work as expected until you
+change `galley.conf` as described!
+
+TODO: the above link will start working after #1502 has been merged,
+but it should be frozen to a commit to make sure it'll keep working
+when the document changes again.
+
+
+
 ## Features
+ - [legalhold] Whitelisting Teams for LH with implicit consent (#1502)
 
 ## Bug fixes and other updates
 
@@ -17,7 +30,7 @@
 # [2021-05-04]
 
 ## Features
- - [brig] New option to use a random prekey selection strategy to remove DynamoDB dependency (#1416, #1476) 
+ - [brig] New option to use a random prekey selection strategy to remove DynamoDB dependency (#1416, #1476)
  - [brig] Ensure servant APIs are recorded by the metrics middleware (#1441)
  - [brig] Add exact handle matches from all teams in /search/contacts (#1431, #1455)
  - [brig] CSV endpoint: Add columns to output (#1452)
@@ -34,9 +47,9 @@
  - [brig] Fix FromJSON instance of ListUsersQuery (#1456)
  - [galley] Lower the limit for URL lengths for galley -> brig RPC calls (#1469)
  - [chores] Remove unused dependencies (#1424) …
- - [compilation] Stop re-compiling nginz when running integration test for unrelated changes 
- - [tooling] Use jq magic instead of bash (#1432), Add wget (#1443) 
- - [chores] Refactor Dockerfile apk installation tasks (#1448) 
+ - [compilation] Stop re-compiling nginz when running integration test for unrelated changes
+ - [tooling] Use jq magic instead of bash (#1432), Add wget (#1443)
+ - [chores] Refactor Dockerfile apk installation tasks (#1448)
  - [tooling] Script to generate token for SCIM endpoints (#1457)
  - [tooling] Ormolu script improvements (#1458)
  - [tooling] Add script to colourise test failure output (#1459)

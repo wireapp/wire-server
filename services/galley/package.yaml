@@ -74,6 +74,7 @@ library:
   - string-conversions
   - swagger >=0.1
   - swagger2
+  - tagged
   - text >=0.11
   - time >=1.4
   - tinylog >=0.10

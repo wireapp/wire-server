@@ -17,6 +17,9 @@
 
 module Galley.API.Internal
   ( sitemap,
+    servantSitemap,
+    InternalApi,
+    ServantAPI,
     deleteLoop,
     safeForever,
   )
@@ -57,17 +60,43 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Predicate hiding (err)
 import qualified Network.Wai.Predicate as P
-import Network.Wai.Routing hiding (route)
+import Network.Wai.Routing hiding (route, toList)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
+import Servant.API hiding (JSON)
+import qualified Servant.API as Servant
+import Servant.API.Generic
+import Servant.Server
+import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
 import qualified Wire.API.Team.Feature as Public
 
+data InternalApi routes = InternalApi
+  { iStatusGet ::
+      routes
+        :- "i"
+        :> "status"
+        :> Get '[Servant.JSON] NoContent,
+    iStatusHead ::
+      routes
+        :- "i"
+        :> "status"
+        :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+  }
+  deriving (Generic)
+
+type ServantAPI = ToServantApi InternalApi
+
+servantSitemap :: ServerT ServantAPI Galley
+servantSitemap =
+  genericServerT $
+    InternalApi
+      { iStatusGet = pure NoContent,
+        iStatusHead = pure NoContent
+      }
+
 sitemap :: Routes a Galley ()
 sitemap = do
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true
-
   -- Conversation API (internal) ----------------------------------------
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
@@ -267,7 +296,8 @@ rmUser user conn = do
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
           | user `isMember` Data.convMembers c -> do
-            e <- Data.removeMembers c user u
+            -- FUTUREWORK: deal with remote members, too, see removeMembers
+            e <- Data.removeLocalMembers c user u
             return $
               (Intra.newPush ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn

@@ -53,6 +53,7 @@ import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.PEM
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -540,13 +541,14 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   -- Prepare user with client
   usr <- createUser "User" brig
   let uid = userId usr
+  let quid = userQualifiedId usr
   let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
   _rs <- addClient brig uid new <!! const 201 === statusCode
   let Just uc = clientId <$> responseJsonMaybe _rs
   -- Create conversation
   _rs <- createConv galley uid [] <!! const 201 === statusCode
   let Just cid = cnvId <$> responseJsonMaybe _rs
-  testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
+  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testBadFingerprint config db brig galley _cannon = do
@@ -627,7 +629,8 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
   whitelistService brig uid tid pid sid
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid [] Nothing
-  testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
+  quid <- userQualifiedId . selfUser <$> getSelfProfile brig uid
+  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
 
 testDeleteConvBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeleteConvBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -1895,7 +1898,7 @@ testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
   getBotConv galley bid cid !!! const 404 === statusCode
 
 testMessageBotUtil ::
-  UserId ->
+  Qualified UserId ->
   ClientId ->
   ConvId ->
   ProviderId ->
@@ -1906,7 +1909,9 @@ testMessageBotUtil ::
   Galley ->
   WS.Cannon ->
   Http ()
-testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
+testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
+  let uid = qUnqualified quid
+  let localDomain = qDomain quid
   -- Add bot to conversation
   _rs <- addBot brig uid pid sid cid <!! const 201 === statusCode
   let Just ars = responseJsonMaybe _rs
@@ -1920,12 +1925,12 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
   let Just bcnv = responseJsonMaybe _rs
   liftIO $ do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
-    assertEqual "members" [OtherMember uid Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
+    assertEqual "members" [OtherMember (Qualified uid localDomain) Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
   mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
   let other = listToMaybe (cmOthers mems)
   liftIO $ do
-    assertEqual "id" (Just buid) (omId <$> other)
+    assertEqual "id" (Just buid) (qUnqualified . omQualifiedId <$> other)
     assertEqual "service" (Just sref) (omService =<< other)
   -- The bot greets the user
   WS.bracketR cannon uid $ \ws -> do

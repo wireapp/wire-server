@@ -160,4 +160,3 @@ instance ToSchema SsoSettings where
             "defaultSsoCode" -> "default_sso_code"
             other -> other
         }
-

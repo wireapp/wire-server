@@ -36,7 +36,7 @@ import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
 import qualified Galley.Data as Data
-import Galley.Options (Opts, optGalley)
+import Galley.Options (Opts, optGalley, validateOpts)
 import qualified Galley.Queue as Q
 import Imports
 import Network.Wai (Application)
@@ -78,6 +78,7 @@ mkApp o = do
   m <- M.metrics
   e <- App.createEnv m o
   let l = e ^. App.applog
+  validateOpts l o
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
   return (middlewares l m $ servantApp e, e)
@@ -89,6 +90,7 @@ mkApp o = do
       Servant.serve
         (Proxy @CombinedAPI)
         ( Servant.hoistServer (Proxy @GalleyAPI.ServantAPI) (toServantHandler e) API.servantSitemap
+            :<|> Servant.hoistServer (Proxy @Internal.ServantAPI) (toServantHandler e) Internal.servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
@@ -100,7 +102,7 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
 
-type CombinedAPI = GalleyAPI.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
+type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do

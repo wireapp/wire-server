@@ -64,7 +64,7 @@ import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HM
 import Data.Id (UserId)
 import Data.Json.Util
-import Data.LegalHold (UserLegalHoldStatus (..), typeUserLegalHoldStatus)
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus, typeUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.String.Conversions (cs)
@@ -139,7 +139,7 @@ parseTeamMember = withObject "team-member" $ \o ->
     <*> o .: "permissions"
     <*> parseInvited o
     -- Default to disabled if missing
-    <*> o .:? "legalhold_status" .!= UserLegalHoldDisabled
+    <*> o .:? "legalhold_status" .!= defUserLegalHoldStatus
   where
     parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
     parseInvited o = do
@@ -249,7 +249,7 @@ instance Arbitrary NewTeamMember where
   shrink (NewTeamMember (TeamMember uid perms _mbinv _)) = [newNewTeamMember uid perms Nothing]
 
 newNewTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> NewTeamMember
-newNewTeamMember uid perms mbinv = NewTeamMember $ TeamMember uid perms mbinv UserLegalHoldDisabled
+newNewTeamMember uid perms mbinv = NewTeamMember $ TeamMember uid perms mbinv defUserLegalHoldStatus
 
 modelNewTeamMember :: Doc.Model
 modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
@@ -269,7 +269,7 @@ instance ToJSON NewTeamMember where
 instance FromJSON NewTeamMember where
   parseJSON = withObject "add team member" $ \o -> do
     mem <- o .: "member"
-    if (_legalHoldStatus mem == UserLegalHoldDisabled)
+    if (_legalHoldStatus mem == defUserLegalHoldStatus)
       then pure $ NewTeamMember mem
       else fail "legalhold_status field cannot be set in NewTeamMember"
 

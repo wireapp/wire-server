@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -31,6 +32,7 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
+import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Event.Team as Public ()
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import qualified Wire.API.Team.Conversation as Public
@@ -39,6 +41,15 @@ type ConversationResponses =
   '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
      WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
    ]
+
+type UpdateResponses =
+  '[ WithStatus 200 Public.Event,
+     NoContent
+   ]
+
+-- FUTUREWORK: Make a PR to the servant-swagger package with this instance
+instance ToSchema Servant.NoContent where
+  declareNamedSchema _ = declareNamedSchema (Proxy @())
 
 data Api routes = Api
   { -- Conversations
@@ -140,6 +151,18 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+    addMembersToConversationV2 ::
+      routes
+        :- Summary "Add qualified members to an existing conversation: WIP, inaccessible for clients until ready"
+        :> ZUser
+        :> ZConn
+        :> "i" -- FUTUREWORK: remove this /i/ once it's ready. See comment on 'Update.addMembers'
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> "v2"
+        :> ReqBody '[Servant.JSON] Public.InviteQualified
+        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
     -- Team Conversations
 
     getTeamConversationRoles ::

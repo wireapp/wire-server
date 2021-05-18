@@ -52,7 +52,6 @@ instance ToSchema CountryCode
 
 -- | The options to use for schema generation. Must match the options used
 -- for 'ToJSON' instances elsewhere.
-
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = fromAesonOptions deriveJSONOptions
 

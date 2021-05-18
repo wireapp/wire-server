@@ -82,6 +82,7 @@ module Galley.Data
     members,
     removeMember,
     removeMembers,
+    removeLocalMembers,
     updateMember,
 
     -- * Conversation Codes
@@ -105,23 +106,26 @@ module Galley.Data
 where
 
 import Brig.Types.Code
-import Cassandra
+import Cassandra hiding (Tagged)
 import Cassandra.Util
 import Control.Arrow (second)
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString.Conversion hiding (parser)
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
-import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Tagged
 import Data.Time.Clock
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
@@ -129,10 +133,12 @@ import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
+import qualified Galley.Options as Opts
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event, EventType (..), teamConversations, teamMembers)
 import Galley.Types.Teams.Intra
@@ -174,7 +180,7 @@ mkResultSet page = ResultSet (result page) typ
       | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
-schemaVersion = 48
+schemaVersion = 49
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -247,11 +253,11 @@ teamConversationsForPagination tid start (fromRange -> max) =
 teamMembersForFanout :: TeamId -> Galley TeamMemberList
 teamMembersForFanout t = fanoutLimit >>= teamMembersWithLimit t
 
-teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m TeamMemberList
+teamMembersWithLimit :: forall m. (MonadThrow m, MonadClient m, MonadReader Env m) => TeamId -> Range 1 HardTruncationLimit Int32 -> m TeamMemberList
 teamMembersWithLimit t (fromRange -> limit) = do
   -- NOTE: We use +1 as size and then trim it due to the semantics of C* when getting a page with the exact same size
   pageTuple <- retry x1 (paginate Cql.selectTeamMembers (paramsP Quorum (Identity t) (limit + 1)))
-  ms <- mapM newTeamMember' . take (fromIntegral limit) $ result pageTuple
+  ms <- mapM (newTeamMember' t) . take (fromIntegral limit) $ result pageTuple
   pure $
     if hasMore pageTuple
       then newTeamMemberList ms ListTruncated
@@ -274,7 +280,7 @@ teamMembersCollectedWithPagination tid = do
   collectTeamMembersPaginated [] mems
   where
     collectTeamMembersPaginated acc mems = do
-      tMembers <- mapM newTeamMember' (result mems)
+      tMembers <- mapM (newTeamMember' tid) (result mems)
       if (null $ result mems)
         then collectTeamMembersPaginated (tMembers ++ acc) =<< liftClient (nextPage mems)
         else return (tMembers ++ acc)
@@ -282,12 +288,12 @@ teamMembersCollectedWithPagination tid = do
 -- Lookup only specific team members: this is particularly useful for large teams when
 -- needed to look up only a small subset of members (typically 2, user to perform the action
 -- and the target user)
-teamMembersLimited :: forall m. (MonadThrow m, MonadClient m) => TeamId -> [UserId] -> m [TeamMember]
+teamMembersLimited :: forall m. (MonadThrow m, MonadClient m, MonadReader Env m) => TeamId -> [UserId] -> m [TeamMember]
 teamMembersLimited t u =
-  mapM newTeamMember'
+  mapM (newTeamMember' t)
     =<< retry x1 (query Cql.selectTeamMembers' (params Quorum (t, u)))
 
-teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
+teamMember :: forall m. (MonadThrow m, MonadClient m, MonadReader Env m) => TeamId -> UserId -> m (Maybe TeamMember)
 teamMember t u = newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
   where
     newTeamMember'' ::
@@ -296,7 +302,7 @@ teamMember t u = newTeamMember'' u =<< retry x1 (query1 Cql.selectTeamMember (pa
       m (Maybe TeamMember)
     newTeamMember'' _ Nothing = pure Nothing
     newTeamMember'' uid (Just (perms, minvu, minvt, mulhStatus)) =
-      Just <$> newTeamMember' (uid, perms, minvu, minvt, mulhStatus)
+      Just <$> newTeamMember' t (uid, perms, minvu, minvt, mulhStatus)
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u =
@@ -464,7 +470,8 @@ conversation ::
   m (Maybe Conversation)
 conversation conv = do
   cdata <- async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-  mbConv <- toConv conv <$> members conv <*> wait cdata
+  remoteMems <- async $ lookupRemoteMembers conv
+  mbConv <- toConv conv <$> members conv <*> wait remoteMems <*> wait cdata
   return mbConv >>= conversationGC
 
 {- "Garbage collect" the conversation, i.e. the conversation may be
@@ -486,8 +493,9 @@ conversations ::
 conversations [] = return []
 conversations ids = do
   convs <- async fetchConvs
-  mems <- memberLists ids
-  cs <- zipWith3 toConv ids mems <$> wait convs
+  mems <- async $ memberLists ids
+  remoteMems <- async $ remoteMemberLists ids
+  cs <- zipWith4 toConv ids <$> wait mems <*> wait remoteMems <*> wait convs
   foldrM flatten [] (zip ids cs)
   where
     fetchConvs = do
@@ -503,12 +511,13 @@ conversations ids = do
 toConv ::
   ConvId ->
   [LocalMember] ->
+  [RemoteMember] ->
   Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode) ->
   Maybe Conversation
-toConv cid mms conv =
+toConv cid mms remoteMems conv =
   f mms <$> conv
   where
-    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms ti del timer rm
+    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
 conversationMeta :: MonadClient m => ConvId -> m (Maybe ConversationMeta)
 conversationMeta conv =
@@ -538,7 +547,6 @@ conversationIdRowsFrom usr start (fromRange -> max) =
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
--- | We can't easily apply toMappedOrLocalId here, so we leave it to the consumers of this function.
 conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)
 conversationIdRowsForPagination usr start (fromRange -> max) =
   runIdentity
@@ -577,8 +585,11 @@ createConversation usr name acc role others tinfo mtimer recpt othersConversatio
       setConsistency Quorum
       addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-  mems <- snd <$> addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others))
-  return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
+  -- FUTUREWORK: split users into list of remote and local users
+  let remoteUsers :: [Remote UserId]
+      remoteUsers = []
+  (_, mems, rMems) <- addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others)) ((,othersConversationRole) <$> remoteUsers)
+  return $ newConv conv RegularConv usr mems rMems acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
 createSelfConversation usr name = do
@@ -586,8 +597,8 @@ createSelfConversation usr name = do
   now <- liftIO getCurrentTime
   retry x5 $
     write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-  mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
-  return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing
+  mems <- snd <$> addLocalMembersUnchecked now conv usr (singleton usr)
+  return $ newConv conv SelfConv usr (toList mems) [] [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation ::
   MonadClient m =>
@@ -604,9 +615,10 @@ createConnectConversation a b name conn = do
     write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
-  mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
+  mems <- snd <$> addLocalMembersUnchecked now conv a' (singleton a')
   let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
-  return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
+  let remoteMembers = [] -- FUTUREWORK: federated connections
+  return (newConv conv ConnectConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
 createOne2OneConversation ::
   MonadClient m =>
@@ -627,8 +639,9 @@ createOne2OneConversation a b name ti = do
       setConsistency Quorum
       addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
-  mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
-  return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing Nothing
+  mems <- snd <$> addLocalMembersUnchecked now conv a' (list1 a' [b'])
+  let remoteMembers = [] -- FUTUREWORK: federated one2one
+  return $ newConv conv One2OneConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name ti Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
@@ -667,6 +680,7 @@ newConv ::
   ConvType ->
   UserId ->
   [LocalMember] ->
+  [RemoteMember] ->
   [Access] ->
   AccessRole ->
   Maybe (Range 1 256 Text) ->
@@ -674,7 +688,7 @@ newConv ::
   Maybe Milliseconds ->
   Maybe ReceiptMode ->
   Conversation
-newConv cid ct usr mems acc role name tid mtimer rMode =
+newConv cid ct usr mems rMems acc role name tid mtimer rMode =
   Conversation
     { convId = cid,
       convType = ct,
@@ -683,6 +697,7 @@ newConv cid ct usr mems acc role name tid mtimer rMode =
       convAccess = acc,
       convAccessRole = role,
       convMembers = mems,
+      convRemoteMembers = rMems,
       convTeam = tid,
       convDeleted = Nothing,
       convMessageTimer = mtimer,
@@ -730,6 +745,23 @@ member cnv usr =
   fmap (join @Maybe) . traverse toMember
     =<< retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
 
+remoteMemberLists ::
+  (MonadClient m) =>
+  [ConvId] ->
+  m [[RemoteMember]]
+remoteMemberLists convs = do
+  mems <- retry x1 $ query Cql.selectRemoteMembers (params Quorum (Identity convs))
+  let convMembers = foldr (insert . mkMem) Map.empty mems
+  return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
+  where
+    insert (conv, mem) acc =
+      let f = (Just . maybe [mem] (mem :))
+       in Map.alter f conv acc
+    mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
+
+toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
+toRemoteMember u d = RemoteMember (toRemote (Qualified u d))
+
 memberLists ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   [ConvId] ->
@@ -749,25 +781,32 @@ memberLists convs = do
 members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [LocalMember]
 members conv = join <$> memberLists [conv]
 
+lookupRemoteMembers :: (MonadClient m) => ConvId -> m [RemoteMember]
+lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
+
 -- | Add a member to a local conversation, as an admin.
-addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 LocalMember)
-addMember t c u = addMembersUnchecked t c u (singleton u)
+addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, [LocalMember])
+addMember t c u = addLocalMembersUnchecked t c u (singleton u)
 
 -- | Add members to a local conversation.
-addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked (List1 (UserId, RoleName)) -> m (Event, List1 LocalMember)
-addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (fromMemberSize mems)
+addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked -> m (Event, [LocalMember], [RemoteMember])
+addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (sizeCheckedLocals mems) (sizeCheckedRemotes mems)
 
 -- | Add members to a local conversation, all as admins.
 -- Please make sure the conversation doesn't exceed the maximum size!
-addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, List1 LocalMember)
-addMembersUnchecked t conv orig usrs = addMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
+addLocalMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, [LocalMember])
+addLocalMembersUnchecked t conv orig usrs = addLocalMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
+
+-- | Add only local members to a local conversation.
+-- Please make sure the conversation doesn't exceed the maximum size!
+addLocalMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, [LocalMember])
+addLocalMembersUncheckedWithRole t conv orig lusers = (\(a, b, _) -> (a, b)) <$> addMembersUncheckedWithRole t conv orig (toList lusers) []
 
 -- | Add members to a local conversation.
+-- Conversation is local, so we can add any member to it (including remote ones).
 -- Please make sure the conversation doesn't exceed the maximum size!
---
--- For now, we only accept local 'UserId's, but that will change with federation.
-addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, List1 LocalMember)
-addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
+addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> m (Event, [LocalMember], [RemoteMember])
+addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
   -- sequentially. (parallelizing would not aid performance as the partition
@@ -776,21 +815,31 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
   -- below the batch threshold
   -- With chunk size of 64:
   -- [galley] Server warning: Batch for [galley_test.member, galley_test.user] is of size 7040, exceeding specified threshold of 5120 by 1920.
-  for_ (List.chunksOf 32 (toList usrs)) $ \chunk -> do
+  --
+  for_ (List.chunksOf 32 lusrs) $ \chunk -> do
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
       for_ chunk $ \(u, r) -> do
-        -- Conversation is local, so we can add any member to it (including remote ones).
+        -- User is local, too, so we add it to both the member and the user table
         addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r)
-        -- Once we accept remote users in this function, we need to distinguish here between
-        -- local and remote ones.
-        -- - For local members, we add the conversation to the table as it's done already.
-        -- - For remote members, we don't do anything here and assume an additional call to
-        --   their backend has been (or will be) made separately.
         addPrepQuery Cql.insertUserConv (u, conv)
-  let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
-  return (e, fmap (uncurry newMemberWithRole) usrs)
+
+  for_ (List.chunksOf 32 rusrs) $ \chunk -> do
+    retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency Quorum
+      for_ chunk $ \(u, role) -> do
+        -- User is remote, so we only add it to the member_remote_user
+        -- table, but the reverse mapping has to be done on the remote
+        -- backend; so we assume an additional call to their backend has
+        -- been (or will be) made separately. See Galley.API.Update.addMembers
+        let remoteUser = qUnqualified (unTagged u)
+        let remoteDomain = qDomain (unTagged u)
+        addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser, role)
+  -- FUTUREWORK: also include remote users in the event!
+  let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ lusrs)
+  return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)
@@ -823,20 +872,27 @@ updateMember cid uid mup = do
         misConvRoleName = mupConvRoleName mup
       }
 
-removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
-removeMembers conv orig victims = do
+removeLocalMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
+removeLocalMembers conv orig localVictims = removeMembers conv orig localVictims []
+
+removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> [Remote UserId] -> m Event
+removeMembers conv orig localVictims remoteVictims = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ (toList victims) $ \u -> do
+    for_ remoteVictims $ \u -> do
+      let rUser = unTagged u
+      addPrepQuery Cql.removeRemoteMember (convId conv, qDomain rUser, qUnqualified rUser)
+    for_ (toList localVictims) $ \u -> do
       addPrepQuery Cql.removeMember (convId conv, u)
       addPrepQuery Cql.deleteUserConv (u, convId conv)
+
   -- FUTUREWORK: the user's conversation has to be deleted on their own backend for federation
   return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
   where
     -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
-    leavingMembers = UserIdList . toList $ victims
+    leavingMembers = UserIdList . toList $ localVictims
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 . batch $ do
@@ -852,7 +908,7 @@ newMember = flip newMemberWithRole roleNameWireAdmin
 
 newMemberWithRole :: a -> RoleName -> InternalMember a
 newMemberWithRole u r =
-  Member
+  InternalMember
     { memId = u,
       memService = Nothing,
       memOtrMuted = False,
@@ -891,7 +947,7 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
       then Nothing
       else
         Just $
-          Member
+          InternalMember
             { memId = usr,
               memService = newServiceRef <$> srv <*> prv,
               memOtrMuted = fromMaybe False omu,
@@ -928,9 +984,31 @@ eraseClients :: MonadClient m => UserId -> m ()
 eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)))
 
 -- Internal utilities
-newTeamMember' :: (MonadThrow m, MonadClient m) => (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
-newTeamMember' (uid, perms, minvu, minvt, fromMaybe UserLegalHoldDisabled -> lhStatus) = mk minvu minvt
+
+-- | Construct 'TeamMember' from database tuple.  Read 'setLegalHoldTeamsWhitelist' from 'Env'
+-- to handle implicit consent (ie., fill in 'UserLegalHoldDisabled' instead of
+-- 'UserLegalHoldNoConsent' if team is whitelisted.)
+--
+-- Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
+-- other is 'Just', which can only be caused by inconsistent database content.
+newTeamMember' :: (MonadThrow m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
+newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
+  whitelist <- view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
+  maybeGrant whitelist <$> mk minvu minvt
   where
+    maybeGrant :: Maybe [TeamId] -> TeamMember -> TeamMember
+    maybeGrant whitelist = bool id grantImplicitConsent (maybe False (tid `elem`) whitelist)
+
+    grantImplicitConsent :: TeamMember -> TeamMember
+    grantImplicitConsent =
+      legalHoldStatus %~ \case
+        UserLegalHoldNoConsent -> UserLegalHoldDisabled
+        -- the other cases don't change; we just enumerate them to catch future changes in
+        -- 'UserLegalHoldStatus' better.
+        UserLegalHoldDisabled -> UserLegalHoldDisabled
+        UserLegalHoldPending -> UserLegalHoldPending
+        UserLegalHoldEnabled -> UserLegalHoldEnabled
+
     mk (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
     mk Nothing Nothing = pure $ TeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
@@ -946,7 +1024,7 @@ withTeamMembersWithChunks tid action = do
   handleMembers mems
   where
     handleMembers mems = do
-      tMembers <- mapM newTeamMember' (result mems)
+      tMembers <- mapM (newTeamMember' tid) (result mems)
       action tMembers
       when (hasMore mems) $
         handleMembers =<< liftClient (nextPage mems)
