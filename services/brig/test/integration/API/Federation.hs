@@ -39,6 +39,7 @@ import Util
 import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Message (UserClientMap (..), UserClients (..))
+import Wire.API.UserMap (UserMap (UserMap))
 
 tests :: Manager -> Brig -> FedBrigClient -> IO TestTree
 tests m brig fedBrigClient =
@@ -196,19 +197,19 @@ testGetUserClients :: Brig -> FedBrigClient -> Http ()
 testGetUserClients brig fedBrigClient = do
   uid1 <- userId <$> randomUser brig
   clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
-  UserClients userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [uid1])
+  UserMap userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [uid1])
   liftIO $
     assertEqual
       "client set for user should match"
       (Just (Set.fromList (fmap clientId clients)))
-      (Map.lookup uid1 userClients)
+      (fmap (Set.map pubClientId) . Map.lookup uid1 $ userClients)
 
 testGetUserClientsNotFound :: FedBrigClient -> Http ()
 testGetUserClientsNotFound fedBrigClient = do
   absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
-  UserClients userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [absentUserId])
+  UserMap userClients <- FedBrig.getUserClients fedBrigClient (GetUserClients [absentUserId])
   liftIO $
     assertEqual
       "client set for user should match"
       (Just (Set.fromList []))
-      (Map.lookup absentUserId userClients)
+      (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)

@@ -22,6 +22,7 @@ module Brig.Federation.Client where
 
 import Brig.App (AppIO)
 import Brig.Types (Prekey, PrekeyBundle)
+import Brig.Types.Client (PubClient)
 import qualified Brig.Types.Search as Public
 import Brig.Types.User
 import Control.Monad.Trans.Except (ExceptT (..))
@@ -36,6 +37,7 @@ import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client (FederationError (..), executeFederated)
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User.Client.Prekey (ClientPrekey)
+import Wire.API.UserMap (UserMap)
 
 type FederationAppIO = ExceptT FederationError AppIO
 
@@ -80,7 +82,7 @@ searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm
 
-getUserClients :: Domain -> GetUserClients -> FederationAppIO UserClients
+getUserClients :: Domain -> GetUserClients -> FederationAppIO (UserMap (Set PubClient))
 getUserClients domain guc = do
   Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
   executeFederated domain $ FederatedBrig.getUserClients clientRoutes guc

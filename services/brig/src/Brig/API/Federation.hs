@@ -34,9 +34,10 @@ import Wire.API.Federation.API.Brig hiding (Api (..))
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client (UserClients (..))
+import Wire.API.User.Client (PubClient, UserClients (..))
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
+import Wire.API.UserMap (UserMap)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap =
@@ -92,12 +93,9 @@ searchUsers (SearchRequest searchTerm) = do
         searchTook = 0
       }
 
--- | If this is function is slow: Galley also keeps the user->client relation.
---   See 'Galley.API.Clients'
-getUserClients :: GetUserClients -> Handler UserClients
-getUserClients (GetUserClients uids) =
-  UserClients . Map.fromList
-    <$> API.lookupUsersClientIds uids
+getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
+getUserClients (GetUserClients uids) = do
+  Data.lookupPubClientsBulk uids
 
 -- FUTUREWORK(federation): currently these API types make use of the same types in the
 -- federation server-server API than the client-server API does. E.g.

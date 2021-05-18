@@ -34,8 +34,10 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
+import Wire.API.User.Client (PubClient)
 import Wire.API.User.Client.Prekey (ClientPrekey, Prekey, PrekeyBundle)
 import Wire.API.User.Search
+import Wire.API.UserMap (UserMap)
 
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)
@@ -97,7 +99,7 @@ data Api routes = Api
         :> "users"
         :> "clients"
         :> ReqBody '[JSON] GetUserClients
-        :> Post '[JSON] UserClients
+        :> Post '[JSON] (UserMap (Set PubClient))
   }
   deriving (Generic)
 
