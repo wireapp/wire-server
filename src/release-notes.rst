@@ -24,6 +24,62 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart version 2.106.0
+=======================
+
+Release notes
+-------------
+
+
+.. warning::
+
+   From this version on; we do not ship DynamoDB-compatible service anymore. Instead, we ship with a built-in prekey distribution strategy
+   that no longer depends on an external locking service. (#1416, #1476).
+
+   If you want to keep using DynamoDB, you must set ``brig.randomPrekeys`` to ``false`` in your ``values.yaml`` explicitly.
+
+
+
+
+Features
+-------------
+ - [brig] New option to use a random prekey selection strategy to remove DynamoDB dependency (#1416, #1476)
+ - [brig] Ensure servant APIs are recorded by the metrics middleware (#1441)
+ - [brig] Add exact handle matches from all teams in /search/contacts (#1431, #1455)
+ - [brig] CSV endpoint: Add columns to output (#1452)
+ - [galley] Make pagination more idiomatic (#1460)
+ - [federation] Testing improvements (#1411, #1429)
+ - [federation] error reporting, DNS error logging (#1433, #1463)
+ - [federation] endpoint refactoring, new brig endpoints, servant client for federated calls, originDomain metadata (#1389, #1446, #1445, #1468, #1447)
+ - [federation] Add federator to galley (#1465)
+ - [move-team] Update move-team with upstream schema changes #1423
+
+Bug fixes and other updates
+----------------------------
+ - [security] Update webapp container image tag to address CVE-2021-21400 (#1473)
+ - [brig] Return correct status phrase and body on error (#1414) …
+ - [brig] Fix FromJSON instance of ListUsersQuery (#1456)
+ - [galley] Lower the limit for URL lengths for galley -> brig RPC calls (#1469)
+ - [chores] Remove unused dependencies (#1424) …
+ - [compilation] Stop re-compiling nginz when running integration test for unrelated changes
+ - [tooling] Use jq magic instead of bash (#1432), Add wget (#1443)
+ - [chores] Refactor Dockerfile apk installation tasks (#1448)
+ - [tooling] Script to generate token for SCIM endpoints (#1457)
+ - [tooling] Ormolu script improvements (#1458)
+ - [tooling] Add script to colourise test failure output (#1459)
+ - [tooling] Setup for running tests in kind (#1451, #1462)
+ - [tooling] HLS workaround for optimisation flags (#1449)
+
+Documentation
+-------------
+ - [docs] Document how to run multi-backend tests for federation (#1436)
+ - [docs] Fix CHANGELOG: incorrect release dates (#1435)
+ - [docs] Update release notes with data migration for SCIM (#1442)
+ - [docs] Fixes a k8s typo in the README (#1475)
+ - [docs] Document testing strategy and patterns (#1472)
+
+
+
 Chart version 2.104.0
 =====================
 
