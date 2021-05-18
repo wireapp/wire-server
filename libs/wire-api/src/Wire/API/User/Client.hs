@@ -535,7 +535,7 @@ data UpdateClient = UpdateClient
     updateClientLastKey :: Maybe LastPrekey,
     updateClientLabel :: Maybe Text,
     -- | see haddocks for 'SupportedClientFeature'
-    updateClientSupportedFeatures :: Maybe [SupportedClientFeature]
+    updateClientSupportedFeatures :: Maybe (Set SupportedClientFeature)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateClient)
@@ -580,7 +580,7 @@ instance FromJSON UpdateClient where
       <*> o .:? "supported-features"
 
 -- FUTUREWORK: add golden tests for this?
-data SupportedClientFeatureList = SupportedClientFeatureList {fromSupportedClientFeatureList :: [SupportedClientFeature]}
+data SupportedClientFeatureList = SupportedClientFeatureList {fromSupportedClientFeatureList :: Set SupportedClientFeature}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SupportedClientFeatureList)
   deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "fromSupportedClient", CamelToSnake)] SupportedClientFeatureList)
