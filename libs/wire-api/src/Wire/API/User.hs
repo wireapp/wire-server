@@ -142,19 +142,19 @@ newtype UserIdList = UserIdList
   {mUsers :: [UserId]}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIdList
+
+instance ToSchema UserIdList where
+  schema =
+    object "UserIdList" $
+      UserIdList
+        <$> mUsers .= field "user_ids" (array schema)
 
 modelUserIdList :: Doc.Model
 modelUserIdList = Doc.defineModel "UserIdList" $ do
   Doc.description "list of user ids"
   Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "the array of team conversations"
-
-instance FromJSON UserIdList where
-  parseJSON = A.withObject "user-ids-payload" $ \o ->
-    UserIdList <$> o A..: "user_ids"
-
-instance ToJSON UserIdList where
-  toJSON e = A.object ["user_ids" A..= mUsers e]
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList

@@ -349,7 +349,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
+      let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPush ListComplete zusr (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
@@ -743,7 +743,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     pushEvent exceptTo edata now dc = do
       (bots, users) <- botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
-      let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
+      let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now edata
       for_ (newPush (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
@@ -768,7 +768,7 @@ deleteTeamConversation zusr zcon tid cid = do
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
-  let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
+  let ce = Conv.Event Conv.ConvDelete cid zusr now Conv.EdConvDelete
   let recps = fmap recipient cmems
   let convPush = newPush ListComplete zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
   pushSome $ maybeToList convPush
