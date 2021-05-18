@@ -31,5 +31,4 @@ sitemap :: Routes Doc.ApiBuilder Galley ()
 sitemap = do
   Public.sitemap
   Public.apiDocs
-  Public.apiDocsTeamsLegalhold
   Internal.sitemap

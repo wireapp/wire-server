@@ -17,7 +17,6 @@
 module Galley.API.Public
   ( sitemap,
     apiDocs,
-    apiDocsTeamsLegalhold,
     filterMissing, -- for tests
     servantSitemap,
   )
@@ -63,7 +62,6 @@ import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
-import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Feature as Public
@@ -929,20 +927,6 @@ docs (_ ::: url) = do
   let models = Public.Swagger.models
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
   pure $ responseLBS status200 [jsonContent] apidoc
-
--- FUTUREWORK: /teams/api-docs does not get queried by zwagger-ui
-
--- |
--- I (Tiago) added servant-based swagger docs here because
--- * it was faster to write than learning our legacy approach and
--- * swagger2 is more useful for the client teams.
---
--- We can discuss at the end of the sprint whether to keep it here,
--- move it elsewhere, or abandon it entirely.
-apiDocsTeamsLegalhold :: Routes ApiBuilder Galley ()
-apiDocsTeamsLegalhold =
-  get "/teams/api-docs" (continue . const . pure . json $ LegalHoldAPI.swaggerDoc) $
-    accept "application" "json"
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
 filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
