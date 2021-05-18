@@ -266,9 +266,6 @@ mkHttpsUrl uri =
 ensureHttpsUrl :: URIRef Absolute -> HttpsUrl
 ensureHttpsUrl = HttpsUrl . (uriSchemeL . schemeBSL .~ "https")
 
-instance S.ToSchema HttpsUrl where
-  declareNamedSchema _ = S.declareNamedSchema (Proxy @Text)
-
 instance Show HttpsUrl where
   showsPrec i = showsPrec i . httpsUrl
 
