@@ -901,7 +901,7 @@ postMembersOk = do
   liftIO $ do
     evtConv e @?= conv
     evtType e @?= MemberJoin
-    evtData e @?= Just (EdMembersJoin (SimpleMembers [SimpleMember eve roleNameWireAdmin]))
+    evtData e @?= EdMembersJoin (SimpleMembers [SimpleMember eve roleNameWireAdmin])
     evtFrom e @?= alice
   -- Check that last_event markers are set for all members
   forM_ [alice, bob, chuck, eve] $ \u -> do
