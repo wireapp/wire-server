@@ -65,6 +65,7 @@ import Data.Json.Util ((#))
 import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
+import Data.Proxy
 import Data.Range (Range)
 import Data.Schema
 import qualified Data.Swagger as S
@@ -251,6 +252,12 @@ instance FromJSON Service where
 newtype ServiceToken = ServiceToken AsciiBase64Url
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
+
+instance S.ToSchema ServiceToken where
+  declareNamedSchema _ = tweak $ S.declareNamedSchema (Proxy @Text)
+    where
+      tweak = fmap $ S.schema . S.example ?~ tok
+      tok = "sometoken"
 
 deriving instance Cql.Cql ServiceToken
 

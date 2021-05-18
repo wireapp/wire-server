@@ -41,12 +41,16 @@ module Wire.API.Team.Feature
   )
 where
 
+import Control.Lens ((.~), (?~))
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.HashMap.Strict.InsOrd
 import Data.Kind (Constraint)
+import Data.Proxy
 import Data.String.Conversions (cs)
-import Data.Swagger.Build.Api
+import Data.Swagger hiding (name)
+import Data.Swagger.Declare (Declare)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -214,6 +218,23 @@ modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ d
   Doc.description $ "Configuration for a team feature that has no configuration"
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
+declareNamedSchemaFeatureNoConfig :: f -> Declare (Definitions Schema) NamedSchema
+declareNamedSchemaFeatureNoConfig _ =
+  pure $
+    NamedSchema (Just "TeamFeatureStatus") $
+      mempty
+        & properties .~ (fromList [("status", Inline statusValue)])
+        & required .~ ["status"]
+        & type_ ?~ SwaggerObject
+        & description ?~ "whether a given team feature is enabled"
+  where
+    statusValue =
+      mempty
+        & enum_ ?~ [String "enabled", String "disabled"]
+
+instance ToSchema TeamFeatureStatusNoConfig where
+  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
 instance FromJSON TeamFeatureStatusNoConfig where
   parseJSON = withObject "TeamFeatureStatus" $ \ob ->
     TeamFeatureStatusNoConfig <$> ob .: "status"
@@ -257,6 +278,23 @@ data TeamFeatureAppLockConfig = TeamFeatureAppLockConfig
 
 deriving via (GenericUniform TeamFeatureAppLockConfig) instance Arbitrary TeamFeatureAppLockConfig
 
+-- (we're still using the swagger1.2 swagger for this, but let's just keep it around, we may use it later.)
+instance ToSchema TeamFeatureAppLockConfig where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "TeamFeatureAppLockConfig") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties .~ configProperties
+          & required .~ ["enforceAppLock", "inactivityTimeoutSecs"]
+    where
+      configProperties :: InsOrdHashMap Text (Referenced Schema)
+      configProperties =
+        fromList
+          [ ("enforceAppLock", Inline (toSchema (Proxy @Bool))),
+            ("inactivityTimeoutSecs", Inline (toSchema (Proxy @Int)))
+          ]
+
 newtype EnforceAppLock = EnforceAppLock Bool
   deriving stock (Eq, Show, Ord, Generic)
   deriving newtype (FromJSON, ToJSON, Arbitrary)
@@ -264,8 +302,8 @@ newtype EnforceAppLock = EnforceAppLock Bool
 modelTeamFeatureAppLockConfig :: Doc.Model
 modelTeamFeatureAppLockConfig =
   Doc.defineModel "TeamFeatureAppLockConfig" $ do
-    Doc.property "enforceAppLock" bool' $ Doc.description "enforceAppLock"
-    Doc.property "inactivityTimeoutSecs" int32' $ Doc.description ""
+    Doc.property "enforceAppLock" Doc.bool' $ Doc.description "enforceAppLock"
+    Doc.property "inactivityTimeoutSecs" Doc.int32' $ Doc.description ""
 
 deriving via
   (StripCamel "applock" TeamFeatureAppLockConfig)
