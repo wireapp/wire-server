@@ -59,7 +59,7 @@ spec = do
           withMockFederator stateRef (mkSuccessResponse expectedResponse) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
-        sentRequests `shouldBe` [FederatedRequest "target.example.com" (Just $ Request Brig "/federation/users/by-handle" (LBS.toStrict (Aeson.encode handle)) "origin.example.com")]
+        sentRequests `shouldBe` [FederatedRequest "target.example.com" (Just $ Request Brig "/federation/get-user-by-handle" (LBS.toStrict (Aeson.encode handle)) "origin.example.com")]
         actualResponse `shouldBe` Right expectedResponse
 
       it "should parse failure response correctly" $ do
