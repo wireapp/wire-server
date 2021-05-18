@@ -37,7 +37,6 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
-import Galley.API.Swagger (swagger)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
@@ -64,6 +63,7 @@ import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Feature as Public
@@ -934,7 +934,7 @@ docs (_ ::: url) = do
 -- move it elsewhere, or abandon it entirely.
 apiDocsTeamsLegalhold :: Routes ApiBuilder Galley ()
 apiDocsTeamsLegalhold =
-  get "/teams/api-docs" (continue . const . pure . json $ swagger) $
+  get "/teams/api-docs" (continue . const . pure . json $ LegalHoldAPI.swaggerDoc) $
     accept "application" "json"
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
