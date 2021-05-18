@@ -824,10 +824,6 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
         -- User is local, too, so we add it to both the member and the user table
         addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r)
         addPrepQuery Cql.insertUserConv (u, conv)
-<<<<<<< HEAD
-  let e = Event MemberJoin conv orig t (EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
-  return (e, fmap (uncurry newMemberWithRole) usrs)
-=======
 
   for_ (List.chunksOf 32 rusrs) $ \chunk -> do
     retry x5 . batch $ do
@@ -842,9 +838,8 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
         let remoteDomain = qDomain (unTagged u)
         addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser, role)
   -- FUTUREWORK: also include remote users in the event!
-  let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ lusrs)
+  let e = Event MemberJoin conv orig t (EdMembersJoin . SimpleMembers . toSimpleMembers $ lusrs)
   return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
->>>>>>> origin/develop
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)
