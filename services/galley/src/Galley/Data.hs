@@ -616,7 +616,7 @@ createConnectConversation a b name conn = do
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   mems <- snd <$> addLocalMembersUnchecked now conv a' (singleton a')
-  let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
+  let e = Event ConvConnect conv a' now (EdConnect conn)
   let remoteMembers = [] -- FUTUREWORK: federated connections
   return (newConv conv ConnectConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
@@ -838,7 +838,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
         let remoteDomain = qDomain (unTagged u)
         addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser, role)
   -- FUTUREWORK: also include remote users in the event!
-  let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ lusrs)
+  let e = Event MemberJoin conv orig t (EdMembersJoin . SimpleMembers . toSimpleMembers $ lusrs)
   return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
@@ -889,7 +889,7 @@ removeMembers conv orig localVictims remoteVictims = do
       addPrepQuery Cql.deleteUserConv (u, convId conv)
 
   -- FUTUREWORK: the user's conversation has to be deleted on their own backend for federation
-  return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
+  return $ Event MemberLeave (convId conv) orig t (EdMembersLeave leavingMembers)
   where
     -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
     leavingMembers = UserIdList . toList $ localVictims
