@@ -39,14 +39,14 @@ import Wire.API.User.Search
 federationSitemap :: ServerT (ToServantApi Federated.Api) Handler
 federationSitemap =
   genericServerT $
-    Federated.Api {
-      Federated.getUserByHandle = getUserByHandle,
-      Federated.getUsersByIds = getUsersByIds,
-      Federated.claimPrekey = claimPrekey,
-      Federated.claimPrekeyBundle = claimPrekeyBundle,
-      Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
-      Federated.searchUsers = searchUsers
-    }
+    Federated.Api
+      { Federated.getUserByHandle = getUserByHandle,
+        Federated.getUsersByIds = getUsersByIds,
+        Federated.claimPrekey = claimPrekey,
+        Federated.claimPrekeyBundle = claimPrekeyBundle,
+        Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
+        Federated.searchUsers = searchUsers
+      }
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do
