@@ -146,7 +146,7 @@ testClaimPrekeySuccess brig fedBrigClient = do
   let uid = userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
-  mkey <- FedBrig.getPrekey fedBrigClient (uid, clientId c)
+  mkey <- FedBrig.claimPrekey fedBrigClient (uid, clientId c)
   liftIO $
     assertEqual
       "should return prekey 1"
@@ -158,7 +158,7 @@ testClaimPrekeyBundleSuccess brig fedBrigClient = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  bundle <- FedBrig.getPrekeyBundle fedBrigClient (qUnqualified quid)
+  bundle <- FedBrig.claimPrekeyBundle fedBrigClient (qUnqualified quid)
   liftIO $
     assertEqual
       "bundle should contain the clients"
@@ -176,7 +176,7 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
   c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
       ucm = UserClientMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
-  ucmResponse <- FedBrig.getMultiPrekeyBundle fedBrigClient uc
+  ucmResponse <- FedBrig.claimMultiPrekeyBundle fedBrigClient uc
   liftIO $
     assertEqual
       "should return the UserClientMap"

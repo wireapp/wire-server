@@ -56,12 +56,12 @@ getUsersByIds domain uids = do
 claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
 claimPrekey (Qualified user domain) client = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
-  executeFederated domain $ FederatedBrig.getPrekey clientRoutes (user, client)
+  executeFederated domain $ FederatedBrig.claimPrekey clientRoutes (user, client)
 
 claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
-  executeFederated domain $ FederatedBrig.getPrekeyBundle clientRoutes user
+  executeFederated domain $ FederatedBrig.claimPrekeyBundle clientRoutes user
 
 claimMultiPrekeyBundle ::
   Domain ->
@@ -69,7 +69,7 @@ claimMultiPrekeyBundle ::
   FederationAppIO (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
-  executeFederated domain $ FederatedBrig.getMultiPrekeyBundle clientRoutes uc
+  executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc
 
 -- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:
 --       decoding error should not throw a 404 most likely
