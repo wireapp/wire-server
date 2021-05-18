@@ -41,10 +41,12 @@ import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.ProtocolBuffers (encodeMessage)
+import Data.Qualified
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
@@ -56,7 +58,7 @@ import Data.UUID.V4
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types hiding (InternalMember (..), Member)
+import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
 import qualified Galley.Types.Teams as Team
@@ -82,6 +84,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Timeout
 import Web.Cookie
+import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
@@ -686,6 +689,19 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
+postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
+postQualifiedMembers zusr invitees conv = do
+  g <- view tsGalley
+  let invite = Public.InviteQualified invitees roleNameWireAdmin
+  post $
+    g
+      -- FUTUREWORK: use an endpoint without /i/ once it's ready.
+      . paths ["i", "conversations", toByteString' conv, "members", "v2"]
+      . zUser zusr
+      . zConn "conn"
+      . zType "access"
+      . json invite
+
 postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
 postMembers u us c = do
   g <- view tsGalley
@@ -987,7 +1003,7 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "creator" (Just c) (cnvCreator <$> cnv)
     assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
     assertEqual "self" (Just s) (memId <$> _self)
-    assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map omId . toList <$> others)
+    assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map (qUnqualified . omQualifiedId) . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
     assertBool "others role" (all (\x -> x == role) $ fromMaybe (error "Cannot be null") ((map omConvRoleName . toList <$> others)))
     assertBool "otr muted not false" (Just False == (memOtrMuted <$> _self))
@@ -1188,12 +1204,15 @@ randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
 
 randomUser :: HasCallStack => TestM UserId
-randomUser = randomUser' False True True
+randomUser = qUnqualified <$> randomUser' False True True
+
+randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
+randomQualifiedUser = randomUser' False True True
 
 randomTeamCreator :: HasCallStack => TestM UserId
-randomTeamCreator = randomUser' True True True
+randomTeamCreator = qUnqualified <$> randomUser' True True True
 
-randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM UserId
+randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM (Qualified UserId)
 randomUser' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
@@ -1203,8 +1222,8 @@ randomUser' isCreator hasPassword hasEmail = do
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
             <> ["team" .= (Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
-  r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
-  fromBS (getHeader' "Location" r)
+  selfProfile <- responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
+  pure . userQualifiedId . selfUser $ selfProfile
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do

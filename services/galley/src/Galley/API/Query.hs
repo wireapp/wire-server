@@ -28,8 +28,10 @@ module Galley.API.Query
 where
 
 import Data.CommaSeparatedList
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Proxy
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -55,14 +57,16 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
 getBotConversation zbot zcnv = do
   c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) zcnv
-  let cmems = mapMaybe mkMember (toList (Data.convMembers c))
+  domain <- viewFederationDomain
+  let cmems = mapMaybe (mkMember domain) (toList (Data.convMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
   where
-    mkMember m
+    mkMember :: Domain -> LocalMember -> Maybe OtherMember
+    mkMember domain m
       | memId m == botUserId zbot =
         Nothing -- no need to list the bot itself
       | otherwise =
-        Just (OtherMember (memId m) (memService m) (memConvRoleName m))
+        Just (OtherMember (Qualified (memId m) domain) (memService m) (memConvRoleName m))
 
 getConversation :: UserId -> ConvId -> Galley Public.Conversation
 getConversation zusr cnv = do

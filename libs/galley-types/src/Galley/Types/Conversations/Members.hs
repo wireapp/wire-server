@@ -19,11 +19,13 @@
 
 module Galley.Types.Conversations.Members
   ( LocalMember,
+    RemoteMember (..),
     InternalMember (..),
   )
 where
 
 import Data.Id as Id
+import Data.Qualified (Remote)
 import Imports
 import Wire.API.Conversation.Member (MutedStatus)
 import Wire.API.Conversation.Role (RoleName)
@@ -31,8 +33,14 @@ import Wire.API.Provider.Service (ServiceRef)
 
 type LocalMember = InternalMember Id.UserId
 
--- | Internal representation of a conversation member.
-data InternalMember id = Member
+data RemoteMember = RemoteMember
+  { rmId :: Remote UserId,
+    rmConvRoleName :: RoleName
+  }
+  deriving stock (Show)
+
+-- | Internal (cassandra) representation of a conversation member.
+data InternalMember id = InternalMember
   { memId :: id,
     memService :: Maybe ServiceRef,
     -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`

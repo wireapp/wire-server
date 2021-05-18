@@ -39,6 +39,7 @@ module Wire.API.Conversation
 
     -- * invite
     Invite (..),
+    InviteQualified (..),
     newInvite,
 
     -- * update
@@ -71,9 +72,11 @@ import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Id
+import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
+import Data.Qualified (Qualified)
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -501,13 +504,29 @@ modelTeamInfo = Doc.defineModel "TeamInfo" $ do
 --------------------------------------------------------------------------------
 -- invite
 
-data Invite = Invite
+data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
   { invUsers :: List1 UserId,
     -- | This role name is to be applied to all users
     invRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invite)
+
+data InviteQualified = InviteQualified
+  { invQUsers :: NonEmpty (Qualified UserId),
+    -- | This role name is to be applied to all users
+    invQRoleName :: RoleName
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InviteQualified)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema InviteQualified)
+
+instance ToSchema InviteQualified where
+  schema =
+    object "InviteQualified" $
+      InviteQualified
+        <$> invQUsers .= field "qualified_users" (nonEmptyArray schema)
+        <*> invQRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin

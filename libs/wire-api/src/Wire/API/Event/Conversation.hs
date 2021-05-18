@@ -69,7 +69,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
-import Data.Json.Util (ToJSONObject (..), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc

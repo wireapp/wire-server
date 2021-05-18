@@ -105,7 +105,13 @@ testLegalHold = do
       setLegalHoldInternal Public.TeamFeatureEnabled
       getLegalHold Public.TeamFeatureEnabled
       getLegalHoldInternal Public.TeamFeatureEnabled
+
+    -- turned off for instance
     FeatureLegalHoldDisabledPermanently -> do
+      Util.putLegalHoldEnabledInternal' expect4xx tid Public.TeamFeatureEnabled
+
+    -- turned off but for whitelisted teams with implicit consent
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       Util.putLegalHoldEnabledInternal' expect4xx tid Public.TeamFeatureEnabled
 
 testSearchVisibility :: TestM ()

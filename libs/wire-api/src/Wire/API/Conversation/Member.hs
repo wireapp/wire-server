@@ -46,6 +46,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Id
 import Data.Json.Util
+import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -168,18 +169,20 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MutedStatus
 
 data OtherMember = OtherMember
-  { omId :: UserId,
+  { omQualifiedId :: Qualified UserId,
     omService :: Maybe ServiceRef,
     omConvRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtherMember)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema OtherMember
 
 instance ToSchema OtherMember where
   schema =
     object "OtherMember" $
       OtherMember
-        <$> omId .= field "id" schema
+        <$> omQualifiedId .= field "qualified_id" schema
+        <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
         <*> omService .= opt (fieldWithDocModifier "service" (description ?~ desc) schema)
         <*> omConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
         <* const (0 :: Int) .= optional (fieldWithDocModifier "status" (description ?~ "deprecated") schema) -- TODO: remove
@@ -187,7 +190,7 @@ instance ToSchema OtherMember where
       desc = "The reference to the owning service, if the member is a 'bot'."
 
 instance Ord OtherMember where
-  compare a b = compare (omId a) (omId b)
+  compare a b = compare (omQualifiedId a) (omQualifiedId b)
 
 modelOtherMember :: Doc.Model
 modelOtherMember = Doc.defineModel "OtherMember" $ do
@@ -196,22 +199,6 @@ modelOtherMember = Doc.defineModel "OtherMember" $ do
   Doc.property "service" (Doc.ref modelServiceRef) $ do
     Doc.description "The reference to the owning service, if the member is a 'bot'."
     Doc.optional
-
-instance ToJSON OtherMember where
-  toJSON m =
-    A.object $
-      "id" A..= omId m
-        # "status" A..= (0 :: Int) -- TODO: Remove
-        # "service" A..= omService m
-        # "conversation_role" A..= omConvRoleName m
-        # []
-
-instance FromJSON OtherMember where
-  parseJSON = A.withObject "other-member" $ \o ->
-    OtherMember
-      <$> o A..: "id"
-      <*> o A..:? "service"
-      <*> o A..:? "conversation_role" A..!= roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- Member Updates

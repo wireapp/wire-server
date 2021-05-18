@@ -19,7 +19,8 @@ module Galley.Validation
   ( rangeChecked,
     rangeCheckedMaybe,
     fromConvSize,
-    fromMemberSize,
+    sizeCheckedLocals,
+    sizeCheckedRemotes,
     ConvSizeChecked,
     ConvMemberAddSizeChecked,
     checkedConvSize,
@@ -29,11 +30,13 @@ where
 
 import Control.Lens
 import Control.Monad.Catch
-import Data.List1 (List1, list1)
+import Data.Id (UserId)
+import Data.Qualified (Remote)
 import Data.Range
 import Galley.API.Error
 import Galley.App
 import Galley.Options
+import Galley.Types.Conversations.Roles (RoleName)
 import Imports
 
 rangeChecked :: Within a n m => a -> Galley (Range n m a)
@@ -49,7 +52,7 @@ rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 newtype ConvSizeChecked a = ConvSizeChecked {fromConvSize :: a}
 
 -- Between 1 and setMaxConvSize
-newtype ConvMemberAddSizeChecked a = ConvMemberAddSizeChecked {fromMemberSize :: a}
+data ConvMemberAddSizeChecked = ConvMemberAddSizeChecked {sizeCheckedLocals :: [(UserId, RoleName)], sizeCheckedRemotes :: [(Remote UserId, RoleName)]}
 
 checkedConvSize :: Bounds a => a -> Galley (ConvSizeChecked a)
 checkedConvSize x = do
@@ -60,15 +63,14 @@ checkedConvSize x = do
     then return (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
-checkedMemberAddSize :: [a] -> Galley (ConvMemberAddSizeChecked (List1 a))
-checkedMemberAddSize [] = throwErr "List must be of at least size 1"
-checkedMemberAddSize l@(x : xs) = do
+checkedMemberAddSize :: [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Galley ConvMemberAddSizeChecked
+checkedMemberAddSize [] [] = throwErr "List of members (local or remote) to be added must be of at least size 1"
+checkedMemberAddSize locals remotes = do
   o <- view options
-  let minV :: Integer = 1
-      limit = (o ^. optSettings . setMaxConvSize)
-  if within l minV (fromIntegral limit)
-    then return (ConvMemberAddSizeChecked $ list1 x xs)
-    else throwErr (errorMsg minV limit "")
+  let limit = o ^. optSettings . setMaxConvSize
+  if length locals + length remotes < fromIntegral limit
+    then return (ConvMemberAddSizeChecked locals remotes)
+    else throwErr (errorMsg (1 :: Integer) limit "")
 
 throwErr :: String -> Galley a
 throwErr = throwM . invalidRange . fromString

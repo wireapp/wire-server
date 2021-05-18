@@ -19,8 +19,10 @@
 
 module Test.Wire.API.Golden.Generated.Event_user where
 
+import Data.Domain
 import Data.Id (ClientId (ClientId, client), Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
+import Data.Qualified
 import qualified Data.UUID as UUID (fromString)
 import Imports
   ( Bool (False, True),
@@ -29,53 +31,6 @@ import Imports
     read,
   )
 import Wire.API.Conversation
-  ( Access (CodeAccess, InviteAccess, LinkAccess, PrivateAccess),
-    AccessRole (ActivatedAccessRole, NonActivatedAccessRole),
-    ConvMembers (ConvMembers, cmOthers, cmSelf),
-    ConvType (RegularConv),
-    Conversation
-      ( Conversation,
-        cnvAccess,
-        cnvAccessRole,
-        cnvCreator,
-        cnvId,
-        cnvMembers,
-        cnvMessageTimer,
-        cnvName,
-        cnvReceiptMode,
-        cnvTeam,
-        cnvType
-      ),
-    ConversationAccessUpdate
-      ( ConversationAccessUpdate,
-        cupAccess,
-        cupAccessRole
-      ),
-    ConversationMessageTimerUpdate
-      ( ConversationMessageTimerUpdate,
-        cupMessageTimer
-      ),
-    ConversationReceiptModeUpdate
-      ( ConversationReceiptModeUpdate,
-        cruReceiptMode
-      ),
-    Member
-      ( Member,
-        memConvRoleName,
-        memHidden,
-        memHiddenRef,
-        memId,
-        memOtrArchived,
-        memOtrArchivedRef,
-        memOtrMuted,
-        memOtrMutedRef,
-        memOtrMutedStatus,
-        memService
-      ),
-    MutedStatus (MutedStatus, fromMutedStatus),
-    OtherMember (OtherMember, omConvRoleName, omId, omService),
-    ReceiptMode (ReceiptMode, unReceiptMode),
-  )
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Conversation.Typing
   ( TypingData (TypingData, tdStatus),
@@ -126,6 +81,9 @@ import Wire.API.Provider.Service
   ( ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider),
   )
 
+domain :: Domain
+domain = Domain "golden.example.com"
+
 testObject_Event_user_1 :: Event
 testObject_Event_user_1 = (Event (ConvDelete) ((Id (fromJust (UUID.fromString "00005d81-0000-0d71-0000-1d8f00007d32")))) ((Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830")))) (read "1864-05-22 09:51:07.104 UTC") (EdConvDelete))
 
@@ -154,7 +112,7 @@ testObject_Event_user_9 :: Event
 testObject_Event_user_9 = (Event (ConvAccessUpdate) ((Id (fromJust (UUID.fromString "00004847-0000-1eb9-0000-2973000039ca")))) ((Id (fromJust (UUID.fromString "000044e3-0000-1c36-0000-42fd00006e01")))) (read "1864-05-21 16:22:14.886 UTC") ((EdConvAccessUpdate (ConversationAccessUpdate {cupAccess = [PrivateAccess, PrivateAccess, PrivateAccess, LinkAccess, InviteAccess, LinkAccess, CodeAccess], cupAccessRole = NonActivatedAccessRole}))))
 
 testObject_Event_user_10 :: Event
-testObject_Event_user_10 = (Event (ConvCreate) ((Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d")))) ((Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c")))) (read "1864-05-29 19:31:31.226 UTC") ((EdConversation (Conversation {cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), cnvType = RegularConv, cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))), cnvAccess = [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess], cnvAccessRole = NonActivatedAccessRole, cnvName = Just "\a\SO\r", cnvMembers = ConvMembers {cmSelf = Member {memId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), memService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))}), memOtrMuted = False, memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), memOtrMutedRef = Just "", memOtrArchived = True, memOtrArchivedRef = Just "", memHidden = True, memHiddenRef = Just "", memConvRoleName = (fromJust (parseRoleName "kf_7rcnb2oilvdmd9nelmwf52gikr4aqkhktyn5vjzg7lq1dnzym812q1innmegmx9a"))}, cmOthers = [OtherMember {omId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))), omService = Nothing, omConvRoleName = (fromJust (parseRoleName "4190csbyn6n7ooa8w4d7y9na9_a4m5hgvvmfnowu9zib_29nepamxsxl0gvq2hrfzp7obu_mtj43j0rd38jyd9r5j7xvf2ujge7s0pnt43g9cyal_ak2alwyf8uda"))}, OtherMember {omId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))}), omConvRoleName = (fromJust (parseRoleName "yv7zy3tkxrvz7aj3vvdv3e57pdi8euyuiatpvj48yl8ecw2xskacp737wl269wnts4rgbn1f93zbrkxs5oltt61e099wwzgztqpat4laqk6rqafvb_9aku2w"))}, OtherMember {omId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))}), omConvRoleName = (fromJust (parseRoleName "zsltc_f04kycbem134adefbzjuyd7"))}, OtherMember {omId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))}), omConvRoleName = (fromJust (parseRoleName "nm1gzd7dfqwcf_u3zfq991ylfmjavcs0s0gm6kjq532pjjflua6u5f_xk8dxm1t1g4s3mc2piv631phv19qvtix62s4q6_rc4xj5dh3wmoer_"))}]}, cnvTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))), cnvMessageTimer = Just (Ms {ms = 283898987885780}), cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})}))))
+testObject_Event_user_10 = (Event (ConvCreate) ((Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d")))) ((Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c")))) (read "1864-05-29 19:31:31.226 UTC") ((EdConversation (Conversation {cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), cnvType = RegularConv, cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))), cnvAccess = [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess], cnvAccessRole = NonActivatedAccessRole, cnvName = Just "\a\SO\r", cnvMembers = ConvMembers {cmSelf = Member {memId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), memService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))}), memOtrMuted = False, memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), memOtrMutedRef = Just "", memOtrArchived = True, memOtrArchivedRef = Just "", memHidden = True, memHiddenRef = Just "", memConvRoleName = (fromJust (parseRoleName "kf_7rcnb2oilvdmd9nelmwf52gikr4aqkhktyn5vjzg7lq1dnzym812q1innmegmx9a"))}, cmOthers = [OtherMember {omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain, omService = Nothing, omConvRoleName = (fromJust (parseRoleName "4190csbyn6n7ooa8w4d7y9na9_a4m5hgvvmfnowu9zib_29nepamxsxl0gvq2hrfzp7obu_mtj43j0rd38jyd9r5j7xvf2ujge7s0pnt43g9cyal_ak2alwyf8uda"))}, OtherMember {omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain, omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))}), omConvRoleName = (fromJust (parseRoleName "yv7zy3tkxrvz7aj3vvdv3e57pdi8euyuiatpvj48yl8ecw2xskacp737wl269wnts4rgbn1f93zbrkxs5oltt61e099wwzgztqpat4laqk6rqafvb_9aku2w"))}, OtherMember {omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) domain, omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))}), omConvRoleName = (fromJust (parseRoleName "zsltc_f04kycbem134adefbzjuyd7"))}, OtherMember {omQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) domain, omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))}), omConvRoleName = (fromJust (parseRoleName "nm1gzd7dfqwcf_u3zfq991ylfmjavcs0s0gm6kjq532pjjflua6u5f_xk8dxm1t1g4s3mc2piv631phv19qvtix62s4q6_rc4xj5dh3wmoer_"))}]}, cnvTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))), cnvMessageTimer = Just (Ms {ms = 283898987885780}), cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})}))))
 
 testObject_Event_user_11 :: Event
 testObject_Event_user_11 = (Event (MemberStateUpdate) ((Id (fromJust (UUID.fromString "000031c2-0000-108c-0000-10a500000882")))) ((Id (fromJust (UUID.fromString "00005335-0000-2983-0000-46460000082f")))) (read "1864-05-03 06:49:41.178 UTC") ((EdMemberUpdate (MemberUpdateData {misTarget = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000000"))), misOtrMuted = Nothing, misOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}), misOtrMutedRef = Just "v\1034354", misOtrArchived = Just True, misOtrArchivedRef = Just "v6", misHidden = Just False, misHiddenRef = Just "D", misConvRoleName = Just (fromJust (parseRoleName "spkf0ayk4c4obgc_l2lj54cljtj25ph"))}))))
