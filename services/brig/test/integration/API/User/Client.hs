@@ -538,7 +538,7 @@ testUpdateClient opts brig = do
   -- update supported client features
   let checkUpdate :: HasCallStack => Maybe [SupportedClientFeature] -> Bool -> [SupportedClientFeature] -> Http ()
       checkUpdate featuresIn respStatusOk featuresOut = do
-        let update'' = UpdateClient [] Nothing Nothing featuresIn
+        let update'' = UpdateClient [] Nothing Nothing (Set.fromList <$> featuresIn)
         put
           ( brig
               . paths ["clients", toByteString' (clientId c)]
@@ -555,7 +555,7 @@ testUpdateClient opts brig = do
 
         getClientSupportedFeatures brig uid (clientId c) !!! do
           const 200 === statusCode
-          const (Just (SupportedClientFeatureList featuresOut)) === responseJsonMaybe
+          const (Just (SupportedClientFeatureList (Set.fromList featuresOut))) === responseJsonMaybe
 
   checkUpdate (Just [ClientSupportsLegalholdImplicitConsent]) True [ClientSupportsLegalholdImplicitConsent]
   checkUpdate Nothing True [ClientSupportsLegalholdImplicitConsent]

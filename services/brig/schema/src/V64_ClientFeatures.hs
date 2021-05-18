@@ -29,4 +29,4 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 64 "Add supported client features to clients table" $ do
-  schema' [r| alter columnfamily clients add supported_features list<int>; |]
+  schema' [r| alter columnfamily clients add supported_features set<int>; |]

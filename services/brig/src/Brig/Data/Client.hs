@@ -51,7 +51,7 @@ import Brig.Types
 import Brig.Types.Instances ()
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
-import Cassandra hiding (Client)
+import Cassandra as C hiding (Client)
 import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
@@ -132,9 +132,9 @@ lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupClientSupportedFeatures :: MonadClient m => UserId -> ClientId -> m (Maybe [SupportedClientFeature])
+lookupClientSupportedFeatures :: MonadClient m => UserId -> ClientId -> m (Maybe (Imports.Set SupportedClientFeature))
 lookupClientSupportedFeatures u c =
-  fmap runIdentity
+  fmap (Set.fromList . C.fromSet . runIdentity)
     <$> retry x1 (query1 selectClientSupportedFeatures (params Quorum (u, c)))
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
@@ -181,8 +181,8 @@ rmClient u c = do
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
 
-updateClientSupportedFeatures :: MonadClient m => UserId -> ClientId -> Maybe [SupportedClientFeature] -> m ()
-updateClientSupportedFeatures u c fs = retry x5 $ write updateClientSupportedFeaturesQuery (params Quorum (fs, u, c))
+updateClientSupportedFeatures :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set SupportedClientFeature) -> m ()
+updateClientSupportedFeatures u c fs = retry x5 $ write updateClientSupportedFeaturesQuery (params Quorum (C.Set . Set.toList <$> fs, u, c))
 
 updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
@@ -244,7 +244,7 @@ insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, c
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
 updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
 
-updateClientSupportedFeaturesQuery :: PrepQuery W (Maybe [SupportedClientFeature], UserId, ClientId) ()
+updateClientSupportedFeaturesQuery :: PrepQuery W (Maybe (C.Set SupportedClientFeature), UserId, ClientId) ()
 updateClientSupportedFeaturesQuery = "UPDATE clients SET supported_features = ? WHERE user = ? AND client = ?"
 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
@@ -259,7 +259,7 @@ selectPubClients = "SELECT client, class from clients where user = ?"
 selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
 
-selectClientSupportedFeatures :: PrepQuery R (UserId, ClientId) (Identity [SupportedClientFeature])
+selectClientSupportedFeatures :: PrepQuery R (UserId, ClientId) (Identity (C.Set SupportedClientFeature))
 selectClientSupportedFeatures = "SELECT supported_features from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()

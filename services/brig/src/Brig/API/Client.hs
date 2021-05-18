@@ -89,7 +89,7 @@ lookupLocalClient = Data.lookupClient
 
 lookupLocalClientSupportedFeatures :: UserId -> ClientId -> AppIO SupportedClientFeatureList
 lookupLocalClientSupportedFeatures uid cid =
-  SupportedClientFeatureList . fromMaybe [] <$> Data.lookupClientSupportedFeatures uid cid
+  SupportedClientFeatureList . fromMaybe mempty <$> Data.lookupClientSupportedFeatures uid cid
 
 lookupClients :: Qualified UserId -> ExceptT ClientError AppIO [Client]
 lookupClients (Qualified uid domain) = do
@@ -138,8 +138,8 @@ updateClient u c r = do
     throwE ClientNotFound
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
   for_ (updateClientSupportedFeatures r) $ \features' -> do
-    features <- fromMaybe [] <$> Data.lookupClientSupportedFeatures u c
-    if Set.fromList features `Set.isSubsetOf` Set.fromList features'
+    features <- fromMaybe mempty <$> Data.lookupClientSupportedFeatures u c
+    if features `Set.isSubsetOf` features'
       then lift . Data.updateClientSupportedFeatures u c . Just $ features'
       else throwE ClientFeaturesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
