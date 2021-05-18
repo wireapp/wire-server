@@ -25,7 +25,6 @@ import Brig.Types (Prekey, PrekeyBundle)
 import Brig.User.API.Handle
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
-import qualified Data.Map.Strict as Map
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
@@ -34,7 +33,7 @@ import Wire.API.Federation.API.Brig hiding (Api (..))
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client (PubClient, UserClients (..))
+import Wire.API.User.Client (PubClient)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
