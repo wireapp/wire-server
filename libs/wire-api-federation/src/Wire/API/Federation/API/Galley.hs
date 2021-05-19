@@ -35,8 +35,7 @@ data Api routes = Api
   { getConversations ::
       routes
         :- "federation"
-        :> "conversations"
-        :> "get-by-ids"
+        :> "get-conversations"
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
     -- used by backend that owns the conversation to inform the backend about
@@ -44,8 +43,7 @@ data Api routes = Api
     updateConversationMemberships ::
       routes
         :- "federation"
-        :> "conversations"
-        :> "update-membership"
+        :> "update-conversation-memberships"
         :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] ()
   }

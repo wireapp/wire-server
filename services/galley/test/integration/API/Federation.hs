@@ -38,8 +38,8 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "federation"
-    [ test s "getConversations: All Found" getConversationsAllFound,
-      test s "getConversations: Conversations user is not a part of are excluded from result" getConversationsNotPartOf
+    [ test s "GET /federation/get-conversations : All Found" getConversationsAllFound,
+      test s "GET /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf
     ]
 
 getConversationsAllFound :: TestM ()

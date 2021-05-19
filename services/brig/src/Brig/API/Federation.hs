@@ -30,22 +30,23 @@ import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
-import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
+import qualified Wire.API.Federation.API.Brig as Federated
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 
-federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
+federationSitemap :: ServerT (ToServantApi Federated.Api) Handler
 federationSitemap =
   genericServerT $
-    FederationAPIBrig.Api
-      getUserByHandle
-      getUsersByIds
-      claimPrekey
-      getPrekeyBundle
-      getMultiPrekeyBundle
-      searchUsers
+    Federated.Api
+      { Federated.getUserByHandle = getUserByHandle,
+        Federated.getUsersByIds = getUsersByIds,
+        Federated.claimPrekey = claimPrekey,
+        Federated.claimPrekeyBundle = claimPrekeyBundle,
+        Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
+        Federated.searchUsers = searchUsers
+      }
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do
@@ -63,11 +64,11 @@ getUsersByIds uids =
 claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
 claimPrekey (user, client) = lift (Data.claimPrekey user client)
 
-getPrekeyBundle :: UserId -> Handler PrekeyBundle
-getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)
+claimPrekeyBundle :: UserId -> Handler PrekeyBundle
+claimPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)
 
-getMultiPrekeyBundle :: UserClients -> Handler (UserClientMap (Maybe Prekey))
-getMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles uc)
+claimMultiPrekeyBundle :: UserClients -> Handler (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles uc)
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
