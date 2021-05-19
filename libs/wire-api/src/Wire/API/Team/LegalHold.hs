@@ -237,7 +237,15 @@ data UserLegalHoldStatusResponse = UserLegalHoldStatusResponse
   deriving (Arbitrary) via (GenericUniform UserLegalHoldStatusResponse)
 
 instance ToSchema UserLegalHoldStatusResponse where
-  declareNamedSchema _ =
+  declareNamedSchema _ = do
+    clientSchema <- declareSchemaRef (Proxy @(IdObject ClientId))
+    let properties_ :: InsOrdHashMap Text (Referenced Schema)
+        properties_ =
+          fromList
+            [ ("status", Inline (toSchema (Proxy @UserLegalHoldStatus))),
+              ("last_prekey", Inline (toSchema (Proxy @LastPrekey))),
+              ("client", clientSchema)
+            ]
     pure $
       NamedSchema (Just "UserLegalHoldStatusResponse") $
         mempty
@@ -246,14 +254,6 @@ instance ToSchema UserLegalHoldStatusResponse where
           & minProperties .~ Just 1
           & maxProperties .~ Just 3
           & type_ .~ Just SwaggerObject
-    where
-      properties_ :: InsOrdHashMap Text (Referenced Schema)
-      properties_ =
-        fromList
-          [ ("status", Inline (toSchema (Proxy @UserLegalHoldStatus))),
-            ("last_prekey", Inline (toSchema (Proxy @LastPrekey))),
-            ("client", Inline (toSchema (Proxy @(IdObject ClientId))))
-          ]
 
 instance ToJSON UserLegalHoldStatusResponse where
   toJSON (UserLegalHoldStatusResponse status lastPrekey' clientId') =
