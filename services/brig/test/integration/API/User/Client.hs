@@ -535,10 +535,10 @@ testUpdateClient opts brig = do
     const 200 === statusCode
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
-  -- update supported client features work
+  -- update supported client capabilities work
   let checkUpdate :: HasCallStack => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
-      checkUpdate featuresIn respStatusOk featuresOut = do
-        let update'' = UpdateClient [] Nothing Nothing (Set.fromList <$> featuresIn)
+      checkUpdate capsIn respStatusOk capsOut = do
+        let update'' = UpdateClient [] Nothing Nothing (Set.fromList <$> capsIn)
         put
           ( brig
               . paths ["clients", toByteString' (clientId c)]
@@ -553,15 +553,15 @@ testUpdateClient opts brig = do
               const 409 === statusCode
               const (Just "client-capabilities-cannot-be-removed") === fmap Error.label . responseJsonMaybe
 
-        getClientSupportedFeatures brig uid (clientId c) !!! do
+        getClientCapabilities brig uid (clientId c) !!! do
           const 200 === statusCode
-          const (Just (ClientCapabilityList (Set.fromList featuresOut))) === responseJsonMaybe
+          const (Just (ClientCapabilityList (Set.fromList capsOut))) === responseJsonMaybe
 
   checkUpdate (Just [ClientSupportsLegalholdImplicitConsent]) True [ClientSupportsLegalholdImplicitConsent]
   checkUpdate Nothing True [ClientSupportsLegalholdImplicitConsent]
   checkUpdate (Just []) False [ClientSupportsLegalholdImplicitConsent]
 
-  -- update supported client features don't break prekeys or label
+  -- update supported client capabilities don't break prekeys or label
   do
     let checkClientLabel :: HasCallStack => Http ()
         checkClientLabel = do
@@ -586,7 +586,7 @@ testUpdateClient opts brig = do
               assertEqual "" (clientId c) cid'
               assertEqual "" expectedPrekey prekey'
 
-        clientfeatures = Just $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
+        caps = Just $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
 
         label = "label-bc1b7b0c-b7bf-11eb-9a1d-233d397f934a"
         prekey = somePrekeys !! 4
@@ -607,7 +607,7 @@ testUpdateClient opts brig = do
           . paths ["clients", toByteString' (clientId c)]
           . zUser uid
           . contentJson
-          . (body . RequestBodyLBS . encode $ UpdateClient [] Nothing Nothing clientfeatures)
+          . (body . RequestBodyLBS . encode $ UpdateClient [] Nothing Nothing caps)
       )
       !!! const 200 === statusCode
     checkClientLabel

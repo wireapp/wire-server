@@ -137,10 +137,10 @@ updateClient u c r = do
   unless ok $
     throwE ClientNotFound
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
-  for_ (updateClientCapabilities r) $ \features' -> do
-    features <- fromMaybe mempty <$> Data.lookupClientCapabilities u c
-    if features `Set.isSubsetOf` features'
-      then lift . Data.updateClientCapabilities u c . Just $ features'
+  for_ (updateClientCapabilities r) $ \caps' -> do
+    caps <- fromMaybe mempty <$> Data.lookupClientCapabilities u c
+    if caps `Set.isSubsetOf` caps'
+      then lift . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError

@@ -547,7 +547,7 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelClient)
     Doc.response 200 "Client" Doc.end
 
-  get "/clients/:client/supported-features" (continue getClientCapabilitiesH) $
+  get "/clients/:client/capabilities" (continue getClientCapabilitiesH) $
     zauthUserId
       .&. capture "client"
       .&. accept "application" "json"

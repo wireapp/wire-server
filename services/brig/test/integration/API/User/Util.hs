@@ -189,11 +189,11 @@ getClient brig u c =
       . paths ["clients", toByteString' c]
       . zUser u
 
-getClientSupportedFeatures :: Brig -> UserId -> ClientId -> (MonadIO m, MonadHttp m) => m ResponseLBS
-getClientSupportedFeatures brig u c =
+getClientCapabilities :: Brig -> UserId -> ClientId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getClientCapabilities brig u c =
   get $
     brig
-      . paths ["clients", toByteString' c, "supported-features"]
+      . paths ["clients", toByteString' c, "capabilities"]
       . zUser u
 
 getUserClientsUnqualified :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
