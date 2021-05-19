@@ -61,6 +61,7 @@ library:
   - http-types >=0.8
   - imports
   - insert-ordered-containers
+  - interpolate
   - iproute >=1.5
   - iso639 >=0.1
   - lens >=3.8

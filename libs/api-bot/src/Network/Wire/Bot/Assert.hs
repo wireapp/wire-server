@@ -21,6 +21,7 @@
 module Network.Wire.Bot.Assert where
 
 import Data.Id (ConvId, UserId)
+import Data.Qualified (qUnqualified)
 import qualified Data.Set as Set
 import Imports
 import Network.Wire.Bot.Monad
@@ -46,7 +47,7 @@ assertConvCreated c b bs = do
       EConvCreate e ->
         let cnv = convEvtData e
             mems = cnvMembers cnv
-            omems = Set.fromList (map omId (cmOthers mems))
+            omems = Set.fromList (map (qUnqualified . omQualifiedId) (cmOthers mems))
          in cnvId cnv == c
               && convEvtFrom e == botId b
               && cnvType cnv == RegularConv

@@ -29,7 +29,6 @@ module Spar.API
 
     -- * API types
     API,
-    OutsideWorldAPI,
 
     -- ** Individual API pieces
     APIAuthReqPrecheck,
@@ -57,9 +56,6 @@ import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import Servant.Swagger
-import Spar.API.Swagger ()
-import Spar.API.Types
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Error
@@ -67,9 +63,11 @@ import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
-import Spar.Scim.Swagger ()
-import Spar.Types
 import qualified URI.ByteString as URI
+import Wire.API.Cookie
+import Wire.API.Routes.Public.Spar
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
 
 app :: Env -> Application
 app ctx =
@@ -87,8 +85,7 @@ api opts =
 
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts =
-  pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> SAML.meta appName sparSPIssuer sparResponseURI
+  SAML.meta appName sparSPIssuer sparResponseURI
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
     :<|> authresp
@@ -149,7 +146,7 @@ initializeBindCookie zusr authreqttl = do
     if isJust zusr
       then liftIO $ Just . cs . ES.encode <$> randBytes 32
       else pure Nothing
-  cky <- SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
+  cky <- fmap SetBindCookie . SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 

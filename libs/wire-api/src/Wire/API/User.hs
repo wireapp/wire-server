@@ -142,19 +142,19 @@ newtype UserIdList = UserIdList
   {mUsers :: [UserId]}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIdList
+
+instance ToSchema UserIdList where
+  schema =
+    object "UserIdList" $
+      UserIdList
+        <$> mUsers .= field "user_ids" (array schema)
 
 modelUserIdList :: Doc.Model
 modelUserIdList = Doc.defineModel "UserIdList" $ do
   Doc.description "list of user ids"
   Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "the array of team conversations"
-
-instance FromJSON UserIdList where
-  parseJSON = A.withObject "user-ids-payload" $ \o ->
-    UserIdList <$> o A..: "user_ids"
-
-instance ToJSON UserIdList where
-  toJSON e = A.object ["user_ids" A..= mUsers e]
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
@@ -1036,6 +1036,6 @@ instance S.ToSchema ListUsersQuery where
       S.NamedSchema (Just "ListUsersQuery") $
         mempty
           & S.type_ ?~ S.SwaggerObject
-          & S.description ?~ "exactly one of qualifie_ids or qualified_handles must be provided."
+          & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])

@@ -1693,7 +1693,7 @@ checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvCreate
   case evtData e of
-    Just (Conv.EdConversation x) -> cnvId x @?= cid
+    Conv.EdConversation x -> cnvId x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
@@ -1710,7 +1710,7 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
   evtConv e @?= cid
-  evtData e @?= Nothing
+  evtData e @?= Conv.EdConvDelete
 
 checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
@@ -1719,7 +1719,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
-    Just (Conv.EdMembersLeave mm) -> mm @?= Conv.UserIdList [usr]
+    Conv.EdMembersLeave mm -> mm @?= Conv.UserIdList [usr]
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 postCryptoBroadcastMessageJson :: TestM ()

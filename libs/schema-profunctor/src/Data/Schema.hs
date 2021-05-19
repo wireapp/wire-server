@@ -30,6 +30,9 @@ module Data.Schema
     ToSchema (..),
     Schema (..),
     mkSchema,
+    schemaDoc,
+    schemaIn,
+    schemaOut,
     HasDoc (..),
     withParser,
     SwaggerDoc,
@@ -37,15 +40,19 @@ module Data.Schema
     NamedSwaggerDoc,
     object,
     objectWithDocModifier,
+    objectOver,
     jsonObject,
     field,
     fieldWithDocModifier,
+    fieldOver,
     array,
     nonEmptyArray,
     enum,
     opt,
     optWithDefault,
     lax,
+    bind,
+    dispatch,
     text,
     parsedText,
     element,
@@ -64,6 +71,7 @@ where
 import Control.Applicative
 import Control.Comonad
 import Control.Lens hiding (element, enum, (.=))
+import Control.Monad.Trans.Cont
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
 import Data.List.NonEmpty (NonEmpty)
@@ -240,10 +248,30 @@ schemaOut :: SchemaP ss v m a b -> a -> Maybe m
 schemaOut (SchemaP _ _ (SchemaOut o)) = o
 
 -- | A schema for a one-field JSON object.
-field :: HasField doc' doc => Text -> ValueSchema doc' a -> ObjectSchema doc a
-field name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+field ::
+  forall doc' doc a b.
+  HasField doc' doc =>
+  Text ->
+  SchemaP doc' A.Value A.Value a b ->
+  SchemaP doc A.Object [A.Pair] a b
+field = fieldOver id
+
+-- | A version of 'field' for more general input values.
+--
+-- This can be used when the input type 'v' of the parser is not exactly a
+-- 'A.Object', but it contains one. The first argument is a lens that can
+-- extract the 'A.Object' contained in 'v'.
+fieldOver ::
+  HasField doc' doc =>
+  Lens v v' A.Object A.Value ->
+  Text ->
+  SchemaP doc' v' A.Value a b ->
+  SchemaP doc v [A.Pair] a b
+fieldOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
-    r obj = A.explicitParseField (schemaIn sch) obj name
+    parseField obj = ContT $ \k -> A.explicitParseField k obj name
+    r obj = runContT (l parseField obj) (schemaIn sch)
+
     w x = do
       v <- schemaOut sch x
       pure [name A..= v]
@@ -272,10 +300,26 @@ tag f = rmap runIdentity . f . rmap Identity
 --
 -- This can be used to convert a combination of schemas obtained using
 -- 'field' into a single schema for a JSON object.
-object :: HasObject doc doc' => Text -> ObjectSchema doc a -> ValueSchema doc' a
-object name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+object ::
+  HasObject doc doc' =>
+  Text ->
+  SchemaP doc A.Object [A.Pair] a b ->
+  SchemaP doc' A.Value A.Value a b
+object = objectOver id
+
+-- | A version of 'object' for more general input values.
+--
+-- Just like 'fieldOver', but for 'object'.
+objectOver ::
+  HasObject doc doc' =>
+  Lens v v' A.Value A.Object ->
+  Text ->
+  SchemaP doc v' [A.Pair] a b ->
+  SchemaP doc' v A.Value a b
+objectOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
-    r = A.withObject (T.unpack name) (schemaIn sch)
+    parseObject val = ContT $ \k -> A.withObject (T.unpack name) k val
+    r v = runContT (l parseObject v) (schemaIn sch)
     w x = A.object <$> schemaOut sch x
     s = mkObject name (schemaDoc sch)
 
@@ -397,6 +441,44 @@ optWithDefault w0 sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- 'Nothing' in case of failure.
 lax :: Alternative f => f (Maybe a) -> f (Maybe a)
 lax = fmap join . optional
+
+-- | A schema depending on a parsed value.
+--
+-- Even though 'SchemaP' does not expose a monadic interface, it is possible to
+-- make the parser of a schema depend on the values parsed by a previous
+-- schema.
+--
+-- For example, a schema for an object containing a "type" field which
+-- determines how the rest of the object is parsed. To construct the schema to
+-- use as the second argument of 'bind', one can use 'dispatch'.
+bind ::
+  (Monoid d, Monoid w) =>
+  SchemaP d v w a b ->
+  SchemaP d (v, b) w a c ->
+  SchemaP d v w a (b, c)
+bind sch1 sch2 = mkSchema d i o
+  where
+    d = schemaDoc sch1 <> schemaDoc sch2
+    i v = do
+      b <- schemaIn sch1 v
+      c <- schemaIn sch2 (v, b)
+      pure (b, c)
+    o a = (<>) <$> schemaOut sch1 a <*> schemaOut sch2 a
+
+-- | A union of schemas over a finite type of "tags".
+--
+-- Normally used together with 'bind' to construct schemas that depend on some
+-- "tag" value.
+dispatch ::
+  (Bounded t, Enum t, Monoid d) =>
+  (t -> SchemaP d v w a b) ->
+  SchemaP d (v, t) w a b
+dispatch sch = mkSchema d i o
+  where
+    allSch = foldMap sch (enumFromTo minBound maxBound)
+    d = schemaDoc allSch
+    o = schemaOut allSch
+    i (v, t) = schemaIn (sch t) v
 
 -- | A schema for a textual value.
 text :: Text -> ValueSchema NamedSwaggerDoc Text

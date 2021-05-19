@@ -31,10 +31,10 @@ import Data.Time (UTCTime)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (Issuer (..))
+import Spar.Data (NormalizedUNameID (unNormalizedUNameID), normalizeQualifiedNameId)
 import Spar.Data.Instances ()
 import Spar.DataMigration.Types (logger)
 import Spar.DataMigration.Types hiding (logger)
-import Spar.Types (NormalizedUNameID (unNormalizedUNameID), normalizeQualifiedNameId)
 import qualified System.Logger as Log
 import URI.ByteString (serializeURIRef')
 

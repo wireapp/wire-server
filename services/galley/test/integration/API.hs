@@ -39,15 +39,18 @@ import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
+import Data.Domain (Domain (Domain))
 import Data.Id
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
-import Galley.Types hiding (InternalMember (..), Member)
+import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
@@ -108,6 +111,7 @@ tests s =
           test s "add past members" postMembersOk3,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
+          test s "add remote members" testAddRemoteMember,
           test s "remove members" deleteMembersOk,
           test s "fail to remove members from self conv." deleteMembersFailSelf,
           test s "fail to remove members from 1:1 conv." deleteMembersFailO2O,
@@ -139,6 +143,8 @@ status :: TestM ()
 status = do
   g <- view tsGalley
   get (g . path "/i/status")
+    !!! const 200 === statusCode
+  Bilge.head (g . path "/i/status")
     !!! const 200 === statusCode
 
 metrics :: TestM ()
@@ -177,7 +183,7 @@ postConvOk = do
       evtType e @?= ConvCreate
       evtFrom e @?= alice
       case evtData e of
-        Just (EdConversation c') -> assertConvEquals cnv c'
+        EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
 postCryptoMessage1 :: TestM ()
@@ -857,6 +863,31 @@ leaveConnectConversation = do
   let c = fromMaybe (error "invalid connect conversation") (cnvId <$> responseJsonUnsafe bdy)
   deleteMember alice alice c !!! const 403 === statusCode
 
+-- This test adds a non existent remote user to a local conversation and expects
+-- a 200. This is of course not correct. When we implement a remote call, we
+-- must mock it by mocking the federator and expecting a successful response
+-- from the remote.  Additionally, another test must be added to deal with error
+-- scenarios of federation.
+-- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
+testAddRemoteMember :: TestM ()
+testAddRemoteMember = do
+  alice <- randomUser
+  bobId <- randomId
+  let remoteBob = Qualified bobId (Domain "far-away.example.com")
+  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  e <- responseJsonUnsafe <$> (postQualifiedMembers alice (remoteBob :| []) convId <!! const 200 === statusCode)
+  liftIO $ do
+    evtConv e @?= convId
+    evtType e @?= MemberJoin
+    -- FUTUREWORK: implement returning remote users in the event.
+    -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
+    evtFrom e @?= alice
+  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
+  liftIO $ do
+    let actual = cmOthers $ cnvMembers conv
+    let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
+    assertEqual "other members should include remoteBob" expected actual
+
 postMembersOk :: TestM ()
 postMembersOk = do
   alice <- randomUser
@@ -866,7 +897,12 @@ postMembersOk = do
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  postMembers alice (singleton eve) conv !!! const 200 === statusCode
+  e <- responseJsonUnsafe <$> (postMembers alice (singleton eve) conv <!! const 200 === statusCode)
+  liftIO $ do
+    evtConv e @?= conv
+    evtType e @?= MemberJoin
+    evtData e @?= EdMembersJoin (SimpleMembers [SimpleMember eve roleNameWireAdmin])
+    evtFrom e @?= alice
   -- Check that last_event markers are set for all members
   forM_ [alice, bob, chuck, eve] $ \u -> do
     _ <- getSelfMember u conv <!! const 200 === statusCode
@@ -981,7 +1017,7 @@ putConvRenameOk = do
       evtConv e @?= conv
       evtType e @?= ConvRename
       evtFrom e @?= bob
-      evtData e @?= Just (EdConvRename (ConversationRename "gossip++"))
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putMemberOtrMuteOk :: TestM ()
 putMemberOtrMuteOk = do
@@ -1044,7 +1080,7 @@ putMemberOk update = do
       evtType e @?= MemberStateUpdate
       evtFrom e @?= bob
       case evtData e of
-        Just (EdMemberUpdate mis) -> do
+        EdMemberUpdate mis -> do
           assertEqual "otr_muted" (mupOtrMute update) (misOtrMuted mis)
           assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
           assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
@@ -1106,7 +1142,7 @@ putReceiptModeOk = do
       evtType e @?= ConvReceiptModeUpdate
       evtFrom e @?= alice
       case evtData e of
-        Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode))) ->
+        EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)) ->
           assertEqual "modes should match" mode 0
         _ -> assertFailure "Unexpected event data"
 
@@ -1140,25 +1176,27 @@ removeUser :: TestM ()
 removeUser = do
   c <- view tsCannon
   alice <- randomUser
-  bob <- randomUser
-  carl <- randomUser
-  connectUsers alice (list1 bob [carl])
-  conv1 <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
-  conv2 <- decodeConvId <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-  conv3 <- decodeConvId <$> postConv alice [carl] (Just "gossip3") [] Nothing Nothing
-  WS.bracketR3 c alice bob carl $ \(wsA, wsB, wsC) -> do
-    deleteUser bob
+  bob <- randomQualifiedUser
+  carl <- randomQualifiedUser
+  let carl' = qUnqualified carl
+  let bob' = qUnqualified bob
+  connectUsers alice (list1 bob' [carl'])
+  conv1 <- decodeConvId <$> postConv alice [bob'] (Just "gossip") [] Nothing Nothing
+  conv2 <- decodeConvId <$> postConv alice [bob', carl'] (Just "gossip2") [] Nothing Nothing
+  conv3 <- decodeConvId <$> postConv alice [carl'] (Just "gossip3") [] Nothing Nothing
+  WS.bracketR3 c alice bob' carl' $ \(wsA, wsB, wsC) -> do
+    deleteUser bob'
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        matchMemberLeave conv1 bob
+        matchMemberLeave conv1 bob'
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        matchMemberLeave conv2 bob
+        matchMemberLeave conv2 bob'
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
   mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
-  let other u = find ((== u) . omId) . cmOthers
+  let other u = find ((== u) . omQualifiedId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
     (mems2 >>= other bob) @?= Nothing
@@ -1172,4 +1210,4 @@ removeUser = do
       evtConv e @?= conv
       evtType e @?= MemberLeave
       evtFrom e @?= u
-      evtData e @?= Just (EdMembersLeave (UserIdList [u]))
+      evtData e @?= EdMembersLeave (UserIdList [u])

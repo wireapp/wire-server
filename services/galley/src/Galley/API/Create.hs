@@ -48,17 +48,13 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
-import Servant (Headers, WithStatus (..))
+import Servant (WithStatus (..))
 import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Routes.Public.Galley (ConversationResponses)
 
 -- Servant helpers ------------------------------------------------------
-
-type ConversationResponses =
-  '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
-     WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
-   ]
 
 conversationResponse :: ConversationResponse -> Union ConversationResponses
 conversationResponse (ConversationExisted c) =
@@ -265,7 +261,7 @@ createConnectConversation usr conn j = do
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
-        let e = Event ConvConnect (Data.convId conv) usr t (Just $ EdConnect j)
+        let e = Event ConvConnect (Data.convId conv) usr t (EdConnect j)
         for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
           push1 $
             p
@@ -302,7 +298,7 @@ notifyCreatedConversation dtime usr conn c = do
       | otherwise = RouteDirect
     toPush t m = do
       c' <- conversationView (memId m) c
-      let e = Event ConvCreate (Data.convId c) usr t (Just $ EdConversation c')
+      let e = Event ConvCreate (Data.convId c) usr t (EdConversation c')
       return $
         newPush1 ListComplete (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn

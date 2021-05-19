@@ -41,10 +41,12 @@ import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.ProtocolBuffers (encodeMessage)
+import Data.Qualified
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
@@ -56,7 +58,7 @@ import Data.UUID.V4
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types hiding (InternalMember (..), Member)
+import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
 import qualified Galley.Types.Teams as Team
@@ -82,6 +84,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Timeout
 import Web.Cookie
+import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
@@ -686,6 +689,19 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
+postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
+postQualifiedMembers zusr invitees conv = do
+  g <- view tsGalley
+  let invite = Public.InviteQualified invitees roleNameWireAdmin
+  post $
+    g
+      -- FUTUREWORK: use an endpoint without /i/ once it's ready.
+      . paths ["i", "conversations", toByteString' conv, "members", "v2"]
+      . zUser zusr
+      . zConn "conn"
+      . zType "access"
+      . json invite
+
 postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
 postMembers u us c = do
   g <- view tsGalley
@@ -987,7 +1003,7 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "creator" (Just c) (cnvCreator <$> cnv)
     assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
     assertEqual "self" (Just s) (memId <$> _self)
-    assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map omId . toList <$> others)
+    assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map (qUnqualified . omQualifiedId) . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
     assertBool "others role" (all (\x -> x == role) $ fromMaybe (error "Cannot be null") ((map omConvRoleName . toList <$> others)))
     assertBool "otr muted not false" (Just False == (memOtrMuted <$> _self))
@@ -1011,7 +1027,7 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtConv e @?= conv
   evtType e @?= OtrMessageAdd
   evtFrom e @?= usr
-  evtData e @?= Just (EdOtrMessage (OtrMessage from to txt (Just evData)))
+  evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 -- | This assumes the default role name
 wsAssertMemberJoin :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
@@ -1024,7 +1040,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtConv e @?= conv
   evtType e @?= MemberJoin
   evtFrom e @?= usr
-  evtData e @?= Just (EdMembersJoin $ SimpleMembers (fmap (\x -> SimpleMember x role) new))
+  evtData e @?= EdMembersJoin (SimpleMembers (fmap (\x -> SimpleMember x role) new))
 
 wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1034,7 +1050,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtType e @?= MemberStateUpdate
   evtFrom e @?= usr
   case evtData e of
-    Just (Galley.Types.EdMemberUpdate mis) -> do
+    Galley.Types.EdMemberUpdate mis -> do
       assertEqual "target" (Just target) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
@@ -1046,7 +1062,7 @@ wsAssertConvAccessUpdate conv usr new n = do
   evtConv e @?= conv
   evtType e @?= ConvAccessUpdate
   evtFrom e @?= usr
-  evtData e @?= Just (EdConvAccessUpdate new)
+  evtData e @?= EdConvAccessUpdate new
 
 wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
@@ -1055,7 +1071,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtConv e @?= conv
   evtType e @?= ConvMessageTimerUpdate
   evtFrom e @?= usr
-  evtData e @?= Just (EdConvMessageTimerUpdate new)
+  evtData e @?= EdConvMessageTimerUpdate new
 
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
@@ -1064,9 +1080,9 @@ wsAssertMemberLeave conv usr old n = do
   evtConv e @?= conv
   evtType e @?= MemberLeave
   evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (Just (EdMembersLeave (UserIdList old)))
+  sorted (evtData e) @?= sorted (EdMembersLeave (UserIdList old))
   where
-    sorted (Just (EdMembersLeave (UserIdList m))) = Just (EdMembersLeave (UserIdList (sort m)))
+    sorted (EdMembersLeave (UserIdList m)) = EdMembersLeave (UserIdList (sort m))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
@@ -1100,7 +1116,7 @@ decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
 decodeConvCodeEvent r = case responseJsonUnsafe r of
-  (Event ConvCodeUpdate _ _ _ (Just (EdConvCodeUpdate c))) -> c
+  (Event ConvCodeUpdate _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
@@ -1188,12 +1204,15 @@ randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
 
 randomUser :: HasCallStack => TestM UserId
-randomUser = randomUser' False True True
+randomUser = qUnqualified <$> randomUser' False True True
+
+randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
+randomQualifiedUser = randomUser' False True True
 
 randomTeamCreator :: HasCallStack => TestM UserId
-randomTeamCreator = randomUser' True True True
+randomTeamCreator = qUnqualified <$> randomUser' True True True
 
-randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM UserId
+randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM (Qualified UserId)
 randomUser' isCreator hasPassword hasEmail = do
   b <- view tsBrig
   e <- liftIO randomEmail
@@ -1203,8 +1222,8 @@ randomUser' isCreator hasPassword hasEmail = do
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
             <> ["team" .= (Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
-  r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
-  fromBS (getHeader' "Location" r)
+  selfProfile <- responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
+  pure . userQualifiedId . selfUser $ selfProfile
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do

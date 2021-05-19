@@ -71,8 +71,6 @@ data T
 
 data STo
 
-data Remote a
-
 type AssetId = Id A
 
 type InvitationId = Id I
@@ -335,7 +333,7 @@ instance DecodeWire RequestId where
 
 newtype IdObject a = IdObject {fromIdObject :: a}
   deriving (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via Schema (IdObject a)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (IdObject a)
 
 instance ToSchema a => ToSchema (IdObject a) where
   schema =

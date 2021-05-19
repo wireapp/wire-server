@@ -36,6 +36,9 @@ module Spar.Data
     getVerdictFormat,
 
     -- * SAML Users
+    NormalizedUNameID (..),
+    normalizeUnqualifiedNameId,
+    normalizeQualifiedNameId,
     insertSAMLUser,
     getSAMLUser,
     getSAMLAnyUserByIssuer,
@@ -90,6 +93,7 @@ import Cassandra as Cas
 import Control.Arrow (Arrow ((&&&)))
 import Control.Lens
 import Control.Monad.Except
+import Data.CaseInsensitive (foldCase)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.List.NonEmpty as NL
@@ -98,14 +102,19 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import Spar.Types
+import qualified Text.Email.Parser as Email
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
+import Wire.API.Cookie
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
@@ -257,6 +266,35 @@ getVerdictFormat req =
 ----------------------------------------------------------------------
 -- user
 
+-- | Used as a lookup key for 'UnqualifiedNameID' that only depends on the
+-- lowercase version of the identifier. Use 'normalizeUnqualifiedNameId' or
+-- 'normalizeQualifiedNameId' to create values.
+newtype NormalizedUNameID = NormalizedUNameID {unNormalizedUNameID :: Text}
+  deriving stock (Eq, Ord, Generic)
+
+instance Cql NormalizedUNameID where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unNormalizedUNameID
+  fromCql (CqlText t) = pure $ NormalizedUNameID t
+  fromCql _ = Left "NormalizedNameID: expected CqlText"
+
+normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
+normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
+  where
+    nameIdTxt :: SAML.UnqualifiedNameID -> ST
+    nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEmail (SAML.Email txt)) = cs $ Email.toByteString txt
+    nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDWindows txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDKerberos txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEntity uri) = renderURI uri
+    nameIdTxt (SAML.UNameIDPersistent txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDTransient txt) = SAML.unsafeFromXmlText txt
+
+-- | Qualifiers are ignored.
+normalizeQualifiedNameId :: SAML.NameID -> NormalizedUNameID
+normalizeQualifiedNameId = normalizeUnqualifiedNameId . view SAML.nameID
+
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
 insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, normalizeQualifiedNameId subject, subject, uid)
@@ -352,7 +390,7 @@ insertBindCookie ::
 insertBindCookie cky uid ttlNDT = do
   env <- ask
   TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
-  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ cky
   retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
   where
     ins :: PrepQuery W (ST, UserId, Int32) ()

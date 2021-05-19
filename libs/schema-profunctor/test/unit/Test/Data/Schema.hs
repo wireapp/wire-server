@@ -18,7 +18,8 @@
 module Test.Data.Schema where
 
 import Control.Applicative
-import Control.Lens (Prism', at, prism', (?~), (^.))
+import Control.Arrow ((&&&))
+import Control.Lens (Prism', at, ix, nullOf, prism', (?~), (^.), _1)
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, decode, encode, fromJSON)
 import Data.Aeson.QQ
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -26,6 +27,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
+import qualified Data.Swagger.Declare as S
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -48,10 +50,16 @@ tests =
       testUser1FromJSON,
       testUser2ToJSON,
       testUser2FromJSON,
+      testTaggedObjectToJSON,
+      testTaggedObjectFromJSON,
+      testTaggedObject2ToJSON,
+      testTaggedObject2FromJSON,
+      testTaggedObject3FromJSON,
       testNonEmptyParseFailure,
       testNonEmptyParseSuccess,
       testNonEmptyToJSON,
-      testNonEmptySchema
+      testNonEmptySchema,
+      testRefField
     ]
 
 testFooToJSON :: TestTree
@@ -178,6 +186,48 @@ testUser2FromJSON =
       (Just exampleUser2)
       (decode exampleUser2JSON)
 
+testTaggedObjectToJSON :: TestTree
+testTaggedObjectToJSON =
+  testCase "toJSON TaggedObject" $
+    assertEqual
+      "toJSON should match handwritten JSON"
+      exampleTaggedObjectJSON
+      (toJSON exampleTaggedObject)
+
+testTaggedObjectFromJSON :: TestTree
+testTaggedObjectFromJSON =
+  testCase "fromJSON TaggedObject" $
+    assertEqual
+      "fromJSON should match example"
+      (Success exampleTaggedObject)
+      (fromJSON exampleTaggedObjectJSON)
+
+testTaggedObject2ToJSON :: TestTree
+testTaggedObject2ToJSON =
+  testCase "toJSON TaggedObject 2" $
+    assertEqual
+      "toJSON should match handwritten JSON"
+      exampleTaggedObject2JSON
+      (toJSON exampleTaggedObject2)
+
+testTaggedObject2FromJSON :: TestTree
+testTaggedObject2FromJSON =
+  testCase "fromJSON TaggedObject 2" $
+    assertEqual
+      "fromJSON should match example"
+      (Success exampleTaggedObject2)
+      (fromJSON exampleTaggedObject2JSON)
+
+testTaggedObject3FromJSON :: TestTree
+testTaggedObject3FromJSON =
+  testCase "fromJSON TaggedObject failure" $
+    case fromJSON @TaggedObject exampleTaggedObject3JSON of
+      Success _ -> assertFailure "fromJSON should fail"
+      Error err -> do
+        assertBool
+          "fromJSON error should mention missing key"
+          ("\"tag1_data\"" `isInfixOf` err)
+
 testNonEmptyParseFailure :: TestTree
 testNonEmptyParseFailure =
   testCase "NonEmpty parse failure" $ do
@@ -220,6 +270,13 @@ testNonEmptySchema =
       Just (S.Inline nlSch) -> do
         assertEqual "type should be Array" (Just S.SwaggerArray) (nlSch ^. S.type_)
         assertEqual "minItems should be 1" (Just 1) (nlSch ^. S.minItems)
+
+testRefField :: TestTree
+testRefField =
+  testCase "Reference in a field" $ do
+    let (defs, _) = S.runDeclare (S.declareSchemaRef (Proxy @Named)) mempty
+    assertBool "Referenced schema should be declared" $
+      not . nullOf (ix "Name") $ defs
 
 ---
 
@@ -343,9 +400,76 @@ exampleUser2 = User "Bob" Nothing (Just 100)
 exampleUser2JSON :: LByteString
 exampleUser2JSON = "{\"expire\":100,\"name\":\"Bob\"}"
 
+-- bind schemas
+
+data TaggedObject = TO
+  { toTag :: Tag,
+    toObj :: UntaggedObject
+  }
+  deriving (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema TaggedObject
+
+data UntaggedObject = Obj1 String | Obj2 Int
+  deriving (Eq, Show)
+
+data Tag = Tag1 | Tag2
+  deriving (Eq, Show, Enum, Bounded)
+
+_Obj1 :: Prism' UntaggedObject String
+_Obj1 = prism' Obj1 $ \case
+  Obj1 a -> Just a
+  _ -> Nothing
+
+_Obj2 :: Prism' UntaggedObject Int
+_Obj2 = prism' Obj2 $ \case
+  Obj2 b -> Just b
+  _ -> Nothing
+
+instance ToSchema Tag where
+  schema = enum @Text "Tag" (element "tag1" Tag1 <> element "tag2" Tag2)
+
+instance ToSchema TaggedObject where
+  schema =
+    object "TaggedObject" $
+      uncurry TO <$> (toTag &&& toObj)
+        .= bind
+          (fst .= field "tag" schema)
+          (snd .= fieldOver _1 "obj" (objectOver _1 "UntaggedObject" untaggedSchema))
+    where
+      untaggedSchema = dispatch $ \case
+        Tag1 -> tag _Obj1 (field "tag1_data" schema)
+        Tag2 -> tag _Obj2 (field "tag2_data" schema)
+
+exampleTaggedObject :: TaggedObject
+exampleTaggedObject = TO Tag1 (Obj1 "foo")
+
+exampleTaggedObjectJSON :: Value
+exampleTaggedObjectJSON = [aesonQQ| {"tag": "tag1", "obj": { "tag1_data": "foo" } } |]
+
+exampleTaggedObject2 :: TaggedObject
+exampleTaggedObject2 = TO Tag2 (Obj2 44)
+
+exampleTaggedObject2JSON :: Value
+exampleTaggedObject2JSON = [aesonQQ| {"tag": "tag2", "obj": { "tag2_data": 44 } } |]
+
+exampleTaggedObject3JSON :: Value
+exampleTaggedObject3JSON = [aesonQQ| {"tag": "tag1", "obj": { "tag2_data": 44 } } |]
+
+-- non empty
+
 newtype NonEmptyTest = NonEmptyTest {nl :: NonEmpty Text}
   deriving stock (Eq, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema NonEmptyTest
 
 instance ToSchema NonEmptyTest where
   schema = object "NonEmptyTest" $ NonEmptyTest <$> nl .= field "nl" (nonEmptyArray schema)
+
+-- references
+
+newtype Named = Named {getName :: Text}
+
+instance ToSchema Named where
+  schema = Named <$> getName .= object "Named" (field "name" (text "Name"))
+
+instance S.ToSchema Named where
+  declareNamedSchema = schemaToSwagger

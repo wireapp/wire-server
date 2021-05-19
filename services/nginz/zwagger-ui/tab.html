@@ -78,7 +78,7 @@
          $('#hide-access-token').hide();
      });
      window.swaggerUi = new SwaggerUi({
-         url: $('#input_base_url')[0].value + '/' + $('#input_url_suffix')[0].value + '/api-docs/',
+         url: $('#input_base_url')[0].value + '/' + $('#input_url_suffix')[0].value,
          dom_id: "swagger-ui-container",
          supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
          onComplete: function(swaggerApi, swaggerUi) {
