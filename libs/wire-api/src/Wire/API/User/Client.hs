@@ -176,12 +176,10 @@ instance Schema.ToSchema SupportedClientFeatureList where
   schema =
     Schema.objectWithDocModifier "SupportedClientFeatureList" mods $
       SupportedClientFeatureList
-        <$> fromSupportedClientFeatureList Schema..= Schema.field "feature_list" Schema.schema
+        <$> (Set.toList . fromSupportedClientFeatureList)
+          Schema..= Schema.field "feature_list" (Set.fromList <$> Schema.array Schema.schema)
     where
       mods = Schema.description ?~ ("Hints provided by the client for the backend so it can behavior in a backwards-compatible way." :: Text)
-
-instance Schema.ToSchema (Set SupportedClientFeature) where
-  schema = Schema.schema @[SupportedClientFeature]
 
 modelClientSupportedFeatureList :: Doc.Model
 modelClientSupportedFeatureList = Doc.defineModel "SupportedClientFeatureList" $ do
