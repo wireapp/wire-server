@@ -192,6 +192,7 @@ data ClientError
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
   | ClientFederationError FederationError
+  | ClientCapabilitiesCannotBeRemoved
 
 data RemoveIdentityError
   = LastIdentity

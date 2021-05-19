@@ -179,6 +179,7 @@ clientError (ClientUserNotFound _) = StdError invalidUser
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
+clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 
 fedError :: FederationError -> Error
 fedError (FederationUnavailable err) = StdError (federationUnavailable err)
@@ -272,6 +273,9 @@ tooManyClients = Wai.Error status403 "too-many-clients" "Too many clients"
 
 malformedPrekeys :: Wai.Error
 malformedPrekeys = Wai.Error status400 "bad-request" "Malformed prekeys uploaded."
+
+clientCapabilitiesCannotBeRemoved :: Wai.Error
+clientCapabilitiesCannotBeRemoved = Wai.Error status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
 
 invalidUser :: Wai.Error
 invalidUser = Wai.Error status400 "invalid-user" "Invalid user."

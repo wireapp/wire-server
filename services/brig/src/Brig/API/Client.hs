@@ -25,6 +25,7 @@ module Brig.API.Client
     legalHoldClientRequested,
     removeLegalHoldClient,
     lookupClient,
+    lookupLocalClientCapabilities,
     lookupClients,
     lookupPubClientsBulk,
     Data.lookupPrekeyIds,
@@ -63,6 +64,7 @@ import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import qualified Data.Set as Set
 import Galley.Types (UserClientMap (..), UserClients (..))
 import Imports
 import Network.Wai.Utilities
@@ -71,7 +73,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..))
+import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientMap (..), QualifiedUserClients (..))
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
 lookupClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
@@ -84,6 +86,10 @@ lookupClient (Qualified uid domain) clientId = do
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
+
+lookupLocalClientCapabilities :: UserId -> ClientId -> AppIO ClientCapabilityList
+lookupLocalClientCapabilities uid cid =
+  ClientCapabilityList . fromMaybe mempty <$> Data.lookupClientCapabilities uid cid
 
 lookupClients :: Qualified UserId -> ExceptT ClientError AppIO [Client]
 lookupClients (Qualified uid domain) = do
@@ -131,6 +137,11 @@ updateClient u c r = do
   unless ok $
     throwE ClientNotFound
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
+  for_ (updateClientCapabilities r) $ \caps' -> do
+    caps <- fromMaybe mempty <$> Data.lookupClientCapabilities u c
+    if caps `Set.isSubsetOf` caps'
+      then lift . Data.updateClientCapabilities u c . Just $ caps'
+      else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
 
