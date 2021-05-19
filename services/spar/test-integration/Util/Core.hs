@@ -171,15 +171,12 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.API.Types
 import Spar.App (toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Scim.Types (runValidExternalId)
-import Spar.Types
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -192,11 +189,16 @@ import URI.ByteString
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
+import Wire.API.Cookie
+import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim (runValidExternalId)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -793,6 +795,9 @@ getCookie proxy rsp = do
     then Right $ SimpleSetCookie web
     else Left $ "bad cookie name.  (found, expected) == " <> show (Web.setCookieName web, SAML.cookieName proxy)
 
+getSetBindCookie :: ResponseLBS -> Either String SetBindCookie
+getSetBindCookie = fmap SetBindCookie . getCookie (Proxy @"zbind")
+
 -- | In 'setResponseCookie' we set an expiration date iff cookie is persistent.  So here we test for
 -- expiration date.  Easier than parsing and inspecting the cookie value.
 hasPersistentCookieHeader :: ResponseLBS -> Either String ()
@@ -805,19 +810,19 @@ hasPersistentCookieHeader rsp = do
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
 -- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
 hasDeleteBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasDeleteBindCookieHeader rsp = isDeleteBindCookie =<< getCookie (Proxy @"zbind") rsp
+hasDeleteBindCookieHeader rsp = isDeleteBindCookie =<< getSetBindCookie rsp
 
 isDeleteBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isDeleteBindCookie (SimpleSetCookie cky) =
+isDeleteBindCookie (SetBindCookie (SimpleSetCookie cky)) =
   if (SAML.Time <$> Web.setCookieExpires cky) == Just (SAML.unsafeReadTime "1970-01-01T00:00:00Z")
     then Right ()
     else Left $ "expiration should be empty: " <> show cky
 
 hasSetBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasSetBindCookieHeader rsp = isSetBindCookie =<< getCookie (Proxy @"zbind") rsp
+hasSetBindCookieHeader rsp = isSetBindCookie =<< getSetBindCookie rsp
 
 isSetBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isSetBindCookie (SimpleSetCookie cky) = do
+isSetBindCookie (SetBindCookie (SimpleSetCookie cky)) = do
   unless (Web.setCookieName cky == "zbind") $ do
     Left $ "expected zbind cookie: " <> show cky
   unless (maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky) $ do
@@ -885,7 +890,7 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
         )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
   let wireCookie =
-        SAML.SimpleSetCookie . Web.parseSetCookie
+        SetBindCookie . SAML.SimpleSetCookie . Web.parseSetCookie
           <$> lookup "Set-Cookie" (responseHeaders resp)
   pure (authnreq, wireCookie)
 

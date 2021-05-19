@@ -51,6 +51,7 @@ import qualified Servant.Server as Servant
 import qualified System.Logger.Class as Log
 import Util.Options
 import qualified Wire.API.Federation.API.Galley as FederationGalley
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 run :: Opts -> IO ()
 run o = do
@@ -88,8 +89,7 @@ mkApp o = do
     servantApp e r =
       Servant.serve
         (Proxy @CombinedAPI)
-        ( API.swaggerDocsAPI
-            :<|> Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
+        ( Servant.hoistServer (Proxy @GalleyAPI.ServantAPI) (toServantHandler e) API.servantSitemap
             :<|> Servant.hoistServer (Proxy @Internal.ServantAPI) (toServantHandler e) Internal.servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
@@ -102,7 +102,7 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
 
-type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
+type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do

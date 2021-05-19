@@ -111,6 +111,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Notification as Public
+import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))

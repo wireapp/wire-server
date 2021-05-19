@@ -35,10 +35,10 @@ import qualified Data.Yaml as Yaml
 import Imports
 import Options.Applicative
 import qualified SAML2.WebSSO as SAML
-import Spar.API.Types
-import Spar.Types
 import Text.Ascii (ascii)
 import URI.ByteString as URI
+import Wire.API.Routes.Public.Spar
+import Wire.API.User.Saml
 
 type OptsRaw = Opts' (Maybe ())
 

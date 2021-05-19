@@ -18,7 +18,9 @@
 module Data.LegalHold where
 
 import Cassandra.CQL
-import Data.Aeson
+import Control.Lens ((?~))
+import Data.Aeson hiding (constructorTagModifier)
+import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Imports
@@ -30,6 +32,24 @@ data UserLegalHoldStatus
   | UserLegalHoldEnabled
   | UserLegalHoldNoConsent
   deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
+
+instance ToSchema UserLegalHoldStatus where
+  declareNamedSchema = tweak . genericDeclareNamedSchema opts
+    where
+      opts =
+        defaultSchemaOptions
+          { constructorTagModifier = \case
+              "UserLegalHoldEnabled" -> "enabled"
+              "UserLegalHoldPending" -> "pending"
+              "UserLegalHoldDisabled" -> "disabled"
+              "UserLegalHoldNoConsent" -> "no_consent"
+              _ -> ""
+          }
+      tweak = fmap $ schema . description ?~ descr
+        where
+          descr =
+            "states whether a user is under legal hold, "
+              <> "or whether legal hold is pending approval."
 
 defUserLegalHoldStatus :: UserLegalHoldStatus
 defUserLegalHoldStatus = UserLegalHoldNoConsent

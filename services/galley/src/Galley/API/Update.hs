@@ -97,7 +97,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import Servant (NoContent, respond)
+import Servant (respond)
 import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
 import Wire.API.Conversation (InviteQualified (invQRoleName))
@@ -106,6 +106,7 @@ import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.Public.Galley (UpdateResponses)
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -451,11 +452,6 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   domain <- viewFederationDomain
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
-
-type UpdateResponses =
-  '[ WithStatus 200 Public.Event,
-     NoContent
-   ]
 
 addMembersQH :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (Union UpdateResponses)
 addMembersQH zusr zcon convId invite = mapUpdateToServant =<< addMembers zusr zcon convId invite

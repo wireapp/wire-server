@@ -38,9 +38,10 @@ import Data.X509 (SignedCertificate)
 import Imports
 import SAML2.Util (parseURI')
 import qualified SAML2.WebSSO as SAML
-import Spar.Types
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import URI.ByteString
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 
 instance Cql SAML.XmlText where
   ctype = Tagged TextColumn

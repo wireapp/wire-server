@@ -57,7 +57,6 @@ import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import GHC.Generics hiding (to)
 import GHC.TypeLits
-import Galley.API.Swagger (GalleyRoutes)
 import qualified Galley.App as Galley
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
@@ -86,6 +85,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
 
 onlyIfLhEnabled :: TestM () -> TestM ()
@@ -152,7 +152,7 @@ tests s =
 -- deeply misguided from me.)
 testSwaggerJsonConsistency :: TestM ()
 testSwaggerJsonConsistency = do
-  liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @GalleyRoutes)
+  liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @LegalHoldAPI.ServantAPI)
 
 testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = do

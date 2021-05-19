@@ -48,17 +48,13 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
-import Servant (Headers, WithStatus (..))
+import Servant (WithStatus (..))
 import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Routes.Public.Galley (ConversationResponses)
 
 -- Servant helpers ------------------------------------------------------
-
-type ConversationResponses =
-  '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
-     WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
-   ]
 
 conversationResponse :: ConversationResponse -> Union ConversationResponses
 conversationResponse (ConversationExisted c) =

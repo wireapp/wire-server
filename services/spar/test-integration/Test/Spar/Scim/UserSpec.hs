@@ -58,8 +58,6 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
-import Spar.Types (IdP, Opts' (..))
-import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
@@ -70,7 +68,10 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import Wire.API.Team.Invitation (Invitation (..))
+import Wire.API.User.IdentityProvider (IdP)
 import Wire.API.User.RichInfo
+import qualified Wire.API.User.Saml as Spar.Types
+import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
 

@@ -42,7 +42,6 @@ import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
 import Spar.Scim
-import Spar.Types (ScimToken (..), ScimTokenInfo (..), ScimTokenLookupKey (..), hashScimToken)
 import Text.RawString.QQ (r)
 import Util
 

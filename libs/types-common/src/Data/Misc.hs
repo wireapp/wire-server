@@ -302,6 +302,12 @@ newtype Fingerprint a = Fingerprint
   deriving stock (Eq, Show, Generic)
   deriving newtype (FromByteString, ToByteString, NFData)
 
+instance S.ToSchema (Fingerprint Rsa) where
+  declareNamedSchema _ = tweak $ S.declareNamedSchema (Proxy @Text)
+    where
+      tweak = fmap $ S.schema . S.example ?~ fpr
+      fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
+
 instance FromJSON (Fingerprint Rsa) where
   parseJSON =
     A.withText "Fingerprint" $
