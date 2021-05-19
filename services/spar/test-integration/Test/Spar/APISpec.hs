@@ -24,6 +24,7 @@ where
 
 import Bilge
 import Brig.Types.User
+import Cassandra hiding (Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson as Aeson
@@ -89,6 +90,7 @@ spec = do
   specScimAndSAML
   specAux
   specSsoSettings
+  specSparUserMigration
 
 specMisc :: SpecWith TestEnv
 specMisc = do
@@ -1299,3 +1301,40 @@ getSsoidViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
   either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
+
+specSparUserMigration :: SpecWith TestEnv
+specSparUserMigration = do
+  describe "online migration from spar.user to spar.user_v2" $
+    it "online migration - user in legacy table can log in" $ do
+      env <- ask
+
+      (_ownerid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+      spmeta <- getTestSPMetadata
+
+      (issuer, subject) <- do
+        suffix <- cs <$> replicateM 7 (getRandomR ('a', 'z'))
+        let randEmail = "email_" <> suffix <> "@example.com"
+        uname <- either (error . show) pure (SAML.mkUNameIDEmail randEmail)
+        let subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
+        let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+        pure (issuer, subj)
+
+      memberUid <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (Galley.rolePermissions Galley.RoleMember)
+
+      do
+        -- insert to legacy tale
+        client <- asks (^. teCql)
+        let insert :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
+            insert = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
+        runClient client $
+          retry x5 $ write insert (params Quorum (issuer, subject, memberUid))
+
+      mbUserId <- do
+        authnreq <- negotiateAuthnRequest idp
+        authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta authnreq True
+        sparresp <- submitAuthnResponse authnresp
+        liftIO $ statusCode sparresp `shouldBe` 200
+        ssoid <- getSsoidViaAuthResp authnresp
+        ssoToUidSpar tid ssoid
+
+      liftIO $ mbUserId `shouldBe` Just memberUid
