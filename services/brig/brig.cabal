@@ -434,7 +434,7 @@ executable brig-schema
       V61_team_invitation_email
       V62_RemoveFederationIdMapping
       V63_AddUsersPendingActivation
-      V64_ClientFeatures
+      V64_ClientCapabilities
       V9
       Paths_brig
   hs-source-dirs:

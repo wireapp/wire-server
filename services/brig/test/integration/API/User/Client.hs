@@ -50,10 +50,10 @@ import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client
-  ( QualifiedUserClientMap (..),
+  ( ClientCapability (ClientSupportsLegalholdImplicitConsent),
+    ClientCapabilityList (ClientCapabilityList),
+    QualifiedUserClientMap (..),
     QualifiedUserClients (..),
-    SupportedClientFeature (ClientSupportsLegalholdImplicitConsent),
-    SupportedClientFeatureList (SupportedClientFeatureList),
     UserClientMap (..),
     UserClients (..),
   )
@@ -536,7 +536,7 @@ testUpdateClient opts brig = do
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
   -- update supported client features work
-  let checkUpdate :: HasCallStack => Maybe [SupportedClientFeature] -> Bool -> [SupportedClientFeature] -> Http ()
+  let checkUpdate :: HasCallStack => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate featuresIn respStatusOk featuresOut = do
         let update'' = UpdateClient [] Nothing Nothing (Set.fromList <$> featuresIn)
         put
@@ -551,11 +551,11 @@ testUpdateClient opts brig = do
               const 200 === statusCode
             else do
               const 409 === statusCode
-              const (Just "client-feature-cannot-be-removed") === fmap Error.label . responseJsonMaybe
+              const (Just "client-capabilities-cannot-be-removed") === fmap Error.label . responseJsonMaybe
 
         getClientSupportedFeatures brig uid (clientId c) !!! do
           const 200 === statusCode
-          const (Just (SupportedClientFeatureList (Set.fromList featuresOut))) === responseJsonMaybe
+          const (Just (ClientCapabilityList (Set.fromList featuresOut))) === responseJsonMaybe
 
   checkUpdate (Just [ClientSupportsLegalholdImplicitConsent]) True [ClientSupportsLegalholdImplicitConsent]
   checkUpdate Nothing True [ClientSupportsLegalholdImplicitConsent]

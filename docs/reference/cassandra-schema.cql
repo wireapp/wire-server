@@ -1151,6 +1151,7 @@ CREATE TABLE brig_test.password_reset (
 CREATE TABLE brig_test.clients (
     user uuid,
     client text,
+    capabilities set<int>,
     class int,
     cookie text,
     ip inet,
@@ -1158,7 +1159,6 @@ CREATE TABLE brig_test.clients (
     lat double,
     lon double,
     model text,
-    supported_features set<int>,
     tstamp timestamp,
     type int,
     PRIMARY KEY (user, client)

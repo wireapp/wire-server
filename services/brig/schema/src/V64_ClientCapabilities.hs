@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V64_ClientFeatures
+module V64_ClientCapabilities
   ( migration,
   )
 where
@@ -28,5 +28,5 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 64 "Add supported client features to clients table" $ do
-  schema' [r| alter columnfamily clients add supported_features set<int>; |]
+migration = Migration 64 "Add supported capabilities set to clients table" $ do
+  schema' [r| alter columnfamily clients add capabilities set<int>; |]

@@ -25,7 +25,7 @@ module Brig.API.Client
     legalHoldClientRequested,
     removeLegalHoldClient,
     lookupClient,
-    lookupLocalClientSupportedFeatures,
+    lookupLocalClientCapabilities,
     lookupClients,
     lookupPubClientsBulk,
     Data.lookupPrekeyIds,
@@ -73,7 +73,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), SupportedClientFeatureList (..))
+import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientMap (..), QualifiedUserClients (..))
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
 lookupClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
@@ -87,9 +87,9 @@ lookupClient (Qualified uid domain) clientId = do
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
 
-lookupLocalClientSupportedFeatures :: UserId -> ClientId -> AppIO SupportedClientFeatureList
-lookupLocalClientSupportedFeatures uid cid =
-  SupportedClientFeatureList . fromMaybe mempty <$> Data.lookupClientSupportedFeatures uid cid
+lookupLocalClientCapabilities :: UserId -> ClientId -> AppIO ClientCapabilityList
+lookupLocalClientCapabilities uid cid =
+  ClientCapabilityList . fromMaybe mempty <$> Data.lookupClientCapabilities uid cid
 
 lookupClients :: Qualified UserId -> ExceptT ClientError AppIO [Client]
 lookupClients (Qualified uid domain) = do
@@ -137,11 +137,11 @@ updateClient u c r = do
   unless ok $
     throwE ClientNotFound
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
-  for_ (updateClientSupportedFeatures r) $ \features' -> do
-    features <- fromMaybe mempty <$> Data.lookupClientSupportedFeatures u c
+  for_ (updateClientCapabilities r) $ \features' -> do
+    features <- fromMaybe mempty <$> Data.lookupClientCapabilities u c
     if features `Set.isSubsetOf` features'
-      then lift . Data.updateClientSupportedFeatures u c . Just $ features'
-      else throwE ClientFeaturesCannotBeRemoved
+      then lift . Data.updateClientCapabilities u c . Just $ features'
+      else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
 

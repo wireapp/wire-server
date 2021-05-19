@@ -547,15 +547,15 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelClient)
     Doc.response 200 "Client" Doc.end
 
-  get "/clients/:client/supported-features" (continue getClientSupportedFeaturesH) $
+  get "/clients/:client/supported-features" (continue getClientCapabilitiesH) $
     zauthUserId
       .&. capture "client"
       .&. accept "application" "json"
-  document "GET" "getClientSupportedFeatureList" $ do
+  document "GET" "getClientCapabilities" $ do
     Doc.summary "Read back what the client has been posting about itself."
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.modelClientSupportedFeatureList)
+    Doc.returns (Doc.ref Public.modelClientCapabilityList)
     Doc.response 200 "Client" Doc.end
 
   get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
@@ -946,11 +946,11 @@ getClient zusr clientId = do
   localdomain <- viewFederationDomain
   API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
 
-getClientSupportedFeaturesH :: UserId ::: ClientId ::: JSON -> Handler Response
-getClientSupportedFeaturesH (uid ::: cid ::: _) = json <$> getClientSupportedFeatures uid cid
+getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
+getClientCapabilitiesH (uid ::: cid ::: _) = json <$> getClientCapabilities uid cid
 
-getClientSupportedFeatures :: UserId -> ClientId -> Handler Public.SupportedClientFeatureList
-getClientSupportedFeatures uid cid = lift $ API.lookupLocalClientSupportedFeatures uid cid
+getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
+getClientCapabilities uid cid = lift $ API.lookupLocalClientCapabilities uid cid
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =

@@ -26,13 +26,13 @@ module Brig.Data.Client
     rmClient,
     hasClient,
     lookupClient,
-    lookupClientSupportedFeatures,
+    lookupClientCapabilities,
     lookupClients,
     lookupPubClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
     Brig.Data.Client.updateClientLabel,
-    Brig.Data.Client.updateClientSupportedFeatures,
+    Brig.Data.Client.updateClientCapabilities,
 
     -- * Prekeys
     claimPrekey,
@@ -78,7 +78,7 @@ import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (pooledMapConcurrentlyN)
-import Wire.API.User.Client (SupportedClientFeature)
+import Wire.API.User.Client (ClientCapability)
 import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
@@ -132,10 +132,10 @@ lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupClientSupportedFeatures :: MonadClient m => UserId -> ClientId -> m (Maybe (Imports.Set SupportedClientFeature))
-lookupClientSupportedFeatures u c =
+lookupClientCapabilities :: MonadClient m => UserId -> ClientId -> m (Maybe (Imports.Set ClientCapability))
+lookupClientCapabilities u c =
   fmap (Set.fromList . C.fromSet . runIdentity)
-    <$> retry x1 (query1 selectClientSupportedFeatures (params Quorum (u, c)))
+    <$> retry x1 (query1 selectClientCapabilities (params Quorum (u, c)))
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
 lookupPubClientsBulk uids = liftClient $ do
@@ -181,8 +181,8 @@ rmClient u c = do
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
 
-updateClientSupportedFeatures :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set SupportedClientFeature) -> m ()
-updateClientSupportedFeatures u c fs = retry x5 $ write updateClientSupportedFeaturesQuery (params Quorum (C.Set . Set.toList <$> fs, u, c))
+updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
+updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params Quorum (C.Set . Set.toList <$> fs, u, c))
 
 updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
@@ -244,8 +244,8 @@ insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, c
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
 updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
 
-updateClientSupportedFeaturesQuery :: PrepQuery W (Maybe (C.Set SupportedClientFeature), UserId, ClientId) ()
-updateClientSupportedFeaturesQuery = "UPDATE clients SET supported_features = ? WHERE user = ? AND client = ?"
+updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
+updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
@@ -259,8 +259,8 @@ selectPubClients = "SELECT client, class from clients where user = ?"
 selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
 
-selectClientSupportedFeatures :: PrepQuery R (UserId, ClientId) (Identity (C.Set SupportedClientFeature))
-selectClientSupportedFeatures = "SELECT supported_features from clients where user = ? and client = ?"
+selectClientCapabilities :: PrepQuery R (UserId, ClientId) (Identity (C.Set ClientCapability))
+selectClientCapabilities = "SELECT capabilities from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"

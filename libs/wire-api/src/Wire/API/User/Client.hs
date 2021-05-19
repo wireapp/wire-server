@@ -19,9 +19,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User.Client
-  ( -- * SupportedClientFeature
-    SupportedClientFeature (..),
-    SupportedClientFeatureList (..),
+  ( -- * ClientCapability
+    ClientCapability (..),
+    ClientCapabilityList (..),
 
     -- * UserClients
     UserClientMap (..),
@@ -55,8 +55,8 @@ module Wire.API.User.Client
     modelUserClients,
     modelNewClient,
     modelUpdateClient,
-    modelClientSupportedFeatureList,
-    typeSupportedClientFeature,
+    modelClientCapabilityList,
+    typeClientCapability,
     modelDeleteClient,
     modelClient,
     modelSigkeys,
@@ -101,91 +101,91 @@ import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
 
 ----------------------------------------------------------------------
--- SupportedClientFeature, SupportedClientFeatureList
+-- ClientCapability, ClientCapabilityList
 
--- | Names of features clients can claim to support in order to be treated differently by the
--- backend.
+-- | Names of capabilities clients can claim to support in order to be treated differently by
+-- the backend.
 --
--- **The cost of feature switches**
+-- **The cost of capability keywords**
 --
--- Avoid this wherever possible.  Adding feature switches in the backend code makes testing
+-- Avoid this wherever possible.  Adding capability keywords in the backend code makes testing
 -- exponentially more expensive (in principle, you should always test all combinations of
--- supported features.  But even if you only test those known to occur in the wild, it will
+-- supported capabilitiess.  But even if you only test those known to occur in the wild, it will
 -- still make your life harder.)
 --
--- Consider dropping support for clients without ancient features if you have "enough" clients
+-- Consider dropping support for clients without ancient capabilitiess if you have "enough" clients
 -- that are younger.  This will always be disruptive for a minority of users, but maybe this
 -- can be mitigated by giving those users clear feedback that they need to upgrade in order to
 -- get their expected UX back.
 --
 -- **An alternative design**
 --
--- Consider replacing 'SupportedClientFeature' with platform and version in formation (I
+-- Consider replacing 'ClientCapability' with platform and version in formation (I
 -- played with @data Platform = Android | IOS | WebApp | TeamSettings | AccountPages@ and
 -- @Version@ from the `semver` package in https://github.com/wireapp/wire-server/pull/1503,
 -- but ended up deciding against it).  This data could be passed in a similar way as the
--- 'SupportedClientFeatureList' is now (similar end-point, different path, different body
+-- 'ClientCapabilityList' is now (similar end-point, different path, different body
 -- type), and the two approaches could be used in parallel indefinitely.
 --
--- Feature flags only reveal the minimum amount of information necessary to handle the client,
+-- Capability keywords reveal the minimum amount of information necessary to handle the client,
 -- making it harder to fingerprint and track clients; they are straight-forward and
--- self-documenting (to an extent), and make it easier to release a feature on the backend and
+-- self-documenting (to an extent), and make it easier to release a capability on the backend and
 -- clients independently.
 --
--- Platform/version info is if you have many different feature switches, even though it
--- doesn't solve the problem of having to explore the entire feature space in your tests.
+-- Platform/version info is if you have many different capability keywords, even though it
+-- doesn't solve the problem of having to explore the entire capability space in your tests.
 -- They give you a better idea of the time line, and how to gently discontinue support for
--- ancient features.
-data SupportedClientFeature
+-- ancient capabilities.
+data ClientCapability
   = -- | Clients have minimum support for LH, but not for explicit consent.  Implicit consent
     -- is granted via the galley server config (see '_setLegalHoldTeamsWhitelist').
     ClientSupportsLegalholdImplicitConsent
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SupportedClientFeature)
-  deriving (ToJSON, FromJSON, Swagger.ToSchema) via Schema.Schema SupportedClientFeature
+  deriving (Arbitrary) via (GenericUniform ClientCapability)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via Schema.Schema ClientCapability
 
-instance Schema.ToSchema SupportedClientFeature where
+instance Schema.ToSchema ClientCapability where
   schema =
-    Schema.enum @Text "SupportedClientFeature" $
+    Schema.enum @Text "ClientCapability" $
       Schema.element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
 
-typeSupportedClientFeature :: Doc.DataType
-typeSupportedClientFeature =
+typeClientCapability :: Doc.DataType
+typeClientCapability =
   Doc.string $
     Doc.enum
       [ "legalhold-implicit-consent"
       ]
 
-instance Cql.Cql SupportedClientFeature where
+instance Cql.Cql ClientCapability where
   ctype = Cql.Tagged Cql.IntColumn
 
   toCql ClientSupportsLegalholdImplicitConsent = Cql.CqlInt 1
 
   fromCql (Cql.CqlInt i) = case i of
     1 -> return ClientSupportsLegalholdImplicitConsent
-    n -> Left $ "Unexpected SupportedClientFeature value: " ++ show n
-  fromCql _ = Left "SupportedClientFeature value: int expected"
+    n -> Left $ "Unexpected ClientCapability value: " ++ show n
+  fromCql _ = Left "ClientCapability value: int expected"
 
 -- FUTUREWORK: add golden tests for this?
-data SupportedClientFeatureList = SupportedClientFeatureList {fromSupportedClientFeatureList :: Set SupportedClientFeature}
+data ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SupportedClientFeatureList)
-  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema.Schema SupportedClientFeatureList)
+  deriving (Arbitrary) via (GenericUniform ClientCapabilityList)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema.Schema ClientCapabilityList)
 
-instance Schema.ToSchema SupportedClientFeatureList where
+instance Schema.ToSchema ClientCapabilityList where
   schema =
-    Schema.objectWithDocModifier "SupportedClientFeatureList" mods $
-      SupportedClientFeatureList
-        <$> (Set.toList . fromSupportedClientFeatureList)
-          Schema..= Schema.field "feature_list" (Set.fromList <$> Schema.array Schema.schema)
+    Schema.objectWithDocModifier "ClientCapabilityList" mods $
+      ClientCapabilityList
+        <$> (Set.toList . fromClientCapabilityList)
+          Schema..= Schema.field "capabilities" (Set.fromList <$> Schema.array Schema.schema)
     where
       mods = Schema.description ?~ ("Hints provided by the client for the backend so it can behavior in a backwards-compatible way." :: Text)
 
-modelClientSupportedFeatureList :: Doc.Model
-modelClientSupportedFeatureList = Doc.defineModel "SupportedClientFeatureList" $ do
+modelClientCapabilityList :: Doc.Model
+modelClientCapabilityList = Doc.defineModel "ClientCapabilityList" $ do
   Doc.description "Hints provided by the client for the backend so it can behavior in a backwards-compatible way."
-  Doc.property "feature_list" (Doc.array typeSupportedClientFeature) $ do
-    Doc.description "Array containing all supported features."
+  Doc.property "capabilities" (Doc.array typeClientCapability) $ do
+    Doc.description "Array containing all capabilities supported by a client."
 
 --------------------------------------------------------------------------------
 -- UserClientMap
@@ -624,8 +624,8 @@ data UpdateClient = UpdateClient
   { updateClientPrekeys :: [Prekey],
     updateClientLastKey :: Maybe LastPrekey,
     updateClientLabel :: Maybe Text,
-    -- | see haddocks for 'SupportedClientFeature'
-    updateClientSupportedFeatures :: Maybe (Set SupportedClientFeature)
+    -- | see haddocks for 'ClientCapability'
+    updateClientCapabilities :: Maybe (Set ClientCapability)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateClient)
@@ -648,7 +648,7 @@ modelUpdateClient = Doc.defineModel "UpdateClient" $ do
   Doc.property "label" Doc.string' $ do
     Doc.description "A new name for this client."
     Doc.optional
-  Doc.property "supported-features" typeSupportedClientFeature $ do
+  Doc.property "capabilities" typeClientCapability $ do
     Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
     Doc.optional
 
@@ -658,7 +658,7 @@ instance ToJSON UpdateClient where
       "prekeys" .= updateClientPrekeys c
         # "lastkey" .= updateClientLastKey c
         # "label" .= updateClientLabel c
-        # "supported-features" .= updateClientSupportedFeatures c
+        # "capabilities" .= updateClientCapabilities c
         # []
 
 instance FromJSON UpdateClient where
@@ -667,7 +667,7 @@ instance FromJSON UpdateClient where
       <$> o .:? "prekeys" .!= []
       <*> o .:? "lastkey"
       <*> o .:? "label"
-      <*> o .:? "supported-features"
+      <*> o .:? "capabilities"
 
 --------------------------------------------------------------------------------
 -- RmClient
