@@ -19,7 +19,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User.Client
-  ( -- * UserClients
+  ( -- * SupportedClientFeature
+    SupportedClientFeature (..),
+    SupportedClientFeatureList (..),
+
+    -- * UserClients
     UserClientMap (..),
     QualifiedUserClientMap (..),
     UserClients (..),
@@ -36,8 +40,6 @@ module Wire.API.User.Client
     NewClient (..),
     newClient,
     UpdateClient (..),
-    SupportedClientFeature (..),
-    SupportedClientFeatureList (..),
     RmClient (..),
 
     -- * re-exports
@@ -96,6 +98,92 @@ import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
+
+----------------------------------------------------------------------
+-- SupportedClientFeature, SupportedClientFeatureList
+
+-- | Names of features clients can claim to support in order to be treated differently by the
+-- backend.
+--
+-- **The cost of feature switches**
+--
+-- Avoid this wherever possible.  Adding feature switches in the backend code makes testing
+-- exponentially more expensive (in principle, you should always test all combinations of
+-- supported features.  But even if you only test those known to occur in the wild, it will
+-- still make your life harder.)
+--
+-- Consider dropping support for clients without ancient features if you have "enough" clients
+-- that are younger.  This will always be disruptive for a minority of users, but maybe this
+-- can be mitigated by giving those users clear feedback that they need to upgrade in order to
+-- get their expected UX back.
+--
+-- **An alternative design**
+--
+-- Consider replacing 'SupportedClientFeature' with platform and version in formation (I
+-- played with @data Platform = Android | IOS | WebApp | TeamSettings | AccountPages@ and
+-- @Version@ from the `semver` package in https://github.com/wireapp/wire-server/pull/1503,
+-- but ended up deciding against it).  This data could be passed in a similar way as the
+-- 'SupportedClientFeatureList' is now (similar end-point, different path, different body
+-- type), and the two approaches could be used in parallel indefinitely.
+--
+-- Feature flags only reveal the minimum amount of information necessary to handle the client,
+-- making it harder to fingerprint and track clients; they are straight-forward and
+-- self-documenting (to an extent), and make it easier to release a feature on the backend and
+-- clients independently.
+--
+-- Platform/version info is if you have many different feature switches, even though it
+-- doesn't solve the problem of having to explore the entire feature space in your tests.
+-- They give you a better idea of the time line, and how to gently discontinue support for
+-- ancient features.
+data SupportedClientFeature
+  = -- | Clients have minimum support for LH, but not for explicit consent.  Implicit consent
+    -- is granted via the galley server config (see '_setLegalHoldTeamsWhitelist').
+    ClientSupportsLegalholdImplicitConsent
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SupportedClientFeature)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ClientSupports", CamelToKebab)] SupportedClientFeature)
+
+typeSupportedClientFeature :: Doc.DataType
+typeSupportedClientFeature =
+  Doc.string $
+    Doc.enum
+      [ "legalhold-implicit-consent"
+      ]
+
+instance ToJSON SupportedClientFeature where
+  toJSON ClientSupportsLegalholdImplicitConsent = String "legalhold-implicit-consent"
+
+instance FromJSON SupportedClientFeature where
+  parseJSON (String "legalhold-implicit-consent") = pure ClientSupportsLegalholdImplicitConsent
+  parseJSON _ = fail "SupportedClientFeature"
+
+instance Cql.Cql SupportedClientFeature where
+  ctype = Cql.Tagged Cql.IntColumn
+
+  toCql ClientSupportsLegalholdImplicitConsent = Cql.CqlInt 1
+
+  fromCql (Cql.CqlInt i) = case i of
+    1 -> return ClientSupportsLegalholdImplicitConsent
+    n -> Left $ "Unexpected SupportedClientFeature value: " ++ show n
+  fromCql _ = Left "SupportedClientFeature value: int expected"
+
+-- FUTUREWORK: add golden tests for this?
+data SupportedClientFeatureList = SupportedClientFeatureList {fromSupportedClientFeatureList :: Set SupportedClientFeature}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SupportedClientFeatureList)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "fromSupportedClient", CamelToSnake)] SupportedClientFeatureList)
+
+modelClientSupportedFeatureList :: Doc.Model
+modelClientSupportedFeatureList = Doc.defineModel "SupportedClientFeatureList" $ do
+  Doc.description "Hints provided by the client for the backend so it can behavior in a backwards-compatible way."
+  Doc.property "feature_list" (Doc.array typeSupportedClientFeature) $ do
+    Doc.description "Array containing all supported features."
+
+instance ToJSON SupportedClientFeatureList where
+  toJSON (SupportedClientFeatureList l) = object ["feature_list" .= l]
+
+instance FromJSON SupportedClientFeatureList where
+  parseJSON = withObject "SupportedClientFeatureList" $ \obj -> SupportedClientFeatureList <$> obj .: "feature_list"
 
 --------------------------------------------------------------------------------
 -- UserClientMap
@@ -578,89 +666,6 @@ instance FromJSON UpdateClient where
       <*> o .:? "lastkey"
       <*> o .:? "label"
       <*> o .:? "supported-features"
-
--- FUTUREWORK: add golden tests for this?
-data SupportedClientFeatureList = SupportedClientFeatureList {fromSupportedClientFeatureList :: Set SupportedClientFeature}
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SupportedClientFeatureList)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "fromSupportedClient", CamelToSnake)] SupportedClientFeatureList)
-
-modelClientSupportedFeatureList :: Doc.Model
-modelClientSupportedFeatureList = Doc.defineModel "SupportedClientFeatureList" $ do
-  Doc.description "Hints provided by the client for the backend so it can behavior in a backwards-compatible way."
-  Doc.property "feature_list" (Doc.array typeSupportedClientFeature) $ do
-    Doc.description "Array containing all supported features."
-
-instance ToJSON SupportedClientFeatureList where
-  toJSON (SupportedClientFeatureList l) = object ["feature_list" .= l]
-
-instance FromJSON SupportedClientFeatureList where
-  parseJSON = withObject "SupportedClientFeatureList" $ \obj -> SupportedClientFeatureList <$> obj .: "feature_list"
-
--- | Names of features clients can claim to support in order to be treated differently by the
--- backend.
---
--- **The cost of feature switches**
---
--- Avoid this wherever possible.  Adding feature switches in the backend code makes testing
--- exponentially more expensive (in principle, you should always test all combinations of
--- supported features.  But even if you only test those known to occur in the wild, it will
--- still make your life harder.)
---
--- Consider dropping support for clients without ancient features if you have "enough" clients
--- that are younger.  This will always be disruptive for a minority of users, but maybe this
--- can be mitigated by giving those users clear feedback that they need to upgrade in order to
--- get their expected UX back.
---
--- **An alternative design**
---
--- Consider replacing 'SupportedClientFeature' with platform and version in formation (I
--- played with @data Platform = Android | IOS | WebApp | TeamSettings | AccountPages@ and
--- @Version@ from the `semver` package in https://github.com/wireapp/wire-server/pull/1503,
--- but ended up deciding against it).  This data could be passed in a similar way as the
--- 'SupportedClientFeatureList' is now (similar end-point, different path, different body
--- type), and the two approaches could be used in parallel indefinitely.
---
--- Feature flags only reveal the minimum amount of information necessary to handle the client,
--- making it harder to fingerprint and track clients; they are straight-forward and
--- self-documenting (to an extent), and make it easier to release a feature on the backend and
--- clients independently.
---
--- Platform/version info is if you have many different feature switches, even though it
--- doesn't solve the problem of having to explore the entire feature space in your tests.
--- They give you a better idea of the time line, and how to gently discontinue support for
--- ancient features.
-data SupportedClientFeature
-  = -- | Clients have minimum support for LH, but not for explicit consent.  Implicit consent
-    -- is granted via the galley server config (see '_setLegalHoldTeamsWhitelist').
-    ClientSupportsLegalholdImplicitConsent
-  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SupportedClientFeature)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ClientSupports", CamelToKebab)] SupportedClientFeature)
-
-typeSupportedClientFeature :: Doc.DataType
-typeSupportedClientFeature =
-  Doc.string $
-    Doc.enum
-      [ "legalhold-implicit-consent"
-      ]
-
-instance ToJSON SupportedClientFeature where
-  toJSON ClientSupportsLegalholdImplicitConsent = String "legalhold-implicit-consent"
-
-instance FromJSON SupportedClientFeature where
-  parseJSON (String "legalhold-implicit-consent") = pure ClientSupportsLegalholdImplicitConsent
-  parseJSON _ = fail "SupportedClientFeature"
-
-instance Cql.Cql SupportedClientFeature where
-  ctype = Cql.Tagged Cql.IntColumn
-
-  toCql ClientSupportsLegalholdImplicitConsent = Cql.CqlInt 1
-
-  fromCql (Cql.CqlInt i) = case i of
-    1 -> return ClientSupportsLegalholdImplicitConsent
-    n -> Left $ "Unexpected SupportedClientFeature value: " ++ show n
-  fromCql _ = Left "SupportedClientFeature value: int expected"
 
 --------------------------------------------------------------------------------
 -- RmClient
