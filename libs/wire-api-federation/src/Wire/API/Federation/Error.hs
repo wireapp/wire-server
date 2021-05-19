@@ -25,8 +25,8 @@ import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Servant.Client as Servant
-import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Client (FederationClientError (..), FederationError (..))
+import qualified Wire.API.Federation.GRPC.Types as Proto
 
 federationErrorToWai :: FederationError -> Wai.Error
 federationErrorToWai (FederationUnavailable err) = federationUnavailable err
