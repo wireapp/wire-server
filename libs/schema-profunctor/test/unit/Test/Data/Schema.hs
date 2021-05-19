@@ -19,7 +19,7 @@ module Test.Data.Schema where
 
 import Control.Applicative
 import Control.Arrow ((&&&))
-import Control.Lens (Prism', at, prism', (?~), (^.), _1, ix, nullOf)
+import Control.Lens (Prism', at, ix, nullOf, prism', (?~), (^.), _1)
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, decode, encode, fromJSON)
 import Data.Aeson.QQ
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -467,7 +467,6 @@ instance ToSchema NonEmptyTest where
 -- references
 
 newtype Named = Named {getName :: Text}
-
 
 instance ToSchema Named where
   schema = Named <$> getName .= object "Named" (field "name" (text "Name"))
