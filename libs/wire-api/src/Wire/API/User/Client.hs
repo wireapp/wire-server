@@ -74,6 +74,8 @@ import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
 import Data.Proxy (Proxy (..))
+import qualified Data.Schema as Schema
+import qualified Data.Set as Set
 import Data.Swagger (HasExample (example), NamedSchema (..), ToSchema (..), declareSchema)
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Build.Api as Doc
@@ -83,8 +85,7 @@ import qualified Data.Text.Encoding as Text.E
 import Data.Typeable (typeRep)
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
-  ( CamelToKebab,
-    CamelToSnake,
+  ( CamelToSnake,
     ConstructorTagModifier,
     CustomSwagger,
     FieldLabelModifier,
@@ -141,7 +142,12 @@ data SupportedClientFeature
     ClientSupportsLegalholdImplicitConsent
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SupportedClientFeature)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ClientSupports", CamelToKebab)] SupportedClientFeature)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via Schema.Schema SupportedClientFeature
+
+instance Schema.ToSchema SupportedClientFeature where
+  schema =
+    Schema.enum @Text "SupportedClientFeature" $
+      Schema.element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
 
 typeSupportedClientFeature :: Doc.DataType
 typeSupportedClientFeature =
@@ -149,13 +155,6 @@ typeSupportedClientFeature =
     Doc.enum
       [ "legalhold-implicit-consent"
       ]
-
-instance ToJSON SupportedClientFeature where
-  toJSON ClientSupportsLegalholdImplicitConsent = String "legalhold-implicit-consent"
-
-instance FromJSON SupportedClientFeature where
-  parseJSON (String "legalhold-implicit-consent") = pure ClientSupportsLegalholdImplicitConsent
-  parseJSON _ = fail "SupportedClientFeature"
 
 instance Cql.Cql SupportedClientFeature where
   ctype = Cql.Tagged Cql.IntColumn
@@ -171,19 +170,22 @@ instance Cql.Cql SupportedClientFeature where
 data SupportedClientFeatureList = SupportedClientFeatureList {fromSupportedClientFeatureList :: Set SupportedClientFeature}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SupportedClientFeatureList)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "fromSupportedClient", CamelToSnake)] SupportedClientFeatureList)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema.Schema SupportedClientFeatureList)
+
+instance Schema.ToSchema SupportedClientFeatureList where
+  schema =
+    Schema.object "SupportedClientFeatureList" $
+      SupportedClientFeatureList
+        <$> (fromSupportedClientFeatureList Schema..= Schema.field "feature_list" Schema.schema)
+
+instance Schema.ToSchema (Set SupportedClientFeature) where
+  schema = Schema.schema @[SupportedClientFeature]
 
 modelClientSupportedFeatureList :: Doc.Model
 modelClientSupportedFeatureList = Doc.defineModel "SupportedClientFeatureList" $ do
   Doc.description "Hints provided by the client for the backend so it can behavior in a backwards-compatible way."
   Doc.property "feature_list" (Doc.array typeSupportedClientFeature) $ do
     Doc.description "Array containing all supported features."
-
-instance ToJSON SupportedClientFeatureList where
-  toJSON (SupportedClientFeatureList l) = object ["feature_list" .= l]
-
-instance FromJSON SupportedClientFeatureList where
-  parseJSON = withObject "SupportedClientFeatureList" $ \obj -> SupportedClientFeatureList <$> obj .: "feature_list"
 
 --------------------------------------------------------------------------------
 -- UserClientMap
