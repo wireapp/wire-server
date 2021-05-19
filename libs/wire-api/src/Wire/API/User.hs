@@ -1036,6 +1036,6 @@ instance S.ToSchema ListUsersQuery where
       S.NamedSchema (Just "ListUsersQuery") $
         mempty
           & S.type_ ?~ S.SwaggerObject
-          & S.description ?~ "exactly one of qualifie_ids or qualified_handles must be provided."
+          & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
