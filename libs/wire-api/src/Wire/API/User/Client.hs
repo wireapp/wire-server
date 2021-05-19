@@ -176,7 +176,7 @@ instance Schema.ToSchema SupportedClientFeatureList where
   schema =
     Schema.object "SupportedClientFeatureList" $
       SupportedClientFeatureList
-        <$> (fromSupportedClientFeatureList Schema..= Schema.field "feature_list" Schema.schema)
+        <$> fromSupportedClientFeatureList Schema..= Schema.field "feature_list" Schema.schema
 
 instance Schema.ToSchema (Set SupportedClientFeature) where
   schema = Schema.schema @[SupportedClientFeature]
