@@ -172,7 +172,7 @@ testClaimPrekeyBundleSuccess brig1 brig2 = do
         === fmap (sortClients . prekeyClients) . responseJsonMaybe
 
 testClaimMultiPrekeyBundleSuccess :: Brig -> Brig -> Http ()
-testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
+testClaimMultiPrekeyBundleSuccess brig1 brig2 = when False {- FUTUREWORK: flaky, https://wearezeta.atlassian.net/browse/BE-421?focusedCommentId=94603 -} $ do
   let prekeys = zip somePrekeys someLastPrekeys
       (prekeys1, prekeys') = splitAt 5 prekeys
       prekeys2 = take 4 prekeys'
