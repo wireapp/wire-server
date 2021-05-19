@@ -19,7 +19,7 @@ module Test.Data.Schema where
 
 import Control.Applicative
 import Control.Arrow ((&&&))
-import Control.Lens (Prism', at, prism', (?~), (^.), _1)
+import Control.Lens (Prism', at, prism', (?~), (^.), _1, ix, nullOf)
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, decode, encode, fromJSON)
 import Data.Aeson.QQ
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -27,6 +27,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
+import qualified Data.Swagger.Declare as S
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -57,7 +58,8 @@ tests =
       testNonEmptyParseFailure,
       testNonEmptyParseSuccess,
       testNonEmptyToJSON,
-      testNonEmptySchema
+      testNonEmptySchema,
+      testRefField
     ]
 
 testFooToJSON :: TestTree
@@ -269,6 +271,13 @@ testNonEmptySchema =
         assertEqual "type should be Array" (Just S.SwaggerArray) (nlSch ^. S.type_)
         assertEqual "minItems should be 1" (Just 1) (nlSch ^. S.minItems)
 
+testRefField :: TestTree
+testRefField =
+  testCase "Reference in a field" $ do
+    let (defs, _) = S.runDeclare (S.declareSchemaRef (Proxy @Named)) mempty
+    assertBool "Referenced schema should be declared" $
+      not . nullOf (ix "Name") $ defs
+
 ---
 
 data A = A {thing :: Text, other :: Int}
@@ -454,3 +463,14 @@ newtype NonEmptyTest = NonEmptyTest {nl :: NonEmpty Text}
 
 instance ToSchema NonEmptyTest where
   schema = object "NonEmptyTest" $ NonEmptyTest <$> nl .= field "nl" (nonEmptyArray schema)
+
+-- references
+
+newtype Named = Named {getName :: Text}
+
+
+instance ToSchema Named where
+  schema = Named <$> getName .= object "Named" (field "name" (text "Name"))
+
+instance S.ToSchema Named where
+  declareNamedSchema = schemaToSwagger
