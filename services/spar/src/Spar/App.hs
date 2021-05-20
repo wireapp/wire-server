@@ -400,7 +400,7 @@ moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   wrapMonadClient $ Data.insertSAMLUser newUserRef uid
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
-  wrapMonadClient $ Data.deleteSAMLUser oldUserRef
+  wrapMonadClient $ Data.deleteSAMLUser uid oldUserRef
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case

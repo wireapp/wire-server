@@ -508,7 +508,7 @@ updateVsuUref team uid old new = do
     _ -> pure ()
 
   wrapMonadClient $ do
-    old & ST.runValidExternalId Data.deleteSAMLUser (Data.deleteScimExternalId team)
+    old & ST.runValidExternalId (Data.deleteSAMLUser uid) (Data.deleteScimExternalId team)
     new & ST.runValidExternalId (`Data.insertSAMLUser` uid) (\email -> Data.insertScimExternalId team email uid)
 
   Brig.setBrigUserVeid uid new
@@ -596,7 +596,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             Right veid ->
               lift . wrapMonadClient $
                 ST.runValidExternalId
-                  Data.deleteSAMLUser
+                  (Data.deleteSAMLUser uid)
                   (Data.deleteScimExternalId stiTeam)
                   veid
 
