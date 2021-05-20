@@ -268,5 +268,5 @@ clash.
 Solution
 ^^^^^^^^
 
-Do not rely on case sensitivity or `NameID` qualifiers
-for distinguishing user identifiers.
+Do not rely on case sensitivity of `IssuerID` or `NameID`, or on
+`NameID` qualifiers for distinguishing user identifiers.
