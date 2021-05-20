@@ -28,15 +28,12 @@ import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
 import Data.String.Conversions (cs)
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
-import qualified Servant.Client as Servant
-import Wire.API.Federation.Client (FederationClientError (..), FederationError (..))
+import Wire.API.Federation.Client (FederationError (..))
 import Wire.API.Federation.Error
 
 data Error where
@@ -181,37 +178,7 @@ clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 
 fedError :: FederationError -> Error
-fedError (FederationUnavailable err) = StdError (federationUnavailable err)
-fedError FederationNotImplemented = StdError federationNotImplemented
-fedError FederationNotConfigured = StdError federationNotConfigured
-fedError (FederationCallFailure err) =
-  case err of
-    FederationClientRPCError msg -> StdError (federationRpcError msg)
-    FederationClientInvalidMethod mth ->
-      StdError $
-        federationInvalidCall
-          ("Unexpected method: " <> LT.fromStrict (T.decodeUtf8 mth))
-    FederationClientStreamingUnsupported -> StdError $ federationInvalidCall "Streaming unsupported"
-    FederationClientOutwardError outwardErr -> StdError $ federationRemoteError outwardErr
-    FederationClientServantError (Servant.DecodeFailure msg _) -> StdError $ federationInvalidBody msg
-    FederationClientServantError (Servant.FailureResponse _ _) ->
-      StdError $ Wai.Error unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
-    FederationClientServantError (Servant.InvalidContentTypeHeader res) ->
-      StdError $
-        Wai.Error
-          unexpectedFederationResponseStatus
-          "federation-invalid-content-type-header"
-          ("Content-type: " <> contentType res)
-    FederationClientServantError (Servant.UnsupportedContentType mediaType res) ->
-      StdError $
-        Wai.Error
-          unexpectedFederationResponseStatus
-          "federation-unsupported-content-type"
-          ("Content-type: " <> contentType res <> ", Media-Type: " <> cs (show mediaType))
-    FederationClientServantError (Servant.ConnectionError excpetion) ->
-      StdError $ federationUnavailable $ cs $ show excpetion
-  where
-    contentType = LT.fromStrict . T.decodeUtf8 . maybe "" snd . find (\(name, _) -> name == "Content-Type") . Servant.responseHeaders
+fedError = StdError . federationErrorToWai
 
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity

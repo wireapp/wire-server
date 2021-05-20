@@ -17,12 +17,46 @@
 
 module Wire.API.Federation.Error where
 
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
+import qualified Servant.Client as Servant
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Federation.Client (FederationClientError (..), FederationError (..))
+
+federationErrorToWai :: FederationError -> Wai.Error
+federationErrorToWai (FederationUnavailable err) = federationUnavailable err
+federationErrorToWai FederationNotImplemented = federationNotImplemented
+federationErrorToWai FederationNotConfigured = federationNotConfigured
+federationErrorToWai (FederationCallFailure err) =
+  case err of
+    FederationClientRPCError msg -> federationRpcError msg
+    FederationClientInvalidMethod mth ->
+      federationInvalidCall
+        ("Unexpected method: " <> LT.fromStrict (T.decodeUtf8 mth))
+    FederationClientStreamingUnsupported -> federationInvalidCall "Streaming unsupported"
+    FederationClientOutwardError outwardErr -> federationRemoteError outwardErr
+    FederationClientServantError (Servant.DecodeFailure msg _) -> federationInvalidBody msg
+    FederationClientServantError (Servant.FailureResponse _ _) ->
+      Wai.Error unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
+    FederationClientServantError (Servant.InvalidContentTypeHeader res) ->
+      Wai.Error
+        unexpectedFederationResponseStatus
+        "federation-invalid-content-type-header"
+        ("Content-type: " <> contentType res)
+    FederationClientServantError (Servant.UnsupportedContentType mediaType res) ->
+      Wai.Error
+        unexpectedFederationResponseStatus
+        "federation-unsupported-content-type"
+        ("Content-type: " <> contentType res <> ", Media-Type: " <> LT.pack (show mediaType))
+    FederationClientServantError (Servant.ConnectionError exception) ->
+      federationUnavailable . T.pack . show $ exception
+  where
+    contentType = LT.fromStrict . T.decodeUtf8 . maybe "" snd . find (\(name, _) -> name == "Content-Type") . Servant.responseHeaders
 
 noFederationStatus :: Status
 noFederationStatus = status403
