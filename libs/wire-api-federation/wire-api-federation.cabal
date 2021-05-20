@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1fc2f1c09d3a891322250a1964d79e46a8d6a2b88711033f717bcb5cea380367
+-- hash: 6422ba264e61003c8823e5e8ecc8c771519868ba415cd326c859d933fd3007a0
 
 name:           wire-api-federation
 version:        0.1.0
@@ -29,6 +29,7 @@ library
       Wire.API.Federation.GRPC.Client
       Wire.API.Federation.GRPC.Helper
       Wire.API.Federation.GRPC.Types
+      Wire.API.Federation.Mock
       Wire.API.Federation.Util.Aeson
   other-modules:
       Paths_wire_api_federation
@@ -39,6 +40,7 @@ library
   build-depends:
       QuickCheck >=2.13
     , aeson >=1.4
+    , async
     , base >=4.6 && <5.0
     , bytestring
     , bytestring-conversion
@@ -48,7 +50,9 @@ library
     , imports
     , mtl
     , mu-grpc-client
+    , mu-grpc-server
     , mu-protobuf
+    , mu-rpc
     , mu-schema
     , servant >=0.16
     , servant-client
@@ -57,6 +61,7 @@ library
     , text >=0.11
     , time >=1.8
     , types-common
+    , warp
     , wire-api
   default-language: Haskell2010
 
