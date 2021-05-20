@@ -19,13 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Data.Qualified
-  ( -- * Optionally qualified
-    OptionallyQualified (..),
-    unqualified,
-    qualified,
-    eitherQualifiedOrNot,
-
-    -- * Qualified
+  ( -- * Qualified
     Qualified (..),
     Remote,
     toRemote,
@@ -37,12 +31,9 @@ module Data.Qualified
   )
 where
 
-import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (first)
-import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
@@ -55,41 +46,6 @@ import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
-----------------------------------------------------------------------
--- OPTIONALLY QUALIFIED -- FUTUREWORK: remove optionally qualified, not used
-
-data OptionallyQualified a = OptionallyQualified
-  { oqUnqualified :: a,
-    oqDomain :: Maybe Domain
-  }
-  deriving (Eq, Show)
-
-unqualified :: a -> OptionallyQualified a
-unqualified x = OptionallyQualified x Nothing
-
-qualified :: Qualified a -> OptionallyQualified a
-qualified (Qualified x domain) = OptionallyQualified x (Just domain)
-
-eitherQualifiedOrNot :: OptionallyQualified a -> Either a (Qualified a)
-eitherQualifiedOrNot = \case
-  OptionallyQualified x Nothing -> Left x
-  OptionallyQualified x (Just domain) -> Right (Qualified x domain)
-
-optionallyQualifiedParser :: Atto.Parser a -> Atto.Parser (OptionallyQualified a)
-optionallyQualifiedParser localParser =
-  OptionallyQualified
-    <$> localParser
-    <*> optional (Atto.char '@' *> parser @Domain)
-
--- | we could have an
--- @instance FromByteString a => FromByteString (OptionallyQualified a)@,
--- but we only need this for specific things and don't want to just allow parsing things like
--- @OptionallyQualified HttpsUrl@.
-instance FromByteString (OptionallyQualified (Id a)) where
-  parser = optionallyQualifiedParser (parser @(Id a))
-
-instance FromByteString (OptionallyQualified Handle) where
-  parser = optionallyQualifiedParser (parser @Handle)
 
 ----------------------------------------------------------------------
 -- QUALIFIED
@@ -181,6 +137,3 @@ instance S.ToSchema (Qualified Handle) where
 
 instance Arbitrary a => Arbitrary (Qualified a) where
   arbitrary = Qualified <$> arbitrary <*> arbitrary
-
-instance Arbitrary a => Arbitrary (OptionallyQualified a) where
-  arbitrary = OptionallyQualified <$> arbitrary <*> arbitrary
