@@ -24,18 +24,28 @@ TODO: group and categorize these PRs:
 
 This release introduces a notion of "consent" to legalhold (LH).  If
 you are using LH on your site, follow the instructions in
-https://github.com/wireapp/wire-server/blob/develop/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
+https://github.com/wireapp/wire-server/blob/814f3ebc251965ab4492f5df4d9195f3b2e0256f/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
 after the upgrade.  **Legalhold will not work as expected until you
 change `galley.conf` as described!
 
-TODO: the above link will start working after #1502 has been merged,
-but it should be frozen to a commit to make sure it'll keep working
-when the document changes again.
+https://github.com/wireapp/wire-server/pull/1495 introduces changes to
+the way `NameID` is processed: all identifiers are stored in
+lower-case and qualifiers are ignored.  No manual upgrade steps are
+necessary, but consult
+https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html#theoretical-name-clashes-in-saml-nameids
+on whether you need to re-calibrate your SAML IdP / SCIM setup.
+(Reason / technical details: this change is motivated by two facts:
+(1) email casing is complicated, and industry best practice appears to
+be to ignore case information; and (2) SCIM user provisioning does not
+allow to provide SAML NameID qualifiers.)
+
+
 
 
 
 ## Features
  - [legalhold] Whitelisting Teams for LH with implicit consent (#1502)
+ - [saml/scim] More lenient matching of user ids (#1495)
 
 ## Bug fixes and other updates
 
