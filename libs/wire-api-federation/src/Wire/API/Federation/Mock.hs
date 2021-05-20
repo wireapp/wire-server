@@ -22,11 +22,13 @@
 module Wire.API.Federation.Mock where
 
 import qualified Control.Concurrent.Async as Async
-import Control.Monad.Except (ExceptT, MonadError (..), runExceptT)
+import Control.Exception.Lifted (finally)
+import Control.Monad.Except (ExceptT (..), MonadError (..), runExceptT)
 import Control.Monad.State (MonadState (..), modify)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
+import Data.EitherR
 import qualified Data.Text as Text
 import Imports
 import Mu.GRpc.Client.Record (grpcClientConfigSimple)
@@ -55,8 +57,8 @@ mkSuccessResponse = pure . OutwardResponseBody . LBS.toStrict . Aeson.encode
 mkErrorResponse :: OutwardError -> ServerErrorIO OutwardResponse
 mkErrorResponse = pure . OutwardResponseError
 
-startMockFederator :: IORef MockState -> IO (Either String ())
-startMockFederator ref = do
+startMockFederator :: IORef MockState -> ExceptT String IO ()
+startMockFederator ref = ExceptT $ do
   (port, sock) <- Warp.openFreePort
   serverStarted <- newEmptyMVar
   let settings =
@@ -89,21 +91,33 @@ withMockFederator ::
   IORef MockState ->
   ServerErrorIO OutwardResponse ->
   FederatorClient component (ExceptT e IO) a ->
-  IO (Either e a, ReceivedRequests)
+  ExceptT String IO (Either e a, ReceivedRequests)
 withMockFederator ref resp action = do
-  modifyIORef ref $ \s -> s {effectfulResponse = resp}
-  st <- readIORef ref
+  liftIO . modifyIORef ref $ \s -> s {effectfulResponse = resp}
+  st <- liftIO $ readIORef ref
   let cfg = grpcClientConfigSimple "127.0.0.1" (fromInteger (serverPort st)) False
-  client <- createGrpcClient cfg >>= either (error . Text.unpack . reason) pure
+  client <- fmapLT (Text.unpack . reason) (ExceptT (createGrpcClient cfg))
   actualResponse <-
-    runExceptT $
+    lift . runExceptT $
       runFederatorClientWith
         client
         (stateTarget st)
         (stateOrigin st)
         action
-  st' <- readIORef ref
+  st' <- liftIO $ readIORef ref
   pure (actualResponse, receivedRequests st')
+
+-- | Like 'withMockFederator', but spawn a new instance of the mock federator
+-- just for this action.
+withTempMockFederator :: MockState
+  -> ServerErrorIO OutwardResponse
+  -> FederatorClient component (ExceptT e IO) a
+  -> ExceptT String IO (Either e a, ReceivedRequests)
+withTempMockFederator st resp action = do
+  ref <- liftIO $ newIORef st
+  startMockFederator ref
+  withMockFederator ref resp action
+    `finally` lift (stopMockFederator ref)
 
 newtype MockT m a = MockT {unMock :: ReaderT (IORef MockState) m a}
   deriving newtype (Functor, Applicative, Monad, MonadReader (IORef MockState), MonadIO)

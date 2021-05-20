@@ -20,7 +20,7 @@
 
 module Test.Wire.API.Federation.ClientSpec where
 
-import Control.Monad.Except (MonadError (..))
+import Control.Monad.Except (ExceptT, MonadError (..), runExceptT)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain (Domain))
@@ -38,7 +38,7 @@ import Wire.API.User (UserProfile)
 spec :: Spec
 spec = do
   stateRef <- runIO $ initState (Domain "target.example.com") (Domain "origin.example.com")
-  beforeAll (startMockFederator stateRef >>= either expectationFailure pure)
+  beforeAll (assertRightT (startMockFederator stateRef))
     . afterAll_ (stopMockFederator stateRef)
     . before_ (flushState stateRef)
     $ describe "Federator.Client" $ do
@@ -47,7 +47,7 @@ spec = do
         expectedResponse :: Maybe UserProfile <- generate arbitrary
 
         (actualResponse, sentRequests) <-
-          withMockFederator stateRef (mkSuccessResponse expectedResponse) $
+          assertRightT . withMockFederator stateRef (mkSuccessResponse expectedResponse) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         sentRequests `shouldBe` [FederatedRequest "target.example.com" (Just $ Request Brig "/federation/get-user-by-handle" (LBS.toStrict (Aeson.encode handle)) "origin.example.com")]
@@ -58,7 +58,7 @@ spec = do
         someErr <- generate arbitrary
 
         (actualResponse, _) <-
-          withMockFederator stateRef (mkErrorResponse someErr) $
+          assertRightT . withMockFederator stateRef (mkErrorResponse someErr) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         actualResponse `shouldBe` Left (FederationClientOutwardError someErr)
@@ -67,7 +67,7 @@ spec = do
         handle <- generate arbitrary
 
         (actualResponse, _) <-
-          withMockFederator stateRef (error "some IO error!") $
+          assertRightT . withMockFederator stateRef (error "some IO error!") $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         case actualResponse of
@@ -82,14 +82,17 @@ spec = do
         handle <- generate arbitrary
 
         (actualResponse, _) <-
-          withMockFederator stateRef (throwError $ Mu.ServerError Mu.NotFound "Just testing") $
+          assertRightT . withMockFederator stateRef (throwError $ Mu.ServerError Mu.NotFound "Just testing") $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         actualResponse `shouldBe` Left (FederationClientRPCError "grpc error: GRPC status indicates failure: status-code=NOT_FOUND, status-message=\"Just testing\"")
 
-assertRight :: Show a => Either a b -> IO b
+assertRight :: Either String b -> IO b
 assertRight = \case
   Left a -> do
-    expectationFailure $ "Expected Right, got Left: " <> show a
+    expectationFailure $ "Expected Right, got Left: " <> a
     error "impossible"
   Right b -> pure b
+
+assertRightT :: ExceptT String IO b -> IO b
+assertRightT m = runExceptT m >>= assertRight

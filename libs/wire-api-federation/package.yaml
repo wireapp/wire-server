@@ -20,9 +20,11 @@ dependencies:
 - bytestring-conversion
 - bytestring
 - either
+- errors
 - http-types
 - http2-client-grpc
 - imports
+- lifted-base
 - mu-rpc
 - mu-grpc-client
 - mu-grpc-server

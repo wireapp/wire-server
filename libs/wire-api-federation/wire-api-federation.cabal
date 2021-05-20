@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6422ba264e61003c8823e5e8ecc8c771519868ba415cd326c859d933fd3007a0
+-- hash: 1b0ad324729b16c2eabcf924d9771984cf8dc4a62ae497b8b94f63708e7c50c9
 
 name:           wire-api-federation
 version:        0.1.0
@@ -45,9 +45,11 @@ library
     , bytestring
     , bytestring-conversion
     , either
+    , errors
     , http-types
     , http2-client-grpc
     , imports
+    , lifted-base
     , mtl
     , mu-grpc-client
     , mu-grpc-server
@@ -87,10 +89,12 @@ test-suite spec
     , bytestring
     , bytestring-conversion
     , either
+    , errors
     , hspec
     , http-types
     , http2-client-grpc
     , imports
+    , lifted-base
     , metrics-wai
     , mtl
     , mu-grpc-client
