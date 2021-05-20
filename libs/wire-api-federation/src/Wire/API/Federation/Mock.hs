@@ -87,32 +87,34 @@ flushState = flip modifyIORef $ \s -> s {receivedRequests = [], effectfulRespons
 initState :: Domain -> Domain -> IO (IORef MockState)
 initState targetDomain originDomain = newIORef $ MockState [] (error "No mock response provided") (error "server not started") (error "No port selected yet") targetDomain originDomain
 
-withMockFederator ::
+withMockFederator :: IORef MockState
+                  -> ServerErrorIO OutwardResponse
+                  -> (MockState -> ExceptT String IO a)
+                  -> ExceptT String IO (a, ReceivedRequests)
+withMockFederator ref resp action = do
+  liftIO . modifyIORef ref $ \s -> s {effectfulResponse = resp}
+  st <- liftIO $ readIORef ref
+  actualResponse <- action st
+  st' <- liftIO $ readIORef ref
+  pure (actualResponse, receivedRequests st')
+
+withMockFederatorClient ::
   IORef MockState ->
   ServerErrorIO OutwardResponse ->
   FederatorClient component (ExceptT e IO) a ->
   ExceptT String IO (Either e a, ReceivedRequests)
-withMockFederator ref resp action = do
-  liftIO . modifyIORef ref $ \s -> s {effectfulResponse = resp}
-  st <- liftIO $ readIORef ref
+withMockFederatorClient ref resp action = withMockFederator ref resp $ \st -> do
   let cfg = grpcClientConfigSimple "127.0.0.1" (fromInteger (serverPort st)) False
   client <- fmapLT (Text.unpack . reason) (ExceptT (createGrpcClient cfg))
-  actualResponse <-
-    lift . runExceptT $
-      runFederatorClientWith
-        client
-        (stateTarget st)
-        (stateOrigin st)
-        action
-  st' <- liftIO $ readIORef ref
-  pure (actualResponse, receivedRequests st')
+  lift . runExceptT $
+    runFederatorClientWith client (stateTarget st) (stateOrigin st) action
 
 -- | Like 'withMockFederator', but spawn a new instance of the mock federator
 -- just for this action.
-withTempMockFederator :: MockState
+withTempMockFederator :: forall a . MockState
   -> ServerErrorIO OutwardResponse
-  -> FederatorClient component (ExceptT e IO) a
-  -> ExceptT String IO (Either e a, ReceivedRequests)
+  -> (MockState -> ExceptT String IO a)
+  -> ExceptT String IO (a, ReceivedRequests)
 withTempMockFederator st resp action = do
   ref <- liftIO $ newIORef st
   startMockFederator ref
