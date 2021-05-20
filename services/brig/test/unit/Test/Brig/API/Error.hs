@@ -8,6 +8,7 @@ import qualified Servant.Client.Core as Servant
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 tests :: TestTree
