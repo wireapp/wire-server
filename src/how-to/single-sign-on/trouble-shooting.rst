@@ -230,3 +230,43 @@ All three fields are mandatory.
 Also note that the account will be set to `"active": false` until the
 user has accepted the invitation and activated the account.  Please
 contact customer support if this causes any issues.
+
+
+(Theoretical) name clashes in SAML NameIDs
+------------------------------------------
+
+You can technically configure your SAML IdP to create name clashes in
+wire, ie., to map two (technically) different NameIDs to the same wire
+user.
+
+How to know you're safe
+^^^^^^^^^^^^^^^^^^^^^^^
+
+This is highly unlikely, since the
+distinguishing parts of `NameID` that we ignore are generally either
+unused or redundant.  If you are confident that any two users you have
+assigned to the wire app can be distinguished solely by the
+lower-cased `NameID` content, you're safe.
+
+Impact
+^^^^^^
+
+If you are using SCIM for user provisioning, this may lead
+to errors during provisioning of new users ("user already exists").
+If you use SAML auto-provisioning, this may lead to unintential
+account sharing instead of an error.
+
+How to reproduce
+^^^^^^^^^^^^^^^^
+
+If you have users whose combination of
+`IssuerId` and `NameID` can only be distinguished by casing (upper
+vs. lower) or by the `NameID` qualifiers (`NameID` xml attributes
+`NameQualifier`, `IdPNameQualifier`, ...), those users will name
+clash.
+
+Solution
+^^^^^^^^
+
+Do not rely on case sensitivity or `NameID` qualifiers
+for distinguishing user identifiers.
