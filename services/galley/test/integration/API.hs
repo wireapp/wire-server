@@ -112,6 +112,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
+          test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "remove members" deleteMembersOk,
           test s "fail to remove members from self conv." deleteMembersFailSelf,
           test s "fail to remove members from 1:1 conv." deleteMembersFailO2O,
@@ -887,6 +888,15 @@ testAddRemoteMember = do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
     assertEqual "other members should include remoteBob" expected actual
+
+testAddRemoteMemberInvalidDomain :: TestM ()
+testAddRemoteMemberInvalidDomain = do
+  alice <- randomUser
+  bobId <- randomId
+  let remoteBob = Qualified bobId (Domain "invalid.example.com")
+  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  postQualifiedMembers alice (remoteBob :| []) convId
+    !!! const 422 === statusCode
 
 postMembersOk :: TestM ()
 postMembersOk = do
