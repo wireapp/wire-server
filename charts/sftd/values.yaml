@@ -81,3 +81,5 @@ joinCall:
     # Overrides the image tag whose default is the chart appVersion.
     tag: "1.19.5"
 
+# Make the SFT to proxy itself with some TURN server when trying to connect to clients
+turnDiscoveryEnabled: false
