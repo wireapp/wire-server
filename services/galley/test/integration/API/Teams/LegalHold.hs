@@ -87,6 +87,7 @@ import TestHelpers
 import TestSetup
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.User (UserProfile (..))
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
@@ -123,6 +124,7 @@ tests s =
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
       test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      test s "GET legalhold status in user profile" (onlyIfLhEnabled testGetLegalholdStatus),
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
@@ -1122,15 +1124,13 @@ testGetLegalholdStatus = do
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   withDummyTestServiceForTeam owner tid $ \_chan -> do
-    res <- do
-      -- test device creation without consent
-      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
-      res@(UserLegalHoldStatusResponse userStatus _ _) <- getUserStatusTyped member tid
-      pure res
+    grantConsent tid member
+    (UserLegalHoldStatusResponse _userLegalHold _ _) <- getUserStatusTyped member tid
+    -- liftIO $ assertEqual "userLegalHold for member" UserLegalHoldDisabled userLegalHold
 
-    (owner2, tid2) <- createBindingTeam
-
-    pure ()
+    (owner2, _tid2) <- createBindingTeam
+    profile <- getUserProfile owner2 member
+    liftIO $ assertEqual "legalhold status in profile" UserLegalHoldDisabled (profileLegalholdStatus profile)
 
 ----------------------------------------------------------------------
 -- test helpers
