@@ -25,7 +25,9 @@ module Wire.API.User.Client
 
     -- * UserClients
     UserClientMap (..),
+    UserClientPrekeyMap (..),
     QualifiedUserClientMap (..),
+    QualifiedUserClientPrekeyMap (..),
     UserClients (..),
     QualifiedUserClients (..),
     filterClients,
@@ -66,8 +68,8 @@ where
 
 import qualified Cassandra as Cql
 import Control.Lens ((?~), (^.))
-import qualified Data.Aeson as A
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
@@ -79,9 +81,7 @@ import Data.Schema
 import qualified Data.Set as Set
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
-import Data.Typeable (typeRep)
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
   ( CamelToSnake,
@@ -194,6 +194,7 @@ newtype UserClientMap a = UserClientMap
   }
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
   deriving newtype (Semigroup, Monoid)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (UserClientMap a)
 
 -- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
 modelOtrClientMap :: Doc.Model
@@ -202,71 +203,73 @@ modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
   Doc.property "" Doc.bytes' $
     Doc.description "Mapping from client IDs to OTR content (Base64 in JSON)."
 
-instance ToJSON a => ToJSON (UserClientMap a) where
-  toJSON = toJSON . Map.foldrWithKey' f Map.empty . userClientMap
-    where
-      f (Id u) clients m =
-        let key = Text.E.decodeLatin1 (toASCIIBytes u)
-            val = Map.foldrWithKey' g Map.empty clients
-         in Map.insert key val m
-      g (ClientId c) a = Map.insert c (toJSON a)
+instance ToSchema a => ToSchema (UserClientMap a) where
+  schema = userClientMapSchema schema
 
-instance FromJSON a => FromJSON (UserClientMap a) where
-  parseJSON = A.withObject "user-client-map" $ \o ->
-    UserClientMap <$> foldrM f Map.empty (HashMap.toList o)
+userClientMapSchema :: ValueSchema NamedSwaggerDoc a
+  -> ValueSchema NamedSwaggerDoc (UserClientMap a)
+userClientMapSchema sch = named nm $
+  UserClientMap <$> userClientMap .= map_ (map_ sch)
     where
-      f (k, v) m = do
-        u <- parseJSON (A.String k)
-        flip (A.withObject "client-value-map") v $ \c -> do
-          e <- foldrM g Map.empty (HashMap.toList c)
-          return (Map.insert u e m)
-      g (k, v) m = do
-        c <- parseJSON (A.String k)
-        t <- parseJSON v
-        return (Map.insert c t m)
+      nm = "UserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
+
+newtype UserClientPrekeyMap = UserClientPrekeyMap
+  {getUserClientPrekeyMap :: UserClientMap (Maybe Prekey)}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary, Semigroup, Monoid)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UserClientPrekeyMap
+
+-- FUTUREWORK: wrap around another JSON object layer
+instance ToSchema UserClientPrekeyMap where
+  schema = UserClientPrekeyMap <$> getUserClientPrekeyMap .= addDoc sch
+    where
+      sch = userClientMapSchema (optWithDefault A.Null schema)
+      addDoc = Swagger.schema . Swagger.example ?~ toJSON
+        ( Map.singleton
+          (generateExample @UserId)
+          ( Map.singleton
+            (newClientId 4940483633899001999)
+            (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
+          ))
 
 instance Arbitrary a => Arbitrary (UserClientMap a) where
   arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
-
-instance Swagger.ToSchema (UserClientMap (Maybe Prekey)) where
-  declareNamedSchema _ = do
-    mapSch <- Swagger.declareSchema (Proxy @(Map UserId (Map ClientId (Maybe Prekey))))
-    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @(Maybe Prekey)
-    return $
-      Swagger.NamedSchema (Just $ "UserClientMap (" <> valueTypeName <> ")") $
-        mapSch
-          & Swagger.example
-            ?~ toJSON
-              ( Map.singleton
-                  (generateExample @UserId)
-                  ( Map.singleton
-                      (newClientId 4940483633899001999)
-                      (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
-                  )
-              )
 
 newtype QualifiedUserClientMap a = QualifiedUserClientMap
   { qualifiedUserClientMap :: Map Domain (UserClientMap a)
   }
   deriving stock (Eq, Show)
-  deriving newtype (Semigroup, Monoid, ToJSON, FromJSON)
+  deriving newtype (Semigroup, Monoid)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (QualifiedUserClientMap a)
 
 instance Arbitrary a => Arbitrary (QualifiedUserClientMap a) where
   arbitrary = QualifiedUserClientMap <$> mapOf' arbitrary arbitrary
 
-instance (Typeable a, Swagger.ToSchema (UserClientMap a))
-  => Swagger.ToSchema (QualifiedUserClientMap a) where
-  declareNamedSchema _ = do
-    mapSch <- Swagger.declareSchema (Proxy @(Map Domain (UserClientMap a)))
-    let userMapSchema = Swagger.toSchema (Proxy @(UserClientMap a))
-    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
-    return $
-      Swagger.NamedSchema (Just $ "QualifiedUserClientMap (" <> valueTypeName <> ")") $
-        mapSch
-          & Swagger.description ?~ "Map of Domain to (UserMap (" <> valueTypeName <> "))."
-          & Swagger.example
-            ?~ toJSON
-              (Map.singleton ("domain1.example.com" :: Text) (userMapSchema ^. Swagger.example))
+instance ToSchema a => ToSchema (QualifiedUserClientMap a) where
+  schema = qualifiedUserClientMapSchema schema
+
+qualifiedUserClientMapSchema :: ValueSchema NamedSwaggerDoc a
+  -> ValueSchema NamedSwaggerDoc (QualifiedUserClientMap a)
+qualifiedUserClientMapSchema sch = addDoc . named nm $
+  QualifiedUserClientMap <$> qualifiedUserClientMap .= map_ (userClientMapSchema sch)
+  where
+    nm = "QualifiedUserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
+    addDoc = Swagger.schema . Swagger.example ?~ toJSON
+      ( Map.singleton
+        ("domain1.example.com" :: Text)
+        (schemaDoc sch ^. Swagger.schema . Swagger.example))
+
+newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
+  {getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary, Semigroup, Monoid)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap
+
+-- FUTUREWORK: wrap around another JSON object layer
+instance ToSchema QualifiedUserClientPrekeyMap where
+  schema = QualifiedUserClientPrekeyMap <$> getQualifiedUserClientPrekeyMap .= sch
+    where
+      sch = qualifiedUserClientMapSchema (optWithDefault A.Null schema)
 
 --------------------------------------------------------------------------------
 -- UserClients

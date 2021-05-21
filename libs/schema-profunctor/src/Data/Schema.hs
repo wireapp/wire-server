@@ -38,6 +38,7 @@ module Data.Schema
     SwaggerDoc,
     swaggerDoc,
     NamedSwaggerDoc,
+    getName,
     object,
     objectWithDocModifier,
     objectOver,
