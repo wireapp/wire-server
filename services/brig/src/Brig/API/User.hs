@@ -138,6 +138,7 @@ import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Json.Util
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
@@ -152,6 +153,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Team.Member (legalHoldStatus)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -1118,7 +1120,8 @@ lookupLocalProfiles requestingUser others = do
       Just localReqUser -> EmailVisibleIfOnSameTeam' <$> getSelfInfo localReqUser
       Nothing -> pure EmailVisibleToSelf'
     EmailVisibleToSelf -> pure EmailVisibleToSelf'
-  return $ map (toProfile emailVisibility'' css) users
+  usersAndStatus <- for users $ \u -> (u,) <$> getLegalHoldStatus u
+  return $ map (toProfile emailVisibility'' css) usersAndStatus
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
@@ -1133,15 +1136,23 @@ lookupLocalProfiles requestingUser others = do
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid
 
-    toProfile :: EmailVisibility' -> Map UserId Relation -> User -> UserProfile
-    toProfile emailVisibility'' css u =
+    toProfile :: EmailVisibility' -> Map UserId Relation -> (User, UserLegalHoldStatus) -> UserProfile
+    toProfile emailVisibility'' css (u, userLegalHold) =
       let cs = Map.lookup (userId u) css
           profileEmail' = getEmailForProfile u emailVisibility''
           baseProfile =
             if Just (userId u) == requestingUser || cs == Just Accepted || cs == Just Sent
-              then connectedProfile u
-              else publicProfile u
+              then connectedProfile u userLegalHold
+              else publicProfile u userLegalHold
        in baseProfile {profileEmail = profileEmail'}
+
+    getLegalHoldStatus :: User -> AppIO UserLegalHoldStatus
+    getLegalHoldStatus user =
+      case userTeam user of
+        Nothing -> pure defUserLegalHoldStatus
+        Just tid -> do
+          teamMember <- Intra.getTeamMember (userId user) tid
+          pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
 
 data EmailVisibility'
   = EmailVisibleIfOnTeam'

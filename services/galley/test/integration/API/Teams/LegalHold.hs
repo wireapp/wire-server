@@ -1115,6 +1115,23 @@ publicKeyNotMatchingService =
           ]
    in k
 
+testGetLegalholdStatus :: TestM ()
+testGetLegalholdStatus = do
+  (owner, tid) <- createBindingTeam
+  member <- randomUser
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+  ensureQueueEmpty
+  withDummyTestServiceForTeam owner tid $ \_chan -> do
+    res <- do
+      -- test device creation without consent
+      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
+      res@(UserLegalHoldStatusResponse userStatus _ _) <- getUserStatusTyped member tid
+      pure res
+
+    (owner2, tid2) <- createBindingTeam
+
+    pure ()
+
 ----------------------------------------------------------------------
 -- test helpers
 
