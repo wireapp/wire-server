@@ -37,7 +37,9 @@ import Wire.API.User (UserProfile)
 
 spec :: Spec
 spec = do
-  stateRef <- runIO $ initState (Domain "target.example.com") (Domain "origin.example.com")
+  stateRef <-
+    runIO . newIORef $
+      initState (Domain "target.example.com") (Domain "origin.example.com")
   beforeAll (assertRightT (startMockFederator stateRef))
     . afterAll_ (stopMockFederator stateRef)
     . before_ (flushState stateRef)
