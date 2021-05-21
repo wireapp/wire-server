@@ -216,6 +216,7 @@ data MemberUpdate = MemberUpdate
     mupConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MemberUpdate
 
 memberUpdate :: MemberUpdate
 memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
@@ -245,38 +246,24 @@ modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
     Doc.description "Name of the conversation role to update to"
     Doc.optional
 
-instance ToJSON MemberUpdate where
-  toJSON m =
-    A.object $
-      "otr_muted" A..= mupOtrMute m
-        # "otr_muted_ref" A..= mupOtrMuteRef m
-        # "otr_archived" A..= mupOtrArchive m
-        # "otr_archived_ref" A..= mupOtrArchiveRef m
-        # "hidden" A..= mupHidden m
-        # "hidden_ref" A..= mupHiddenRef m
-        # "conversation_role" A..= mupConvRoleName m
-        # []
-
-instance FromJSON MemberUpdate where
-  parseJSON = A.withObject "member-update object" $ \m -> do
-    u <-
-      MemberUpdate
-        <$> m A..:? "otr_muted"
-        <*> m A..:? "otr_muted_status"
-        <*> m A..:? "otr_muted_ref"
-        <*> m A..:? "otr_archived"
-        <*> m A..:? "otr_archived_ref"
-        <*> m A..:? "hidden"
-        <*> m A..:? "hidden_ref"
-        <*> m A..:? "conversation_role"
-    either fail pure $ validateMemberUpdate u
+instance ToSchema MemberUpdate where
+  schema =
+    (`withParser` (either fail pure . validateMemberUpdate))
+      . object "MemberUpdate"
+      $ MemberUpdate
+        <$> mupOtrMute .= opt (field "otr_muted" schema)
+        <*> mupOtrMuteStatus .= opt (field "otr_muted_status" schema)
+        <*> mupOtrMuteRef .= opt (field "otr_muted_ref" schema)
+        <*> mupOtrArchive .= opt (field "otr_archived" schema)
+        <*> mupOtrArchiveRef .= opt (field "otr_archived_ref" schema)
+        <*> mupHidden .= opt (field "hidden" schema)
+        <*> mupHiddenRef .= opt (field "hidden_ref" schema)
+        <*> mupConvRoleName .= opt (field "conversation_role" schema)
 
 instance Arbitrary MemberUpdate where
   arbitrary =
-    (removeMuteStatus . getGenericUniform <$> arbitrary)
+    (getGenericUniform <$> arbitrary)
       `QC.suchThat` (isRight . validateMemberUpdate)
-    where
-      removeMuteStatus mup = mup {mupOtrMuteStatus = Nothing}
 
 validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
 validateMemberUpdate u =
