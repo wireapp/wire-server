@@ -47,6 +47,7 @@ module Data.Schema
     fieldOver,
     array,
     nonEmptyArray,
+    map_,
     enum,
     opt,
     optWithDefault,
@@ -371,6 +372,18 @@ nonEmptyArray sch = setMinItems 1 $ NonEmpty.toList .= array sch `withParser` ch
       maybe (fail "Unexpected empty array found while parsing a NonEmpty") pure
         . NonEmpty.nonEmpty
 
+map_ ::
+  forall ndoc doc k a.
+  (HasMap ndoc doc, Ord k, A.FromJSONKey k, A.ToJSONKey k) =>
+  ValueSchema ndoc a ->
+  ValueSchema doc (Map k a)
+map_ sch = mkSchema d i o
+  where
+    d = mkMap (schemaDoc sch)
+    i :: A.Value -> A.Parser (Map k a)
+    i = A.parseJSON >=> traverse (schemaIn sch)
+    o = fmap A.toJSON . traverse (schemaOut sch)
+
 -- Putting this in `where` clause causes compile error, maybe a bug in GHC?
 setMinItems :: (HasMinItems doc (Maybe Integer)) => Integer -> ValueSchema doc a -> ValueSchema doc a
 setMinItems m = doc . minItems ?~ m
@@ -574,6 +587,9 @@ class Monoid doc => HasObject doc ndoc | doc -> ndoc, ndoc -> doc where
 class Monoid doc => HasArray ndoc doc | ndoc -> doc where
   mkArray :: ndoc -> doc
 
+class Monoid doc => HasMap ndoc doc | ndoc -> doc where
+  mkMap :: ndoc -> doc
+
 class HasEnum doc where
   mkEnum :: Text -> [A.Value] -> doc
 
@@ -597,6 +613,15 @@ instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
         mempty
           & S.type_ ?~ S.SwaggerArray
           & S.items ?~ S.SwaggerItemsObject ref
+
+instance HasSchemaRef ndoc => HasMap ndoc SwaggerDoc where
+  mkMap = fmap f . schemaRef
+    where
+      f :: S.Referenced S.Schema -> S.Schema
+      f ref =
+        mempty
+          & S.type_ ?~ S.SwaggerObject
+          & S.additionalProperties ?~ S.AdditionalPropertiesSchema ref
 
 class HasMinItems s a where
   minItems :: Lens' s a
