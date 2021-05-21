@@ -68,8 +68,7 @@ import Brig.Data.Connection (lookupContactList)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
-import Brig.User.Event
-import qualified Brig.User.Event.Log as Log
+import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Retry
@@ -522,7 +521,7 @@ createSelfConv u = do
 createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe Message -> Maybe ConnId -> AppIO ConvId
 createConnectConv from to cname mess conn = do
   debug $
-    Log.connection from to
+    logConnection from to
       . remote "galley"
       . msg (val "Creating connect conversation")
   r <- galleyRequest POST req
