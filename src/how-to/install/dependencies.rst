@@ -24,8 +24,7 @@ updated. This fetches all the required Ansible roles needed to run the wire Ansi
 
    git clone --branch master https://github.com/wireapp/wire-server-deploy.git
    cd wire-server-deploy
-   git submodule update
-
+   git submodule update --init --recursive
 
 Next, there are two ways to get all the required binaries for operating Wire.
 
