@@ -46,7 +46,6 @@ import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
-
 ----------------------------------------------------------------------
 -- QUALIFIED
 
