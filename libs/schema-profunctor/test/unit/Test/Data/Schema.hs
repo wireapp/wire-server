@@ -25,7 +25,7 @@ import Data.Aeson.QQ
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
-import Data.Schema
+import Data.Schema hiding (getName)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import Imports
