@@ -1178,17 +1178,17 @@ assertNotification ws predicate =
     let j = Aeson.Object $ List1.head (ntfPayload notif)
     case Aeson.fromJSON j of
       Aeson.Success x -> predicate x
-      Aeson.Error s -> assertBool (s ++ " in " ++ show j) False
+      Aeson.Error s -> error $ s ++ " in " ++ cs (Aeson.encode j)
 
 assertNoNotification :: (HasCallStack, MonadIO m) => WS.WebSocket -> m ()
 assertNoNotification ws = void . liftIO $ WS.assertNoEvent (5 WS.# WS.Second) [ws]
 
-assertMatchJSON :: (FromJSON a, HasCallStack, MonadThrow m, MonadCatch m, MonadIO m) => Chan (Wai.Request, LBS) -> (a -> m ()) -> m ()
+assertMatchJSON :: (HasCallStack, FromJSON a, MonadThrow m, MonadCatch m, MonadIO m) => Chan (Wai.Request, LBS) -> (a -> m ()) -> m ()
 assertMatchJSON c match = do
   assertMatchChan c $ \(_, reqBody) -> do
     case Aeson.eitherDecode reqBody of
       Right x -> match x
-      Left s -> liftIO $ assertBool (s ++ " in " ++ show reqBody) False
+      Left s -> error $ s ++ " in " ++ cs reqBody
 
 assertMatchChan :: (HasCallStack, MonadThrow m, MonadCatch m, MonadIO m) => Chan a -> (a -> m ()) -> m ()
 assertMatchChan c match = go []
@@ -1202,8 +1202,8 @@ assertMatchChan c match = go []
             match n
             refill buf
             `catchAll` \e -> case asyncExceptionFromException e of
-              Just x -> throwM (x :: SomeAsyncException)
+              Just x -> error $ show (x :: SomeAsyncException)
               Nothing -> go (n : buf)
         Nothing -> do
           refill buf
-          liftIO $ assertBool "Timeout" False
+          error "Timeout"
