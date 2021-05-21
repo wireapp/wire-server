@@ -547,6 +547,17 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelClient)
     Doc.response 200 "Client" Doc.end
 
+  get "/clients/:client/capabilities" (continue getClientCapabilitiesH) $
+    zauthUserId
+      .&. capture "client"
+      .&. accept "application" "json"
+  document "GET" "getClientCapabilities" $ do
+    Doc.summary "Read back what the client has been posting about itself."
+    Doc.parameter Doc.Path "client" Doc.bytes' $
+      Doc.description "Client ID"
+    Doc.returns (Doc.ref Public.modelClientCapabilityList)
+    Doc.response 200 "Client" Doc.end
+
   get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
     zauthUserId
       .&. capture "client"
@@ -934,6 +945,12 @@ getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
   localdomain <- viewFederationDomain
   API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
+
+getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
+getClientCapabilitiesH (uid ::: cid ::: _) = json <$> getClientCapabilities uid cid
+
+getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
+getClientCapabilities uid cid = lift $ API.lookupLocalClientCapabilities uid cid
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =

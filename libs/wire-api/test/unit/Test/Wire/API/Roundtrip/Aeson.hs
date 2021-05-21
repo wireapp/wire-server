@@ -20,9 +20,10 @@ module Test.Wire.API.Roundtrip.Aeson (tests) where
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import Data.Id (ConvId)
+import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
 import qualified Test.Tasty as T
-import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
@@ -277,6 +278,8 @@ tests =
       testRoundTrip @User.Client.Client,
       testRoundTrip @User.Client.NewClient,
       testRoundTrip @User.Client.UpdateClient,
+      testRoundTripWithSwagger @User.Client.ClientCapability,
+      testRoundTripWithSwagger @User.Client.ClientCapabilityList,
       testRoundTrip @User.Client.RmClient,
       testRoundTrip @User.Client.Prekey.LastPrekey,
       testRoundTrip @User.Client.Prekey.PrekeyId,
@@ -324,3 +327,22 @@ testRoundTrip = testProperty msg trip
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v
+
+testRoundTripWithSwagger ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a) =>
+  T.TestTree
+testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
+  where
+    msg = show (typeRep @a)
+
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (parseEither parseJSON . toJSON) v
+
+    scm (v :: a) =
+      counterexample
+        ( fromMaybe "Schema validation failed, but there were no errors. This looks like a bug in swagger2!" $
+            validatePrettyToJSON v
+        )
+        $ isNothing (validatePrettyToJSON v)
