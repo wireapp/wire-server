@@ -26,6 +26,7 @@ import Brig.Types
 import Brig.Types.Intra (UserAccount (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
+import Control.Exception (finally)
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry (constantDelay, limitRetries, retrying)
@@ -1475,8 +1476,9 @@ defCookieLabel = CookieLabel "auth"
 --   services will fail.
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
-  (galleyApp, _) <- Run.mkApp opts
+  (galleyApp, _, finalizer) <- Run.mkApp opts
   WaiTest.runSession action galleyApp
+    `finally` liftIO finalizer
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
