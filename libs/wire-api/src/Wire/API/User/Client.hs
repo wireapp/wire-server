@@ -209,12 +209,14 @@ modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
 instance ToSchema a => ToSchema (UserClientMap a) where
   schema = userClientMapSchema schema
 
-userClientMapSchema :: ValueSchema NamedSwaggerDoc a
-  -> ValueSchema NamedSwaggerDoc (UserClientMap a)
-userClientMapSchema sch = named nm $
-  UserClientMap <$> userClientMap .= map_ (map_ sch)
-    where
-      nm = "UserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
+userClientMapSchema ::
+  ValueSchema NamedSwaggerDoc a ->
+  ValueSchema NamedSwaggerDoc (UserClientMap a)
+userClientMapSchema sch =
+  named nm $
+    UserClientMap <$> userClientMap .= map_ (map_ sch)
+  where
+    nm = "UserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
 
 newtype UserClientPrekeyMap = UserClientPrekeyMap
   {getUserClientPrekeyMap :: UserClientMap (Maybe Prekey)}
@@ -229,14 +231,19 @@ mkUserClientPrekeyMap = coerce
 instance ToSchema UserClientPrekeyMap where
   schema = UserClientPrekeyMap <$> getUserClientPrekeyMap .= addDoc sch
     where
-      sch = userClientMapSchema (optWithDefault A.Null schema)
-      addDoc = Swagger.schema . Swagger.example ?~ toJSON
-        ( Map.singleton
-          (generateExample @UserId)
-          ( Map.singleton
-            (newClientId 4940483633899001999)
-            (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
-          ))
+      sch =
+        named "UserClientPrekeyMap" . unnamed $
+          userClientMapSchema (optWithDefault A.Null schema)
+      addDoc =
+        Swagger.schema . Swagger.example
+          ?~ toJSON
+            ( Map.singleton
+                (generateExample @UserId)
+                ( Map.singleton
+                    (newClientId 4940483633899001999)
+                    (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
+                )
+            )
 
 instance Arbitrary a => Arbitrary (UserClientMap a) where
   arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
@@ -254,16 +261,22 @@ instance Arbitrary a => Arbitrary (QualifiedUserClientMap a) where
 instance ToSchema a => ToSchema (QualifiedUserClientMap a) where
   schema = qualifiedUserClientMapSchema schema
 
-qualifiedUserClientMapSchema :: ValueSchema NamedSwaggerDoc a
-  -> ValueSchema NamedSwaggerDoc (QualifiedUserClientMap a)
-qualifiedUserClientMapSchema sch = addDoc . named nm $
-  QualifiedUserClientMap <$> qualifiedUserClientMap .= map_ (userClientMapSchema sch)
+qualifiedUserClientMapSchema ::
+  ValueSchema NamedSwaggerDoc a ->
+  ValueSchema NamedSwaggerDoc (QualifiedUserClientMap a)
+qualifiedUserClientMapSchema sch =
+  addDoc . named nm $
+    QualifiedUserClientMap <$> qualifiedUserClientMap .= map_ innerSchema
   where
+    innerSchema = userClientMapSchema sch
     nm = "QualifiedUserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
-    addDoc = Swagger.schema . Swagger.example ?~ toJSON
-      ( Map.singleton
-        ("domain1.example.com" :: Text)
-        (schemaDoc sch ^. Swagger.schema . Swagger.example))
+    addDoc =
+      Swagger.schema . Swagger.example
+        ?~ toJSON
+          ( Map.singleton
+              ("domain1.example.com" :: Text)
+              (schemaDoc innerSchema ^. Swagger.schema . Swagger.example)
+          )
 
 newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
   {getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)}
@@ -273,9 +286,12 @@ newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
 
 -- FUTUREWORK: wrap around another JSON object layer
 instance ToSchema QualifiedUserClientPrekeyMap where
-  schema = QualifiedUserClientPrekeyMap <$> getQualifiedUserClientPrekeyMap .= sch
+  schema =
+    named "QualifiedUserClientPrekeyMap" $
+      mkQualifiedUserClientPrekeyMap <$> unmk .= map_ schema
     where
-      sch = qualifiedUserClientMapSchema (optWithDefault A.Null schema)
+      unmk :: QualifiedUserClientPrekeyMap -> Map Domain UserClientPrekeyMap
+      unmk = coerce
 
 mkQualifiedUserClientPrekeyMap :: Map Domain UserClientPrekeyMap -> QualifiedUserClientPrekeyMap
 mkQualifiedUserClientPrekeyMap = coerce
