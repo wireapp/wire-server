@@ -4,5 +4,6 @@
     "hidden": false,
     "otr_archived": false,
     "otr_muted": true,
-    "otr_archived_ref": "0T"
+    "otr_archived_ref": "0T",
+    "otr_muted_status":7182
 }

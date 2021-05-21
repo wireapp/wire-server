@@ -64,7 +64,7 @@ testObject_MemberUpdate_user_3 :: MemberUpdate
 testObject_MemberUpdate_user_3 =
   MemberUpdate
     { mupOtrMute = Just True,
-      mupOtrMuteStatus = Nothing,
+      mupOtrMuteStatus = Just 3,
       mupOtrMuteRef = Just "/L",
       mupOtrArchive = Nothing,
       mupOtrArchiveRef = Nothing,
@@ -78,7 +78,7 @@ testObject_MemberUpdate_user_4 :: MemberUpdate
 testObject_MemberUpdate_user_4 =
   MemberUpdate
     { mupOtrMute = Just True,
-      mupOtrMuteStatus = Nothing,
+      mupOtrMuteStatus = Just 7182,
       mupOtrMuteRef = Nothing,
       mupOtrArchive = Just False,
       mupOtrArchiveRef = Just "0T",
@@ -124,7 +124,7 @@ testObject_MemberUpdate_user_7 :: MemberUpdate
 testObject_MemberUpdate_user_7 =
   MemberUpdate
     { mupOtrMute = Nothing,
-      mupOtrMuteStatus = Nothing,
+      mupOtrMuteStatus = Just 0,
       mupOtrMuteRef = Nothing,
       mupOtrArchive = Just False,
       mupOtrArchiveRef = Just "(\25308t",
@@ -177,7 +177,7 @@ testObject_MemberUpdate_user_11 :: MemberUpdate
 testObject_MemberUpdate_user_11 =
   MemberUpdate
     { mupOtrMute = Just False,
-      mupOtrMuteStatus = Nothing,
+      mupOtrMuteStatus = Just (-909),
       mupOtrMuteRef = Just "",
       mupOtrArchive = Just False,
       mupOtrArchiveRef = Just "",
