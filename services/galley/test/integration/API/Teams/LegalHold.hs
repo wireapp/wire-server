@@ -821,7 +821,8 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
 
-  let doEnableLH = do
+  let doEnableLH :: HasCallStack => TestM ()
+      doEnableLH = do
         -- register & (possibly) approve LH device for legalholder
         withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
         when approveLH $
@@ -829,10 +830,11 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
         UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
         liftIO $
           assertEqual
-            "approving should change status to Enabled"
+            "approving should change status"
             (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending)
             userStatus
 
+      doDisableLH :: HasCallStack => TestM ()
       doDisableLH = do
         -- remove (only) LH device again
         withLHWhitelist tid (disableLegalHoldForUser' galley (Just defPassword) tid legalholder legalholder)
@@ -840,9 +842,9 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
 
   cannon <- view tsCannon
 
-  if connectFirst
-    then do
-      WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+  WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    if connectFirst
+      then do
         postConnection legalholder peer !!! const 201 === statusCode
         doEnableLH
 
@@ -879,9 +881,9 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
 
           postOtrMessageJson !!! const 201 === statusCode
           postOtrMessageProto !!! const 201 === statusCode
-    else do
-      doEnableLH
-      postConnection legalholder peer !!! do testResponse 412 (Just "legalhold-missing-consent")
+      else do
+        doEnableLH
+        postConnection legalholder peer !!! do testResponse 412 (Just "legalhold-missing-consent")
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do
