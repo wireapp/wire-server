@@ -26,8 +26,10 @@ module Wire.API.User.Client
     -- * UserClients
     UserClientMap (..),
     UserClientPrekeyMap (..),
+    mkUserClientPrekeyMap,
     QualifiedUserClientMap (..),
     QualifiedUserClientPrekeyMap (..),
+    mkQualifiedUserClientPrekeyMap,
     UserClients (..),
     QualifiedUserClients (..),
     filterClients,
@@ -70,6 +72,7 @@ import qualified Cassandra as Cql
 import Control.Lens ((?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import Data.Coerce
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
@@ -219,6 +222,9 @@ newtype UserClientPrekeyMap = UserClientPrekeyMap
   deriving newtype (Arbitrary, Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UserClientPrekeyMap
 
+mkUserClientPrekeyMap :: Map UserId (Map ClientId (Maybe Prekey)) -> UserClientPrekeyMap
+mkUserClientPrekeyMap = coerce
+
 -- FUTUREWORK: wrap around another JSON object layer
 instance ToSchema UserClientPrekeyMap where
   schema = UserClientPrekeyMap <$> getUserClientPrekeyMap .= addDoc sch
@@ -270,6 +276,9 @@ instance ToSchema QualifiedUserClientPrekeyMap where
   schema = QualifiedUserClientPrekeyMap <$> getQualifiedUserClientPrekeyMap .= sch
     where
       sch = qualifiedUserClientMapSchema (optWithDefault A.Null schema)
+
+mkQualifiedUserClientPrekeyMap :: Map Domain UserClientPrekeyMap -> QualifiedUserClientPrekeyMap
+mkQualifiedUserClientPrekeyMap = coerce
 
 --------------------------------------------------------------------------------
 -- UserClients

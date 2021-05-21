@@ -29,9 +29,10 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientError, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Message (UserClientMap, UserClients)
+import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client.Prekey (ClientPrekey, Prekey, PrekeyBundle)
+import Wire.API.User.Client (UserClientPrekeyMap)
+import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 
 newtype SearchRequest = SearchRequest {term :: Text}
@@ -73,7 +74,7 @@ data Api routes = Api
         :- "federation"
         :> "claim-multi-prekey-bundle"
         :> ReqBody '[JSON] UserClients
-        :> Post '[JSON] (UserClientMap (Maybe Prekey)),
+        :> Post '[JSON] UserClientPrekeyMap,
     searchUsers ::
       routes
         :- "federation"

@@ -63,6 +63,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Member (Member (..))
+import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -288,10 +289,10 @@ postCryptoMessage2 = do
   r2 <-
     post (b . path "/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
-  let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
+  let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
-    Map.keys (userClientMap p) @=? [eve]
-    Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
+    Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
+    Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
 postCryptoMessage3 :: TestM ()
 postCryptoMessage3 = do
@@ -313,10 +314,10 @@ postCryptoMessage3 = do
   r2 <-
     post (b . path "/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
-  let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
+  let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
-    Map.keys (userClientMap p) @=? [eve]
-    Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
+    Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
+    Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
 postCryptoMessage4 :: TestM ()
 postCryptoMessage4 = do

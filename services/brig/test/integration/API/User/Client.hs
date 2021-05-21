@@ -52,10 +52,10 @@ import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client
   ( ClientCapability (ClientSupportsLegalholdImplicitConsent),
     ClientCapabilityList (ClientCapabilityList),
-    QualifiedUserClientMap (..),
     QualifiedUserClients (..),
-    UserClientMap (..),
     UserClients (..),
+    mkQualifiedUserClientPrekeyMap,
+    mkUserClientPrekeyMap,
   )
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
@@ -361,7 +361,7 @@ testMultiUserGetPrekeys brig = do
               (uid, Set.fromList [clientId c])
 
   let expectedUserClientMap =
-        UserClientMap $
+        mkUserClientPrekeyMap $
           Map.fromList $
             xs <&> \(uid, c, _lpk, cpk) ->
               (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
@@ -390,9 +390,9 @@ testMultiUserGetPrekeysQualified brig opts = do
                   (uid, Set.fromList [clientId c])
 
   let expectedUserClientMap =
-        QualifiedUserClientMap $
+        mkQualifiedUserClientPrekeyMap $
           Map.singleton domain $
-            UserClientMap $
+            mkUserClientPrekeyMap $
               Map.fromList $
                 xs <&> \(uid, c, _lpk, cpk) ->
                   (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))

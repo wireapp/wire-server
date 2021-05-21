@@ -849,14 +849,14 @@ getPrekeyBundleH :: Domain -> UserId -> Handler Public.PrekeyBundle
 getPrekeyBundleH domain uid =
   API.claimPrekeyBundle domain uid !>> clientError
 
-getMultiUserPrekeyBundleUnqualifiedH :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
+getMultiUserPrekeyBundleUnqualifiedH :: Public.UserClients -> Handler Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
   lift $ API.claimLocalMultiPrekeyBundles userClients
 
-getMultiUserPrekeyBundleH :: Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
+getMultiUserPrekeyBundleH :: Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
 getMultiUserPrekeyBundleH qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =

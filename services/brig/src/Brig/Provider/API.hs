@@ -101,8 +101,8 @@ import qualified Wire.API.Provider.Bot as Public (BotUserView)
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
-import qualified Wire.API.User.Client as Public (Client, PubClient (..), UserClientMap, UserClients, userClients)
-import qualified Wire.API.User.Client.Prekey as Public (Prekey, PrekeyId)
+import qualified Wire.API.User.Client as Public (Client, PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -938,7 +938,7 @@ botClaimUsersPrekeysH :: JsonRequest Public.UserClients -> Handler Response
 botClaimUsersPrekeysH req = do
   json <$> (botClaimUsersPrekeys =<< parseJsonBody req)
 
-botClaimUsersPrekeys :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
+botClaimUsersPrekeys :: Public.UserClients -> Handler Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $

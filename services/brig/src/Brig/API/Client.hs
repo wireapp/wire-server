@@ -65,7 +65,7 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import qualified Data.Set as Set
-import Galley.Types (UserClientMap (..), UserClients (..))
+import Galley.Types (UserClients (..))
 import Imports
 import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
@@ -73,7 +73,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
-import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientMap (..), QualifiedUserClients (..))
+import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientPrekeyMap (..), QualifiedUserClients (..), UserClientPrekeyMap, mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
 lookupClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
@@ -192,23 +192,23 @@ claimLocalPrekeyBundle u = do
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimRemotePrekeyBundle quser = Federation.claimPrekeyBundle quser !>> ClientFederationError
 
-claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (QualifiedUserClientMap (Maybe Prekey))
+claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles quc = do
   localDomain <- viewFederationDomain
-  fmap (QualifiedUserClientMap . Map.fromList)
+  fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
     -- FUTUREWORK(federation): parallelise federator requests here
     . traverse (\(domain, uc) -> (domain,) <$> claim localDomain domain uc)
     . Map.assocs
     . qualifiedUserClients
     $ quc
   where
-    claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO (UserClientMap (Maybe Prekey))
+    claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
     claim localDomain domain uc
       | domain == localDomain = lift (claimLocalMultiPrekeyBundles uc)
       | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
 
-claimLocalMultiPrekeyBundles :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
-claimLocalMultiPrekeyBundles = fmap UserClientMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
+claimLocalMultiPrekeyBundles :: UserClients -> AppIO UserClientPrekeyMap
+claimLocalMultiPrekeyBundles = fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
