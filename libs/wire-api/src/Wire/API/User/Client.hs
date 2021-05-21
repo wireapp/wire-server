@@ -66,7 +66,8 @@ where
 
 import qualified Cassandra as Cql
 import Control.Lens ((?~), (^.))
-import Data.Aeson
+import qualified Data.Aeson as A
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
@@ -74,12 +75,10 @@ import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
 import Data.Proxy (Proxy (..))
-import qualified Data.Schema as Schema
+import Data.Schema
 import qualified Data.Set as Set
-import Data.Swagger (HasExample (example), NamedSchema (..), ToSchema (..), declareSchema)
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Swagger.Schema (toSchema)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Data.Typeable (typeRep)
@@ -142,12 +141,12 @@ data ClientCapability
     ClientSupportsLegalholdImplicitConsent
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientCapability)
-  deriving (ToJSON, FromJSON, Swagger.ToSchema) via Schema.Schema ClientCapability
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via Schema ClientCapability
 
-instance Schema.ToSchema ClientCapability where
+instance ToSchema ClientCapability where
   schema =
-    Schema.enum @Text "ClientCapability" $
-      Schema.element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
+    enum @Text "ClientCapability" $
+      element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
 
 typeClientCapability :: Doc.DataType
 typeClientCapability =
@@ -170,16 +169,16 @@ instance Cql.Cql ClientCapability where
 data ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientCapabilityList)
-  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema.Schema ClientCapabilityList)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema ClientCapabilityList)
 
-instance Schema.ToSchema ClientCapabilityList where
+instance ToSchema ClientCapabilityList where
   schema =
-    Schema.objectWithDocModifier "ClientCapabilityList" mods $
+    objectWithDocModifier "ClientCapabilityList" mods $
       ClientCapabilityList
         <$> (Set.toList . fromClientCapabilityList)
-          Schema..= Schema.field "capabilities" (Set.fromList <$> Schema.array Schema.schema)
+          .= field "capabilities" (Set.fromList <$> array schema)
     where
-      mods = Schema.description ?~ ("Hints provided by the client for the backend so it can behavior in a backwards-compatible way." :: Text)
+      mods = description ?~ ("Hints provided by the client for the backend so it can behavior in a backwards-compatible way." :: Text)
 
 modelClientCapabilityList :: Doc.Model
 modelClientCapabilityList = Doc.defineModel "ClientCapabilityList" $ do
@@ -213,30 +212,30 @@ instance ToJSON a => ToJSON (UserClientMap a) where
       g (ClientId c) a = Map.insert c (toJSON a)
 
 instance FromJSON a => FromJSON (UserClientMap a) where
-  parseJSON = withObject "user-client-map" $ \o ->
+  parseJSON = A.withObject "user-client-map" $ \o ->
     UserClientMap <$> foldrM f Map.empty (HashMap.toList o)
     where
       f (k, v) m = do
-        u <- parseJSON (String k)
-        flip (withObject "client-value-map") v $ \c -> do
+        u <- parseJSON (A.String k)
+        flip (A.withObject "client-value-map") v $ \c -> do
           e <- foldrM g Map.empty (HashMap.toList c)
           return (Map.insert u e m)
       g (k, v) m = do
-        c <- parseJSON (String k)
+        c <- parseJSON (A.String k)
         t <- parseJSON v
         return (Map.insert c t m)
 
 instance Arbitrary a => Arbitrary (UserClientMap a) where
   arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
 
-instance ToSchema (UserClientMap (Maybe Prekey)) where
+instance Swagger.ToSchema (UserClientMap (Maybe Prekey)) where
   declareNamedSchema _ = do
-    mapSch <- declareSchema (Proxy @(Map UserId (Map ClientId (Maybe Prekey))))
+    mapSch <- Swagger.declareSchema (Proxy @(Map UserId (Map ClientId (Maybe Prekey))))
     let valueTypeName = Text.pack $ show $ typeRep $ Proxy @(Maybe Prekey)
     return $
-      NamedSchema (Just $ "UserClientMap (" <> valueTypeName <> ")") $
+      Swagger.NamedSchema (Just $ "UserClientMap (" <> valueTypeName <> ")") $
         mapSch
-          & example
+          & Swagger.example
             ?~ toJSON
               ( Map.singleton
                   (generateExample @UserId)
@@ -255,18 +254,19 @@ newtype QualifiedUserClientMap a = QualifiedUserClientMap
 instance Arbitrary a => Arbitrary (QualifiedUserClientMap a) where
   arbitrary = QualifiedUserClientMap <$> mapOf' arbitrary arbitrary
 
-instance (Typeable a, ToSchema (UserClientMap a)) => ToSchema (QualifiedUserClientMap a) where
+instance (Typeable a, Swagger.ToSchema (UserClientMap a))
+  => Swagger.ToSchema (QualifiedUserClientMap a) where
   declareNamedSchema _ = do
-    mapSch <- declareSchema (Proxy @(Map Domain (UserClientMap a)))
-    let userMapSchema = toSchema (Proxy @(UserClientMap a))
+    mapSch <- Swagger.declareSchema (Proxy @(Map Domain (UserClientMap a)))
+    let userMapSchema = Swagger.toSchema (Proxy @(UserClientMap a))
     let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
     return $
-      NamedSchema (Just $ "QualifiedUserClientMap (" <> valueTypeName <> ")") $
+      Swagger.NamedSchema (Just $ "QualifiedUserClientMap (" <> valueTypeName <> ")") $
         mapSch
           & Swagger.description ?~ "Map of Domain to (UserMap (" <> valueTypeName <> "))."
-          & example
+          & Swagger.example
             ?~ toJSON
-              (Map.singleton ("domain1.example.com" :: Text) (userMapSchema ^. example))
+              (Map.singleton ("domain1.example.com" :: Text) (userMapSchema ^. Swagger.example))
 
 --------------------------------------------------------------------------------
 -- UserClients
@@ -278,14 +278,14 @@ newtype UserClients = UserClients
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
 
-instance ToSchema UserClients where
+instance Swagger.ToSchema UserClients where
   declareNamedSchema _ = do
-    mapSch <- declareSchema (Proxy @(Map UserId (Set ClientId)))
+    mapSch <- Swagger.declareSchema (Proxy @(Map UserId (Set ClientId)))
     return $
-      NamedSchema (Just "UserClients") $
+      Swagger.NamedSchema (Just "UserClients") $
         mapSch
           & Swagger.description ?~ "Map of user id to list of client ids."
-          & example
+          & Swagger.example
             ?~ toJSON
               ( Map.fromList
                   [ (generateExample @UserId, [newClientId 1684636986166846496, newClientId 4940483633899001999]),
@@ -310,9 +310,9 @@ instance ToJSON UserClients where
 
 instance FromJSON UserClients where
   parseJSON =
-    withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
+    A.withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
     where
-      fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
+      fn (k, v) m = Map.insert <$> parseJSON (A.String k) <*> parseJSON v <*> pure m
 
 instance Arbitrary UserClients where
   arbitrary = UserClients <$> mapOf' arbitrary (setOf' arbitrary)
@@ -329,17 +329,17 @@ newtype QualifiedUserClients = QualifiedUserClients
 instance Arbitrary QualifiedUserClients where
   arbitrary = QualifiedUserClients <$> mapOf' arbitrary arbitrary
 
-instance ToSchema QualifiedUserClients where
+instance Swagger.ToSchema QualifiedUserClients where
   declareNamedSchema _ = do
-    schema <- declareSchema (Proxy @(Map Domain UserClients))
-    userClientsSchema <- declareSchema (Proxy @UserClients)
+    sch <- Swagger.declareSchema (Proxy @(Map Domain UserClients))
+    userClientsSchema <- Swagger.declareSchema (Proxy @UserClients)
     return $
-      NamedSchema (Just "QualifiedUserClients") $
-        schema
+      Swagger.NamedSchema (Just "QualifiedUserClients") $
+        sch
           & Swagger.description ?~ "Map of Domain to UserClients"
-          & example
+          & Swagger.example
             ?~ toJSON
-              (Map.singleton ("domain1.example.com" :: Text) (userClientsSchema ^. example))
+              (Map.singleton ("domain1.example.com" :: Text) (userClientsSchema ^. Swagger.example))
 
 --------------------------------------------------------------------------------
 -- Client
@@ -356,7 +356,7 @@ data Client = Client
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "client", LowerCase)] Client)
+  deriving (Swagger.ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "client", LowerCase)] Client)
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -386,28 +386,28 @@ modelClient = Doc.defineModel "Client" $ do
 
 instance ToJSON Client where
   toJSON c =
-    object $
-      "id" .= clientId c
-        # "type" .= clientType c
-        # "label" .= clientLabel c
-        # "class" .= clientClass c
-        # "time" .= clientTime c
-        # "cookie" .= clientCookie c
-        # "location" .= clientLocation c
-        # "model" .= clientModel c
+    A.object $
+      "id" A..= clientId c
+        # "type" A..= clientType c
+        # "label" A..= clientLabel c
+        # "class" A..= clientClass c
+        # "time" A..= clientTime c
+        # "cookie" A..= clientCookie c
+        # "location" A..= clientLocation c
+        # "model" A..= clientModel c
         # []
 
 instance FromJSON Client where
-  parseJSON = withObject "Client" $ \o ->
+  parseJSON = A.withObject "Client" $ \o ->
     Client
-      <$> o .: "id"
-      <*> o .: "type"
-      <*> o .: "time"
-      <*> o .:? "class"
-      <*> o .:? "label"
-      <*> o .:? "cookie"
-      <*> o .:? "location"
-      <*> o .:? "model"
+      <$> o A..: "id"
+      <*> o A..: "type"
+      <*> o A..: "time"
+      <*> o A..:? "class"
+      <*> o A..:? "label"
+      <*> o A..:? "cookie"
+      <*> o A..:? "location"
+      <*> o A..:? "model"
 
 --------------------------------------------------------------------------------
 -- PubClient
@@ -418,20 +418,20 @@ data PubClient = PubClient
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform PubClient)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "pubClient", LowerCase)] PubClient)
+  deriving (Swagger.ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "pubClient", LowerCase)] PubClient)
 
 instance ToJSON PubClient where
   toJSON c =
-    object $
-      "id" .= pubClientId c
-        # "class" .= pubClientClass c
+    A.object $
+      "id" A..= pubClientId c
+        # "class" A..= pubClientClass c
         # []
 
 instance FromJSON PubClient where
-  parseJSON = withObject "PubClient" $ \o ->
+  parseJSON = A.withObject "PubClient" $ \o ->
     PubClient
-      <$> o .: "id"
-      <*> o .:? "class"
+      <$> o A..: "id"
+      <*> o A..:? "class"
 
 --------------------------------------------------------------------------------
 -- Client Type/Class
@@ -471,7 +471,7 @@ data ClientType
   | LegalHoldClientType -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientType)
-  deriving (ToSchema) via EnumToSchemaStrategy "ClientType" ClientType
+  deriving (Swagger.ToSchema) via EnumToSchemaStrategy "ClientType" ClientType
 
 typeClientType :: Doc.DataType
 typeClientType =
@@ -483,12 +483,12 @@ typeClientType =
       ]
 
 instance ToJSON ClientType where
-  toJSON TemporaryClientType = String "temporary"
-  toJSON PermanentClientType = String "permanent"
-  toJSON LegalHoldClientType = String "legalhold"
+  toJSON TemporaryClientType = A.String "temporary"
+  toJSON PermanentClientType = A.String "permanent"
+  toJSON LegalHoldClientType = A.String "legalhold"
 
 instance FromJSON ClientType where
-  parseJSON = withText "ClientType" $ \txt -> case txt of
+  parseJSON = A.withText "ClientType" $ \txt -> case txt of
     "temporary" -> return TemporaryClientType
     "permanent" -> return PermanentClientType
     "legalhold" -> return LegalHoldClientType
@@ -501,7 +501,7 @@ data ClientClass
   | LegalHoldClient -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientClass)
-  deriving (ToSchema) via EnumToSchemaStrategy "Client" ClientClass
+  deriving (Swagger.ToSchema) via EnumToSchemaStrategy "Client" ClientClass
 
 typeClientClass :: Doc.DataType
 typeClientClass =
@@ -514,13 +514,13 @@ typeClientClass =
       ]
 
 instance ToJSON ClientClass where
-  toJSON PhoneClient = String "phone"
-  toJSON TabletClient = String "tablet"
-  toJSON DesktopClient = String "desktop"
-  toJSON LegalHoldClient = String "legalhold"
+  toJSON PhoneClient = A.String "phone"
+  toJSON TabletClient = A.String "tablet"
+  toJSON DesktopClient = A.String "desktop"
+  toJSON LegalHoldClient = A.String "legalhold"
 
 instance FromJSON ClientClass where
-  parseJSON = withText "ClientClass" $ \txt -> case txt of
+  parseJSON = A.withText "ClientClass" $ \txt -> case txt of
     "phone" -> return PhoneClient
     "tablet" -> return TabletClient
     "desktop" -> return DesktopClient
@@ -594,28 +594,28 @@ newClient t k =
 
 instance ToJSON NewClient where
   toJSON c =
-    object $
-      "type" .= newClientType c
-        # "prekeys" .= newClientPrekeys c
-        # "lastkey" .= newClientLastKey c
-        # "label" .= newClientLabel c
-        # "class" .= newClientClass c
-        # "cookie" .= newClientCookie c
-        # "password" .= newClientPassword c
-        # "model" .= newClientModel c
+    A.object $
+      "type" A..= newClientType c
+        # "prekeys" A..= newClientPrekeys c
+        # "lastkey" A..= newClientLastKey c
+        # "label" A..= newClientLabel c
+        # "class" A..= newClientClass c
+        # "cookie" A..= newClientCookie c
+        # "password" A..= newClientPassword c
+        # "model" A..= newClientModel c
         # []
 
 instance FromJSON NewClient where
-  parseJSON = withObject "NewClient" $ \o ->
+  parseJSON = A.withObject "NewClient" $ \o ->
     NewClient
-      <$> o .: "prekeys"
-      <*> o .: "lastkey"
-      <*> o .: "type"
-      <*> o .:? "label"
-      <*> o .:? "class"
-      <*> o .:? "cookie"
-      <*> o .:? "password"
-      <*> o .:? "model"
+      <$> o A..: "prekeys"
+      <*> o A..: "lastkey"
+      <*> o A..: "type"
+      <*> o A..:? "label"
+      <*> o A..:? "class"
+      <*> o A..:? "cookie"
+      <*> o A..:? "password"
+      <*> o A..:? "model"
 
 --------------------------------------------------------------------------------
 -- UpdateClient
@@ -654,20 +654,20 @@ modelUpdateClient = Doc.defineModel "UpdateClient" $ do
 
 instance ToJSON UpdateClient where
   toJSON c =
-    object $
-      "prekeys" .= updateClientPrekeys c
-        # "lastkey" .= updateClientLastKey c
-        # "label" .= updateClientLabel c
-        # "capabilities" .= updateClientCapabilities c
+    A.object $
+      "prekeys" A..= updateClientPrekeys c
+        # "lastkey" A..= updateClientLastKey c
+        # "label" A..= updateClientLabel c
+        # "capabilities" A..= updateClientCapabilities c
         # []
 
 instance FromJSON UpdateClient where
-  parseJSON = withObject "RefreshClient" $ \o ->
+  parseJSON = A.withObject "RefreshClient" $ \o ->
     UpdateClient
-      <$> o .:? "prekeys" .!= []
-      <*> o .:? "lastkey"
-      <*> o .:? "label"
-      <*> o .:? "capabilities"
+      <$> o A..:? "prekeys" A..!= []
+      <*> o A..:? "lastkey"
+      <*> o A..:? "label"
+      <*> o A..:? "capabilities"
 
 --------------------------------------------------------------------------------
 -- RmClient
@@ -688,11 +688,11 @@ modelDeleteClient = Doc.defineModel "DeleteClient" $ do
     Doc.optional
 
 instance ToJSON RmClient where
-  toJSON (RmClient pw) = object ["password" .= pw]
+  toJSON (RmClient pw) = A.object ["password" A..= pw]
 
 instance FromJSON RmClient where
-  parseJSON = withObject "RmClient" $ \o ->
-    RmClient <$> o .:? "password"
+  parseJSON = A.withObject "RmClient" $ \o ->
+    RmClient <$> o A..:? "password"
 
 --------------------------------------------------------------------------------
 -- other models
