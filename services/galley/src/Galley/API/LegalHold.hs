@@ -61,7 +61,7 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Wire.API.Connection (Relation (..))
+import Wire.API.Connection (Relation_' (..))
 import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..), cnvType)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
@@ -414,5 +414,5 @@ changeLegalholdStatus tid uid lhStatus = do
 
     blockConnection :: UserId -> UserId -> Galley ()
     blockConnection userA userB = do
-      void $ putConnection userA userB Blocked -- TODO: see ticket, needs to be different Relation statue.
-      void $ putConnection userB userA Blocked
+      void $ putConnection userA userB MissingLegalholdConsent_'
+      void $ putConnection userB userA MissingLegalholdConsent_'

@@ -17,7 +17,7 @@
 
 module Galley.API.Util where
 
-import Brig.Types (Relation (..))
+import Brig.Types (Relation_' (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
@@ -94,8 +94,8 @@ ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnections [u] uids (Just Accepted)
-      `concurrently` getConnections uids [u] (Just Accepted)
+    getConnections [u] uids (Just Accepted_')
+      `concurrently` getConnections uids [u] (Just Accepted_')
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throwM notConnected
 

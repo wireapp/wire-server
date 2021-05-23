@@ -118,7 +118,7 @@ data ConnectionError
     -- when attempting to create or accept a connection.
     TooManyConnections UserId
   | -- | An invalid connection status change.
-    InvalidTransition UserId Relation
+    InvalidTransition UserId Relation_'
   | -- | The target user in an connection attempt is invalid, e.g. not activated.
     InvalidUser UserId
   | -- | An attempt at updating a non-existent connection.

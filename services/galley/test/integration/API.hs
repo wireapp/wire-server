@@ -651,7 +651,7 @@ postConvFailBlocked = do
   bob <- randomUser
   jane <- randomUser
   connectUsers alice (list1 bob [jane])
-  putConnection jane alice Blocked
+  putConnection jane alice Blocked_'
     !!! const 200 === statusCode
   postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode

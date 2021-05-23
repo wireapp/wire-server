@@ -86,8 +86,8 @@ testCreateManualConnections brig = do
   uid1 <- userId <$> randomUser brig
   uid2 <- userId <$> randomUser brig
   postConnection brig uid1 uid2 !!! const 201 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending_']
   -- Test that no connections to anonymous users can be created,
   -- as well as that anonymous users cannot create connections.
   uid3 <- userId <$> createAnonUser "foo3" brig
@@ -99,11 +99,11 @@ testCreateMutualConnections brig galley = do
   uid1 <- userId <$> randomUser brig
   uid2 <- userId <$> randomUser brig
   postConnection brig uid1 uid2 !!! const 201 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending_']
   rsp <- postConnection brig uid2 uid1 <!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
   case responseJsonMaybe rsp >>= ucConvId of
     Nothing -> liftIO $ assertFailure "incomplete connection"
     Just cnv -> do
@@ -121,15 +121,15 @@ testAcceptConnection brig = do
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- B accepts
-  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
   -- Mutual connection request with a user C
   uid3 <- userId <$> randomUser brig
   postConnection brig uid1 uid3 !!! const 201 === statusCode
   postConnection brig uid3 uid1 !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid3 Accepted]
-  assertConnections brig uid3 [ConnectionStatus uid3 uid1 Accepted]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid3 Accepted_']
+  assertConnections brig uid3 [ConnectionStatus uid3 uid1 Accepted_']
 
 testIgnoreConnection :: Brig -> Http ()
 testIgnoreConnection brig = do
@@ -138,13 +138,13 @@ testIgnoreConnection brig = do
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- B ignores A
-  putConnection brig uid2 uid1 Ignored !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Ignored]
+  putConnection brig uid2 uid1 Ignored_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Ignored_']
   -- B accepts after all
-  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
 
 testCancelConnection :: Brig -> Http ()
 testCancelConnection brig = do
@@ -153,13 +153,13 @@ testCancelConnection brig = do
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- A cancels the request
-  putConnection brig uid1 uid2 Cancelled !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled]
+  putConnection brig uid1 uid2 Cancelled_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled_']
   -- A changes his mind again
   postConnection brig uid1 uid2 !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending_']
 
 testCancelConnection2 :: Brig -> Galley -> Http ()
 testCancelConnection2 brig galley = do
@@ -168,9 +168,9 @@ testCancelConnection2 brig galley = do
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- A cancels the request
-  rsp <- putConnection brig uid1 uid2 Cancelled <!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled]
+  rsp <- putConnection brig uid1 uid2 Cancelled_' <!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled_']
   let Just cnv = ucConvId =<< responseJsonMaybe rsp
   -- A cannot see the conversation (due to cancelling)
   getConversation galley uid1 cnv !!! do
@@ -179,8 +179,8 @@ testCancelConnection2 brig galley = do
   getConversation galley uid2 cnv !!! const 403 === statusCode
   -- B initiates a connection request himself
   postConnection brig uid2 uid1 !!! const 200 === statusCode
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Sent]
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Pending]
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Sent_']
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Pending_']
   -- B is now a current member of the connect conversation
   getConversation galley uid2 cnv !!! do
     const 200 === statusCode
@@ -191,9 +191,9 @@ testCancelConnection2 brig galley = do
   getConversation galley uid1 cnv !!! do
     const 403 === statusCode
   -- A finally accepts
-  putConnection brig uid1 uid2 Accepted !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  putConnection brig uid1 uid2 Accepted_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
   getConversation galley uid1 cnv !!! do
     const 200 === statusCode
   getConversation galley uid2 cnv !!! do
@@ -212,36 +212,36 @@ testBlockConnection brig = do
   assertEmailVisibility brig u2 u1 False
   assertEmailVisibility brig u1 u2 False
   -- B blocks A
-  putConnection brig uid2 uid1 Blocked !!! const 200 === statusCode
+  putConnection brig uid2 uid1 Blocked_' !!! const 200 === statusCode
   -- A does not notice that he got blocked
   postConnection brig uid1 uid2 !!! do
     const 200 === statusCode
-    const (Just Sent) === fmap ucStatus . responseJsonMaybe
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
+    const (Just Sent_') === fmap ucStatus . responseJsonMaybe
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked_']
   -- B accepts after all
-  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
   assertEmailVisibility brig u1 u2 False
   -- B blocks A again
-  putConnection brig uid2 uid1 Blocked !!! const 200 === statusCode
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
+  putConnection brig uid2 uid1 Blocked_' !!! const 200 === statusCode
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked_']
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
   assertEmailVisibility brig u1 u2 False
   -- B accepts again
-  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
   assertEmailVisibility brig u1 u2 False
   -- A blocks B
-  putConnection brig uid1 uid2 Blocked !!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Blocked]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  putConnection brig uid1 uid2 Blocked_' !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Blocked_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
   assertEmailVisibility brig u2 u1 False
   -- A accepts B again
-  putConnection brig uid1 uid2 Accepted !!! const 200 === statusCode
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
+  putConnection brig uid1 uid2 Accepted_' !!! const 200 === statusCode
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
   assertEmailVisibility brig u2 u1 False
 
 testBlockAndResendConnection :: Brig -> Galley -> Http ()
@@ -253,18 +253,18 @@ testBlockAndResendConnection brig galley = do
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- B blocks A
-  putConnection brig uid2 uid1 Blocked !!! const 200 === statusCode
+  putConnection brig uid2 uid1 Blocked_' !!! const 200 === statusCode
   -- A blocks B
-  putConnection brig uid1 uid2 Blocked !!! const 200 === statusCode
+  putConnection brig uid1 uid2 Blocked_' !!! const 200 === statusCode
   -- Cannot resend while blocked, need to unblock first
   postConnection brig uid1 uid2 !!! const 403 === statusCode
   -- Unblock
-  putConnection brig uid1 uid2 Accepted !!! const 200 === statusCode
+  putConnection brig uid1 uid2 Accepted_' !!! const 200 === statusCode
   -- Try to resend the connection request
   -- B is not actually notified, since he blocked.
   rsp <- postConnection brig uid1 uid2 <!! const 200 === statusCode
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked_']
   -- B never accepted and thus does not see the conversation
   let Just cnv = ucConvId =<< responseJsonMaybe rsp
   getConversation galley uid2 cnv !!! const 403 === statusCode
@@ -277,24 +277,24 @@ testUnblockPendingConnection brig = do
   u1 <- userId <$> randomUser brig
   u2 <- userId <$> randomUser brig
   postConnection brig u1 u2 !!! const 201 === statusCode
-  putConnection brig u1 u2 Blocked !!! const 200 === statusCode
-  assertConnections brig u1 [ConnectionStatus u1 u2 Blocked]
-  assertConnections brig u2 [ConnectionStatus u2 u1 Pending]
-  putConnection brig u1 u2 Accepted !!! const 200 === statusCode
-  assertConnections brig u1 [ConnectionStatus u1 u2 Sent]
-  assertConnections brig u2 [ConnectionStatus u2 u1 Pending]
+  putConnection brig u1 u2 Blocked_' !!! const 200 === statusCode
+  assertConnections brig u1 [ConnectionStatus u1 u2 Blocked_']
+  assertConnections brig u2 [ConnectionStatus u2 u1 Pending_']
+  putConnection brig u1 u2 Accepted_' !!! const 200 === statusCode
+  assertConnections brig u1 [ConnectionStatus u1 u2 Sent_']
+  assertConnections brig u2 [ConnectionStatus u2 u1 Pending_']
 
 testAcceptWhileBlocked :: Brig -> Http ()
 testAcceptWhileBlocked brig = do
   u1 <- userId <$> randomUser brig
   u2 <- userId <$> randomUser brig
   postConnection brig u1 u2 !!! const 201 === statusCode
-  putConnection brig u1 u2 Blocked !!! const 200 === statusCode
-  assertConnections brig u1 [ConnectionStatus u1 u2 Blocked]
-  assertConnections brig u2 [ConnectionStatus u2 u1 Pending]
-  putConnection brig u2 u1 Accepted !!! const 200 === statusCode
-  assertConnections brig u1 [ConnectionStatus u1 u2 Blocked]
-  assertConnections brig u2 [ConnectionStatus u2 u1 Accepted]
+  putConnection brig u1 u2 Blocked_' !!! const 200 === statusCode
+  assertConnections brig u1 [ConnectionStatus u1 u2 Blocked_']
+  assertConnections brig u2 [ConnectionStatus u2 u1 Pending_']
+  putConnection brig u2 u1 Accepted_' !!! const 200 === statusCode
+  assertConnections brig u1 [ConnectionStatus u1 u2 Blocked_']
+  assertConnections brig u2 [ConnectionStatus u2 u1 Accepted_']
 
 testUpdateConnectionNoop :: Brig -> Http ()
 testUpdateConnectionNoop brig = do
@@ -303,18 +303,18 @@ testUpdateConnectionNoop brig = do
   let uid1 = userId u1
   let uid2 = userId u2
   postConnection brig uid1 uid2 !!! const 201 === statusCode
-  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  putConnection brig uid2 uid1 Accepted !!! const 204 === statusCode
+  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  putConnection brig uid2 uid1 Accepted_' !!! const 204 === statusCode
 
 testBadUpdateConnection :: Brig -> Http ()
 testBadUpdateConnection brig = do
   uid1 <- userId <$> randomUser brig
   uid2 <- userId <$> randomUser brig
   postConnection brig uid1 uid2 !!! const 201 === statusCode
-  assertBadUpdate uid1 uid2 Pending
-  assertBadUpdate uid1 uid2 Ignored
-  assertBadUpdate uid1 uid2 Accepted
-  assertBadUpdate uid2 uid1 Sent
+  assertBadUpdate uid1 uid2 Pending_'
+  assertBadUpdate uid1 uid2 Ignored_'
+  assertBadUpdate uid1 uid2 Accepted_'
+  assertBadUpdate uid2 uid1 Sent_'
   where
     assertBadUpdate u1 u2 s =
       putConnection brig u1 u2 s !!! do
@@ -349,7 +349,7 @@ testConnectionLimit brig (ConnectionLimit l) = do
   uidX <- userId <$> randomUser brig
   postConnection brig uid1 uidX !!! assertLimited
   -- blocked connections do not count towards the limit
-  putConnection brig uid1 uid2 Blocked !!! const 200 === statusCode
+  putConnection brig uid1 uid2 Blocked_' !!! const 200 === statusCode
   postConnection brig uid1 uidX !!! const 201 === statusCode
   -- the next send/accept hits the limit again
   uidY <- userId <$> randomUser brig
@@ -375,8 +375,8 @@ testAutoConnectionOK brig galley = do
       const (Just 2) === \r -> do
         b <- responseBody r
         Vec.length <$> (decode b :: Maybe (Vector UserConnection))
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted_']
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted_']
   case responseJsonMaybe bdy >>= headMay >>= ucConvId of
     Nothing -> liftIO $ assertFailure "incomplete connection"
     Just cnv -> do

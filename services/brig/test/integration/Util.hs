@@ -404,7 +404,7 @@ postConnection brig from to =
       RequestBodyLBS . encode $
         ConnectionRequest to "some conv name" (Message "some message")
 
-putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putConnection :: Brig -> UserId -> UserId -> Relation_' -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
     brig
@@ -421,7 +421,7 @@ connectUsers b u = mapM_ connectTo
   where
     connectTo v = do
       void $ postConnection b u v
-      void $ putConnection b v u Accepted
+      void $ putConnection b v u Accepted_'
 
 putHandle ::
   (MonadIO m, MonadHttp m, HasCallStack) =>

@@ -83,25 +83,27 @@ instance Cql UserSSOId where
 
   toCql = toCql . cs @LBS @ST . encode
 
-instance Cql Relation where
+instance Cql Relation_' where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt i) = case i of
-    0 -> return Accepted
-    1 -> return Blocked
-    2 -> return Pending
-    3 -> return Ignored
-    4 -> return Sent
-    5 -> return Cancelled
+    0 -> return Accepted_'
+    1 -> return Blocked_'
+    2 -> return Pending_'
+    3 -> return Ignored_'
+    4 -> return Sent_'
+    5 -> return Cancelled_'
+    6 -> return MissingLegalholdConsent_'
     n -> Left $ "unexpected relation: " ++ show n
   fromCql _ = Left "relation: int expected"
 
-  toCql Accepted = CqlInt 0
-  toCql Blocked = CqlInt 1
-  toCql Pending = CqlInt 2
-  toCql Ignored = CqlInt 3
-  toCql Sent = CqlInt 4
-  toCql Cancelled = CqlInt 5
+  toCql Accepted_' = CqlInt 0
+  toCql Blocked_' = CqlInt 1
+  toCql Pending_' = CqlInt 2
+  toCql Ignored_' = CqlInt 3
+  toCql Sent_' = CqlInt 4
+  toCql Cancelled_' = CqlInt 5
+  toCql MissingLegalholdConsent_' = CqlInt 6
 
 -- DEPRECATED
 instance Cql Pict where

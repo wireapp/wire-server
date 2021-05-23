@@ -997,10 +997,10 @@ testDeleteUserByPassword brig cannon aws = do
   liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr3)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   postConnection brig uid1 uid3 !!! const 201 === statusCode
-  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  putConnection brig uid3 uid1 Accepted !!! const 200 === statusCode
+  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  putConnection brig uid3 uid1 Accepted_' !!! const 200 === statusCode
   postConnection brig uid2 uid3 !!! const 201 === statusCode
-  con32 <- putConnection brig uid3 uid2 Accepted <!! const 200 === statusCode
+  con32 <- putConnection brig uid3 uid2 Accepted_' <!! const 200 === statusCode
   con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
   -- Register a client
   addClient brig uid1 (defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0))

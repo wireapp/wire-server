@@ -35,7 +35,7 @@ import Data.Id (UserId)
 import qualified Data.Set as Set
 import Imports hiding (head)
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Connection (Relation)
+import Wire.API.Connection (Relation_')
 import qualified Wire.API.Push.Token as PushTok
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
@@ -62,10 +62,10 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       mbContacts <-
         if includeContacts'
           then do
-            contacts :: [(UserId, Relation)] <-
+            contacts :: [(UserId, Relation_')] <-
               Conn.lookupContactListWithRelation uid
 
-            contactsFull :: [Maybe (Relation, EJPDResponseItem)] <-
+            contactsFull :: [Maybe (Relation_', EJPDResponseItem)] <-
               forM contacts $ \(uid', rel) -> do
                 mbUsr <- lookupUser NoPendingInvitations uid'
                 maybe (pure Nothing) (\usr -> Just . (rel,) <$> go2 False usr) mbUsr
