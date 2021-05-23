@@ -1120,13 +1120,13 @@ publicKeyNotMatchingService =
 testGetLegalholdStatus :: TestM ()
 testGetLegalholdStatus = do
   (owner1, tid1) <- createBindingTeam
-  member1 <- randomUser
-  addTeamMemberInternal tid1 member1 (rolePermissions RoleMember) Nothing
+  member1 <- view userId <$> addUserToTeam owner1 tid1
   ensureQueueEmpty
+
   (owner2, tid2) <- createBindingTeam
-  member2 <- randomUser
-  addTeamMemberInternal tid2 member2 (rolePermissions RoleMember) Nothing
+  member2 <- view userId <$> addUserToTeam owner2 tid2
   ensureQueueEmpty
+
   personal <- randomUser
 
   let check :: HasCallStack => UserId -> UserId -> Maybe TeamId -> UserLegalHoldStatus -> TestM ()
@@ -1134,7 +1134,11 @@ testGetLegalholdStatus = do
         profile <- getUserProfile getter targetUser
         when (profileLegalholdStatus profile /= stat) $ do
           meminfo <- getUserStatusTyped targetUser `mapM` targetTeam
-          liftIO $ forM_ meminfo $ assertEqual "member LH status" stat . ulhsrStatus
+
+          liftIO . forM_ meminfo $ \mem -> do
+            assertEqual "member LH status" stat (ulhsrStatus mem)
+            assertEqual "team id in brig user record" targetTeam (profileTeam profile)
+
           liftIO $ assertEqual "user profile status info" stat (profileLegalholdStatus profile)
 
       requestDev :: HasCallStack => UserId -> UserId -> TeamId -> TestM ()
