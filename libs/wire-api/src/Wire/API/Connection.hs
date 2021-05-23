@@ -27,7 +27,7 @@ module Wire.API.Connection
     UserConnection (..),
     UserConnectionList (..),
     Message (..),
-    Relation (..),
+    Relation_' (..),
 
     -- * Requests
     ConnectionRequest (..),
@@ -51,7 +51,7 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Schema
 import Data.Text as Text
-import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger)
+import Deriving.Swagger (CamelToKebab, ConstructorTagModifier, CustomSwagger, StripSuffix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -98,7 +98,7 @@ instance FromJSON UserConnectionList where
 data UserConnection = UserConnection
   { ucFrom :: UserId,
     ucTo :: UserId,
-    ucStatus :: Relation,
+    ucStatus :: Relation_',
     -- | When 'ucStatus' was last changed
     ucLastUpdate :: UTCTimeMillis,
     ucMessage :: Maybe Message,
@@ -152,16 +152,18 @@ instance FromJSON UserConnection where
 -- | Possible relations between two users. For detailed descriptions of these states, see:
 --
 -- > docs/reference/user/connection.md {#RefConnectionStates}
-data Relation
-  = Accepted
-  | Blocked
-  | Pending
-  | Ignored
-  | Sent
-  | Cancelled
+data Relation_'
+  = Accepted_'
+  | Blocked_'
+  | Pending_'
+  | Ignored_'
+  | Sent_'
+  | Cancelled_'
+  | -- | behaves like blocked, the extra constructor is just to inform why.
+    MissingLegalholdConsent_'
   deriving stock (Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Relation)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToSnake] Relation)
+  deriving (Arbitrary) via (GenericUniform Relation_')
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (CamelToKebab, StripSuffix "_'")] Relation_')
 
 typeRelation :: Doc.DataType
 typeRelation =
@@ -172,31 +174,51 @@ typeRelation =
         "pending",
         "ignored",
         "sent",
-        "cancelled"
+        "cancelled",
+        "missing-legalhold-consent"
       ]
 
-instance ToJSON Relation where
-  toJSON = String . Text.toLower . pack . show
+instance ToJSON Relation_' where
+  toJSON = \case
+    Accepted_' -> "accepted"
+    Blocked_' -> "blocked"
+    Pending_' -> "pending"
+    Ignored_' -> "ignored"
+    Sent_' -> "sent"
+    Cancelled_' -> "cancelled"
+    MissingLegalholdConsent_' -> "missing-legalhold-consent"
 
-instance FromJSON Relation where
-  parseJSON (String "accepted") = return Accepted
-  parseJSON (String "blocked") = return Blocked
-  parseJSON (String "pending") = return Pending
-  parseJSON (String "ignored") = return Ignored
-  parseJSON (String "sent") = return Sent
-  parseJSON (String "cancelled") = return Cancelled
+instance FromJSON Relation_' where
+  parseJSON (String "accepted") = return Accepted_'
+  parseJSON (String "blocked") = return Blocked_'
+  parseJSON (String "pending") = return Pending_'
+  parseJSON (String "ignored") = return Ignored_'
+  parseJSON (String "sent") = return Sent_'
+  parseJSON (String "cancelled") = return Cancelled_'
+  parseJSON (String "missing-legalhold-consent") = return MissingLegalholdConsent_'
   parseJSON _ = mzero
 
-instance FromByteString Relation where
+instance FromByteString Relation_' where
   parser =
     takeByteString >>= \b -> case b of
-      "accepted" -> return Accepted
-      "blocked" -> return Blocked
-      "pending" -> return Pending
-      "ignored" -> return Ignored
-      "sent" -> return Sent
-      "cancelled" -> return Cancelled
+      "accepted" -> return Accepted_'
+      "blocked" -> return Blocked_'
+      "pending" -> return Pending_'
+      "ignored" -> return Ignored_'
+      "sent" -> return Sent_'
+      "cancelled" -> return Cancelled_'
+      "missing-legalhold-consent" -> return MissingLegalholdConsent_'
       x -> fail $ "Invalid relation-type " <> show x
+
+instance ToByteString Relation_' where
+  builder = \case
+    Accepted_' -> "accepted"
+    Blocked_' -> "blocked"
+    Pending_' -> "pending"
+    Ignored_' -> "ignored"
+    Sent_' -> "sent"
+    Cancelled_' -> "cancelled"
+    MissingLegalholdConsent_' -> "missing-legalhold-consent"
 
 --------------------------------------------------------------------------------
 -- Message
@@ -262,7 +284,7 @@ instance Arbitrary ConnectionRequest where
 
 -- | Payload type for "please change the status of this connection".
 data ConnectionUpdate = ConnectionUpdate
-  { cuStatus :: Relation
+  { cuStatus :: Relation_'
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConnectionUpdate)

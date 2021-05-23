@@ -488,8 +488,8 @@ killBot bot = liftBotNet $ do
   where
     stopThread r = liftIO $ traverse_ cancel =<< atomicModifyIORef' r (Nothing,)
     ignoredEventMsg l e
-      | l < Info = msg (val "Event Ignored: " +++ show e)
-      | otherwise = msg (val "Event Ignored: " +++ showEventType e)
+      | l < Info = msg (val "Event Ignored_': " +++ show e)
+      | otherwise = msg (val "Event Ignored_': " +++ showEventType e)
 
 withNewBot ::
   (HasCallStack, MonadBotNet m, MonadMask m) =>

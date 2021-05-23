@@ -29,7 +29,7 @@ module Brig.Types.Connection
 
     -- * re-exports
     Message (..),
-    Relation (..),
+    Relation_' (..),
     UserConnection (..),
     ConnectionRequest (..),
     ConnectionUpdate (..),

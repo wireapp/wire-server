@@ -109,17 +109,17 @@ assertMembersLeft bs (Just e) = forM_ bs $ \b ->
 assertConnectRequested :: (HasCallStack, MonadBotNet m) => Bot -> Bot -> m ()
 assertConnectRequested from to =
   assertEvent to TUserConnection $
-    connStatus (botId to) (botId from) Pending
+    connStatus (botId to) (botId from) Pending_'
 
 assertConnectAccepted :: (HasCallStack, MonadBotNet m) => Bot -> Bot -> m ()
 assertConnectAccepted from to = do
   assertEvent to TConvMemberJoin $ memberJoined (botId from) (botId to)
-  assertEvent to TUserConnection $ connStatus (botId to) (botId from) Accepted
+  assertEvent to TUserConnection $ connStatus (botId to) (botId from) Accepted_'
 
 -------------------------------------------------------------------------------
 -- Event matchers
 
-connStatus :: UserId -> UserId -> Relation -> Event -> Bool
+connStatus :: UserId -> UserId -> Relation_' -> Event -> Bool
 connStatus from to rel = \case
   EConnection c _ ->
     ucFrom c == from

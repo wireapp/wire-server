@@ -33,7 +33,7 @@ import Deriving.Swagger (CamelToSnake, CustomSwagger (..), FieldLabelModifier, S
 import Imports hiding (head)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
-import Wire.API.Connection (Relation)
+import Wire.API.Connection (Relation_')
 import Wire.API.Team.Member (NewListType)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Name)
@@ -56,7 +56,7 @@ data EJPDResponseItem = EJPDResponseItem
     ejpdResponseEmail :: Maybe Email,
     ejpdResponsePhone :: Maybe Phone,
     ejpdResponsePushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
-    ejpdResponseContacts :: Maybe (Set (Relation, EJPDResponseItem)),
+    ejpdResponseContacts :: Maybe (Set (Relation_', EJPDResponseItem)),
     ejpdResponseTeamContacts :: Maybe (Set EJPDResponseItem, NewListType)
   }
   deriving stock (Eq, Ord, Show, Generic)

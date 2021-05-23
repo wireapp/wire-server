@@ -97,7 +97,7 @@ instance ToJSON AccountStatusUpdate where
 data ConnectionStatus = ConnectionStatus
   { csFrom :: !UserId,
     csTo :: !UserId,
-    csStatus :: !Relation
+    csStatus :: !Relation_'
   }
   deriving (Eq, Show, Generic)
 
