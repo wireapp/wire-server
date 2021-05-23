@@ -119,9 +119,11 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       (MissingLegalholdConsent, _) -> throwE $ InvalidTransition self Sent
       (_, MissingLegalholdConsent) -> throwE $ InvalidTransition self Sent
       -- TODO: but how do we recover the old state, before MissingLegalholdConsent?  just move
-      -- to "pending" on both sides?, and make one of the two re-accept?  is that going to
-      -- work with the existing convs?  or store the old state in a new column in the
-      -- connections table?  horrible idea...
+      -- to "sent" on both sides, and make both re-accept?  is that going to work with the
+      -- existing convs?  and is it even a legal transition?  or store the old state in a new
+      -- column in the connections table? horrible idea...  or not block the connection, but
+      -- the conversation?  maybe that would work best after all (given we also make sure
+      -- trying to create new convs will fail with an appropriate error).
       (_, Blocked) -> change s2o Sent
       (_, Sent) -> accept s2o o2s
       (_, Accepted) -> accept s2o o2s
