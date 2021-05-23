@@ -18,6 +18,7 @@ dependencies:
 - swagger2 >=2.5
 - text >=0.11
 - time >=1.1
+- tinylog
 - types-common >=0.16
 - unordered-containers >=0.2
 - wire-api

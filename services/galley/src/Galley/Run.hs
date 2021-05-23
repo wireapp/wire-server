@@ -55,7 +55,7 @@ import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 run :: Opts -> IO ()
 run o = do
-  (app, e) <- mkApp o
+  (app, e, appFinalizer) <- mkApp o
   let l = e ^. App.applog
   s <-
     newSettings $
@@ -70,10 +70,9 @@ run o = do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
     shutdown (e ^. cstate)
-    Log.flush l
-    Log.close l
+    appFinalizer
 
-mkApp :: Opts -> IO (Application, Env)
+mkApp :: Opts -> IO (Application, Env, IO ())
 mkApp o = do
   m <- M.metrics
   e <- App.createEnv m o
@@ -81,7 +80,10 @@ mkApp o = do
   validateOpts l o
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
-  return (middlewares l m $ servantApp e, e)
+  let finalizer = do
+        Log.flush l
+        Log.close l
+  return (middlewares l m $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap
     app e r k = runGalley e r (route rtree r k)
