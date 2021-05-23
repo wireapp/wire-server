@@ -859,12 +859,12 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
       then do
         postConnection legalholder peer !!! const 201 === statusCode
         unless testPendingConnection $ do
-          void $ putConnection peer legalholder Conn.Accepted_'
+          void $ putConnection peer legalholder Conn.Accepted
 
         doEnableLH
 
-        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent_']
-        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent_']
+        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
+        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
         forM_ [legalholderWs, peerWs] $ \ws -> do
           -- (if this fails, it may be because there are other messages in the queue, but i
@@ -872,17 +872,17 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
           assertNotification ws $
             \case
               (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
-                rel @?= Conn.MissingLegalholdConsent_'
+                rel @?= Conn.MissingLegalholdConsent
               _ -> assertBool "wrong event type" False
 
         forM_ [(legalholder, peer), (peer, legalholder)] $ \(one, two) -> do
-          putConnection one two Conn.Accepted_'
+          putConnection one two Conn.Accepted
             !!!
             -- (other label, or test for 403 and ignore label would also be acceptable.)
             testResponse 412 (Just "missing-legalhold-consent")
 
-        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent_']
-        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent_']
+        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
+        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
         do
           -- (again, other label / 4xx status code would also be fine.)
@@ -894,12 +894,12 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
           assertConnections
             legalholder
             [ ConnectionStatus legalholder peer $
-                if testPendingConnection then Conn.Sent_' else Conn.Accepted_'
+                if testPendingConnection then Conn.Sent else Conn.Accepted
             ]
           assertConnections
             peer
             [ ConnectionStatus peer legalholder $
-                if testPendingConnection then Conn.Pending_' else Conn.Accepted_'
+                if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
 
           postOtrMessageJson undefined undefined !!! const 201 === statusCode

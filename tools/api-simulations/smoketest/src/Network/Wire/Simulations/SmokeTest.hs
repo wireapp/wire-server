@@ -80,7 +80,7 @@ mainBotNet n = do
   -- Accept a connection request from Ally
   let allyAccept :: Bot -> BotNet ()
       allyAccept user = runBotSession user $ do
-        void $ updateConnection (botId ally) (ConnectionUpdate Accepted_')
+        void $ updateConnection (botId ally) (ConnectionUpdate Accepted)
         assertConnectAccepted user ally
   mapM_ allyAccept (bill : carl : goons)
   mapM_ awaitAssertions (ally : bill : carl : goons)

@@ -490,7 +490,7 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   let uid1 = userId u1
   let uid2 = userId u2
   postConnection brig uid1 uid2 !!! const 201 === statusCode
-  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   cnv <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
   let cid = cnvId cnv
   -- Add two bots there
@@ -527,7 +527,7 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
   h <- randomHandle
   putHandle brig uid1 h !!! const 200 === statusCode
   postConnection brig uid1 uid2 !!! const 201 === statusCode
-  putConnection brig uid2 uid1 Accepted_' !!! const 200 === statusCode
+  putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   -- Create conversation
   _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
   let Just cnv = responseJsonMaybe _rs

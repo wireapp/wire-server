@@ -1182,7 +1182,7 @@ connectUsersWith fn u us = mapM connectTo us
               . zUser v
               . zConn "conn"
               . paths ["connections", toByteString' u]
-              . json (ConnectionUpdate Accepted_')
+              . json (ConnectionUpdate Accepted)
               . fn
           )
       return (r1, r2)
@@ -1204,7 +1204,7 @@ postConnection from to = do
         ConnectionRequest to "some conv name" (Message "some message")
 
 -- | A copy of 'putConnection' from Brig integration tests.
-putConnection :: UserId -> UserId -> Relation_' -> TestM ResponseLBS
+putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
 putConnection from to r = do
   brig <- view tsBrig
   put $

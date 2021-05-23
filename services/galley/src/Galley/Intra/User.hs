@@ -32,7 +32,7 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation_' (..), UserIds (..))
+import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
 import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
@@ -58,7 +58,7 @@ import Wire.API.User.RichInfo (RichInfo)
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.getConnectionsStatusH'.
-getConnections :: [UserId] -> [UserId] -> Maybe Relation_' -> Galley [ConnectionStatus]
+getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
 getConnections uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
@@ -72,7 +72,7 @@ getConnections uFrom uTo rlt = do
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
 
-putConnection :: UserId -> UserId -> Relation_' -> Galley (Either Status (Maybe UserConnection))
+putConnection :: UserId -> UserId -> Relation -> Galley (Either Status (Maybe UserConnection))
 putConnection from to relation = do
   (h, p) <- brigReq
   response <-

@@ -40,7 +40,7 @@ tests _opts mgr brig brigep gundeck = do
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
 type MkUsr =
-  Maybe (Set (Relation_', EJPDResponseItem)) ->
+  Maybe (Set (Relation, EJPDResponseItem)) ->
   Maybe (Set EJPDResponseItem, Team.NewListType) ->
   EJPDResponseItem
 
@@ -142,7 +142,7 @@ testEJPDRequest mgr brig brigep gundeck = do
         want =
           EJPDResponseBody
             [ mkUsr2
-                (Just (Set.fromList [(Conn.Accepted_', mkUsr1 Nothing Nothing)]))
+                (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
                 Nothing
             ]
     have <- ejpdRequestClient brigep mgr (Just True) req
@@ -153,10 +153,10 @@ testEJPDRequest mgr brig brigep gundeck = do
         want =
           EJPDResponseBody
             [ mkUsr1
-                (Just (Set.fromList [(Conn.Accepted_', mkUsr2 Nothing Nothing)]))
+                (Just (Set.fromList [(Conn.Accepted, mkUsr2 Nothing Nothing)]))
                 (Just (Set.fromList [mkUsr3 Nothing Nothing], Team.NewListComplete)),
               mkUsr2
-                (Just (Set.fromList [(Conn.Accepted_', mkUsr1 Nothing Nothing)]))
+                (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
                 Nothing
             ]
     have <- ejpdRequestClient brigep mgr (Just True) req

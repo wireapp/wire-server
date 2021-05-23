@@ -54,11 +54,11 @@ connectUsers from to = do
     setType BatchLogged
     setConsistency Quorum
     forM_ to $ \(u, c) -> do
-      addPrepQuery connectionInsert (from, u, Accepted_', now, Nothing, c)
-      addPrepQuery connectionInsert (u, from, Accepted_', now, Nothing, c)
+      addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
+      addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
   return . concat . (`map` to) $ \(u, c) ->
-    [ UserConnection from u Accepted_' now Nothing (Just c),
-      UserConnection u from Accepted_' now Nothing (Just c)
+    [ UserConnection from u Accepted now Nothing (Just c),
+      UserConnection u from Accepted now Nothing (Just c)
     ]
 
 insertConnection ::
@@ -66,7 +66,7 @@ insertConnection ::
   UserId ->
   -- | To
   UserId ->
-  Relation_' ->
+  Relation ->
   Maybe Message ->
   ConvId ->
   AppIO UserConnection
@@ -75,7 +75,7 @@ insertConnection from to status msg cid = do
   retry x5 . write connectionInsert $ params Quorum (from, to, status, now, msg, cid)
   return $ toUserConnection (from, to, status, now, msg, Just cid)
 
-updateConnection :: UserConnection -> Relation_' -> AppIO UserConnection
+updateConnection :: UserConnection -> Relation -> AppIO UserConnection
 updateConnection c@UserConnection {..} status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
@@ -115,22 +115,22 @@ lookupConnectionStatus from to =
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
 lookupContactList u =
-  fst <$$> (filter ((== Accepted_') . snd) <$> lookupContactListWithRelation u)
+  fst <$$> (filter ((== Accepted) . snd) <$> lookupContactListWithRelation u)
 
 -- | For a given user 'A', lookup the list of users that form his contact list,
--- i.e. the users to whom 'A' has an outgoing 'Accepted_'' relation (A -> B).
-lookupContactListWithRelation :: UserId -> AppIO [(UserId, Relation_')]
+-- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
+lookupContactListWithRelation :: UserId -> AppIO [(UserId, Relation)]
 lookupContactListWithRelation u =
   retry x1 (query contactsSelect (params Quorum (Identity u)))
 
 -- | Count the number of connections a user has in a specific relation status.
 -- Note: The count is eventually consistent.
-countConnections :: UserId -> [Relation_'] -> AppIO Int64
+countConnections :: UserId -> [Relation] -> AppIO Int64
 countConnections u r = do
   rels <- retry x1 . query selectStatus $ params One (Identity u)
   return $ foldl' count 0 rels
   where
-    selectStatus :: QueryString R (Identity UserId) (Identity Relation_')
+    selectStatus :: QueryString R (Identity UserId) (Identity Relation)
     selectStatus = "SELECT status FROM connection WHERE left = ?"
     count n (Identity s) | s `elem` r = n + 1
     count n _ = n
@@ -146,25 +146,25 @@ deleteConnections u = do
 
 -- Queries
 
-connectionInsert :: PrepQuery W (UserId, UserId, Relation_', UTCTimeMillis, Maybe Message, ConvId) ()
+connectionInsert :: PrepQuery W (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, ConvId) ()
 connectionInsert = "INSERT INTO connection (left, right, status, last_update, message, conv) VALUES (?, ?, ?, ?, ?, ?)"
 
-connectionUpdate :: PrepQuery W (Relation_', UTCTimeMillis, UserId, UserId) ()
+connectionUpdate :: PrepQuery W (Relation, UTCTimeMillis, UserId, UserId) ()
 connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?"
 
-connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation_', UTCTimeMillis, Maybe Message, Maybe ConvId)
+connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right = ?"
 
-connectionStatusSelect :: PrepQuery R ([UserId], [UserId]) (UserId, UserId, Relation_')
+connectionStatusSelect :: PrepQuery R ([UserId], [UserId]) (UserId, UserId, Relation)
 connectionStatusSelect = "SELECT left, right, status FROM connection WHERE left IN ? AND right IN ?"
 
-contactsSelect :: PrepQuery R (Identity UserId) (UserId, Relation_')
+contactsSelect :: PrepQuery R (Identity UserId) (UserId, Relation)
 contactsSelect = "SELECT right, status FROM connection WHERE left = ?"
 
-connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, Relation_', UTCTimeMillis, Maybe Message, Maybe ConvId)
+connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionsSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? ORDER BY right ASC"
 
-connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation_', UTCTimeMillis, Maybe Message, Maybe ConvId)
+connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionsSelectFrom = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right > ? ORDER BY right ASC"
 
 connectionDelete :: PrepQuery W (UserId, UserId) ()
@@ -175,8 +175,8 @@ connectionClear = "DELETE FROM connection WHERE left = ?"
 
 -- Conversions
 
-toUserConnection :: (UserId, UserId, Relation_', UTCTimeMillis, Maybe Message, Maybe ConvId) -> UserConnection
+toUserConnection :: (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId) -> UserConnection
 toUserConnection (l, r, rel, time, msg, cid) = UserConnection l r rel time msg cid
 
-toConnectionStatus :: (UserId, UserId, Relation_') -> ConnectionStatus
+toConnectionStatus :: (UserId, UserId, Relation) -> ConnectionStatus
 toConnectionStatus (l, r, rel) = ConnectionStatus l r rel

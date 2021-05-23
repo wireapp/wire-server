@@ -150,7 +150,7 @@ generateTestModule = do
   generateBindingModule @Call.Config.RTCConfiguration "user" ref
   generateBindingModule @Call.Config.SFTServer "user" ref
   generateBindingModule @Connection.ConnectionRequest "user" ref
-  generateBindingModule @Connection.Relation_' "user" ref
+  generateBindingModule @Connection.Relation "user" ref
   generateBindingModule @Connection.Message "user" ref
   generateBindingModule @Connection.UserConnection "user" ref
   generateBindingModule @Connection.UserConnectionList "user" ref

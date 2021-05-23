@@ -482,13 +482,13 @@ getAccountStatusH (_ ::: usr) = do
     Nothing -> setStatus status404 empty
 
 getConnectionsStatusH ::
-  JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation_' ->
+  JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation ->
   Handler Response
 getConnectionsStatusH (_ ::: req ::: flt) = do
   body <- parseJsonBody req
   json <$> lift (getConnectionsStatus body flt)
 
-getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation_' -> AppIO [ConnectionStatus]
+getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> AppIO [ConnectionStatus]
 getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = do
   r <- API.lookupConnectionStatus csrFrom csrTo
   return $ maybe r (filterByRelation r) flt
@@ -639,7 +639,7 @@ getContactListH (_ ::: uid) = do
 -- deployed. Reason for deprecation: it returns N^2 things (which is not
 -- needed), it doesn't scale, and it accepts everything in URL parameters,
 -- which doesn't work when the list of users is long.
-deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation_' -> Handler Response
+deprecatedGetConnectionsStatusH :: List UserId ::: Maybe Relation -> Handler Response
 deprecatedGetConnectionsStatusH (users ::: flt) = do
   r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
   return . json $ maybe r (filterByRelation r) flt

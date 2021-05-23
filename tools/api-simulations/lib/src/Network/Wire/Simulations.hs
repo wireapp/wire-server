@@ -101,12 +101,12 @@ connectIfNeeded = go 6 -- six turns should be enough
             assertConnectRequested a b
             return False
           -- If there's a pending connection to us: accept it
-          Just Pending_' -> do
-            void $ updateConnection (botId b) (ConnectionUpdate Accepted_')
+          Just Pending -> do
+            void $ updateConnection (botId b) (ConnectionUpdate Accepted)
             assertConnectAccepted a b
             return True
           -- If we have sent a request, we can't do anything
-          Just Sent_' -> return False
+          Just Sent -> return False
           -- In case of any other status, we pretend it's good
           _ -> return True
       unless connected (go (n - 1) b a)

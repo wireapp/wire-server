@@ -1124,7 +1124,7 @@ lookupLocalProfiles requestingUser others = do
   usersAndStatus <- for users $ \u -> (u,) <$> getLegalHoldStatus' u
   return $ map (toProfile emailVisibility'' css) usersAndStatus
   where
-    toMap :: [ConnectionStatus] -> Map UserId Relation_'
+    toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
     getSelfInfo :: UserId -> AppIO (Maybe (TeamId, Team.TeamMember))
@@ -1137,12 +1137,12 @@ lookupLocalProfiles requestingUser others = do
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid
 
-    toProfile :: EmailVisibility' -> Map UserId Relation_' -> (User, UserLegalHoldStatus) -> UserProfile
+    toProfile :: EmailVisibility' -> Map UserId Relation -> (User, UserLegalHoldStatus) -> UserProfile
     toProfile emailVisibility'' css (u, userLegalHold) =
       let cs = Map.lookup (userId u) css
           profileEmail' = getEmailForProfile u emailVisibility''
           baseProfile =
-            if Just (userId u) == requestingUser || cs == Just Accepted_' || cs == Just Sent_'
+            if Just (userId u) == requestingUser || cs == Just Accepted || cs == Just Sent
               then connectedProfile u userLegalHold
               else publicProfile u userLegalHold
        in baseProfile {profileEmail = profileEmail'}

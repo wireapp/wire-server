@@ -53,7 +53,7 @@ data UserEvent
 
 data ConnectionEvent = ConnectionUpdated
   { ucConn :: !UserConnection,
-    ucPrev :: !(Maybe Relation_'),
+    ucPrev :: !(Maybe Relation),
     ucName :: !(Maybe Name)
   }
 

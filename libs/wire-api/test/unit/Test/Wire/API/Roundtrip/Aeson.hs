@@ -95,7 +95,7 @@ tests =
       testRoundTrip @Call.Config.RTCConfiguration,
       testRoundTrip @Call.Config.SFTServer,
       testRoundTrip @Connection.ConnectionRequest,
-      testRoundTrip @Connection.Relation_',
+      testRoundTrip @Connection.Relation,
       testRoundTrip @Connection.Message,
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,

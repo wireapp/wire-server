@@ -719,16 +719,16 @@ getUserData uid = do
 groupByStatus :: [UserConnection] -> Value
 groupByStatus conns =
   object
-    [ "accepted" .= byStatus Accepted_' conns,
-      "sent" .= byStatus Sent_' conns,
-      "pending" .= byStatus Pending_' conns,
-      "blocked" .= byStatus Blocked_' conns,
-      "ignored" .= byStatus Ignored_' conns,
-      "missing-legalhold-consent" .= byStatus MissingLegalholdConsent_' conns,
+    [ "accepted" .= byStatus Accepted conns,
+      "sent" .= byStatus Sent conns,
+      "pending" .= byStatus Pending conns,
+      "blocked" .= byStatus Blocked conns,
+      "ignored" .= byStatus Ignored conns,
+      "missing-legalhold-consent" .= byStatus MissingLegalholdConsent conns,
       "total" .= length conns
     ]
   where
-    byStatus :: Relation_' -> [UserConnection] -> Int
+    byStatus :: Relation -> [UserConnection] -> Int
     byStatus s = length . filter ((==) s . ucStatus)
 
 ifNothing :: Error -> Maybe a -> Handler a

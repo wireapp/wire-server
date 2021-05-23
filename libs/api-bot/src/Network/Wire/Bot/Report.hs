@@ -175,7 +175,7 @@ eventsTotalSection =
     "Events (Total)"
     [ Counter "Received" eventsTotalRcvd,
       Counter "Acknowledged" eventsTotalAckd,
-      Counter "Ignored_'" eventsTotalIgnd,
+      Counter "Ignored" eventsTotalIgnd,
       Counter "Missed" eventsTotalMssd
     ]
 
@@ -185,6 +185,6 @@ eventTypeSection t =
     ("Event (" <> eventTypeText t <> ")")
     [ Counter "Received" (eventTypeRcvd t),
       Counter "Acknowledged" (eventTypeAckd t),
-      Counter "Ignored_'" (eventTypeIgnd t),
+      Counter "Ignored" (eventTypeIgnd t),
       Counter "Missed" (eventTypeMssd t)
     ]
