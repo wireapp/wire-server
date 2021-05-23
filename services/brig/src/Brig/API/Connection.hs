@@ -112,12 +112,16 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
 
     update :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ConnectionResult
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
-      (MissingLegalholdConsent_', _) -> error "TODO"
-      (_, MissingLegalholdConsent_') -> error "TODO"
       (Accepted_', Accepted_') -> return $ ConnectionExists s2o
       (Accepted_', Blocked_') -> return $ ConnectionExists s2o
       (Sent_', Blocked_') -> return $ ConnectionExists s2o
       (Blocked_', _) -> throwE $ InvalidTransition self Sent_'
+      (MissingLegalholdConsent_', _) -> throwE $ InvalidTransition self Sent_'
+      (_, MissingLegalholdConsent_') -> throwE $ InvalidTransition self Sent_'
+      -- TODO: but how do we recover the old state, before MissingLegalholdConsent?  just move
+      -- to "pending" on both sides?, and make one of the two re-accept?  is that going to
+      -- work with the existing convs?  or store the old state in a new column in the
+      -- connections table?  horrible idea...
       (_, Blocked_') -> change s2o Sent_'
       (_, Sent_') -> accept s2o o2s
       (_, Accepted_') -> accept s2o o2s
@@ -137,10 +141,10 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       o2s' <-
         lift $
           if (cnvType <$> cnv) == Just ConnectConv
-            then Data.updateConnection o2s Blocked
-            else Data.updateConnection o2s Accepted
-      e2o <- lift $ ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self <*> pure Nothing
-      let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing Nothing
+            then Data.updateConnection o2s Blocked_'
+            else Data.updateConnection o2s Accepted_'
+      e2o <- lift $ ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
+      let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
       lift $ mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
       return $ ConnectionExists s2o'
 
@@ -208,9 +212,6 @@ updateConnection self other newStatus conn = do
   s2o <- connection self other
   o2s <- connection other self
   s2o' <- case (ucStatus s2o, ucStatus o2s, newStatus) of
-    (MissingLegalholdConsent_', _, _) -> error "TODO"
-    (_, MissingLegalholdConsent_', _) -> error "TODO"
-    (_, _, MissingLegalholdConsent_') -> error "TODO"
     -- Pending_' -> {Blocked_', Ignored_', Accepted_'}
     (Pending_', _, Blocked_') -> block s2o
     (Pending_', _, Ignored_') -> change s2o Ignored_'
@@ -235,9 +236,7 @@ updateConnection self other newStatus conn = do
     (Accepted_', _, Blocked_') -> block s2o
     -- Sent_' -> {Blocked_', Cancelled_', Accepted_'}
     (Sent_', _, Blocked_') -> block s2o
-    (Sent_', Sent_', Accepted_') ->
-      change s2o Accepted_'
-        >> change o2s Accepted_'
+    (Sent_', Sent_', Accepted_') -> change s2o Accepted_' >> change o2s Accepted_'
     (Sent_', Accepted_', Accepted_') -> change s2o Accepted_'
     (Sent_', Blocked_', Cancelled_') -> change s2o Cancelled_'
     (Sent_', Cancelled_', Cancelled_') -> change s2o Cancelled_'
@@ -245,14 +244,20 @@ updateConnection self other newStatus conn = do
     (Sent_', Ignored_', Cancelled_') -> cancel s2o o2s
     -- Cancelled_' -> {Blocked_'}
     (Cancelled_', _, Blocked_') -> block s2o
-    (old, _, new)
-      | old == new -> return Nothing
+    -- no change
+    (old, _, new) | old == new -> return Nothing
+    -- missing legalhold consent
+    (MissingLegalholdConsent_', _, _) -> error "TODO"
+    (_, MissingLegalholdConsent_', _) -> error "TODO"
+    (_, _, MissingLegalholdConsent_') -> error "TODO"
+    -- invalid
     _ -> throwE $ InvalidTransition self newStatus
   lift . for_ s2o' $ \c ->
     let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
      in Intra.onConnectionEvent self conn e2s
   return s2o'
   where
+    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     accept s2o o2s = do
       checkLimit self
       Log.info $
@@ -263,35 +268,41 @@ updateConnection self other newStatus conn = do
       --       sides are pending, which can occur due to rare race conditions
       --       when sending mutual connection requests, combined with untimely
       --       crashes.
-      when (ucStatus o2s `elem` [Sent, Pending]) . lift $ do
+      when (ucStatus o2s `elem` [Sent_', Pending_']) . lift $ do
         o2s' <-
           if (cnvType <$> cnv) /= Just ConnectConv
-            then Data.updateConnection o2s Accepted
-            else Data.updateConnection o2s Blocked
-        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self <*> pure Nothing
+            then Data.updateConnection o2s Accepted_'
+            else Data.updateConnection o2s Blocked_'
+        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
         Intra.onConnectionEvent self conn e2o
-      lift $ Just <$> Data.updateConnection s2o Accepted
+      lift $ Just <$> Data.updateConnection s2o Accepted_'
+
+    block :: UserConnection -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     block s2o = lift $ do
       Log.info $
         logConnection self (ucTo s2o)
           . msg (val "Blocking connection")
       for_ (ucConvId s2o) $ Intra.blockConv (ucFrom s2o) conn
-      Just <$> Data.updateConnection s2o Blocked
+      Just <$> Data.updateConnection s2o Blocked_'
+
+    unblock :: UserConnection -> UserConnection -> Relation_' -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     unblock s2o o2s new = do
-      when (new `elem` [Sent, Accepted]) $
+      when (new `elem` [Sent_', Accepted_']) $
         checkLimit self
       Log.info $
         logConnection self (ucTo s2o)
           . msg (val "Unblocking connection")
       cnv <- lift . for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
-      when (ucStatus o2s == Sent && new == Accepted) . lift $ do
+      when (ucStatus o2s == Sent_' && new == Accepted_') . lift $ do
         o2s' <-
           if (cnvType <$> cnv) /= Just ConnectConv
-            then Data.updateConnection o2s Accepted
-            else Data.updateConnection o2s Blocked
-        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self <*> pure Nothing
+            then Data.updateConnection o2s Accepted_'
+            else Data.updateConnection o2s Blocked_'
+        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
         Intra.onConnectionEvent self conn e2o
       lift $ Just <$> Data.updateConnection s2o new
+
+    cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     cancel s2o o2s = do
       Log.info $
         logConnection self (ucTo s2o)
@@ -301,7 +312,11 @@ updateConnection self other newStatus conn = do
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ Intra.onConnectionEvent self conn e2o
       change s2o Cancelled_'
+
+    change :: UserConnection -> Relation_' -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     change c s = lift $ Just <$> Data.updateConnection c s
+
+    connection :: UserId -> UserId -> ExceptT ConnectionError AppIO UserConnection
     connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
 
 autoConnect ::

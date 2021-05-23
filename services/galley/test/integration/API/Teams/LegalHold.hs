@@ -857,7 +857,6 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
   WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     if connectFirst
       then do
-        -- TODO: test that both accepted AND pending connections get blocked
         postConnection legalholder peer !!! const 201 === statusCode
         unless testPendingConnection $ do
           void $ putConnection peer legalholder Conn.Accepted_'
@@ -892,8 +891,16 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         do
           doDisableLH
-          assertConnections legalholder [ConnectionStatus legalholder peer Conn.Accepted_']
-          assertConnections peer [ConnectionStatus peer legalholder Conn.Accepted_']
+          assertConnections
+            legalholder
+            [ ConnectionStatus legalholder peer $
+                if testPendingConnection then Conn.Sent_' else Conn.Accepted_'
+            ]
+          assertConnections
+            peer
+            [ ConnectionStatus peer legalholder $
+                if testPendingConnection then Conn.Pending_' else Conn.Accepted_'
+            ]
 
           postOtrMessageJson undefined undefined !!! const 201 === statusCode
           postOtrMessageProto undefined undefined !!! const 201 === statusCode

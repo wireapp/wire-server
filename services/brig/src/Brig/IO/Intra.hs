@@ -489,9 +489,9 @@ toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
   case (ucStatus uc, name) of
+    (MissingLegalholdConsent_', _) -> error "TODO"
     (Pending_', Just n) -> Just $ apsConnRequest n
     (Accepted_', Just n) -> Just $ apsConnAccept n
-    _ -> error "TODO: " $ MissingLegalholdConsent_'
     (_, _) -> Nothing
   where
     apsConnRequest n =
