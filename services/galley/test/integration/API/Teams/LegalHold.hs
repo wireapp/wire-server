@@ -32,6 +32,7 @@ import Brig.Types.Client
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
+import qualified Brig.Types.User.Event as Ev
 import qualified Cassandra.Exec as Cql
 import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.Chan
@@ -41,13 +42,14 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (FromJSON, (.:))
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson.Types (FromJSON, withObject, (.:))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword)
 import Data.PEM
@@ -55,8 +57,6 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
-import GHC.Generics hiding (to)
-import GHC.TypeLits
 import qualified Galley.App as Galley
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
@@ -229,10 +229,10 @@ testRequestLegalHoldDevice = do
       storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
       assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
     let pluck = \case
-          (LegalHoldClientRequested rdata) -> do
-            lhcTargetUser rdata @?= member
-            lhcLastPrekey rdata @?= head someLastPrekeys
-            API.Teams.LegalHold.lhcClientId rdata @?= someClientId
+          (Ev.LegalHoldClientRequested rdata) -> do
+            Ev.lhcTargetUser rdata @?= member
+            Ev.lhcLastPrekey rdata @?= head someLastPrekeys
+            Ev.lhcClientId rdata @?= someClientId
           _ -> assertBool "Unexpected event" False
     assertNotification ws pluck
     -- all devices get notified.
@@ -286,7 +286,7 @@ testApproveLegalHoldDevice = do
           UserLegalHoldEnabled
           userStatus
       let pluck = \case
-            ClientAdded eClient -> do
+            Ev.ClientAdded _ eClient -> do
               clientId eClient @?= someClientId
               clientType eClient @?= LegalHoldClientType
               clientClass eClient @?= Just LegalHoldClient
@@ -295,7 +295,7 @@ testApproveLegalHoldDevice = do
       assertNotification mws' pluck
       -- Other team users should get a user.legalhold-enable event
       let pluck' = \case
-            UserLegalHoldEnabled' eUser -> eUser @?= member
+            Ev.UserLegalHoldEnabled eUser -> eUser @?= member
             _ -> assertBool "Unexpected event" False
       assertNotification ows pluck'
       -- We send to all members of a team. which includes the team-settings
@@ -365,7 +365,7 @@ testDisableLegalHoldForUser = do
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     assertNotification mws $ \case
-      ClientAdded client -> do
+      Ev.ClientAdded _ client -> do
         clientId client @?= someClientId
         clientType client @?= LegalHoldClientType
         clientClass client @?= (Just LegalHoldClient)
@@ -381,14 +381,14 @@ testDisableLegalHoldForUser = do
       assertEqual "method" "POST" (requestMethod req)
       assertEqual "path" (pathInfo req) ["legalhold", "remove"]
     assertNotification mws $ \case
-      ClientRemoved clientId' -> clientId' @?= someClientId
+      Ev.ClientEvent (Ev.ClientRemoved _ clientId') -> clientId clientId' @?= someClientId
       _ -> assertBool "Unexpected event" False
     assertNotification mws $ \case
-      UserLegalHoldDisabled' uid -> uid @?= member
+      Ev.UserEvent (Ev.UserLegalHoldDisabled uid) -> uid @?= member
       _ -> assertBool "Unexpected event" False
     -- Other users should also get the event
     assertNotification ows $ \case
-      UserLegalHoldDisabled' uid -> uid @?= member
+      Ev.UserLegalHoldDisabled uid -> uid @?= member
       _ -> assertBool "Unexpected event" False
     assertZeroLegalHoldDevices member
 
@@ -1118,77 +1118,81 @@ publicKeyNotMatchingService =
 ----------------------------------------------------------------------
 -- test helpers
 
--- FUTUREWORK: Currently, the encoding of events is confusingly inside brig and not
--- brig-types. (Look for toPushFormat in the code) We should refactor. To make
--- our lives a bit easier we are going to  copy these datatypes from brig verbatim
-data UserEvent
-  = UserLegalHoldDisabled' !UserId
-  | UserLegalHoldEnabled' !UserId
-  | LegalHoldClientRequested LegalHoldClientRequestedData
-  deriving (Generic)
+deriving instance Show Ev.Event
 
-data ClientEvent
-  = ClientAdded !Client
-  | ClientRemoved !ClientId
-  deriving (Generic)
+deriving instance Show Ev.UserEvent
 
-data LegalHoldClientRequestedData = LegalHoldClientRequestedData
-  { lhcTargetUser :: !UserId,
-    lhcLastPrekey :: !LastPrekey,
-    lhcClientId :: !ClientId
-  }
-  deriving stock (Show)
+deriving instance Show Ev.ClientEvent
 
-instance FromJSON ClientEvent where
-  parseJSON = withObject' $ \o -> do
+deriving instance Show Ev.PropertyEvent
+
+deriving instance Show Ev.ConnectionEvent
+
+-- (partial implementation, just good enough to make the tests work)
+instance FromJSON Ev.Event where
+  parseJSON ev = flip (withObject "Ev.Event") ev $ \o -> do
+    typ :: Text <- o .: "type"
+    if
+        | typ `elem` ["user.legalhold-request", "user.legalhold-enable", "user.legalhold-disable"] -> Ev.UserEvent <$> Aeson.parseJSON ev
+        | typ `elem` ["user.client-add", "user.client-remove"] -> Ev.ClientEvent <$> Aeson.parseJSON ev
+        | otherwise -> fail $ "Ev.Event: unsupported event type: " <> show typ
+
+-- (partial implementation, just good enough to make the tests work)
+instance FromJSON Ev.UserEvent where
+  parseJSON = withObject "Ev.UserEvent" $ \o -> do
     tag :: Text <- o .: "type"
     case tag of
-      "user.client-add" -> ClientAdded <$> o .: "client"
-      "user.client-remove" -> ClientRemoved <$> (o .: "client" >>= Aeson.withObject "id" (.: "id"))
-      x -> fail $ "unspported event type: " ++ show x
-
-instance FromJSON UserEvent where
-  parseJSON = withObject' $ \o -> do
-    tag :: Text <- o .: "type"
-    case tag of
-      "user.legalhold-enable" -> UserLegalHoldEnabled' <$> o .: "id"
-      "user.legalhold-disable" -> UserLegalHoldDisabled' <$> o .: "id"
+      "user.legalhold-enable" -> Ev.UserLegalHoldEnabled <$> o .: "id"
+      "user.legalhold-disable" -> Ev.UserLegalHoldDisabled <$> o .: "id"
       "user.legalhold-request" ->
-        LegalHoldClientRequested
-          <$> ( LegalHoldClientRequestedData
+        Ev.LegalHoldClientRequested
+          <$> ( Ev.LegalHoldClientRequestedData
                   <$> o .: "id" -- this is the target user
                   <*> o .: "last_prekey"
-                  <*> (o .: "client" >>= Aeson.withObject "id" (.: "id"))
+                  <*> (o .: "client" >>= withObject "id" (.: "id"))
               )
-      x -> fail $ "unspported event type: " ++ show x
+      x -> fail $ "Ev.UserEvent: unsupported event type: " ++ show x
 
--- these are useful in other parts of the codebase. maybe move out?
-type family NameOf (a :: *) :: Symbol where
-  NameOf a = NameOf' (Rep a a)
-
-type family NameOf' r :: Symbol where
-  NameOf' (M1 D ('MetaData name _module _package _newtype) _ _) = name
-
-withObject' :: forall a. (KnownSymbol (NameOf a), Generic a) => (Aeson.Object -> Aeson.Parser a) -> Aeson.Value -> Aeson.Parser a
-withObject' = Aeson.withObject (symbolVal @(NameOf a) Proxy)
+-- (partial implementation, just good enough to make the tests work)
+instance FromJSON Ev.ClientEvent where
+  parseJSON = withObject "Ev.ClientEvent" $ \o -> do
+    tag :: Text <- o .: "type"
+    case tag of
+      "user.client-add" -> Ev.ClientAdded fakeuid <$> o .: "client"
+      "user.client-remove" -> Ev.ClientRemoved fakeuid <$> (makeFakeClient <$> (o .: "client" >>= withObject "id" (.: "id")))
+      x -> fail $ "Ev.ClientEvent: unsupported event type: " ++ show x
+    where
+      fakeuid = read @UserId "6980fb5e-ba64-11eb-a339-0b3625bf01be"
+      makeFakeClient cid =
+        Client
+          cid
+          PermanentClientType
+          (toUTCTimeMillis $ read "2021-05-23 09:39:15.937523809 UTC")
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          Nothing
 
 assertNotification :: (HasCallStack, FromJSON a, MonadIO m) => WS.WebSocket -> (a -> Assertion) -> m ()
 assertNotification ws predicate =
   void . liftIO . WS.assertMatch (5 WS.# WS.Second) ws $ \notif -> do
+    unless ((NonEmpty.length . List1.toNonEmpty $ ntfPayload $ notif) == 1) $
+      error $ "not suppored by test helper: event with more than one object in the payload: " <> cs (Aeson.encode notif)
     let j = Aeson.Object $ List1.head (ntfPayload notif)
     case Aeson.fromJSON j of
       Aeson.Success x -> predicate x
-      Aeson.Error s -> assertBool (s ++ " in " ++ show j) False
+      Aeson.Error s -> error $ s ++ " in " ++ cs (Aeson.encode j)
 
 assertNoNotification :: (HasCallStack, MonadIO m) => WS.WebSocket -> m ()
 assertNoNotification ws = void . liftIO $ WS.assertNoEvent (5 WS.# WS.Second) [ws]
 
-assertMatchJSON :: (FromJSON a, HasCallStack, MonadThrow m, MonadCatch m, MonadIO m) => Chan (Wai.Request, LBS) -> (a -> m ()) -> m ()
+assertMatchJSON :: (HasCallStack, FromJSON a, MonadThrow m, MonadCatch m, MonadIO m) => Chan (Wai.Request, LBS) -> (a -> m ()) -> m ()
 assertMatchJSON c match = do
   assertMatchChan c $ \(_, reqBody) -> do
     case Aeson.eitherDecode reqBody of
       Right x -> match x
-      Left s -> liftIO $ assertBool (s ++ " in " ++ show reqBody) False
+      Left s -> error $ s ++ " in " ++ cs reqBody
 
 assertMatchChan :: (HasCallStack, MonadThrow m, MonadCatch m, MonadIO m) => Chan a -> (a -> m ()) -> m ()
 assertMatchChan c match = go []
@@ -1202,8 +1206,8 @@ assertMatchChan c match = go []
             match n
             refill buf
             `catchAll` \e -> case asyncExceptionFromException e of
-              Just x -> throwM (x :: SomeAsyncException)
+              Just x -> error $ show (x :: SomeAsyncException)
               Nothing -> go (n : buf)
         Nothing -> do
           refill buf
-          liftIO $ assertBool "Timeout" False
+          error "Timeout"

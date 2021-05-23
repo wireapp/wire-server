@@ -120,9 +120,9 @@ import Brig.Types.Code (Timeout (..))
 import Brig.Types.Intra
 import Brig.Types.Team.Invitation (inCreatedAt, inCreatedBy)
 import qualified Brig.Types.Team.Invitation as Team
+import Brig.Types.User.Event
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.User.Email
-import Brig.User.Event
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone

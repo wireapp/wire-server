@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2a9b5beec9b3ca122e8c67aa63e8852c74632a3e9d3dea5b1ad9ea7c7a05ed45
+-- hash: 47605047ee190f11d8d83abeb76dbdeae1a701f79348e470c419598cd05da0d8
 
 name:           brig
 version:        1.35.0
@@ -95,8 +95,6 @@ library
       Brig.User.Auth.DB.Instances
       Brig.User.EJPD
       Brig.User.Email
-      Brig.User.Event
-      Brig.User.Event.Log
       Brig.User.Handle
       Brig.User.Handle.Blacklist
       Brig.User.Phone
