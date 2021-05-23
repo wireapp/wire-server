@@ -43,7 +43,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (FromJSON, withObject, (.:), (.:?))
+import Data.Aeson.Types (FromJSON, withObject, (.:))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
@@ -860,31 +860,30 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         -- TODO: test that both accepted AND pending connections get blocked
         postConnection legalholder peer !!! const 201 === statusCode
         unless testPendingConnection $ do
-          void $ putConnection peer legalholder Conn.Accepted
+          void $ putConnection peer legalholder Conn.Accepted_'
 
         doEnableLH
 
-        assertConnections legalholder [ConnectionStatus legalholder peer Conn.Blocked]
-        assertConnections peer [ConnectionStatus peer legalholder Conn.Blocked]
+        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent_']
+        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent_']
 
         forM_ [legalholderWs, peerWs] $ \ws -> do
           -- (if this fails, it may be because there are other messages in the queue, but i
           -- think we implemented this in a way that doens't trip over wrong orderings.)
           assertNotification ws $
             \case
-              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name reason)) -> do
-                rel @?= Conn.Blocked
-                reason @?= Just Ev.ConnectionUpdatedMissingLegalholdConsent
+              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
+                rel @?= Conn.MissingLegalholdConsent_'
               _ -> assertBool "wrong event type" False
 
         forM_ [(legalholder, peer), (peer, legalholder)] $ \(one, two) -> do
-          putConnection one two Conn.Accepted
+          putConnection one two Conn.Accepted_'
             !!!
             -- (other label, or test for 403 and ignore label would also be acceptable.)
             testResponse 412 (Just "missing-legalhold-consent")
 
-        assertConnections legalholder [ConnectionStatus legalholder peer Conn.Blocked]
-        assertConnections peer [ConnectionStatus peer legalholder Conn.Blocked]
+        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent_']
+        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent_']
 
         do
           -- (again, other label / 4xx status code would also be fine.)
@@ -893,8 +892,8 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         do
           doDisableLH
-          assertConnections legalholder [ConnectionStatus legalholder peer Conn.Accepted]
-          assertConnections peer [ConnectionStatus peer legalholder Conn.Accepted]
+          assertConnections legalholder [ConnectionStatus legalholder peer Conn.Accepted_']
+          assertConnections peer [ConnectionStatus peer legalholder Conn.Accepted_']
 
           postOtrMessageJson undefined undefined !!! const 201 === statusCode
           postOtrMessageProto undefined undefined !!! const 201 === statusCode
@@ -1324,10 +1323,6 @@ deriving instance Show Ev.PropertyEvent
 
 deriving instance Show Ev.ConnectionEvent
 
-deriving instance Show Ev.ConnectionUpdatedReason
-
-deriving instance Eq Ev.ConnectionUpdatedReason
-
 -- (partial implementation, just good enough to make the tests work)
 instance FromJSON Ev.Event where
   parseJSON ev = flip (withObject "Ev.Event") ev $ \o -> do
@@ -1384,11 +1379,7 @@ instance FromJSON Ev.ConnectionEvent where
           <$> o .: "connection"
           <*> pure Nothing
           <*> pure Nothing
-          <*> (traverse parseReason =<< (o .:? "reason"))
       x -> fail $ "unspported event type: " ++ show x
-    where
-      parseReason (Aeson.String "missing-legalhold-consent") = pure Ev.ConnectionUpdatedMissingLegalholdConsent
-      parseReason bad = fail $ "connection event: unknown reason: " <> show bad
 
 assertNotification :: (HasCallStack, FromJSON a, MonadIO m) => WS.WebSocket -> (a -> Assertion) -> m ()
 assertNotification ws predicate =
