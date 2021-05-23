@@ -1526,3 +1526,9 @@ getUsersBy keyName = chunkify $ \keys -> do
       )
   let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
   return $ fmap accountUser accounts
+
+getUserProfile :: UserId -> UserId -> TestM UserProfile
+getUserProfile zusr uid = do
+  brig <- view tsBrig
+  res <- get (brig . zUser zusr . paths ["users", toByteString' uid])
+  responseJsonError res

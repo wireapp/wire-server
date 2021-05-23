@@ -87,6 +87,7 @@ import TestHelpers
 import TestSetup
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.User (UserProfile (..))
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
@@ -123,6 +124,7 @@ tests s =
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
       test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      test s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
@@ -1114,6 +1116,62 @@ publicKeyNotMatchingService =
             "-----END PUBLIC KEY-----"
           ]
    in k
+
+testGetLegalholdStatus :: TestM ()
+testGetLegalholdStatus = do
+  (owner1, tid1) <- createBindingTeam
+  member1 <- view userId <$> addUserToTeam owner1 tid1
+  ensureQueueEmpty
+
+  (owner2, tid2) <- createBindingTeam
+  member2 <- view userId <$> addUserToTeam owner2 tid2
+  ensureQueueEmpty
+
+  personal <- randomUser
+
+  let check :: HasCallStack => UserId -> UserId -> Maybe TeamId -> UserLegalHoldStatus -> TestM ()
+      check getter targetUser targetTeam stat = do
+        profile <- getUserProfile getter targetUser
+        when (profileLegalholdStatus profile /= stat) $ do
+          meminfo <- getUserStatusTyped targetUser `mapM` targetTeam
+
+          liftIO . forM_ meminfo $ \mem -> do
+            assertEqual "member LH status" stat (ulhsrStatus mem)
+            assertEqual "team id in brig user record" targetTeam (profileTeam profile)
+
+          liftIO $ assertEqual "user profile status info" stat (profileLegalholdStatus profile)
+
+      requestDev :: HasCallStack => UserId -> UserId -> TeamId -> TestM ()
+      requestDev requestor target tid = do
+        requestLegalHoldDevice requestor target tid !!! testResponse 201 Nothing
+
+      approveDev :: HasCallStack => UserId -> TeamId -> TestM ()
+      approveDev target tid = do
+        approveLegalHoldDevice (Just defPassword) target target tid !!! testResponse 200 Nothing
+
+  check owner1 member1 (Just tid1) UserLegalHoldNoConsent
+  check member1 member1 (Just tid1) UserLegalHoldNoConsent
+  check owner2 member1 (Just tid1) UserLegalHoldNoConsent
+  check member2 member1 (Just tid1) UserLegalHoldNoConsent
+  check personal member1 (Just tid1) UserLegalHoldNoConsent
+  check owner1 personal Nothing UserLegalHoldNoConsent
+  check member1 personal Nothing UserLegalHoldNoConsent
+  check owner2 personal Nothing UserLegalHoldNoConsent
+  check member2 personal Nothing UserLegalHoldNoConsent
+  check personal personal Nothing UserLegalHoldNoConsent
+
+  onlyIfLhEnabled $
+    withDummyTestServiceForTeam owner1 tid1 $ \_chan -> do
+      grantConsent tid1 member1
+      check owner1 member1 (Just tid1) UserLegalHoldDisabled
+      check member2 member1 (Just tid1) UserLegalHoldDisabled
+      check personal member1 (Just tid1) UserLegalHoldDisabled
+
+      requestDev owner1 member1 tid1
+      check personal member1 (Just tid1) UserLegalHoldPending
+
+      approveDev member1 tid1
+      check personal member1 (Just tid1) UserLegalHoldEnabled
 
 ----------------------------------------------------------------------
 -- test helpers
