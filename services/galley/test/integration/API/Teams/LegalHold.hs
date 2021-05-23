@@ -87,6 +87,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import qualified Wire.API.Connection as Conn
+import qualified Wire.API.Message as Msg
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
@@ -145,28 +146,39 @@ tests s =
               test
                 s
                 "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
-                (testNoConsentBlockOne2OneConv False False False),
+                (testNoConsentBlockOne2OneConv False False False False),
               test
                 s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
-                (testNoConsentBlockOne2OneConv False True False),
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
+                (testNoConsentBlockOne2OneConv False True False False),
               test
                 s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv False True True),
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
+                (testNoConsentBlockOne2OneConv False True True False),
               test
                 s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
-                (testNoConsentBlockOne2OneConv True False False),
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, leave conn pending)"
+                (testNoConsentBlockOne2OneConv False True False True),
+              test
+                s
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device, leave conn pending)"
+                (testNoConsentBlockOne2OneConv False True True True),
+              test
+                s
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
+                (testNoConsentBlockOne2OneConv True False False False),
               test
                 s
                 "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
-                (testNoConsentBlockOne2OneConv True True False),
+                (testNoConsentBlockOne2OneConv True True False False),
               test
                 s
                 "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv True True True),
-              test s "If LH is activated for other user in group conv, this user gets removed with helpful message" testNoConsentBlockGroupConv
+                (testNoConsentBlockOne2OneConv True True True False),
+              test
+                s
+                "If LH is activated for other user in group conv, this user gets removed with helpful message"
+                testNoConsentBlockGroupConv
             ]
         ]
     ]
@@ -815,8 +827,8 @@ testNoConsentBlockDeviceHandshake = do
   pure ()
 
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
-testNoConsentBlockOne2OneConv :: Bool -> Bool -> Bool -> TestM ()
-testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
+testNoConsentBlockOne2OneConv :: Bool -> Bool -> Bool -> Bool -> TestM ()
+testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
   (legalholder :: UserId, tid) <- createBindingTeam
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
@@ -847,7 +859,8 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
       then do
         -- TODO: test that both accepted AND pending connections get blocked
         postConnection legalholder peer !!! const 201 === statusCode
-        void $ putConnection peer legalholder Conn.Accepted
+        unless testPendingConnection $ do
+          void $ putConnection peer legalholder Conn.Accepted
 
         doEnableLH
 
@@ -859,9 +872,10 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
           -- think we implemented this in a way that doens't trip over wrong orderings.)
           assertNotification ws $
             \case
-              (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name reason) -> do
+              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name reason)) -> do
                 rel @?= Conn.Blocked
                 reason @?= Just Ev.ConnectionUpdatedMissingLegalholdConsent
+              _ -> assertBool "wrong event type" False
 
         forM_ [(legalholder, peer), (peer, legalholder)] $ \(one, two) -> do
           putConnection one two Conn.Accepted
@@ -874,19 +888,19 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH = do
 
         do
           -- (again, other label / 4xx status code would also be fine.)
-          postOtrMessageJson !!! testResponse 412 (Just "missing-legalhold-consent")
-          postOtrMessageProto !!! testResponse 412 (Just "missing-legalhold-consent")
+          postOtrMessageJson undefined undefined !!! testResponse 412 (Just "missing-legalhold-consent")
+          postOtrMessageProto undefined undefined !!! testResponse 412 (Just "missing-legalhold-consent")
 
         do
           doDisableLH
           assertConnections legalholder [ConnectionStatus legalholder peer Conn.Accepted]
           assertConnections peer [ConnectionStatus peer legalholder Conn.Accepted]
 
-          postOtrMessageJson !!! const 201 === statusCode
-          postOtrMessageProto !!! const 201 === statusCode
+          postOtrMessageJson undefined undefined !!! const 201 === statusCode
+          postOtrMessageProto undefined undefined !!! const 201 === statusCode
       else do
         doEnableLH
-        postConnection legalholder peer !!! do testResponse 412 (Just "legalhold-missing-consent")
+        postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do
@@ -1045,19 +1059,20 @@ disableLegalHoldForUser' g mPassword tid zusr uid = do
       . zType "access"
       . json (DisableLegalHoldForUserRequest mPassword)
 
-postOtrMessageJson :: TestM ResponseLBS
-postOtrMessageJson = do
-  {-
-    post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
-      zauthUserId
-        .&. zauthConnId
-        .&. capture "cnv"
-        .&. def Public.OtrReportAllMissing filterMissing
-        .&. jsonRequest @Public.NewOtrMessage
-  -}
-  undefined
+postOtrMessageJson :: UserId -> ConvId -> TestM ResponseLBS
+postOtrMessageJson zusr cnvid = do
+  g <- view tsGalley
+  otrmsg :: Msg.NewOtrMessage <- pure undefined
+  post $
+    g
+      . paths ["conversations", toByteString' cnvid, "otr", "messages"]
+      . zUser zusr
+      . zConn "conn"
+      . zType "access"
+      -- TODO: @.&. def Public.OtrReportAllMissing filterMissing@
+      . json otrmsg
 
-postOtrMessageProto :: TestM ResponseLBS
+postOtrMessageProto :: UserId -> ConvId -> TestM ResponseLBS
 postOtrMessageProto = undefined
 
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
