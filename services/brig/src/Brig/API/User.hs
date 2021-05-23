@@ -42,6 +42,7 @@ module Brig.API.User
     lookupProfile,
     lookupProfiles,
     lookupLocalProfiles,
+    getLegalHoldStatus,
     Data.lookupName,
     Data.lookupLocale,
     Data.lookupUser,
@@ -1120,7 +1121,7 @@ lookupLocalProfiles requestingUser others = do
       Just localReqUser -> EmailVisibleIfOnSameTeam' <$> getSelfInfo localReqUser
       Nothing -> pure EmailVisibleToSelf'
     EmailVisibleToSelf -> pure EmailVisibleToSelf'
-  usersAndStatus <- for users $ \u -> (u,) <$> getLegalHoldStatus u
+  usersAndStatus <- for users $ \u -> (u,) <$> getLegalHoldStatus' u
   return $ map (toProfile emailVisibility'' css) usersAndStatus
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
@@ -1146,13 +1147,16 @@ lookupLocalProfiles requestingUser others = do
               else publicProfile u userLegalHold
        in baseProfile {profileEmail = profileEmail'}
 
-    getLegalHoldStatus :: User -> AppIO UserLegalHoldStatus
-    getLegalHoldStatus user =
-      case userTeam user of
-        Nothing -> pure defUserLegalHoldStatus
-        Just tid -> do
-          teamMember <- Intra.getTeamMember (userId user) tid
-          pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
+getLegalHoldStatus :: UserId -> AppIO (Maybe UserLegalHoldStatus)
+getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< lookupAccount uid
+
+getLegalHoldStatus' :: User -> AppIO UserLegalHoldStatus
+getLegalHoldStatus' user =
+  case userTeam user of
+    Nothing -> pure defUserLegalHoldStatus
+    Just tid -> do
+      teamMember <- Intra.getTeamMember (userId user) tid
+      pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
 
 data EmailVisibility'
   = EmailVisibleIfOnTeam'

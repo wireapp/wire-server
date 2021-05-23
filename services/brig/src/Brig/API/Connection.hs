@@ -34,7 +34,9 @@ module Brig.API.Connection
   )
 where
 
+import Brig.API.Error (userNotFound)
 import Brig.API.Types
+import Brig.API.User (getLegalHoldStatus)
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
@@ -45,7 +47,9 @@ import Brig.Types.Intra
 import Brig.Types.User.Event
 import Control.Error
 import Control.Lens (view)
+import Control.Monad.Catch (throwM)
 import Data.Id as Id
+import qualified Data.LegalHold as LH
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
@@ -79,6 +83,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
   unless otherActive $
     throwE $
       InvalidUser crUser
+  checkLegalholdPolicyConflict self crUser
   -- Users belonging to the same team are always treated as connected, so creating a
   -- connection between them is useless. {#RefConnectionTeam}
   sameTeam <- lift $ belongSameTeam
@@ -144,6 +149,32 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       selfTeam <- Intra.getTeamId self
       crTeam <- Intra.getTeamId crUser
       pure $ isJust selfTeam && selfTeam == crTeam
+
+-- | Throw error if one user ahs a LH device and the other status `no_consent` or vice versa.
+--
+-- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
+-- group conv creation and possibly other situations.
+checkLegalholdPolicyConflict :: UserId -> UserId -> ExceptT ConnectionError AppIO ()
+checkLegalholdPolicyConflict uid1 uid2 = do
+  let catchProfileNotFound =
+        -- Does not fit into 'ExceptT', so throw in 'AppIO'.  Anyway at the time of writing
+        -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
+        maybe (throwM userNotFound) return
+
+  status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
+  status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
+
+  let oneway s1 s2 = case (s1, s2) of
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldNoConsent) -> pure ()
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldDisabled) -> pure ()
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldPending) -> throwE ConnectMissingLegalholdConsent
+        (LH.UserLegalHoldNoConsent, LH.UserLegalHoldEnabled) -> throwE ConnectMissingLegalholdConsent
+        (LH.UserLegalHoldDisabled, _) -> pure ()
+        (LH.UserLegalHoldPending, _) -> pure ()
+        (LH.UserLegalHoldEnabled, _) -> pure ()
+
+  oneway status1 status2
+  oneway status2 status1
 
 -- | Change the status of a connection from one user to another.
 --
