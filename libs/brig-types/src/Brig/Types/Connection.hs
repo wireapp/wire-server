@@ -26,7 +26,7 @@ module Brig.Types.Connection
   ( module C,
     UserIds (..),
     ConnectionsStatusRequest (..),
-    UpdateConnectionInternal (..),
+    UpdateConnectionsInternal (..),
 
     -- * re-exports
     Message (..),
@@ -40,12 +40,8 @@ where
 
 import Brig.Types.Common as C
 import Data.Aeson
-import Data.Attoparsec.ByteString.Char8 (takeByteString)
-import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Id (UserId)
 import Imports
-import Test.QuickCheck (Arbitrary)
-import Wire.API.Arbitrary (GenericUniform (GenericUniform))
 import Wire.API.Connection
 
 -- | Response type for endpoints returning lists of users with a specific connection state.
@@ -62,23 +58,14 @@ data ConnectionsStatusRequest = ConnectionsStatusRequest
   }
   deriving (Eq, Show, Generic)
 
-data UpdateConnectionInternal
-  = BlockForMissingLegalholdConsent
-  | RemoveMissingLegalholdConsentBlock
-  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UpdateConnectionInternal)
+data UpdateConnectionsInternal
+  = BlockForMissingLHConsent UserId [UserId]
+  | UnblockForAllMissingLHConsent UserId
+  deriving (Eq, Show, Generic)
 
-instance FromByteString UpdateConnectionInternal where
-  parser =
-    takeByteString >>= \case
-      "block-for-missing-legalhold-consent" -> pure BlockForMissingLegalholdConsent
-      "remove-missing-legalhold-consent-block" -> pure RemoveMissingLegalholdConsentBlock
-      x -> fail $ "Invalid UpdateConnectionInternal value " <> show x
+instance FromJSON UpdateConnectionsInternal
 
-instance ToByteString UpdateConnectionInternal where
-  builder = \case
-    BlockForMissingLegalholdConsent -> "block-for-missing-legalhold-consent"
-    RemoveMissingLegalholdConsentBlock -> "remove-missing-legalhold-consent-block"
+instance ToJSON UpdateConnectionsInternal
 
 ----------------------------------------------------------------------------
 -- JSON instances

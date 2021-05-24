@@ -25,7 +25,7 @@ module Brig.API.Connection
     autoConnect,
     createConnection,
     updateConnection,
-    UpdateConnectionInternal (..),
+    UpdateConnectionsInternal (..),
     updateConnectionInternal,
     lookupConnections,
     Data.lookupConnection,
@@ -39,6 +39,7 @@ import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
 import Brig.App
 import qualified Brig.Data.Connection as Data
+import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setUserMaxConnections)
@@ -50,6 +51,7 @@ import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import qualified Data.LegalHold as LH
+import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
@@ -324,45 +326,58 @@ connection :: UserId -> UserId -> ExceptT ConnectionError AppIO UserConnection
 connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
 
 updateConnectionInternal ::
-  -- | From
-  UserId ->
-  -- | To
-  UserId ->
-  -- | Update operation
-  UpdateConnectionInternal ->
+  UpdateConnectionsInternal ->
   ExceptT ConnectionError AppIO ()
-updateConnectionInternal self other = \case
-  BlockForMissingLegalholdConsent -> blockForMissingLegalholdConsent
-  RemoveMissingLegalholdConsentBlock -> removeMissingLegalholdConsentBlock
+updateConnectionInternal = \case
+  BlockForMissingLHConsent uid others -> blockForMissingLegalholdConsent uid others
+  UnblockForAllMissingLHConsent uid -> removeAllMissingLHBlocks uid
   where
     -- inspired by @block@ in 'updateConnection'.
-    blockForMissingLegalholdConsent :: ExceptT ConnectionError AppIO ()
-    blockForMissingLegalholdConsent = do
-      Log.info $
-        logConnection self other
-          . msg (val "Blocking connection (legalhold device present, but missing consent)")
+    blockForMissingLegalholdConsent :: UserId -> [UserId] -> ExceptT ConnectionError AppIO ()
+    blockForMissingLegalholdConsent self others = do
+      for_ others $ \other -> do
+        Log.debug $
+          logConnection self other
+            . msg (val "Blocking connection (legalhold device present, but missing consent)")
 
-      s2o <- connection self other
-      o2s <- connection other self
-      for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
-        -- TODO: check if Ignored is a possibility
-        Intra.blockConv (ucFrom uconn) Nothing `mapM_` ucConvId uconn
-        uconn' <- Data.updateConnection uconn MissingLegalholdConsent
-        let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
-        Intra.onConnectionEvent self Nothing ev
+        s2o <- connection self other
+        o2s <- connection other self
+        for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
+          -- TODO: check if Ignored is a possibility
+          Intra.blockConv (ucFrom uconn) Nothing `mapM_` ucConvId uconn
+          uconn' <- Data.updateConnection uconn MissingLegalholdConsent
+          let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
+          Intra.onConnectionEvent self Nothing ev
 
-    -- inspired by @unblock@ in 'updateConnection'.
-    removeMissingLegalholdConsentBlock :: ExceptT ConnectionError AppIO ()
-    removeMissingLegalholdConsentBlock = do
-      Log.info $
-        logConnection self other
-          . msg (val "Unblocking connection (legalhold device removed or consent given)")
-
-      s2o <- connection self other
-      o2s <- connection other self
-      unblockDirected s2o o2s
-      unblockDirected o2s s2o
+    removeAllMissingLHBlocks :: UserId -> ExceptT ConnectionError AppIO ()
+    removeAllMissingLHBlocks uid =
+      iterateConnections uid (toRange (Proxy @500)) $ \conns -> do
+        for_ conns $ \s2o ->
+          when (ucStatus s2o == MissingLegalholdConsent) $ do
+            o2s <- connection (ucTo s2o) (ucFrom s2o)
+            unblockDirected s2o o2s
+            Log.debug $
+              logConnection (ucFrom s2o) (ucTo s2o)
+                . msg (val "Unblocking connection (legalhold device removed or consent given)")
+            when (ucStatus o2s == MissingLegalholdConsent) $ do
+              unblockDirected o2s s2o
+              Log.debug $
+                logConnection (ucFrom o2s) (ucTo o2s)
+                  . msg (val "Unblocking connection (legalhold device removed or consent given)")
       where
+        iterateConnections :: UserId -> Range 1 500 Int32 -> ([UserConnection] -> ExceptT ConnectionError AppIO ()) -> ExceptT ConnectionError AppIO ()
+        iterateConnections user pageSize handleConns = go Nothing
+          where
+            go mbStart = do
+              page <- lift $ Data.lookupConnections user mbStart pageSize
+              handleConns (resultList page)
+              case resultList page of
+                (conn : rest) ->
+                  if resultHasMore page
+                    then go (Just (maximum (ucTo <$> (conn : rest))))
+                    else pure ()
+                [] -> pure ()
+
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ()
         unblockDirected uconn uconnRev = do
           cnv :: Maybe Conv.Conversation <- lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
