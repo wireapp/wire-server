@@ -1228,7 +1228,7 @@ assertConnections u cstat = do
     error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
     status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
-    listConnections brig usr = get $ brig . path "connections" . zUser usr . queryItem "size" "999"
+    listConnections brig usr = get $ brig . path "connections" . zUser usr
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser

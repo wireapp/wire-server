@@ -989,9 +989,13 @@ testBenchHack' numPeers = do
     doEnableLH
     endAt <- liftIO $ Time.getCurrentTime
 
-    assertConnections -- (if this fails, check if 'assertConnections' has hit its page size limit)
+    assertConnections
       legalholder
       ((\peer -> ConnectionStatus legalholder peer Conn.MissingLegalholdConsent) <$> peers)
+    -- FUTUREWORK: 'assertConnections' only returns 100 connections per page
+    -- by default, 500 max.  you need to paginate through all results
+    -- somehow to get 600 of them.  but this this is besides the point of
+    -- the benchmark anyway.
     for_ peers $ \peer ->
       assertConnections
         peer
