@@ -171,15 +171,15 @@ tests s =
                 (testNoConsentBlockOne2OneConv True False False False),
               test
                 s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
                 (testNoConsentBlockOne2OneConv True True False False),
               test
                 s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
+                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
                 (testNoConsentBlockOne2OneConv True True True False),
               test
                 s
-                "If LH is activated for other user in group conv, this user gets removed with helpful message"
+                "XXXXXX If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
               test s "YYYYY bench hack" testBenchHack
             ]
