@@ -27,6 +27,8 @@ module Brig.API.Connection
     autoConnect,
     createConnection,
     updateConnection,
+    UpdateConectionInternal (..),
+    updateConnectionInternal,
     lookupConnections,
     Data.lookupConnection,
     Data.lookupConnectionStatus,
@@ -57,6 +59,7 @@ import qualified Galley.Types.Teams as Team
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import qualified Wire.API.Conversation as Conv
 
 createConnection ::
   UserId ->
@@ -214,6 +217,10 @@ updateConnection self other newStatus conn = do
   s2o <- connection self other
   o2s <- connection other self
   s2o' <- case (ucStatus s2o, ucStatus o2s, newStatus) of
+    -- missing legalhold consent: call 'updateConectionInternal' instead.
+    (MissingLegalholdConsent, _, _) -> throwE $ InvalidTransition self newStatus
+    (_, MissingLegalholdConsent, _) -> throwE $ InvalidTransition self newStatus
+    (_, _, MissingLegalholdConsent) -> throwE $ InvalidTransition self newStatus
     -- Pending -> {Blocked, Ignored, Accepted}
     (Pending, _, Blocked) -> block s2o
     (Pending, _, Ignored) -> change s2o Ignored
@@ -248,10 +255,6 @@ updateConnection self other newStatus conn = do
     (Cancelled, _, Blocked) -> block s2o
     -- no change
     (old, _, new) | old == new -> return Nothing
-    -- missing legalhold consent
-    (MissingLegalholdConsent, _, _) -> error "TODO"
-    (_, MissingLegalholdConsent, _) -> error "TODO"
-    (_, _, MissingLegalholdConsent) -> error "TODO"
     -- invalid
     _ -> throwE $ InvalidTransition self newStatus
   lift . for_ s2o' $ \c ->
@@ -294,13 +297,13 @@ updateConnection self other newStatus conn = do
       Log.info $
         logConnection self (ucTo s2o)
           . msg (val "Unblocking connection")
-      cnv <- lift . for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
+      cnv :: Maybe Conv.Conversation <- lift . for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
-        o2s' <-
+        o2s' :: UserConnection <-
           if (cnvType <$> cnv) /= Just ConnectConv
             then Data.updateConnection o2s Accepted
             else Data.updateConnection o2s Blocked
-        e2o <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
+        e2o :: ConnectionEvent <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
         Intra.onConnectionEvent self conn e2o
       lift $ Just <$> Data.updateConnection s2o new
 
@@ -318,8 +321,79 @@ updateConnection self other newStatus conn = do
     change :: UserConnection -> Relation -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     change c s = lift $ Just <$> Data.updateConnection c s
 
-    connection :: UserId -> UserId -> ExceptT ConnectionError AppIO UserConnection
-    connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
+connection :: UserId -> UserId -> ExceptT ConnectionError AppIO UserConnection
+connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
+
+data UpdateConectionInternal
+  = BlockForMissingLegalholdConsent
+  | RemoveMissingLegalholdConsentBlock
+  deriving (Eq, Show)
+
+updateConnectionInternal ::
+  -- | From
+  UserId ->
+  -- | To
+  UserId ->
+  -- | Update operation
+  UpdateConectionInternal ->
+  ExceptT ConnectionError AppIO ()
+updateConnectionInternal self other = \case
+  BlockForMissingLegalholdConsent -> blockForMissingLegalholdConsent
+  RemoveMissingLegalholdConsentBlock -> removeMissingLegalholdConsentBlock
+  where
+    -- inspired by @block@ in 'updateConnection'.
+    blockForMissingLegalholdConsent :: ExceptT ConnectionError AppIO ()
+    blockForMissingLegalholdConsent = do
+      Log.info $
+        logConnection self other
+          . msg (val "Blocking connection (legalhold device present, but missing consent)")
+
+      s2o <- connection self other
+      o2s <- connection other self
+      for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
+        Intra.blockConv (ucFrom uconn) Nothing `mapM_` ucConvId uconn
+        uconn' <- Data.updateConnection uconn MissingLegalholdConsent
+        let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
+        Intra.onConnectionEvent self Nothing ev
+
+    -- inspired by @unblock@ in 'updateConnection'.
+    removeMissingLegalholdConsentBlock :: ExceptT ConnectionError AppIO ()
+    removeMissingLegalholdConsentBlock = do
+      Log.info $
+        logConnection self other
+          . msg (val "Unblocking connection (legalhold device removed or consent given)")
+
+      s2o <- connection self other
+      o2s <- connection other self
+      for_ [s2o, o2s] $ \(uconn :: UserConnection) -> do
+        cnv :: Maybe Conv.Conversation <- lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
+        uconn' :: UserConnection <-
+          if (cnvType <$> cnv) /= Just ConnectConv
+            then lift $ Data.updateConnection o2s Accepted
+            else lift $ Data.updateConnection o2s Blocked
+        ev <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> lift (Data.lookupName self)
+        lift $ Intra.onConnectionEvent self conn ev
+        void . lift $ Data.updateConnection uconn _
+        pure ()
+
+{-
+    unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError AppIO (Maybe UserConnection)
+    unblock s2o o2s new = do
+      when (new `elem` [Sent, Accepted]) $
+        checkLimit self
+      Log.info $
+        logConnection self (ucTo s2o)
+          . msg (val "Unblocking connection")
+      cnv :: Maybe Conv.Conversation <- lift . for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
+      when (ucStatus o2s == Sent && new == Accepted) . lift $ do
+        o2s' :: UserConnection <-
+          if (cnvType <$> cnv) /= Just ConnectConv
+            then Data.updateConnection o2s Accepted
+            else Data.updateConnection o2s Blocked
+        e2o :: ConnectionEvent <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
+        Intra.onConnectionEvent self conn e2o
+      lift $ Just <$> Data.updateConnection s2o new
+-}
 
 autoConnect ::
   UserId ->
