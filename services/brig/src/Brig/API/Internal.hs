@@ -166,7 +166,7 @@ sitemap = do
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
 
-  put "/i/connections/:from/:to" (continue updateConnectionInternalH) $
+  put "/i/connections/:from/:to/:update" (continue updateConnectionInternalH) $
     accept "application" "json"
       .&. capture "from"
       .&. capture "to"
