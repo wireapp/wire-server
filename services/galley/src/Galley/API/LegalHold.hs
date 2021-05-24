@@ -37,7 +37,7 @@ import Control.Lens (view, (^.), _3)
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
-import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.Proxy
@@ -85,7 +85,7 @@ isLegalHoldEnabledForTeam tid = do
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
         <&> maybe
-          (False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -})
+          False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
           (tid `elem`)
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
@@ -166,7 +166,7 @@ removeSettings' tid = do
       let uid = member ^. Team.userId
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
-      changeLegalholdStatus tid uid UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
+      changeLegalholdStatus tid uid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -219,8 +219,8 @@ grantConsent zusr tid = do
   case userLHStatus of
     Nothing ->
       throwM teamMemberNotFound
-    Just UserLegalHoldNoConsent ->
-      changeLegalholdStatus tid zusr UserLegalHoldDisabled $> GrantConsentSuccess
+    Just lhs@UserLegalHoldNoConsent ->
+      changeLegalholdStatus tid zusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
     Just UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
     Just UserLegalHoldPending -> pure GrantConsentAlreadyGranted
     Just UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
@@ -244,13 +244,12 @@ requestDevice zusr tid uid = do
       . Log.field "action" (Log.val "LegalHold.requestDevice")
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
-  userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
-  case userLHStatus of
-    Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-    Just UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice
-    Just UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice
-    Just UserLegalHoldNoConsent -> throwM userLegalHoldNoConsent
-    Nothing -> throwM teamMemberNotFound
+  member <- maybe (throwM teamMemberNotFound) pure =<< Data.teamMember tid uid
+  case member ^. legalHoldStatus of
+    UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+    lhs@UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice lhs
+    lhs@UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice lhs
+    UserLegalHoldNoConsent -> throwM userLegalHoldNoConsent
   where
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,
     -- ie. it returns the existing device on multiple calls to `/init`, like here:
@@ -259,12 +258,12 @@ requestDevice zusr tid uid = do
     -- This will still work if the LH service creates two new device on two consecutive calls
     -- to `/init`, but there may be race conditions, eg. when updating and enabling a pending
     -- device at (almost) the same time.
-    provisionLHDevice :: Galley ()
-    provisionLHDevice = do
+    provisionLHDevice :: UserLegalHoldStatus -> Galley ()
+    provisionLHDevice userLHStatus = do
       (lastPrekey', prekeys) <- requestDeviceFromService
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
-      changeLegalholdStatus tid uid UserLegalHoldPending
+      changeLegalholdStatus tid uid userLHStatus UserLegalHoldPending
       Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
@@ -296,7 +295,8 @@ approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPasswo
   unless (zusr == uid) (throwM accessDenied)
   assertOnTeam uid tid
   ensureReAuthorised zusr mPassword
-  assertUserLHPending
+  userLHStatus <- maybe defUserLegalHoldStatus (view legalHoldStatus) <$> Data.teamMember tid uid
+  assertUserLHPending userLHStatus
   mPreKeys <- LegalHoldData.selectPendingPrekeys uid
   (prekeys, lastPrekey') <- case mPreKeys of
     Nothing -> do
@@ -313,15 +313,15 @@ approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPasswo
   LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-  changeLegalholdStatus tid uid UserLegalHoldEnabled
+  changeLegalholdStatus tid uid userLHStatus UserLegalHoldEnabled
   where
-    assertUserLHPending :: Galley ()
-    assertUserLHPending = do
-      userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
+    assertUserLHPending :: UserLegalHoldStatus -> Galley ()
+    assertUserLHPending userLHStatus = do
       case userLHStatus of
-        Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-        Just UserLegalHoldPending -> pure ()
-        _ -> throwM userLegalHoldNotPending
+        UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+        UserLegalHoldPending -> pure ()
+        UserLegalHoldDisabled -> throwM userLegalHoldNotPending
+        UserLegalHoldNoConsent -> throwM userLegalHoldNotPending
 
 disableForUserH ::
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
@@ -343,33 +343,32 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
-  uidMembership <- Data.teamMember tid uid
-  if not $ userLHEnabled uidMembership
+
+  userLHStatus <- maybe defUserLegalHoldStatus (view legalHoldStatus) <$> Data.teamMember tid uid
+  if not $ userLHEnabled userLHStatus
     then pure DisableLegalHoldWasNotEnabled
-    else disableLH $> DisableLegalHoldSuccess
+    else disableLH userLHStatus $> DisableLegalHoldSuccess
   where
     -- If not enabled nor pending, then it's disabled
-    userLHEnabled :: Maybe TeamMember -> Bool
-    userLHEnabled target = do
-      case fmap (view legalHoldStatus) target of
-        Just UserLegalHoldEnabled -> True
-        Just UserLegalHoldPending -> True
-        Just UserLegalHoldDisabled -> False
-        Just UserLegalHoldNoConsent -> False
-        Nothing -> {- user not found -} False
+    userLHEnabled :: UserLegalHoldStatus -> Bool
+    userLHEnabled = \case
+      UserLegalHoldEnabled -> True
+      UserLegalHoldPending -> True
+      UserLegalHoldDisabled -> False
+      UserLegalHoldNoConsent -> False
 
-    disableLH :: Galley ()
-    disableLH = do
+    disableLH :: UserLegalHoldStatus -> Galley ()
+    disableLH userLHStatus = do
       ensureReAuthorised zusr mPassword
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-      changeLegalholdStatus tid uid UserLegalHoldDisabled
+      changeLegalholdStatus tid uid userLHStatus UserLegalHoldDisabled
 
-changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> Galley ()
-changeLegalholdStatus tid uid lhStatus = do
+changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
+changeLegalholdStatus tid uid _oldLhStatus lhStatus = do
   LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
   when (hasLH lhStatus) $
     iterateConversations uid (toRange (Proxy @500)) $ \convs ->
