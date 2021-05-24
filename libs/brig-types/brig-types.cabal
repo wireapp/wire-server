@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b653eba4d855ab6675efd3519d4259c9bb49379e92b15fb7f4f9080eac634bb1
+-- hash: 2b3c91a37e09e61ca32cf32ab80c46e8f019926c78165bec82d9c84a5b8d20a6
 
 name:           brig-types
 version:        1.35.0
@@ -89,6 +89,7 @@ test-suite brig-types-tests
     , attoparsec >=0.10
     , base ==4.*
     , brig-types
+    , bytestring-conversion >=0.3.1
     , containers >=0.5
     , imports
     , swagger2 >=2.5
