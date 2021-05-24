@@ -389,8 +389,7 @@ changeLegalholdStatus tid uid lhStatus = do
 
     block1on1s :: UserId -> [Conversation] -> Galley ()
     block1on1s userLegalhold convs = do
-      Log.info $ Log.msg @Text "-------------------------------------------------------------- block1on1s"
-
+      Log.info $ Log.msg @Text "-------------------------------------------------------------- block1on1s" -- TODO: remove this line
       let otherUids :: [Qualified UserId] =
             concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
       ownDomain <- viewFederationDomain

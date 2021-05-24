@@ -167,7 +167,11 @@ sitemap = do
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
 
-  put "/i/connections/:from/:to" (continue updateConnectionH) $
+  error "TODO" . put "/i/connections/:from/:to" (continue updateConnectionH) $
+    -- we need this for two specific transactions (block for LH, and unblock for LH
+    -- gone).  i think we should call another function for that, that does specifically that.
+    -- if we just call 'API.updateConnection', we risk allowing clients to run the operations
+    -- only galley should and vice versa.
     accept "application" "json"
       .&. capture "from"
       .&. capture "to"
