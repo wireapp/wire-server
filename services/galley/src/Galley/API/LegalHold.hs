@@ -33,7 +33,7 @@ import Brig.Types.Client.Prekey
 import Brig.Types.Connection (UpdateConnectionInternal (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
-import Control.Lens (view, (^.))
+import Control.Lens (view, (^.), _3)
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
@@ -43,6 +43,7 @@ import Data.Misc
 import Data.Proxy
 import Data.Qualified (Qualified, partitionRemoteOrLocalIds)
 import Data.Range (toRange)
+import Data.String.Conversions (cs)
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
 import Galley.API.Util
@@ -56,9 +57,10 @@ import Galley.Intra.User (putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
+import Network.HTTP.Types (Status, status200)
 import Network.HTTP.Types.Status (status201, status204)
 import Network.Wai
-import Network.Wai.Predicate hiding (or, result, setStatus)
+import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -387,6 +389,7 @@ changeLegalholdStatus tid uid lhStatus = do
       UserLegalHoldEnabled -> True
       UserLegalHoldNoConsent -> False
 
+    -- TODO: make this async
     block1on1s :: UserId -> [Conversation] -> Galley ()
     block1on1s userLegalhold convs = do
       Log.info $ Log.msg @Text "-------------------------------------------------------------- block1on1s" -- TODO: remove this line
@@ -395,23 +398,28 @@ changeLegalholdStatus tid uid lhStatus = do
       ownDomain <- viewFederationDomain
       let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
-      for_ (chunksOf 32 localUids) $ \uids -> do
+      results <- for (chunksOf 32 localUids) $ \uids -> do
         teamsOfUsers <- Data.usersTeams uids
-        for_ uids $ \user ->
+        results :: [Maybe (UserId, UserId, Status)] <- for uids $ \user ->
           case Map.lookup user teamsOfUsers of
             Nothing ->
-              blockConnection user userLegalhold
+              Just <$> blockConnection user userLegalhold
             Just team -> do
               mMember <- Data.teamMember team user
-              for_ mMember $ \member ->
-                unless (hasGrantedConsent (member ^. legalHoldStatus)) $ do
-                  blockConnection user userLegalhold
+              if maybe False (hasGrantedConsent . view legalHoldStatus) mMember
+                then pure Nothing
+                else Just <$> blockConnection user userLegalhold
+        pure results
+
+      case filter ((/= status200) . view _3) . catMaybes . concat $ results of
+        problems@(_ : _) ->
+          throwM $ internalErrorWithDescription (cs $ "block1on1s " <> show problems)
+        [] -> pure ()
 
     chunksOf :: Int -> [any] -> [[any]]
     chunksOf _maxSize [] = []
     chunksOf maxSize uids = case splitAt maxSize uids of (h, t) -> h : chunksOf maxSize t
 
-    blockConnection :: UserId -> UserId -> Galley ()
+    blockConnection :: UserId -> UserId -> Galley (UserId, UserId, Status)
     blockConnection userA userB = do
-      void $ putConnectionInternal userA userB BlockForMissingLegalholdConsent
-      void $ putConnectionInternal userB userA BlockForMissingLegalholdConsent
+      (userA,userB,) <$> putConnectionInternal userA userB BlockForMissingLegalholdConsent

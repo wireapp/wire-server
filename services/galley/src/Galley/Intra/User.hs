@@ -70,18 +70,15 @@ getConnections uFrom uTo rlt = do
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
 
-putConnectionInternal :: UserId -> UserId -> UpdateConnectionInternal -> Galley (Either Status ())
+-- TODO: add batch version of this
+putConnectionInternal :: UserId -> UserId -> UpdateConnectionInternal -> Galley Status
 putConnectionInternal from to updateConn = do
   (h, p) <- brigReq
   response <-
     call "brig" $
       method PUT . host h . port p
         . paths ["/i/connections", toByteString' from, toByteString' to, toByteString' updateConn]
-  case responseStatus response of
-    Status 200 _ ->
-      pure (Right ())
-    status ->
-      pure (Left status)
+  pure $ responseStatus response
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
 deleteBot :: ConvId -> BotId -> Galley ()
