@@ -73,7 +73,6 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
-import qualified Wire.API.Connection as Public
 import Wire.API.User
 import Wire.API.User.RichInfo
 
@@ -167,15 +166,11 @@ sitemap = do
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
 
-  put "/i/connections/:from/:to" (continue updateConnectionH) $
-    -- TODO: we need this for two specific transactions (block for LH, and unblock for LH
-    -- gone).  i think we should call another function for that, that does specifically that.
-    -- if we just call 'API.updateConnection', we risk allowing clients to run the operations
-    -- only galley should and vice versa.
+  put "/i/connections/:from/:to" (continue updateConnectionInternalH) $
     accept "application" "json"
       .&. capture "from"
       .&. capture "to"
-      .&. jsonRequest @Public.ConnectionUpdate
+      .&. capture "update"
 
   -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
   -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
@@ -504,14 +499,10 @@ revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
   return $ setStatus status200 empty
 
-updateConnectionH :: JSON ::: UserId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
-updateConnectionH (_ ::: self ::: other ::: req) = do
-  newStatus <- Public.cuStatus <$> parseJsonBody req
-  -- TODO : Can 4th argument be Nothing here?
-  mc <- API.updateConnection self other newStatus Nothing !>> connError
-  return $ case mc of
-    Just c -> json (c :: Public.UserConnection)
-    Nothing -> setStatus status204 empty
+updateConnectionInternalH :: JSON ::: UserId ::: UserId ::: UpdateConnectionInternal -> Handler Response
+updateConnectionInternalH (_ ::: self ::: other ::: updateConn) = do
+  API.updateConnectionInternal self other updateConn !>> connError
+  return $ setStatus status200 empty
 
 checkBlacklistH :: Either Email Phone -> Handler Response
 checkBlacklistH emailOrPhone = do
