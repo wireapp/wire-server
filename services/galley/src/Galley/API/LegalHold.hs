@@ -368,11 +368,13 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       changeLegalholdStatus tid uid userLHStatus UserLegalHoldDisabled
 
 changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
-changeLegalholdStatus tid uid _oldLhStatus lhStatus = do
+changeLegalholdStatus tid uid oldLhStatus lhStatus = do
   LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
-  when (hasLH lhStatus) $
-    iterateConversations uid (toRange (Proxy @500)) $ \convs ->
-      block1on1s uid (filter ((== One2OneConv) . cnvType) convs)
+  case (not (hasLH oldLhStatus), hasLH lhStatus) of
+    (False, False) -> pure ()
+    (True, True) -> pure ()
+    (False, True) -> go BlockForMissingLegalholdConsent
+    (True, False) -> go RemoveMissingLegalholdConsentBlock
   where
     hasLH :: UserLegalHoldStatus -> Bool
     hasLH = \case
@@ -389,9 +391,13 @@ changeLegalholdStatus tid uid _oldLhStatus lhStatus = do
       UserLegalHoldNoConsent -> False
 
     -- TODO: make this async
-    block1on1s :: UserId -> [Conversation] -> Galley ()
-    block1on1s userLegalhold convs = do
-      Log.info $ Log.msg @Text "-------------------------------------------------------------- block1on1s" -- TODO: remove this line
+    go :: UpdateConnectionInternal -> Galley ()
+    go updop = do
+      iterateConversations uid (toRange (Proxy @500)) $ \convs ->
+        upd1on1s updop uid (filter ((== One2OneConv) . cnvType) convs)
+
+    upd1on1s :: UpdateConnectionInternal -> UserId -> [Conversation] -> Galley ()
+    upd1on1s updop userLegalhold convs = do
       let otherUids :: [Qualified UserId] =
             concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
       ownDomain <- viewFederationDomain
@@ -402,12 +408,12 @@ changeLegalholdStatus tid uid _oldLhStatus lhStatus = do
         results :: [Maybe (UserId, UserId, Status)] <- for uids $ \user ->
           case Map.lookup user teamsOfUsers of
             Nothing ->
-              Just <$> blockConnection user userLegalhold
+              Just <$> updConnection updop user userLegalhold
             Just team -> do
               mMember <- Data.teamMember team user
               if maybe False (hasGrantedConsent . view legalHoldStatus) mMember
                 then pure Nothing
-                else Just <$> blockConnection user userLegalhold
+                else Just <$> updConnection updop user userLegalhold
         pure results
 
       case filter ((/= status200) . view _3) . catMaybes . concat $ results of
@@ -419,6 +425,6 @@ changeLegalholdStatus tid uid _oldLhStatus lhStatus = do
     chunksOf _maxSize [] = []
     chunksOf maxSize uids = case splitAt maxSize uids of (h, t) -> h : chunksOf maxSize t
 
-    blockConnection :: UserId -> UserId -> Galley (UserId, UserId, Status)
-    blockConnection userA userB = do
-      (userA,userB,) <$> putConnectionInternal userA userB BlockForMissingLegalholdConsent
+    updConnection :: UpdateConnectionInternal -> UserId -> UserId -> Galley (UserId, UserId, Status)
+    updConnection updop userA userB = do
+      (userA,userB,) <$> putConnectionInternal userA userB updop
