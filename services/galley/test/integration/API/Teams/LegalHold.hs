@@ -86,6 +86,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
 import qualified Wire.API.Message as Msg
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -827,8 +828,9 @@ testNoConsentBlockDeviceHandshake = do
   pure ()
 
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
-testNoConsentBlockOne2OneConv :: Bool -> Bool -> Bool -> Bool -> TestM ()
+testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
 testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
+  -- TODO: maybe regular user for legalholder?
   (legalholder :: UserId, tid) <- createBindingTeam
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
@@ -858,8 +860,15 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
     if connectFirst
       then do
         postConnection legalholder peer !!! const 201 === statusCode
-        unless testPendingConnection $ do
-          void $ putConnection peer legalholder Conn.Accepted
+
+        _mbConn :: Maybe UserConnection <-
+          if testPendingConnection
+            then pure Nothing
+            else do
+              res <- putConnection peer legalholder Conn.Accepted <!! const 200 === statusCode
+              pure $ Just $ responseJsonUnsafe res
+
+        ensureQueueEmpty
 
         doEnableLH
 
@@ -877,17 +886,16 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         forM_ [(legalholder, peer), (peer, legalholder)] $ \(one, two) -> do
           putConnection one two Conn.Accepted
-            !!!
-            -- (other label, or test for 403 and ignore label would also be acceptable.)
-            testResponse 412 (Just "missing-legalhold-consent")
+            !!! testResponse 403 (Just "bad-conn-update")
 
         assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
-        do
-          -- (again, other label / 4xx status code would also be fine.)
-          postOtrMessageJson undefined undefined !!! testResponse 412 (Just "missing-legalhold-consent")
-          postOtrMessageProto undefined undefined !!! testResponse 412 (Just "missing-legalhold-consent")
+        -- TODO: test if message sending is blocked
+        -- for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
+        -- (again, other label / 4xx status code would also be fine.)
+        -- postOtrMessageJson peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
+        -- postOtrMessageProto peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
 
         do
           doDisableLH
@@ -902,8 +910,9 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
                 if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
 
-          postOtrMessageJson undefined undefined !!! const 201 === statusCode
-          postOtrMessageProto undefined undefined !!! const 201 === statusCode
+        -- TODO: test if message sending works again
+        -- postOtrMessageJson undefined undefined !!! const 201 === statusCode
+        pure ()
       else do
         doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
@@ -1065,10 +1074,10 @@ disableLegalHoldForUser' g mPassword tid zusr uid = do
       . zType "access"
       . json (DisableLegalHoldForUserRequest mPassword)
 
-postOtrMessageJson :: UserId -> ConvId -> TestM ResponseLBS
-postOtrMessageJson zusr cnvid = do
+_postOtrMessageJson :: UserId -> ConvId -> TestM ResponseLBS
+_postOtrMessageJson zusr cnvid = do
   g <- view tsGalley
-  otrmsg :: Msg.NewOtrMessage <- pure undefined
+  otrmsg :: Msg.NewOtrMessage <- pure (error "TODO")
   post $
     g
       . paths ["conversations", toByteString' cnvid, "otr", "messages"]
@@ -1078,8 +1087,8 @@ postOtrMessageJson zusr cnvid = do
       -- TODO: @.&. def Public.OtrReportAllMissing filterMissing@
       . json otrmsg
 
-postOtrMessageProto :: UserId -> ConvId -> TestM ResponseLBS
-postOtrMessageProto = undefined
+_postOtrMessageProto :: UserId -> ConvId -> TestM ResponseLBS
+_postOtrMessageProto = (error "TODO")
 
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
