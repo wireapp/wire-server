@@ -32,7 +32,7 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UpdateConnectionInternal (..), UserIds (..))
+import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UpdateConnectionsInternal (..), UserIds (..))
 import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
@@ -70,14 +70,14 @@ getConnections uFrom uTo rlt = do
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
 
--- TODO: add batch version of this
-putConnectionInternal :: UserId -> UserId -> UpdateConnectionInternal -> Galley Status
-putConnectionInternal from to updateConn = do
+putConnectionInternal :: UpdateConnectionsInternal -> Galley Status
+putConnectionInternal updateConn = do
   (h, p) <- brigReq
   response <-
     call "brig" $
       method PUT . host h . port p
-        . paths ["/i/connections", toByteString' from, toByteString' to, toByteString' updateConn]
+        . paths ["/i/connections/connection-update"]
+        . json updateConn
   pure $ responseStatus response
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
