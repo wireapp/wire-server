@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -27,7 +25,7 @@ module Brig.API.Connection
     autoConnect,
     createConnection,
     updateConnection,
-    UpdateConectionInternal (..),
+    UpdateConnectionInternal (..),
     updateConnectionInternal,
     lookupConnections,
     Data.lookupConnection,
@@ -66,7 +64,7 @@ createConnection ::
   ConnectionRequest ->
   ConnId ->
   ExceptT ConnectionError AppIO ConnectionResult
-createConnection self req conn = do
+createConnection self req conn =
   createConnectionToLocalUser self (crUser req) req conn
 
 createConnectionToLocalUser ::
@@ -89,7 +87,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
   checkLegalholdPolicyConflict self crUser
   -- Users belonging to the same team are always treated as connected, so creating a
   -- connection between them is useless. {#RefConnectionTeam}
-  sameTeam <- lift $ belongSameTeam
+  sameTeam <- lift belongSameTeam
   when sameTeam $
     throwE ConnectSameBindingTeamUsers
   s2o <- lift $ Data.lookupConnection self crUser
@@ -304,6 +302,7 @@ updateConnection self other newStatus conn = do
             then Data.updateConnection o2s Accepted
             else Data.updateConnection o2s Blocked
         e2o :: ConnectionEvent <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
+        -- TODO: is this correct? shouldnt o2s be sent to other?
         Intra.onConnectionEvent self conn e2o
       lift $ Just <$> Data.updateConnection s2o new
 
@@ -324,7 +323,7 @@ updateConnection self other newStatus conn = do
 connection :: UserId -> UserId -> ExceptT ConnectionError AppIO UserConnection
 connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
 
-data UpdateConectionInternal
+data UpdateConnectionInternal
   = BlockForMissingLegalholdConsent
   | RemoveMissingLegalholdConsentBlock
   deriving (Eq, Show)
@@ -335,7 +334,7 @@ updateConnectionInternal ::
   -- | To
   UserId ->
   -- | Update operation
-  UpdateConectionInternal ->
+  UpdateConnectionInternal ->
   ExceptT ConnectionError AppIO ()
 updateConnectionInternal self other = \case
   BlockForMissingLegalholdConsent -> blockForMissingLegalholdConsent
@@ -351,6 +350,7 @@ updateConnectionInternal self other = \case
       s2o <- connection self other
       o2s <- connection other self
       for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
+        -- TODO: check if Ignored is a possibility
         Intra.blockConv (ucFrom uconn) Nothing `mapM_` ucConvId uconn
         uconn' <- Data.updateConnection uconn MissingLegalholdConsent
         let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
@@ -365,35 +365,23 @@ updateConnectionInternal self other = \case
 
       s2o <- connection self other
       o2s <- connection other self
-      for_ [s2o, o2s] $ \(uconn :: UserConnection) -> do
-        cnv :: Maybe Conv.Conversation <- lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
-        uconn' :: UserConnection <-
-          if (cnvType <$> cnv) /= Just ConnectConv
-            then lift $ Data.updateConnection o2s Accepted
-            else lift $ Data.updateConnection o2s Blocked
-        ev <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> lift (Data.lookupName self)
-        lift $ Intra.onConnectionEvent self conn ev
-        void . lift $ Data.updateConnection uconn _
-        pure ()
+      unblockDirected s2o o2s
+      unblockDirected o2s s2o
+      where
+        unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ()
+        unblockDirected uconn uconnRev = do
+          cnv :: Maybe Conv.Conversation <- lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
+          uconnRev' :: UserConnection <- do
+            newRelation <- case cnvType <$> cnv of
+              Just RegularConv -> throwE (InvalidTransition (ucFrom uconn) Accepted) -- FUTUREWORK: implement in issue SQSERVICES-428
+              Just SelfConv -> throwE (InvalidTransition (ucFrom uconn) Accepted)
+              Just One2OneConv -> pure Accepted
+              Just ConnectConv -> pure Sent
+              Nothing -> throwE (InvalidTransition (ucFrom uconn) Accepted)
+            lift $ Data.updateConnection uconnRev newRelation
 
-{-
-    unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError AppIO (Maybe UserConnection)
-    unblock s2o o2s new = do
-      when (new `elem` [Sent, Accepted]) $
-        checkLimit self
-      Log.info $
-        logConnection self (ucTo s2o)
-          . msg (val "Unblocking connection")
-      cnv :: Maybe Conv.Conversation <- lift . for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
-      when (ucStatus o2s == Sent && new == Accepted) . lift $ do
-        o2s' :: UserConnection <-
-          if (cnvType <$> cnv) /= Just ConnectConv
-            then Data.updateConnection o2s Accepted
-            else Data.updateConnection o2s Blocked
-        e2o :: ConnectionEvent <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
-        Intra.onConnectionEvent self conn e2o
-      lift $ Just <$> Data.updateConnection s2o new
--}
+          connEvent :: ConnectionEvent <- lift $ ConnectionUpdated uconnRev' (Just $ ucStatus uconnRev) <$> Data.lookupName (ucFrom uconn)
+          lift $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent
 
 autoConnect ::
   UserId ->
