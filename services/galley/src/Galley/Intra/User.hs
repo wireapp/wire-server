@@ -17,7 +17,7 @@
 
 module Galley.Intra.User
   ( getConnections,
-    putConnection,
+    putConnectionInternal,
     deleteBot,
     reAuthUser,
     lookupActivatedUsers,
@@ -32,11 +32,10 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
+import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UpdateConnectionInternal (..), UserIds (..))
 import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
-import Data.Aeson (encode)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
@@ -49,7 +48,6 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import Wire.API.Connection (ConnectionUpdate (..), UserConnection)
 import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -72,24 +70,18 @@ getConnections uFrom uTo rlt = do
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
 
-putConnection :: UserId -> UserId -> Relation -> Galley (Either Status (Maybe UserConnection))
-putConnection from to relation = do
+putConnectionInternal :: UserId -> UserId -> UpdateConnectionInternal -> Galley (Either Status ())
+putConnectionInternal from to updateConn = do
   (h, p) <- brigReq
   response <-
     call "brig" $
       method PUT . host h . port p
-        . paths ["/i/connections", toByteString' from, toByteString' to]
-        . contentJson
-        . body payload
-  case (responseStatus $ response) of
+        . paths ["/i/connections", toByteString' from, toByteString' to, toByteString' updateConn]
+  case responseStatus response of
     Status 200 _ ->
-      Right <$> parseResponse (Error status502 "server-error") response
-    Status 204 _ ->
-      pure (Right Nothing)
+      pure (Right ())
     status ->
       pure (Left status)
-  where
-    payload = RequestBodyLBS . encode $ ConnectionUpdate relation
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
 deleteBot :: ConvId -> BotId -> Galley ()
