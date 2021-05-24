@@ -323,11 +323,6 @@ updateConnection self other newStatus conn = do
 connection :: UserId -> UserId -> ExceptT ConnectionError AppIO UserConnection
 connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
 
-data UpdateConnectionInternal
-  = BlockForMissingLegalholdConsent
-  | RemoveMissingLegalholdConsentBlock
-  deriving (Eq, Show)
-
 updateConnectionInternal ::
   -- | From
   UserId ->

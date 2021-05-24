@@ -39,6 +39,8 @@ where
 
 import Brig.Types.Common as C
 import Data.Aeson
+import Data.Attoparsec.ByteString.Char8 (takeByteString)
+import Data.ByteString.Conversion (FromByteString (..))
 import Data.Id (UserId)
 import Imports
 import Wire.API.Connection
@@ -56,6 +58,18 @@ data ConnectionsStatusRequest = ConnectionsStatusRequest
     csrTo :: ![UserId]
   }
   deriving (Eq, Show, Generic)
+
+data UpdateConnectionInternal
+  = BlockForMissingLegalholdConsent
+  | RemoveMissingLegalholdConsentBlock
+  deriving (Eq, Show, Generic)
+
+instance FromByteString UpdateConnectionInternal where
+  parser =
+    takeByteString >>= \case
+      "block-for-missing-legalhold-consent" -> pure BlockForMissingLegalholdConsent
+      "remove-missing-legalhold-consent-block" -> pure RemoveMissingLegalholdConsentBlock
+      x -> fail $ "Invalid UpdateConnectionInternal value " <> show x
 
 ----------------------------------------------------------------------------
 -- JSON instances
