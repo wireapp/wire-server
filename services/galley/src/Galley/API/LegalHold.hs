@@ -370,7 +370,9 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
 changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
 changeLegalholdStatus tid uid oldLhStatus lhStatus = do
   LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
-  case (not (hasLH oldLhStatus), hasLH lhStatus) of
+  -- TODO: remove
+  Log.info $ Log.msg @String (show oldLhStatus <> " -> " <> show lhStatus)
+  case (hasLH oldLhStatus, hasLH lhStatus) of
     (False, False) -> pure ()
     (True, True) -> pure ()
     (False, True) -> go BlockForMissingLegalholdConsent
