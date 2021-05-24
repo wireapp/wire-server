@@ -107,6 +107,7 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
+import qualified Wire.API.User.Client as Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -973,7 +974,9 @@ handleOtrResponse ::
   Galley OtrResult
 handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
-  MissingOtrRecipients m -> pure (OtrMissingRecipients m)
+  MissingOtrRecipients m -> do
+    guardLegalholdPolicyConflicts usr m
+    pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> throwM convNotFound
   InvalidOtrSenderClient -> throwM unknownClient
 
@@ -1058,3 +1061,49 @@ checkOtrRecipients usr sid prs vms vcs val now
       OtrIgnoreAllMissing -> Clients.nil
       OtrReportMissing us -> Clients.filter (`Set.member` us) miss
       OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
+
+-- | If user has legalhold status `no_consent` or has client devices that have no legalhold
+-- capability, and some of the clients she is about to get connected are LH devices, respond
+-- with 412 and do not process notification.
+--
+-- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
+-- intended.
+guardLegalholdPolicyConflicts :: UserId -> ClientMismatch -> Galley ()
+guardLegalholdPolicyConflicts uid mismatch = do
+  let missingCids :: [ClientId]
+      missingCids = Set.toList . Set.unions . Map.elems . userClients . missingClients $ mismatch
+
+      missinUids :: [UserId]
+      missingUids = nub $ Map.keys . userClients . missingClients $ mismatch
+
+  allcs :: UserClientsFull <- Intra.lookupClientsFull (uid : missingUids)
+
+  let checkLHPresent :: Bool
+      checkLHPresent = do
+        let clients =
+              allcs
+                & Client.userClientsFull
+                & Map.delete uid
+                & Map.elems
+                & Set.unions
+                & Set.toList
+                & filter ((`elem` cids) . Client.clientId)
+
+        pure $ Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
+
+      checkUserHasOldClients :: Bool
+      checkUserHasOldClients = undefined
+
+      checkUserHasLHClients :: Bool
+      checkUserHasLHClients = undefined
+
+      checkConsentMissing :: Galley Bool
+      checkConsentMissing = undefined uid
+
+  -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
+  when checkLHPresent $ do
+    when checkUserHasOldClients $ do
+      throwM userLegalHoldNotSupported
+    when (not checkUserHasLHClients {- carrying a LH device implies having granted LH consent -}) $ do
+      whenM checkConsentMissing $ do
+        throwM userLegalHoldNotSupported

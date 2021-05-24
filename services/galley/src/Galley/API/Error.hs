@@ -221,6 +221,9 @@ noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no
 legalHoldCouldNotBlockConnections :: Error
 legalHoldCouldNotBlockConnections = Error status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
+userLegalHoldNotSupported :: Error
+userLegalHoldNotSupported = Error status412 "legalhold-not-supported" "you have not granted consent, or you are using old clients that do not support legalhold"
+
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =
   Error

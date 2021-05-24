@@ -827,6 +827,18 @@ testNoConsentBlockDeviceHandshake :: TestM ()
 testNoConsentBlockDeviceHandshake = do
   -- "handshake between LH device and user without consent is blocked"
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
+
+  {-
+    - set up team and personal user
+    - everybody grants consent
+    - create conv, send some messages
+    - personal user adds old client
+    - send another message
+    - boom!
+    - (then we can also remove the messaging tests in https://wearezeta.atlassian.net/browse/SQSERVICES-429.)
+    - (maybe can we even avoid implementing https://wearezeta.atlassian.net/browse/SQSERVICES-405 altogether?)
+  -}
+
   pure ()
 
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
