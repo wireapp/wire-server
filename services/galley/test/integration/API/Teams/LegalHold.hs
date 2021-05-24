@@ -959,7 +959,7 @@ testBenchHack = do
 
   -}
 
-  when True $ do
+  when False $ do
     print =<< testBenchHack' 10
     print =<< testBenchHack' 30
     print =<< testBenchHack' 100
