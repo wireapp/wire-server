@@ -1221,11 +1221,12 @@ putConnection from to r = do
 assertConnections :: HasCallStack => UserId -> [ConnectionStatus] -> TestM ()
 assertConnections u cstat = do
   brig <- view tsBrig
-  listConnections brig u !!! do
-    const 200 === statusCode
-    const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
+  resp <- listConnections brig u <!! const 200 === statusCode
+  let cstat' :: [ConnectionStatus]
+      cstat' = fmap status . clConnections . fromMaybe (error "bad response") . responseJsonMaybe $ resp
+  unless (all (`elem` cstat') cstat) $ do
+    error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
-    check xs = all (`elem` xs) cstat
     status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
     listConnections brig usr = get $ brig . path "connections" . zUser usr
 
