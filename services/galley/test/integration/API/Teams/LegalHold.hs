@@ -58,6 +58,7 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Time.Clock as Time
 import qualified Galley.App as Galley
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
@@ -179,7 +180,8 @@ tests s =
               test
                 s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
-                testNoConsentBlockGroupConv
+                testNoConsentBlockGroupConv,
+              test s "YYYYY bench hack" testBenchHack
             ]
         ]
     ]
@@ -922,6 +924,80 @@ testNoConsentBlockGroupConv = do
   -- "If LH is activated for other user in group conv, this user gets removed with helpful message"
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-428
   pure ()
+
+testBenchHack :: HasCallStack => TestM ()
+testBenchHack = do
+  {- representative sample run on an old laptop:
+
+     (10,0.186728036s)
+     (30,0.283852693s)
+     (100,0.712145446s)
+     (300,1.72513614s)
+     (600,3.47943481s)
+
+     the test itself is running for ages, but most of the time is spent in setting up the
+     connections.
+
+     before running this test, you also need to change {galley,brig}.integration.yaml:
+
+     ```
+       diff --git a/services/brig/brig.integration.yaml b/services/brig/brig.integration.yaml
+       -  setUserMaxConnections: 16
+       -  setMaxTeamSize: 32
+       -  setMaxConvSize: 16
+       +  setUserMaxConnections: 999
+       +  setMaxTeamSize: 999
+       +  setMaxConvSize: 999
+       diff --git a/services/galley/galley.integration.yaml b/services/galley/galley.integration.yaml
+       -  maxTeamSize: 32
+       -  maxFanoutSize: 18
+       -  maxConvSize: 16
+       +  maxTeamSize: 999
+       +  maxFanoutSize: 999
+       +  maxConvSize: 999
+     ```
+
+  -}
+
+  when True $ do
+    print =<< testBenchHack' 10
+    print =<< testBenchHack' 30
+    print =<< testBenchHack' 100
+    print =<< testBenchHack' 300
+    print =<< testBenchHack' 600
+
+testBenchHack' :: HasCallStack => Int -> TestM (Int, Time.NominalDiffTime)
+testBenchHack' numPeers = do
+  (legalholder :: UserId, tid) <- createBindingTeam
+  peers :: [UserId] <- replicateM numPeers randomUser
+  galley <- view tsGalley
+
+  let doEnableLH :: HasCallStack => TestM ()
+      doEnableLH = do
+        withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
+        withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
+        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    for_ peers $ \peer -> do
+      postConnection legalholder peer !!! const 201 === statusCode
+      void $ putConnection peer legalholder Conn.Accepted <!! const 200 === statusCode
+      ensureQueueEmpty
+
+    startAt <- liftIO $ Time.getCurrentTime
+    doEnableLH
+    endAt <- liftIO $ Time.getCurrentTime
+
+    assertConnections -- (if this fails, check if 'assertConnections' has hit its page size limit)
+      legalholder
+      ((\peer -> ConnectionStatus legalholder peer Conn.MissingLegalholdConsent) <$> peers)
+    for_ peers $ \peer ->
+      assertConnections
+        peer
+        [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
+
+    pure (numPeers, Time.diffUTCTime endAt startAt)
 
 ----------------------------------------------------------------------
 -- API helpers
