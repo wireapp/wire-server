@@ -51,7 +51,7 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Schema
 import Data.Text as Text
-import Deriving.Swagger (CamelToKebab, ConstructorTagModifier, CustomSwagger, StripSuffix)
+import Deriving.Swagger (CamelToKebab, ConstructorTagModifier, CustomSwagger)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
