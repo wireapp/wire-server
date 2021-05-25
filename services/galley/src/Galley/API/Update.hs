@@ -1130,7 +1130,7 @@ guardLegalholdPolicyConflicts self mismatch = do
   when missingClientHasLH $ do
     whenM checkUserHasOldClients $
       throwM userLegalHoldNotSupported
-    unless userHasLHClients $
+    unless userHasLHClients {- carrying a LH device implies having granted LH consent -} $
       whenM checkConsentMissing $
         throwM userLegalHoldNotSupported
 
