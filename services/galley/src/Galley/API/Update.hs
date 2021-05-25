@@ -58,12 +58,14 @@ module Galley.API.Update
   )
 where
 
+import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
 import Data.Code
 import Data.Id
+import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
 import Data.List.Extra (nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -76,13 +78,15 @@ import Galley.API.Mapping
 import qualified Galley.API.Teams as Teams
 import Galley.API.Util
 import Galley.App
+import Galley.Data (teamMember)
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
+import Galley.Intra.Client (lookupClientCapabilities)
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
-import Galley.Intra.User
+import Galley.Intra.User (deleteBot, getContactList, getUser, lookupActivatedUsers)
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot hiding (addBot)
@@ -107,7 +111,8 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
-import Wire.API.User.Client (UserClientsFull)
+import Wire.API.User (userTeam)
+import Wire.API.User.Client (ClientCapability (..), UserClientsFull)
 import qualified Wire.API.User.Client as Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
@@ -1070,42 +1075,63 @@ checkOtrRecipients usr sid prs vms vcs val now
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
 guardLegalholdPolicyConflicts :: UserId -> ClientMismatch -> Galley ()
-guardLegalholdPolicyConflicts uid mismatch = do
+guardLegalholdPolicyConflicts self mismatch = do
   let missingCids :: [ClientId]
       missingCids = Set.toList . Set.unions . Map.elems . userClients . missingClients $ mismatch
 
       missingUids :: [UserId]
       missingUids = nub $ Map.keys . userClients . missingClients $ mismatch
 
-  allcs :: UserClientsFull <- Intra.lookupClientsFull (uid : missingUids)
+  allClients :: UserClientsFull <- Intra.lookupClientsFull (self : missingUids)
 
-  let checkLHPresent :: Bool
-      checkLHPresent =
+  let selfClients :: [Client.Client] =
+        allClients
+          & Client.userClientsFull
+          & Map.lookup self
+          & fromMaybe Set.empty
+          & Set.toList
+
+      missingClientHasLH :: Bool
+      missingClientHasLH =
         let clients =
-              allcs
+              allClients
                 & Client.userClientsFull
-                & Map.delete uid
+                & Map.delete self
                 & Map.elems
                 & Set.unions
                 & Set.toList
                 & filter ((`elem` missingCids) . Client.clientId)
          in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
 
-      checkUserHasOldClients :: Bool
-      checkUserHasOldClients = undefined
+      userHasLHClients :: Bool
+      userHasLHClients =
+        any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
 
-      checkUserHasLHClients :: Bool
-      checkUserHasLHClients = undefined
+      checkUserHasOldClients :: Galley Bool
+      checkUserHasOldClients = go (Client.clientId <$> selfClients)
+        where
+          go (cid : rest) = do
+            isOld <-
+              not . (ClientSupportsLegalholdImplicitConsent `Set.member`)
+                <$> lookupClientCapabilities self cid
+            if isOld
+              then pure True
+              else go rest
+          go [] = pure False
 
       checkConsentMissing :: Galley Bool
-      checkConsentMissing = undefined uid
+      checkConsentMissing = do
+        mbUser <- accountUser <$$> getUser self
+        mbTeamMember <- join <$> for (mbUser >>= userTeam) (`teamMember` self)
+        let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
+        pure (lhStatus == UserLegalHoldNoConsent)
 
   -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
-  when checkLHPresent $ do
-    when checkUserHasOldClients $ do
+  when missingClientHasLH $ do
+    whenM checkUserHasOldClients $
       throwM userLegalHoldNotSupported
-    when (not checkUserHasLHClients {- carrying a LH device implies having granted LH consent -}) $ do
-      whenM checkConsentMissing $ do
+    unless userHasLHClients $
+      whenM checkConsentMissing $
         throwM userLegalHoldNotSupported
 
 -- make is symmetric?  that would make breaking slightly faster, but is it necessary?  => separate ticket, run by franziskus!
