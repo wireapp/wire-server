@@ -27,12 +27,12 @@
 
 module Test.Brig.Types.User where
 
-import Brig.Types.Connection (UpdateConnectionInternal (..))
+import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Intra (NewUserScimInvitation (..), ReAuthUser (..))
 import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
 import Brig.Types.User.EJPD (EJPDRequestBody (..), EJPDResponseBody (..))
 import Imports
-import Test.Brig.Roundtrip (testRoundTrip, testRoundTripByteString, testRoundTripWithSwagger)
+import Test.Brig.Roundtrip (testRoundTrip, testRoundTripWithSwagger)
 import Test.QuickCheck (Arbitrary (arbitrary))
 import Test.Tasty
 
@@ -47,7 +47,7 @@ roundtripTests =
     testRoundTrip @NewUserScimInvitation,
     testRoundTripWithSwagger @EJPDRequestBody,
     testRoundTripWithSwagger @EJPDResponseBody,
-    testRoundTripByteString @UpdateConnectionInternal
+    testRoundTrip @UpdateConnectionsInternal
   ]
 
 instance Arbitrary ManagedByUpdate where

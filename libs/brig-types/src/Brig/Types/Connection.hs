@@ -42,6 +42,7 @@ import Brig.Types.Common as C
 import Data.Aeson
 import Data.Id (UserId)
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.Connection
 
 -- | Response type for endpoints returning lists of users with a specific connection state.
@@ -62,6 +63,7 @@ data UpdateConnectionsInternal
   = BlockForMissingLHConsent UserId [UserId]
   | UnblockForAllMissingLHConsent UserId
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
 
 instance FromJSON UpdateConnectionsInternal
 
