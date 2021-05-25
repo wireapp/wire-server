@@ -1133,5 +1133,3 @@ guardLegalholdPolicyConflicts self mismatch = do
     unless userHasLHClients {- carrying a LH device implies having granted LH consent -} $
       whenM checkConsentMissing $
         throwM userLegalHoldNotSupported
-
--- make is symmetric?  that would make breaking slightly faster, but is it necessary?  => separate ticket, run by franziskus!
