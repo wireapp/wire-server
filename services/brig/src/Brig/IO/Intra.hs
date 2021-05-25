@@ -490,9 +490,12 @@ toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
   case (ucStatus uc, name) of
     (MissingLegalholdConsent, _) -> Nothing
-    (Pending, Just n) -> Just $ apsConnRequest n
-    (Accepted, Just n) -> Just $ apsConnAccept n
-    (_, _) -> Nothing
+    (Pending, n) -> apsConnRequest <$> n
+    (Accepted, n) -> apsConnAccept <$> n
+    (Blocked, _) -> Nothing
+    (Ignored, _) -> Nothing
+    (Sent, _) -> Nothing
+    (Cancelled, _) -> Nothing
   where
     apsConnRequest n =
       apsData (ApsLocKey "push.notification.connection.request") [fromName n]
