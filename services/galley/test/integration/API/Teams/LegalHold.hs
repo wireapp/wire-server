@@ -181,7 +181,10 @@ tests s =
                 s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
-              test s "bench hack" testBenchHack
+              test s "bench hack" testBenchHack,
+              test s "XXXXXX handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
+              test s "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked" testNoConsentBlockOne2OneConv,
+              test s "If LH is activated for other user in group conv, this user gets removed with helpful message" testNoConsentBlockGroupConv
             ]
         ]
     ]
@@ -827,20 +830,50 @@ testNoConsentBlockDeviceHandshake :: TestM ()
 testNoConsentBlockDeviceHandshake = do
   -- "handshake between LH device and user without consent is blocked"
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
+  galley <- view tsGalley
+
+  (owner :: UserId, tid) <- createBindingTeam
+  let legalholder = owner
+
+  member <- randomUser
+  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+
+  let doEnableLH :: HasCallStack => UserId -> TestM ()
+      doEnableLH uid = do
+        withLHWhitelist tid (requestLegalHoldDevice' galley owner uid tid) !!! testResponse 201 Nothing
+        withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) uid uid tid) !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley uid tid)
+        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+
+  ensureQueueEmpty
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    doEnableLH legalholder
+    doEnableLH member
+
+  -- withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+  --   for_ peers $ \peer -> do
+  --     postConnection legalholder peer !!! const 201 === statusCode
+  --     void $ putConnection peer legalholder Conn.Accepted <!! const 200 === statusCode
+  --     ensureQueueEmpty
 
   {-
-    - set up team and personal user
-    - everybody grants consent
+
+    - set up legalholder
+    - set up team and personal user -- NOTE: how can personal user give consent?
+    - everybodylegalholder grants consent
     - create conv, send some messages
     - personal user adds old client
     - send another message
     - boom!
     - (then we can also remove the messaging tests in https://wearezeta.atlassian.net/browse/SQSERVICES-429.)
     - (maybe can we even avoid implementing https://wearezeta.atlassian.net/browse/SQSERVICES-405 altogether?)
+
   -}
 
   pure ()
 
+<<<<<<< HEAD
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
 testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
@@ -931,6 +964,60 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
         postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
+=======
+-- c <- view tsCannon
+-- -- Team1: Alice, Bob. Team2: Charlie. Connect Alice,Charlie
+-- (alice, tid) <- Util.createBindingTeam
+-- bob <- view userId <$> Util.addUserToTeam alice tid
+-- assertQueue "add bob" $ tUpdate 2 [alice]
+-- refreshIndex
+-- (charlie, _) <- Util.createBindingTeam
+-- refreshIndex
+-- ac <- Util.randomClient alice (someLastPrekeys !! 0)
+-- bc <- Util.randomClient bob (someLastPrekeys !! 1)
+-- cc <- Util.randomClient charlie (someLastPrekeys !! 2)
+-- connectUsers alice (list1 charlie [])
+-- let t = 3 # Second -- WS receive timeout
+-- -- Missing charlie
+-- let m1 = [(bob, bc, "ciphertext1")]
+-- Util.postOtrBroadcastMessage id alice ac m1 !!! do
+--   const 412 === statusCode
+--   assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . responseJsonUnsafe)
+-- -- Complete
+-- WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
+--   let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
+--   Util.postOtrBroadcastMessage id alice ac m2 !!! do
+--     const 201 === statusCode
+--     assertTrue "No devices expected" (eqMismatch [] [] [] . responseJsonUnsafe)
+--   void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
+--   void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+-- -- Redundant self
+-- WS.bracketR3 c alice bob charlie $ \(wsA, wsB, wsE) -> do
+--   let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
+--   Util.postOtrBroadcastMessage id alice ac m3 !!! do
+--     const 201 === statusCode
+--     assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
+--   void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext3")
+--   void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext3")
+--   -- Alice should not get it
+--   assertNoMsg wsA (wsAssertOtr (selfConv alice) alice ac ac "ciphertext3")
+-- -- Deleted charlie
+-- WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
+--   deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
+--   let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
+--   Util.postOtrBroadcastMessage id alice ac m4 !!! do
+--     const 201 === statusCode
+--     assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . responseJsonUnsafe)
+--   void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
+--   -- charlie should not get it
+--   assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")
+
+testNoConsentBlockOne2OneConv :: TestM ()
+testNoConsentBlockOne2OneConv = do
+  -- "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked"
+  -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-429
+  pure ()
+>>>>>>> 13f5ac630 (add test stub)
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do
