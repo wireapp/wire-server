@@ -354,13 +354,13 @@ updateConnectionInternal = \case
       iterateConnections self (toRange (Proxy @500)) $ \conns -> do
         for_ conns $ \s2o ->
           when (ucStatus s2o == MissingLegalholdConsent) $ do
+            -- (this implies @ucStatus o2s == MissingLegalholdConsent@)
             o2s <- connection (ucTo s2o) (ucFrom s2o)
             Log.info $
               logConnection (ucFrom s2o) (ucTo s2o)
                 . msg (val "Unblocking connection (legalhold device removed or consent given)")
             unblockDirected s2o o2s
-            when (ucStatus o2s == MissingLegalholdConsent) $ do
-              unblockDirected o2s s2o
+            unblockDirected o2s s2o
       where
         iterateConnections :: UserId -> Range 1 500 Int32 -> ([UserConnection] -> ExceptT ConnectionError AppIO ()) -> ExceptT ConnectionError AppIO ()
         iterateConnections user pageSize handleConns = go Nothing
