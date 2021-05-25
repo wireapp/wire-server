@@ -14,15 +14,20 @@ extra-source-files:
 dependencies:
 - QuickCheck >=2.13
 - aeson >=1.4
+- async
 - base >=4.6 && <5.0
 - bytestring
 - bytestring-conversion
 - bytestring
 - either
+- errors
 - http-types
 - http2-client-grpc
 - imports
+- lifted-base
+- mu-rpc
 - mu-grpc-client
+- mu-grpc-server
 - mu-protobuf
 - mu-schema
 - mtl
@@ -33,6 +38,7 @@ dependencies:
 - text >=0.11
 - time >=1.8
 - types-common
+- warp
 - wire-api
 library:
   source-dirs: src
@@ -48,10 +54,6 @@ tests:
     dependencies:
       - wire-api-federation
       - hspec
-      - async
       - metrics-wai
-      - mu-grpc-server
-      - mu-rpc
       - network
       - retry
-      - warp

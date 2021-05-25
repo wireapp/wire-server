@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 47605047ee190f11d8d83abeb76dbdeae1a701f79348e470c419598cd05da0d8
+-- hash: 5a4442922e75d8a8d7684845e4168c3d1bcbebff1bc24647c50f5f662e49b265
 
 name:           brig
 version:        1.35.0
@@ -357,6 +357,7 @@ executable brig-integration
     , text
     , time >=1.5
     , tinylog
+    , transformers
     , types-common >=0.3
     , types-common-aws >=0.1
     , types-common-journal
