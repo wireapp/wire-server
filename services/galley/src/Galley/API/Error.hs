@@ -77,7 +77,7 @@ notConnected :: Error
 notConnected = Error status403 "not-connected" "Users are not connected"
 
 unknownRemoteUser :: Error
-unknownRemoteUser = Error status403 "unknown-remote-user" "Remote user(s) not found"
+unknownRemoteUser = Error status400 "unknown-remote-user" "Remote user(s) not found"
 
 tooManyMembers :: Error
 tooManyMembers = Error status403 "too-many-members" "Maximum number of members per conversation reached"

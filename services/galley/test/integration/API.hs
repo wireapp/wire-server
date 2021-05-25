@@ -35,7 +35,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
-import Control.Lens (view)
+import Control.Lens (view, (^.), at)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
@@ -112,6 +112,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
+          test s "add non-existing remote members" testAddRemoteMemberFailure,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "remove members" deleteMembersOk,
           test s "fail to remove members from self conv." deleteMembersFailSelf,
@@ -898,6 +899,27 @@ testAddRemoteMember = do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
     assertEqual "other members should include remoteBob" expected actual
+
+testAddRemoteMemberFailure :: TestM ()
+testAddRemoteMemberFailure = do
+  alice <- randomUser
+  bobId <- randomId
+  charlieId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteBob = Qualified bobId remoteDomain
+      remoteCharlie = Qualified charlieId remoteDomain
+  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  opts <- view tsGConf
+  g <- view tsGalley
+  liftIO $ do
+    (resp, _) <- withTempMockFederator
+      opts
+      remoteDomain
+      [mkProfile remoteCharlie (Name "charlie")]
+      (postQualifiedMembers' g alice (remoteBob :| []) convId)
+    statusCode resp @?= 400
+    let err = responseJsonUnsafe resp :: Object
+    (err ^. at "label") @?= Just "unknown-remote-user"
 
 testAddRemoteMemberInvalidDomain :: TestM ()
 testAddRemoteMemberInvalidDomain = do
