@@ -131,9 +131,9 @@ ensureConvRoleNotElevated origMember targetRole = do
     (_, _) ->
       throwM (badRequest "Custom roles not supported")
 
--- | If a team memeber is not given throw 'notATeamMember'; if the given team
+-- | If a team member is not given throw 'notATeamMember'; if the given team
 -- member does not have the given permission, throw 'operationDenied'.
--- Otherwise, return unit.
+-- Otherwise, return the team member.
 permissionCheck :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
 permissionCheck p = \case
   Just m -> do

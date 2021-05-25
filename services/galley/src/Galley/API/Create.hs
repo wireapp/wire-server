@@ -53,6 +53,7 @@ import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Routes.Public.Galley (ConversationResponses)
+import Data.Qualified (partitionRemoteOrLocalIds', Qualified(..))
 
 -- Servant helpers ------------------------------------------------------
 
@@ -98,17 +99,21 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
-  _uids <- checkedConvSize (newConvUsers body) -- currently not needed, as we only consider local IDs
+  localDomain <- viewFederationDomain
   let localUserIds = newConvUsers body
+      qualifiedUserIds = newConvQualifiedUsers body
   ensureConnected zusr localUserIds
-  localCheckedUsers <- checkedConvSize localUserIds
+  let allUsers = map (`Qualified` localDomain) localUserIds <> qualifiedUserIds
+  checkedUsers <- checkedConvSize allUsers
+  let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
+  -- FUTUREWORK: Add checks per comments for Update.addMembers.
   c <-
     Data.createConversation
       zusr
       name
       (access body)
       (accessRole body)
-      localCheckedUsers
+      checkedPartitionedUsers
       (newConvTeam body)
       (newConvMessageTimer body)
       (newConvReceiptMode body)
@@ -120,22 +125,28 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 -- handlers above. Allows both unmanaged and managed conversations.
 createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
-  let localUserIds = newConvUsers body
   name <- rangeCheckedMaybe (newConvName body)
+  localDomain <- viewFederationDomain
+  let unqualifiedUserIds = newConvUsers body
+      qualifiedUserIds = newConvQualifiedUsers body
+      allUserIds = map (`Qualified` localDomain) unqualifiedUserIds <> qualifiedUserIds
   let convTeam = cnvTeamId tinfo
   zusrMembership <- Data.teamMember convTeam zusr
+  void $ permissionCheck CreateConversation zusrMembership
+  checkedUsers <- checkedConvSize allUserIds
+  let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
+      (_, localUserIds) = fromConvSize checkedPartitionedUsers
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
   ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
-  void $ permissionCheck CreateConversation zusrMembership
-  otherConvMems <-
+  checkedPartitionedUsers' <-
     if cnvManaged tinfo
       then do
         -- ConvMaxSize MUST be < than hardlimit so the conv size check is enough
         maybeAllMembers <- Data.teamMembersForFanout convTeam
         let otherConvMems = filter (/= zusr) $ map (view userId) $ (maybeAllMembers ^. teamMembers)
-        checkedConvSize otherConvMems
+        checkedLocalUsers <- checkedConvSize otherConvMems
+        pure (fmap ([], ) checkedLocalUsers)
       else do
-        otherConvMems <- checkedConvSize localUserIds
         -- In teams we don't have 1:1 conversations, only regular conversations. We want
         -- users without the 'AddRemoveConvMember' permission to still be able to create
         -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
@@ -146,13 +157,13 @@ createTeamGroupConv zusr zcon tinfo body = do
         -- Not sure at the moment how to best solve this but it is unlikely
         -- we can ever get rid of the team permission model anyway - the only thing I can
         -- think of is that 'partners' can create convs but not be admins...
-        when (length (fromConvSize otherConvMems) > 1) $ do
+        when (length allUserIds > 1) $ do
           void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnectedToLocals zusr (notTeamMember (fromConvSize otherConvMems) (catMaybes convMemberships))
-        pure otherConvMems
-  conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
+        ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convMemberships))
+        pure checkedPartitionedUsers
+  conv <- Data.createConversation zusr name (access body) (accessRole body) checkedPartitionedUsers' (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) zusr (Just zcon) conv

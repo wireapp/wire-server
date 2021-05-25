@@ -384,6 +384,8 @@ modelNewConversation = Doc.defineModel "NewConversation" $ do
   Doc.description "JSON object to create a new conversation"
   Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "List of user IDs (excluding the requestor) to be part of this conversation"
+  Doc.property "qualified_users" (Doc.unique . Doc.array $ Doc.bytes') $
+    Doc.description "List of qualified user IDs to be part of this conversation"
   Doc.property "name" Doc.string' $ do
     Doc.description "The conversation name"
     Doc.optional
@@ -414,6 +416,9 @@ instance Arbitrary NewConvUnmanaged where
 
 data NewConv = NewConv
   { newConvUsers :: [UserId],
+    -- | A list of qualified users, which can include some local qualified users
+    -- too.
+    newConvQualifiedUsers :: [Qualified UserId],
     newConvName :: Maybe Text,
     newConvAccess :: Set Access,
     newConvAccessRole :: Maybe AccessRole,
@@ -437,6 +442,11 @@ newConvSchema =
           "users"
           (description ?~ usersDesc)
           (array schema)
+      <*> newConvQualifiedUsers
+        .= fieldWithDocModifier
+           "qualified_users"
+           (description ?~ qualifiedUsersDesc)
+           (array schema)
       <*> newConvName .= opt (field "name" schema)
       <*> (Set.toList . newConvAccess)
         .= ( field "access" (Set.fromList <$> array schema)
@@ -465,7 +475,10 @@ newConvSchema =
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \
-      \part of this conversation"
+      \part of this conversation (deprecated)"
+    qualifiedUsersDesc =
+      "List of qualified user IDs (excluding the requestor) \
+      \to be part of this conversation"
 
 newConvIsManaged :: NewConv -> Bool
 newConvIsManaged = maybe False cnvManaged . newConvTeam

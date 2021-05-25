@@ -50,6 +50,7 @@ rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 
 -- Between 0 and (setMaxConvSize - 1)
 newtype ConvSizeChecked a = ConvSizeChecked {fromConvSize :: a}
+  deriving Functor
 
 -- Between 1 and setMaxConvSize
 data ConvMemberAddSizeChecked = ConvMemberAddSizeChecked {sizeCheckedLocals :: [(UserId, RoleName)], sizeCheckedRemotes :: [(Remote UserId, RoleName)]}
