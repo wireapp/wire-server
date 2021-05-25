@@ -336,7 +336,7 @@ updateConnectionInternal = \case
     blockForMissingLegalholdConsent :: UserId -> [UserId] -> ExceptT ConnectionError AppIO ()
     blockForMissingLegalholdConsent self others = do
       for_ others $ \other -> do
-        Log.debug $
+        Log.info $
           logConnection self other
             . msg (val "Blocking connection (legalhold device present, but missing consent)")
 
@@ -355,15 +355,12 @@ updateConnectionInternal = \case
         for_ conns $ \s2o ->
           when (ucStatus s2o == MissingLegalholdConsent) $ do
             o2s <- connection (ucTo s2o) (ucFrom s2o)
-            unblockDirected s2o o2s
-            Log.debug $
+            Log.info $
               logConnection (ucFrom s2o) (ucTo s2o)
                 . msg (val "Unblocking connection (legalhold device removed or consent given)")
+            unblockDirected s2o o2s
             when (ucStatus o2s == MissingLegalholdConsent) $ do
               unblockDirected o2s s2o
-              Log.debug $
-                logConnection (ucFrom o2s) (ucTo o2s)
-                  . msg (val "Unblocking connection (legalhold device removed or consent given)")
       where
         iterateConnections :: UserId -> Range 1 500 Int32 -> ([UserConnection] -> ExceptT ConnectionError AppIO ()) -> ExceptT ConnectionError AppIO ()
         iterateConnections user pageSize handleConns = go Nothing
