@@ -58,7 +58,8 @@ let
   };
 in pkgs.mkShell {
   name = "shell";
-  LC_ALL = "C.UTF-8"; # Workaround for https://github.com/tweag/ormolu/issues/38
+  # LC_ALL = "C.UTF-8"; # Workaround for https://github.com/tweag/ormolu/issues/38
+  LOCAL_ARCHIVE=${glibcLocales}/lib/locale/locale-archive;
   buildInputs = [
     pkgs.docker-compose
     pkgs.gnumake
