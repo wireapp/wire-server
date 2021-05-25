@@ -107,6 +107,7 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
+import Wire.API.User.Client (UserClientsFull)
 import qualified Wire.API.User.Client as Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
@@ -1073,13 +1074,13 @@ guardLegalholdPolicyConflicts uid mismatch = do
   let missingCids :: [ClientId]
       missingCids = Set.toList . Set.unions . Map.elems . userClients . missingClients $ mismatch
 
-      missinUids :: [UserId]
+      missingUids :: [UserId]
       missingUids = nub $ Map.keys . userClients . missingClients $ mismatch
 
   allcs :: UserClientsFull <- Intra.lookupClientsFull (uid : missingUids)
 
   let checkLHPresent :: Bool
-      checkLHPresent = do
+      checkLHPresent =
         let clients =
               allcs
                 & Client.userClientsFull
@@ -1087,9 +1088,8 @@ guardLegalholdPolicyConflicts uid mismatch = do
                 & Map.elems
                 & Set.unions
                 & Set.toList
-                & filter ((`elem` cids) . Client.clientId)
-
-        pure $ Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
+                & filter ((`elem` missingCids) . Client.clientId)
+         in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
 
       checkUserHasOldClients :: Bool
       checkUserHasOldClients = undefined

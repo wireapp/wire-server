@@ -18,6 +18,7 @@
 module Galley.Intra.Client
   ( lookupClients,
     lookupClientsFull,
+    lookupClientCapabilities,
     notifyClientsAboutLegalHoldRequest,
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
@@ -46,7 +47,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Logger
-import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
+import Wire.API.User.Client (ClientCapability, UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
 lookupClients :: [UserId] -> Galley UserClients
@@ -74,18 +75,19 @@ lookupClientsFull uids = do
   clients <- error "parseResponse (Error status502 \"server-error\")" r
   return $ filterClientsFull (not . Set.null) clients
 
-lookupClientCapabilities :: UserId -> ClientId -> Galley ClientCapabilityList
-lookupClientCapabilities uid cid = do
-  (brigHost, brigPort) <- brigReq
-  r <-
-    call "brig" $
-      method GET . host brigHost . port brigPort
-        . paths ["clients", toByteString' cid, "capabilities"]
-        . zUser uid
-        . expect2xx
-  _
-  clients <- error "parseResponse (Error status502 \"server-error\")" r
-  return $ filterClientsFull (not . Set.null) clients
+lookupClientCapabilities :: UserId -> ClientId -> Galley (Imports.Set ClientCapability)
+lookupClientCapabilities _uid _cid = do
+  pure (error "TODO")
+
+-- (brigHost, brigPort) <- brigReq
+-- r <-
+--   call "brig" $
+--     method GET . host brigHost . port brigPort
+--       . paths ["clients", toByteString' cid, "capabilities"]
+--       . zUser uid
+--       . expect2xx
+-- clients <- error "parseResponse (Error status502 \"server-error\")" r
+-- return $ filterClientsFull (not . Set.null) clients
 
 {-
 get (continue getClientCapabilitiesH) $
