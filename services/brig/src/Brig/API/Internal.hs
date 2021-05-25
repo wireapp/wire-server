@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -75,7 +73,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.User
-import Wire.API.User.Client (UserClientsFull (..))
+import Wire.API.User.Client (ClientCapabilityList (..), UserClientsFull (..))
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -301,6 +299,11 @@ sitemap = do
     capture "uid"
       .&. accept "application" "json"
 
+  get "/i/clients/client-capabilities/:uid/:client" (continue getClientsCapabilitiesInternalH) $
+    capture "uid"
+      .&. capture "client"
+      .&. accept "application" "json"
+
   Provider.routesInternal
   Auth.routesInternal
   Search.routesInternal
@@ -346,6 +349,13 @@ inernalListFullClientsH (_ ::: req) =
 inernalListFullClients :: UserSet -> AppIO UserClientsFull
 inernalListFullClients (UserSet usrs) =
   UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
+
+getClientsCapabilitiesInternalH :: (UserId ::: ClientId ::: JSON) -> Handler Response
+getClientsCapabilitiesInternalH (uid ::: client ::: _) =
+  json <$> lift (getClientsCapabilitiesInternal uid client)
+
+getClientsCapabilitiesInternal :: UserId -> ClientId -> AppIO ClientCapabilityList
+getClientsCapabilitiesInternal = API.lookupLocalClientCapabilities
 
 autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
 autoConnectH (_ ::: uid ::: conn ::: req) = do

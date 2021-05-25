@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deferred-type-errors #-}
 
 module Galley.Intra.Client
   ( lookupClients,
@@ -47,7 +48,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Logger
-import Wire.API.User.Client (ClientCapability, UserClients, UserClientsFull, filterClients, filterClientsFull)
+import Wire.API.User.Client (ClientCapability, UserClients, UserClientsFull, filterClients, filterClientsFull, fromClientCapabilityList)
 
 -- | Calls 'Brig.API.internalListClientsH'.
 lookupClients :: [UserId] -> Galley UserClients
@@ -72,29 +73,19 @@ lookupClientsFull uids = do
         . path "/i/clients/full"
         . json (UserSet $ Set.fromList uids)
         . expect2xx
-  clients <- error "parseResponse (Error status502 \"server-error\")" r
+  clients <- parseResponse (Error status502 "server-error") r
   return $ filterClientsFull (not . Set.null) clients
 
-lookupClientCapabilities :: UserId -> ClientId -> Galley (Imports.Set ClientCapability)
-lookupClientCapabilities _uid _cid = do
-  pure (error "TODO")
-
--- (brigHost, brigPort) <- brigReq
--- r <-
---   call "brig" $
---     method GET . host brigHost . port brigPort
---       . paths ["clients", toByteString' cid, "capabilities"]
---       . zUser uid
---       . expect2xx
--- clients <- error "parseResponse (Error status502 \"server-error\")" r
--- return $ filterClientsFull (not . Set.null) clients
-
-{-
-get (continue getClientCapabilitiesH) $
-  zauthUserId
-    .&. capture "client"
-    .&. accept "application" "json"
--}
+lookupClientCapabilities :: UserId -> ClientId -> Galley (Set ClientCapability)
+lookupClientCapabilities uid cid = do
+  (brigHost, brigPort) <- brigReq
+  r <-
+    call "brig" $
+      method GET . host brigHost . port brigPort
+        . paths ["i", "clients", "client-capabilities", toByteString' uid, toByteString' cid]
+        . expect2xx
+  ccl <- parseResponse (Error status502 "server-error") r
+  pure (fromClientCapabilityList ccl)
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
 notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()
