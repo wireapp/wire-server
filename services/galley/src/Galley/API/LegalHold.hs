@@ -401,12 +401,16 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
           results <- for (chunksOf 32 localUids) $ \others -> do
             teamsOfUsers <- Data.usersTeams others
             othersToBlock <- filterM (shouldBlock teamsOfUsers) others
-            status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
+            status <- do
+              () <- error "TODO: guard that othersToBlock is non-empty"
+              () <- error "TODO: aggregate othersToBlock over 500-page"
+              putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
             pure (othersToBlock, status)
 
           case filter ((/= status200) . snd) results of
             problems@(_ : _) ->
               Log.err $ Log.msg @String (cs $ "Error in blockConnectionsFrom1on1s" <> show problems)
+            () <- error "TODO: if we don't crash here, we still need to crash at the end."
             [] -> pure ()
 
         chunksOf :: Int -> [any] -> [[any]]
