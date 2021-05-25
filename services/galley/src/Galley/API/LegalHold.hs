@@ -388,24 +388,25 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
     -- TODO: make this async
     blockConnectionsFrom1on1s :: Galley ()
     blockConnectionsFrom1on1s = do
-      iterateConversations uid (toRange (Proxy @500)) $ \convs ->
-        blockPage uid (filter ((== One2OneConv) . cnvType) convs)
+      iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+        conflicts <- mconcat <$> findConflicts (filter ((== One2OneConv) . cnvType) convs)
+        blockConflicts uid conflicts
       where
-        blockPage :: UserId -> [Conversation] -> Galley ()
-        blockPage userLegalhold convs = do
+        findConflicts :: [Conversation] -> Galley [[UserId]]
+        findConflicts convs = do
           let otherUids :: [Qualified UserId] =
                 concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
           ownDomain <- viewFederationDomain
           let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
           -- FUTUREWORK: Handle remoteUsers here when federation is implemented
-          results <- for (chunksOf 32 localUids) $ \others -> do
+          for (chunksOf 32 localUids) $ \others -> do
             teamsOfUsers <- Data.usersTeams others
-            othersToBlock <- filterM (shouldBlock teamsOfUsers) others
-            status <- do
-              () <- error "TODO: guard that othersToBlock is non-empty"
-              () <- error "TODO: aggregate othersToBlock over 500-page"
-              putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
-            pure (othersToBlock, status)
+            filterM (shouldBlock teamsOfUsers) others
+
+        blockConflicts :: UserId -> [UserId] -> Galley ()
+        blockConflicts _ [] = pure ()
+        blockConflicts userLegalhold othersToBlock@(_ : _) = do
+          status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
 
           case filter ((/= status200) . snd) results of
             problems@(_ : _) ->
