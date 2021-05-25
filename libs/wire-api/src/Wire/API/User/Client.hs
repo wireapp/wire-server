@@ -305,7 +305,23 @@ newtype UserClientsFull = UserClientsFull
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
-  deriving (Arbitrary) via (GenericUniform UserClientsFull)
+
+instance ToJSON UserClientsFull where
+  toJSON =
+    toJSON . Map.foldrWithKey' fn Map.empty . userClientsFull
+    where
+      fn u c m =
+        let k = Text.E.decodeLatin1 (toASCIIBytes (toUUID u))
+         in Map.insert k c m
+
+instance FromJSON UserClientsFull where
+  parseJSON =
+    withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . HashMap.toList)
+    where
+      fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
+
+instance Arbitrary UserClientsFull where
+  arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)
 
 userClientsFullToUserClients :: UserClientsFull -> UserClients
 userClientsFullToUserClients (UserClientsFull mp) = UserClients $ Set.map clientId <$> mp

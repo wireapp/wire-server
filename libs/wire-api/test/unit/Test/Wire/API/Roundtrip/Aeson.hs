@@ -272,6 +272,7 @@ tests =
       testRoundTrip @User.Auth.AccessToken,
       testRoundTrip @(User.Client.UserClientMap Int),
       testRoundTrip @User.Client.UserClients,
+      testRoundTrip @User.Client.UserClientsFull,
       testRoundTrip @User.Client.ClientType,
       testRoundTrip @User.Client.ClientClass,
       testRoundTrip @User.Client.PubClient,

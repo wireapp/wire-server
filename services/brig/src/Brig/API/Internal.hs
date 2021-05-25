@@ -34,6 +34,7 @@ import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.API.Util (validateHandle)
 import Brig.App
+import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -74,6 +75,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.User
+import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -271,6 +273,10 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @UserSet
 
+  post "/i/clients/full" (continue inernalListFullClientsH) $
+    accept "application" "json"
+      .&. jsonRequest @UserSet
+
   -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to the user
   -- - ClientRemoved event to the user, if removing old clients due to max number of clients
@@ -332,6 +338,14 @@ internalListClients :: UserSet -> AppIO UserClients
 internalListClients (UserSet usrs) = do
   UserClients . Map.fromList
     <$> API.lookupUsersClientIds (Set.toList usrs)
+
+inernalListFullClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
+inernalListFullClientsH (_ ::: req) =
+  json <$> (lift . inernalListFullClients =<< parseJsonBody req)
+
+inernalListFullClients :: UserSet -> AppIO UserClientsFull
+inernalListFullClients (UserSet usrs) =
+  UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
 
 autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
 autoConnectH (_ ::: uid ::: conn ::: req) = do
