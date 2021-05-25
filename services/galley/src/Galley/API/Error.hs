@@ -215,6 +215,9 @@ userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold ca
 noLegalHoldDeviceAllocated :: Error
 noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
 
+legalHoldCouldNotBlockConnections :: Error
+legalHoldCouldNotBlockConnections = Error status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
+
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =
   Error
