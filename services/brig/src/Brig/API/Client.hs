@@ -25,7 +25,6 @@ module Brig.API.Client
     legalHoldClientRequested,
     removeLegalHoldClient,
     lookupClient,
-    lookupLocalClientCapabilities,
     lookupClients,
     lookupPubClientsBulk,
     Data.lookupPrekeyIds,
@@ -87,10 +86,6 @@ lookupClient (Qualified uid domain) clientId = do
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
 
-lookupLocalClientCapabilities :: UserId -> ClientId -> AppIO ClientCapabilityList
-lookupLocalClientCapabilities uid cid =
-  ClientCapabilityList . fromMaybe mempty <$> Data.lookupClientCapabilities uid cid
-
 lookupClients :: Qualified UserId -> ExceptT ClientError AppIO [Client]
 lookupClients (Qualified uid domain) = do
   localdomain <- viewFederationDomain
@@ -133,12 +128,10 @@ addClient u con ip new = do
 
 updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError AppIO ()
 updateClient u c r = do
-  ok <- lift $ Data.hasClient u c
-  unless ok $
-    throwE ClientNotFound
+  client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
   for_ (updateClientCapabilities r) $ \caps' -> do
-    caps <- fromMaybe mempty <$> Data.lookupClientCapabilities u c
+    let ClientCapabilityList caps = clientCapabilities client
     if caps `Set.isSubsetOf` caps'
       then lift . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved

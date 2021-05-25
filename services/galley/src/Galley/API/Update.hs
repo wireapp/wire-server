@@ -83,7 +83,6 @@ import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
-import Galley.Intra.Client (lookupClientCapabilities)
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
 import Galley.Intra.User (deleteBot, getContactList, getUser, lookupActivatedUsers)
@@ -112,7 +111,7 @@ import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import Wire.API.User (userTeam)
-import Wire.API.User.Client (ClientCapability (..), UserClientsFull)
+import Wire.API.User.Client (UserClientsFull)
 import qualified Wire.API.User.Client as Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
@@ -1107,17 +1106,15 @@ guardLegalholdPolicyConflicts self mismatch = do
       userHasLHClients =
         any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
 
-      checkUserHasOldClients :: Galley Bool
-      checkUserHasOldClients = go (Client.clientId <$> selfClients)
+      checkUserHasOldClients :: Bool
+      checkUserHasOldClients =
+        any isOld selfClients
         where
-          go (cid : rest) = do
-            isOld <-
-              not . (ClientSupportsLegalholdImplicitConsent `Set.member`)
-                <$> lookupClientCapabilities self cid
-            if isOld
-              then pure True
-              else go rest
-          go [] = pure False
+          isOld :: Client.Client -> Bool
+          isOld =
+            (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
+              . Client.fromClientCapabilityList
+              . Client.clientCapabilities
 
       checkConsentMissing :: Galley Bool
       checkConsentMissing = do
@@ -1128,7 +1125,7 @@ guardLegalholdPolicyConflicts self mismatch = do
 
   -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
   when missingClientHasLH $ do
-    whenM checkUserHasOldClients $
+    when checkUserHasOldClients $
       throwM userLegalHoldNotSupported
     unless userHasLHClients {- carrying a LH device implies having granted LH consent -} $
       whenM checkConsentMissing $

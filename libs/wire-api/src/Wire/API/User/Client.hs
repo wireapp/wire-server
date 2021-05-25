@@ -410,7 +410,8 @@ data Client = Client
     clientLabel :: Maybe Text,
     clientCookie :: Maybe CookieLabel,
     clientLocation :: Maybe Location,
-    clientModel :: Maybe Text
+    clientModel :: Maybe Text,
+    clientCapabilities :: ClientCapabilityList
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
@@ -453,6 +454,7 @@ instance ToJSON Client where
         # "cookie" A..= clientCookie c
         # "location" A..= clientLocation c
         # "model" A..= clientModel c
+        # "capabilities" A..= clientCapabilities c
         # []
 
 instance FromJSON Client where
@@ -466,6 +468,7 @@ instance FromJSON Client where
       <*> o A..:? "cookie"
       <*> o A..:? "location"
       <*> o A..:? "model"
+      <*> (o A..:? "capabilities" A..!= ClientCapabilityList mempty)
 
 --------------------------------------------------------------------------------
 -- PubClient

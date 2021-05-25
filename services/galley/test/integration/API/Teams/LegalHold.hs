@@ -93,6 +93,7 @@ import qualified Wire.API.Message as Msg
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
+import qualified Wire.API.User.Client as Client
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
@@ -1567,6 +1568,7 @@ instance FromJSON Ev.ClientEvent where
           Nothing
           Nothing
           Nothing
+          (Client.ClientCapabilityList mempty)
 
 instance FromJSON Ev.ConnectionEvent where
   parseJSON = Aeson.withObject "ConnectionEvent" $ \o -> do

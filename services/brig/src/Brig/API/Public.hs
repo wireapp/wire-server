@@ -950,7 +950,12 @@ getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientCapabilitiesH (uid ::: cid ::: _) = json <$> getClientCapabilities uid cid
 
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
-getClientCapabilities uid cid = lift $ API.lookupLocalClientCapabilities uid cid
+getClientCapabilities uid cid = do
+  localdomain <- viewFederationDomain
+  ( API.lookupClient (Qualified uid localdomain) cid
+      >>= maybe (throwE ClientNotFound) (pure . Public.clientCapabilities)
+    )
+    !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =
