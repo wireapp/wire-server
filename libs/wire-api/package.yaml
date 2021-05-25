@@ -78,6 +78,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - aeson-qq
+    - aeson-pretty
     - base
     - bytestring
     - bytestring-conversion
