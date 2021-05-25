@@ -374,7 +374,7 @@ updateConnectionInternal = \case
           cnv :: Maybe Conv.Conversation <- lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
           uconnRev' :: UserConnection <- do
             newRelation <- case cnvType <$> cnv of
-              Just RegularConv -> throwE (InvalidTransition (ucFrom uconn) Accepted) -- FUTUREWORK: implement in issue SQSERVICES-428
+              Just RegularConv -> throwE (InvalidTransition (ucFrom uconn) Accepted) -- (impossible, connection conv is always 1:1)
               Just SelfConv -> throwE (InvalidTransition (ucFrom uconn) Accepted)
               Just One2OneConv -> pure Accepted
               Just ConnectConv -> pure Sent
