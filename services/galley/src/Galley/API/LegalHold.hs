@@ -384,7 +384,7 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
       UserLegalHoldEnabled -> True
       UserLegalHoldNoConsent -> False
 
-    -- TODO: make this async
+    -- FUTUREWORK: make this async
     blockConnectionsFrom1on1s :: Galley ()
     blockConnectionsFrom1on1s = do
       errmsgs <-
