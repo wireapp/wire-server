@@ -1102,12 +1102,12 @@ guardLegalholdPolicyConflicts self mismatch = do
                 & filter ((`elem` missingCids) . Client.clientId)
          in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
 
-      userHasLHClients :: Bool
-      userHasLHClients =
+      checkSelfHasLHClients :: Bool
+      checkSelfHasLHClients =
         any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
 
-      checkUserHasOldClients :: Bool
-      checkUserHasOldClients =
+      checkSelfHasOldClients :: Bool
+      checkSelfHasOldClients =
         any isOld selfClients
         where
           isOld :: Client.Client -> Bool
@@ -1118,6 +1118,8 @@ guardLegalholdPolicyConflicts self mismatch = do
 
       checkConsentMissing :: Galley Bool
       checkConsentMissing = do
+        -- (we could also get the profile from brig.  would make the code slightly more
+        -- concise, but not really help with the rpc back-and-forth, so, like, why?)
         mbUser <- accountUser <$$> getUser self
         mbTeamMember <- join <$> for (mbUser >>= userTeam) (`teamMember` self)
         let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
@@ -1125,8 +1127,8 @@ guardLegalholdPolicyConflicts self mismatch = do
 
   -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
   when missingClientHasLH $ do
-    when checkUserHasOldClients $
+    when checkSelfHasOldClients $
       throwM userLegalHoldNotSupported
-    unless userHasLHClients {- carrying a LH device implies having granted LH consent -} $
+    unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $
       whenM checkConsentMissing $
         throwM userLegalHoldNotSupported
