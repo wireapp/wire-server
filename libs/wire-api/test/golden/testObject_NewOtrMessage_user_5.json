@@ -1,1 +1,12 @@
-{"native_priority":"low","data":"J􁩠","native_push":false,"sender":"6","transient":false,"recipients":{"00000004-0000-0002-0000-000100000002":{"2":"Y"}}}
+{
+    "native_priority": "low",
+    "data": "J􁩠",
+    "native_push": false,
+    "sender": "6",
+    "transient": false,
+    "recipients": {
+        "00000004-0000-0002-0000-000100000002": {
+            "2": "Y"
+        }
+    }
+}

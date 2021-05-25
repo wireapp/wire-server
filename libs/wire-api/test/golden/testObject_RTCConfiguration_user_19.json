@@ -1,1 +1,77 @@
-{"ttl":20,"ice_servers":[{"urls":["turns:007.com:0?transport=tcp"],"credential":"XA==","username":"d=4.v=3.k=2.t=\\.r=ku"},{"urls":["turns:a-c:1?transport=udp","turns:123:0?transport=tcp"],"credential":"9Q==","username":"d=0.v=2.k=1.t=󸵵.r=72s"},{"urls":["turn:227.193.165.231:1?transport=tcp","turns:190.161.166.241:0?transport=udp"],"credential":"Fg==","username":"d=2.v=1.k=2.t=󴢶.r=lis"},{"urls":["turns:007.com:1?transport=tcp","turn:007.com:0?transport=tcp"],"credential":"uw==","username":"d=0.v=3.k=1.t=(.r=kf3"},{"urls":["turn:123:1?transport=tcp","turn:128.94.55.116:1?transport=tcp","turns:007.com:1?transport=udp","turns:a-c:1"],"credential":"","username":"d=3.v=2.k=0.t=.r=0"},{"urls":["turn:007.com:0?transport=udp","turn:a-c:0","turn:host.name:1","turns:149.38.204.147:1"],"credential":"Rf8=","username":"d=1.v=0.k=1.t=𫅊.r=4u"},{"urls":["turns:123:1","turn:227.57.188.192:1?transport=udp","turn:180.125.230.159:1"],"credential":"ubQ=","username":"d=2.v=0.k=1.t=\u0004.r=fx"}],"sft_servers":[{"urls":["https://example.com"]},{"urls":["https://example.com"]}]}
+{
+    "ttl": 20,
+    "ice_servers": [
+        {
+            "urls": [
+                "turns:007.com:0?transport=tcp"
+            ],
+            "credential": "XA==",
+            "username": "d=4.v=3.k=2.t=\\.r=ku"
+        },
+        {
+            "urls": [
+                "turns:a-c:1?transport=udp",
+                "turns:123:0?transport=tcp"
+            ],
+            "credential": "9Q==",
+            "username": "d=0.v=2.k=1.t=󸵵.r=72s"
+        },
+        {
+            "urls": [
+                "turn:227.193.165.231:1?transport=tcp",
+                "turns:190.161.166.241:0?transport=udp"
+            ],
+            "credential": "Fg==",
+            "username": "d=2.v=1.k=2.t=󴢶.r=lis"
+        },
+        {
+            "urls": [
+                "turns:007.com:1?transport=tcp",
+                "turn:007.com:0?transport=tcp"
+            ],
+            "credential": "uw==",
+            "username": "d=0.v=3.k=1.t=(.r=kf3"
+        },
+        {
+            "urls": [
+                "turn:123:1?transport=tcp",
+                "turn:128.94.55.116:1?transport=tcp",
+                "turns:007.com:1?transport=udp",
+                "turns:a-c:1"
+            ],
+            "credential": "",
+            "username": "d=3.v=2.k=0.t=.r=0"
+        },
+        {
+            "urls": [
+                "turn:007.com:0?transport=udp",
+                "turn:a-c:0",
+                "turn:host.name:1",
+                "turns:149.38.204.147:1"
+            ],
+            "credential": "Rf8=",
+            "username": "d=1.v=0.k=1.t=𫅊.r=4u"
+        },
+        {
+            "urls": [
+                "turns:123:1",
+                "turn:227.57.188.192:1?transport=udp",
+                "turn:180.125.230.159:1"
+            ],
+            "credential": "ubQ=",
+            "username": "d=2.v=0.k=1.t=\u0004.r=fx"
+        }
+    ],
+    "sft_servers": [
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        }
+    ]
+}

@@ -1,1 +1,10 @@
-{"urls":["turns:37.223.75.78:1?transport=udp","turns:host.name:1?transport=tcp","turns:123:0?transport=udp","turn:host.name:2"],"credential":"jHf3PRvglQ==","username":"d=90.v=3.k=12.t=).r=rcz"}
+{
+    "urls": [
+        "turns:37.223.75.78:1?transport=udp",
+        "turns:host.name:1?transport=tcp",
+        "turns:123:0?transport=udp",
+        "turn:host.name:2"
+    ],
+    "credential": "jHf3PRvglQ==",
+    "username": "d=90.v=3.k=12.t=).r=rcz"
+}

@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.PubClient_user where
 
 import Data.Id (ClientId (ClientId, client))
@@ -71,13 +70,15 @@ testObject_PubClient_user_13 :: PubClient
 testObject_PubClient_user_13 = PubClient {pubClientId = ClientId {client = "fdc"}, pubClientClass = Just PhoneClient}
 
 testObject_PubClient_user_14 :: PubClient
-testObject_PubClient_user_14 = PubClient {pubClientId = ClientId {client = "a98"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_14 =
+  PubClient {pubClientId = ClientId {client = "a98"}, pubClientClass = Just LegalHoldClient}
 
 testObject_PubClient_user_15 :: PubClient
 testObject_PubClient_user_15 = PubClient {pubClientId = ClientId {client = "f7f"}, pubClientClass = Just DesktopClient}
 
 testObject_PubClient_user_16 :: PubClient
-testObject_PubClient_user_16 = PubClient {pubClientId = ClientId {client = "5b4"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_16 =
+  PubClient {pubClientId = ClientId {client = "5b4"}, pubClientClass = Just LegalHoldClient}
 
 testObject_PubClient_user_17 :: PubClient
 testObject_PubClient_user_17 = PubClient {pubClientId = ClientId {client = "a83"}, pubClientClass = Nothing}

@@ -1,1 +1,8 @@
-{"created":"1864-05-13T18:38:28.752407147796Z","expires":"1864-05-12T15:17:29.299354245486Z","successor":0,"id":0,"type":"persistent","label":"􅏥"}
+{
+    "created": "1864-05-13T18:38:28.752407147796Z",
+    "expires": "1864-05-12T15:17:29.299354245486Z",
+    "successor": 0,
+    "id": 0,
+    "type": "persistent",
+    "label": "􅏥"
+}

@@ -1,1 +1,6 @@
-{"took":4,"found":3,"documents":[],"returned":2}
+{
+    "took": 4,
+    "found": 3,
+    "documents": [],
+    "returned": 2
+}

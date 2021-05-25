@@ -1,1 +1,7 @@
-{"last_prekey":{"key":"\u0019\u001c","id":65535},"prekeys":[]}
+{
+    "last_prekey": {
+        "key": "\u0019\u001c",
+        "id": 65535
+    },
+    "prekeys": []
+}

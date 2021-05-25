@@ -1,1 +1,45 @@
-{"origin":{"handle":"gcmc3fjd3ire.maquq87awi","accent_id":0,"name":"󽣄\u0019z\u001a%𢆌__DO}햹쎅\u0018뢪Z㙚w8<󶙝󴧷𬼶\u001b綤{|\u00063_)\u0013]f$􏩊;Pj0\u0017\u0007\u0012k\nG\u001ar𣧯2}\u0013.\u0004B\u0001\u0018𧨈\u0004𣤛\u0017􉣱).ꄨ\tNwq󹨼􉮳","team":null,"id":"00000000-0000-0000-0000-000100000000"},"conversation":{"members":[{"status":0,"service":{"id":"00000000-0000-0000-0000-000000000000","provider":"00000001-0000-0001-0000-000000000000"},"conversation_role":"a8r6vcnbte4ouwljafu5fid9r_","qualified_id":{"domain":"golden.example.com","id":"00000001-0000-0000-0000-000100000001"},"id":"00000001-0000-0000-0000-000100000001"},{"status":0,"service":{"id":"00000000-0000-0000-0000-000100000001","provider":"00000000-0000-0000-0000-000000000000"},"conversation_role":"05bh82wu2bogl1wfzvdrt6l37s_1awtp4rbb5qyk9f2fezt8gq0u_f2eoa7qjloopp4yh0dg5h0ad","qualified_id":{"domain":"golden.example.com","id":"00000001-0000-0000-0000-000100000000"},"id":"00000001-0000-0000-0000-000100000000"}],"name":"\u0012","id":"00000001-0000-0001-0000-000100000000"},"locale":"gu-SY","token":"𪵮􇚆Nr􁺰","id":"00000000-0000-0002-0000-000000000001","client":"4"}
+{
+    "origin": {
+        "handle": "gcmc3fjd3ire.maquq87awi",
+        "accent_id": 0,
+        "name": "󽣄\u0019z\u001a%𢆌__DO}햹쎅\u0018뢪Z㙚w8<󶙝󴧷𬼶\u001b綤{|\u00063_)\u0013]f$􏩊;Pj0\u0017\u0007\u0012k\nG\u001ar𣧯2}\u0013.\u0004B\u0001\u0018𧨈\u0004𣤛\u0017􉣱).ꄨ\tNwq󹨼􉮳",
+        "team": null,
+        "id": "00000000-0000-0000-0000-000100000000"
+    },
+    "conversation": {
+        "members": [
+            {
+                "status": 0,
+                "service": {
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "provider": "00000001-0000-0001-0000-000000000000"
+                },
+                "conversation_role": "a8r6vcnbte4ouwljafu5fid9r_",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000001-0000-0000-0000-000100000001"
+                },
+                "id": "00000001-0000-0000-0000-000100000001"
+            },
+            {
+                "status": 0,
+                "service": {
+                    "id": "00000000-0000-0000-0000-000100000001",
+                    "provider": "00000000-0000-0000-0000-000000000000"
+                },
+                "conversation_role": "05bh82wu2bogl1wfzvdrt6l37s_1awtp4rbb5qyk9f2fezt8gq0u_f2eoa7qjloopp4yh0dg5h0ad",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000001-0000-0000-0000-000100000000"
+                },
+                "id": "00000001-0000-0000-0000-000100000000"
+            }
+        ],
+        "name": "\u0012",
+        "id": "00000001-0000-0001-0000-000100000000"
+    },
+    "locale": "gu-SY",
+    "token": "𪵮􇚆Nr􁺰",
+    "id": "00000000-0000-0002-0000-000000000001",
+    "client": "4"
+}

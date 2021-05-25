@@ -1,1 +1,47 @@
-{"ttl":29,"ice_servers":[{"urls":["turn:9.44.249.238:1?transport=udp"],"credential":"","username":"d=3.v=0.k=1.t=\u0006.r=0"},{"urls":["turn:123:1?transport=udp"],"credential":"","username":"d=1.v=3.k=2.t=5.r=wp"},{"urls":["turn:20.214.247.113:0?transport=udp","turns:a-c:1?transport=udp"],"credential":"","username":"d=2.v=3.k=2.t=\".r=te"},{"urls":["turns:34.111.158.108:1?transport=udp","turns:123:0?transport=udp"],"credential":"gg==","username":"d=3.v=2.k=2.t=\u0012.r=ew"}],"sft_servers":[{"urls":["https://example.com"]},{"urls":["https://example.com"]}]}
+{
+    "ttl": 29,
+    "ice_servers": [
+        {
+            "urls": [
+                "turn:9.44.249.238:1?transport=udp"
+            ],
+            "credential": "",
+            "username": "d=3.v=0.k=1.t=\u0006.r=0"
+        },
+        {
+            "urls": [
+                "turn:123:1?transport=udp"
+            ],
+            "credential": "",
+            "username": "d=1.v=3.k=2.t=5.r=wp"
+        },
+        {
+            "urls": [
+                "turn:20.214.247.113:0?transport=udp",
+                "turns:a-c:1?transport=udp"
+            ],
+            "credential": "",
+            "username": "d=2.v=3.k=2.t=\".r=te"
+        },
+        {
+            "urls": [
+                "turns:34.111.158.108:1?transport=udp",
+                "turns:123:0?transport=udp"
+            ],
+            "credential": "gg==",
+            "username": "d=3.v=2.k=2.t=\u0012.r=ew"
+        }
+    ],
+    "sft_servers": [
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        }
+    ]
+}

@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.AppName_user where
 
 import Wire.API.Push.Token (AppName (..))
@@ -34,7 +33,8 @@ testObject_AppName_user_4 :: AppName
 testObject_AppName_user_4 = AppName {appNameText = "\188871\&2H\\\22947LOV/\SI"}
 
 testObject_AppName_user_5 :: AppName
-testObject_AppName_user_5 = AppName {appNameText = "(=}\175931\DC1\ETXfl*\188796T\51297\140578>N;\1040046{m+}C%\1758\STX\EM\fAX\ACK"}
+testObject_AppName_user_5 =
+  AppName {appNameText = "(=}\175931\DC1\ETXfl*\188796T\51297\140578>N;\1040046{m+}C%\1758\STX\EM\fAX\ACK"}
 
 testObject_AppName_user_6 :: AppName
 testObject_AppName_user_6 = AppName {appNameText = "O\189148 4\1003568L8w\97377\STX0g."}
@@ -43,7 +43,11 @@ testObject_AppName_user_7 :: AppName
 testObject_AppName_user_7 = AppName {appNameText = "ms\DLE"}
 
 testObject_AppName_user_8 :: AppName
-testObject_AppName_user_8 = AppName {appNameText = "\"\1074817h\1081406\1105238e\1016334Y<3;w\989636\1091634/u9\146693\7249\SOH\59959>\157130\DC3\140560\1032908w"}
+testObject_AppName_user_8 =
+  AppName
+    { appNameText =
+        "\"\1074817h\1081406\1105238e\1016334Y<3;w\989636\1091634/u9\146693\7249\SOH\59959>\157130\DC3\140560\1032908w"
+    }
 
 testObject_AppName_user_9 :: AppName
 testObject_AppName_user_9 = AppName {appNameText = ""}

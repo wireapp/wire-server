@@ -1,1 +1,4 @@
-{"retention":"eternal-infrequent_access","public":false}
+{
+    "retention": "eternal-infrequent_access",
+    "public": false
+}

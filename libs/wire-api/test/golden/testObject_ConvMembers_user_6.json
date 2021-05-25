@@ -1,1 +1,131 @@
-{"self":{"hidden_ref":"T","status":0,"service":{"id":"00000000-0000-0001-0000-000000000000","provider":"00000001-0000-0001-0000-000100000001"},"otr_muted_ref":"","conversation_role":"tyugtdx7b6_tnvz0btwo03zht0ee07jgmjgn5cbi6vxf8ge3dte6s2_hz0owrju_hx5g14wpkpr_9wdr_lepejkncj","status_time":"1970-01-01T00:00:00.000Z","hidden":false,"status_ref":"0.0","id":"00000000-0000-0000-0000-000000000000","otr_archived":false,"otr_muted_status":1,"otr_muted":true,"otr_archived_ref":""},"others":[{"status":0,"service":{"id":"00000000-0000-0000-0000-000100000001","provider":"00000000-0000-0001-0000-000000000001"},"conversation_role":"w794tuc4_7uds0z1njq0n64rfwgh1ejkzozuikjk845ybh9r4l3d6y1o_v1qo108ri4yhnbpetkhzy1ie95","qualified_id":{"domain":"golden.example.com","id":"00000000-0000-0001-0000-000100000001"},"id":"00000000-0000-0001-0000-000100000001"},{"status":0,"service":{"id":"00000001-0000-0001-0000-000000000001","provider":"00000001-0000-0000-0000-000100000000"},"conversation_role":"skl0wbt9","qualified_id":{"domain":"golden.example.com","id":"00000001-0000-0001-0000-000000000000"},"id":"00000001-0000-0001-0000-000000000000"},{"status":0,"service":{"id":"00000000-0000-0001-0000-000000000000","provider":"00000001-0000-0000-0000-000000000001"},"conversation_role":"2u7h4liwioxhdyw2ums20wc4uuu078x416195m0","qualified_id":{"domain":"golden.example.com","id":"00000001-0000-0000-0000-000000000000"},"id":"00000001-0000-0000-0000-000000000000"},{"status":0,"service":{"id":"00000001-0000-0001-0000-000100000000","provider":"00000001-0000-0000-0000-000100000001"},"conversation_role":"v7lfuggvm03jjo87bwn1kdwdt86rj7x75gp4t8e8iyii6_rcotf6ojkaczcs93ydllwfn4fybjasv4ediol0auyb7_l2omz74k8iw7lkm4l622v5i2qbqn2e","qualified_id":{"domain":"golden.example.com","id":"00000000-0000-0000-0000-000000000000"},"id":"00000000-0000-0000-0000-000000000000"},{"status":0,"service":{"id":"00000000-0000-0001-0000-000100000000","provider":"00000001-0000-0001-0000-000100000001"},"conversation_role":"s53zd8pxzf5jnywo11tcqhus0v86oo93vgffrnfao7zv7ddvutnwzs1sv_zoh1nxeqanlyj29x2crpuhrged_hn40pdiefm","qualified_id":{"domain":"golden.example.com","id":"00000000-0000-0001-0000-000100000001"},"id":"00000000-0000-0001-0000-000100000001"},{"status":0,"conversation_role":"tn14gkbhny6tynh1ijhruy_nsvw17_wnrd19sbcffh9xmkrpilwfc9wnbv","qualified_id":{"domain":"golden.example.com","id":"00000000-0000-0001-0000-000000000000"},"id":"00000000-0000-0001-0000-000000000000"},{"status":0,"service":{"id":"00000000-0000-0001-0000-000000000000","provider":"00000001-0000-0001-0000-000000000000"},"conversation_role":"xlaoiqbhmdxeak4vygfx2yw9y1dwxlv2u3_80yrdtu5i5wtkk1y","qualified_id":{"domain":"golden.example.com","id":"00000000-0000-0001-0000-000000000001"},"id":"00000000-0000-0001-0000-000000000001"},{"status":0,"conversation_role":"by4w8spnxlbgatis64iz_","qualified_id":{"domain":"golden.example.com","id":"00000001-0000-0000-0000-000000000001"},"id":"00000001-0000-0000-0000-000000000001"},{"status":0,"service":{"id":"00000001-0000-0001-0000-000000000000","provider":"00000000-0000-0001-0000-000000000001"},"conversation_role":"20ki2zvvhvpe4jlvdvvbpzxlfx3nije8ionba35ovbcdrte4y7pjws17jz3bhct7dy20x_8k9sxo34smx25","qualified_id":{"domain":"golden.example.com","id":"00000001-0000-0001-0000-000100000000"},"id":"00000001-0000-0001-0000-000100000000"}]}
+{
+    "self": {
+        "hidden_ref": "T",
+        "status": 0,
+        "service": {
+            "id": "00000000-0000-0001-0000-000000000000",
+            "provider": "00000001-0000-0001-0000-000100000001"
+        },
+        "otr_muted_ref": "",
+        "conversation_role": "tyugtdx7b6_tnvz0btwo03zht0ee07jgmjgn5cbi6vxf8ge3dte6s2_hz0owrju_hx5g14wpkpr_9wdr_lepejkncj",
+        "status_time": "1970-01-01T00:00:00.000Z",
+        "hidden": false,
+        "status_ref": "0.0",
+        "id": "00000000-0000-0000-0000-000000000000",
+        "otr_archived": false,
+        "otr_muted_status": 1,
+        "otr_muted": true,
+        "otr_archived_ref": ""
+    },
+    "others": [
+        {
+            "status": 0,
+            "service": {
+                "id": "00000000-0000-0000-0000-000100000001",
+                "provider": "00000000-0000-0001-0000-000000000001"
+            },
+            "conversation_role": "w794tuc4_7uds0z1njq0n64rfwgh1ejkzozuikjk845ybh9r4l3d6y1o_v1qo108ri4yhnbpetkhzy1ie95",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0001-0000-000100000001"
+            },
+            "id": "00000000-0000-0001-0000-000100000001"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000001-0000-0001-0000-000000000001",
+                "provider": "00000001-0000-0000-0000-000100000000"
+            },
+            "conversation_role": "skl0wbt9",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0001-0000-000000000000"
+            },
+            "id": "00000001-0000-0001-0000-000000000000"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000000-0000-0001-0000-000000000000",
+                "provider": "00000001-0000-0000-0000-000000000001"
+            },
+            "conversation_role": "2u7h4liwioxhdyw2ums20wc4uuu078x416195m0",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000000000000"
+            },
+            "id": "00000001-0000-0000-0000-000000000000"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000001-0000-0001-0000-000100000000",
+                "provider": "00000001-0000-0000-0000-000100000001"
+            },
+            "conversation_role": "v7lfuggvm03jjo87bwn1kdwdt86rj7x75gp4t8e8iyii6_rcotf6ojkaczcs93ydllwfn4fybjasv4ediol0auyb7_l2omz74k8iw7lkm4l622v5i2qbqn2e",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0000-0000-000000000000"
+            },
+            "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000000-0000-0001-0000-000100000000",
+                "provider": "00000001-0000-0001-0000-000100000001"
+            },
+            "conversation_role": "s53zd8pxzf5jnywo11tcqhus0v86oo93vgffrnfao7zv7ddvutnwzs1sv_zoh1nxeqanlyj29x2crpuhrged_hn40pdiefm",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0001-0000-000100000001"
+            },
+            "id": "00000000-0000-0001-0000-000100000001"
+        },
+        {
+            "status": 0,
+            "conversation_role": "tn14gkbhny6tynh1ijhruy_nsvw17_wnrd19sbcffh9xmkrpilwfc9wnbv",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0001-0000-000000000000"
+            },
+            "id": "00000000-0000-0001-0000-000000000000"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000000-0000-0001-0000-000000000000",
+                "provider": "00000001-0000-0001-0000-000000000000"
+            },
+            "conversation_role": "xlaoiqbhmdxeak4vygfx2yw9y1dwxlv2u3_80yrdtu5i5wtkk1y",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0001-0000-000000000001"
+            },
+            "id": "00000000-0000-0001-0000-000000000001"
+        },
+        {
+            "status": 0,
+            "conversation_role": "by4w8spnxlbgatis64iz_",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000000000001"
+            },
+            "id": "00000001-0000-0000-0000-000000000001"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000001-0000-0001-0000-000000000000",
+                "provider": "00000000-0000-0001-0000-000000000001"
+            },
+            "conversation_role": "20ki2zvvhvpe4jlvdvvbpzxlfx3nije8ionba35ovbcdrte4y7pjws17jz3bhct7dy20x_8k9sxo34smx25",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0001-0000-000100000000"
+            },
+            "id": "00000001-0000-0001-0000-000100000000"
+        }
+    ]
+}

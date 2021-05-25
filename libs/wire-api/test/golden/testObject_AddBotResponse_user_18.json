@@ -1,1 +1,40 @@
-{"event":{"conversation":"00000000-0000-0001-0000-000100000001","time":"1864-05-13T04:14:10.186Z","data":{"name":"+S󲱱x1"},"from":"00000001-0000-0002-0000-000000000003","type":"conversation.rename"},"accent_id":1,"name":"w\u0006􍊫l\u0001yL1\u0006/\u0000J&\rdp􁵷ᩞD[2\"\\,{\u001b􉩪\u000e󹺺\u000b0躉\u0000L􁺤u\u0015Y\u0003㮒\u000f46𤼿#\u001dl𘝩\u0013'vĽ𗑚\u0007P`","id":"00000004-0000-0003-0000-000300000003","assets":[{"key":"","type":"image"},{"size":"complete","key":"","type":"image"},{"key":"","type":"image"},{"size":"preview","key":"","type":"image"},{"size":"complete","key":"","type":"image"}],"client":"5"}
+{
+    "event": {
+        "conversation": "00000000-0000-0001-0000-000100000001",
+        "time": "1864-05-13T04:14:10.186Z",
+        "data": {
+            "name": "+S󲱱x1"
+        },
+        "from": "00000001-0000-0002-0000-000000000003",
+        "type": "conversation.rename"
+    },
+    "accent_id": 1,
+    "name": "w\u0006􍊫l\u0001yL1\u0006/\u0000J&\rdp􁵷ᩞD[2\"\\,{\u001b􉩪\u000e󹺺\u000b0躉\u0000L􁺤u\u0015Y\u0003㮒\u000f46𤼿#\u001dl𘝩\u0013'vĽ𗑚\u0007P`",
+    "id": "00000004-0000-0003-0000-000300000003",
+    "assets": [
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "",
+            "type": "image"
+        }
+    ],
+    "client": "5"
+}

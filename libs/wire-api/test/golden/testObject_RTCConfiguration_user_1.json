@@ -1,1 +1,72 @@
-{"ttl":2,"ice_servers":[{"urls":["turns:a-c:0?transport=tcp","turns:102.223.53.51:1","turns:123:0"],"credential":"KA==","username":"d=2.v=0.k=2.t=󱮟.r=y"},{"urls":["turns:11.115.71.116:0?transport=tcp"],"credential":"vg==","username":"d=4.v=1.k=1.t=F.r=g9l"},{"urls":["turns:64.166.247.200:1?transport=udp","turns:169.32.10.117:1?transport=tcp","turns:146.223.237.161:0?transport=tcp"],"credential":"1Q==","username":"d=4.v=2.k=2.t=O.r=vkw"},{"urls":["turn:229.74.72.234:1","turn:200.55.82.144:0?transport=tcp","turns:30.151.133.158:1?transport=tcp"],"credential":"/w==","username":"d=2.v=0.k=2.t=F.r=qv"},{"urls":["turns:xn--mgbh0fb.xn--kgbechtv:0?transport=tcp","turn:212.204.103.144:1?transport=tcp"],"credential":"TQ==","username":"d=4.v=3.k=1.t=鷃.r=b"},{"urls":["turn:36.138.227.130:0","turns:a-c:0?transport=tcp"],"credential":"1CM=","username":"d=3.v=3.k=1.t=6.r=1j"},{"urls":["turn:39.3.236.143:0?transport=udp","turns:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp"],"credential":"xVY=","username":"d=0.v=2.k=0.t=D.r=v"},{"urls":["turn:126.131.239.218:0?transport=udp","turns:189.135.181.33:0?transport=udp","turns:xn--mgbh0fb.xn--kgbechtv:0?transport=udp"],"credential":"9g==","username":"d=3.v=3.k=1.t=\u0010.r=i3"}]}
+{
+    "ttl": 2,
+    "ice_servers": [
+        {
+            "urls": [
+                "turns:a-c:0?transport=tcp",
+                "turns:102.223.53.51:1",
+                "turns:123:0"
+            ],
+            "credential": "KA==",
+            "username": "d=2.v=0.k=2.t=󱮟.r=y"
+        },
+        {
+            "urls": [
+                "turns:11.115.71.116:0?transport=tcp"
+            ],
+            "credential": "vg==",
+            "username": "d=4.v=1.k=1.t=F.r=g9l"
+        },
+        {
+            "urls": [
+                "turns:64.166.247.200:1?transport=udp",
+                "turns:169.32.10.117:1?transport=tcp",
+                "turns:146.223.237.161:0?transport=tcp"
+            ],
+            "credential": "1Q==",
+            "username": "d=4.v=2.k=2.t=O.r=vkw"
+        },
+        {
+            "urls": [
+                "turn:229.74.72.234:1",
+                "turn:200.55.82.144:0?transport=tcp",
+                "turns:30.151.133.158:1?transport=tcp"
+            ],
+            "credential": "/w==",
+            "username": "d=2.v=0.k=2.t=F.r=qv"
+        },
+        {
+            "urls": [
+                "turns:xn--mgbh0fb.xn--kgbechtv:0?transport=tcp",
+                "turn:212.204.103.144:1?transport=tcp"
+            ],
+            "credential": "TQ==",
+            "username": "d=4.v=3.k=1.t=鷃.r=b"
+        },
+        {
+            "urls": [
+                "turn:36.138.227.130:0",
+                "turns:a-c:0?transport=tcp"
+            ],
+            "credential": "1CM=",
+            "username": "d=3.v=3.k=1.t=6.r=1j"
+        },
+        {
+            "urls": [
+                "turn:39.3.236.143:0?transport=udp",
+                "turns:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp"
+            ],
+            "credential": "xVY=",
+            "username": "d=0.v=2.k=0.t=D.r=v"
+        },
+        {
+            "urls": [
+                "turn:126.131.239.218:0?transport=udp",
+                "turns:189.135.181.33:0?transport=udp",
+                "turns:xn--mgbh0fb.xn--kgbechtv:0?transport=udp"
+            ],
+            "credential": "9g==",
+            "username": "d=3.v=3.k=1.t=\u0010.r=i3"
+        }
+    ]
+}

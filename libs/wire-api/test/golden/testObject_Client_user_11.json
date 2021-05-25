@@ -1,1 +1,13 @@
-{"cookie":"5","time":"1864-05-08T11:57:08.087Z","location":{"lat":0.44311730892815937,"lon":0.6936233843789369},"model":"ML","id":"3","type":"temporary","class":"legalhold","label":"\u001fb"}
+{
+    "cookie": "5",
+    "time": "1864-05-08T11:57:08.087Z",
+    "location": {
+        "lat": 0.44311730892815937,
+        "lon": 0.6936233843789369
+    },
+    "model": "ML",
+    "id": "3",
+    "type": "temporary",
+    "class": "legalhold",
+    "label": "\u001fb"
+}

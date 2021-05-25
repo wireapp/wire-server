@@ -1,1 +1,6 @@
-{"expires_in":26,"access_token":"󱟾r","user":"000011e5-0000-29e4-0000-550400003888","token_type":"Bearer"}
+{
+    "expires_in": 26,
+    "access_token": "󱟾r",
+    "user": "000011e5-0000-29e4-0000-550400003888",
+    "token_type": "Bearer"
+}

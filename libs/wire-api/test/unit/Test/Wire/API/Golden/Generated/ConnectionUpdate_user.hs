@@ -16,13 +16,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.ConnectionUpdate_user where
 
-import Wire.API.Connection
-  ( ConnectionUpdate (..),
-    Relation (Accepted, Blocked, Cancelled, Ignored, Pending, Sent),
-  )
+import Wire.API.Connection (ConnectionUpdate (..), Relation (Accepted, Blocked, Cancelled, Ignored, Pending, Sent))
 
 testObject_ConnectionUpdate_user_1 :: ConnectionUpdate
 testObject_ConnectionUpdate_user_1 = ConnectionUpdate {cuStatus = Cancelled}

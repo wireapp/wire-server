@@ -16,13 +16,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.Prekey_user where
 
-import Wire.API.User.Client.Prekey
-  ( Prekey (..),
-    PrekeyId (PrekeyId, keyId),
-  )
+import Wire.API.User.Client.Prekey (Prekey (..), PrekeyId (PrekeyId, keyId))
 
 testObject_Prekey_user_1 :: Prekey
 testObject_Prekey_user_1 = Prekey {prekeyId = PrekeyId {keyId = 79}, prekeyKey = "M\1028531yx"}
@@ -61,7 +57,8 @@ testObject_Prekey_user_12 :: Prekey
 testObject_Prekey_user_12 = Prekey {prekeyId = PrekeyId {keyId = 74}, prekeyKey = "L94S]\b`"}
 
 testObject_Prekey_user_13 :: Prekey
-testObject_Prekey_user_13 = Prekey {prekeyId = PrekeyId {keyId = 128}, prekeyKey = "\162712\23792$<I|k\SYN\SOZx\STX\25033"}
+testObject_Prekey_user_13 =
+  Prekey {prekeyId = PrekeyId {keyId = 128}, prekeyKey = "\162712\23792$<I|k\SYN\SOZx\STX\25033"}
 
 testObject_Prekey_user_14 :: Prekey
 testObject_Prekey_user_14 = Prekey {prekeyId = PrekeyId {keyId = 88}, prekeyKey = "\RS\"\1113165o"}
@@ -73,7 +70,8 @@ testObject_Prekey_user_16 :: Prekey
 testObject_Prekey_user_16 = Prekey {prekeyId = PrekeyId {keyId = 109}, prekeyKey = ""}
 
 testObject_Prekey_user_17 :: Prekey
-testObject_Prekey_user_17 = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\CAN\DC1\SYN\f\1073657\DC4\25171\17586f"}
+testObject_Prekey_user_17 =
+  Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\CAN\DC1\SYN\f\1073657\DC4\25171\17586f"}
 
 testObject_Prekey_user_18 :: Prekey
 testObject_Prekey_user_18 = Prekey {prekeyId = PrekeyId {keyId = 121}, prekeyKey = "\SOHm)"}
@@ -82,4 +80,5 @@ testObject_Prekey_user_19 :: Prekey
 testObject_Prekey_user_19 = Prekey {prekeyId = PrekeyId {keyId = 52}, prekeyKey = "\1013681+@\1113351'\ETX\v\ACK"}
 
 testObject_Prekey_user_20 :: Prekey
-testObject_Prekey_user_20 = Prekey {prekeyId = PrekeyId {keyId = 82}, prekeyKey = "<o\1081367(n\1044501\tj\1018150w\1104661`"}
+testObject_Prekey_user_20 =
+  Prekey {prekeyId = PrekeyId {keyId = 82}, prekeyKey = "<o\1081367(n\1044501\tj\1018150w\1104661`"}

@@ -1,1 +1,7 @@
-{"prekey":{"key":"D){H","id":4},"client":"b02"}
+{
+    "prekey": {
+        "key": "D){H",
+        "id": 4
+    },
+    "client": "b02"
+}

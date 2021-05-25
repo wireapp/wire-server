@@ -1,1 +1,19 @@
-{"took":-7,"found":-2,"documents":[{"email":"@","handle":"","managed_by":"scim","role":"partner","accent_id":0,"name":"","created_at":"1864-05-09T12:39:20.984Z","team":null,"id":"00000000-0000-0000-0000-000100000000","saml_idp":""}],"returned":-3}
+{
+    "took": -7,
+    "found": -2,
+    "documents": [
+        {
+            "email": "@",
+            "handle": "",
+            "managed_by": "scim",
+            "role": "partner",
+            "accent_id": 0,
+            "name": "",
+            "created_at": "1864-05-09T12:39:20.984Z",
+            "team": null,
+            "id": "00000000-0000-0000-0000-000100000000",
+            "saml_idp": ""
+        }
+    ],
+    "returned": -3
+}
