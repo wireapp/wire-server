@@ -418,10 +418,10 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
         chunksOf maxSize uids = case splitAt maxSize uids of (h, t) -> h : chunksOf maxSize t
 
         shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
-        shouldBlock teamsOfUsers user =
+        shouldBlock teamsOfUsers other =
           (== UserLegalHoldNoConsent)
-            <$> case Map.lookup user teamsOfUsers of
+            <$> case Map.lookup other teamsOfUsers of
               Nothing -> pure defUserLegalHoldStatus
               Just team -> do
-                mMember <- Data.teamMember team user
+                mMember <- Data.teamMember team other
                 pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
