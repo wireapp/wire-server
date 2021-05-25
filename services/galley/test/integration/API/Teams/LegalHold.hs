@@ -918,6 +918,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
       else do
         doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
+        postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do

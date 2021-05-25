@@ -368,14 +368,15 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
 
 changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
 changeLegalholdStatus tid uid oldLhStatus lhStatus = do
-  LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
-  -- TODO: remove
-  Log.info $ Log.msg @String (show oldLhStatus <> " -> " <> show lhStatus)
   case (hasLH oldLhStatus, hasLH lhStatus) of
     (False, False) -> pure ()
     (True, True) -> pure ()
-    (False, True) -> blockConnectionsFrom1on1s
-    (True, False) -> void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
+    (False, True) -> do
+      blockConnectionsFrom1on1s
+      LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
+    (True, False) -> do
+      LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
+      void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
   where
     hasLH :: UserLegalHoldStatus -> Bool
     hasLH = \case
