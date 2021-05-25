@@ -61,7 +61,7 @@ data ConnectionsStatusRequest = ConnectionsStatusRequest
 
 data UpdateConnectionsInternal
   = BlockForMissingLHConsent UserId [UserId]
-  | UnblockForAllMissingLHConsent UserId
+  | RemoveLHBlocksInvolving UserId
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
 

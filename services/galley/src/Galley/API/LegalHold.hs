@@ -376,7 +376,7 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
     (False, False) -> pure ()
     (True, True) -> pure ()
     (False, True) -> blockConnectionsFrom1on1s
-    (True, False) -> void $ putConnectionInternal (UnblockForAllMissingLHConsent uid)
+    (True, False) -> void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
   where
     hasLH :: UserLegalHoldStatus -> Bool
     hasLH = \case

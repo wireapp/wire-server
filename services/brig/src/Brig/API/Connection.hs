@@ -330,7 +330,7 @@ updateConnectionInternal ::
   ExceptT ConnectionError AppIO ()
 updateConnectionInternal = \case
   BlockForMissingLHConsent uid others -> blockForMissingLegalholdConsent uid others
-  UnblockForAllMissingLHConsent uid -> removeAllMissingLHBlocks uid
+  RemoveLHBlocksInvolving uid -> removeLHBlocksInvolving uid
   where
     -- inspired by @block@ in 'updateConnection'.
     blockForMissingLegalholdConsent :: UserId -> [UserId] -> ExceptT ConnectionError AppIO ()
@@ -349,9 +349,9 @@ updateConnectionInternal = \case
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           Intra.onConnectionEvent self Nothing ev
 
-    removeAllMissingLHBlocks :: UserId -> ExceptT ConnectionError AppIO ()
-    removeAllMissingLHBlocks uid =
-      iterateConnections uid (toRange (Proxy @500)) $ \conns -> do
+    removeLHBlocksInvolving :: UserId -> ExceptT ConnectionError AppIO ()
+    removeLHBlocksInvolving self =
+      iterateConnections self (toRange (Proxy @500)) $ \conns -> do
         for_ conns $ \s2o ->
           when (ucStatus s2o == MissingLegalholdConsent) $ do
             o2s <- connection (ucTo s2o) (ucFrom s2o)
