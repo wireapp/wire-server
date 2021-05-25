@@ -147,41 +147,41 @@ tests s =
               test s "handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
                 (testNoConsentBlockOne2OneConv False False False False),
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
                 (testNoConsentBlockOne2OneConv False True False False),
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
                 (testNoConsentBlockOne2OneConv False True True False),
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, leave conn pending)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, leave conn pending)"
                 (testNoConsentBlockOne2OneConv False True False True),
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device, leave conn pending)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device, leave conn pending)"
                 (testNoConsentBlockOne2OneConv False True True True),
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
                 (testNoConsentBlockOne2OneConv True False False False),
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
                 (testNoConsentBlockOne2OneConv True True False False),
               test
                 s
-                "XXXXXX If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
+                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
                 (testNoConsentBlockOne2OneConv True True True False),
               test
                 s
-                "XXXXXX If LH is activated for other user in group conv, this user gets removed with helpful message"
+                "If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
-              test s "YYYYY bench hack" testBenchHack
+              test s "bench hack" testBenchHack
             ]
         ]
     ]
