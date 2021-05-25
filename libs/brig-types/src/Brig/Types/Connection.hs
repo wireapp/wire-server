@@ -67,6 +67,7 @@ data UpdateConnectionsInternal
 
 instance FromJSON UpdateConnectionsInternal
 
+-- | `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
 instance ToJSON UpdateConnectionsInternal
 
 ----------------------------------------------------------------------------
