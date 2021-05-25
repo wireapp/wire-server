@@ -111,8 +111,7 @@ tests s =
           test s "add past members" postMembersOk3,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
-          -- TODO: make it into an end2end test or mock the federator
-          -- test s "add remote members" testAddRemoteMember,
+          test s "add remote members" testAddRemoteMember,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "remove members" deleteMembersOk,
           test s "fail to remove members from self conv." deleteMembersFailSelf,
@@ -871,13 +870,23 @@ leaveConnectConversation = do
 -- from the remote.  Additionally, another test must be added to deal with error
 -- scenarios of federation.
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
-_testAddRemoteMember :: TestM ()
-_testAddRemoteMember = do
+testAddRemoteMember :: TestM ()
+testAddRemoteMember = do
   alice <- randomUser
   bobId <- randomId
-  let remoteBob = Qualified bobId (Domain "far-away.example.com")
+  let remoteDomain = Domain "far-away.example.com"
+      remoteBob = Qualified bobId remoteDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  e <- responseJsonUnsafe <$> (postQualifiedMembers alice (remoteBob :| []) convId <!! const 200 === statusCode)
+  opts <- view tsGConf
+  g <- view tsGalley
+  (resp, _) <-
+    liftIO $
+      withTempMockFederator
+        opts
+        remoteDomain
+        [mkProfile remoteBob (Name "bob")]
+        (postQualifiedMembers' g alice (remoteBob :| []) convId)
+  e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
     evtConv e @?= convId
     evtType e @?= MemberJoin
