@@ -444,9 +444,9 @@ newConvSchema =
           (array schema)
       <*> newConvQualifiedUsers
         .= fieldWithDocModifier
-           "qualified_users"
-           (description ?~ qualifiedUsersDesc)
-           (array schema)
+          "qualified_users"
+          (description ?~ qualifiedUsersDesc)
+          (array schema)
       <*> newConvName .= opt (field "name" schema)
       <*> (Set.toList . newConvAccess)
         .= ( field "access" (Set.fromList <$> array schema)

@@ -29,6 +29,7 @@ import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds')
 import Data.Range
 import Data.SOP (I (..), NS (..))
 import qualified Data.Set as Set
@@ -53,7 +54,6 @@ import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Routes.Public.Galley (ConversationResponses)
-import Data.Qualified (partitionRemoteOrLocalIds', Qualified(..))
 
 -- Servant helpers ------------------------------------------------------
 
@@ -145,7 +145,7 @@ createTeamGroupConv zusr zcon tinfo body = do
         maybeAllMembers <- Data.teamMembersForFanout convTeam
         let otherConvMems = filter (/= zusr) $ map (view userId) $ (maybeAllMembers ^. teamMembers)
         checkedLocalUsers <- checkedConvSize otherConvMems
-        pure (fmap ([], ) checkedLocalUsers)
+        pure (fmap ([],) checkedLocalUsers)
       else do
         -- In teams we don't have 1:1 conversations, only regular conversations. We want
         -- users without the 'AddRemoveConvMember' permission to still be able to create
