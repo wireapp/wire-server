@@ -831,13 +831,12 @@ testNoConsentBlockDeviceHandshake :: TestM ()
 testNoConsentBlockDeviceHandshake = do
   -- "handshake between LH device and user without consent is blocked"
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
+
   galley <- view tsGalley
-
-  (owner :: UserId, tid) <- createBindingTeam
-  let legalholder = owner
-
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
+  (legalholder, tid) <- createBindingTeam
+  (peer, _) <-
+    -- has to be a team member, granting LH consent for personal users is not supported.
+    createBindingTeam
 
   let doEnableLH :: HasCallStack => UserId -> TestM ()
       doEnableLH uid = do
@@ -850,13 +849,6 @@ testNoConsentBlockDeviceHandshake = do
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     doEnableLH legalholder
-    doEnableLH member
-
-  -- withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-  --   for_ peers $ \peer -> do
-  --     postConnection legalholder peer !!! const 201 === statusCode
-  --     void $ putConnection peer legalholder Conn.Accepted <!! const 200 === statusCode
-  --     ensureQueueEmpty
 
   {-
 
