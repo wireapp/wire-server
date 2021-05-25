@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.NameUpdate_user where
 
 import Wire.API.User (NameUpdate (..))
@@ -31,13 +30,17 @@ testObject_NameUpdate_user_3 :: NameUpdate
 testObject_NameUpdate_user_3 = NameUpdate {nuHandle = "\a"}
 
 testObject_NameUpdate_user_4 :: NameUpdate
-testObject_NameUpdate_user_4 = NameUpdate {nuHandle = "k(O\SOHB\fD\36927r\1059032\119214'\98188x\NUL\a\127165uSA]\15816HH"}
+testObject_NameUpdate_user_4 =
+  NameUpdate {nuHandle = "k(O\SOHB\fD\36927r\1059032\119214'\98188x\NUL\a\127165uSA]\15816HH"}
 
 testObject_NameUpdate_user_5 :: NameUpdate
 testObject_NameUpdate_user_5 = NameUpdate {nuHandle = "\1027274,\1112679=M\1075788<&=\10598\SO\EOT\DC2\SI\EOT"}
 
 testObject_NameUpdate_user_6 :: NameUpdate
-testObject_NameUpdate_user_6 = NameUpdate {nuHandle = "\177903m;\ETBc\187131\STX-(\69986$,^1m\1043714]\1059894HF?\EOT\"~3\1102463\DC1\ETX\1110595\SYN"}
+testObject_NameUpdate_user_6 =
+  NameUpdate
+    { nuHandle = "\177903m;\ETBc\187131\STX-(\69986$,^1m\1043714]\1059894HF?\EOT\"~3\1102463\DC1\ETX\1110595\SYN"
+    }
 
 testObject_NameUpdate_user_7 :: NameUpdate
 testObject_NameUpdate_user_7 = NameUpdate {nuHandle = "joB/M/\1105493\DC36\DLE\SUB`n:et"}
@@ -58,7 +61,8 @@ testObject_NameUpdate_user_12 :: NameUpdate
 testObject_NameUpdate_user_12 = NameUpdate {nuHandle = "2\30683\GSJw96\ti\168568\27731\&3K\DC1s^"}
 
 testObject_NameUpdate_user_13 :: NameUpdate
-testObject_NameUpdate_user_13 = NameUpdate {nuHandle = "N\1099698\185625\RS2\1001303\148117E\1053543\b$T`5*@\1085048\164892UK"}
+testObject_NameUpdate_user_13 =
+  NameUpdate {nuHandle = "N\1099698\185625\RS2\1001303\148117E\1053543\b$T`5*@\1085048\164892UK"}
 
 testObject_NameUpdate_user_14 :: NameUpdate
 testObject_NameUpdate_user_14 = NameUpdate {nuHandle = "\176688\ETXu\aQtw\1074898.\ENQWe"}
@@ -70,10 +74,14 @@ testObject_NameUpdate_user_16 :: NameUpdate
 testObject_NameUpdate_user_16 = NameUpdate {nuHandle = "\1064771y\1061453C\1013967\1023504\1076341\2235>|\1085359?"}
 
 testObject_NameUpdate_user_17 :: NameUpdate
-testObject_NameUpdate_user_17 = NameUpdate {nuHandle = "\2074\&6\DC2\SOH\ESC\1079210\1006800$ .FCG\1047648\78841\24036<8W"}
+testObject_NameUpdate_user_17 =
+  NameUpdate {nuHandle = "\2074\&6\DC2\SOH\ESC\1079210\1006800$ .FCG\1047648\78841\24036<8W"}
 
 testObject_NameUpdate_user_18 :: NameUpdate
-testObject_NameUpdate_user_18 = NameUpdate {nuHandle = "\45670\SOH[.\182401D\1074865f\162853.\37643a\1082022\142433\11331B\132252RK\t]\1075995m\170098"}
+testObject_NameUpdate_user_18 =
+  NameUpdate
+    { nuHandle = "\45670\SOH[.\182401D\1074865f\162853.\37643a\1082022\142433\11331B\132252RK\t]\1075995m\170098"
+    }
 
 testObject_NameUpdate_user_19 :: NameUpdate
 testObject_NameUpdate_user_19 = NameUpdate {nuHandle = "\135198CO7`O\10735[p"}

@@ -1,1 +1,12 @@
-{"last_prekey":{"key":"\u000c􆨲_~b\u0016yh\\z-<","id":65535},"prekeys":[{"key":"{󲎊􌈰\u0001.f","id":6}]}
+{
+    "last_prekey": {
+        "key": "\u000c􆨲_~b\u0016yh\\z-<",
+        "id": 65535
+    },
+    "prekeys": [
+        {
+            "key": "{󲎊􌈰\u0001.f",
+            "id": 6
+        }
+    ]
+}

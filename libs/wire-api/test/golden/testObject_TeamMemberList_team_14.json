@@ -1,1 +1,155 @@
-{"members":[{"user":"00000001-0000-0000-0000-000100000001","created_by":null,"legalhold_status":"disabled","created_at":null,"permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0001-0000-000100000000","created_by":"00000000-0000-0000-0000-000100000001","legalhold_status":"enabled","created_at":"1864-05-09T07:01:56.077Z","permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0000-0000-000000000000","created_by":"00000000-0000-0000-0000-000000000001","legalhold_status":"enabled","created_at":"1864-05-09T09:34:46.900Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0000-0000-000000000000","created_by":"00000001-0000-0001-0000-000000000000","legalhold_status":"enabled","created_at":"1864-05-09T10:40:24.034Z","permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0000-0000-000000000001","created_by":"00000000-0000-0000-0000-000000000000","legalhold_status":"enabled","created_at":"1864-05-09T10:17:53.056Z","permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0000-0000-000100000001","created_by":"00000001-0000-0001-0000-000000000001","legalhold_status":"disabled","created_at":"1864-05-09T18:37:38.894Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0000-0000-000000000000","created_by":null,"legalhold_status":"disabled","created_at":null,"permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0000-0000-000000000001","created_by":"00000000-0000-0000-0000-000100000001","legalhold_status":"enabled","created_at":"1864-05-09T06:25:10.534Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0001-0000-000000000001","created_by":"00000001-0000-0000-0000-000000000000","legalhold_status":"disabled","created_at":"1864-05-09T02:42:16.433Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0000-0000-000000000001","created_by":"00000001-0000-0001-0000-000000000001","legalhold_status":"enabled","created_at":"1864-05-09T07:25:18.248Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0001-0000-000000000001","created_by":null,"legalhold_status":"pending","created_at":null,"permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0000-0000-000100000001","created_by":"00000001-0000-0000-0000-000000000001","legalhold_status":"pending","created_at":"1864-05-09T15:31:36.237Z","permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0001-0000-000000000001","created_by":"00000001-0000-0001-0000-000000000001","legalhold_status":"disabled","created_at":"1864-05-09T15:23:38.616Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0001-0000-000100000001","created_by":null,"legalhold_status":"pending","created_at":null,"permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0000-0000-000100000000","created_by":null,"legalhold_status":"enabled","created_at":null,"permissions":{"copy":0,"self":0}}],"hasMore":true}
+{
+    "members": [
+        {
+            "user": "00000001-0000-0000-0000-000100000001",
+            "created_by": null,
+            "legalhold_status": "disabled",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000100000000",
+            "created_by": "00000000-0000-0000-0000-000100000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T07:01:56.077Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000000000000",
+            "created_by": "00000000-0000-0000-0000-000000000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T09:34:46.900Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000000000000",
+            "created_by": "00000001-0000-0001-0000-000000000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T10:40:24.034Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000000000001",
+            "created_by": "00000000-0000-0000-0000-000000000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T10:17:53.056Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000100000001",
+            "created_by": "00000001-0000-0001-0000-000000000001",
+            "legalhold_status": "disabled",
+            "created_at": "1864-05-09T18:37:38.894Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000000000000",
+            "created_by": null,
+            "legalhold_status": "disabled",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000000000001",
+            "created_by": "00000000-0000-0000-0000-000100000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T06:25:10.534Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000000000001",
+            "created_by": "00000001-0000-0000-0000-000000000000",
+            "legalhold_status": "disabled",
+            "created_at": "1864-05-09T02:42:16.433Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000000000001",
+            "created_by": "00000001-0000-0001-0000-000000000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T07:25:18.248Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000000000001",
+            "created_by": null,
+            "legalhold_status": "pending",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000100000001",
+            "created_by": "00000001-0000-0000-0000-000000000001",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T15:31:36.237Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000000000001",
+            "created_by": "00000001-0000-0001-0000-000000000001",
+            "legalhold_status": "disabled",
+            "created_at": "1864-05-09T15:23:38.616Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000100000001",
+            "created_by": null,
+            "legalhold_status": "pending",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000100000000",
+            "created_by": null,
+            "legalhold_status": "enabled",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        }
+    ],
+    "hasMore": true
+}

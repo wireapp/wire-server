@@ -1,1 +1,12 @@
-{"event":{"conversation":"000057d8-0000-4ce9-0000-2a9a00001ced","time":"1864-05-21T00:12:51.490Z","data":{"access":[],"access_role":"activated"},"from":"00005b30-0000-0805-0000-116700000485","type":"conversation.access-update"}}
+{
+    "event": {
+        "conversation": "000057d8-0000-4ce9-0000-2a9a00001ced",
+        "time": "1864-05-21T00:12:51.490Z",
+        "data": {
+            "access": [],
+            "access_role": "activated"
+        },
+        "from": "00005b30-0000-0805-0000-116700000485",
+        "type": "conversation.access-update"
+    }
+}

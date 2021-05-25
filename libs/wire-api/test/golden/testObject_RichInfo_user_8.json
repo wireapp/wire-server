@@ -1,1 +1,26 @@
-{"urn:wire:scim:schemas:profile:1.0":{"richInfo":{"version":0,"fields":[{"value":"Y\nz'𭟨gm𪄣ambJ󲎁\u000b\"\u0007So)oD\u000c\u0017","type":"󳖈󽻳𤀌k#3\rq\u0018"},{"value":"Hqg\u0008𗃯嶼S\u0004𪾏𥹖L􈶲","type":"yxP?wI悵OՇQO%\u0013𠋦\u0017E𒔜􄔷𥾽:󻿬󺕤\u0008\u0002󱪙\u0001⭒𖣭\"㉂"},{"value":"~\u001c\u000b4􇠋zS\u000e(2-Ud􅙓\u000b\u000cq\"z\u0002","type":"\\𓐙n"}]}},"urn:ietf:params:scim:schemas:extension:wire:1.0:User":{"yxP?wI悵OՇQO%\u0013𠋦\u0017E𒔜􄔷𥾽:󻿬󺕤\u0008\u0002󱪙\u0001⭒𖣭\"㉂":"Hqg\u0008𗃯嶼S\u0004𪾏𥹖L􈶲","\\𓐙n":"~\u001c\u000b4􇠋zS\u000e(2-Ud􅙓\u000b\u000cq\"z\u0002","󳖈󽻳𤀌k#3\rq\u0018":"Y\nz'𭟨gm𪄣ambJ󲎁\u000b\"\u0007So)oD\u000c\u0017"}}
+{
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "version": 0,
+            "fields": [
+                {
+                    "value": "Y\nz'𭟨gm𪄣ambJ󲎁\u000b\"\u0007So)oD\u000c\u0017",
+                    "type": "󳖈󽻳𤀌k#3\rq\u0018"
+                },
+                {
+                    "value": "Hqg\u0008𗃯嶼S\u0004𪾏𥹖L􈶲",
+                    "type": "yxP?wI悵OՇQO%\u0013𠋦\u0017E𒔜􄔷𥾽:󻿬󺕤\u0008\u0002󱪙\u0001⭒𖣭\"㉂"
+                },
+                {
+                    "value": "~\u001c\u000b4􇠋zS\u000e(2-Ud􅙓\u000b\u000cq\"z\u0002",
+                    "type": "\\𓐙n"
+                }
+            ]
+        }
+    },
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "yxP?wI悵OՇQO%\u0013𠋦\u0017E𒔜􄔷𥾽:󻿬󺕤\u0008\u0002󱪙\u0001⭒𖣭\"㉂": "Hqg\u0008𗃯嶼S\u0004𪾏𥹖L􈶲",
+        "\\𓐙n": "~\u001c\u000b4􇠋zS\u000e(2-Ud􅙓\u000b\u000cq\"z\u0002",
+        "󳖈󽻳𤀌k#3\rq\u0018": "Y\nz'𭟨gm𪄣ambJ󲎁\u000b\"\u0007So)oD\u000c\u0017"
+    }
+}

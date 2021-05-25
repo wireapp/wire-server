@@ -1,1 +1,19 @@
-{"took":4,"found":-7,"documents":[{"email":null,"handle":"","managed_by":"wire","role":"partner","accent_id":null,"name":"","created_at":"1864-05-09T02:22:14.746Z","team":null,"id":"00000001-0000-0000-0000-000100000000","saml_idp":""}],"returned":-5}
+{
+    "took": 4,
+    "found": -7,
+    "documents": [
+        {
+            "email": null,
+            "handle": "",
+            "managed_by": "wire",
+            "role": "partner",
+            "accent_id": null,
+            "name": "",
+            "created_at": "1864-05-09T02:22:14.746Z",
+            "team": null,
+            "id": "00000001-0000-0000-0000-000100000000",
+            "saml_idp": ""
+        }
+    ],
+    "returned": -5
+}

@@ -1,1 +1,28 @@
-{"cookie":"\u001a","lastkey":{"key":"","id":65535},"model":"m{","type":"legalhold","prekeys":[{"key":"","id":0},{"key":"","id":1},{"key":"","id":0},{"key":"","id":1}],"label":"n"}
+{
+    "cookie": "\u001a",
+    "lastkey": {
+        "key": "",
+        "id": 65535
+    },
+    "model": "m{",
+    "type": "legalhold",
+    "prekeys": [
+        {
+            "key": "",
+            "id": 0
+        },
+        {
+            "key": "",
+            "id": 1
+        },
+        {
+            "key": "",
+            "id": 0
+        },
+        {
+            "key": "",
+            "id": 1
+        }
+    ],
+    "label": "n"
+}

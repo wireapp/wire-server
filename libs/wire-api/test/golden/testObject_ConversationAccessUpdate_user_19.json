@@ -1,1 +1,7 @@
-{"access":["link","code"],"access_role":"private"}
+{
+    "access": [
+        "link",
+        "code"
+    ],
+    "access_role": "private"
+}

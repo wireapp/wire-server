@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0e8b9de8cfb3741e91fb0f8978ddf5549eee8cc098022f47e1857cb890f200c6
+-- hash: dc6409d87e4a3e84a1e7702753ee1651917f91bd33248af18c17ae1024a1ea49
 
 name:           wire-api
 version:        0.1.0
@@ -394,6 +394,7 @@ test-suite wire-api-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       aeson >=0.6
+    , aeson-pretty
     , aeson-qq
     , base
     , bytestring

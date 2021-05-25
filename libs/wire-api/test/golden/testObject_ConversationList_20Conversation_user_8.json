@@ -1,1 +1,38 @@
-{"has_more":true,"conversations":[{"access":["private"],"creator":"00000001-0000-0001-0000-000100000000","access_role":"team","members":{"self":{"hidden_ref":"","status":0,"service":null,"otr_muted_ref":"","conversation_role":"kklpzjg","status_time":"1970-01-01T00:00:00.000Z","hidden":true,"status_ref":"0.0","id":"00000000-0000-0001-0000-000100000000","otr_archived":false,"otr_muted_status":1,"otr_muted":true,"otr_archived_ref":""},"others":[]},"name":null,"team":"00000001-0000-0000-0000-000000000001","id":"00000001-0000-0001-0000-000000000001","type":3,"receipt_mode":-1,"last_event_time":"1970-01-01T00:00:00.000Z","message_timer":null,"last_event":"0.0"}]}
+{
+    "has_more": true,
+    "conversations": [
+        {
+            "access": [
+                "private"
+            ],
+            "creator": "00000001-0000-0001-0000-000100000000",
+            "access_role": "team",
+            "members": {
+                "self": {
+                    "hidden_ref": "",
+                    "status": 0,
+                    "service": null,
+                    "otr_muted_ref": "",
+                    "conversation_role": "kklpzjg",
+                    "status_time": "1970-01-01T00:00:00.000Z",
+                    "hidden": true,
+                    "status_ref": "0.0",
+                    "id": "00000000-0000-0001-0000-000100000000",
+                    "otr_archived": false,
+                    "otr_muted_status": 1,
+                    "otr_muted": true,
+                    "otr_archived_ref": ""
+                },
+                "others": []
+            },
+            "name": null,
+            "team": "00000001-0000-0000-0000-000000000001",
+            "id": "00000001-0000-0001-0000-000000000001",
+            "type": 3,
+            "receipt_mode": -1,
+            "last_event_time": "1970-01-01T00:00:00.000Z",
+            "message_timer": null,
+            "last_event": "0.0"
+        }
+    ]
+}

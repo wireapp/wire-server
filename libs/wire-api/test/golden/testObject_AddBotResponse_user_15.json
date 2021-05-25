@@ -1,1 +1,59 @@
-{"event":{"conversation":"00000002-0000-0001-0000-000100000000","time":"1864-05-11T04:21:51.377Z","data":{"users":[{"conversation_role":"uk7gwif0crc3wgiak6qae948ny57lwbwbtgbhran16vnewvp10eqialhaq9m38bqbczm_17nl46lhxs3h2cf448_7zcazh1f4ao8gnrzutbhd29j_lvsz","id":"00000002-0000-0002-0000-000200000001"},{"conversation_role":"il2dfqczvqqvs3vcob7t6t7zi61y4hxgxmmpp19ueznkasq5q1cssn72l5df92b64yuqsizc6up2p1270hu18t97oifzl","id":"00000000-0000-0000-0000-000000000001"},{"conversation_role":"jf7f75hkum6_zxqiabxu8zix2_1kutsjijedcjckapwmymcxx11","id":"00000001-0000-0000-0000-000000000002"},{"conversation_role":"i700417q9qqygs5k5a0zvvnpkvg2jimgi_stuyzfxgokyvy05n3_vgikqr0t5ldsb5fvltb8pylb","id":"00000001-0000-0001-0000-000000000002"}],"user_ids":["00000002-0000-0002-0000-000200000001","00000000-0000-0000-0000-000000000001","00000001-0000-0000-0000-000000000002","00000001-0000-0001-0000-000000000002"]},"from":"00000003-0000-0001-0000-000200000003","type":"conversation.member-join"},"accent_id":-4,"name":"Y􃋤(\u0010<|O𫬸ZM0$t~\u0014󰹨󵁑Z*A/iOYx󼼅MhVOS𮓈1>%!\u0018nE4𩧡@o/𘀧󾴺🞗a󷕣.7􉏛翤󿾢< '!􁻄Z \u0000Y\u000cUp𠐈0󴡈r𦞻󹖩<?E0@▢U-〇\u0015\u0019🌝C#-q>I􃤥","id":"00000002-0000-0004-0000-000100000003","assets":[{"key":"","type":"image"},{"size":"complete","key":"","type":"image"},{"size":"complete","key":"","type":"image"},{"size":"preview","key":"","type":"image"}],"client":"d"}
+{
+    "event": {
+        "conversation": "00000002-0000-0001-0000-000100000000",
+        "time": "1864-05-11T04:21:51.377Z",
+        "data": {
+            "users": [
+                {
+                    "conversation_role": "uk7gwif0crc3wgiak6qae948ny57lwbwbtgbhran16vnewvp10eqialhaq9m38bqbczm_17nl46lhxs3h2cf448_7zcazh1f4ao8gnrzutbhd29j_lvsz",
+                    "id": "00000002-0000-0002-0000-000200000001"
+                },
+                {
+                    "conversation_role": "il2dfqczvqqvs3vcob7t6t7zi61y4hxgxmmpp19ueznkasq5q1cssn72l5df92b64yuqsizc6up2p1270hu18t97oifzl",
+                    "id": "00000000-0000-0000-0000-000000000001"
+                },
+                {
+                    "conversation_role": "jf7f75hkum6_zxqiabxu8zix2_1kutsjijedcjckapwmymcxx11",
+                    "id": "00000001-0000-0000-0000-000000000002"
+                },
+                {
+                    "conversation_role": "i700417q9qqygs5k5a0zvvnpkvg2jimgi_stuyzfxgokyvy05n3_vgikqr0t5ldsb5fvltb8pylb",
+                    "id": "00000001-0000-0001-0000-000000000002"
+                }
+            ],
+            "user_ids": [
+                "00000002-0000-0002-0000-000200000001",
+                "00000000-0000-0000-0000-000000000001",
+                "00000001-0000-0000-0000-000000000002",
+                "00000001-0000-0001-0000-000000000002"
+            ]
+        },
+        "from": "00000003-0000-0001-0000-000200000003",
+        "type": "conversation.member-join"
+    },
+    "accent_id": -4,
+    "name": "Y􃋤(\u0010<|O𫬸ZM0$t~\u0014󰹨󵁑Z*A/iOYx󼼅MhVOS𮓈1>%!\u0018nE4𩧡@o/𘀧󾴺🞗a󷕣.7􉏛翤󿾢< '!􁻄Z \u0000Y\u000cUp𠐈0󴡈r𦞻󹖩<?E0@▢U-〇\u0015\u0019🌝C#-q>I􃤥",
+    "id": "00000002-0000-0004-0000-000100000003",
+    "assets": [
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "",
+            "type": "image"
+        }
+    ],
+    "client": "d"
+}
