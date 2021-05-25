@@ -74,6 +74,26 @@ lookupClientsFull uids = do
   clients <- error "parseResponse (Error status502 \"server-error\")" r
   return $ filterClientsFull (not . Set.null) clients
 
+lookupClientCapabilities :: UserId -> ClientId -> Galley ClientCapabilityList
+lookupClientCapabilities uid cid = do
+  (brigHost, brigPort) <- brigReq
+  r <-
+    call "brig" $
+      method GET . host brigHost . port brigPort
+        . paths ["clients", toByteString' cid, "capabilities"]
+        . zUser uid
+        . expect2xx
+  _
+  clients <- error "parseResponse (Error status502 \"server-error\")" r
+  return $ filterClientsFull (not . Set.null) clients
+
+{-
+get (continue getClientCapabilitiesH) $
+  zauthUserId
+    .&. capture "client"
+    .&. accept "application" "json"
+-}
+
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
 notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()
 notifyClientsAboutLegalHoldRequest requesterUid targetUid lastPrekey' = do

@@ -394,18 +394,7 @@ data Client = Client
     clientLabel :: Maybe Text,
     clientCookie :: Maybe CookieLabel,
     clientLocation :: Maybe Location,
-    clientModel :: Maybe Text,
-    clientCapabilities :: Maybe _
-    {-
-
-      instead of adding it here, we can also call brig when we need this info in galley:
-
-    get "/clients/:client/capabilities" (continue getClientCapabilitiesH) $
-      zauthUserId
-        .&. capture "client"
-        .&. accept "application" "json"
-
-      -}
+    clientModel :: Maybe Text
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
