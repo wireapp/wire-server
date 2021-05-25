@@ -1,1 +1,6 @@
-{"token":"Z\u0002J","app":"󳦞","transport":"GCM","client":"14"}
+{
+    "token": "Z\u0002J",
+    "app": "󳦞",
+    "transport": "GCM",
+    "client": "14"
+}

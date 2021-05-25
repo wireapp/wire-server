@@ -1,1 +1,45 @@
-{"members":[{"user":"00000000-0000-0001-0000-000000000000","created_by":"00000001-0000-0000-0000-000000000001","legalhold_status":"pending","created_at":"1864-05-09T23:10:04.963Z","permissions":{"copy":0,"self":0}},{"user":"00000000-0000-0000-0000-000100000001","created_by":"00000000-0000-0000-0000-000000000000","legalhold_status":"enabled","created_at":"1864-05-09T15:40:17.119Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0001-0000-000100000001","created_by":"00000000-0000-0001-0000-000100000000","legalhold_status":"enabled","created_at":"1864-05-09T00:40:38.004Z","permissions":{"copy":0,"self":0}},{"user":"00000001-0000-0001-0000-000000000001","created_by":"00000001-0000-0001-0000-000000000001","legalhold_status":"enabled","created_at":"1864-05-09T07:30:49.028Z","permissions":{"copy":0,"self":0}}],"hasMore":false}
+{
+    "members": [
+        {
+            "user": "00000000-0000-0001-0000-000000000000",
+            "created_by": "00000001-0000-0000-0000-000000000001",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T23:10:04.963Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000100000001",
+            "created_by": "00000000-0000-0000-0000-000000000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T15:40:17.119Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000100000001",
+            "created_by": "00000000-0000-0001-0000-000100000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T00:40:38.004Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000000000001",
+            "created_by": "00000001-0000-0001-0000-000000000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T07:30:49.028Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        }
+    ],
+    "hasMore": false
+}

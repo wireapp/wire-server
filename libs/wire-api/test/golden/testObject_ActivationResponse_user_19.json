@@ -1,1 +1,8 @@
-{"email":"R@K","first":false,"sso_id":{"subject":"","tenant":""}}
+{
+    "email": "R@K",
+    "first": false,
+    "sso_id": {
+        "subject": "",
+        "tenant": ""
+    }
+}

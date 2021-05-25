@@ -1,1 +1,9 @@
-{"conversation":"00006ac8-0000-1342-0000-76880000021d","time":"1864-04-17T07:39:54.846Z","data":{"status":"stopped"},"from":"0000145f-0000-2ce0-0000-4ca800006c72","type":"conversation.typing"}
+{
+    "conversation": "00006ac8-0000-1342-0000-76880000021d",
+    "time": "1864-04-17T07:39:54.846Z",
+    "data": {
+        "status": "stopped"
+    },
+    "from": "0000145f-0000-2ce0-0000-4ca800006c72",
+    "type": "conversation.typing"
+}

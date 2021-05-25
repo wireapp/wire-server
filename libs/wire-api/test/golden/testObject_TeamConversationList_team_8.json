@@ -1,1 +1,124 @@
-{"conversations":[{"conversation":"00000026-0000-0066-0000-00170000007b","managed":true},{"conversation":"00000064-0000-0015-0000-001f00000071","managed":true},{"conversation":"00000063-0000-0049-0000-004100000018","managed":false},{"conversation":"00000050-0000-002b-0000-000300000001","managed":true},{"conversation":"00000035-0000-006e-0000-002f00000057","managed":true},{"conversation":"0000006f-0000-0064-0000-003b0000002d","managed":true},{"conversation":"0000003e-0000-0009-0000-00630000001d","managed":true},{"conversation":"0000002a-0000-004d-0000-001b00000036","managed":false},{"conversation":"0000002d-0000-0073-0000-007d00000010","managed":false},{"conversation":"00000016-0000-0007-0000-00690000002d","managed":true},{"conversation":"00000043-0000-001f-0000-007500000002","managed":false},{"conversation":"00000002-0000-0012-0000-006200000028","managed":true},{"conversation":"00000019-0000-003a-0000-002300000023","managed":true},{"conversation":"00000050-0000-006d-0000-00610000000c","managed":true},{"conversation":"00000068-0000-0048-0000-003200000004","managed":true},{"conversation":"00000003-0000-0024-0000-002000000015","managed":false},{"conversation":"00000027-0000-0003-0000-007600000028","managed":true},{"conversation":"00000074-0000-005d-0000-00100000005d","managed":true},{"conversation":"00000071-0000-0075-0000-000a0000002c","managed":true},{"conversation":"00000012-0000-0071-0000-004d00000010","managed":false},{"conversation":"0000006f-0000-003f-0000-005a00000026","managed":false},{"conversation":"00000016-0000-0069-0000-00500000000a","managed":false},{"conversation":"00000033-0000-000b-0000-003000000046","managed":false},{"conversation":"0000002d-0000-005f-0000-007f0000001b","managed":true},{"conversation":"00000057-0000-0050-0000-002100000074","managed":true},{"conversation":"00000077-0000-0063-0000-00360000000e","managed":false},{"conversation":"00000058-0000-0011-0000-001200000005","managed":false},{"conversation":"0000004a-0000-0037-0000-003000000034","managed":false},{"conversation":"00000029-0000-0043-0000-006700000030","managed":true},{"conversation":"00000039-0000-003e-0000-008000000051","managed":true}]}
+{
+    "conversations": [
+        {
+            "conversation": "00000026-0000-0066-0000-00170000007b",
+            "managed": true
+        },
+        {
+            "conversation": "00000064-0000-0015-0000-001f00000071",
+            "managed": true
+        },
+        {
+            "conversation": "00000063-0000-0049-0000-004100000018",
+            "managed": false
+        },
+        {
+            "conversation": "00000050-0000-002b-0000-000300000001",
+            "managed": true
+        },
+        {
+            "conversation": "00000035-0000-006e-0000-002f00000057",
+            "managed": true
+        },
+        {
+            "conversation": "0000006f-0000-0064-0000-003b0000002d",
+            "managed": true
+        },
+        {
+            "conversation": "0000003e-0000-0009-0000-00630000001d",
+            "managed": true
+        },
+        {
+            "conversation": "0000002a-0000-004d-0000-001b00000036",
+            "managed": false
+        },
+        {
+            "conversation": "0000002d-0000-0073-0000-007d00000010",
+            "managed": false
+        },
+        {
+            "conversation": "00000016-0000-0007-0000-00690000002d",
+            "managed": true
+        },
+        {
+            "conversation": "00000043-0000-001f-0000-007500000002",
+            "managed": false
+        },
+        {
+            "conversation": "00000002-0000-0012-0000-006200000028",
+            "managed": true
+        },
+        {
+            "conversation": "00000019-0000-003a-0000-002300000023",
+            "managed": true
+        },
+        {
+            "conversation": "00000050-0000-006d-0000-00610000000c",
+            "managed": true
+        },
+        {
+            "conversation": "00000068-0000-0048-0000-003200000004",
+            "managed": true
+        },
+        {
+            "conversation": "00000003-0000-0024-0000-002000000015",
+            "managed": false
+        },
+        {
+            "conversation": "00000027-0000-0003-0000-007600000028",
+            "managed": true
+        },
+        {
+            "conversation": "00000074-0000-005d-0000-00100000005d",
+            "managed": true
+        },
+        {
+            "conversation": "00000071-0000-0075-0000-000a0000002c",
+            "managed": true
+        },
+        {
+            "conversation": "00000012-0000-0071-0000-004d00000010",
+            "managed": false
+        },
+        {
+            "conversation": "0000006f-0000-003f-0000-005a00000026",
+            "managed": false
+        },
+        {
+            "conversation": "00000016-0000-0069-0000-00500000000a",
+            "managed": false
+        },
+        {
+            "conversation": "00000033-0000-000b-0000-003000000046",
+            "managed": false
+        },
+        {
+            "conversation": "0000002d-0000-005f-0000-007f0000001b",
+            "managed": true
+        },
+        {
+            "conversation": "00000057-0000-0050-0000-002100000074",
+            "managed": true
+        },
+        {
+            "conversation": "00000077-0000-0063-0000-00360000000e",
+            "managed": false
+        },
+        {
+            "conversation": "00000058-0000-0011-0000-001200000005",
+            "managed": false
+        },
+        {
+            "conversation": "0000004a-0000-0037-0000-003000000034",
+            "managed": false
+        },
+        {
+            "conversation": "00000029-0000-0043-0000-006700000030",
+            "managed": true
+        },
+        {
+            "conversation": "00000039-0000-003e-0000-008000000051",
+            "managed": true
+        }
+    ]
+}

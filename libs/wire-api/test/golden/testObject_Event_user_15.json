@@ -1,1 +1,12 @@
-{"conversation":"00005e43-0000-3b56-0000-7c270000538c","time":"1864-05-25T01:31:49.802Z","data":{"email":"󲛚","name":"fq","message":"L","recipient":"00000008-0000-0000-0000-000600000001"},"from":"00007f28-0000-40b1-0000-56ab0000748d","type":"conversation.connect-request"}
+{
+    "conversation": "00005e43-0000-3b56-0000-7c270000538c",
+    "time": "1864-05-25T01:31:49.802Z",
+    "data": {
+        "email": "󲛚",
+        "name": "fq",
+        "message": "L",
+        "recipient": "00000008-0000-0000-0000-000600000001"
+    },
+    "from": "00007f28-0000-40b1-0000-56ab0000748d",
+    "type": "conversation.connect-request"
+}

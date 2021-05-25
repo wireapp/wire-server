@@ -1,1 +1,12 @@
-{"email":"X󵿆@D(0","handle":null,"managed_by":"wire","role":"owner","accent_id":-3,"name":"/MB","created_at":"1864-05-10T20:50:28.410Z","team":"00000002-0000-0000-0000-000200000001","id":"00000000-0000-0001-0000-000200000001","saml_idp":"𡭄"}
+{
+    "email": "X󵿆@D(0",
+    "handle": null,
+    "managed_by": "wire",
+    "role": "owner",
+    "accent_id": -3,
+    "name": "/MB",
+    "created_at": "1864-05-10T20:50:28.410Z",
+    "team": "00000002-0000-0000-0000-000200000001",
+    "id": "00000000-0000-0001-0000-000200000001",
+    "saml_idp": "𡭄"
+}

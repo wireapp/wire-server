@@ -1,1 +1,94 @@
-{"urn:wire:scim:schemas:profile:1.0":{"richInfo":{"version":0,"fields":[{"value":"(7D􁉴􂥇\u0010FP%Y𪾔,}\u0015\u0015","type":"􊖉D鼗j\u0005HMgz󺺶(r"},{"value":"|\u000e\u0008&\"륧󰼨j𤰇`l􆟪~\u0002%zl\u001ep􃗩ⰸ4󽒾\n鯈y-","type":"ybx\u00016\u0015+o\\d%\u0014@@"},{"value":"<N\u0006f\u0011>\u0003\u0002a","type":"0\u0014s󶝆􇑦ﲡT\r\u0000Sຈ𮎏󻶷S,"},{"value":"􅆳\u0006[S\u0002󵖏fIBz􄱻\u0010[d-","type":"6\u000b\u0011.@p\u0016⽽7 m2nm􋂴1󾈳󳓋𛅾\u0017-􌠊E􂈃/"},{"value":")R󳡢.","type":"YbO\t\u0017𑱸dYꬔ\u000b\r􏈊󸬏\u000c(𔓪q𗔏𪩐\u0005𣹃󹑊p"},{"value":"󻏱>G{9","type":"𒍷t#T"},{"value":"\u0008!󱮶竞󸜍Mi*'M᳙]낄䛚\u0016%𘞏\u001f:\u001eg(]6,1挒𗓫hX","type":"q 匿󼂕\"􎪑c\u0004>􋍴'B󱇝𗬙𗏪􆈣\u00044\u001c\u0012:ew"},{"value":"&l􂛼0","type":"𩐝lB~53k綮𨒤"},{"value":"U􈰶X\u001ciÕ\u000cU|7K5\u001bm  󺈎?􂗎Z􋩢𦖽D!,\n","type":"p`묓𖠷O7^\t{D\u0006A"},{"value":"\u0014N𒅐`Pp\u000c𢚏|9K\n`Io󴠬瞒\\j,󳕒B4:).uY>\u000b","type":"\\𩽺\u0005\u0013􋴅l\u00192\u000fj􆽍\\󽩒v3v*\u001f~-dM󽸲e\u0010\u001d􊊋"},{"value":"\u0013V}\u001e𬖿%􏩫Y\u001bH.eJZ;sZ?c𭯷\u0001\u001d\u0002=V","type":"z𪯬􊂤Y󵥴Y9qM$ b"},{"value":"􏞇𥈩/lb𬻏(]󵯁𒉿G)9𝃚`A󵧠s\u0011O􅗐[Z","type":"22𥥽!<$R􉯝\u000bE𩡵􌇓 _c􁀃"},{"value":"Cs𨽾􋣄\u000e􇄻\u0011dA𨎳\tt⧄iSU=\r􆒓\u000e𠲘󸎁Z􎫟@𝠌231","type":"󵪻v\u001a􀺡"},{"value":"􌵗F󺣦<\u0010\u00155/\u0016IlgX𩉮KE.","type":"bu􂌜\u001f󺭑E􋣘硫x\u0000\u000erRw\u0007"},{"value":";yG<.D芆k0X^󿿊\u0005!􄁣z\u0010\u0019>I$W$","type":"𠌸@oؚ^M􂖳!\u000c],\u0006\"4"},{"value":"P|M6t0 \u0017\u0004벷p-N\u001eEd\u0019n\"{􃁑/鈸*u1","type":"#K􋧎\u0012e\u0000t(u\u0006}q􈣔c(i󵋆J⎢a$Z<"},{"value":")0\u0016\u001dCG\u0012􂨻j邥%\u0017􂳢","type":",\u00115󱽋𬟅\u001ek*𑩃S􄜑\ro$,2𫲵*S]󶑁^"},{"value":"쿘@\u0000o0󶿬󹰞󷍧}󵓽􂻏㣢\u001dw\u001b,唸%/\u0006\u0001","type":"#􁘺\u0003g\u0001\u000c\u0005>􌵠,&􌄊𩅏\u0019h\u000b.\u001d󻍌"},{"value":"y󸿮󶌚i􈫹𛲠]ZkG𪩚o\u0008󲞳󰼽\u0008o\u000e:s","type":"\u0005u\u001c<RZ^N𠩴󰑨7:h𥽫\u0015s𩓺\u001d1,A\u001eSv\u001fgY0"},{"value":"𦓏q𠼩􁃾#軛\u0001􏕙j\u0000𧐯󹯨Ks𨳵D𠡵","type":"\u0003y𡲀-X(􃣧\u000eYea6􆫟"},{"value":"፼0r\u001e\u000e􊕢ᙬ󷶿0","type":"H"}]}},"urn:ietf:params:scim:schemas:extension:wire:1.0:User":{}}
+{
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "version": 0,
+            "fields": [
+                {
+                    "value": "(7D􁉴􂥇\u0010FP%Y𪾔,}\u0015\u0015",
+                    "type": "􊖉D鼗j\u0005HMgz󺺶(r"
+                },
+                {
+                    "value": "|\u000e\u0008&\"륧󰼨j𤰇`l􆟪~\u0002%zl\u001ep􃗩ⰸ4󽒾\n鯈y-",
+                    "type": "ybx\u00016\u0015+o\\d%\u0014@@"
+                },
+                {
+                    "value": "<N\u0006f\u0011>\u0003\u0002a",
+                    "type": "0\u0014s󶝆􇑦ﲡT\r\u0000Sຈ𮎏󻶷S,"
+                },
+                {
+                    "value": "􅆳\u0006[S\u0002󵖏fIBz􄱻\u0010[d-",
+                    "type": "6\u000b\u0011.@p\u0016⽽7 m2nm􋂴1󾈳󳓋𛅾\u0017-􌠊E􂈃/"
+                },
+                {
+                    "value": ")R󳡢.",
+                    "type": "YbO\t\u0017𑱸dYꬔ\u000b\r􏈊󸬏\u000c(𔓪q𗔏𪩐\u0005𣹃󹑊p"
+                },
+                {
+                    "value": "󻏱>G{9",
+                    "type": "𒍷t#T"
+                },
+                {
+                    "value": "\u0008!󱮶竞󸜍Mi*'M᳙]낄䛚\u0016%𘞏\u001f:\u001eg(]6,1挒𗓫hX",
+                    "type": "q 匿󼂕\"􎪑c\u0004>􋍴'B󱇝𗬙𗏪􆈣\u00044\u001c\u0012:ew"
+                },
+                {
+                    "value": "&l􂛼0",
+                    "type": "𩐝lB~53k綮𨒤"
+                },
+                {
+                    "value": "U􈰶X\u001ciÕ\u000cU|7K5\u001bm  󺈎?􂗎Z􋩢𦖽D!,\n",
+                    "type": "p`묓𖠷O7^\t{D\u0006A"
+                },
+                {
+                    "value": "\u0014N𒅐`Pp\u000c𢚏|9K\n`Io󴠬瞒\\j,󳕒B4:).uY>\u000b",
+                    "type": "\\𩽺\u0005\u0013􋴅l\u00192\u000fj􆽍\\󽩒v3v*\u001f~-dM󽸲e\u0010\u001d􊊋"
+                },
+                {
+                    "value": "\u0013V}\u001e𬖿%􏩫Y\u001bH.eJZ;sZ?c𭯷\u0001\u001d\u0002=V",
+                    "type": "z𪯬􊂤Y󵥴Y9qM$ b"
+                },
+                {
+                    "value": "􏞇𥈩/lb𬻏(]󵯁𒉿G)9𝃚`A󵧠s\u0011O􅗐[Z",
+                    "type": "22𥥽!<$R􉯝\u000bE𩡵􌇓 _c􁀃"
+                },
+                {
+                    "value": "Cs𨽾􋣄\u000e􇄻\u0011dA𨎳\tt⧄iSU=\r􆒓\u000e𠲘󸎁Z􎫟@𝠌231",
+                    "type": "󵪻v\u001a􀺡"
+                },
+                {
+                    "value": "􌵗F󺣦<\u0010\u00155/\u0016IlgX𩉮KE.",
+                    "type": "bu􂌜\u001f󺭑E􋣘硫x\u0000\u000erRw\u0007"
+                },
+                {
+                    "value": ";yG<.D芆k0X^󿿊\u0005!􄁣z\u0010\u0019>I$W$",
+                    "type": "𠌸@oؚ^M􂖳!\u000c],\u0006\"4"
+                },
+                {
+                    "value": "P|M6t0 \u0017\u0004벷p-N\u001eEd\u0019n\"{􃁑/鈸*u1",
+                    "type": "#K􋧎\u0012e\u0000t(u\u0006}q􈣔c(i󵋆J⎢a$Z<"
+                },
+                {
+                    "value": ")0\u0016\u001dCG\u0012􂨻j邥%\u0017􂳢",
+                    "type": ",\u00115󱽋𬟅\u001ek*𑩃S􄜑\ro$,2𫲵*S]󶑁^"
+                },
+                {
+                    "value": "쿘@\u0000o0󶿬󹰞󷍧}󵓽􂻏㣢\u001dw\u001b,唸%/\u0006\u0001",
+                    "type": "#􁘺\u0003g\u0001\u000c\u0005>􌵠,&􌄊𩅏\u0019h\u000b.\u001d󻍌"
+                },
+                {
+                    "value": "y󸿮󶌚i􈫹𛲠]ZkG𪩚o\u0008󲞳󰼽\u0008o\u000e:s",
+                    "type": "\u0005u\u001c<RZ^N𠩴󰑨7:h𥽫\u0015s𩓺\u001d1,A\u001eSv\u001fgY0"
+                },
+                {
+                    "value": "𦓏q𠼩􁃾#軛\u0001􏕙j\u0000𧐯󹯨Ks𨳵D𠡵",
+                    "type": "\u0003y𡲀-X(􃣧\u000eYea6􆫟"
+                },
+                {
+                    "value": "፼0r\u001e\u000e􊕢ᙬ󷶿0",
+                    "type": "H"
+                }
+            ]
+        }
+    },
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {}
+}

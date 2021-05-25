@@ -1,1 +1,18 @@
-{"access":["code","link","invite","private","link","code","private","invite","code","invite","private","code","link"],"access_role":"activated"}
+{
+    "access": [
+        "code",
+        "link",
+        "invite",
+        "private",
+        "link",
+        "code",
+        "private",
+        "invite",
+        "code",
+        "invite",
+        "private",
+        "code",
+        "link"
+    ],
+    "access_role": "activated"
+}

@@ -1,1 +1,25 @@
-{"last_prekey":{"key":"剡N|.\u001d","id":65535},"accent_id":8,"prekeys":[],"assets":[{"size":"complete","key":"\u001c","type":"image"},{"size":"preview","key":"𖫳󰑑","type":"image"},{"size":"preview","key":"","type":"image"}]}
+{
+    "last_prekey": {
+        "key": "剡N|.\u001d",
+        "id": 65535
+    },
+    "accent_id": 8,
+    "prekeys": [],
+    "assets": [
+        {
+            "size": "complete",
+            "key": "\u001c",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "𖫳󰑑",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "",
+            "type": "image"
+        }
+    ]
+}

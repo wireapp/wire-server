@@ -1,1 +1,47 @@
-{"ttl":12,"ice_servers":[{"urls":["turns:host.name:1","turns:host.name:0","turns:80.25.165.101:1?transport=tcp","turns:a-c:0?transport=udp"],"credential":"dvI=","username":"d=2.v=2.k=0.t={.r=5m7"},{"urls":["turn:123:0?transport=tcp"],"credential":"cCU=","username":"d=1.v=0.k=2.t=󴱴.r=x"},{"urls":["turn:007.com:1?transport=udp","turns:007.com:1?transport=udp","turn:007.com:1?transport=tcp","turn:123:1?transport=tcp"],"credential":"","username":"d=0.v=0.k=1.t=\u0012.r=r5n"},{"urls":["turns:73.195.120.125:1?transport=udp","turn:a-c:0"],"credential":"Mw==","username":"d=2.v=1.k=1.t=.r=8f"},{"urls":["turn:134.245.76.176:0"],"credential":"W/E=","username":"d=1.v=1.k=2.t=m.r=e1"}]}
+{
+    "ttl": 12,
+    "ice_servers": [
+        {
+            "urls": [
+                "turns:host.name:1",
+                "turns:host.name:0",
+                "turns:80.25.165.101:1?transport=tcp",
+                "turns:a-c:0?transport=udp"
+            ],
+            "credential": "dvI=",
+            "username": "d=2.v=2.k=0.t={.r=5m7"
+        },
+        {
+            "urls": [
+                "turn:123:0?transport=tcp"
+            ],
+            "credential": "cCU=",
+            "username": "d=1.v=0.k=2.t=󴱴.r=x"
+        },
+        {
+            "urls": [
+                "turn:007.com:1?transport=udp",
+                "turns:007.com:1?transport=udp",
+                "turn:007.com:1?transport=tcp",
+                "turn:123:1?transport=tcp"
+            ],
+            "credential": "",
+            "username": "d=0.v=0.k=1.t=\u0012.r=r5n"
+        },
+        {
+            "urls": [
+                "turns:73.195.120.125:1?transport=udp",
+                "turn:a-c:0"
+            ],
+            "credential": "Mw==",
+            "username": "d=2.v=1.k=1.t=.r=8f"
+        },
+        {
+            "urls": [
+                "turn:134.245.76.176:0"
+            ],
+            "credential": "W/E=",
+            "username": "d=1.v=1.k=2.t=m.r=e1"
+        }
+    ]
+}

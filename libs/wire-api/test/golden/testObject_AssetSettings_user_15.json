@@ -1,1 +1,4 @@
-{"retention":"volatile","public":false}
+{
+    "retention": "volatile",
+    "public": false
+}

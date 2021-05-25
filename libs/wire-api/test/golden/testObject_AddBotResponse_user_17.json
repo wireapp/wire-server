@@ -1,1 +1,22 @@
-{"event":{"conversation":"00000003-0000-0002-0000-000100000002","time":"1864-05-09T16:18:32.395Z","data":{"access":["private","link","code","link"],"access_role":"non_activated"},"from":"00000003-0000-0000-0000-000400000001","type":"conversation.access-update"},"accent_id":-2,"name":"5􉩞􈐄\u000b\u0006h숮TMp𢤃Q\u0010\r7\u0016\u001c􆀢󶷽.","id":"00000002-0000-0002-0000-000200000000","assets":[],"client":"5"}
+{
+    "event": {
+        "conversation": "00000003-0000-0002-0000-000100000002",
+        "time": "1864-05-09T16:18:32.395Z",
+        "data": {
+            "access": [
+                "private",
+                "link",
+                "code",
+                "link"
+            ],
+            "access_role": "non_activated"
+        },
+        "from": "00000003-0000-0000-0000-000400000001",
+        "type": "conversation.access-update"
+    },
+    "accent_id": -2,
+    "name": "5􉩞􈐄\u000b\u0006h숮TMp𢤃Q\u0010\r7\u0016\u001c􆀢󶷽.",
+    "id": "00000002-0000-0002-0000-000200000000",
+    "assets": [],
+    "client": "5"
+}

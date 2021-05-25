@@ -1,1 +1,88 @@
-{"conversations":[{"conversation":"0000006a-0000-0043-0000-007f00000048","managed":true},{"conversation":"0000007d-0000-005f-0000-000a00000024","managed":true},{"conversation":"0000007a-0000-0046-0000-003800000023","managed":false},{"conversation":"00000023-0000-006b-0000-002000000068","managed":false},{"conversation":"00000041-0000-0000-0000-007000000005","managed":false},{"conversation":"0000007a-0000-0075-0000-00200000007a","managed":false},{"conversation":"00000038-0000-0023-0000-001a00000022","managed":false},{"conversation":"00000035-0000-004f-0000-000400000072","managed":false},{"conversation":"00000065-0000-001a-0000-00680000004d","managed":true},{"conversation":"0000002f-0000-0037-0000-00020000000f","managed":true},{"conversation":"00000023-0000-0040-0000-005b0000001c","managed":true},{"conversation":"00000000-0000-0074-0000-007b00000019","managed":false},{"conversation":"0000004e-0000-0025-0000-006900000014","managed":true},{"conversation":"00000063-0000-0000-0000-002100000043","managed":false},{"conversation":"0000004e-0000-0018-0000-004d0000003a","managed":false},{"conversation":"00000052-0000-004e-0000-002700000075","managed":true},{"conversation":"00000046-0000-0014-0000-000100000040","managed":true},{"conversation":"00000049-0000-0004-0000-00280000000a","managed":true},{"conversation":"00000004-0000-0012-0000-00150000006e","managed":false},{"conversation":"00000009-0000-003c-0000-006400000055","managed":false},{"conversation":"00000008-0000-003d-0000-003c00000003","managed":false}]}
+{
+    "conversations": [
+        {
+            "conversation": "0000006a-0000-0043-0000-007f00000048",
+            "managed": true
+        },
+        {
+            "conversation": "0000007d-0000-005f-0000-000a00000024",
+            "managed": true
+        },
+        {
+            "conversation": "0000007a-0000-0046-0000-003800000023",
+            "managed": false
+        },
+        {
+            "conversation": "00000023-0000-006b-0000-002000000068",
+            "managed": false
+        },
+        {
+            "conversation": "00000041-0000-0000-0000-007000000005",
+            "managed": false
+        },
+        {
+            "conversation": "0000007a-0000-0075-0000-00200000007a",
+            "managed": false
+        },
+        {
+            "conversation": "00000038-0000-0023-0000-001a00000022",
+            "managed": false
+        },
+        {
+            "conversation": "00000035-0000-004f-0000-000400000072",
+            "managed": false
+        },
+        {
+            "conversation": "00000065-0000-001a-0000-00680000004d",
+            "managed": true
+        },
+        {
+            "conversation": "0000002f-0000-0037-0000-00020000000f",
+            "managed": true
+        },
+        {
+            "conversation": "00000023-0000-0040-0000-005b0000001c",
+            "managed": true
+        },
+        {
+            "conversation": "00000000-0000-0074-0000-007b00000019",
+            "managed": false
+        },
+        {
+            "conversation": "0000004e-0000-0025-0000-006900000014",
+            "managed": true
+        },
+        {
+            "conversation": "00000063-0000-0000-0000-002100000043",
+            "managed": false
+        },
+        {
+            "conversation": "0000004e-0000-0018-0000-004d0000003a",
+            "managed": false
+        },
+        {
+            "conversation": "00000052-0000-004e-0000-002700000075",
+            "managed": true
+        },
+        {
+            "conversation": "00000046-0000-0014-0000-000100000040",
+            "managed": true
+        },
+        {
+            "conversation": "00000049-0000-0004-0000-00280000000a",
+            "managed": true
+        },
+        {
+            "conversation": "00000004-0000-0012-0000-00150000006e",
+            "managed": false
+        },
+        {
+            "conversation": "00000009-0000-003c-0000-006400000055",
+            "managed": false
+        },
+        {
+            "conversation": "00000008-0000-003d-0000-003c00000003",
+            "managed": false
+        }
+    ]
+}

@@ -1,1 +1,16 @@
-{"access":["private","invite","link"],"access_role":"non_activated","users":[],"conversation_role":"yd","team":{"managed":true,"teamid":"00000001-0000-0000-0000-000000000000"},"receipt_mode":1,"message_timer":2550845209410146}
+{
+    "access": [
+        "private",
+        "invite",
+        "link"
+    ],
+    "access_role": "non_activated",
+    "users": [],
+    "conversation_role": "yd",
+    "team": {
+        "managed": true,
+        "teamid": "00000001-0000-0000-0000-000000000000"
+    },
+    "receipt_mode": 1,
+    "message_timer": 2550845209410146
+}

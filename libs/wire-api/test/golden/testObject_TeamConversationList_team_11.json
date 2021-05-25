@@ -1,1 +1,20 @@
-{"conversations":[{"conversation":"00000038-0000-0030-0000-006700000067","managed":true},{"conversation":"00000000-0000-006a-0000-00220000007c","managed":true},{"conversation":"00000055-0000-004f-0000-005500000047","managed":true},{"conversation":"00000064-0000-003d-0000-006500000060","managed":false}]}
+{
+    "conversations": [
+        {
+            "conversation": "00000038-0000-0030-0000-006700000067",
+            "managed": true
+        },
+        {
+            "conversation": "00000000-0000-006a-0000-00220000007c",
+            "managed": true
+        },
+        {
+            "conversation": "00000055-0000-004f-0000-005500000047",
+            "managed": true
+        },
+        {
+            "conversation": "00000064-0000-003d-0000-006500000060",
+            "managed": false
+        }
+    ]
+}
