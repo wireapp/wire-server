@@ -1,1 +1,10 @@
-{"user":"00000002-0000-0000-0000-000100000006","created_by":"00000008-0000-0005-0000-000000000002","legalhold_status":"disabled","created_at":"1864-05-03T19:02:13.669Z","permissions":{"copy":0,"self":6}}
+{
+    "user": "00000002-0000-0000-0000-000100000006",
+    "created_by": "00000008-0000-0005-0000-000000000002",
+    "legalhold_status": "disabled",
+    "created_at": "1864-05-03T19:02:13.669Z",
+    "permissions": {
+        "copy": 0,
+        "self": 6
+    }
+}

@@ -1,1 +1,10 @@
-{"status":"enabled","last_prekey":{"key":"W󾧥zރ\u001d","id":65535},"client":{"id":"6d"}}
+{
+    "status": "enabled",
+    "last_prekey": {
+        "key": "W󾧥zރ\u001d",
+        "id": 65535
+    },
+    "client": {
+        "id": "6d"
+    }
+}

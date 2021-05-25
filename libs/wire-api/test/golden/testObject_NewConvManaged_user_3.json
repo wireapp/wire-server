@@ -1,1 +1,18 @@
-{"access":["code"],"access_role":"team","users":["00000001-0000-0001-0000-000100000000","00000001-0000-0000-0000-000100000001"],"conversation_role":"kbqqptmp0tna583vobrgtadyismkkpnjdwsef9jlgvezy00yu5u2rds0ng11vppapcn9n7enwrg7tkwxvg1mz_rh7pcoi_btpcyg5akueydofop60j","name":"NwK","team":{"managed":true,"teamid":"00000001-0000-0001-0000-000000000000"},"receipt_mode":2,"message_timer":582808797322573}
+{
+    "access": [
+        "code"
+    ],
+    "access_role": "team",
+    "users": [
+        "00000001-0000-0001-0000-000100000000",
+        "00000001-0000-0000-0000-000100000001"
+    ],
+    "conversation_role": "kbqqptmp0tna583vobrgtadyismkkpnjdwsef9jlgvezy00yu5u2rds0ng11vppapcn9n7enwrg7tkwxvg1mz_rh7pcoi_btpcyg5akueydofop60j",
+    "name": "NwK",
+    "team": {
+        "managed": true,
+        "teamid": "00000001-0000-0001-0000-000000000000"
+    },
+    "receipt_mode": 2,
+    "message_timer": 582808797322573
+}

@@ -1,1 +1,6 @@
-{"access":["private"],"access_role":"private"}
+{
+    "access": [
+        "private"
+    ],
+    "access_role": "private"
+}

@@ -1,1 +1,17 @@
-{"summary":"","enabled":false,"name":":[\".𥌂\u001fvU􁲅","id":"00000001-0000-0001-0000-000200000001","assets":[{"key":"B","type":"image"}],"description":"A","provider":"00000000-0000-0002-0000-000000000002","tags":["productivity"]}
+{
+    "summary": "",
+    "enabled": false,
+    "name": ":[\".𥌂\u001fvU􁲅",
+    "id": "00000001-0000-0001-0000-000200000001",
+    "assets": [
+        {
+            "key": "B",
+            "type": "image"
+        }
+    ],
+    "description": "A",
+    "provider": "00000000-0000-0002-0000-000000000002",
+    "tags": [
+        "productivity"
+    ]
+}

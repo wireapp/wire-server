@@ -1,1 +1,11 @@
-{"event":{"conversation":"00005994-0000-5c94-0000-519300002727","time":"1864-04-24T18:38:55.053Z","data":{"message_timer":3685837512701220},"from":"00003ddd-0000-21a2-0000-6a54000023c3","type":"conversation.message-timer-update"}}
+{
+    "event": {
+        "conversation": "00005994-0000-5c94-0000-519300002727",
+        "time": "1864-04-24T18:38:55.053Z",
+        "data": {
+            "message_timer": 3685837512701220
+        },
+        "from": "00003ddd-0000-21a2-0000-6a54000023c3",
+        "type": "conversation.message-timer-update"
+    }
+}

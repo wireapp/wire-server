@@ -1,1 +1,13 @@
-{"urls":["turn:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp","turn:a-c:1?transport=tcp","turn:xn--mgbh0fb.xn--kgbechtv:0?transport=udp","turns:host.name:2?transport=udp","turn:103.196.217.16:2?transport=udp","turn:xn--mgbh0fb.xn--kgbechtv:1?transport=udp","turn:host.name:1?transport=udp"],"credential":"9+ems/6Fv0M=","username":"d=178.v=0.k=30.t=r.r=gwihax"}
+{
+    "urls": [
+        "turn:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp",
+        "turn:a-c:1?transport=tcp",
+        "turn:xn--mgbh0fb.xn--kgbechtv:0?transport=udp",
+        "turns:host.name:2?transport=udp",
+        "turn:103.196.217.16:2?transport=udp",
+        "turn:xn--mgbh0fb.xn--kgbechtv:1?transport=udp",
+        "turn:host.name:1?transport=udp"
+    ],
+    "credential": "9+ems/6Fv0M=",
+    "username": "d=178.v=0.k=30.t=r.r=gwihax"
+}

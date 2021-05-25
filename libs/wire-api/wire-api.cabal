@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c990bca1c0951c9ee339bd7db566df5ca3e30e53a8333169a3f0596536cd811e
+-- hash: dc6409d87e4a3e84a1e7702753ee1651917f91bd33248af18c17ae1024a1ea49
 
 name:           wire-api
 version:        0.1.0
@@ -145,7 +145,6 @@ library
     , uuid >=1.3
     , vector >=0.12
     , x509
-    , zauth
   default-language: Haskell2010
 
 test-suite wire-api-tests
@@ -395,6 +394,7 @@ test-suite wire-api-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       aeson >=0.6
+    , aeson-pretty
     , aeson-qq
     , base
     , bytestring

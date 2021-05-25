@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.ListType_team where
 
 import Wire.API.Team.Member (ListType (..))

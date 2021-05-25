@@ -1,1 +1,6 @@
-{"access":["invite"],"access_role":"activated"}
+{
+    "access": [
+        "invite"
+    ],
+    "access_role": "activated"
+}

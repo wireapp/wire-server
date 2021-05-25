@@ -42,8 +42,7 @@ import qualified Brig.IO.Intra as Intra
 import Brig.Options (setUserMaxConnections)
 import Brig.Types
 import Brig.Types.Intra
-import Brig.User.Event
-import qualified Brig.User.Event.Log as Log
+import Brig.Types.User.Event
 import Control.Error
 import Control.Lens (view)
 import Data.Id as Id
@@ -95,7 +94,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
   where
     insert s2o o2s = lift $ do
       Log.info $
-        Log.connection self crUser
+        logConnection self crUser
           . msg (val "Creating connection")
       cnv <- Intra.createConnectConv self crUser (Just crName) (Just crMessage) (Just conn)
       s2o' <- Data.insertConnection self crUser Sent (Just crMessage) cnv
@@ -119,7 +118,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
       Log.info $
-        Log.connection self (ucTo s2o)
+        logConnection self (ucTo s2o)
           . msg (val "Accepting connection")
       cnv <- lift $ for (ucConvId s2o) $ Intra.acceptConnectConv self (Just conn)
       s2o' <- lift $ Data.updateConnection s2o Accepted
@@ -136,7 +135,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
       Log.info $
-        Log.connection self (ucTo s2o)
+        logConnection self (ucTo s2o)
           . msg (val "Resending connection request")
       s2o' <- insert (Just s2o) (Just o2s)
       return $ ConnectionExists s2o'
@@ -210,7 +209,7 @@ updateConnection self other newStatus conn = do
     accept s2o o2s = do
       checkLimit self
       Log.info $
-        Log.connection self (ucTo s2o)
+        logConnection self (ucTo s2o)
           . msg (val "Accepting connection")
       cnv <- lift . for (ucConvId s2o) $ Intra.acceptConnectConv self conn
       -- Note: The check for @Pending@ accounts for situations in which both
@@ -227,7 +226,7 @@ updateConnection self other newStatus conn = do
       lift $ Just <$> Data.updateConnection s2o Accepted
     block s2o = lift $ do
       Log.info $
-        Log.connection self (ucTo s2o)
+        logConnection self (ucTo s2o)
           . msg (val "Blocking connection")
       for_ (ucConvId s2o) $ Intra.blockConv (ucFrom s2o) conn
       Just <$> Data.updateConnection s2o Blocked
@@ -235,7 +234,7 @@ updateConnection self other newStatus conn = do
       when (new `elem` [Sent, Accepted]) $
         checkLimit self
       Log.info $
-        Log.connection self (ucTo s2o)
+        logConnection self (ucTo s2o)
           . msg (val "Unblocking connection")
       cnv <- lift . for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
@@ -248,7 +247,7 @@ updateConnection self other newStatus conn = do
       lift $ Just <$> Data.updateConnection s2o new
     cancel s2o o2s = do
       Log.info $
-        Log.connection self (ucTo s2o)
+        logConnection self (ucTo s2o)
           . msg (val "Cancelling connection")
       lift . for_ (ucConvId s2o) $ Intra.blockConv (ucFrom s2o) conn
       o2s' <- lift $ Data.updateConnection o2s Cancelled

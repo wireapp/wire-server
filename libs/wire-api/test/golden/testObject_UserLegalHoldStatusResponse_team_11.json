@@ -1,1 +1,7 @@
-{"status":"disabled","last_prekey":{"key":"","id":65535}}
+{
+    "status": "disabled",
+    "last_prekey": {
+        "key": "",
+        "id": 65535
+    }
+}

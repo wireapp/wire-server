@@ -20,9 +20,9 @@ module Data.LegalHold where
 import Cassandra.CQL
 import Control.Lens ((?~))
 import Data.Aeson hiding (constructorTagModifier)
-import Data.Swagger
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Data.Text as T
 import Imports
 import Test.QuickCheck
 
@@ -32,24 +32,20 @@ data UserLegalHoldStatus
   | UserLegalHoldEnabled
   | UserLegalHoldNoConsent
   deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserLegalHoldStatus
 
 instance ToSchema UserLegalHoldStatus where
-  declareNamedSchema = tweak . genericDeclareNamedSchema opts
+  schema =
+    (S.schema . description ?~ desc) $
+      enum @Text "UserLegalHoldStatus" $
+        element "enabled" UserLegalHoldEnabled
+          <|> element "pending" UserLegalHoldPending
+          <|> element "disabled" UserLegalHoldDisabled
+          <|> element "no_consent" UserLegalHoldNoConsent
     where
-      opts =
-        defaultSchemaOptions
-          { constructorTagModifier = \case
-              "UserLegalHoldEnabled" -> "enabled"
-              "UserLegalHoldPending" -> "pending"
-              "UserLegalHoldDisabled" -> "disabled"
-              "UserLegalHoldNoConsent" -> "no_consent"
-              _ -> ""
-          }
-      tweak = fmap $ schema . description ?~ descr
-        where
-          descr =
-            "states whether a user is under legal hold, "
-              <> "or whether legal hold is pending approval."
+      desc =
+        "states whether a user is under legal hold, "
+          <> "or whether legal hold is pending approval."
 
 defUserLegalHoldStatus :: UserLegalHoldStatus
 defUserLegalHoldStatus = UserLegalHoldNoConsent
@@ -64,28 +60,14 @@ typeUserLegalHoldStatus =
         "no_consent"
       ]
 
-instance ToJSON UserLegalHoldStatus where
-  toJSON UserLegalHoldDisabled = "disabled"
-  toJSON UserLegalHoldPending = "pending"
-  toJSON UserLegalHoldEnabled = "enabled"
-  toJSON UserLegalHoldNoConsent = "no_consent"
-
-instance FromJSON UserLegalHoldStatus where
-  parseJSON = withText "UserLegalHoldStatus" $ \case
-    "disabled" -> pure UserLegalHoldDisabled
-    "pending" -> pure UserLegalHoldPending
-    "enabled" -> pure UserLegalHoldEnabled
-    "no_consent" -> pure UserLegalHoldNoConsent
-    x -> fail $ "unexpected status type: " <> T.unpack x
-
 instance Cql UserLegalHoldStatus where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
-    0 -> pure $ UserLegalHoldDisabled
-    1 -> pure $ UserLegalHoldPending
-    2 -> pure $ UserLegalHoldEnabled
-    3 -> pure $ UserLegalHoldNoConsent
+    0 -> pure UserLegalHoldDisabled
+    1 -> pure UserLegalHoldPending
+    2 -> pure UserLegalHoldEnabled
+    3 -> pure UserLegalHoldNoConsent
     _ -> Left "fromCql: Invalid UserLegalHoldStatus"
   fromCql _ = Left "fromCql: UserLegalHoldStatus: CqlInt expected"
 

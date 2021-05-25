@@ -28,6 +28,7 @@ import qualified V10
 import qualified V11
 import qualified V12
 import qualified V13
+import qualified V14
 import qualified V2
 import qualified V3
 import qualified V4
@@ -59,7 +60,8 @@ main = do
       V10.migration,
       V11.migration,
       V12.migration,
-      V13.migration
+      V13.migration,
+      V14.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Spar.Data
 

@@ -107,6 +107,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
+import Data.LegalHold (UserLegalHoldStatus)
 import qualified Data.List as List
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
@@ -197,7 +198,8 @@ data UserProfile = UserProfile
     profileLocale :: Maybe Locale,
     profileExpire :: Maybe UTCTimeMillis,
     profileTeam :: Maybe TeamId,
-    profileEmail :: Maybe Email
+    profileEmail :: Maybe Email,
+    profileLegalholdStatus :: UserLegalHoldStatus
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
@@ -222,6 +224,7 @@ instance ToSchema UserProfile where
         <*> profileExpire .= opt (field "expires_at" schema)
         <*> profileTeam .= opt (field "team" schema)
         <*> profileEmail .= opt (field "email" schema)
+        <*> profileLegalholdStatus .= field "legalhold_status" schema
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
@@ -386,8 +389,8 @@ userPhone = phoneIdentity <=< userIdentity
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
-connectedProfile :: User -> UserProfile
-connectedProfile u =
+connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
+connectedProfile u legalHoldStatus =
   UserProfile
     { profileQualifiedId = userQualifiedId u,
       profileHandle = userHandle u,
@@ -402,12 +405,13 @@ connectedProfile u =
       profileTeam = userTeam u,
       -- We don't want to show the email by default;
       -- However we do allow adding it back in intentionally later.
-      profileEmail = Nothing
+      profileEmail = Nothing,
+      profileLegalholdStatus = legalHoldStatus
     }
 
 -- FUTUREWORK: should public and conect profile be separate types?
-publicProfile :: User -> UserProfile
-publicProfile u =
+publicProfile :: User -> UserLegalHoldStatus -> UserProfile
+publicProfile u legalHoldStatus =
   -- Note that we explicitly unpack and repack the types here rather than using
   -- RecordWildCards or something similar because we want changes to the public profile
   -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
@@ -421,8 +425,9 @@ publicProfile u =
           profileService,
           profileDeleted,
           profileExpire,
-          profileTeam
-        } = connectedProfile u
+          profileTeam,
+          profileLegalholdStatus
+        } = connectedProfile u legalHoldStatus
    in UserProfile
         { profileLocale = Nothing,
           profileEmail = Nothing,
@@ -435,7 +440,8 @@ publicProfile u =
           profileService,
           profileDeleted,
           profileExpire,
-          profileTeam
+          profileTeam,
+          profileLegalholdStatus
         }
 
 --------------------------------------------------------------------------------

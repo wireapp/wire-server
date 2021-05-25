@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 34235c4ff601a26386a48b310d251ed69bd5ef7e6fa59da512fe9acca083ef96
+-- hash: b653eba4d855ab6675efd3519d4259c9bb49379e92b15fb7f4f9080eac634bb1
 
 name:           brig-types
 version:        1.35.0
@@ -41,6 +41,7 @@ library
       Brig.Types.User
       Brig.Types.User.Auth
       Brig.Types.User.EJPD
+      Brig.Types.User.Event
   other-modules:
       Paths_brig_types
   hs-source-dirs:
@@ -63,6 +64,7 @@ library
     , swagger2 >=2.5
     , text >=0.11
     , time >=1.1
+    , tinylog
     , types-common >=0.16
     , unordered-containers >=0.2
     , wire-api
@@ -94,6 +96,7 @@ test-suite brig-types-tests
     , tasty-quickcheck
     , text >=0.11
     , time >=1.1
+    , tinylog
     , types-common >=0.16
     , unordered-containers >=0.2
     , wire-api

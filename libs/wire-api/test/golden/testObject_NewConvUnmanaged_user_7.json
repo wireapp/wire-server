@@ -1,1 +1,15 @@
-{"access":[],"access_role":"activated","users":["00000001-0000-0000-0000-000400000004"],"conversation_role":"hdvd1wsqebgfamlgxdaoq7or2__7_dg5xg53v3ur9en91guk","name":"󽦧\u0008􂓅'","team":{"managed":false,"teamid":"00000001-0000-0002-0000-000200000000"},"receipt_mode":-3,"message_timer":5300164242243961}
+{
+    "access": [],
+    "access_role": "activated",
+    "users": [
+        "00000001-0000-0000-0000-000400000004"
+    ],
+    "conversation_role": "hdvd1wsqebgfamlgxdaoq7or2__7_dg5xg53v3ur9en91guk",
+    "name": "󽦧\u0008􂓅'",
+    "team": {
+        "managed": false,
+        "teamid": "00000001-0000-0002-0000-000200000000"
+    },
+    "receipt_mode": -3,
+    "message_timer": 5300164242243961
+}

@@ -1,1 +1,5 @@
-{"urls":["https://example.com"]}
+{
+    "urls": [
+        "https://example.com"
+    ]
+}

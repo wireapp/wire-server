@@ -1,1 +1,16 @@
-{"event":{"conversation":"00000000-0000-0004-0000-000300000004","time":"1864-05-07T22:30:05.775Z","data":{"receipt_mode":-4},"from":"00000003-0000-0001-0000-000400000001","type":"conversation.receipt-mode-update"},"accent_id":-4,"name":"q\u0000+󹱪{-􀡧h󲹍3􊓶𥂘&@jZqjW每\u0010\u000f󳠕鞖\rZ􉾼\n\u0018􍣟\u0011l󻫟𥢎􃠿<`N nX?󱂧+h.\u0001󻡤OhO9qy􍸆@𪧳㥮􍂜\u000ctrG􆙶?]􃹚\u001e\u0000u.AA =9H5H2YJ𡐍a","id":"00000000-0000-0003-0000-000300000000","assets":[],"client":"c"}
+{
+    "event": {
+        "conversation": "00000000-0000-0004-0000-000300000004",
+        "time": "1864-05-07T22:30:05.775Z",
+        "data": {
+            "receipt_mode": -4
+        },
+        "from": "00000003-0000-0001-0000-000400000001",
+        "type": "conversation.receipt-mode-update"
+    },
+    "accent_id": -4,
+    "name": "q\u0000+󹱪{-􀡧h󲹍3􊓶𥂘&@jZqjW每\u0010\u000f󳠕鞖\rZ􉾼\n\u0018􍣟\u0011l󻫟𥢎􃠿<`N nX?󱂧+h.\u0001󻡤OhO9qy􍸆@𪧳㥮􍂜\u000ctrG􆙶?]􃹚\u001e\u0000u.AA =9H5H2YJ𡐍a",
+    "id": "00000000-0000-0003-0000-000300000000",
+    "assets": [],
+    "client": "c"
+}

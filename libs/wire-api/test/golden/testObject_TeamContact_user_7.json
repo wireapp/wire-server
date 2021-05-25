@@ -1,1 +1,12 @@
-{"email":"\u0003𮋵@","handle":null,"managed_by":"wire","role":"admin","accent_id":null,"name":"7","created_at":"1864-05-06T11:54:20.119Z","team":null,"id":"00000002-0000-0002-0000-000000000000","saml_idp":null}
+{
+    "email": "\u0003𮋵@",
+    "handle": null,
+    "managed_by": "wire",
+    "role": "admin",
+    "accent_id": null,
+    "name": "7",
+    "created_at": "1864-05-06T11:54:20.119Z",
+    "team": null,
+    "id": "00000002-0000-0002-0000-000000000000",
+    "saml_idp": null
+}

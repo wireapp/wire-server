@@ -61,6 +61,7 @@ import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Hashable (hash)
 import Data.Id
+import Data.LegalHold
 import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
@@ -900,7 +901,7 @@ botGetSelfH bot = json <$> botGetSelf bot
 botGetSelf :: BotId -> Handler Public.UserProfile
 botGetSelf bot = do
   p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwStd userNotFound) (return . Public.publicProfile) p
+  maybe (throwStd userNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> Handler Response
 botGetClientH bot = do

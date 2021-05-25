@@ -1,1 +1,12 @@
-{"cookies":[{"created":"1864-05-09T12:01:58.187598453223Z","expires":"1864-05-06T13:12:12.711748693487Z","successor":3,"id":2,"type":"session","label":""}]}
+{
+    "cookies": [
+        {
+            "created": "1864-05-09T12:01:58.187598453223Z",
+            "expires": "1864-05-06T13:12:12.711748693487Z",
+            "successor": 3,
+            "id": 2,
+            "type": "session",
+            "label": ""
+        }
+    ]
+}
