@@ -38,6 +38,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.Proxy
@@ -348,14 +349,6 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
     then pure DisableLegalHoldWasNotEnabled
     else disableLH userLHStatus $> DisableLegalHoldSuccess
   where
-    -- If not enabled nor pending, then it's disabled
-    userLHEnabled :: UserLegalHoldStatus -> Bool
-    userLHEnabled = \case
-      UserLegalHoldEnabled -> True
-      UserLegalHoldPending -> True
-      UserLegalHoldDisabled -> False
-      UserLegalHoldNoConsent -> False
-
     disableLH :: UserLegalHoldStatus -> Galley ()
     disableLH userLHStatus = do
       ensureReAuthorised zusr mPassword
@@ -366,9 +359,17 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
       changeLegalholdStatus tid uid userLHStatus UserLegalHoldDisabled
 
+-- | If not enabled nor pending, then it's disabled
+userLHEnabled :: UserLegalHoldStatus -> Bool
+userLHEnabled = \case
+  UserLegalHoldEnabled -> True
+  UserLegalHoldPending -> True
+  UserLegalHoldDisabled -> False
+  UserLegalHoldNoConsent -> False
+
 changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
 changeLegalholdStatus tid uid oldLhStatus lhStatus = do
-  case (hasLH oldLhStatus, hasLH lhStatus) of
+  case (userLHEnabled oldLhStatus, userLHEnabled lhStatus) of
     (False, False) -> pure ()
     (True, True) -> pure ()
     (False, True) -> do
@@ -378,13 +379,6 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
       LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
       void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
   where
-    hasLH :: UserLegalHoldStatus -> Bool
-    hasLH = \case
-      UserLegalHoldDisabled -> False
-      UserLegalHoldPending -> True
-      UserLegalHoldEnabled -> True
-      UserLegalHoldNoConsent -> False
-
     -- FUTUREWORK: make this async
     blockConnectionsFrom1on1s :: Galley ()
     blockConnectionsFrom1on1s = do
@@ -414,10 +408,6 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
         blockConflicts userLegalhold othersToBlock@(_ : _) = do
           status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
           pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
-
-        chunksOf :: Int -> [any] -> [[any]]
-        chunksOf _maxSize [] = []
-        chunksOf maxSize uids = case splitAt maxSize uids of (h, t) -> h : chunksOf maxSize t
 
         shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
         shouldBlock teamsOfUsers other =

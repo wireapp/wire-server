@@ -832,7 +832,7 @@ testNoConsentBlockDeviceHandshake = do
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
 testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
-  -- TODO: maybe regular user for legalholder?
+  -- FUTUREWORK: maybe regular user for legalholder?
   (legalholder :: UserId, tid) <- createBindingTeam
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
@@ -893,7 +893,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
-        -- TODO: test if message sending is blocked
+        -- FUTUREWORK: test if message sending is blocked
         -- for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
         -- (again, other label / 4xx status code would also be fine.)
         -- postOtrMessageJson peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
@@ -912,7 +912,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
                 if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
 
-        -- TODO: test if message sending works again
+        -- FUTUREWORK: test if message sending works again
         -- postOtrMessageJson undefined undefined !!! const 201 === statusCode
         pure ()
       else do
@@ -958,6 +958,8 @@ testBenchHack = do
        +  maxConvSize: 999
      ```
 
+     (you can probably get away with changing fewer values here, but this patch has been
+     tested and works.)
   -}
 
   when False $ do
