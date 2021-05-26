@@ -56,7 +56,6 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Control.Error
 import Control.Lens (view)
-import Data.Bifunctor (second)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.IP (IP)
@@ -193,11 +192,8 @@ claimPrekeyBundle protectee domain uid = do
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> Data.lookupClients u
-  guardLegalhold protectee (mkUserClients [(u, clients)])
+  guardLegalhold protectee (Client.mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey protectee u) clients)
-
-mkUserClients :: [(UserId, [ClientId])] -> UserClients
-mkUserClients xs = UserClients $ Map.fromList (xs <&> second Set.fromList)
 
 claimRemotePrekeyBundle :: LegalholdProtectee -> Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimRemotePrekeyBundle protectee quser = do

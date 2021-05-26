@@ -33,6 +33,7 @@ module Wire.API.User.Client
     UserClientsFull (..),
     userClientsFullToUserClients,
     UserClients (..),
+    mkUserClients,
     QualifiedUserClients (..),
     filterClients,
     filterClientsFull,
@@ -75,6 +76,7 @@ import qualified Cassandra as Cql
 import Control.Lens ((?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import Data.Bifunctor (second)
 import Data.Coerce
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
@@ -332,6 +334,9 @@ newtype UserClients = UserClients
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
+
+mkUserClients :: [(UserId, [ClientId])] -> UserClients
+mkUserClients xs = UserClients $ Map.fromList (xs <&> second Set.fromList)
 
 instance Swagger.ToSchema UserClients where
   declareNamedSchema _ = do
