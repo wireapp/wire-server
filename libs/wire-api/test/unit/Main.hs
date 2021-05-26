@@ -24,6 +24,7 @@ import Imports
 import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Golden.Generated as Golden.Generated
+import qualified Test.Wire.API.Golden.Manual as Golden.Manual
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
@@ -47,5 +48,6 @@ main =
         Roundtrip.ByteString.tests,
         Swagger.tests,
         Roundtrip.CSV.tests,
-        Golden.Generated.tests
+        Golden.Generated.tests,
+        Golden.Manual.tests
       ]
