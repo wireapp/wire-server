@@ -92,6 +92,7 @@ tests s =
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
+          test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
           test s "create self conversation" postSelfConvOk,
@@ -630,6 +631,15 @@ postConvFailNotConnected = do
   bob <- randomUser
   jane <- randomUser
   postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
+    const 403 === statusCode
+    const (Just "not-connected") === fmap label . responseJsonUnsafe
+
+postConvQualifiedFailNotConnected :: TestM ()
+postConvQualifiedFailNotConnected = do
+  alice <- randomUser
+  bob <- randomQualifiedUser
+  jane <- randomQualifiedUser
+  postConvQualified alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
 

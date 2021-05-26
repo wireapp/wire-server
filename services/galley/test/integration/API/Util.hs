@@ -510,6 +510,13 @@ createOne2OneTeamConv u1 u2 n tid = do
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
+postConvQualified :: UserId -> [Qualified UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
+postConvQualified u us name a r mtimer = do
+  g <- view tsGalley
+  let conv = NewConvUnmanaged $ NewConv [] us name (Set.fromList a) r Nothing mtimer Nothing roleNameWireAdmin
+  post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
+
+
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
 postConvWithRole u us name a r mtimer role = do
   g <- view tsGalley

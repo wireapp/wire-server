@@ -100,12 +100,13 @@ createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley Convers
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
   localDomain <- viewFederationDomain
-  let localUserIds = newConvUsers body
+  let unqualifiedUserIds = newConvUsers body
       qualifiedUserIds = newConvQualifiedUsers body
-  ensureConnected zusr localUserIds
-  let allUsers = map (`Qualified` localDomain) localUserIds <> qualifiedUserIds
+  let allUsers = map (`Qualified` localDomain) unqualifiedUserIds <> qualifiedUserIds
   checkedUsers <- checkedConvSize allUsers
   let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
+  let (_remotes, locals) = fromConvSize checkedPartitionedUsers
+  ensureConnected zusr locals
   -- FUTUREWORK: Add checks per comments for Update.addMembers.
   c <-
     Data.createConversation
