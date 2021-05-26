@@ -182,10 +182,7 @@ tests s =
                 s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
-              test s "bench hack" testBenchHack,
-              test s "XXXXXX handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
-              test s "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked" testNoConsentBlockOne2OneConv,
-              test s "If LH is activated for other user in group conv, this user gets removed with helpful message" testNoConsentBlockGroupConv
+              test s "bench hack" testBenchHack
             ]
         ]
     ]
