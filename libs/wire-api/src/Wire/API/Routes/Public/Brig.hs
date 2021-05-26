@@ -251,7 +251,7 @@ data Api routes = Api
         :> "users"
         :> "prekeys"
         :> ReqBody '[JSON] UserClients
-        :> Post '[JSON] (UserClientMap (Maybe Prekey)),
+        :> Post '[JSON] UserClientPrekeyMap,
     getMultiUserPrekeyBundleQualified ::
       routes
         :- Summary
@@ -261,7 +261,7 @@ data Api routes = Api
         :> "users"
         :> "list-prekeys"
         :> ReqBody '[JSON] QualifiedUserClients
-        :> Post '[JSON] (QualifiedUserClientMap (Maybe Prekey)),
+        :> Post '[JSON] QualifiedUserClientPrekeyMap,
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser

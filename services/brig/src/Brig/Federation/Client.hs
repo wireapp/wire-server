@@ -21,7 +21,7 @@
 module Brig.Federation.Client where
 
 import Brig.App (AppIO)
-import Brig.Types (Prekey, PrekeyBundle)
+import Brig.Types (PrekeyBundle)
 import qualified Brig.Types.Search as Public
 import Brig.Types.User
 import Control.Monad.Trans.Except (ExceptT (..))
@@ -34,7 +34,8 @@ import Imports
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client (FederationError (..), executeFederated)
-import Wire.API.Message (UserClientMap, UserClients)
+import Wire.API.Message (UserClients)
+import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 
 type FederationAppIO = ExceptT FederationError AppIO
@@ -66,7 +67,7 @@ claimPrekeyBundle (Qualified user domain) = do
 claimMultiPrekeyBundle ::
   Domain ->
   UserClients ->
-  FederationAppIO (UserClientMap (Maybe Prekey))
+  FederationAppIO UserClientPrekeyMap
 claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc

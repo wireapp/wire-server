@@ -38,7 +38,8 @@ import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
-import Wire.API.Message (UserClientMap (..), UserClients (..))
+import Wire.API.Message (UserClients (..))
+import Wire.API.User.Client (mkUserClientPrekeyMap)
 
 tests :: Manager -> Brig -> FedBrigClient -> IO TestTree
 tests m brig fedBrigClient =
@@ -175,7 +176,7 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
   c1 <- first qUnqualified <$> generateClientPrekeys brig prekeys1
   c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
-      ucm = UserClientMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
+      ucm = mkUserClientPrekeyMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
   ucmResponse <- FedBrig.claimMultiPrekeyBundle fedBrigClient uc
   liftIO $
     assertEqual

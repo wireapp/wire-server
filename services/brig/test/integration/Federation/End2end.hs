@@ -28,6 +28,7 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
+import Data.Id (ClientId)
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
@@ -39,7 +40,7 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.Message (UserClients (UserClients))
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (UserClientMap))
+import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -177,7 +178,8 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
       (prekeys1, prekeys') = splitAt 5 prekeys
       prekeys2 = take 4 prekeys'
       mkClients = Set.fromList . map prekeyClient
-      mkClientMap = Map.fromList . map (prekeyClient &&& prekeyData)
+      mkClientMap :: [ClientPrekey] -> Map ClientId (Maybe Prekey)
+      mkClientMap = Map.fromList . map (prekeyClient &&& Just . prekeyData)
       qmap :: Ord a => [(Qualified a, b)] -> Map Domain (Map a b)
       qmap = fmap Map.fromList . partitionQualified . map (sequenceAOf _1)
   c1 <- generateClientPrekeys brig1 prekeys1
@@ -186,7 +188,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
         QualifiedUserClients . fmap UserClients . qmap $
           [mkClients <$> c1, mkClients <$> c2]
       ucm =
-        QualifiedUserClientMap . fmap UserClientMap . qmap $
+        mkQualifiedUserClientPrekeyMap . fmap mkUserClientPrekeyMap . qmap $
           [mkClientMap <$> c1, mkClientMap <$> c2]
   post
     ( brig1
