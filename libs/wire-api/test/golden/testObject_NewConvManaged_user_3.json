@@ -14,5 +14,11 @@
         "teamid": "00000001-0000-0001-0000-000000000000"
     },
     "receipt_mode": 2,
-    "message_timer": 582808797322573
+    "message_timer": 582808797322573,
+    "qualified_users": [
+        {
+            "domain": "test.example.com",
+            "id": "00000000-0000-0000-0000-000100000001"
+        }
+    ]
 }

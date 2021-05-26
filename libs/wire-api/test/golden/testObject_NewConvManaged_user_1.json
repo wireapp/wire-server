@@ -8,5 +8,6 @@
         "teamid": "00000001-0000-0001-0000-000200000000"
     },
     "receipt_mode": 4,
-    "message_timer": 193643728192048
+    "message_timer": 193643728192048,
+    "qualified_users": []
 }

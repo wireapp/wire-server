@@ -427,7 +427,6 @@ createTeamConvLegacy u tid us name = do
   let convPayload =
         object
           [ "users" .= us,
-            "qualified_users" .= ([] :: [Qualified UserId]),
             "name" .= name,
             "team" .= Just tinfo
           ]

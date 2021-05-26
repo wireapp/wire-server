@@ -443,10 +443,12 @@ newConvSchema =
           (description ?~ usersDesc)
           (array schema)
       <*> newConvQualifiedUsers
-        .= fieldWithDocModifier
-          "qualified_users"
-          (description ?~ qualifiedUsersDesc)
-          (array schema)
+        .= ( fieldWithDocModifier
+                 "qualified_users"
+                 (description ?~ qualifiedUsersDesc)
+                 (array schema)
+               <|> pure []
+           )
       <*> newConvName .= opt (field "name" schema)
       <*> (Set.toList . newConvAccess)
         .= ( field "access" (Set.fromList <$> array schema)
