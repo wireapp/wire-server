@@ -112,6 +112,11 @@ addClient u con ip new = do
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
+  when (newClientType new == LegalHoldClientType) $ do
+    -- TODO: this only works if there aren't any capabilities set yet.  we should really add
+    -- capabilities to `NewClient` instead of this extra call to cassandra.
+    let caps = ClientCapabilityList (Set.singleton ClientSupportsLegalholdImplicitConsent)
+    Data.updateClientCapabilities u clientId' (Just caps)
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
