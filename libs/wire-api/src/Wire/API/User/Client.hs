@@ -227,7 +227,6 @@ newtype UserClientPrekeyMap = UserClientPrekeyMap
 mkUserClientPrekeyMap :: Map UserId (Map ClientId (Maybe Prekey)) -> UserClientPrekeyMap
 mkUserClientPrekeyMap = coerce
 
--- FUTUREWORK: wrap around another JSON object layer
 instance ToSchema UserClientPrekeyMap where
   schema = UserClientPrekeyMap <$> getUserClientPrekeyMap .= addDoc sch
     where
@@ -284,7 +283,6 @@ newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
   deriving newtype (Arbitrary, Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap
 
--- FUTUREWORK: wrap around another JSON object layer
 instance ToSchema QualifiedUserClientPrekeyMap where
   schema =
     named "QualifiedUserClientPrekeyMap" $
