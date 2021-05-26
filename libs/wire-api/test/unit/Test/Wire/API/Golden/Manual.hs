@@ -37,19 +37,7 @@ tests =
             (testObject_UserClientPrekeyMap_5, "testObject_UserClientPrekeyMap_5.json"),
             (testObject_UserClientPrekeyMap_6, "testObject_UserClientPrekeyMap_6.json"),
             (testObject_UserClientPrekeyMap_7, "testObject_UserClientPrekeyMap_7.json"),
-            (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_8.json"),
-            (testObject_UserClientPrekeyMap_9, "testObject_UserClientPrekeyMap_9.json"),
-            (testObject_UserClientPrekeyMap_10, "testObject_UserClientPrekeyMap_10.json"),
-            (testObject_UserClientPrekeyMap_11, "testObject_UserClientPrekeyMap_11.json"),
-            (testObject_UserClientPrekeyMap_12, "testObject_UserClientPrekeyMap_12.json"),
-            (testObject_UserClientPrekeyMap_13, "testObject_UserClientPrekeyMap_13.json"),
-            (testObject_UserClientPrekeyMap_14, "testObject_UserClientPrekeyMap_14.json"),
-            (testObject_UserClientPrekeyMap_15, "testObject_UserClientPrekeyMap_15.json"),
-            (testObject_UserClientPrekeyMap_16, "testObject_UserClientPrekeyMap_16.json"),
-            (testObject_UserClientPrekeyMap_17, "testObject_UserClientPrekeyMap_17.json"),
-            (testObject_UserClientPrekeyMap_18, "testObject_UserClientPrekeyMap_18.json"),
-            (testObject_UserClientPrekeyMap_19, "testObject_UserClientPrekeyMap_19.json"),
-            (testObject_UserClientPrekeyMap_20, "testObject_UserClientPrekeyMap_20.json")
+            (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_8.json")
           ],
       testCase ("QualifiedUserClientPrekeyMap") $
         testObjects
