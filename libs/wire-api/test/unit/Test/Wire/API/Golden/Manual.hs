@@ -21,6 +21,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Runner
 
 tests :: TestTree
@@ -49,5 +50,9 @@ tests =
             (testObject_UserClientPrekeyMap_18, "testObject_UserClientPrekeyMap_18.json"),
             (testObject_UserClientPrekeyMap_19, "testObject_UserClientPrekeyMap_19.json"),
             (testObject_UserClientPrekeyMap_20, "testObject_UserClientPrekeyMap_20.json")
-          ]
+          ],
+      testCase ("QualifiedUserClientPrekeyMap") $
+        testObjects
+          [ (testObject_QualifiedUserClientPrekeyMap_1, "testObject_QualifiedUserClientPrekeyMap_1.json"),
+            (testObject_QualifiedUserClientPrekeyMap_2, "testObject_QualifiedUserClientPrekeyMap_2.json")]
     ]
