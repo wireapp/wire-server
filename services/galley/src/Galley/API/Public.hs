@@ -680,6 +680,7 @@ sitemap = do
     returns (ref Public.modelEvent)
     response 200 "Members added" end
     response 204 "No change" end
+    response 412 "The user(s) cannot be added to the conversation (eg., due to legalhold policy conflict)." end
     errorResponse Error.convNotFound
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse Error.notConnected

@@ -17,6 +17,7 @@
 
 module Galley.Intra.User
   ( getConnections,
+    putConnectionInternal,
     deleteBot,
     reAuthUser,
     lookupActivatedUsers,
@@ -31,7 +32,7 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
+import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UpdateConnectionsInternal (..), UserIds (..))
 import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
@@ -68,6 +69,16 @@ getConnections uFrom uTo rlt = do
   parseResponse (Error status502 "server-error") r
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
+
+putConnectionInternal :: UpdateConnectionsInternal -> Galley Status
+putConnectionInternal updateConn = do
+  (h, p) <- brigReq
+  response <-
+    call "brig" $
+      method PUT . host h . port p
+        . paths ["/i/connections/connection-update"]
+        . json updateConn
+  pure $ responseStatus response
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
 deleteBot :: ConvId -> BotId -> Galley ()

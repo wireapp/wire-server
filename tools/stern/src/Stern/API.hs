@@ -724,6 +724,7 @@ groupByStatus conns =
       "pending" .= byStatus Pending conns,
       "blocked" .= byStatus Blocked conns,
       "ignored" .= byStatus Ignored conns,
+      "missing-legalhold-consent" .= byStatus MissingLegalholdConsent conns,
       "total" .= length conns
     ]
   where

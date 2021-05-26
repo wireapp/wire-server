@@ -166,6 +166,10 @@ sitemap = do
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
 
+  put "/i/connections/connection-update" (continue updateConnectionInternalH) $
+    accept "application" "json"
+      .&. jsonRequest @UpdateConnectionsInternal
+
   -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
   -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
   -- different.
@@ -491,6 +495,12 @@ getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = do
 revokeIdentityH :: Either Email Phone -> Handler Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
+  return $ setStatus status200 empty
+
+updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> Handler Response
+updateConnectionInternalH (_ ::: req) = do
+  updateConn <- parseJsonBody req
+  API.updateConnectionInternal updateConn !>> connError
   return $ setStatus status200 empty
 
 checkBlacklistH :: Either Email Phone -> Handler Response

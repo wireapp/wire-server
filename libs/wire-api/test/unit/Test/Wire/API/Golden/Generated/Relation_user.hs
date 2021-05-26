@@ -78,4 +78,4 @@ testObject_Relation_user_19 :: Relation
 testObject_Relation_user_19 = Cancelled
 
 testObject_Relation_user_20 :: Relation
-testObject_Relation_user_20 = Ignored
+testObject_Relation_user_20 = MissingLegalholdConsent

@@ -134,6 +134,8 @@ data ConnectionError
     ConnectInvalidPhone Phone
   | -- | An attempt at creating a connection with another user from the same binding team.
     ConnectSameBindingTeamUsers
+  | -- | Something doesn't work because somebody has a LH device and somebody else has not granted consent.
+    ConnectMissingLegalholdConsent
 
 data PasswordResetError
   = PasswordResetInProgress (Maybe Timeout)

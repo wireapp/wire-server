@@ -415,6 +415,7 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "The connection exists." Doc.end
     Doc.response 201 "The connection was created." Doc.end
+    Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
     Doc.errorResponse connectionLimitReached
     Doc.errorResponse invalidUser
     Doc.errorResponse (noIdentity 5)

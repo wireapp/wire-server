@@ -12,6 +12,7 @@ dependencies:
 - aeson >=0.11
 - attoparsec >=0.10
 - base ==4.*
+- bytestring-conversion >=0.3.1
 - containers >=0.5
 - imports
 - QuickCheck >=2.9

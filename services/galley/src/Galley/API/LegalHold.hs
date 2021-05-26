@@ -30,15 +30,22 @@ module Galley.API.LegalHold
 where
 
 import Brig.Types.Client.Prekey
+import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
-import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.List.Split (chunksOf)
+import qualified Data.Map.Strict as Map
 import Data.Misc
+import Data.Proxy
+import Data.Qualified (Qualified, partitionRemoteOrLocalIds)
+import Data.Range (toRange)
 import Galley.API.Error
+import Galley.API.Query (iterateConversations)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -46,15 +53,18 @@ import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
+import Galley.Intra.User (putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
+import Network.HTTP.Types (status200)
 import Network.HTTP.Types.Status (status201, status204)
 import Network.Wai
-import Network.Wai.Predicate hiding (or, result, setStatus)
+import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..), cnvType)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 
@@ -75,7 +85,7 @@ isLegalHoldEnabledForTeam tid = do
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
       view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
         <&> maybe
-          (False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -})
+          False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
           (tid `elem`)
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
@@ -156,7 +166,7 @@ removeSettings' tid = do
       let uid = member ^. Team.userId
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
+      changeLegalholdStatus tid uid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -209,8 +219,8 @@ grantConsent zusr tid = do
   case userLHStatus of
     Nothing ->
       throwM teamMemberNotFound
-    Just UserLegalHoldNoConsent ->
-      LegalHoldData.setUserLegalHoldStatus tid zusr UserLegalHoldDisabled $> GrantConsentSuccess
+    Just lhs@UserLegalHoldNoConsent ->
+      changeLegalholdStatus tid zusr lhs UserLegalHoldDisabled $> GrantConsentSuccess
     Just UserLegalHoldEnabled -> pure GrantConsentAlreadyGranted
     Just UserLegalHoldPending -> pure GrantConsentAlreadyGranted
     Just UserLegalHoldDisabled -> pure GrantConsentAlreadyGranted
@@ -234,13 +244,12 @@ requestDevice zusr tid uid = do
       . Log.field "action" (Log.val "LegalHold.requestDevice")
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
-  userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
-  case userLHStatus of
-    Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-    Just UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice
-    Just UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice
-    Just UserLegalHoldNoConsent -> throwM userLegalHoldNoConsent
-    Nothing -> throwM teamMemberNotFound
+  member <- maybe (throwM teamMemberNotFound) pure =<< Data.teamMember tid uid
+  case member ^. legalHoldStatus of
+    UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+    lhs@UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice lhs
+    lhs@UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice lhs
+    UserLegalHoldNoConsent -> throwM userLegalHoldNoConsent
   where
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,
     -- ie. it returns the existing device on multiple calls to `/init`, like here:
@@ -249,12 +258,12 @@ requestDevice zusr tid uid = do
     -- This will still work if the LH service creates two new device on two consecutive calls
     -- to `/init`, but there may be race conditions, eg. when updating and enabling a pending
     -- device at (almost) the same time.
-    provisionLHDevice :: Galley ()
-    provisionLHDevice = do
+    provisionLHDevice :: UserLegalHoldStatus -> Galley ()
+    provisionLHDevice userLHStatus = do
       (lastPrekey', prekeys) <- requestDeviceFromService
       -- We don't distinguish the last key here; brig will do so when the device is added
       LegalHoldData.insertPendingPrekeys uid (unpackLastPrekey lastPrekey' : prekeys)
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldPending
+      changeLegalholdStatus tid uid userLHStatus UserLegalHoldPending
       Client.notifyClientsAboutLegalHoldRequest zusr uid lastPrekey'
 
     requestDeviceFromService :: Galley (LastPrekey, [Prekey])
@@ -286,7 +295,8 @@ approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPasswo
   unless (zusr == uid) (throwM accessDenied)
   assertOnTeam uid tid
   ensureReAuthorised zusr mPassword
-  assertUserLHPending
+  userLHStatus <- maybe defUserLegalHoldStatus (view legalHoldStatus) <$> Data.teamMember tid uid
+  assertUserLHPending userLHStatus
   mPreKeys <- LegalHoldData.selectPendingPrekeys uid
   (prekeys, lastPrekey') <- case mPreKeys of
     Nothing -> do
@@ -303,15 +313,15 @@ approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPasswo
   LHService.confirmLegalHold clientId tid uid legalHoldAuthToken
   -- TODO: send event at this point (see also:
   -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-  LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldEnabled
+  changeLegalholdStatus tid uid userLHStatus UserLegalHoldEnabled
   where
-    assertUserLHPending :: Galley ()
-    assertUserLHPending = do
-      userLHStatus <- fmap (view legalHoldStatus) <$> Data.teamMember tid uid
+    assertUserLHPending :: UserLegalHoldStatus -> Galley ()
+    assertUserLHPending userLHStatus = do
       case userLHStatus of
-        Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
-        Just UserLegalHoldPending -> pure ()
-        _ -> throwM userLegalHoldNotPending
+        UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
+        UserLegalHoldPending -> pure ()
+        UserLegalHoldDisabled -> throwM userLegalHoldNotPending
+        UserLegalHoldNoConsent -> throwM userLegalHoldNotPending
 
 disableForUserH ::
   UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
@@ -333,27 +343,101 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
-  uidMembership <- Data.teamMember tid uid
-  if not $ userLHEnabled uidMembership
-    then pure DisableLegalHoldWasNotEnabled
-    else disableLH $> DisableLegalHoldSuccess
-  where
-    -- If not enabled nor pending, then it's disabled
-    userLHEnabled :: Maybe TeamMember -> Bool
-    userLHEnabled target = do
-      case fmap (view legalHoldStatus) target of
-        Just UserLegalHoldEnabled -> True
-        Just UserLegalHoldPending -> True
-        Just UserLegalHoldDisabled -> False
-        Just UserLegalHoldNoConsent -> False
-        Nothing -> {- user not found -} False
 
-    disableLH :: Galley ()
-    disableLH = do
+  userLHStatus <- maybe defUserLegalHoldStatus (view legalHoldStatus) <$> Data.teamMember tid uid
+  if not $ userLHEnabled userLHStatus
+    then pure DisableLegalHoldWasNotEnabled
+    else disableLH userLHStatus $> DisableLegalHoldSuccess
+  where
+    disableLH :: UserLegalHoldStatus -> Galley ()
+    disableLH userLHStatus = do
       ensureReAuthorised zusr mPassword
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+      changeLegalholdStatus tid uid userLHStatus UserLegalHoldDisabled
+
+-- | If not enabled nor pending, then it's disabled
+userLHEnabled :: UserLegalHoldStatus -> Bool
+userLHEnabled = \case
+  UserLegalHoldEnabled -> True
+  UserLegalHoldPending -> True
+  UserLegalHoldDisabled -> False
+  UserLegalHoldNoConsent -> False
+
+-- | Allow no-consent => consent without further changes.  If LH device is requested, enabled,
+-- or disabled, make sure the affected connections are screened for policy conflict (anybody
+-- with no-consent), and put those connections in the appropriate blocked state.
+changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
+changeLegalholdStatus tid uid old new = do
+  case old of
+    UserLegalHoldEnabled -> case new of
+      UserLegalHoldEnabled -> noop
+      UserLegalHoldPending -> illegal
+      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldNoConsent -> illegal
+    --
+    UserLegalHoldPending -> case new of
+      UserLegalHoldEnabled -> update
+      UserLegalHoldPending -> noop
+      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldNoConsent -> illegal
+    --
+    UserLegalHoldDisabled -> case new of
+      UserLegalHoldEnabled -> illegal
+      UserLegalHoldPending -> addblocks >> update
+      UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeblocks
+      UserLegalHoldNoConsent -> {- withdrawing consent is not (yet?) implemented -} illegal
+    --
+    UserLegalHoldNoConsent -> case new of
+      UserLegalHoldEnabled -> illegal
+      UserLegalHoldPending -> illegal
+      UserLegalHoldDisabled -> update
+      UserLegalHoldNoConsent -> noop
+  where
+    update = LegalHoldData.setUserLegalHoldStatus tid uid new
+    removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
+    addblocks = blockConnectionsFrom1on1s uid
+    noop = pure ()
+    illegal = throwM userLegalHoldIllegalOperation
+
+-- FUTUREWORK: make this async?
+blockConnectionsFrom1on1s :: UserId -> Galley ()
+blockConnectionsFrom1on1s uid = do
+  errmsgs <-
+    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+      conflicts <- mconcat <$> findConflicts (filter ((== One2OneConv) . cnvType) convs)
+      blockConflicts uid conflicts
+  case mconcat errmsgs of
+    [] -> pure ()
+    msgs@(_ : _) -> do
+      Log.warn $ Log.msg @String (intercalate ", " msgs)
+      throwM legalHoldCouldNotBlockConnections
+  where
+    findConflicts :: [Conversation] -> Galley [[UserId]]
+    findConflicts convs = do
+      let otherUids :: [Qualified UserId] =
+            concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
+      ownDomain <- viewFederationDomain
+      let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
+      -- FUTUREWORK: Handle remoteUsers here when federation is implemented
+      for (chunksOf 32 localUids) $ \others -> do
+        teamsOfUsers <- Data.usersTeams others
+        filterM (shouldBlock teamsOfUsers) others
+
+    blockConflicts :: UserId -> [UserId] -> Galley [String]
+    blockConflicts _ [] = pure []
+    blockConflicts userLegalhold othersToBlock@(_ : _) = do
+      status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
+      pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
+
+    shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
+    shouldBlock teamsOfUsers other =
+      (== UserLegalHoldNoConsent)
+        <$> case Map.lookup other teamsOfUsers of
+          Nothing -> pure defUserLegalHoldStatus
+          Just team -> do
+            mMember <- Data.teamMember team other
+            pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
