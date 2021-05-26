@@ -20,8 +20,8 @@ module Test.Wire.API.Golden.Manual where
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
+import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Runner
 
 tests :: TestTree
@@ -54,5 +54,6 @@ tests =
       testCase ("QualifiedUserClientPrekeyMap") $
         testObjects
           [ (testObject_QualifiedUserClientPrekeyMap_1, "testObject_QualifiedUserClientPrekeyMap_1.json"),
-            (testObject_QualifiedUserClientPrekeyMap_2, "testObject_QualifiedUserClientPrekeyMap_2.json")]
+            (testObject_QualifiedUserClientPrekeyMap_2, "testObject_QualifiedUserClientPrekeyMap_2.json")
+          ]
     ]
