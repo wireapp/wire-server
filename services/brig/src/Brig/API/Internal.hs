@@ -271,7 +271,7 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @UserSet
 
-  post "/i/clients/full" (continue inernalListFullClientsH) $
+  post "/i/clients/full" (continue internalListFullClientsH) $
     accept "application" "json"
       .&. jsonRequest @UserSet
 
@@ -337,12 +337,12 @@ internalListClients (UserSet usrs) = do
   UserClients . Map.fromList
     <$> API.lookupUsersClientIds (Set.toList usrs)
 
-inernalListFullClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
-inernalListFullClientsH (_ ::: req) =
-  json <$> (lift . inernalListFullClients =<< parseJsonBody req)
+internalListFullClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
+internalListFullClientsH (_ ::: req) =
+  json <$> (lift . internalListFullClients =<< parseJsonBody req)
 
-inernalListFullClients :: UserSet -> AppIO UserClientsFull
-inernalListFullClients (UserSet usrs) =
+internalListFullClients :: UserSet -> AppIO UserClientsFull
+internalListFullClients (UserSet usrs) =
   UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
 
 autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response

@@ -353,4 +353,6 @@ data LegalholdProtectee
 
 instance ToJSON LegalholdProtectee
 
+-- {"tag":"UnprotectedBot"}
+-- {"tag":"ProtectedUser","contents":"110a187a-be5b-11eb-8f47-370bc8e40f35"}
 instance FromJSON LegalholdProtectee
