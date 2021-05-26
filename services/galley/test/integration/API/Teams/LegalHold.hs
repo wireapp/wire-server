@@ -849,14 +849,15 @@ testNoConsentBlockDeviceHandshake = do
 
     grantConsent teamPeer peer
 
-    legalholderClient <- randomClient legalholder (someLastPrekeys !! 4)
-    peerClient <- randomClient peer (someLastPrekeys !! 1)
+    legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
+    peerClient <- randomClient peer (someLastPrekeys !! 2)
 
     connectUsers peer (List1.list1 legalholder [])
     convId <- decodeConvId <$> postConv peer [legalholder] (Just "gossip") [] Nothing Nothing
 
     postOtrMessage id peer peerClient convId [(legalholder, legalholderClient, "secret")] !!! do
       const 412 === statusCode
+      const (Just "legalhold-not-supported") === fmap Error.label . responseJsonMaybe
 
   {-
 
