@@ -58,7 +58,7 @@ let
   };
 in pkgs.mkShell {
   name = "shell";
-  LOCAL_ARCHIVE=${glibcLocales}/lib/locale/locale-archive; # works around https://github.com/tweag/ormolu/issues/38
+  LOCAL_ARCHIVE="${pkgs.glibcLocales}/lib/locale/locale-archive"; # works around https://github.com/tweag/ormolu/issues/38
   buildInputs = [
     pkgs.docker-compose
     pkgs.gnumake
