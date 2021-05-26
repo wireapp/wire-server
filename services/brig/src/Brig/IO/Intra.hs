@@ -898,7 +898,7 @@ guardLegalhold protectee userClients = do
   res <- lift $ galleyRequest PUT req
   case Bilge.statusCode res of
     200 -> pure ()
-    412 -> throwE ClientLegaHoldNotSupported
+    412 -> throwE ClientMissingLegalholdConsent
     _ -> throwM internalServerError
   where
     req =

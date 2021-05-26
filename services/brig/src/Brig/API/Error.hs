@@ -181,7 +181,7 @@ clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
-clientError ClientLegaHoldNotSupported = StdError clientLegalHoldNotSupported
+clientError ClientMissingLegalholdConsent = StdError missingLegalholdConsent
 
 fedError :: FederationError -> Error
 fedError (FederationUnavailable err) = StdError (federationUnavailable err)
@@ -620,6 +620,3 @@ federationRemoteError err = Wai.Error status (LT.fromStrict label) (LT.fromStric
 
 federationInvalidCall :: LText -> Wai.Error
 federationInvalidCall = Wai.Error HTTP.status500 "federation-invalid-call"
-
-clientLegalHoldNotSupported :: Wai.Error
-clientLegalHoldNotSupported = Wai.Error status412 "legalhold-not-supported" "you have not granted consent, or you are using old clients that do not support legalhold"
