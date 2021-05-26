@@ -367,15 +367,20 @@ userLHEnabled = \case
   UserLegalHoldDisabled -> False
   UserLegalHoldNoConsent -> False
 
+-- | Allow no-consent => consent without further changes.  If LH device is requested, enabled,
+-- or disabled, make sure the affected connections are screened for policy conflict (anybody
+-- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
 changeLegalholdStatus tid uid oldLhStatus lhStatus = do
-  case (userLHEnabled oldLhStatus, userLHEnabled lhStatus) of
-    (False, False) -> pure ()
-    (True, True) -> pure ()
-    (False, True) -> do
+  case (oldLhStatus, lhStatus, userLHEnabled oldLhStatus, userLHEnabled lhStatus) of
+    (UserLegalHoldNoConsent, UserLegalHoldDisabled, _, _) -> do
+      LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
+    (_, _, False, False) -> pure ()
+    (_, _, True, True) -> pure ()
+    (_, _, False, True) -> do
       blockConnectionsFrom1on1s
       LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
-    (True, False) -> do
+    (_, _, True, False) -> do
       LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
       void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
   where
