@@ -378,47 +378,47 @@ changeLegalholdStatus tid uid oldLhStatus lhStatus = do
     (_, _, False, False) -> pure ()
     (_, _, True, True) -> pure ()
     (_, _, False, True) -> do
-      blockConnectionsFrom1on1s
+      blockConnectionsFrom1on1s uid
       LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
     (_, _, True, False) -> do
       LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
       void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
+
+-- FUTUREWORK: make this async?
+blockConnectionsFrom1on1s :: UserId -> Galley ()
+blockConnectionsFrom1on1s uid = do
+  errmsgs <-
+    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+      conflicts <- mconcat <$> findConflicts (filter ((== One2OneConv) . cnvType) convs)
+      blockConflicts uid conflicts
+  case mconcat errmsgs of
+    [] -> pure ()
+    msgs@(_ : _) -> do
+      Log.warn $ Log.msg @String (intercalate ", " msgs)
+      throwM legalHoldCouldNotBlockConnections
   where
-    -- FUTUREWORK: make this async
-    blockConnectionsFrom1on1s :: Galley ()
-    blockConnectionsFrom1on1s = do
-      errmsgs <-
-        iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
-          conflicts <- mconcat <$> findConflicts (filter ((== One2OneConv) . cnvType) convs)
-          blockConflicts uid conflicts
-      case mconcat errmsgs of
-        [] -> pure ()
-        msgs@(_ : _) -> do
-          Log.warn $ Log.msg @String (intercalate ", " msgs)
-          throwM legalHoldCouldNotBlockConnections
-      where
-        findConflicts :: [Conversation] -> Galley [[UserId]]
-        findConflicts convs = do
-          let otherUids :: [Qualified UserId] =
-                concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
-          ownDomain <- viewFederationDomain
-          let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
-          -- FUTUREWORK: Handle remoteUsers here when federation is implemented
-          for (chunksOf 32 localUids) $ \others -> do
-            teamsOfUsers <- Data.usersTeams others
-            filterM (shouldBlock teamsOfUsers) others
+    findConflicts :: [Conversation] -> Galley [[UserId]]
+    findConflicts convs = do
+      let otherUids :: [Qualified UserId] =
+            concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
+      ownDomain <- viewFederationDomain
+      let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
+      -- FUTUREWORK: Handle remoteUsers here when federation is implemented
+      for (chunksOf 32 localUids) $ \others -> do
+        teamsOfUsers <- Data.usersTeams others
+        filterM (shouldBlock teamsOfUsers) others
 
-        blockConflicts :: UserId -> [UserId] -> Galley [String]
-        blockConflicts _ [] = pure []
-        blockConflicts userLegalhold othersToBlock@(_ : _) = do
-          status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
-          pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
+    blockConflicts :: UserId -> [UserId] -> Galley [String]
+    blockConflicts _ [] = pure []
+    blockConflicts userLegalhold othersToBlock@(_ : _) = do
+      status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
+      pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-        shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
-        shouldBlock teamsOfUsers other =
-          (== UserLegalHoldNoConsent)
-            <$> case Map.lookup other teamsOfUsers of
-              Nothing -> pure defUserLegalHoldStatus
-              Just team -> do
-                mMember <- Data.teamMember team other
-                pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+    shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
+    shouldBlock teamsOfUsers other =
+      (== UserLegalHoldNoConsent)
+        <$> case Map.lookup other teamsOfUsers of
+          Nothing -> pure defUserLegalHoldStatus
+          Just team -> do
+            mMember <- Data.teamMember team other
+            pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
