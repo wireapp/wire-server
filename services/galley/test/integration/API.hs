@@ -35,7 +35,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
-import Control.Lens (view, (^.), at)
+import Control.Lens (at, view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
@@ -912,11 +912,12 @@ testAddRemoteMemberFailure = do
   opts <- view tsGConf
   g <- view tsGalley
   liftIO $ do
-    (resp, _) <- withTempMockFederator
-      opts
-      remoteDomain
-      [mkProfile remoteCharlie (Name "charlie")]
-      (postQualifiedMembers' g alice (remoteBob :| []) convId)
+    (resp, _) <-
+      withTempMockFederator
+        opts
+        remoteDomain
+        [mkProfile remoteCharlie (Name "charlie")]
+        (postQualifiedMembers' g alice (remoteBob :| []) convId)
     statusCode resp @?= 400
     let err = responseJsonUnsafe resp :: Object
     (err ^. at "label") @?= Just "unknown-remote-user"
