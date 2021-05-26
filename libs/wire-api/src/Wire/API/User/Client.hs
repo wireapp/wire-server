@@ -316,9 +316,9 @@ instance ToJSON UserClientsFull where
 
 instance FromJSON UserClientsFull where
   parseJSON =
-    withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . HashMap.toList)
+    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . HashMap.toList)
     where
-      fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
+      fn (k, v) m = Map.insert <$> parseJSON (A.String k) <*> parseJSON v <*> pure m
 
 instance Arbitrary UserClientsFull where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)

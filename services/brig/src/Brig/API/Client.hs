@@ -73,6 +73,7 @@ import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
 import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientPrekeyMap (..), QualifiedUserClients (..), UserClientPrekeyMap, mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
+import qualified Wire.API.User.Client as Client
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
 lookupClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
@@ -115,8 +116,8 @@ addClient u con ip new = do
   when (newClientType new == LegalHoldClientType) $ do
     -- TODO: this only works if there aren't any capabilities set yet.  we should really add
     -- capabilities to `NewClient` instead of this extra call to cassandra.
-    let caps = ClientCapabilityList (Set.singleton ClientSupportsLegalholdImplicitConsent)
-    Data.updateClientCapabilities u clientId' (Just caps)
+    let caps = Just (Set.singleton Client.ClientSupportsLegalholdImplicitConsent)
+    Data.updateClientCapabilities u clientId' caps
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
