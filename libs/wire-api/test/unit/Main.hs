@@ -23,6 +23,7 @@ where
 import Imports
 import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
+import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
 import qualified Test.Wire.API.Golden.Generated as Golden.Generated
 import qualified Test.Wire.API.Golden.Manual as Golden.Manual
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
@@ -49,5 +50,6 @@ main =
         Swagger.tests,
         Roundtrip.CSV.tests,
         Golden.Generated.tests,
-        Golden.Manual.tests
+        Golden.Manual.tests,
+        Golden.FromJSON.tests
       ]
