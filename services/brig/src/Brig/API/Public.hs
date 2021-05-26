@@ -944,6 +944,7 @@ getUserClientQualified domain uid cid = do
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
   localdomain <- viewFederationDomain
+  guardLegalholdPolicyConflicts zusr localdomain clientId
   API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
 
 getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
@@ -974,9 +975,13 @@ getRichInfo self user = do
   fromMaybe Public.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
 listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
-listPrekeyIdsH (usr ::: clt ::: _) = do
-  prekeyIds <- lift (API.lookupPrekeyIds usr clt)
-  pure $ json (prekeyIds :: [Public.PrekeyId])
+listPrekeyIdsH (usr ::: clt ::: _) = json <$> listPrekeyIds usr clt
+
+listPrekeyIds :: UserId -> ClientId -> Handler [Public.PrekeyId]
+listPrekeyIds usr clt = do
+  localdomain <- viewFederationDomain
+  guardLegalholdPolicyConflicts usr localdomain clt
+  lift (API.lookupPrekeyIds usr clt)
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> Handler Response

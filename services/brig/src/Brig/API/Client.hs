@@ -162,6 +162,7 @@ rmClient u con clt pw =
 
 claimPrekey :: UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimPrekey u d c = do
+  guardLegalholdPolicyConflicts u d c
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
     then lift $ claimLocalPrekey u c
@@ -178,6 +179,7 @@ claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claim
 
 claimPrekeyBundle :: Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimPrekeyBundle domain uid = do
+  guardLegalholdPolicyConflicts u d c -- split this into claimLocalPrekeyBundle, Federation.claimPrekeyBundle
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then lift $ claimLocalPrekeyBundle uid
@@ -193,6 +195,7 @@ claimRemotePrekeyBundle quser = Federation.claimPrekeyBundle quser !>> ClientFed
 
 claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles quc = do
+  guardLegalholdPolicyConflicts quc
   localDomain <- viewFederationDomain
   fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
     -- FUTUREWORK(federation): parallelise federator requests here
@@ -207,7 +210,9 @@ claimMultiPrekeyBundles quc = do
       | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
 
 claimLocalMultiPrekeyBundles :: UserClients -> AppIO UserClientPrekeyMap
-claimLocalMultiPrekeyBundles = fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
+claimLocalMultiPrekeyBundles = do
+  guardLegalholdPolicyConflicts ucs
+  fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
