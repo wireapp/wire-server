@@ -93,7 +93,7 @@ federationNotConfigured =
   Wai.Error
     HTTP.status400
     "federation-not-enabled"
-    "no federator configured on brig"
+    "no federator configured"
 
 federationRpcError :: Text -> Wai.Error
 federationRpcError msg =
