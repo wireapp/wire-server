@@ -1,0 +1,86 @@
+{
+    "conversation_roles": [
+        {
+            "actions": [
+                "remove_conversation_member"
+            ],
+            "conversation_role": "heihzbym4l1etr1m_njqa19sqy"
+        },
+        {
+            "actions": [
+                "leave_conversation"
+            ],
+            "conversation_role": "wire_member"
+        },
+        {
+            "actions": [
+                "delete_conversation"
+            ],
+            "conversation_role": "4ufidhmy67qfeix7mspuo2iwhdet_cygi8sm5_i3xlc3t7ijnu81a59dcdz1zyqcgutzwugfddd5i10nnzumfo90mntok"
+        },
+        {
+            "actions": [
+                "modify_conversation_message_timer"
+            ],
+            "conversation_role": "ywdeyduc7ufos8m5zw15zgpm2jy006x6htzd7xt7qs4p36t401epiqvl928a1"
+        },
+        {
+            "actions": [
+                "leave_conversation"
+            ],
+            "conversation_role": "wire_member"
+        },
+        {
+            "actions": [
+                "leave_conversation"
+            ],
+            "conversation_role": "wire_member"
+        },
+        {
+            "actions": [
+                "remove_conversation_member"
+            ],
+            "conversation_role": "2xpcq7dwfj3z2yiwuvucdgz71q9qka7cs6vnju6vpsnnuxvnwg563lt0wkld4s4xxwno3i1v446fws77a4wrhasgsccc3jv_gpubdxzmvevbw0ccbq"
+        },
+        {
+            "actions": [
+                "modify_conversation_receipt_mode"
+            ],
+            "conversation_role": "ycok9utkz3_l_h99sao16bbv1fc7ky7oki9gzi3mx5yao_vmlgmin46fttl4arm31f8smcmuq0sc1xtnlu2ubkw2k6inrge9sxt8dkgf4mc_9h2w_2hheuwr6s"
+        },
+        {
+            "actions": [
+                "add_conversation_member",
+                "remove_conversation_member",
+                "modify_conversation_name",
+                "modify_conversation_message_timer",
+                "modify_conversation_receipt_mode",
+                "modify_conversation_access",
+                "modify_other_conversation_member",
+                "leave_conversation",
+                "delete_conversation"
+            ],
+            "conversation_role": "wire_admin"
+        },
+        {
+            "actions": [
+                "modify_conversation_name"
+            ],
+            "conversation_role": "cqsgxrpcsqpc9lh8avqirs5y0o7y5_sbf7oofqha55jl1enj1mjaaih39t7cmmcx2hi7akh2ksyr5al5"
+        },
+        {
+            "actions": [
+                "add_conversation_member",
+                "remove_conversation_member",
+                "modify_conversation_name",
+                "modify_conversation_message_timer",
+                "modify_conversation_receipt_mode",
+                "modify_conversation_access",
+                "modify_other_conversation_member",
+                "leave_conversation",
+                "delete_conversation"
+            ],
+            "conversation_role": "wire_admin"
+        }
+    ]
+}

@@ -53,6 +53,7 @@ import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.PEM
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -540,13 +541,14 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   -- Prepare user with client
   usr <- createUser "User" brig
   let uid = userId usr
+  let quid = userQualifiedId usr
   let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
   _rs <- addClient brig uid new <!! const 201 === statusCode
   let Just uc = clientId <$> responseJsonMaybe _rs
   -- Create conversation
   _rs <- createConv galley uid [] <!! const 201 === statusCode
   let Just cid = cnvId <$> responseJsonMaybe _rs
-  testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
+  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testBadFingerprint config db brig galley _cannon = do
@@ -627,7 +629,8 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
   whitelistService brig uid tid pid sid
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid [] Nothing
-  testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
+  quid <- userQualifiedId . selfUser <$> getSelfProfile brig uid
+  testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
 
 testDeleteConvBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeleteConvBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -1249,7 +1252,7 @@ createConv g u us =
       . contentJson
       . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
   where
-    conv = NewConv (makeIdOpaque <$> us) Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
+    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing Nothing roleNameWireAdmin
 
 postMessage ::
   Galley ->
@@ -1654,7 +1657,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtConv e @?= conv
         evtType e @?= MemberJoin
         evtFrom e @?= usr
-        evtData e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new)))
+        evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
@@ -1666,7 +1669,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtConv e @?= conv
         evtType e @?= MemberLeave
         evtFrom e @?= usr
-        evtData e @?= Just (EdMembersLeave (UserIdList old))
+        evtData e @?= EdMembersLeave (UserIdList old)
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
 wsAssertConvDelete ws conv from = void $
@@ -1678,7 +1681,7 @@ wsAssertConvDelete ws conv from = void $
         evtConv e @?= conv
         evtType e @?= ConvDelete
         evtFrom e @?= from
-        evtData e @?= Nothing
+        evtData e @?= EdConvDelete
 
 wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
@@ -1690,7 +1693,7 @@ wsAssertMessage ws conv fromu fromc to txt = void $
         evtConv e @?= conv
         evtType e @?= OtrMessageAdd
         evtFrom e @?= fromu
-        evtData e @?= Just (EdOtrMessage (OtrMessage fromc to txt (Just "data")))
+        evtData e @?= EdOtrMessage (OtrMessage fromc to txt (Just "data"))
 
 svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
 svcAssertMemberJoin buf usr new cnv = liftIO $ do
@@ -1701,7 +1704,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
       assertEqual "event type" MemberJoin (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (Just (EdMembersJoin msg)) (evtData e)
+      assertEqual "event data" (EdMembersJoin msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
 svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
@@ -1713,7 +1716,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event type" MemberLeave (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (Just (EdMembersLeave msg)) (evtData e)
+      assertEqual "event data" (EdMembersLeave msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
 svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> UserId -> ConversationAccessUpdate -> ConvId -> m ()
@@ -1724,7 +1727,7 @@ svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
       assertEqual "event type" ConvAccessUpdate (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (Just (EdConvAccessUpdate upd)) (evtData e)
+      assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
 
 svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
@@ -1735,7 +1738,7 @@ svcAssertConvDelete buf usr cnv = liftIO $ do
       assertEqual "event type" ConvDelete (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" Nothing (evtData e)
+      assertEqual "event data" EdConvDelete (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
 svcAssertBotCreated :: MonadIO m => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
@@ -1758,7 +1761,7 @@ svcAssertMessage buf from msg cnv = liftIO $ do
       assertEqual "event type" OtrMessageAdd (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" from (evtFrom e)
-      assertEqual "event data" (Just (EdOtrMessage msg)) (evtData e)
+      assertEqual "event data" (EdOtrMessage msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
 svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
@@ -1769,7 +1772,7 @@ svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
       assertEqual "event type" ConvDelete (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" Nothing (evtData e)
+      assertEqual "event data" EdConvDelete (evtData e)
     -- We ignore every other message type
     Just (TestBotMessage _) ->
       svcAssertEventuallyConvDelete buf usr cnv
@@ -1895,7 +1898,7 @@ testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
   getBotConv galley bid cid !!! const 404 === statusCode
 
 testMessageBotUtil ::
-  UserId ->
+  Qualified UserId ->
   ClientId ->
   ConvId ->
   ProviderId ->
@@ -1906,7 +1909,9 @@ testMessageBotUtil ::
   Galley ->
   WS.Cannon ->
   Http ()
-testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
+testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
+  let uid = qUnqualified quid
+  let localDomain = qDomain quid
   -- Add bot to conversation
   _rs <- addBot brig uid pid sid cid <!! const 201 === statusCode
   let Just ars = responseJsonMaybe _rs
@@ -1920,12 +1925,12 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
   let Just bcnv = responseJsonMaybe _rs
   liftIO $ do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
-    assertEqual "members" [OtherMember (makeIdOpaque uid) Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
+    assertEqual "members" [OtherMember (Qualified uid localDomain) Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
   mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
   let other = listToMaybe (cmOthers mems)
   liftIO $ do
-    assertEqual "id" (Just (makeIdOpaque buid)) (omId <$> other)
+    assertEqual "id" (Just buid) (qUnqualified . omQualifiedId <$> other)
     assertEqual "service" (Just sref) (omService =<< other)
   -- The bot greets the user
   WS.bracketR cannon uid $ \ws -> do

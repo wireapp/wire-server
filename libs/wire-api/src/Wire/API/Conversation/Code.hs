@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -33,14 +32,14 @@ module Wire.API.Conversation.Code
   )
 where
 
-import Control.Lens ((.~))
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), (.:), (.:?), (.=))
-import qualified Data.Aeson as JSON
+import Control.Lens ((.~), (?~))
+import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (toByteString')
 -- FUTUREWORK: move content of Data.Code here?
 import Data.Code as Code
-import Data.Json.Util ((#))
 import Data.Misc (HttpsUrl (HttpsUrl))
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified URI.ByteString as URI
@@ -53,6 +52,7 @@ data ConversationCode = ConversationCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCode)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationCode
 
 modelConversationCode :: Doc.Model
 modelConversationCode = Doc.defineModel "ConversationCode" $ do
@@ -65,20 +65,29 @@ modelConversationCode = Doc.defineModel "ConversationCode" $ do
     Doc.description "Full URI (containing key/code) to join a conversation"
     Doc.optional
 
-instance ToJSON ConversationCode where
-  toJSON j =
-    JSON.object $
-      "key" .= conversationKey j
-        # "code" .= conversationCode j
-        # "uri" .= conversationUri j
-        # []
-
-instance FromJSON ConversationCode where
-  parseJSON = JSON.withObject "join" $ \o ->
-    ConversationCode
-      <$> o .: "key"
-      <*> o .: "code"
-      <*> o .:? "uri"
+instance ToSchema ConversationCode where
+  schema =
+    objectWithDocModifier
+      "ConversationCode"
+      (description ?~ "Contains conversation properties to update")
+      $ ConversationCode
+        <$> conversationKey
+          .= fieldWithDocModifier
+            "key"
+            (description ?~ "Stable conversation identifier")
+            schema
+        <*> conversationCode
+          .= fieldWithDocModifier
+            "code"
+            (description ?~ "Conversation code (random)")
+            schema
+        <*> conversationUri
+          .= opt
+            ( fieldWithDocModifier
+                "uri"
+                (description ?~ "Full URI (containing key/code) to join a conversation")
+                schema
+            )
 
 mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
 mkConversationCode k v (HttpsUrl prefix) =

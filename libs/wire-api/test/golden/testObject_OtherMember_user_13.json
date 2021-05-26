@@ -1,0 +1,13 @@
+{
+    "status": 0,
+    "service": {
+        "id": "00000004-0000-0004-0000-000000000001",
+        "provider": "00000001-0000-0001-0000-000100000001"
+    },
+    "conversation_role": "clxtcuty2d1g_clojjevjpb5ca4a1",
+    "qualified_id": {
+        "domain": "golden.example.com",
+        "id": "00000008-0000-0009-0000-000d00000011"
+    },
+    "id": "00000008-0000-0009-0000-000d00000011"
+}

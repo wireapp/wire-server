@@ -1,0 +1,29 @@
+{
+    "event": {
+        "conversation": "00000003-0000-0001-0000-000000000003",
+        "time": "1864-05-14T23:40:44.551Z",
+        "data": {
+            "uri": "https://example.com",
+            "key": "ljLPNBdwXBNph6csPBYc",
+            "code": "3A16c3OyeYqqLqhHKwZ"
+        },
+        "from": "00000002-0000-0004-0000-000300000001",
+        "type": "conversation.code-update"
+    },
+    "accent_id": -1,
+    "name": "󴅟.\u0000\u001c{\u0005􅯏f鷢.u\u001a\u0014-0BK\u000f\u00171k𤶳􆛻檽l13As詼NY􄶕\u000eD𡲲A6qS\u00176𭢎\u0017𢗚P\u0001=qz:報|H\u000e+B􌹀􉪽􎓔󵴠󻹘󵥀\u0007𧨯QA𢭽&􂝦)\u001f7\u0013>'Sl.=􇰲\u0006󹖉\u000cO󲢡oI󴤁\tb􊁧Zg\u001e𫺜􃏁YX􁄑.􃻰Q𬐌󴗰-𮢕",
+    "id": "00000001-0000-0000-0000-000300000004",
+    "assets": [
+        {
+            "size": "complete",
+            "key": "i",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "",
+            "type": "image"
+        }
+    ],
+    "client": "d"
+}

@@ -1,0 +1,11 @@
+{
+    "urls": [
+        "turns:33.104.116.89:0?transport=tcp",
+        "turns:132.193.82.132:2",
+        "turns:78.0.56.210:2?transport=tcp",
+        "turn:a-c:0?transport=udp",
+        "turns:a-c:2?transport=udp"
+    ],
+    "credential": "06HqENnz",
+    "username": "d=129.v=0.k=4.t=/.r=5tjy"
+}

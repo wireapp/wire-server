@@ -1,0 +1,11 @@
+{
+    "event": {
+        "conversation": "00004e98-0000-2ec5-0000-31870000098c",
+        "time": "1864-05-18T03:54:11.412Z",
+        "data": {
+            "message_timer": 5776200192005000
+        },
+        "from": "00006cb0-0000-6547-0000-1fe500000270",
+        "type": "conversation.message-timer-update"
+    }
+}

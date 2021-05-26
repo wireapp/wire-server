@@ -1,0 +1,13 @@
+{
+    "event": {
+        "conversation": "00006a93-0000-005c-0000-361e00000180",
+        "time": "1864-04-25T18:08:10.735Z",
+        "data": {
+            "text": "",
+            "sender": "b",
+            "recipient": "1c"
+        },
+        "from": "00007bb6-0000-07cc-0000-687c00002703",
+        "type": "conversation.otr-message-add"
+    }
+}

@@ -1,0 +1,78 @@
+{
+    "ttl": 24,
+    "ice_servers": [
+        {
+            "urls": [
+                "turns:xn--mgbh0fb.xn--kgbechtv:1",
+                "turns:host.name:0"
+            ],
+            "credential": "Zh8=",
+            "username": "d=2.v=3.k=0.t=..r=ux"
+        },
+        {
+            "urls": [
+                "turns:host.name:0?transport=tcp",
+                "turns:007.com:0",
+                "turn:xn--mgbh0fb.xn--kgbechtv:0?transport=udp"
+            ],
+            "credential": "Cg==",
+            "username": "d=3.v=1.k=1.t=\u000c.r=k"
+        },
+        {
+            "urls": [
+                "turns:host.name:1?transport=tcp",
+                "turns:host.name:1",
+                "turn:host.name:1"
+            ],
+            "credential": "Huw=",
+            "username": "d=1.v=2.k=1.t=H.r=9wq"
+        }
+    ],
+    "sft_servers": [
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        }
+    ]
+}

@@ -35,7 +35,6 @@ import Data.Text (pack)
 import Imports
 import Servant.API (toHeader)
 import Spar.Run (mkApp)
-import Spar.Scim.Types
 import System.Environment (withArgs)
 import System.Random (randomRIO)
 import Test.Hspec
@@ -49,6 +48,7 @@ import qualified Test.Spar.Scim.AuthSpec
 import qualified Test.Spar.Scim.UserSpec
 import Util
 import Web.Scim.Test.Acceptance (AcceptanceConfig (..), AcceptanceQueryConfig (..), microsoftAzure)
+import Wire.API.User.Scim
 
 main :: IO ()
 main = do

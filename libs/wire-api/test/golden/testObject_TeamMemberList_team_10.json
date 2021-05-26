@@ -1,0 +1,225 @@
+{
+    "members": [
+        {
+            "user": "00000000-0000-0001-0000-000000000000",
+            "created_by": "00000000-0000-0000-0000-000000000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T04:44:28.366Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000000000000",
+            "created_by": "00000001-0000-0000-0000-000000000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T06:22:04.036Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000100000001",
+            "created_by": "00000000-0000-0001-0000-000000000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T12:10:11.701Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000100000001",
+            "created_by": "00000000-0000-0001-0000-000100000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T21:54:05.305Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000100000001",
+            "created_by": "00000000-0000-0001-0000-000100000000",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T00:26:06.221Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000000000001",
+            "created_by": null,
+            "legalhold_status": "pending",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000100000001",
+            "created_by": "00000000-0000-0001-0000-000000000000",
+            "legalhold_status": "disabled",
+            "created_at": "1864-05-09T20:12:04.856Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000100000000",
+            "created_by": "00000000-0000-0000-0000-000100000000",
+            "legalhold_status": "disabled",
+            "created_at": "1864-05-09T23:35:44.986Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000100000001",
+            "created_by": "00000001-0000-0000-0000-000100000001",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T07:36:17.730Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000100000001",
+            "created_by": "00000000-0000-0000-0000-000100000000",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T19:36:57.529Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000000000001",
+            "created_by": null,
+            "legalhold_status": "disabled",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000000000000",
+            "created_by": "00000001-0000-0001-0000-000000000001",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T19:45:56.914Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000100000000",
+            "created_by": "00000000-0000-0001-0000-000100000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T13:42:17.107Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000000000000",
+            "created_by": "00000000-0000-0001-0000-000100000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T03:42:46.106Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000100000000",
+            "created_by": "00000000-0000-0000-0000-000000000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T09:41:44.679Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000000000001",
+            "created_by": "00000000-0000-0001-0000-000100000000",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T09:26:44.717Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000000000000",
+            "created_by": "00000000-0000-0000-0000-000100000001",
+            "legalhold_status": "disabled",
+            "created_at": "1864-05-09T00:40:00.056Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000000000000",
+            "created_by": null,
+            "legalhold_status": "enabled",
+            "created_at": null,
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0001-0000-000000000000",
+            "created_by": "00000000-0000-0000-0000-000000000000",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T07:47:20.635Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000100000000",
+            "created_by": "00000001-0000-0000-0000-000100000000",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T15:58:21.895Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000000-0000-0000-0000-000100000001",
+            "created_by": "00000001-0000-0001-0000-000100000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-09T19:25:51.873Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        },
+        {
+            "user": "00000001-0000-0001-0000-000000000001",
+            "created_by": "00000001-0000-0000-0000-000100000001",
+            "legalhold_status": "pending",
+            "created_at": "1864-05-09T03:19:55.569Z",
+            "permissions": {
+                "copy": 0,
+                "self": 0
+            }
+        }
+    ],
+    "hasMore": false
+}

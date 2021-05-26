@@ -79,19 +79,20 @@ import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import Spar.API.Swagger ()
 import qualified Spar.Data as Data
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
-import Spar.Scim.Types (ValidExternalId (..))
-import Spar.Types
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.Cookie
 import Wire.API.User.Identity (Email (..))
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim (ValidExternalId (..))
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
@@ -399,7 +400,7 @@ moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   wrapMonadClient $ Data.insertSAMLUser newUserRef uid
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
-  wrapMonadClient $ Data.deleteSAMLUser oldUserRef
+  wrapMonadClient $ Data.deleteSAMLUser uid oldUserRef
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case

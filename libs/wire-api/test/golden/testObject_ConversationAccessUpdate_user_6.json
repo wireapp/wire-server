@@ -1,0 +1,8 @@
+{
+    "access": [
+        "private",
+        "invite",
+        "invite"
+    ],
+    "access_role": "team"
+}

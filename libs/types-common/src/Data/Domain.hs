@@ -19,7 +19,7 @@
 
 module Data.Domain where
 
-import Data.Aeson (FromJSON (parseJSON), FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON (toJSON), ToJSONKey (toJSONKey))
+import Data.Aeson (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON, ToJSONKey (toJSONKey))
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (toJSONKeyText)
 import Data.Attoparsec.ByteString ((<?>))
@@ -29,9 +29,9 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
+import Data.Schema hiding (opt)
 import Data.String.Conversions (cs)
-import Data.Swagger (ToSchema (..))
-import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports hiding (isAlphaNum)
@@ -62,7 +62,11 @@ import Util.Attoparsec (takeUpToWhile)
 -- The domain will be normalized to lowercase when parsed.
 newtype Domain = Domain {_domainText :: Text}
   deriving stock (Eq, Ord, Generic, Show)
-  deriving newtype (ToParamSchema, ToSchema)
+  deriving newtype (S.ToParamSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Domain
+
+instance ToSchema Domain where
+  schema = domainText .= parsedText "Domain" mkDomain
 
 domainText :: Domain -> Text
 domainText = _domainText
@@ -105,12 +109,6 @@ domainParser = do
     alphaNum = Atto.satisfy isAlphaNum <?> "alphanumeric character"
     isAlphaNum = Atto.inClass "A-Za-z0-9"
     isAlphaNumHyphen = Atto.inClass "A-Za-z0-9-"
-
-instance ToJSON Domain where
-  toJSON = Aeson.String . domainText
-
-instance FromJSON Domain where
-  parseJSON = Aeson.withText "Domain" $ either fail pure . mkDomain
 
 instance ToJSONKey Domain where
   toJSONKey = toJSONKeyText domainText

@@ -1,0 +1,56 @@
+{
+    "ttl": 28,
+    "ice_servers": [
+        {
+            "urls": [
+                "turn:a-c:1?transport=tcp",
+                "turns:117.96.79.180:1?transport=udp",
+                "turns:007.com:0?transport=tcp"
+            ],
+            "credential": "",
+            "username": "d=4.v=0.k=1.t=ᴮ.r=ky"
+        },
+        {
+            "urls": [
+                "turn:a-c:1?transport=udp",
+                "turns:248.107.4.38:1?transport=udp",
+                "turns:host.name:0?transport=udp"
+            ],
+            "credential": "2g==",
+            "username": "d=2.v=2.k=1.t=V.r=2e"
+        },
+        {
+            "urls": [
+                "turn:129.183.147.71:1?transport=tcp"
+            ],
+            "credential": "",
+            "username": "d=2.v=1.k=1.t=+.r=ae3"
+        },
+        {
+            "urls": [
+                "turns:007.com:1?transport=udp",
+                "turns:007.com:0",
+                "turns:123:0"
+            ],
+            "credential": "gnU=",
+            "username": "d=1.v=1.k=1.t=~.r=081"
+        }
+    ],
+    "sft_servers": [
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        }
+    ]
+}

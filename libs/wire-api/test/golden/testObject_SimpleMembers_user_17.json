@@ -1,0 +1,36 @@
+{
+    "users": [
+        {
+            "conversation_role": "ui5u6nk8og1da9q8_ha4hhv2v_qrs_mveewm6h5_4384yf4ovtp67w_z6x9_waqln013ahg3rw9oky5o4yff6v",
+            "id": "00000071-0000-0050-0000-006200000041"
+        },
+        {
+            "conversation_role": "qsowevndt0gqwh1yvpqxd_4u3junr66dhuerv38qrhzv5kf9i38fkd",
+            "id": "00000003-0000-0074-0000-004e0000003c"
+        },
+        {
+            "conversation_role": "dq1mag9bzqoenu3chbc2mn91ivbh",
+            "id": "0000000b-0000-003a-0000-003900000026"
+        },
+        {
+            "conversation_role": "9ij9p1jla54lbtk66mhbakd7m7p502p6tz1ryyaep94rz7upsquixaaf6eoewz_oziw_ok7xbo49",
+            "id": "0000001b-0000-0058-0000-000500000057"
+        },
+        {
+            "conversation_role": "13tjs8e20xxqd296duhver4er47dj47v2yyspcpfz5pdhbmnmlxyzar0w2recatb6r4_20zcd",
+            "id": "0000007a-0000-001d-0000-005800000052"
+        },
+        {
+            "conversation_role": "gy3s_2c0r9lzi08hjnkbc9pbhdu3yvg409ipjztpmthie_j834nn12zjq_m56w1dqqi8mpde",
+            "id": "0000001a-0000-001e-0000-00360000007b"
+        }
+    ],
+    "user_ids": [
+        "00000071-0000-0050-0000-006200000041",
+        "00000003-0000-0074-0000-004e0000003c",
+        "0000000b-0000-003a-0000-003900000026",
+        "0000001b-0000-0058-0000-000500000057",
+        "0000007a-0000-001d-0000-005800000052",
+        "0000001a-0000-001e-0000-00360000007b"
+    ]
+}

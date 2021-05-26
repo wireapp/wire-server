@@ -16,26 +16,25 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Create
-  ( createGroupConversationH,
+  ( createGroupConversation,
     internalCreateManagedConversationH,
-    createSelfConversationH,
-    createOne2OneConversationH,
+    createSelfConversation,
+    createOne2OneConversation,
     createConnectConversationH,
+    ConversationResponses,
   )
 where
 
 import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
-import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
-import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (list1)
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
-import qualified Galley.API.IdMapping as IdMapping
 import Galley.API.Mapping
 import Galley.API.Util
 import Galley.App
@@ -49,7 +48,21 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Servant (WithStatus (..))
+import qualified Servant
+import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Routes.Public.Galley (ConversationResponses)
+
+-- Servant helpers ------------------------------------------------------
+
+conversationResponse :: ConversationResponse -> Union ConversationResponses
+conversationResponse (ConversationExisted c) =
+  Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+conversationResponse (ConversationCreated c) =
+  S . Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+
+-------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -57,16 +70,16 @@ import qualified Wire.API.Conversation as Public
 -- | The public-facing endpoint for creating group conversations.
 --
 -- See Note [managed conversations].
-createGroupConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
-createGroupConversationH (zusr ::: zcon ::: req) = do
-  newConv <- fromJsonBody req
-  handleConversationResponse <$> createGroupConversation zusr zcon newConv
-
-createGroupConversation :: UserId -> ConnId -> Public.NewConvUnmanaged -> Galley ConversationResponse
-createGroupConversation zusr zcon wrapped@(Public.NewConvUnmanaged body) = do
-  case newConvTeam body of
-    Nothing -> createRegularGroupConv zusr zcon wrapped
-    Just tinfo -> createTeamGroupConv zusr zcon tinfo body
+createGroupConversation ::
+  UserId ->
+  ConnId ->
+  Public.NewConvUnmanaged ->
+  Galley (Union ConversationResponses)
+createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
+  conversationResponse
+    <$> case newConvTeam body of
+      Nothing -> createRegularGroupConv user conn wrapped
+      Just tinfo -> createTeamGroupConv user conn tinfo body
 
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
@@ -86,12 +99,8 @@ createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley Convers
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
   _uids <- checkedConvSize (newConvUsers body) -- currently not needed, as we only consider local IDs
-  mappedOrLocalUserIds <- traverse IdMapping.resolveOpaqueUserId (newConvUsers body)
-  let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
-  ensureConnected zusr mappedOrLocalUserIds
-  -- FUTUREWORK(federation): notify remote users' backends about new conversation
-  for_ (nonEmpty remoteUserIds) $
-    throwM . federationNotImplemented
+  let localUserIds = newConvUsers body
+  ensureConnected zusr localUserIds
   localCheckedUsers <- checkedConvSize localUserIds
   c <-
     Data.createConversation
@@ -111,16 +120,9 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 -- handlers above. Allows both unmanaged and managed conversations.
 createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
-  (localUserIds, remoteUserIds) <-
-    partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (newConvUsers body)
-  -- for now, teams don't support conversations with remote members
-  for_ (nonEmpty remoteUserIds) $
-    -- FUTUREWORK: If federation is disabled, we probably want to fail here
-    -- (but with a different error, `federationNotEnabled`).  When making such
-    -- a change, also apply it on other call sites of `federationNotImplemented`.
-    throwM . federationNotImplemented
+  let localUserIds = newConvUsers body
   name <- rangeCheckedMaybe (newConvName body)
-  let convTeam = (cnvTeamId tinfo)
+  let convTeam = cnvTeamId tinfo
   zusrMembership <- Data.teamMember convTeam zusr
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
   ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
@@ -159,43 +161,34 @@ createTeamGroupConv zusr zcon tinfo body = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversationH :: UserId -> Galley Response
-createSelfConversationH zusr = do
-  handleConversationResponse <$> createSelfConversation zusr
-
-createSelfConversation :: UserId -> Galley ConversationResponse
-createSelfConversation zusr = do
-  c <- Data.conversation (Id . toUUID $ zusr)
-  maybe create (conversationExisted zusr) c
+createSelfConversation :: UserId -> Galley (Union ConversationResponses)
+createSelfConversation zusr =
+  conversationResponse <$> do
+    c <- Data.conversation (Id . toUUID $ zusr)
+    maybe create (conversationExisted zusr) c
   where
     create = do
       c <- Data.createSelfConversation zusr Nothing
       conversationCreated zusr c
 
-createOne2OneConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
-createOne2OneConversationH (zusr ::: zcon ::: req) = do
-  newConv <- fromJsonBody req
-  handleConversationResponse <$> createOne2OneConversation zusr zcon newConv
-
-createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
+createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley (Union ConversationResponses)
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
-  other <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [OpaqueUserId]))
-  (x, y) <- toUUIDs (makeIdOpaque zusr) other
+  otherUserId <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
+  (x, y) <- toUUIDs zusr otherUserId
   when (x == y) $
     throwM $
       invalidOp "Cannot create a 1-1 with yourself"
-  otherUserId <- IdMapping.resolveOpaqueUserId other
   case newConvTeam j of
     Just ti
       | cnvManaged ti -> throwM noManagedTeamConv
-      | otherwise -> case otherUserId of
-        Local localOther -> checkBindingTeamPermissions zusr localOther (cnvTeamId ti)
-        Mapped _ -> throwM noBindingTeamMembers -- remote user can't be in local team
+      | otherwise ->
+        checkBindingTeamPermissions zusr otherUserId (cnvTeamId ti)
     Nothing -> do
       ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
-  maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
+  resp <- maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
+  pure (conversationResponse resp)
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u
@@ -222,7 +215,7 @@ createConnectConversationH (usr ::: conn ::: req) = do
 
 createConnectConversation :: UserId -> Maybe ConnId -> Connect -> Galley ConversationResponse
 createConnectConversation usr conn j = do
-  (x, y) <- toUUIDs (makeIdOpaque usr) (makeIdOpaque (cRecipient j))
+  (x, y) <- toUUIDs usr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
   conv <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n) (update n) conv
@@ -240,7 +233,7 @@ createConnectConversation usr conn j = do
       let mems = Data.convMembers conv
        in conversationExisted usr
             =<< if
-                | Local usr `isMember` mems ->
+                | usr `isMember` mems ->
                   -- we already were in the conversation, maybe also other
                   connect n conv
                 | otherwise -> do
@@ -268,7 +261,7 @@ createConnectConversation usr conn j = do
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
-        let e = Event ConvConnect (Data.convId conv) usr t (Just $ EdConnect j)
+        let e = Event ConvConnect (Data.convId conv) usr t (EdConnect j)
         for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
           push1 $
             p
@@ -285,10 +278,10 @@ data ConversationResponse
   | ConversationExisted !Public.Conversation
 
 conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationCreated usr cnv = ConversationCreated <$> conversationView (Local usr) cnv
+conversationCreated usr cnv = ConversationCreated <$> conversationView usr cnv
 
 conversationExisted :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationExisted usr cnv = ConversationExisted <$> conversationView (Local usr) cnv
+conversationExisted usr cnv = ConversationExisted <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
@@ -305,13 +298,13 @@ notifyCreatedConversation dtime usr conn c = do
       | otherwise = RouteDirect
     toPush t m = do
       c' <- conversationView (memId m) c
-      let e = Event ConvCreate (Data.convId c) usr t (Just $ EdConversation c')
+      let e = Event ConvCreate (Data.convId c) usr t (EdConversation c')
       return $
         newPush1 ListComplete (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 
-toUUIDs :: OpaqueUserId -> OpaqueUserId -> Galley (U.UUID U.V4, U.UUID U.V4)
+toUUIDs :: UserId -> UserId -> Galley (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do
   a' <- U.fromUUID (toUUID a) & ifNothing invalidUUID4
   b' <- U.fromUUID (toUUID b) & ifNothing invalidUUID4

@@ -1,0 +1,29 @@
+{
+    "took": -7,
+    "found": -1,
+    "documents": [
+        {
+            "handle": null,
+            "qualified_id": {
+                "domain": "bza.j",
+                "id": "00000000-0000-0000-0000-000000000001"
+            },
+            "accent_id": 0,
+            "name": "",
+            "team": null,
+            "id": "00000000-0000-0000-0000-000000000001"
+        },
+        {
+            "handle": "",
+            "qualified_id": {
+                "domain": "zwv.u6-f",
+                "id": "00000001-0000-0000-0000-000000000001"
+            },
+            "accent_id": 0,
+            "name": "",
+            "team": null,
+            "id": "00000001-0000-0000-0000-000000000001"
+        }
+    ],
+    "returned": 3
+}

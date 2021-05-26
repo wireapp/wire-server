@@ -1,5 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -31,9 +29,10 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientError, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Message (UserClientMap, UserClients)
+import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client.Prekey (ClientPrekey, Prekey, PrekeyBundle)
+import Wire.API.User.Client (UserClientPrekeyMap)
+import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 
 newtype SearchRequest = SearchRequest {term :: Text}
@@ -49,43 +48,37 @@ data Api routes = Api
   { getUserByHandle ::
       routes
         :- "federation"
-        :> "users"
-        :> "by-handle"
+        :> "get-user-by-handle"
         :> ReqBody '[JSON] Handle
         :> Post '[JSON] (Maybe UserProfile),
     getUsersByIds ::
       routes
         :- "federation"
-        :> "users"
-        :> "get-by-ids"
+        :> "get-users-by-ids"
         :> ReqBody '[JSON] [UserId]
         :> Post '[JSON] [UserProfile],
     claimPrekey ::
       routes
         :- "federation"
-        :> "users"
-        :> "prekey"
+        :> "claim-prekey"
         :> ReqBody '[JSON] (UserId, ClientId)
         :> Post '[JSON] (Maybe ClientPrekey),
-    getPrekeyBundle ::
+    claimPrekeyBundle ::
       routes
         :- "federation"
-        :> "users"
-        :> "prekey-bundle"
+        :> "claim-prekey-bundle"
         :> ReqBody '[JSON] UserId
         :> Post '[JSON] PrekeyBundle,
-    getMultiPrekeyBundle ::
+    claimMultiPrekeyBundle ::
       routes
         :- "federation"
-        :> "users"
-        :> "multi-prekey-bundle"
+        :> "claim-multi-prekey-bundle"
         :> ReqBody '[JSON] UserClients
-        :> Post '[JSON] (UserClientMap (Maybe Prekey)),
+        :> Post '[JSON] UserClientPrekeyMap,
     searchUsers ::
       routes
         :- "federation"
-        :> "search"
-        :> "users"
+        :> "search-users"
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
         :> ReqBody '[JSON] SearchRequest

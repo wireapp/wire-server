@@ -444,7 +444,7 @@ testSearchOtherDomain opts brig = do
   -- a mocked federator started and stopped during this test
   otherSearchResult :: SearchResult Contact <- liftIO $ generate arbitrary
   let mockResponse = OutwardResponseBody (cs $ Aeson.encode otherSearchResult)
-  results <- withMockFederator opts 9999 mockResponse $ do
+  (results, _) <- liftIO . withTempMockFederator opts (Domain "non-existent.example.com") mockResponse $ do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
   liftIO $ do
     assertEqual "The search request should get its result from federator" otherSearchResult results
@@ -541,11 +541,6 @@ waitForTaskToComplete taskNodeId = do
     isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
     isTaskComplete (Left e) = liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
     isTaskComplete (Right taskRes) = pure $ ES.taskResponseCompleted taskRes
-
-assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
-assertRight = \case
-  Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
-  Right x -> pure x
 
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
 testWithBothIndices opts mgr name f = do

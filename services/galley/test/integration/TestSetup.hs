@@ -30,20 +30,32 @@ module TestSetup
     tsAwsEnv,
     tsMaxConvSize,
     tsCass,
+    tsFedGalleyClient,
+    mkFedGalleyClient,
     TestM (..),
     TestSetup (..),
+    FedGalleyClient,
+    GalleyR,
+    BrigR,
+    CannonR,
   )
 where
 
 import Bilge (Manager, MonadHttp (..), Request, withResponse)
 import qualified Cassandra as Cql
-import Control.Lens (makeLenses, view)
+import Control.Lens (makeLenses, view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Data.Aeson
+import qualified Data.Text as Text
 import qualified Galley.Aws as Aws
 import Galley.Options (Opts)
 import Imports
+import qualified Servant.Client as Servant
+import Servant.Client.Generic (AsClientT)
+import qualified Servant.Client.Generic as Servant
+import Test.Tasty.HUnit
 import Util.Options
+import qualified Wire.API.Federation.API.Galley as FedGalley
 
 type GalleyR = Request -> Request
 
@@ -74,20 +86,6 @@ data LegalHoldConfig = LegalHoldConfig
 
 instance FromJSON LegalHoldConfig
 
-data TestSetup = TestSetup
-  { _tsGConf :: Opts,
-    _tsIConf :: IntegrationConfig,
-    _tsManager :: Manager,
-    _tsGalley :: GalleyR,
-    _tsBrig :: BrigR,
-    _tsCannon :: CannonR,
-    _tsAwsEnv :: Maybe Aws.Env,
-    _tsMaxConvSize :: Word16,
-    _tsCass :: Cql.ClientState
-  }
-
-makeLenses ''TestSetup
-
 newtype TestM a = TestM {runTestM :: ReaderT TestSetup IO a}
   deriving
     ( Functor,
@@ -102,7 +100,39 @@ newtype TestM a = TestM {runTestM :: ReaderT TestSetup IO a}
       MonadFail
     )
 
+type FedGalleyClient = FedGalley.Api (AsClientT TestM)
+
+data TestSetup = TestSetup
+  { _tsGConf :: Opts,
+    _tsIConf :: IntegrationConfig,
+    _tsManager :: Manager,
+    _tsGalley :: GalleyR,
+    _tsBrig :: BrigR,
+    _tsCannon :: CannonR,
+    _tsAwsEnv :: Maybe Aws.Env,
+    _tsMaxConvSize :: Word16,
+    _tsCass :: Cql.ClientState,
+    _tsFedGalleyClient :: FedGalleyClient
+  }
+
+makeLenses ''TestSetup
+
 instance MonadHttp TestM where
   handleRequestWithCont req handler = do
     manager <- view tsManager
     liftIO $ withResponse req manager handler
+
+mkFedGalleyClient :: Endpoint -> FedGalleyClient
+mkFedGalleyClient galleyEndpoint = Servant.genericClientHoist servantClienMToHttp
+  where
+    servantClienMToHttp :: Servant.ClientM a -> TestM a
+    servantClienMToHttp act = do
+      let brigHost = Text.unpack $ galleyEndpoint ^. epHost
+          brigPort = fromInteger . toInteger $ galleyEndpoint ^. epPort
+          baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort ""
+      mgr' <- view tsManager
+      let clientEnv = Servant.ClientEnv mgr' baseUrl Nothing Servant.defaultMakeClientRequest
+      eitherRes <- liftIO $ Servant.runClientM act clientEnv
+      case eitherRes of
+        Right res -> pure res
+        Left err -> liftIO $ assertFailure $ "Servant client failed with: " <> show err

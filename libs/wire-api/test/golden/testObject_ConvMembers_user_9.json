@@ -1,0 +1,66 @@
+{
+    "self": {
+        "hidden_ref": "I",
+        "status": 0,
+        "service": {
+            "id": "00000000-0000-0001-0000-000100000001",
+            "provider": "00000000-0000-0000-0000-000000000000"
+        },
+        "otr_muted_ref": "",
+        "conversation_role": "pi6noe34tsfw6",
+        "status_time": "1970-01-01T00:00:00.000Z",
+        "hidden": true,
+        "status_ref": "0.0",
+        "id": "00000001-0000-0000-0000-000100000000",
+        "otr_archived": true,
+        "otr_muted_status": -1,
+        "otr_muted": false,
+        "otr_archived_ref": ""
+    },
+    "others": [
+        {
+            "status": 0,
+            "conversation_role": "ytko3vik7nviewv_mlrluswwsoxkxdwexmdy1r7yy1l265cdg5nluqedrxby2zma",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0000-0000-000000000000"
+            },
+            "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000001-0000-0000-0000-000000000000",
+                "provider": "00000000-0000-0000-0000-000000000001"
+            },
+            "conversation_role": "pwsqgpb966m2o9g9oahmfp83gjb0ll987xdvus_bdxgo3p0gokb6spardga87x__5ueyjpgvy_6lzhimz2_1d967fpvfbs236x6ed777nf0mfuw4j5x4wtk",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000000000001"
+            },
+            "id": "00000001-0000-0000-0000-000000000001"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000001-0000-0001-0000-000100000001",
+                "provider": "00000001-0000-0001-0000-000100000000"
+            },
+            "conversation_role": "8mveq505d0ftsgaefuyu",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0000-0000-000000000000"
+            },
+            "id": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+            "status": 0,
+            "conversation_role": "tr_",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0001-0000-000100000000"
+            },
+            "id": "00000000-0000-0001-0000-000100000000"
+        }
+    ]
+}

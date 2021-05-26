@@ -38,24 +38,25 @@ import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
-import Wire.API.Message (UserClientMap (..), UserClients (..))
+import Wire.API.Message (UserClients (..))
+import Wire.API.User.Client (mkUserClientPrekeyMap)
 
 tests :: Manager -> Brig -> FedBrigClient -> IO TestTree
 tests m brig fedBrigClient =
   return $
     testGroup
       "federation"
-      [ test m "GET /federation/search/users : Found" (testSearchSuccess brig fedBrigClient),
-        test m "GET /federation/search/users : NotFound" (testSearchNotFound fedBrigClient),
-        test m "GET /federation/search/users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
-        test m "GET /federation/users/by-handle : Found" (testGetUserByHandleSuccess brig fedBrigClient),
-        test m "GET /federation/users/by-handle : NotFound" (testGetUserByHandleNotFound fedBrigClient),
-        test m "GET /federation/users/get-by-id : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
-        test m "GET /federation/users/get-by-id : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
-        test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
-        test m "GET /federation/users/prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
-        test m "GET /federation/users/prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
-        test m "POST /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient)
+      [ test m "GET /federation/search-users : Found" (testSearchSuccess brig fedBrigClient),
+        test m "GET /federation/search-users : NotFound" (testSearchNotFound fedBrigClient),
+        test m "GET /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
+        test m "GET /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess brig fedBrigClient),
+        test m "GET /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound fedBrigClient),
+        test m "GET /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
+        test m "GET /federation/get-users-by-ids : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
+        test m "GET /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
+        test m "GET /federation/claim-prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
+        test m "GET /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
+        test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -158,7 +159,7 @@ testClaimPrekeyBundleSuccess brig fedBrigClient = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  bundle <- FedBrig.getPrekeyBundle fedBrigClient (qUnqualified quid)
+  bundle <- FedBrig.claimPrekeyBundle fedBrigClient (qUnqualified quid)
   liftIO $
     assertEqual
       "bundle should contain the clients"
@@ -175,8 +176,8 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
   c1 <- first qUnqualified <$> generateClientPrekeys brig prekeys1
   c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
-      ucm = UserClientMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
-  ucmResponse <- FedBrig.getMultiPrekeyBundle fedBrigClient uc
+      ucm = mkUserClientPrekeyMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
+  ucmResponse <- FedBrig.claimMultiPrekeyBundle fedBrigClient uc
   liftIO $
     assertEqual
       "should return the UserClientMap"

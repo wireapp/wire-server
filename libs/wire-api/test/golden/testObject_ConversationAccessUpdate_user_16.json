@@ -1,0 +1,13 @@
+{
+    "access": [
+        "invite",
+        "link",
+        "private",
+        "private",
+        "link",
+        "code",
+        "code",
+        "code"
+    ],
+    "access_role": "activated"
+}

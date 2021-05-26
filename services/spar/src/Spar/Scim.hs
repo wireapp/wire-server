@@ -20,8 +20,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO remove (orphans can be avoided by only implementing functions here, and gathering them
--- in the instance near the Spar type; alternatively, @hscim@ could be changed)
+-- TODO remove -Wno-orphans (orphans can be avoided by only implementing
+-- functions here, and gathering them in the instance near the Spar type;
+-- alternatively, @hscim@ could be changed)
 
 -- | An implementation of the SCIM API for doing bulk operations with users.
 --
@@ -54,7 +55,7 @@
 -- pseudo-code: @\email -> entityNameID (parseURI ("email:" <> renderEmail email))@.
 module Spar.Scim
   ( -- * Reexports
-    module Spar.Scim.Types,
+    module Wire.API.User.Scim,
     module Spar.Scim.Auth,
     module Spar.Scim.User,
 
@@ -80,7 +81,6 @@ import Spar.Error
     throwSpar,
   )
 import Spar.Scim.Auth
-import Spar.Scim.Types
 import Spar.Scim.User
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
@@ -89,6 +89,8 @@ import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
+import Wire.API.Routes.Public.Spar
+import Wire.API.User.Scim
 
 -- | SCIM config for our server.
 --

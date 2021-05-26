@@ -31,7 +31,7 @@ import Brig.Data.Properties (PropertiesDataError)
 import qualified Brig.Data.Properties as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Types
-import Brig.User.Event
+import Brig.Types.User.Event
 import Control.Error
 import Data.Id
 import Imports

@@ -1,0 +1,16 @@
+{
+    "urls": [
+        "turns:123:2?transport=tcp",
+        "turns:007.com:0?transport=udp",
+        "turn:a-c:0?transport=udp",
+        "turns:007.com:2",
+        "turn:007.com:1?transport=tcp",
+        "turn:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp",
+        "turns:xn--mgbh0fb.xn--kgbechtv:0",
+        "turns:72.203.31.79:2",
+        "turns:host.name:0",
+        "turn:007.com:2?transport=tcp"
+    ],
+    "credential": "jw==",
+    "username": "d=133.v=9.k=16.t=^.r=l9mr"
+}

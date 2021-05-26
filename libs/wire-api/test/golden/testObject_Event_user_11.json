@@ -1,0 +1,16 @@
+{
+    "conversation": "000031c2-0000-108c-0000-10a500000882",
+    "time": "1864-05-03T06:49:41.178Z",
+    "data": {
+        "hidden_ref": "D",
+        "otr_muted_ref": "v󼡲",
+        "conversation_role": "spkf0ayk4c4obgc_l2lj54cljtj25ph",
+        "hidden": false,
+        "otr_archived": true,
+        "otr_muted_status": 0,
+        "otr_archived_ref": "v6",
+        "target": "00000001-0000-0002-0000-000100000000"
+    },
+    "from": "00005335-0000-2983-0000-46460000082f",
+    "type": "conversation.member-update"
+}

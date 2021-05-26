@@ -40,6 +40,7 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
 import Data.Id
+import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc (HttpsUrl, PlainTextPassword (..))
@@ -75,6 +76,7 @@ import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as U
 
@@ -456,7 +458,7 @@ testCreateOne2OneWithMembers (rolePermissions -> perms) = do
   (owner, tid) <- Util.createBindingTeam
   mem1 <- newTeamMember' perms <$> Util.randomUser
   WS.bracketR c (mem1 ^. userId) $ \wsMem1 -> do
-    Util.addTeamMemberInternal tid mem1
+    Util.addTeamMemberInternal tid (mem1 ^. userId) (mem1 ^. permissions) (mem1 ^. invitation)
     checkTeamMemberJoin tid (mem1 ^. userId) wsMem1
     assertQueue "team member join" $ tUpdate 2 [owner]
   void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv owner (mem1 ^. userId) Nothing tid)
@@ -479,7 +481,7 @@ testAddTeamMember = do
   Util.connectUsers (mem1 ^. userId) (list1 (mem2 ^. userId) [])
   tid <- Util.createNonBindingTeam "foo" owner [mem1, mem2]
   mem3 <- newTeamMember' p1 <$> Util.randomUser
-  let payload = json (newNewTeamMember mem3)
+  let payload = json (newNewTeamMember (mem3 ^. userId) (mem3 ^. permissions) (mem3 ^. invitation))
   Util.connectUsers (mem1 ^. userId) (list1 (mem3 ^. userId) [])
   Util.connectUsers (mem2 ^. userId) (list1 (mem3 ^. userId) [])
   -- `mem1` lacks permission to add new team members
@@ -487,7 +489,7 @@ testAddTeamMember = do
     !!! const 403 === statusCode
   WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), (mem3 ^. userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
     -- `mem2` has `AddTeamMember` permission
-    Util.addTeamMember (mem2 ^. userId) tid mem3
+    Util.addTeamMember (mem2 ^. userId) tid (mem3 ^. userId) (mem3 ^. permissions) (mem3 ^. invitation)
     mapConcurrently_ (checkTeamMemberJoin tid (mem3 ^. userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
 
 -- | At the time of writing this test, the only event sent to this queue is 'MemberJoin'.
@@ -561,13 +563,22 @@ testAddTeamMemberCheckBound = do
   assertQueue "create team" tActivate
   rndMem <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
   -- Cannot add any users to bound teams
-  post (g . paths ["teams", toByteString' tidBound, "members"] . zUser ownerBound . zConn "conn" . json (newNewTeamMember rndMem))
+  post
+    ( g . paths ["teams", toByteString' tidBound, "members"]
+        . zUser ownerBound
+        . zConn "conn"
+        . json (newNewTeamMember (rndMem ^. userId) (rndMem ^. permissions) (rndMem ^. invitation))
+    )
     !!! const 403 === statusCode
   owner <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   -- Cannot add bound users to any teams
   let boundMem = newTeamMember' (Util.symmPermissions []) ownerBound
-  post (g . paths ["teams", toByteString' tid, "members"] . zUser owner . zConn "conn" . json (newNewTeamMember boundMem))
+  post
+    ( g . paths ["teams", toByteString' tid, "members"] . zUser owner
+        . zConn "conn"
+        . json (newNewTeamMember (boundMem ^. userId) (boundMem ^. permissions) (boundMem ^. invitation))
+    )
     !!! const 403 === statusCode
 
 testAddTeamMemberInternal :: TestM ()
@@ -577,7 +588,7 @@ testAddTeamMemberInternal = do
   let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
   mem1 <- newTeamMember' p1 <$> Util.randomUser
   WS.bracketRN c [owner, mem1 ^. userId] $ \[wsOwner, wsMem1] -> do
-    Util.addTeamMemberInternal tid mem1
+    Util.addTeamMemberInternal tid (mem1 ^. userId) (mem1 ^. permissions) (mem1 ^. invitation)
     liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1 ^. userId)) [wsOwner, wsMem1]
     assertQueue "team member join" $ tUpdate 2 [owner]
   void $ Util.getTeamMemberInternal tid (mem1 ^. userId)
@@ -815,7 +826,7 @@ testAddTeamConvWithRole = do
     -- mem2 is not a conversation member and no longer receives
     -- an event that a new team conversation has been created
 
-    Util.addTeamMember owner tid mem1
+    Util.addTeamMember owner tid (mem1 ^. userId) (mem1 ^. permissions) (mem1 ^. invitation)
     checkTeamMemberJoin tid (mem1 ^. userId) wsOwner
     checkTeamMemberJoin tid (mem1 ^. userId) wsMem1
     checkTeamMemberJoin tid (mem1 ^. userId) wsMem2
@@ -869,7 +880,7 @@ testAddManagedConv = do
   let tinfo = ConvTeamInfo tid True
   let conv =
         NewConvManaged $
-          NewConv [makeIdOpaque owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing roleNameWireAdmin
+          NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing roleNameWireAdmin
   post
     ( g
         . path "/conversations"
@@ -907,7 +918,7 @@ testAddTeamMemberToConv = do
   Util.connectUsers ownerT1 (list1 (mem1T1 ^. userId) [mem2T1 ^. userId, mem3T1 ^. userId, ownerT2, personalUser])
   tidT1 <- Util.createNonBindingTeam "foo" ownerT1 [mem1T1, mem2T1, mem3T1]
   tidT2 <- Util.createBindingTeamInternal "foo" ownerT2
-  _ <- Util.addTeamMemberInternal tidT2 mem1T2
+  _ <- Util.addTeamMemberInternal tidT2 (mem1T2 ^. userId) (mem1T2 ^. permissions) (mem1T2 ^. invitation)
   -- Team owners create new regular team conversation:
   cidT1 <- Util.createTeamConv ownerT1 tidT1 [] (Just "blaa") Nothing Nothing
   cidT2 <- Util.createTeamConv ownerT2 tidT2 [] (Just "blaa") Nothing Nothing
@@ -980,7 +991,7 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
   owner <- Util.randomUser
   member <- Util.randomUser
   Util.connectUsers owner (list1 member [])
-  tid <- Util.createNonBindingTeam "foo" owner [newTeamMember member perms Nothing]
+  tid <- Util.createNonBindingTeam "foo" owner [Member.TeamMember member perms Nothing LH.defUserLegalHoldStatus]
   cid <- Util.createTeamConvWithRole owner tid [member] (Just "gossip") Nothing Nothing convRole
   resp <- updateTeamConv member cid (ConversationRename "not gossip")
   -- FUTUREWORK: Ensure that the team role _really_ does not matter
@@ -1466,7 +1477,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
     foldM
       ( \billingMembers n -> do
           newBillingMemberId <- randomUser
-          let mem = json $ newNewTeamMember $ newTeamMember newBillingMemberId (rolePermissions RoleOwner) Nothing
+          let mem = json $ newNewTeamMember newBillingMemberId (rolePermissions RoleOwner) Nothing
           -- We cannot properly add the new owner with an invite as we don't have a way to
           -- override galley settings while making a call to brig
           withoutIndexedBillingTeamMembers $
@@ -1484,7 +1495,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
 
   -- If we add another owner, one of them won't get notified
   ownerFanoutPlusTwo <- randomUser
-  let memFanoutPlusTwo = json $ newNewTeamMember $ newTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
+  let memFanoutPlusTwo = json $ newNewTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
   -- We cannot properly add the new owner with an invite as we don't have a way to
   -- override galley settings while making a call to brig
   withoutIndexedBillingTeamMembers $
@@ -1520,7 +1531,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   refreshIndex
 
   -- Promotions and demotion should also be kept track of regardless of feature being enabled
-  let demoteFanoutPlusThree = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) ownerFanoutPlusThree)
+  let demoteFanoutPlusThree = newNewTeamMember ownerFanoutPlusThree (rolePermissions RoleAdmin) Nothing
   withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner demoteFanoutPlusThree !!! const 200 === statusCode
   ensureQueueEmpty
 
@@ -1529,7 +1540,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
     tUpdateUncertainCount [4, 5] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour, ownerFanoutPlusFive])
   refreshIndex
 
-  let promoteFanoutPlusThree = newNewTeamMember (newTeamMember' (rolePermissions RoleOwner) ownerFanoutPlusThree)
+  let promoteFanoutPlusThree = newNewTeamMember ownerFanoutPlusThree (rolePermissions RoleOwner) Nothing
   withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner promoteFanoutPlusThree !!! const 200 === statusCode
   ensureQueueEmpty
 
@@ -1555,12 +1566,12 @@ testUpdateTeamMember = do
   assertQueue "add member" $ tUpdate 2 [owner]
   refreshIndex
   -- non-owner can **NOT** demote owner
-  let demoteOwner = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) owner)
+  let demoteOwner = newNewTeamMember owner (rolePermissions RoleAdmin) Nothing
   updateTeamMember g tid (member ^. userId) demoteOwner !!! do
     const 403 === statusCode
     const "access-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
   -- owner can demote non-owner
-  let demoteMember = newNewTeamMember (member & permissions .~ noPermissions)
+  let demoteMember = newNewTeamMember (member ^. userId) noPermissions (member ^. invitation)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
     updateTeamMember g tid owner demoteMember !!! do
       const 200 === statusCode
@@ -1571,7 +1582,7 @@ testUpdateTeamMember = do
     WS.assertNoEvent timeout [wsOwner, wsMember]
   assertQueue "Member demoted" $ tUpdate 2 [owner]
   -- owner can promote non-owner
-  let promoteMember = newNewTeamMember (member & permissions .~ fullPermissions)
+  let promoteMember = newNewTeamMember (member ^. userId) fullPermissions (member ^. invitation)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
     updateTeamMember g tid owner promoteMember !!! do
       const 200 === statusCode
@@ -1682,7 +1693,7 @@ checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvCreate
   case evtData e of
-    Just (Conv.EdConversation x) -> cnvId x @?= cid
+    Conv.EdConversation x -> cnvId x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
@@ -1699,7 +1710,7 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvDelete
   evtConv e @?= cid
-  evtData e @?= Nothing
+  evtData e @?= Conv.EdConvDelete
 
 checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
@@ -1708,7 +1719,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
-    Just (Conv.EdMembersLeave mm) -> mm @?= Conv.UserIdList [usr]
+    Conv.EdMembersLeave mm -> mm @?= Conv.UserIdList [usr]
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 postCryptoBroadcastMessageJson :: TestM ()
@@ -1947,7 +1958,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
-newTeamMember' perms uid = newTeamMember uid perms Nothing
+newTeamMember' perms uid = Member.TeamMember uid perms Nothing LH.defUserLegalHoldStatus
 
 -- NOTE: all client functions calling @{/i,}/teams/*/features/*@ can be replaced by
 -- hypothetical functions 'getTeamFeatureFlag', 'getTeamFeatureFlagInternal',

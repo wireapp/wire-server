@@ -61,6 +61,7 @@ import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Hashable (hash)
 import Data.Id
+import Data.LegalHold
 import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
@@ -101,8 +102,8 @@ import qualified Wire.API.Provider.Bot as Public (BotUserView)
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
-import qualified Wire.API.User.Client as Public (Client, PubClient (..), UserClientMap, UserClients, userClients)
-import qualified Wire.API.User.Client.Prekey as Public (Prekey, PrekeyId)
+import qualified Wire.API.User.Client as Public (Client, PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -834,8 +835,9 @@ addBot zuid zcon cid add = do
   btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
   let bcl = newClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
-  let origmem = OtherMember (makeIdOpaque zuid) Nothing roleNameWireAdmin
-  let members = origmem : (cmOthers mems)
+  let zQualifiedUid = Qualified zuid domain
+  let origmem = OtherMember zQualifiedUid Nothing roleNameWireAdmin
+  let members = origmem : cmOthers mems
   let bcnv = Ext.botConvView (cnvId cnv) (cnvName cnv) members
   let busr = mkBotUserView zusr
   let bloc = fromMaybe (userLocale zusr) (addBotLocale add)
@@ -884,7 +886,7 @@ removeBot zusr zcon cid bid = do
     throwStd invalidConv
   -- Find the bot in the member list and delete it
   let busr = botUserId bid
-  let bot = List.find ((== makeIdOpaque busr) . omId) (cmOthers mems)
+  let bot = List.find ((== busr) . qUnqualified . omQualifiedId) (cmOthers mems)
   case bot >>= omService of
     Nothing -> return Nothing
     Just _ -> do
@@ -899,7 +901,7 @@ botGetSelfH bot = json <$> botGetSelf bot
 botGetSelf :: BotId -> Handler Public.UserProfile
 botGetSelf bot = do
   p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwStd userNotFound) (return . Public.publicProfile) p
+  maybe (throwStd userNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> Handler Response
 botGetClientH bot = do
@@ -937,7 +939,7 @@ botClaimUsersPrekeysH :: JsonRequest Public.UserClients -> Handler Response
 botClaimUsersPrekeysH req = do
   json <$> (botClaimUsersPrekeys =<< parseJsonBody req)
 
-botClaimUsersPrekeys :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
+botClaimUsersPrekeys :: Public.UserClients -> Handler Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $

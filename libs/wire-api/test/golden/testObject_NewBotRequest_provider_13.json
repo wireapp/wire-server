@@ -1,0 +1,32 @@
+{
+    "origin": {
+        "handle": "7g_a0on27rzpz7cfzl3hle6v7dwv.db.to.ief5xzr3eu.vr5jb57_z5t3ahmggm9oddsd-quxc1uv4xkr7ncg9ff9zicgsjenafoxe4jbtrzjagqy84xrvt7iv_dcpe7_iiyg3tpeg8fh2osxf7dv01ueygahrdokoa-2ya37r6g0b0u3j416qnnk.404lffdz",
+        "accent_id": 0,
+        "name": "6`k)?𮊘V",
+        "team": "00000000-0000-0001-0000-000100000001",
+        "id": "00000001-0000-0000-0000-000100000001"
+    },
+    "conversation": {
+        "members": [
+            {
+                "status": 0,
+                "service": {
+                    "id": "00000001-0000-0001-0000-000000000000",
+                    "provider": "00000000-0000-0001-0000-000000000000"
+                },
+                "conversation_role": "f5kideyd0z_wa8k_u0o3wcgbx1iea5yqmkrz3vv86ehs77akep4ttw6eznzo7tefijy5zqxnzq8u4mghhp3m2pg9kqtxnaxukzw1cn",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000000-0000-0000-0000-000000000001"
+                },
+                "id": "00000000-0000-0000-0000-000000000001"
+            }
+        ],
+        "name": "",
+        "id": "00000001-0000-0001-0000-000100000000"
+    },
+    "locale": "mi-FI",
+    "token": "",
+    "id": "00000004-0000-0003-0000-000400000001",
+    "client": "e"
+}

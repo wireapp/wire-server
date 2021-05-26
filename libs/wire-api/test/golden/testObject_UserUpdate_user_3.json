@@ -1,0 +1,37 @@
+{
+    "accent_id": -5,
+    "picture": [],
+    "assets": [
+        {
+            "key": "`蓒",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "4\u0006E",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "\u0002f",
+            "type": "image"
+        }
+    ]
+}

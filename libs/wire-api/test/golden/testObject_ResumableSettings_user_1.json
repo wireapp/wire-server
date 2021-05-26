@@ -1,0 +1,5 @@
+{
+    "retention": "expiring",
+    "type": "image/png",
+    "public": false
+}

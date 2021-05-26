@@ -93,6 +93,7 @@ instance Cql Relation where
     3 -> return Ignored
     4 -> return Sent
     5 -> return Cancelled
+    6 -> return MissingLegalholdConsent
     n -> Left $ "unexpected relation: " ++ show n
   fromCql _ = Left "relation: int expected"
 
@@ -102,6 +103,7 @@ instance Cql Relation where
   toCql Ignored = CqlInt 3
   toCql Sent = CqlInt 4
   toCql Cancelled = CqlInt 5
+  toCql MissingLegalholdConsent = CqlInt 6
 
 -- DEPRECATED
 instance Cql Pict where

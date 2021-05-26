@@ -50,8 +50,6 @@ import qualified Galley.Types.Teams as Galley
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Scim (CreateScimTokenResponse (..), SparTag, userSchemas)
-import Spar.Scim.Types (CreateScimToken (..), ScimUserExtra (ScimUserExtra))
-import Spar.Types hiding (Opts)
 import Test.QuickCheck (generate)
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import Test.Tasty
@@ -68,6 +66,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.RichInfo (RichInfo)
+import Wire.API.User.Scim (CreateScimToken (..), ScimToken, ScimUserExtra (ScimUserExtra))
 
 tests :: Opts -> Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
 tests opts m db brig galley spar = do

@@ -1,0 +1,5 @@
+{
+    "retention": "eternal-infrequent_access",
+    "type": "image/png",
+    "public": true
+}

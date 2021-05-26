@@ -1,0 +1,31 @@
+{
+    "locale": "mi-SY",
+    "managed_by": "wire",
+    "qualified_id": {
+        "domain": "f-s.w",
+        "id": "00000002-0000-0000-0000-000100000001"
+    },
+    "accent_id": -1,
+    "picture": [],
+    "name": "F黂ᚬf䰍z􋃏𨬽8]\u0004+􅝕󰒰",
+    "expires_at": "1864-05-11T19:17:59.357Z",
+    "team": "00000000-0000-0001-0000-000100000000",
+    "id": "00000000-0000-0002-0000-000200000000",
+    "deleted": true,
+    "assets": [
+        {
+            "size": "preview",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "type": "image"
+        }
+    ]
+}

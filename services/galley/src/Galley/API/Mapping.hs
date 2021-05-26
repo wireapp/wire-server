@@ -20,13 +20,15 @@
 module Galley.API.Mapping where
 
 import Control.Monad.Catch
-import Data.Id (idToText)
-import qualified Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
+import Data.Domain (Domain)
+import Data.Id (UserId, idToText)
 import qualified Data.List as List
-import Data.Qualified (renderQualifiedId)
+import Data.Qualified (Qualified (Qualified))
+import Data.Tagged (unTagged)
+import Galley.API.Util (viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Data.Types (convId)
 import qualified Galley.Types.Conversations.Members as Internal
 import Imports
 import Network.HTTP.Types.Status
@@ -35,35 +37,50 @@ import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (+++))
 import qualified Wire.API.Conversation as Public
 
-conversationView :: MappedOrLocalId Id.U -> Data.Conversation -> Galley Public.Conversation
-conversationView u Data.Conversation {..} = do
-  let mm = toList convMembers
-  let (me, them) = List.partition ((u ==) . Internal.memId) mm
-  m <- maybe memberNotFound return (listToMaybe me)
-  let mems = Public.ConvMembers (toMember m) (toOther <$> them)
-  return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
+-- | View for a given user of a stored conversation.
+-- Throws "bad-state" when the user is not part of the conversation.
+conversationView :: UserId -> Data.Conversation -> Galley Public.Conversation
+conversationView uid conv = do
+  mbConv <- conversationViewMaybe uid conv
+  maybe memberNotFound pure mbConv
   where
-    toOther :: Internal.Member -> Public.OtherMember
-    toOther x =
-      Public.OtherMember
-        { Public.omId = opaqueIdFromMappedOrLocal (Internal.memId x),
-          Public.omService = Internal.memService x,
-          Public.omConvRoleName = Internal.memConvRoleName x
-        }
     memberNotFound = do
       Log.err . msg $
         val "User "
-          +++ showUserId u
+          +++ idToText uid
           +++ val " is not a member of conv "
-          +++ idToText convId
+          +++ idToText (convId conv)
       throwM badState
-    showUserId = \case
-      Local localId ->
-        idToText localId <> " (local)"
-      Mapped IdMapping {_imMappedId, _imQualifiedId} ->
-        idToText _imMappedId <> " (" <> renderQualifiedId _imQualifiedId <> ")"
     badState = Error status500 "bad-state" "Bad internal member state."
 
-toMember :: Internal.Member -> Public.Member
-toMember x@(Internal.Member {..}) =
-  Public.Member {memId = opaqueIdFromMappedOrLocal (Internal.memId x), ..}
+-- | View for a given user of a stored conversation.
+-- Returns 'Nothing' when the user is not part of the conversation.
+conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
+conversationViewMaybe u Data.Conversation {..} = do
+  domain <- viewFederationDomain
+  let (me, localThem) = List.partition ((u ==) . Internal.memId) convMembers
+  let localMembers = localToOther domain <$> localThem
+  let remoteMembers = remoteToOther <$> convRemoteMembers
+  for (listToMaybe me) $ \m -> do
+    let mems = Public.ConvMembers (toMember m) (localMembers <> remoteMembers)
+    return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
+  where
+    localToOther :: Domain -> Internal.LocalMember -> Public.OtherMember
+    localToOther domain x =
+      Public.OtherMember
+        { Public.omQualifiedId = Qualified (Internal.memId x) domain,
+          Public.omService = Internal.memService x,
+          Public.omConvRoleName = Internal.memConvRoleName x
+        }
+
+    remoteToOther :: Internal.RemoteMember -> Public.OtherMember
+    remoteToOther x =
+      Public.OtherMember
+        { Public.omQualifiedId = unTagged (Internal.rmId x),
+          Public.omService = Nothing,
+          Public.omConvRoleName = Internal.rmConvRoleName x
+        }
+
+toMember :: Internal.LocalMember -> Public.Member
+toMember x@Internal.InternalMember {..} =
+  Public.Member {memId = Internal.memId x, ..}

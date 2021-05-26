@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
@@ -48,12 +47,14 @@ where
 
 import Control.Applicative (optional)
 import Control.Lens ((.~), (?~))
-import Data.Aeson hiding ((<?>))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.Proxy (Proxy (..))
-import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
@@ -75,16 +76,16 @@ data UserIdentity
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
-instance ToSchema UserIdentity where
+instance S.ToSchema UserIdentity where
   declareNamedSchema _ = do
-    emailSchema <- declareSchemaRef (Proxy @Email)
-    phoneSchema <- declareSchemaRef (Proxy @Phone)
-    ssoSchema <- declareSchemaRef (Proxy @UserSSOId)
+    emailSchema <- S.declareSchemaRef (Proxy @Email)
+    phoneSchema <- S.declareSchemaRef (Proxy @Phone)
+    ssoSchema <- S.declareSchemaRef (Proxy @UserSSOId)
     return $
-      NamedSchema (Just "userIdentity") $
+      S.NamedSchema (Just "userIdentity") $
         mempty
-          & type_ ?~ SwaggerObject
-          & properties
+          & S.type_ ?~ S.SwaggerObject
+          & S.properties
             .~ [ ("email", emailSchema),
                  ("phone", phoneSchema),
                  ("sso_id", ssoSchema)
@@ -97,14 +98,14 @@ instance ToJSON UserIdentity where
     PhoneIdentity ph -> go Nothing (Just ph) Nothing
     SSOIdentity si em ph -> go em ph (Just si)
     where
-      go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
-      go em ph si = object ["email" .= em, "phone" .= ph, "sso_id" .= si]
+      go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> A.Value
+      go em ph si = A.object ["email" A..= em, "phone" A..= ph, "sso_id" A..= si]
 
 instance FromJSON UserIdentity where
-  parseJSON = withObject "UserIdentity" $ \o -> do
-    email <- o .:? "email"
-    phone <- o .:? "phone"
-    ssoid <- o .:? "sso_id"
+  parseJSON = A.withObject "UserIdentity" $ \o -> do
+    email <- o A..:? "email"
+    phone <- o A..:? "phone"
+    ssoid <- o A..:? "sso_id"
     maybe
       (fail "Missing 'email' or 'phone' or 'sso_id'.")
       return
@@ -144,9 +145,18 @@ data Email = Email
     emailDomain :: Text
   }
   deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
 
 instance ToSchema Email where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+  schema =
+    fromEmail
+      .= parsedText
+        "Email"
+        ( maybe
+            (Left "Invalid email. Expected '<local>@<domain>'.")
+            pure
+            . parseEmail
+        )
 
 instance Show Email where
   show = Text.unpack . fromEmail
@@ -156,15 +166,6 @@ instance ToByteString Email where
 
 instance FromByteString Email where
   parser = parser >>= maybe (fail "Invalid email") return . parseEmail
-
-instance ToJSON Email where
-  toJSON = String . fromEmail
-
-instance FromJSON Email where
-  parseJSON =
-    withText "email" $
-      maybe (fail "Invalid email. Expected '<local>@<domain>'.") return
-        . parseEmail
 
 instance Arbitrary Email where
   arbitrary = do
@@ -225,11 +226,11 @@ validateEmail =
 -- Phone
 
 newtype Phone = Phone {fromPhone :: Text}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, ToSchema)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (ToJSON, S.ToSchema)
 
 instance FromJSON Phone where
-  parseJSON (String s) = case parsePhone s of
+  parseJSON (A.String s) = case parsePhone s of
     Just p -> return p
     Nothing -> fail "Invalid phone number. Expected E.164 format."
   parseJSON _ = mempty
@@ -286,16 +287,16 @@ data UserSSOId
 -- FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2
 -- Maybe this becomes possible with swagger 3?
-instance ToSchema UserSSOId where
+instance S.ToSchema UserSSOId where
   declareNamedSchema _ = do
-    tenantSchema <- declareSchemaRef (Proxy @Text)
-    subjectSchema <- declareSchemaRef (Proxy @Text)
-    scimSchema <- declareSchemaRef (Proxy @Text)
+    tenantSchema <- S.declareSchemaRef (Proxy @Text)
+    subjectSchema <- S.declareSchemaRef (Proxy @Text)
+    scimSchema <- S.declareSchemaRef (Proxy @Text)
     return $
-      NamedSchema (Just "UserSSOId") $
+      S.NamedSchema (Just "UserSSOId") $
         mempty
-          & type_ ?~ SwaggerObject
-          & properties
+          & S.type_ ?~ S.SwaggerObject
+          & S.properties
             .~ [ ("tenant", tenantSchema),
                  ("subject", subjectSchema),
                  ("scim_external_id", scimSchema)
@@ -303,14 +304,14 @@ instance ToSchema UserSSOId where
 
 instance ToJSON UserSSOId where
   toJSON = \case
-    UserSSOId tenant subject -> object ["tenant" .= tenant, "subject" .= subject]
-    UserScimExternalId eid -> object ["scim_external_id" .= eid]
+    UserSSOId tenant subject -> A.object ["tenant" A..= tenant, "subject" A..= subject]
+    UserScimExternalId eid -> A.object ["scim_external_id" A..= eid]
 
 instance FromJSON UserSSOId where
-  parseJSON = withObject "UserSSOId" $ \obj -> do
-    mtenant <- obj .:? "tenant"
-    msubject <- obj .:? "subject"
-    meid <- obj .:? "scim_external_id"
+  parseJSON = A.withObject "UserSSOId" $ \obj -> do
+    mtenant <- obj A..:? "tenant"
+    msubject <- obj A..:? "subject"
+    meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
       (Just tenant, Just subject, Nothing) -> pure $ UserSSOId tenant subject
       (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
@@ -325,8 +326,8 @@ newtype PhoneBudgetTimeout = PhoneBudgetTimeout
   deriving newtype (Arbitrary)
 
 instance FromJSON PhoneBudgetTimeout where
-  parseJSON = withObject "PhoneBudgetTimeout" $ \o ->
-    PhoneBudgetTimeout <$> o .: "expires_in"
+  parseJSON = A.withObject "PhoneBudgetTimeout" $ \o ->
+    PhoneBudgetTimeout <$> o A..: "expires_in"
 
 instance ToJSON PhoneBudgetTimeout where
-  toJSON (PhoneBudgetTimeout t) = object ["expires_in" .= t]
+  toJSON (PhoneBudgetTimeout t) = A.object ["expires_in" A..= t]

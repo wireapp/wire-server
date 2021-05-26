@@ -36,6 +36,9 @@ module Spar.Data
     getVerdictFormat,
 
     -- * SAML Users
+    NormalizedUNameID (..),
+    normalizeUnqualifiedNameId,
+    normalizeQualifiedNameId,
     insertSAMLUser,
     getSAMLUser,
     getSAMLAnyUserByIssuer,
@@ -90,6 +93,7 @@ import Cassandra as Cas
 import Control.Arrow (Arrow ((&&&)))
 import Control.Lens
 import Control.Monad.Except
+import Data.CaseInsensitive (foldCase)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.List.NonEmpty as NL
@@ -98,19 +102,24 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import Spar.Types
+import qualified Text.Email.Parser as Email
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
+import Wire.API.Cookie
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 13
+schemaVersion = 14
 
 ----------------------------------------------------------------------
 -- helpers
@@ -257,12 +266,41 @@ getVerdictFormat req =
 ----------------------------------------------------------------------
 -- user
 
+-- | Used as a lookup key for 'UnqualifiedNameID' that only depends on the
+-- lowercase version of the identifier. Use 'normalizeUnqualifiedNameId' or
+-- 'normalizeQualifiedNameId' to create values.
+newtype NormalizedUNameID = NormalizedUNameID {unNormalizedUNameID :: Text}
+  deriving stock (Eq, Ord, Generic)
+
+instance Cql NormalizedUNameID where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unNormalizedUNameID
+  fromCql (CqlText t) = pure $ NormalizedUNameID t
+  fromCql _ = Left "NormalizedNameID: expected CqlText"
+
+normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
+normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
+  where
+    nameIdTxt :: SAML.UnqualifiedNameID -> ST
+    nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEmail (SAML.Email txt)) = cs $ Email.toByteString txt
+    nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDWindows txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDKerberos txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEntity uri) = renderURI uri
+    nameIdTxt (SAML.UNameIDPersistent txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDTransient txt) = SAML.unsafeFromXmlText txt
+
+-- | Qualifiers are ignored.
+normalizeQualifiedNameId :: SAML.NameID -> NormalizedUNameID
+normalizeQualifiedNameId = normalizeUnqualifiedNameId . view SAML.nameID
+
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
+insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, normalizeQualifiedNameId subject, subject, uid)
   where
-    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
-    ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
+    ins :: PrepQuery W (SAML.Issuer, NormalizedUNameID, SAML.NameID, UserId) ()
+    ins = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
 
 -- | Sometimes we only need to know if it's none or more, so this function returns the first one.
 getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
@@ -271,7 +309,7 @@ getSAMLAnyUserByIssuer issuer =
     <$$> (retry x1 . query1 sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE issuer = ? LIMIT 1"
+    sel = "SELECT uid FROM user_v2 WHERE issuer = ? LIMIT 1"
 
 -- | Sometimes (eg., for IdP deletion), we can start anywhere with deleting all users in an
 -- IdP, and if we don't get all users we just try again when we're done with these.
@@ -281,28 +319,62 @@ getSAMLSomeUsersByIssuer issuer =
     <$$> (retry x1 . query sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
-    sel = "SELECT sso_id, uid FROM user WHERE issuer = ? LIMIT 2000"
+    sel = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ? LIMIT 2000"
 
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getSAMLUser (SAML.UserRef tenant subject) =
-  runIdentity
-    <$$> (retry x1 . query1 sel $ params Quorum (tenant, subject))
+getSAMLUser uref = do
+  mbUid <- getSAMLUserNew uref
+  case mbUid of
+    Nothing -> migrateLegacy uref
+    Just uid -> pure $ Just uid
   where
-    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
+    getSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserNew (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params Quorum (tenant, normalizeQualifiedNameId subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, NormalizedUNameID) (Identity UserId)
+        sel = "SELECT uid FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
+
+    migrateLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    migrateLegacy uref' = do
+      mbUid <- getSAMLUserLegacy uref'
+      for mbUid $ \uid -> do
+        insertSAMLUser uref' uid
+        pure uid
+
+    getSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserLegacy (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params Quorum (tenant, subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
+        sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
 deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
 deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
   where
     del :: PrepQuery W (Identity SAML.Issuer) ()
-    del = "DELETE FROM user WHERE issuer = ?"
+    del = "DELETE FROM user_v2 WHERE issuer = ?"
 
--- | Delete a user from the saml users table.
-deleteSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
-deleteSAMLUser (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+deleteSAMLUser :: (HasCallStack, MonadClient m) => UserId -> SAML.UserRef -> m ()
+deleteSAMLUser uid uref = do
+  muidUref <- getSAMLUser uref
+  for_ muidUref $ \uidUref ->
+    when (uidUref == uid) $ do
+      deleteSAMLUserLegacy uref
+      deleteSAMLUserNew uref
   where
-    del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
-    del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
+    deleteSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+    deleteSAMLUserNew (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, normalizeQualifiedNameId subject)
+      where
+        del :: PrepQuery W (SAML.Issuer, NormalizedUNameID) ()
+        del = "DELETE FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
+    deleteSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m ()
+    deleteSAMLUserLegacy (SAML.UserRef tenant subject) = retry x5 . write del $ params Quorum (tenant, subject)
+      where
+        del :: PrepQuery W (SAML.Issuer, SAML.NameID) ()
+        del = "DELETE FROM user WHERE issuer = ? AND sso_id = ?"
 
 ----------------------------------------------------------------------
 -- bind cookies
@@ -318,7 +390,7 @@ insertBindCookie ::
 insertBindCookie cky uid ttlNDT = do
   env <- ask
   TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
-  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ cky
   retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
   where
     ins :: PrepQuery W (ST, UserId, Int32) ()

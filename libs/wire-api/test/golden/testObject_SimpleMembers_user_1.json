@@ -1,0 +1,96 @@
+{
+    "users": [
+        {
+            "conversation_role": "py49zu8bed53ta2nhrhtkv1ck923pk8x70h1zzgp1h15yf6_vcqq7aeckcwpgonge096jg1l2xm4qogs3gucm_s8c_djl718bnwnm6x16rtxttlb47fiazreiew8",
+            "id": "00000048-0000-0011-0000-002300000050"
+        },
+        {
+            "conversation_role": "qslp25fyjfvydgtfk3v3ibh8eqdq3kpek7rb11xteg2y5_0a1mv14v5n79jznd5zjfes70nqyeacesqi8v62fmzsc_4zss75er",
+            "id": "00000030-0000-003d-0000-00620000002a"
+        },
+        {
+            "conversation_role": "n0_wuagfmm6ltcjr0n2ib7l2mdg3i0zwtzmb6aribmg2107sirkgo17wjt9d2h66nj3lerw_blivsh6by09a",
+            "id": "0000001f-0000-002b-0000-005500000013"
+        },
+        {
+            "conversation_role": "4q8i3kin7cuo_xpa",
+            "id": "00000062-0000-0017-0000-005a00000019"
+        },
+        {
+            "conversation_role": "e52wem88ym9kubyydku",
+            "id": "00000065-0000-002e-0000-00730000002f"
+        },
+        {
+            "conversation_role": "yson37f_88qcp5chnwpjnwin427qoptb7bmlx5u2454vw95vvt241red8i1pkavlha4l9vx3cr1ajgklb",
+            "id": "00000048-0000-0068-0000-002300000042"
+        },
+        {
+            "conversation_role": "q24o118lbfa5zisiltltauh2qyf2lo_vu10hohqtf157wiasc4old5lwbn0g5xarmmu91kfqczv1om08v81k_a",
+            "id": "00000021-0000-0057-0000-005d00000055"
+        },
+        {
+            "conversation_role": "0otsqpgjh2ctmp22nsof114767_vow59km_e",
+            "id": "00000080-0000-0071-0000-003400000066"
+        },
+        {
+            "conversation_role": "406ogeb8o68w",
+            "id": "00000036-0000-0050-0000-002a0000005b"
+        },
+        {
+            "conversation_role": "vgwq1mfqei0embh6msg2q0ucobreh9jl61ql0fge66e9xe",
+            "id": "00000044-0000-0025-0000-002e00000026"
+        },
+        {
+            "conversation_role": "rmv3a7k_p9vlj1l324wnlko6fa0ve13nnf9n0qmey0dgacxewoyss9wih9k0oddw3q634r8ewtj43os8jwg5ka7m58vcqlq2ci6n0a139_g3avnchq9uvi0",
+            "id": "00000059-0000-0000-0000-002e0000002d"
+        },
+        {
+            "conversation_role": "9pryu0zv3nw_xtb3xr1naukqs0e",
+            "id": "00000014-0000-0003-0000-002600000025"
+        },
+        {
+            "conversation_role": "iy",
+            "id": "0000002c-0000-0006-0000-007300000061"
+        },
+        {
+            "conversation_role": "bv0fkxi4521qi41njnulwsz6lp4qwsm0mgbkis1pwjc4bxatdie460vepfj11u_osup17wizy3clm31t_z827yzkw_zcgs",
+            "id": "0000003f-0000-002c-0000-00670000002f"
+        },
+        {
+            "conversation_role": "5v6_cttr3ctgrijw4h1_gsyi41f4t3dgyh64dhcgeoxvao1h68",
+            "id": "0000006c-0000-0072-0000-00400000002d"
+        },
+        {
+            "conversation_role": "x0",
+            "id": "00000064-0000-0070-0000-000800000049"
+        },
+        {
+            "conversation_role": "ss07m2lagw1v7yvn_swpeauvqdyktrcjreq86gx7shm4xkc3rtimrykvblvtc52pnc8obmsdz475yeet1sxlp0hq7wcaagr2hdi7a7d801khmybj",
+            "id": "0000006a-0000-002e-0000-006000000070"
+        },
+        {
+            "conversation_role": "vb_ng523gxc0ci13cmxscmusff8uw12hvbsvfsa",
+            "id": "00000059-0000-005a-0000-002300000061"
+        }
+    ],
+    "user_ids": [
+        "00000048-0000-0011-0000-002300000050",
+        "00000030-0000-003d-0000-00620000002a",
+        "0000001f-0000-002b-0000-005500000013",
+        "00000062-0000-0017-0000-005a00000019",
+        "00000065-0000-002e-0000-00730000002f",
+        "00000048-0000-0068-0000-002300000042",
+        "00000021-0000-0057-0000-005d00000055",
+        "00000080-0000-0071-0000-003400000066",
+        "00000036-0000-0050-0000-002a0000005b",
+        "00000044-0000-0025-0000-002e00000026",
+        "00000059-0000-0000-0000-002e0000002d",
+        "00000014-0000-0003-0000-002600000025",
+        "0000002c-0000-0006-0000-007300000061",
+        "0000003f-0000-002c-0000-00670000002f",
+        "0000006c-0000-0072-0000-00400000002d",
+        "00000064-0000-0070-0000-000800000049",
+        "0000006a-0000-002e-0000-006000000070",
+        "00000059-0000-005a-0000-002300000061"
+    ]
+}

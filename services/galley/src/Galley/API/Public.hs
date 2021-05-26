@@ -14,12 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Galley.API.Public
   ( sitemap,
     apiDocs,
-    apiDocsTeamsLegalhold,
     filterMissing, -- for tests
+    servantSitemap,
   )
 where
 
@@ -37,7 +36,6 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
-import Galley.API.Swagger (swagger)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
@@ -52,18 +50,20 @@ import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
-import Network.Wai.Utilities.ZAuth
+import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
+import Servant hiding (Handler, JSON, addHeader, contentType, respond)
+import Servant.Server.Generic (genericServerT)
+import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
-import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
-import qualified Wire.API.Team.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
@@ -71,6 +71,24 @@ import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
+
+servantSitemap :: ServerT GalleyAPI.ServantAPI Galley
+servantSitemap =
+  genericServerT $
+    GalleyAPI.Api
+      { GalleyAPI.getConversation = Query.getConversation,
+        GalleyAPI.getConversationRoles = Query.getConversationRoles,
+        GalleyAPI.getConversationIds = Query.getConversationIds,
+        GalleyAPI.getConversations = Query.getConversations,
+        GalleyAPI.createGroupConversation = Create.createGroupConversation,
+        GalleyAPI.createSelfConversation = Create.createSelfConversation,
+        GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
+        GalleyAPI.addMembersToConversationV2 = Update.addMembersQH,
+        GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
+        GalleyAPI.getTeamConversations = Teams.getTeamConversations,
+        GalleyAPI.getTeamConversation = Teams.getTeamConversation,
+        GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation
+      }
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -320,66 +338,6 @@ sitemap = do
     errorResponse Error.teamMemberNotFound
     errorResponse (Error.operationDenied Public.SetMemberPermissions)
 
-  -- Team Conversation API ----------------------------------------------
-
-  get "/teams/:tid/conversations/roles" (continue Teams.getTeamConversationRolesH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversationsRoles" $ do
-    summary "Get existing roles available for the given team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelConversationRolesList)
-    response 200 "Team conversations roles list" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.notATeamMember
-
-  get "/teams/:tid/conversations" (continue Teams.getTeamConversationsH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversations" $ do
-    summary "Get team conversations"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamConversationList)
-    response 200 "Team conversations" end
-    errorResponse Error.teamNotFound
-    errorResponse (Error.operationDenied Public.GetTeamConversations)
-
-  get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "cid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversation" $ do
-    summary "Get one team conversation"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "cid" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelTeamConversation)
-    response 200 "Team conversation" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.convNotFound
-    errorResponse (Error.operationDenied Public.GetTeamConversations)
-
-  delete "/teams/:tid/conversations/:cid" (continue Teams.deleteTeamConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. capture "cid"
-      .&. accept "application" "json"
-  document "DELETE" "deleteTeamConversation" $ do
-    summary "Remove a team conversation"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "cid" bytes' $
-      description "Conversation ID"
-    errorResponse Error.notATeamMember
-    errorResponse (Error.actionDenied Public.DeleteConversation)
-
   -- Team Legalhold API -------------------------------------------------
   --
   -- The Swagger docs of this part of the documentation are not generated
@@ -410,6 +368,13 @@ sitemap = do
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
+      .&. accept "application" "json"
+
+  -- This endpoint can lead to the following events being sent:
+  -- - tbd. (currently, there are not events, but maybe there should be.)  (fisx, 2021-05-10)
+  post "/teams/:tid/legalhold/consent" (continue LegalHold.grantConsentH) $
+    zauthUserId
+      .&. capture "tid"
       .&. accept "application" "json"
 
   -- This endpoint can lead to the following events being sent:
@@ -454,7 +419,7 @@ sitemap = do
     returns (ref Public.modelTeamSearchVisibility)
     response 200 "Search visibility" end
 
-  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
+  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @Public.TeamSearchVisibilityView
@@ -516,104 +481,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  get "/conversations/:cnv" (continue Query.getConversationH) $
-    zauthUserId
-      .&. capture "cnv"
-      .&. accept "application" "json"
-  document "GET" "conversation" $ do
-    summary "Get a conversation by ID"
-    returns (ref Public.modelConversation)
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    errorResponse Error.convNotFound
-    errorResponse Error.convAccessDenied
-
-  get "/conversations/:cnv/roles" (continue Query.getConversationRolesH) $
-    zauthUserId
-      .&. capture "cnv"
-      .&. accept "application" "json"
-  document "GET" "getConversationsRoles" $ do
-    summary "Get existing roles available for the given conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelConversationRolesList)
-    response 200 "Conversations roles list" end
-    errorResponse Error.convNotFound
-
-  get "/conversations/ids" (continue Query.getConversationIdsH) $
-    zauthUserId
-      .&. opt (query "start")
-      .&. def (unsafeRange 1000) (query "size")
-      .&. accept "application" "json"
-  document "GET" "conversationIds" $ do
-    summary "Get all conversation IDs"
-    notes "At most 1000 IDs are returned per request"
-    parameter Query "start" string' $ do
-      optional
-      description "Conversation ID to start from (exclusive)"
-    parameter Query "size" string' $ do
-      optional
-      description "Max. number of IDs to return"
-    returns (ref Public.modelConversationIds)
-
-  get "/conversations" (continue Query.getConversationsH) $
-    zauthUserId
-      .&. opt (query "ids" ||| query "start")
-      .&. def (unsafeRange 100) (query "size")
-      .&. accept "application" "json"
-  document "GET" "conversations" $ do
-    summary "Get all conversations"
-    notes "At most 500 conversations are returned per request"
-    returns (ref Public.modelConversations)
-    parameter Query "ids" (array string') $ do
-      optional
-      description "Mutually exclusive with 'start'. At most 32 IDs per request."
-    parameter Query "start" string' $ do
-      optional
-      description
-        "Conversation ID to start from (exclusive). \
-        \Mutually exclusive with 'ids'."
-    parameter Query "size" int32' $ do
-      optional
-      description "Max. number of conversations to return"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to members
-  post "/conversations" (continue Create.createGroupConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NewConvUnmanaged
-  document "POST" "createGroupConversation" $ do
-    summary "Create a new conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    body (ref Public.modelNewConversation) $
-      description "JSON body"
-    response 201 "Conversation created" end
-    errorResponse Error.notConnected
-    errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.CreateConversation)
-
-  post "/conversations/self" (continue Create.createSelfConversationH) $
-    zauthUserId
-  document "POST" "createSelfConversation" $ do
-    summary "Create a self-conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    response 201 "Conversation created" end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to members
-  post "/conversations/one2one" (continue Create.createOne2OneConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NewConvUnmanaged
-  document "POST" "createOne2OneConversation" $ do
-    summary "Create a 1:1-conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    body (ref Public.modelNewConversation) $
-      description "JSON body"
-    response 201 "Conversation created" end
-    errorResponse Error.noManagedTeamConv
 
   -- This endpoint can lead to the following events being sent:
   -- - ConvRename event to members
@@ -813,6 +680,7 @@ sitemap = do
     returns (ref Public.modelEvent)
     response 200 "Members added" end
     response 204 "No change" end
+    response 412 "The user(s) cannot be added to the conversation (eg., due to legalhold policy conflict)." end
     errorResponse Error.convNotFound
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse Error.notConnected
@@ -1048,7 +916,7 @@ sitemap = do
     errorResponse Error.broadcastLimitExceeded
 
 apiDocs :: Routes ApiBuilder Galley ()
-apiDocs = do
+apiDocs =
   get "/conversations/api-docs" (continue docs) $
     accept "application" "json"
       .&. query "base_url"
@@ -1060,20 +928,6 @@ docs (_ ::: url) = do
   let models = Public.Swagger.models
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
   pure $ responseLBS status200 [jsonContent] apidoc
-
--- FUTUREWORK: /teams/api-docs does not get queried by zwagger-ui
-
--- |
--- I (Tiago) added servant-based swagger docs here because
--- * it was faster to write than learning our legacy approach and
--- * swagger2 is more useful for the client teams.
---
--- We can discuss at the end of the sprint whether to keep it here,
--- move it elsewhere, or abandon it entirely.
-apiDocsTeamsLegalhold :: Routes ApiBuilder Galley ()
-apiDocsTeamsLegalhold = do
-  get "/teams/api-docs" (continue . const . pure . json $ swagger) $
-    accept "application" "json"
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
 filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
@@ -1135,7 +989,7 @@ mkFeatureGetAndPutRoute getter setter = do
       putHandler (uid ::: tid ::: req ::: _) = do
         status <- fromJsonBody req
         res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
-        pure $ (json res) & Network.Wai.Utilities.setStatus status200
+        pure $ json res & Network.Wai.Utilities.setStatus status200
 
   let mkPutRoute makeDocumentation name = do
         put ("/teams/:tid/features/" <> name) (continue putHandler) $

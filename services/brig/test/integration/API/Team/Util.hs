@@ -199,14 +199,14 @@ updatePermissions from tid (to, perm) galley =
     !!! const 200
     === statusCode
   where
-    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm Nothing
+    changeMember = Team.newNewTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid False
   let conv =
         NewConvUnmanaged $
-          NewConv (makeIdOpaque <$> us) Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+          NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g
@@ -228,7 +228,7 @@ createManagedConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid True
   let conv =
         NewConvManaged $
-          NewConv (makeIdOpaque <$> us) Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+          NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
   r <-
     post
       ( g

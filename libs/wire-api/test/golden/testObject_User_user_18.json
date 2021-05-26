@@ -1,0 +1,42 @@
+{
+    "email": "@",
+    "phone": "+0535364775",
+    "handle": "ip",
+    "service": {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "provider": "00000000-0000-0000-0000-000100000000"
+    },
+    "locale": "li-TG",
+    "managed_by": "wire",
+    "qualified_id": {
+        "domain": "5rdu.v49c00u",
+        "id": "00000001-0000-0000-0000-000100000000"
+    },
+    "accent_id": 1,
+    "picture": [],
+    "name": "\u0019[e#Du\u0017m魘􉖢󳑡6\ty􌊡",
+    "expires_at": "1864-05-09T22:44:19.375Z",
+    "team": "00000000-0000-0000-0000-000200000002",
+    "sso_id": {
+        "subject": "",
+        "tenant": ""
+    },
+    "id": "00000000-0000-0001-0000-000200000000",
+    "deleted": true,
+    "assets": [
+        {
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "",
+            "type": "image"
+        }
+    ]
+}

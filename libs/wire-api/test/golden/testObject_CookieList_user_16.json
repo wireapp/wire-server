@@ -1,0 +1,116 @@
+{
+    "cookies": [
+        {
+            "created": "1864-05-09T12:00:27.276658197151Z",
+            "expires": "1864-05-09T01:54:16.672289842468Z",
+            "successor": 0,
+            "id": 0,
+            "type": "persistent",
+            "label": null
+        },
+        {
+            "created": "1864-05-09T16:01:15.129996103969Z",
+            "expires": "1864-05-09T05:49:57.556804885534Z",
+            "successor": null,
+            "id": 0,
+            "type": "persistent",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T05:55:16.46479580635Z",
+            "expires": "1864-05-09T20:42:10.458648722298Z",
+            "successor": null,
+            "id": 1,
+            "type": "session",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T11:15:08.365259295213Z",
+            "expires": "1864-05-09T18:00:18.662996900631Z",
+            "successor": 0,
+            "id": 0,
+            "type": "session",
+            "label": null
+        },
+        {
+            "created": "1864-05-09T11:45:20.397833179427Z",
+            "expires": "1864-05-09T07:07:18.247068306493Z",
+            "successor": 0,
+            "id": 0,
+            "type": "session",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T01:42:04.76385204735Z",
+            "expires": "1864-05-09T16:46:25.33589399408Z",
+            "successor": 1,
+            "id": 1,
+            "type": "persistent",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T03:25:44.710313848676Z",
+            "expires": "1864-05-09T19:46:29.959694540229Z",
+            "successor": 0,
+            "id": 1,
+            "type": "session",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T16:59:32.170300107165Z",
+            "expires": "1864-05-09T14:56:15.800372774188Z",
+            "successor": 0,
+            "id": 1,
+            "type": "session",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T21:04:37.60538916949Z",
+            "expires": "1864-05-09T12:14:07.019845858128Z",
+            "successor": 1,
+            "id": 1,
+            "type": "session",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T00:25:48.382730928676Z",
+            "expires": "1864-05-09T02:41:51.123612675322Z",
+            "successor": null,
+            "id": 1,
+            "type": "persistent",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T19:14:33.950057302805Z",
+            "expires": "1864-05-09T01:47:05.737848270671Z",
+            "successor": 0,
+            "id": 1,
+            "type": "session",
+            "label": null
+        },
+        {
+            "created": "1864-05-09T04:44:31.697866013259Z",
+            "expires": "1864-05-09T04:07:44.709319258579Z",
+            "successor": 1,
+            "id": 1,
+            "type": "persistent",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T21:33:23.515716434732Z",
+            "expires": "1864-05-09T06:15:22.054257588544Z",
+            "successor": 1,
+            "id": 0,
+            "type": "session",
+            "label": ""
+        },
+        {
+            "created": "1864-05-09T03:39:01.113036868526Z",
+            "expires": "1864-05-09T21:39:55.354063482533Z",
+            "successor": 1,
+            "id": 0,
+            "type": "session",
+            "label": null
+        }
+    ]
+}

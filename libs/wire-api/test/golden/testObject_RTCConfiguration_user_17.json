@@ -1,0 +1,69 @@
+{
+    "ttl": 21,
+    "ice_servers": [
+        {
+            "urls": [
+                "turn:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp",
+                "turns:123:1?transport=tcp",
+                "turn:123:0?transport=udp"
+            ],
+            "credential": "sB8=",
+            "username": "d=0.v=1.k=2.t=E.r=jme"
+        },
+        {
+            "urls": [
+                "turn:host.name:1?transport=udp",
+                "turn:xn--mgbh0fb.xn--kgbechtv:0"
+            ],
+            "credential": "w+c=",
+            "username": "d=0.v=3.k=1.t=#.r=r"
+        },
+        {
+            "urls": [
+                "turns:79.55.124.204:1?transport=udp",
+                "turn:a-c:0",
+                "turns:host.name:1?transport=tcp",
+                "turn:123:0?transport=udp"
+            ],
+            "credential": "",
+            "username": "d=4.v=3.k=2.t=B.r=jn"
+        },
+        {
+            "urls": [
+                "turn:a-c:0?transport=udp",
+                "turns:xn--mgbh0fb.xn--kgbechtv:1",
+                "turn:123:1?transport=udp",
+                "turn:xn--mgbh0fb.xn--kgbechtv:1?transport=udp"
+            ],
+            "credential": "Ug==",
+            "username": "d=1.v=1.k=2.t=𨝵.r=vp"
+        },
+        {
+            "urls": [
+                "turns:123:0?transport=udp",
+                "turn:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp",
+                "turns:123:1"
+            ],
+            "credential": "Sg==",
+            "username": "d=0.v=1.k=1.t= .r=c7"
+        },
+        {
+            "urls": [
+                "turns:254.2.228.149:0?transport=tcp",
+                "turns:host.name:1?transport=tcp",
+                "turn:131.78.13.4:1"
+            ],
+            "credential": "KA==",
+            "username": "d=0.v=0.k=2.t=o.r=kbh"
+        },
+        {
+            "urls": [
+                "turn:92.191.110.233:0",
+                "turns:a-c:0",
+                "turn:xn--mgbh0fb.xn--kgbechtv:1?transport=udp"
+            ],
+            "credential": "og==",
+            "username": "d=4.v=0.k=2.t=|.r=b2"
+        }
+    ]
+}

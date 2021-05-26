@@ -1,0 +1,6 @@
+{
+    "actions": [
+        "leave_conversation"
+    ],
+    "conversation_role": "wire_member"
+}

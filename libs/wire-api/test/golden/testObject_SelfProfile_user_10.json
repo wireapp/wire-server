@@ -1,0 +1,21 @@
+{
+    "handle": "tq-xm3ywkgplimqfqyd76v696af.zcb2e-svk45z3uw2ba8gxok1gyjy1st01f3ocq6",
+    "service": {
+        "id": "00000001-0000-0000-0000-000000000001",
+        "provider": "00000000-0000-0001-0000-000100000001"
+    },
+    "locale": "tr-GG",
+    "managed_by": "wire",
+    "qualified_id": {
+        "domain": "0.orr",
+        "id": "00000000-0000-0002-0000-000000000001"
+    },
+    "accent_id": -2,
+    "picture": [],
+    "name": "\u000fdW󳲝T\u001d\rpx\u001bc\"􍟰䄯@𢵲\u0007􉘊x;\u0000􌅖*沷拣(𗏇𩷓B$6G(\\st\u001aiQ蹆$",
+    "expires_at": "1864-05-11T13:37:46.490Z",
+    "team": "00000000-0000-0000-0000-000100000002",
+    "id": "00000001-0000-0000-0000-000000000000",
+    "deleted": true,
+    "assets": []
+}

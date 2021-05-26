@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
@@ -50,7 +49,9 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Schema
 import Data.Text as Text
+import Deriving.Swagger (CamelToKebab, ConstructorTagModifier, CustomSwagger)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -158,8 +159,11 @@ data Relation
   | Ignored
   | Sent
   | Cancelled
+  | -- | behaves like blocked, the extra constructor is just to inform why.
+    MissingLegalholdConsent
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Relation)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToKebab] Relation)
 
 typeRelation :: Doc.DataType
 typeRelation =
@@ -170,11 +174,19 @@ typeRelation =
         "pending",
         "ignored",
         "sent",
-        "cancelled"
+        "cancelled",
+        "missing-legalhold-consent"
       ]
 
 instance ToJSON Relation where
-  toJSON = String . Text.toLower . pack . show
+  toJSON = \case
+    Accepted -> "accepted"
+    Blocked -> "blocked"
+    Pending -> "pending"
+    Ignored -> "ignored"
+    Sent -> "sent"
+    Cancelled -> "cancelled"
+    MissingLegalholdConsent -> "missing-legalhold-consent"
 
 instance FromJSON Relation where
   parseJSON (String "accepted") = return Accepted
@@ -183,6 +195,7 @@ instance FromJSON Relation where
   parseJSON (String "ignored") = return Ignored
   parseJSON (String "sent") = return Sent
   parseJSON (String "cancelled") = return Cancelled
+  parseJSON (String "missing-legalhold-consent") = return MissingLegalholdConsent
   parseJSON _ = mzero
 
 instance FromByteString Relation where
@@ -194,7 +207,18 @@ instance FromByteString Relation where
       "ignored" -> return Ignored
       "sent" -> return Sent
       "cancelled" -> return Cancelled
+      "missing-legalhold-consent" -> return MissingLegalholdConsent
       x -> fail $ "Invalid relation-type " <> show x
+
+instance ToByteString Relation where
+  builder = \case
+    Accepted -> "accepted"
+    Blocked -> "blocked"
+    Pending -> "pending"
+    Ignored -> "ignored"
+    Sent -> "sent"
+    Cancelled -> "cancelled"
+    MissingLegalholdConsent -> "missing-legalhold-consent"
 
 --------------------------------------------------------------------------------
 -- Message
@@ -217,7 +241,7 @@ instance FromJSON Message where
 -- | Payload type for a connection request from one user to another.
 data ConnectionRequest = ConnectionRequest
   { -- | Connection recipient
-    crUser :: OpaqueUserId,
+    crUser :: UserId,
     -- | Name of the conversation to be created
     crName :: Text,
     -- | Initial message

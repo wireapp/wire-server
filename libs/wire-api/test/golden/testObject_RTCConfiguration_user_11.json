@@ -1,0 +1,99 @@
+{
+    "ttl": 23,
+    "ice_servers": [
+        {
+            "urls": [
+                "turn:180.204.175.154:0?transport=tcp",
+                "turn:243.122.21.187:0",
+                "turn:007.com:0"
+            ],
+            "credential": "9Uc=",
+            "username": "d=0.v=0.k=0.t=􏍈.r=8"
+        },
+        {
+            "urls": [
+                "turn:140.96.58.16:0?transport=tcp"
+            ],
+            "credential": "",
+            "username": "d=3.v=0.k=1.t=H.r=v3"
+        },
+        {
+            "urls": [
+                "turns:xn--mgbh0fb.xn--kgbechtv:1?transport=udp",
+                "turn:50.111.81.130:0?transport=udp",
+                "turn:host.name:1?transport=udp",
+                "turn:a-c:1"
+            ],
+            "credential": "",
+            "username": "d=0.v=3.k=1.t=\u0007.r=h"
+        },
+        {
+            "urls": [
+                "turn:123:0?transport=udp",
+                "turn:123:1?transport=udp",
+                "turns:123:0?transport=udp"
+            ],
+            "credential": "",
+            "username": "d=0.v=1.k=2.t=6.r=z2"
+        },
+        {
+            "urls": [
+                "turn:a-c:0?transport=tcp"
+            ],
+            "credential": "kA==",
+            "username": "d=2.v=1.k=1.t=뇎.r=qv"
+        },
+        {
+            "urls": [
+                "turns:host.name:1?transport=udp",
+                "turns:a-c:0?transport=udp",
+                "turns:141.124.238.104:0",
+                "turns:220.161.164.44:0"
+            ],
+            "credential": "",
+            "username": "d=0.v=3.k=2.t=󸛍.r=q"
+        }
+    ],
+    "sft_servers": [
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        },
+        {
+            "urls": [
+                "https://example.com"
+            ]
+        }
+    ]
+}

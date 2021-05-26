@@ -1,0 +1,94 @@
+{
+    "access": [
+        "link"
+    ],
+    "creator": "00000002-0000-0001-0000-000000000000",
+    "access_role": "team",
+    "members": {
+        "self": {
+            "hidden_ref": "",
+            "status": 0,
+            "service": {
+                "id": "00000000-0000-0000-0000-000100000001",
+                "provider": "00000000-0000-0000-0000-000100000001"
+            },
+            "otr_muted_ref": "",
+            "conversation_role": "eq24_qppnbjp8nxeda3bgg62wy7uviku7tugpzds1sh_rhois7of0ht1yr37ytdgntv9iz_mmvpxd1sl6uwjj75yehuskmxdnsow6wxi08mykn0lgcal5fix28dd0",
+            "status_time": "1970-01-01T00:00:00.000Z",
+            "hidden": false,
+            "status_ref": "0.0",
+            "id": "00000001-0000-0000-0000-000100000001",
+            "otr_archived": true,
+            "otr_muted_status": -1,
+            "otr_muted": true,
+            "otr_archived_ref": null
+        },
+        "others": [
+            {
+                "status": 0,
+                "conversation_role": "7yp6ch28sx90qjew7i2oa6f3a0a67xtkmef1ronl_lmf7u0lve4z6468jswcqkq7ovr48idryq7dqurpehzzl262oqnoi3bj2_",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000000-0000-0001-0000-000000000000"
+                },
+                "id": "00000000-0000-0001-0000-000000000000"
+            },
+            {
+                "status": 0,
+                "service": {
+                    "id": "00000001-0000-0001-0000-000100000000",
+                    "provider": "00000001-0000-0000-0000-000000000001"
+                },
+                "conversation_role": "ogmflb36qx1edb7q8wxacedus_2ppb6pu2vzph4fnhlc_x3kf271v1x127vin878egys54n3hkgs315xo3ufylmom8v25g3snrauoyxmta_iz",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000001-0000-0001-0000-000000000001"
+                },
+                "id": "00000001-0000-0001-0000-000000000001"
+            },
+            {
+                "status": 0,
+                "service": {
+                    "id": "00000000-0000-0000-0000-000100000001",
+                    "provider": "00000000-0000-0000-0000-000100000000"
+                },
+                "conversation_role": "if7jp_ofhfnlx9amsxhapq21fipzxyg0n1fvawnot0z67qbx_2rgu768eq13gyrtv_35y7kx7nizjbmea6mxg8bf9vl_k9fq7bwlzxty",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000000-0000-0001-0000-000100000000"
+                },
+                "id": "00000000-0000-0001-0000-000100000000"
+            },
+            {
+                "status": 0,
+                "service": {
+                    "id": "00000001-0000-0000-0000-000100000001",
+                    "provider": "00000001-0000-0000-0000-000100000000"
+                },
+                "conversation_role": "1p2vr4mofv6q14vovgx5fnqh_ux",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000001-0000-0000-0000-000000000000"
+                },
+                "id": "00000001-0000-0000-0000-000000000000"
+            },
+            {
+                "status": 0,
+                "conversation_role": "b61vxuzhoqvvdl6",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000001-0000-0000-0000-000100000000"
+                },
+                "id": "00000001-0000-0000-0000-000100000000"
+            }
+        ]
+    },
+    "name": null,
+    "team": "00000002-0000-0000-0000-000000000000",
+    "id": "00000001-0000-0001-0000-000200000002",
+    "type": 1,
+    "receipt_mode": 1,
+    "last_event_time": "1970-01-01T00:00:00.000Z",
+    "message_timer": 2882038444751786,
+    "last_event": "0.0"
+}

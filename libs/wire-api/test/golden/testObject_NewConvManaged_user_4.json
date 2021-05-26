@@ -1,0 +1,18 @@
+{
+    "access": [
+        "private",
+        "link"
+    ],
+    "access_role": "team",
+    "users": [
+        "00000001-0000-0000-0000-000000000001",
+        "00000001-0000-0000-0000-000100000001",
+        "00000000-0000-0001-0000-000000000000"
+    ],
+    "conversation_role": "pa5z_izggck3l0sn9qc_yx06bwh_k1vf2drs3c8w35wyqwl3tco54d7lvnbh3udjzs8avs0j1dxr7v40ldpqgy4lszpnxx3f0hpy_37ofx30s9oa9t",
+    "name": "k-",
+    "team": {
+        "managed": true,
+        "teamid": "00000001-0000-0001-0000-000100000002"
+    }
+}

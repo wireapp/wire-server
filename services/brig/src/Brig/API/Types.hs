@@ -120,7 +120,7 @@ data ConnectionError
   | -- | An invalid connection status change.
     InvalidTransition UserId Relation
   | -- | The target user in an connection attempt is invalid, e.g. not activated.
-    InvalidUser OpaqueUserId
+    InvalidUser UserId
   | -- | An attempt at updating a non-existent connection.
     NotConnected UserId UserId
   | -- | An attempt at creating a connection from an account with
@@ -134,6 +134,8 @@ data ConnectionError
     ConnectInvalidPhone Phone
   | -- | An attempt at creating a connection with another user from the same binding team.
     ConnectSameBindingTeamUsers
+  | -- | Something doesn't work because somebody has a LH device and somebody else has not granted consent.
+    ConnectMissingLegalholdConsent
 
 data PasswordResetError
   = PasswordResetInProgress (Maybe Timeout)
@@ -188,10 +190,11 @@ data SendLoginCodeError
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
-  | ClientUserNotFound !OpaqueUserId
+  | ClientUserNotFound !UserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
   | ClientFederationError FederationError
+  | ClientCapabilitiesCannotBeRemoved
 
 data RemoveIdentityError
   = LastIdentity

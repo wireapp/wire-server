@@ -18,9 +18,11 @@
 module Data.LegalHold where
 
 import Cassandra.CQL
-import Data.Aeson
+import Control.Lens ((?~))
+import Data.Aeson hiding (constructorTagModifier)
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Data.Text as T
 import Imports
 import Test.QuickCheck
 
@@ -28,7 +30,25 @@ data UserLegalHoldStatus
   = UserLegalHoldDisabled
   | UserLegalHoldPending
   | UserLegalHoldEnabled
+  | UserLegalHoldNoConsent
   deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserLegalHoldStatus
+
+instance ToSchema UserLegalHoldStatus where
+  schema =
+    (S.schema . description ?~ desc) $
+      enum @Text "UserLegalHoldStatus" $
+        element "enabled" UserLegalHoldEnabled
+          <|> element "pending" UserLegalHoldPending
+          <|> element "disabled" UserLegalHoldDisabled
+          <|> element "no_consent" UserLegalHoldNoConsent
+    where
+      desc =
+        "states whether a user is under legal hold, "
+          <> "or whether legal hold is pending approval."
+
+defUserLegalHoldStatus :: UserLegalHoldStatus
+defUserLegalHoldStatus = UserLegalHoldNoConsent
 
 typeUserLegalHoldStatus :: Doc.DataType
 typeUserLegalHoldStatus =
@@ -36,34 +56,25 @@ typeUserLegalHoldStatus =
     Doc.enum
       [ "enabled",
         "pending",
-        "disabled"
+        "disabled",
+        "no_consent"
       ]
-
-instance ToJSON UserLegalHoldStatus where
-  toJSON UserLegalHoldDisabled = "disabled"
-  toJSON UserLegalHoldPending = "pending"
-  toJSON UserLegalHoldEnabled = "enabled"
-
-instance FromJSON UserLegalHoldStatus where
-  parseJSON = withText "UserLegalHoldStatus" $ \case
-    "disabled" -> pure UserLegalHoldDisabled
-    "pending" -> pure UserLegalHoldPending
-    "enabled" -> pure UserLegalHoldEnabled
-    x -> fail $ "unexpected status type: " <> T.unpack x
 
 instance Cql UserLegalHoldStatus where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
-    0 -> pure $ UserLegalHoldDisabled
-    1 -> pure $ UserLegalHoldPending
-    2 -> pure $ UserLegalHoldEnabled
+    0 -> pure UserLegalHoldDisabled
+    1 -> pure UserLegalHoldPending
+    2 -> pure UserLegalHoldEnabled
+    3 -> pure UserLegalHoldNoConsent
     _ -> Left "fromCql: Invalid UserLegalHoldStatus"
   fromCql _ = Left "fromCql: UserLegalHoldStatus: CqlInt expected"
 
   toCql UserLegalHoldDisabled = CqlInt 0
   toCql UserLegalHoldPending = CqlInt 1
   toCql UserLegalHoldEnabled = CqlInt 2
+  toCql UserLegalHoldNoConsent = CqlInt 3
 
 instance Arbitrary UserLegalHoldStatus where
   arbitrary = elements [minBound ..]

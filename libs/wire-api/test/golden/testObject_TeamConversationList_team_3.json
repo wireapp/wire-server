@@ -1,0 +1,44 @@
+{
+    "conversations": [
+        {
+            "conversation": "00000046-0000-0026-0000-005600000014",
+            "managed": true
+        },
+        {
+            "conversation": "0000006b-0000-0042-0000-002c00000074",
+            "managed": true
+        },
+        {
+            "conversation": "0000006d-0000-006d-0000-006100000027",
+            "managed": true
+        },
+        {
+            "conversation": "00000079-0000-0024-0000-004600000011",
+            "managed": false
+        },
+        {
+            "conversation": "00000044-0000-0005-0000-003800000008",
+            "managed": false
+        },
+        {
+            "conversation": "00000052-0000-005e-0000-00200000001a",
+            "managed": false
+        },
+        {
+            "conversation": "00000009-0000-0038-0000-001b00000065",
+            "managed": false
+        },
+        {
+            "conversation": "00000029-0000-0045-0000-004500000078",
+            "managed": false
+        },
+        {
+            "conversation": "0000001e-0000-0036-0000-006400000045",
+            "managed": true
+        },
+        {
+            "conversation": "00000050-0000-0066-0000-000500000075",
+            "managed": false
+        }
+    ]
+}

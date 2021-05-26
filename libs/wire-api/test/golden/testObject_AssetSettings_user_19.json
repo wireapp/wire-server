@@ -1,0 +1,4 @@
+{
+    "retention": "eternal-infrequent_access",
+    "public": true
+}

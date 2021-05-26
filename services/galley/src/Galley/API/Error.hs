@@ -18,8 +18,7 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
-import Data.Id (Id, Remote, idToText)
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId))
+import Data.Id (Id)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
@@ -181,7 +180,7 @@ codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
 
 cannotEnableLegalHoldServiceLargeTeam :: Error
-cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams."
+cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members.)"
 
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
@@ -195,6 +194,9 @@ legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "lega
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
 
+legalHoldWhitelistedOnly :: Error
+legalHoldWhitelistedOnly = Error status403 "legalhold-whitelisted-only" "legal hold is enabled for teams via server config and cannot be changed here"
+
 legalHoldFeatureFlagNotEnabled :: Error
 legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
 
@@ -204,11 +206,20 @@ legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
 
+userLegalHoldNoConsent :: Error
+userLegalHoldNoConsent = Error status409 "legalhold-no-consent" "user has not given consent to using legal hold"
+
+userLegalHoldIllegalOperation :: Error
+userLegalHoldIllegalOperation = Error status500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
+
 userLegalHoldNotPending :: Error
 userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
 
 noLegalHoldDeviceAllocated :: Error
 noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
+
+legalHoldCouldNotBlockConnections :: Error
+legalHoldCouldNotBlockConnections = Error status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =
@@ -245,7 +256,7 @@ inactivityTimeoutTooLow = Error status400 "inactivity-timeout-too-low" "applock 
 --------------------------------------------------------------------------------
 -- Federation
 
-federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Error
+federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id a)) -> Error
 federationNotEnabled qualifiedIds =
   Error
     status403
@@ -254,15 +265,3 @@ federationNotEnabled qualifiedIds =
   where
     idType = cs (show (typeRep @a))
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
-
-federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
-federationNotImplemented qualifiedIds =
-  Error
-    status403
-    "federation-not-implemented"
-    ("Federation is not implemented, but ID mappings (" <> idType <> ") were found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualifiedIds
-    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
-      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId

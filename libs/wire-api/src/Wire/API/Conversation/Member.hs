@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -41,9 +40,15 @@ module Wire.API.Conversation.Member
   )
 where
 
-import Data.Aeson
+import Control.Applicative
+import Control.Lens ((?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import Data.Id
 import Data.Json.Util
+import Data.Qualified
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Test.QuickCheck as QC
@@ -57,6 +62,22 @@ data ConvMembers = ConvMembers
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConvMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvMembers
+
+instance ToSchema ConvMembers where
+  schema =
+    objectWithDocModifier "ConvMembers" (description ?~ "Users of a conversation") $
+      ConvMembers
+        <$> cmSelf
+          .= fieldWithDocModifier
+            "self"
+            (description ?~ "The user ID of the requestor")
+            schema
+        <*> cmOthers
+          .= fieldWithDocModifier
+            "others"
+            (description ?~ "All other current users of this conversation")
+            (array schema)
 
 modelConversationMembers :: Doc.Model
 modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
@@ -66,24 +87,11 @@ modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
   Doc.property "others" (Doc.unique (Doc.array (Doc.ref modelOtherMember))) $
     Doc.description "All other current users of this conversation"
 
-instance ToJSON ConvMembers where
-  toJSON mm =
-    object
-      [ "self" .= cmSelf mm,
-        "others" .= cmOthers mm
-      ]
-
-instance FromJSON ConvMembers where
-  parseJSON = withObject "conv-members" $ \o ->
-    ConvMembers
-      <$> o .: "self"
-      <*> o .: "others"
-
 --------------------------------------------------------------------------------
 -- Members
 
 data Member = Member
-  { memId :: OpaqueUserId,
+  { memId :: UserId,
     memService :: Maybe ServiceRef,
     -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
     memOtrMuted :: Bool,
@@ -97,6 +105,35 @@ data Member = Member
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Member)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Member
+
+instance ToSchema Member where
+  schema =
+    object "Member" $
+      Member
+        <$> memId .= field "id" schema
+        <*> memService .= lax (field "service" (optWithDefault A.Null schema))
+        --  Remove ...
+        <* const () .= optional (field "status" (c (0 :: Int)))
+        <* const () .= optional (field "status_ref" (c ("0.0" :: Text)))
+        <* const ()
+          .= optional
+            ( field
+                "status_time"
+                (c ("1970-01-01T00:00:00.000Z" :: Text))
+            )
+        -- ... until here
+        <*> memOtrMuted .= (field "otr_muted" schema <|> pure False)
+        <*> memOtrMutedStatus .= lax (field "otr_muted_status" (optWithDefault A.Null schema))
+        <*> memOtrMutedRef .= lax (field "otr_muted_ref" (optWithDefault A.Null schema))
+        <*> memOtrArchived .= (field "otr_archived" schema <|> pure False)
+        <*> memOtrArchivedRef .= lax (field "otr_archived_ref" (optWithDefault A.Null schema))
+        <*> memHidden .= (field "hidden" schema <|> pure False)
+        <*> memHiddenRef .= lax (field "hidden_ref" (optWithDefault A.Null schema))
+        <*> memConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
+    where
+      c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
+      c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
 modelMember :: Doc.Model
 modelMember = Doc.defineModel "Member" $ do
@@ -124,56 +161,36 @@ modelMember = Doc.defineModel "Member" $ do
     Doc.description "The reference to the owning service, if the member is a 'bot'."
     Doc.optional
 
-instance ToJSON Member where
-  toJSON m =
-    object
-      [ "id" .= memId m,
-        "service" .= memService m,
-        -- Remove ...
-        "status" .= (0 :: Int),
-        "status_ref" .= ("0.0" :: Text),
-        "status_time" .= ("1970-01-01T00:00:00.000Z" :: Text),
-        -- ... until here
-        "otr_muted" .= memOtrMuted m,
-        "otr_muted_status" .= memOtrMutedStatus m,
-        "otr_muted_ref" .= memOtrMutedRef m,
-        "otr_archived" .= memOtrArchived m,
-        "otr_archived_ref" .= memOtrArchivedRef m,
-        "hidden" .= memHidden m,
-        "hidden_ref" .= memHiddenRef m,
-        "conversation_role" .= memConvRoleName m
-      ]
-
-instance FromJSON Member where
-  parseJSON = withObject "member object" $ \o ->
-    Member
-      <$> o .: "id"
-      <*> o .:? "service"
-      <*> o .:? "otr_muted" .!= False
-      <*> o .:? "otr_muted_status"
-      <*> o .:? "otr_muted_ref"
-      <*> o .:? "otr_archived" .!= False
-      <*> o .:? "otr_archived_ref"
-      <*> o .:? "hidden" .!= False
-      <*> o .:? "hidden_ref"
-      <*> o .:? "conversation_role" .!= roleNameWireAdmin
-
 -- | The semantics of the possible different values is entirely up to clients,
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
+  deriving newtype (Num, ToSchema, Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MutedStatus
 
 data OtherMember = OtherMember
-  { omId :: OpaqueUserId,
+  { omQualifiedId :: Qualified UserId,
     omService :: Maybe ServiceRef,
     omConvRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtherMember)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema OtherMember
+
+instance ToSchema OtherMember where
+  schema =
+    object "OtherMember" $
+      OtherMember
+        <$> omQualifiedId .= field "qualified_id" schema
+        <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
+        <*> omService .= opt (fieldWithDocModifier "service" (description ?~ desc) schema)
+        <*> omConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
+        <* const (0 :: Int) .= optional (fieldWithDocModifier "status" (description ?~ "deprecated") schema) -- TODO: remove
+    where
+      desc = "The reference to the owning service, if the member is a 'bot'."
 
 instance Ord OtherMember where
-  compare a b = compare (omId a) (omId b)
+  compare a b = compare (omQualifiedId a) (omQualifiedId b)
 
 modelOtherMember :: Doc.Model
 modelOtherMember = Doc.defineModel "OtherMember" $ do
@@ -182,22 +199,6 @@ modelOtherMember = Doc.defineModel "OtherMember" $ do
   Doc.property "service" (Doc.ref modelServiceRef) $ do
     Doc.description "The reference to the owning service, if the member is a 'bot'."
     Doc.optional
-
-instance ToJSON OtherMember where
-  toJSON m =
-    object $
-      "id" .= omId m
-        # "status" .= (0 :: Int) -- TODO: Remove
-        # "service" .= omService m
-        # "conversation_role" .= omConvRoleName m
-        # []
-
-instance FromJSON OtherMember where
-  parseJSON = withObject "other-member" $ \o ->
-    OtherMember
-      <$> o .: "id"
-      <*> o .:? "service"
-      <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- Member Updates
@@ -215,6 +216,7 @@ data MemberUpdate = MemberUpdate
     mupConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MemberUpdate
 
 memberUpdate :: MemberUpdate
 memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
@@ -244,31 +246,19 @@ modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
     Doc.description "Name of the conversation role to update to"
     Doc.optional
 
-instance ToJSON MemberUpdate where
-  toJSON m =
-    object $
-      "otr_muted" .= mupOtrMute m
-        # "otr_muted_ref" .= mupOtrMuteRef m
-        # "otr_archived" .= mupOtrArchive m
-        # "otr_archived_ref" .= mupOtrArchiveRef m
-        # "hidden" .= mupHidden m
-        # "hidden_ref" .= mupHiddenRef m
-        # "conversation_role" .= mupConvRoleName m
-        # []
-
-instance FromJSON MemberUpdate where
-  parseJSON = withObject "member-update object" $ \m -> do
-    u <-
-      MemberUpdate
-        <$> m .:? "otr_muted"
-        <*> m .:? "otr_muted_status"
-        <*> m .:? "otr_muted_ref"
-        <*> m .:? "otr_archived"
-        <*> m .:? "otr_archived_ref"
-        <*> m .:? "hidden"
-        <*> m .:? "hidden_ref"
-        <*> m .:? "conversation_role"
-    either fail pure $ validateMemberUpdate u
+instance ToSchema MemberUpdate where
+  schema =
+    (`withParser` (either fail pure . validateMemberUpdate))
+      . object "MemberUpdate"
+      $ MemberUpdate
+        <$> mupOtrMute .= opt (field "otr_muted" schema)
+        <*> mupOtrMuteStatus .= opt (field "otr_muted_status" schema)
+        <*> mupOtrMuteRef .= opt (field "otr_muted_ref" schema)
+        <*> mupOtrArchive .= opt (field "otr_archived" schema)
+        <*> mupOtrArchiveRef .= opt (field "otr_archived_ref" schema)
+        <*> mupHidden .= opt (field "hidden" schema)
+        <*> mupHiddenRef .= opt (field "hidden_ref" schema)
+        <*> mupConvRoleName .= opt (field "conversation_role" schema)
 
 instance Arbitrary MemberUpdate where
   arbitrary =
@@ -298,7 +288,9 @@ data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform OtherMemberUpdate)
+
+instance Arbitrary OtherMemberUpdate where
+  arbitrary = OtherMemberUpdate . Just <$> arbitrary
 
 modelOtherMemberUpdate :: Doc.Model
 modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do
@@ -309,13 +301,13 @@ modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do
 
 instance ToJSON OtherMemberUpdate where
   toJSON m =
-    object $
-      "conversation_role" .= omuConvRoleName m
+    A.object $
+      "conversation_role" A..= omuConvRoleName m
         # []
 
 instance FromJSON OtherMemberUpdate where
-  parseJSON = withObject "other-member-update object" $ \m -> do
-    u <- OtherMemberUpdate <$> m .:? "conversation_role"
+  parseJSON = A.withObject "other-member-update object" $ \m -> do
+    u <- OtherMemberUpdate <$> m A..:? "conversation_role"
     unless (isJust (omuConvRoleName u)) $
       fail "One of { 'conversation_role'} required."
     return u

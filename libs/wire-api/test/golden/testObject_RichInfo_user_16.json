@@ -1,0 +1,51 @@
+{
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "version": 0,
+            "fields": [
+                {
+                    "value": ")\u0004f`j?t󺦿^/\u0003󼑴z3􈄁\u000c\u000c\u001d",
+                    "type": "𑅬󸢼(\u0010ad󶠡\u0003|󼃐\u000b𦾽+􈠠NGSH\u0004*."
+                },
+                {
+                    "value": "S􃣧\u00080𩍆\u0001\u0001Oj𠔅󻭋LI|d욪\u000e",
+                    "type": ""
+                },
+                {
+                    "value": "d􃸭\u0010󲯰\u0010",
+                    "type": "󰸛\u0005𤲦>\u0013\u0019\u0015􀥝RB.嚒\u0003{\u0015\u0019UUq{"
+                },
+                {
+                    "value": "\r᪦~\u001dn􋅵",
+                    "type": "@ffF\u0007(~a\u0019⸎\u00036\u0016"
+                },
+                {
+                    "value": "g",
+                    "type": "*룬􉀛\u001f\u001e󰘌D􁃘𬡈P\u0006=A\u0016-Ap𫹍󹚱L\u001d\u001d\u001d"
+                },
+                {
+                    "value": "S=",
+                    "type": "M'*F*ㆡv𬵉󷻮󷅒Iqo\u001d󻳸B1Tgᇫ"
+                },
+                {
+                    "value": "25\u0001|\u0016w󴘸􅹸􃐅jW\u0001|G\u0016\u0006\u0012\u001dcjV.",
+                    "type": "𐁙׆j@󵇯,@w>􀃝𧗛q"
+                },
+                {
+                    "value": "=󲑲MBp)𝞪\u0012󴑧玼􏹓x󻲭x4",
+                    "type": "lPj𩒪sR􏟙AV`I􆶪𭋰h\u001e\u000c\u0000\u0002􏕒\u0018󱳑󿇼si\"'P\u0005fQ"
+                }
+            ]
+        }
+    },
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "M'*F*ㆡv𬵉󷻮󷅒Iqo\u001d󻳸B1Tgᇫ": "S=",
+        "lPj𩒪sR􏟙AV`I􆶪𭋰h\u001e\u000c\u0000\u0002􏕒\u0018󱳑󿇼si\"'P\u0005fQ": "=󲑲MBp)𝞪\u0012󴑧玼􏹓x󻲭x4",
+        "": "S􃣧\u00080𩍆\u0001\u0001Oj𠔅󻭋LI|d욪\u000e",
+        "󰸛\u0005𤲦>\u0013\u0019\u0015􀥝RB.嚒\u0003{\u0015\u0019UUq{": "d􃸭\u0010󲯰\u0010",
+        "𐁙׆j@󵇯,@w>􀃝𧗛q": "25\u0001|\u0016w󴘸􅹸􃐅jW\u0001|G\u0016\u0006\u0012\u001dcjV.",
+        "@ffF\u0007(~a\u0019⸎\u00036\u0016": "\r᪦~\u001dn􋅵",
+        "𑅬󸢼(\u0010ad󶠡\u0003|󼃐\u000b𦾽+􈠠NGSH\u0004*.": ")\u0004f`j?t󺦿^/\u0003󼑴z3􈄁\u000c\u000c\u001d",
+        "*룬􉀛\u001f\u001e󰘌D􁃘𬡈P\u0006=A\u0016-Ap𫹍󹚱L\u001d\u001d\u001d": "g"
+    }
+}

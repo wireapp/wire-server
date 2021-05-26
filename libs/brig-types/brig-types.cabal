@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1060fdc26ef57534c0f61722613ae48c5ebe98d481fcc21cae9c1ebab816a8bb
+-- hash: 2b3c91a37e09e61ca32cf32ab80c46e8f019926c78165bec82d9c84a5b8d20a6
 
 name:           brig-types
 version:        1.35.0
@@ -40,11 +40,13 @@ library
       Brig.Types.Test.Arbitrary
       Brig.Types.User
       Brig.Types.User.Auth
+      Brig.Types.User.EJPD
+      Brig.Types.User.Event
   other-modules:
       Paths_brig_types
   hs-source-dirs:
       src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       QuickCheck >=2.9
@@ -54,10 +56,15 @@ library
     , bytestring-conversion >=0.2
     , cassandra-util
     , containers >=0.5
+    , deriving-swagger2 >=0.1.0
     , imports
+    , servant-server >=0.18.2
+    , servant-swagger >=1.1.11
     , string-conversions
+    , swagger2 >=2.5
     , text >=0.11
     , time >=1.1
+    , tinylog
     , types-common >=0.16
     , unordered-containers >=0.2
     , wire-api
@@ -74,21 +81,24 @@ test-suite brig-types-tests
       Paths_brig_types
   hs-source-dirs:
       test/unit
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      QuickCheck
-    , aeson
-    , attoparsec
-    , base
+      QuickCheck >=2.9
+    , aeson >=0.11
+    , attoparsec >=0.10
+    , base ==4.*
     , brig-types
-    , containers
+    , bytestring-conversion >=0.3.1
+    , containers >=0.5
     , imports
+    , swagger2 >=2.5
     , tasty
     , tasty-quickcheck
-    , text
-    , time
-    , types-common
-    , unordered-containers
+    , text >=0.11
+    , time >=1.1
+    , tinylog
+    , types-common >=0.16
+    , unordered-containers >=0.2
     , wire-api
   default-language: Haskell2010

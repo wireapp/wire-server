@@ -27,6 +27,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as LBS
 import Data.Handle
 import Data.Id
+import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Misc
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -71,14 +72,14 @@ spec env =
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl
 
-        let expectedProfile = (publicProfile user) {profileHandle = Just (Handle hdl)}
+        let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
 
         Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
         client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
         c <- case client of
           Left err -> liftIO $ assertFailure (show err)
           Right cli -> pure cli
-        let brigCall = Request Brig "federation/users/by-handle" (LBS.toStrict (encode hdl)) "foo.example.com"
+        let brigCall = Request Brig "federation/get-user-by-handle" (LBS.toStrict (encode hdl)) "foo.example.com"
         res <- liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
         liftIO $ case res of

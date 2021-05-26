@@ -1,0 +1,22 @@
+{
+    "event": {
+        "conversation": "00000001-0000-0004-0000-000000000004",
+        "time": "1864-05-13T06:48:06.601Z",
+        "data": {
+            "hidden_ref": "",
+            "conversation_role": "xlbj5ajmu4ece6fb70ff1wioos7qm8rgg5aenk8eer",
+            "hidden": true,
+            "otr_archived": true,
+            "otr_muted_status": -1,
+            "otr_muted": true,
+            "otr_archived_ref": ""
+        },
+        "from": "00000000-0000-0000-0000-000200000001",
+        "type": "conversation.member-update"
+    },
+    "accent_id": 4,
+    "name": "\u0010f诎6bڃ􂯀i\u0003\"\r􅣖 􀱓\r􊇐R珷v𢚈fh^'􍽱\u001e\u0005􉨦[e\nG󴰐􇡵󽠷{\u0006^􃰡Gt𤳞DUFa󵾠\u000cn6xm7T\u0017`{ 2\rN0F󾛌y󳕬!+\u0010\u0002\u0019!f~\tu\u0016􊏝i􆟡\u0012k🨮\u0000P\n1k퀎0HS s}\u0011pG\u001e\u0012<􎆓n,\u001b_㷭ta𫧩",
+    "id": "00000004-0000-0004-0000-000000000004",
+    "assets": [],
+    "client": "8"
+}

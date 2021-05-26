@@ -1,0 +1,71 @@
+{
+    "urn:wire:scim:schemas:profile:1.0": {
+        "richInfo": {
+            "version": 0,
+            "fields": [
+                {
+                    "value": "ᖀ:\u001eJN⪟C9JoA)i^\u0005]vZ=􎲴p􌀏K\u0019𪥯nb\u0015􆟯",
+                    "type": "o\"𫠯@}𘕾C􎃩{!)󴭂\t,󼍕Q,l󹊎󽆬􎪱\\N攆Cq\r\u0001Q"
+                },
+                {
+                    "value": "\u0012\u001cMl",
+                    "type": "^􍟿󴆙`"
+                },
+                {
+                    "value": "wwMX@\u0010t\u0000􇩿\u0010\u0014'/Qb􅗭󽄣󰲩B\u001az",
+                    "type": "{\u001duHh1c"
+                },
+                {
+                    "value": "􎙤0헭􆞇呐󷈘A𭗌dF\u0012g\u0013a\u0015|\u0008",
+                    "type": "󻪋)􋽊A+r𖧃0fHG쁫iH\u0019󽤔\rl%u'\u000b􃛹\t9𦇮Ud𦝾"
+                },
+                {
+                    "value": "\n\u0008G𣘓\u000e\u0019\u00055%𓍶6Gz!Wj/i\u0011qk􉑡U󹱒",
+                    "type": "x𫐇s"
+                },
+                {
+                    "value": "▩\u000c",
+                    "type": "/`𣠮/}砲𝂜󷑛Qr􃲱>p󸯶󹬮$\nt6󰪦􍕡Y}\u0010\u0010􌤘,"
+                },
+                {
+                    "value": "~*\rm",
+                    "type": "G7t\u0018c"
+                },
+                {
+                    "value": "#\u0001􌈜/9󻱾EϺH\u0012P\u0010",
+                    "type": ">-E[?l􆄍\u0013h\u0003A$u{p|-W97u\u0017f\u0016"
+                },
+                {
+                    "value": "=\u001b;>𮤓EĒ\u0008󳴚p􉳎9𖫓,\u0016F󰣰􃝛$",
+                    "type": "\n󽸵&3掠~\u0008[\u0014o8􉉈𑨬嘦}󴣉󽎰-\n"
+                },
+                {
+                    "value": "B􁌚J;",
+                    "type": "𧭜⠶*2􊗰󷭦\u000f\u000b:"
+                },
+                {
+                    "value": "\u0013\u0012ꅔ聈M4ri4K=zA",
+                    "type": "s𗔴(󷴖𛈄\u001fi󵠋Io🖻q1%l/\u00101e\u0003"
+                },
+                {
+                    "value": "g<􆵪2FV\u0004=[!{U`",
+                    "type": "j\u0012\u00158a_"
+                },
+                {
+                    "value": "𥴨L+j$󹯗}{뼃\t_=𓎜ズ좇[\u0018\n𪥕i𐬢Y)󲹕",
+                    "type": "􈲕p-\u0010\u0013𤊖\u0006􈖺|\u0000e}yY"
+                },
+                {
+                    "value": "\u0000𑖂􎃧󲦟@󻛪\u000f@𢥺@",
+                    "type": "Z􈔍;}3\u001c"
+                }
+            ]
+        }
+    },
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "6헇ⷄq": "{?􁫮\u0006y~",
+        "豇~\u0006\u0011\u0016􀞚􍔱\u001b\u0015.C7\u000eOk􁾡ﳮ/<􁲝@I󶣇": "\u0019lc#c􅿙􊼖dPc6Lr|.M\"뱳y\u001c\\:󿄬/􏐏m",
+        "y𨏛振Y2O[𣤾(h9N": "m7㚄na\u000c𩟁􀙡\n\u0000\u0013SyB􀀉",
+        "𡦢+⋚QVJ󳩉fV#!0sI\u001f%\u0010󷥤\u0008~󼼩(\u000e": "븂i􍼵8\u000fq󸭣k\n厽o4Hw\u0002\u001c"
+    }
+}

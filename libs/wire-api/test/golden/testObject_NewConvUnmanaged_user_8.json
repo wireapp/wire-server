@@ -1,0 +1,17 @@
+{
+    "access": [
+        "invite"
+    ],
+    "access_role": "activated",
+    "users": [
+        "00000000-0000-0000-0000-000100000000"
+    ],
+    "conversation_role": "eyywm70536valjr5fwpiodgan70f9bw21os6a9q965y_hpww2hirwfm4lbe6220ltzpb8lifi2kd1q2w4qtq5t6bhzctw27b4k09offys",
+    "name": "",
+    "team": {
+        "managed": false,
+        "teamid": "00000000-0000-0001-0000-000100000001"
+    },
+    "receipt_mode": -1,
+    "message_timer": 5317293791913533
+}

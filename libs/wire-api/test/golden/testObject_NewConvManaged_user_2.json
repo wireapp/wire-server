@@ -1,0 +1,18 @@
+{
+    "access": [
+        "private",
+        "invite",
+        "link"
+    ],
+    "access_role": "non_activated",
+    "users": [
+        "00000002-0000-0001-0000-000400000000"
+    ],
+    "conversation_role": "bewzponl1a3c_l6ou",
+    "name": "󳂣\u001a5",
+    "team": {
+        "managed": true,
+        "teamid": "00000002-0000-0002-0000-000200000002"
+    },
+    "message_timer": 5509522199847054
+}

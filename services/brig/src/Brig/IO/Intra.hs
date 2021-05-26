@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Move to Brig.User.RPC or similar.
+-- FUTUREWORK: Move to Brig.User.RPC or similar.
 module Brig.IO.Intra
   ( -- * Pushing & Journaling Events
     onUserEvent,
@@ -36,6 +36,7 @@ module Brig.IO.Intra
     -- * Clients
     Brig.IO.Intra.newClient,
     rmClient,
+    lookupPushToken,
 
     -- * Account Deletion
     rmUser,
@@ -67,8 +68,7 @@ import Brig.Data.Connection (lookupContactList)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
-import Brig.User.Event
-import qualified Brig.User.Event.Log as Log
+import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Retry
@@ -489,9 +489,13 @@ toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
   case (ucStatus uc, name) of
-    (Pending, Just n) -> Just $ apsConnRequest n
-    (Accepted, Just n) -> Just $ apsConnAccept n
-    (_, _) -> Nothing
+    (MissingLegalholdConsent, _) -> Nothing
+    (Pending, n) -> apsConnRequest <$> n
+    (Accepted, n) -> apsConnAccept <$> n
+    (Blocked, _) -> Nothing
+    (Ignored, _) -> Nothing
+    (Sent, _) -> Nothing
+    (Cancelled, _) -> Nothing
   where
     apsConnRequest n =
       apsData (ApsLocKey "push.notification.connection.request") [fromName n]
@@ -521,7 +525,7 @@ createSelfConv u = do
 createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe Message -> Maybe ConnId -> AppIO ConvId
 createConnectConv from to cname mess conn = do
   debug $
-    Log.connection from to
+    logConnection from to
       . remote "galley"
       . msg (val "Creating connect conversation")
   r <- galleyRequest POST req
@@ -687,6 +691,20 @@ rmClient u c = do
   where
     expected = [status200, status204, status404]
 
+lookupPushToken :: UserId -> AppIO [Push.PushToken]
+lookupPushToken uid = do
+  g <- view gundeck
+  rsp <-
+    rpc'
+      "gundeck"
+      (g :: Request)
+      ( method GET
+          . paths ["i", "push-tokens", toByteString' uid]
+          . zUser uid
+          . expect2xx
+      )
+  responseJsonMaybe rsp & maybe (pure []) (pure . pushTokens)
+
 -------------------------------------------------------------------------------
 -- Team Management
 
@@ -719,7 +737,7 @@ addTeamMember u tid (minvmeta, role) = do
     _ -> False
   where
     prm = Team.rolePermissions role
-    bdy = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
+    bdy = Team.newNewTeamMember u prm minvmeta
     req =
       paths ["i", "teams", toByteString' tid, "members"]
         . header "Content-Type" "application/json"

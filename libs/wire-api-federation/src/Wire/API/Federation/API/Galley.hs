@@ -1,5 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -19,40 +17,58 @@
 
 module Wire.API.Federation.API.Galley where
 
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Id (ConvId, UserId)
+import Data.Qualified (Qualified)
+import Imports
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Conversation (Conversation)
+import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
+
+-- FUTUREWORK: data types, json instances, more endpoints. See
+-- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
+-- for the current list we need.
 
 data Api routes = Api
-  { getConversation ::
+  { getConversations ::
       routes
         :- "federation"
-        :> "conversations"
-        -- usecases:
-        -- - e.g. upon registering a new client to your account, get the list of your conversations
-        :> "list-conversations"
-        :> ReqBody '[JSON] ListConversations
-        :> Post '[JSON] ListConversationsResponse,
-    conversationMemberChange ::
+        :> "get-conversations"
+        :> ReqBody '[JSON] GetConversationsRequest
+        :> Post '[JSON] GetConversationsResponse,
+    -- used by backend that owns the conversation to inform the backend about
+    -- add/removal of its users to the conversation
+    updateConversationMemberships ::
       routes
         :- "federation"
-        :> "conversations"
-        -- for the usecase:
-        -- given alice,alice2 @A and bob @B:
-        -- alice adds Bob: /add-to-conversation(bob)@A
-        --   A -> B: check bob exists on B
-        --   A: add B to conversation database entry
-        --   A -> B: by the way, B is now in one of my conversations.
-        --   (B writes this in its DB: "Bob exists in a conversation with ID 1 in A)
-        :> "member-change"
-        :> ReqBody '[JSON] ConversationMemberChange
-        :> Post '[JSON] ConversationMemberChangeResponse
+        :> "update-conversation-memberships"
+        :> ReqBody '[JSON] ConversationMemberUpdate
+        :> Post '[JSON] ()
   }
+  deriving (Generic)
 
--- FUTUREWORK: data types, json instances, more endpoints. See https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API for the current list we need.
-type ConversationMemberChange = ()
+data GetConversationsRequest = GetConversationsRequest
+  { gcrUserId :: Qualified UserId,
+    gcrConvIds :: [ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
 
-type ConversationMemberChangeResponse = ()
+newtype GetConversationsResponse = GetConversationsResponse
+  { gcresConvs :: [Conversation]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
 
-type ListConversations = ()
-
-type ListConversationsResponse = ()
+data ConversationMemberUpdate = ConversationMemberUpdate
+  { cmuConvId :: Qualified ConvId,
+    cmuUsersAdd :: [UserId],
+    cmuUsersRemove :: [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)

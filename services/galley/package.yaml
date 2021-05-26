@@ -66,12 +66,15 @@ library:
   - servant
   - servant-server
   - servant-swagger
+  - servant-swagger-ui
+  - sop-core
   - split >=0.2
   - ssl-util >=0.1
   - stm >=2.4
   - string-conversions
   - swagger >=0.1
   - swagger2
+  - tagged
   - text >=0.11
   - time >=1.4
   - tinylog >=0.10
@@ -178,7 +181,10 @@ executables:
     - quickcheck-instances
     - random
     - retry
+    - servant
     - servant-swagger
+    - servant-client
+    - servant-client-core
     - string-conversions
     - tagged
     - tasty >=0.8

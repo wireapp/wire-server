@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -49,7 +48,7 @@ import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.User.Client (UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
 
 --------------------------------------------------------------------------------
@@ -199,7 +198,13 @@ data ClientMismatch = ClientMismatch
     deletedClients :: UserClients
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ClientMismatch)
+
+instance Arbitrary ClientMismatch where
+  arbitrary =
+    ClientMismatch
+      <$> (milli <$> arbitrary) <*> arbitrary <*> arbitrary <*> arbitrary
+    where
+      milli = fromUTCTimeMillis . toUTCTimeMillis
 
 modelClientMismatch :: Doc.Model
 modelClientMismatch = Doc.defineModel "ClientMismatch" $ do

@@ -1,0 +1,24 @@
+{
+    "email": "@",
+    "handle": "mzebw5l9p858om29lqwj5d08otrwzzickuh_s8dpookvkl_ryzbsvw-ogxrwyiw2-.udd2l7us58siy2rp024r9-ezsotchneqgalz1y1ltna7yg3dfg.wzn4vx3hjhch8.-pi3azd9u3l-5t6uyjqk93twvx_3gdh32e82fsrdpf8qfsi2ls-a2pce8p1xjh7387nztzu.q",
+    "service": {
+        "id": "00000000-0000-0001-0000-000100000000",
+        "provider": "00000000-0000-0000-0000-000000000000"
+    },
+    "locale": "bi-MQ",
+    "managed_by": "scim",
+    "qualified_id": {
+        "domain": "28b.cqb",
+        "id": "00000000-0000-0002-0000-000200000002"
+    },
+    "accent_id": 0,
+    "picture": [],
+    "name": "^󺝨F􈝼=&o>f<7\u000eq|6\u0011\u0019󳟧􁗄\u001bf󷯶𩣇\u0013bnVAj`^L\u000c󿮁\u001fLI\u0005!􃈈\u0017`󾒁\u0003e曉\u001aK|",
+    "expires_at": "1864-05-09T14:25:26.089Z",
+    "team": "00000000-0000-0000-0000-000100000002",
+    "sso_id": {
+        "scim_external_id": ""
+    },
+    "id": "00000002-0000-0001-0000-000100000002",
+    "assets": []
+}

@@ -189,6 +189,13 @@ getClient brig u c =
       . paths ["clients", toByteString' c]
       . zUser u
 
+getClientCapabilities :: Brig -> UserId -> ClientId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getClientCapabilities brig u c =
+  get $
+    brig
+      . paths ["clients", toByteString' c, "capabilities"]
+      . zUser u
+
 getUserClientsUnqualified :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getUserClientsUnqualified brig uid =
   get $

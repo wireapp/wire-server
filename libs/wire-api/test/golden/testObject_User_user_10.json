@@ -1,0 +1,26 @@
+{
+    "email": "@",
+    "handle": "xyz9jol-j7bb9xtifngv1wejx-ekud7-c-koevsi-e.gcubdvvibrsjmz_1uzq8acxu62oqzn8v9nkz",
+    "service": {
+        "id": "00000000-0000-0000-0000-000100000001",
+        "provider": "00000001-0000-0000-0000-000000000000"
+    },
+    "locale": "pl-CN",
+    "managed_by": "scim",
+    "qualified_id": {
+        "domain": "j6-m-9-nc.b4k",
+        "id": "00000002-0000-0002-0000-000100000000"
+    },
+    "accent_id": -2,
+    "picture": [],
+    "name": "u[𐳋\"W𪅥􀰡\u0019S􀅉x\u0011J\u0013\u0015N􄤂I󼢺\u001c\"󿬵&\u001d\u000e𨗌\u00121r\u001b1S󸎎\u001e+V\u000b\u000ft%􉀦\u0006􅴈\u0005\tᢅQ󻇕v`􇣵q\u001d𗖷\u001eW𐤐I󻚤󾂲\u0007K/\u0010󽇺}􀟟싧A5*􀗴",
+    "expires_at": "1864-05-07T20:52:50.974Z",
+    "team": "00000000-0000-0000-0000-000100000002",
+    "sso_id": {
+        "subject": "",
+        "tenant": ""
+    },
+    "id": "00000002-0000-0001-0000-000200000002",
+    "deleted": true,
+    "assets": []
+}

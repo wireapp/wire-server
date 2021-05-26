@@ -49,7 +49,14 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (..), UserClients (..))
+import Wire.API.User.Client
+  ( ClientCapability (ClientSupportsLegalholdImplicitConsent),
+    ClientCapabilityList (ClientCapabilityList),
+    QualifiedUserClients (..),
+    UserClients (..),
+    mkQualifiedUserClientPrekeyMap,
+    mkUserClientPrekeyMap,
+  )
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
@@ -354,7 +361,7 @@ testMultiUserGetPrekeys brig = do
               (uid, Set.fromList [clientId c])
 
   let expectedUserClientMap =
-        UserClientMap $
+        mkUserClientPrekeyMap $
           Map.fromList $
             xs <&> \(uid, c, _lpk, cpk) ->
               (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
@@ -383,9 +390,9 @@ testMultiUserGetPrekeysQualified brig opts = do
                   (uid, Set.fromList [clientId c])
 
   let expectedUserClientMap =
-        QualifiedUserClientMap $
+        mkQualifiedUserClientPrekeyMap $
           Map.singleton domain $
-            UserClientMap $
+            mkUserClientPrekeyMap $
               Map.fromList $
                 xs <&> \(uid, c, _lpk, cpk) ->
                   (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
@@ -476,7 +483,7 @@ testUpdateClient opts brig = do
     const (Just PhoneClient) === (clientClass <=< responseJsonMaybe)
     const (Just "featurephone") === (clientModel <=< responseJsonMaybe)
   let newPrekey = somePrekeys !! 2
-  let update = UpdateClient [newPrekey] Nothing (Just "label")
+  let update = UpdateClient [newPrekey] Nothing (Just "label") Nothing
   put
     ( brig
         . paths ["clients", toByteString' (clientId c)]
@@ -489,16 +496,19 @@ testUpdateClient opts brig = do
   get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
+
   -- check if label has been updated
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
+
   -- via `/users/:uid/clients/:client`, only `id` and `class` are visible:
   get (brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
+
   -- via `/users/:domain/:uid/clients/:client`, only `id` and `class` are visible:
   let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   get (brig . paths ["users", toByteString' localdomain, toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
@@ -507,7 +517,8 @@ testUpdateClient opts brig = do
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
 
-  let update' = UpdateClient [] Nothing Nothing
+  let update' = UpdateClient [] Nothing Nothing Nothing
+
   -- empty update should be a no-op
   put
     ( brig
@@ -518,10 +529,90 @@ testUpdateClient opts brig = do
     )
     !!! const 200
     === statusCode
+
   -- check if label is still present
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
+
+  -- update supported client capabilities work
+  let checkUpdate :: HasCallStack => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
+      checkUpdate capsIn respStatusOk capsOut = do
+        let update'' = UpdateClient [] Nothing Nothing (Set.fromList <$> capsIn)
+        put
+          ( brig
+              . paths ["clients", toByteString' (clientId c)]
+              . zUser uid
+              . contentJson
+              . body (RequestBodyLBS $ encode update'')
+          )
+          !!! if respStatusOk
+            then do
+              const 200 === statusCode
+            else do
+              const 409 === statusCode
+              const (Just "client-capabilities-cannot-be-removed") === fmap Error.label . responseJsonMaybe
+
+        getClientCapabilities brig uid (clientId c) !!! do
+          const 200 === statusCode
+          const (Just (ClientCapabilityList (Set.fromList capsOut))) === responseJsonMaybe
+
+  checkUpdate (Just [ClientSupportsLegalholdImplicitConsent]) True [ClientSupportsLegalholdImplicitConsent]
+  checkUpdate Nothing True [ClientSupportsLegalholdImplicitConsent]
+  checkUpdate (Just []) False [ClientSupportsLegalholdImplicitConsent]
+
+  -- update supported client capabilities don't break prekeys or label
+  do
+    let checkClientLabel :: HasCallStack => Http ()
+        checkClientLabel = do
+          getClient brig uid (clientId c) !!! do
+            const 200 === statusCode
+            const (Just label) === (clientLabel <=< responseJsonMaybe)
+
+        flushClientPrekey :: HasCallStack => Http (Maybe ClientPrekey)
+        flushClientPrekey = do
+          responseJsonMaybe
+            <$> ( get
+                    (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)])
+                    <!! const 200
+                    === statusCode
+                )
+
+        checkClientPrekeys :: HasCallStack => Prekey -> Http ()
+        checkClientPrekeys expectedPrekey = do
+          flushClientPrekey >>= \case
+            Nothing -> error "unexpected."
+            Just (ClientPrekey cid' prekey') -> liftIO $ do
+              assertEqual "" (clientId c) cid'
+              assertEqual "" expectedPrekey prekey'
+
+        caps = Just $ Set.fromList [ClientSupportsLegalholdImplicitConsent]
+
+        label = "label-bc1b7b0c-b7bf-11eb-9a1d-233d397f934a"
+        prekey = somePrekeys !! 4
+        lastprekey = someLastPrekeys !! 4
+
+    void $ flushClientPrekey >> flushClientPrekey
+    put
+      ( brig
+          . paths ["clients", toByteString' (clientId c)]
+          . zUser uid
+          . contentJson
+          . (body . RequestBodyLBS . encode $ UpdateClient [prekey] (Just lastprekey) (Just label) Nothing)
+      )
+      !!! const 200 === statusCode
+    checkClientLabel
+    put
+      ( brig
+          . paths ["clients", toByteString' (clientId c)]
+          . zUser uid
+          . contentJson
+          . (body . RequestBodyLBS . encode $ UpdateClient [] Nothing Nothing caps)
+      )
+      !!! const 200 === statusCode
+    checkClientLabel
+    checkClientPrekeys prekey
+    checkClientPrekeys (unpackLastPrekey lastprekey)
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()

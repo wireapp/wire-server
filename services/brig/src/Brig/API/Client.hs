@@ -25,6 +25,7 @@ module Brig.API.Client
     legalHoldClientRequested,
     removeLegalHoldClient,
     lookupClient,
+    lookupLocalClientCapabilities,
     lookupClients,
     lookupPubClientsBulk,
     Data.lookupPrekeyIds,
@@ -50,20 +51,21 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
+import Brig.Types.User.Event
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
-import Brig.User.Event
 import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.IP (IP)
-import Data.Id (ClientId, ConnId, UserId, makeIdOpaque)
+import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
-import Galley.Types (UserClientMap (..), UserClients (..))
+import qualified Data.Set as Set
+import Galley.Types (UserClients (..))
 import Imports
 import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
@@ -71,7 +73,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..))
+import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientPrekeyMap (..), QualifiedUserClients (..), UserClientPrekeyMap, mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
 lookupClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
@@ -84,6 +86,10 @@ lookupClient (Qualified uid domain) clientId = do
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
+
+lookupLocalClientCapabilities :: UserId -> ClientId -> AppIO ClientCapabilityList
+lookupLocalClientCapabilities uid cid =
+  ClientCapabilityList . fromMaybe mempty <$> Data.lookupClientCapabilities uid cid
 
 lookupClients :: Qualified UserId -> ExceptT ClientError AppIO [Client]
 lookupClients (Qualified uid domain) = do
@@ -107,7 +113,7 @@ lookupPubClientsBulk qualifiedUids = do
 -- a superset of the clients known to galley.
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
-  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound (makeIdOpaque u))) return
+  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
@@ -131,6 +137,11 @@ updateClient u c r = do
   unless ok $
     throwE ClientNotFound
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
+  for_ (updateClientCapabilities r) $ \caps' -> do
+    caps <- fromMaybe mempty <$> Data.lookupClientCapabilities u c
+    if caps `Set.isSubsetOf` caps'
+      then lift . Data.updateClientCapabilities u c . Just $ caps'
+      else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
 
@@ -181,23 +192,23 @@ claimLocalPrekeyBundle u = do
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimRemotePrekeyBundle quser = Federation.claimPrekeyBundle quser !>> ClientFederationError
 
-claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (QualifiedUserClientMap (Maybe Prekey))
+claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles quc = do
   localDomain <- viewFederationDomain
-  fmap (QualifiedUserClientMap . Map.fromList)
+  fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
     -- FUTUREWORK(federation): parallelise federator requests here
     . traverse (\(domain, uc) -> (domain,) <$> claim localDomain domain uc)
     . Map.assocs
     . qualifiedUserClients
     $ quc
   where
-    claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO (UserClientMap (Maybe Prekey))
+    claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
     claim localDomain domain uc
       | domain == localDomain = lift (claimLocalMultiPrekeyBundles uc)
       | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
 
-claimLocalMultiPrekeyBundles :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
-claimLocalMultiPrekeyBundles = fmap UserClientMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
+claimLocalMultiPrekeyBundles :: UserClients -> AppIO UserClientPrekeyMap
+claimLocalMultiPrekeyBundles = fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =

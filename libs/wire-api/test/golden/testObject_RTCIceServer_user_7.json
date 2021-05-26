@@ -1,0 +1,12 @@
+{
+    "urls": [
+        "turns:007.com:0?transport=tcp",
+        "turn:123:2?transport=udp",
+        "turn:host.name:2",
+        "turn:a-c:0",
+        "turn:xn--mgbh0fb.xn--kgbechtv:2?transport=udp",
+        "turns:a-c:2?transport=udp"
+    ],
+    "credential": "ft8iuA==",
+    "username": "d=14.v=4.k=2.t=󵪤.r=f4x"
+}

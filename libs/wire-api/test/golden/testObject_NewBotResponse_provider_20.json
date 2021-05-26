@@ -1,0 +1,37 @@
+{
+    "last_prekey": {
+        "key": "`|𣎜^\u001f",
+        "id": 65535
+    },
+    "prekeys": [
+        {
+            "key": "+",
+            "id": 0
+        },
+        {
+            "key": "쬹",
+            "id": 0
+        },
+        {
+            "key": "",
+            "id": 0
+        }
+    ],
+    "assets": [
+        {
+            "size": "preview",
+            "key": "\"",
+            "type": "image"
+        },
+        {
+            "size": "preview",
+            "key": "􆵛d",
+            "type": "image"
+        },
+        {
+            "size": "complete",
+            "key": "8",
+            "type": "image"
+        }
+    ]
+}

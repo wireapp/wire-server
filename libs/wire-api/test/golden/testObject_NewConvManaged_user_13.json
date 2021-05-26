@@ -1,0 +1,16 @@
+{
+    "access": [
+        "private",
+        "invite",
+        "link"
+    ],
+    "access_role": "non_activated",
+    "users": [],
+    "conversation_role": "220zl1nunhfwpvjm85iz_ixp98rq1dlwnqp7s18efvnonl6skfzkqvkxanemogf7ok3q29y5jzd4prt6s6ybl0ko47iu_zux5x7",
+    "name": "\tB",
+    "team": {
+        "managed": true,
+        "teamid": "00000000-0000-0001-0000-000100000001"
+    },
+    "receipt_mode": 0
+}

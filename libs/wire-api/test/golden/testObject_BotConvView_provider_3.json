@@ -1,0 +1,37 @@
+{
+    "members": [
+        {
+            "status": 0,
+            "conversation_role": "629omy1y3sul2_dc6zk1v5vzfw636emtn7y4flf9em_6r1ef9dmruyf_54t1su8e4mtiswmuertnec_7m1w0f05vrwfbit8k75gmgc53ls9hcx2txudhxvi39",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000000000001"
+            },
+            "id": "00000001-0000-0000-0000-000000000001"
+        },
+        {
+            "status": 0,
+            "conversation_role": "42x9zfnob1_hgp1rg64rvfts9msejhx35dpnbmxdl57vyzlp619mrjmi32hce89_lw1j5glj3hx64p7wvbc8mz8riemi",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0001-0000-000100000000"
+            },
+            "id": "00000000-0000-0001-0000-000100000000"
+        },
+        {
+            "status": 0,
+            "service": {
+                "id": "00000001-0000-0000-0000-000000000001",
+                "provider": "00000000-0000-0000-0000-000000000001"
+            },
+            "conversation_role": "ro15_31l0ltsuoq8ifvlnhmhb",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0001-0000-000000000001"
+            },
+            "id": "00000001-0000-0001-0000-000000000001"
+        }
+    ],
+    "name": "n깨",
+    "id": "0000001c-0000-0000-0000-000b00000015"
+}

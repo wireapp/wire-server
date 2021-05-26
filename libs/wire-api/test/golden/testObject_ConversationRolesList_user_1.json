@@ -1,0 +1,24 @@
+{
+    "conversation_roles": [
+        {
+            "actions": [
+                "add_conversation_member",
+                "modify_other_conversation_member"
+            ],
+            "conversation_role": "0g843hmarr"
+        },
+        {
+            "actions": [
+                "remove_conversation_member",
+                "modify_other_conversation_member"
+            ],
+            "conversation_role": "8t_l205nb44v3byrnei9os7rah6d23arw3z"
+        },
+        {
+            "actions": [
+                "leave_conversation"
+            ],
+            "conversation_role": "wire_member"
+        }
+    ]
+}

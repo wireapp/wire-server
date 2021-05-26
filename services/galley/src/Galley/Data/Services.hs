@@ -67,9 +67,9 @@ addBotMember orig s bot cnv now = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    addPrepQuery insertUserConv (botUserId bot, makeIdOpaque cnv, Nothing, Nothing)
+    addPrepQuery insertUserConv (botUserId bot, cnv)
     addPrepQuery insertBot (cnv, bot, sid, pid)
-  let e = Event MemberJoin cnv orig now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
+  let e = Event MemberJoin cnv orig now (EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
   let mem = (newMember (botUserId bot)) {memService = Just s}
   return (e, BotMember mem)
   where
