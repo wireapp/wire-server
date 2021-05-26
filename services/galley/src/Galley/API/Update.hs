@@ -1073,8 +1073,11 @@ checkOtrRecipients usr sid prs vms vcs val now
 --
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
+-- TODO: guardLegalholdPolicyConflicts :: UserId -> [UserId] -> [ClientId] -> Galley ()
+-- TODO: guardLegalholdPolicyConflicts missingUids missingClient
 guardLegalholdPolicyConflicts :: UserId -> ClientMismatch -> Galley ()
 guardLegalholdPolicyConflicts self mismatch = do
+  -- TODO: add: if all clients belong to self -> noop
   let missingCids :: [ClientId]
       missingCids = Set.toList . Set.unions . Map.elems . userClients . missingClients $ mismatch
 
@@ -1129,6 +1132,10 @@ guardLegalholdPolicyConflicts self mismatch = do
   when missingClientHasLH $ do
     when checkSelfHasOldClients $
       throwM userLegalHoldNotSupported
-    unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $
+
+    unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
       whenM checkConsentMissing $
+        -- We assume this is impossible, since conversations are automatically
+        -- blocked if LH consent is missing of any participant.
+        -- We add this check here as an extra failsafe.
         throwM userLegalHoldNotSupported

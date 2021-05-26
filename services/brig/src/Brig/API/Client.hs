@@ -113,6 +113,7 @@ addClient u con ip new = do
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
+  -- TODO: test when this is missing
   when (newClientType new == LegalHoldClientType) $ do
     -- TODO: this only works if there aren't any capabilities set yet.  we should really add
     -- capabilities to `NewClient` instead of this extra call to cassandra.
@@ -160,9 +161,9 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
-claimPrekey :: UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
-claimPrekey u d c = do
-  guardLegalholdPolicyConflicts u d c
+claimPrekey :: UserId -> UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
+claimPrekey _self u d c = do
+  -- guardLegalholdPolicyConflicts u d c
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
     then lift $ claimLocalPrekey u c
@@ -179,7 +180,7 @@ claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claim
 
 claimPrekeyBundle :: Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimPrekeyBundle domain uid = do
-  guardLegalholdPolicyConflicts u d c -- split this into claimLocalPrekeyBundle, Federation.claimPrekeyBundle
+  -- guardLegalholdPolicyConflicts u d c -- split this into claimLocalPrekeyBundle, Federation.claimPrekeyBundle
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then lift $ claimLocalPrekeyBundle uid
@@ -195,7 +196,7 @@ claimRemotePrekeyBundle quser = Federation.claimPrekeyBundle quser !>> ClientFed
 
 claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles quc = do
-  guardLegalholdPolicyConflicts quc
+  -- guardLegalholdPolicyConflicts quc
   localDomain <- viewFederationDomain
   fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
     -- FUTUREWORK(federation): parallelise federator requests here
@@ -211,7 +212,7 @@ claimMultiPrekeyBundles quc = do
 
 claimLocalMultiPrekeyBundles :: UserClients -> AppIO UserClientPrekeyMap
 claimLocalMultiPrekeyBundles = do
-  guardLegalholdPolicyConflicts ucs
+  -- guardLegalholdPolicyConflicts ucs
   fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
