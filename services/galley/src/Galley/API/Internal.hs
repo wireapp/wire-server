@@ -269,6 +269,10 @@ sitemap = do
       .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
+  put "/i/guard-legalhold-policy-conflicts" (continue guardLegalholdPolicyConflictsH) $
+    jsonRequest @GuardLegalholdPolicyConflicts
+      .&. accept "application" "json"
+
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response
 rmUserH (user ::: conn) = do
   empty <$ rmUser user conn
@@ -368,3 +372,9 @@ mkFeatureGetAndPutRoute getter setter = do
 
   mkPutRoute (toByteString' featureName)
   mkPutRoute `mapM_` Public.deprecatedFeatureName featureName
+
+guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) -> Galley Response
+guardLegalholdPolicyConflictsH (req ::: _) = do
+  glh <- fromJsonBody req
+  Update.guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+  pure $ Network.Wai.Utilities.setStatus status200 empty

@@ -55,6 +55,9 @@ module Galley.API.Update
     Galley.API.Update.addBotH,
     rmBotH,
     postBotMessageH,
+
+    -- * Legalhold
+    guardLegalholdPolicyConflicts,
   )
 where
 
@@ -110,6 +113,7 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
+import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (userTeam)
 import Wire.API.User.Client (UserClientsFull)
 import qualified Wire.API.User.Client as Client
@@ -980,7 +984,7 @@ handleOtrResponse ::
 handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
-    guardLegalholdPolicyConflicts usr (missingClients m)
+    guardLegalholdPolicyConflicts (ProtectedUser usr) (missingClients m)
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> throwM convNotFound
   InvalidOtrSenderClient -> throwM unknownClient
@@ -1073,8 +1077,9 @@ checkOtrRecipients usr sid prs vms vcs val now
 --
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
-guardLegalholdPolicyConflicts :: UserId -> UserClients -> Galley ()
-guardLegalholdPolicyConflicts self otherClients = do
+guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley ()
+guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
+guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
   let otherCids :: [ClientId]
       otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
 
