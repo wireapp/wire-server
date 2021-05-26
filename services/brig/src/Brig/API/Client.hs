@@ -170,7 +170,7 @@ claimPrekey protectee u d c = do
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
     then lift $ claimLocalPrekey protectee u c
-    else claimRemotePrekey protectee (Qualified u d) c
+    else claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> AppIO (Maybe ClientPrekey)
 claimLocalPrekey protetee user client = do
@@ -178,8 +178,8 @@ claimLocalPrekey protetee user client = do
   when (isNothing prekey) (noPrekeys user client)
   pure prekey
 
-claimRemotePrekey :: LegalholdProtectee -> Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
-claimRemotePrekey protectee quser client = fmapLT ClientFederationError $ Federation.claimPrekey protectee quser client
+claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
+claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
 
 claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
@@ -187,7 +187,7 @@ claimPrekeyBundle protectee domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
-    else claimRemotePrekeyBundle protectee (Qualified uid domain)
+    else claimRemotePrekeyBundle (Qualified uid domain)
 
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
@@ -195,10 +195,10 @@ claimLocalPrekeyBundle protectee u = do
   guardLegalhold protectee (Client.mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey protectee u) clients)
 
-claimRemotePrekeyBundle :: LegalholdProtectee -> Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
-claimRemotePrekeyBundle protectee quser = do
+claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
+claimRemotePrekeyBundle quser = do
   -- FUTUREWORK: guardLegalholdPolicyConflicts
-  Federation.claimPrekeyBundle protectee quser !>> ClientFederationError
+  Federation.claimPrekeyBundle quser !>> ClientFederationError
 
 claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles protectee quc = do
@@ -214,7 +214,7 @@ claimMultiPrekeyBundles protectee quc = do
     claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
     claim localDomain domain uc
       | domain == localDomain = lift (claimLocalMultiPrekeyBundles protectee uc)
-      | otherwise = Federation.claimMultiPrekeyBundle protectee domain uc !>> ClientFederationError
+      | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
 
 claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> AppIO UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do

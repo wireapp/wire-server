@@ -346,13 +346,17 @@ camelToUnderscore = concatMap go . (ix 0 %~ toLower)
 
 -- | Bots are not protected to be potentially recorded by legalhold devices.
 data LegalholdProtectee
-  = UnprotectedBot
-  | ProtectedUser UserId
+  = ProtectedUser UserId
+  | UnprotectedBot
+  | -- | FUTUREWORK: protection against legalhold when looking up prekeys accross federated
+    -- instances.
+    LegalholdPlusFederationNotImplemented
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform LegalholdProtectee)
 
 instance ToJSON LegalholdProtectee
 
--- {"tag":"UnprotectedBot"}
 -- {"tag":"ProtectedUser","contents":"110a187a-be5b-11eb-8f47-370bc8e40f35"}
+-- {"tag":"UnprotectedBot"}
+-- {"tag":"LegalholdPlusFederationNotImplemented"}
 instance FromJSON LegalholdProtectee

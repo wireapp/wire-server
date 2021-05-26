@@ -1078,6 +1078,7 @@ checkOtrRecipients usr sid prs vms vcs val now
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
 guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley ()
+guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure ()
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
   let otherCids :: [ClientId]

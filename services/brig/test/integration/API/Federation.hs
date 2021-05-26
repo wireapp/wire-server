@@ -39,7 +39,6 @@ import Util
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Message (UserClients (..))
-import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
 
 tests :: Manager -> Brig -> FedBrigClient -> IO TestTree
@@ -148,7 +147,7 @@ testClaimPrekeySuccess brig fedBrigClient = do
   let uid = userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
-  mkey <- FedBrig.claimPrekey fedBrigClient (ProtectedUser uid, uid, clientId c)
+  mkey <- FedBrig.claimPrekey fedBrigClient (uid, clientId c)
   liftIO $
     assertEqual
       "should return prekey 1"
@@ -157,12 +156,10 @@ testClaimPrekeySuccess brig fedBrigClient = do
 
 testClaimPrekeyBundleSuccess :: Brig -> FedBrigClient -> Http ()
 testClaimPrekeyBundleSuccess brig fedBrigClient = do
-  user <- randomUser brig
-  let uid = userId user
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  bundle <- FedBrig.claimPrekeyBundle fedBrigClient (ProtectedUser uid, qUnqualified quid)
+  bundle <- FedBrig.claimPrekeyBundle fedBrigClient (qUnqualified quid)
   liftIO $
     assertEqual
       "bundle should contain the clients"
@@ -180,9 +177,7 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
   c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
       ucm = mkUserClientPrekeyMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
-  user <- randomUser brig
-  let uid = userId user
-  ucmResponse <- FedBrig.claimMultiPrekeyBundle fedBrigClient (ProtectedUser uid, uc)
+  ucmResponse <- FedBrig.claimMultiPrekeyBundle fedBrigClient uc
   liftIO $
     assertEqual
       "should return the UserClientMap"

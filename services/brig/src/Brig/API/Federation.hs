@@ -27,14 +27,14 @@ import Brig.User.API.Handle
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
 import Imports
-import Network.Wai.Utilities ((!>>))
+import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as Federated
 import Wire.API.Message (UserClients)
-import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
@@ -65,15 +65,15 @@ getUsersByIds :: [UserId] -> Handler [UserProfile]
 getUsersByIds uids =
   lift (API.lookupLocalProfiles Nothing uids)
 
-claimPrekey :: (LegalholdProtectee, UserId, ClientId) -> Handler (Maybe ClientPrekey)
-claimPrekey (protectee, user, client) = lift (Data.claimPrekey protectee user client)
+claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
+claimPrekey (user, client) = lift (Data.claimPrekey LegalholdPlusFederationNotImplemented user client)
 
-claimPrekeyBundle :: (LegalholdProtectee, UserId) -> Handler PrekeyBundle
-claimPrekeyBundle (protectee, user) =
-  API.claimLocalPrekeyBundle protectee user !>> clientError
+claimPrekeyBundle :: UserId -> Handler PrekeyBundle
+claimPrekeyBundle user =
+  API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
-claimMultiPrekeyBundle :: (LegalholdProtectee, UserClients) -> Handler UserClientPrekeyMap
-claimMultiPrekeyBundle (protectee, uc) = lift (API.claimLocalMultiPrekeyBundles protectee uc)
+claimMultiPrekeyBundle :: UserClients -> Handler UserClientPrekeyMap
+claimMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc)
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
