@@ -1,1 +1,8 @@
-{"expires":"1864-06-07T01:55:50.143Z","asset":{"token":"dsGh0JVaM5x3-22SN_bey09Sxg==","key":"3-3-0000002e-0000-0005-0000-004500000020"},"chunk_size":5}
+{
+    "expires": "1864-06-07T01:55:50.143Z",
+    "asset": {
+        "token": "dsGh0JVaM5x3-22SN_bey09Sxg==",
+        "key": "3-3-0000002e-0000-0005-0000-004500000020"
+    },
+    "chunk_size": 5
+}

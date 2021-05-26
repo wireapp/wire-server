@@ -1,1 +1,6 @@
-{"access":["link"],"access_role":"team"}
+{
+    "access": [
+        "link"
+    ],
+    "access_role": "team"
+}

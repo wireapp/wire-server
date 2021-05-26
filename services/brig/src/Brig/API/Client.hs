@@ -51,9 +51,9 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
+import Brig.Types.User.Event
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
-import Brig.User.Event
 import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion

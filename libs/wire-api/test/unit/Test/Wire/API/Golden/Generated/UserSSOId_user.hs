@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.UserSSOId_user where
 
 import Wire.API.User (UserSSOId (..))
@@ -52,7 +51,9 @@ testObject_UserSSOId_user_10 :: UserSSOId
 testObject_UserSSOId_user_10 = UserSSOId "oo\"u/]5" "\1050530^}Y7A\DC4\984122\ESCF"
 
 testObject_UserSSOId_user_11 :: UserSSOId
-testObject_UserSSOId_user_11 = UserScimExternalId "U\14240\DC29[\190786z\1074439\11597\1109592#~\1049661D\ETX[\1110571u\159178h\46646\13664\&2 c4\1067975\SO"
+testObject_UserSSOId_user_11 =
+  UserScimExternalId
+    "U\14240\DC29[\190786z\1074439\11597\1109592#~\1049661D\ETX[\1110571u\159178h\46646\13664\&2 c4\1067975\SO"
 
 testObject_UserSSOId_user_12 :: UserSSOId
 testObject_UserSSOId_user_12 = UserSSOId "\na," "\1113729\ESCg\69897"

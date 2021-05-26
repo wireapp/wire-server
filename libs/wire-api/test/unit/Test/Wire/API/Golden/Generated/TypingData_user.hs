@@ -16,13 +16,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.TypingData_user where
 
-import Wire.API.Conversation.Typing
-  ( TypingData (..),
-    TypingStatus (StartedTyping, StoppedTyping),
-  )
+import Wire.API.Conversation.Typing (TypingData (..), TypingStatus (StartedTyping, StoppedTyping))
 
 testObject_TypingData_user_1 :: TypingData
 testObject_TypingData_user_1 = TypingData {tdStatus = StartedTyping}

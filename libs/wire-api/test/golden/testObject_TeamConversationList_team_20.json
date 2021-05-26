@@ -1,1 +1,12 @@
-{"conversations":[{"conversation":"00000007-0000-0017-0000-007500000074","managed":false},{"conversation":"0000003b-0000-0055-0000-003f00000059","managed":true}]}
+{
+    "conversations": [
+        {
+            "conversation": "00000007-0000-0017-0000-007500000074",
+            "managed": false
+        },
+        {
+            "conversation": "0000003b-0000-0055-0000-003f00000059",
+            "managed": true
+        }
+    ]
+}

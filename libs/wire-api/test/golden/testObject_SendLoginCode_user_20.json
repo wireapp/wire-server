@@ -1,1 +1,5 @@
-{"phone":"+55901961505705","force":false,"voice_call":true}
+{
+    "phone": "+55901961505705",
+    "force": false,
+    "voice_call": true
+}

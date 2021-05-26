@@ -1,1 +1,11 @@
-{"event":{"conversation":"00001db4-0000-575c-0000-5b9200002c33","time":"1864-05-25T16:08:53.052Z","data":{"name":"\u0017𦙤𧉁>P2L𫐫x􆞻􇙌󱟱T𥄢0)y󵅽\u0016"},"from":"000009b3-0000-04dc-0000-310100002b5f","type":"conversation.rename"}}
+{
+    "event": {
+        "conversation": "00001db4-0000-575c-0000-5b9200002c33",
+        "time": "1864-05-25T16:08:53.052Z",
+        "data": {
+            "name": "\u0017𦙤𧉁>P2L𫐫x􆞻􇙌󱟱T𥄢0)y󵅽\u0016"
+        },
+        "from": "000009b3-0000-04dc-0000-310100002b5f",
+        "type": "conversation.rename"
+    }
+}

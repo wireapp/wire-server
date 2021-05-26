@@ -1,1 +1,16 @@
-{"native_priority":"low","report_missing":[],"native_push":false,"sender":"1","transient":false,"recipients":{"00000002-0000-0000-0000-000200000002":{"0":"","1":""},"00000002-0000-0000-0000-000000000001":{"1":""}}}
+{
+    "native_priority": "low",
+    "report_missing": [],
+    "native_push": false,
+    "sender": "1",
+    "transient": false,
+    "recipients": {
+        "00000002-0000-0000-0000-000200000002": {
+            "0": "",
+            "1": ""
+        },
+        "00000002-0000-0000-0000-000000000001": {
+            "1": ""
+        }
+    }
+}

@@ -1,1 +1,6 @@
-{"expires_in":-9,"access_token":"阹0)&9\\\u000f\u0000O","user":"00005c1d-0000-2e06-0000-278a00002d91","token_type":"Bearer"}
+{
+    "expires_in": -9,
+    "access_token": "阹0)&9\\\u000f\u0000O",
+    "user": "00005c1d-0000-2e06-0000-278a00002d91",
+    "token_type": "Bearer"
+}

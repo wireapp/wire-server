@@ -1,1 +1,19 @@
-{"last_prekey":{"key":"􃷞\u000c󺇄⽉","id":65535},"accent_id":1,"name":"g숋B{\u0013Cq\u0018mbD5Q\u0014>i\u0014\u000f[󹡴|K괉|𪮦","prekeys":[{"key":"","id":0},{"key":"b","id":1}],"assets":[]}
+{
+    "last_prekey": {
+        "key": "􃷞\u000c󺇄⽉",
+        "id": 65535
+    },
+    "accent_id": 1,
+    "name": "g숋B{\u0013Cq\u0018mbD5Q\u0014>i\u0014\u000f[󹡴|K괉|𪮦",
+    "prekeys": [
+        {
+            "key": "",
+            "id": 0
+        },
+        {
+            "key": "b",
+            "id": 1
+        }
+    ],
+    "assets": []
+}

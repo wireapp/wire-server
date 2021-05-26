@@ -1,1 +1,4 @@
-{"webapp_welcome_url":"https://example.com","config_json_url":"https://example.com"}
+{
+    "webapp_welcome_url": "https://example.com",
+    "config_json_url": "https://example.com"
+}
