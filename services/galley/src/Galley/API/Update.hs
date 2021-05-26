@@ -980,7 +980,7 @@ handleOtrResponse ::
 handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
-    guardLegalholdPolicyConflicts usr m
+    guardLegalholdPolicyConflicts usr (missingClients m)
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> throwM convNotFound
   InvalidOtrSenderClient -> throwM unknownClient
@@ -1073,18 +1073,16 @@ checkOtrRecipients usr sid prs vms vcs val now
 --
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
--- TODO: guardLegalholdPolicyConflicts :: UserId -> [UserId] -> [ClientId] -> Galley ()
--- TODO: guardLegalholdPolicyConflicts missingUids missingClient
-guardLegalholdPolicyConflicts :: UserId -> ClientMismatch -> Galley ()
-guardLegalholdPolicyConflicts self mismatch = do
+guardLegalholdPolicyConflicts :: UserId -> UserClients -> Galley ()
+guardLegalholdPolicyConflicts self clnts = do
   -- TODO: add: if all clients belong to self -> noop
-  let missingCids :: [ClientId]
-      missingCids = Set.toList . Set.unions . Map.elems . userClients . missingClients $ mismatch
+  let otherCids :: [ClientId]
+      otherCids = Set.toList . Set.unions . Map.elems . userClients $ clnts
 
-      missingUids :: [UserId]
-      missingUids = nub $ Map.keys . userClients . missingClients $ mismatch
+      otherUids :: [UserId]
+      otherUids = nub $ Map.keys . userClients $ clnts
 
-  allClients :: UserClientsFull <- Intra.lookupClientsFull (self : missingUids)
+  allClients :: UserClientsFull <- Intra.lookupClientsFull (nub $ self : otherUids)
 
   let selfClients :: [Client.Client] =
         allClients
@@ -1093,8 +1091,8 @@ guardLegalholdPolicyConflicts self mismatch = do
           & fromMaybe Set.empty
           & Set.toList
 
-      missingClientHasLH :: Bool
-      missingClientHasLH =
+      otherClientHasLH :: Bool
+      otherClientHasLH =
         let clients =
               allClients
                 & Client.userClientsFull
@@ -1102,7 +1100,7 @@ guardLegalholdPolicyConflicts self mismatch = do
                 & Map.elems
                 & Set.unions
                 & Set.toList
-                & filter ((`elem` missingCids) . Client.clientId)
+                & filter ((`elem` otherCids) . Client.clientId)
          in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
 
       checkSelfHasLHClients :: Bool
@@ -1129,7 +1127,7 @@ guardLegalholdPolicyConflicts self mismatch = do
         pure (lhStatus == UserLegalHoldNoConsent)
 
   -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
-  when missingClientHasLH $ do
+  when otherClientHasLH $ do
     when checkSelfHasOldClients $
       throwM userLegalHoldNotSupported
 
