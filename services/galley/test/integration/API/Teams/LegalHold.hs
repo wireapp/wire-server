@@ -852,7 +852,7 @@ testNoConsentBlockDeviceHandshake = do
 
     grantConsent teamPeer peer
 
-    legalholderClient <- randomClient legalholder (someLastPrekeys !! 0)
+    legalholderClient <- randomClient legalholder (someLastPrekeys !! 4)
     peerClient <- randomClient peer (someLastPrekeys !! 1)
 
     connectUsers peer (List1.list1 legalholder [])
