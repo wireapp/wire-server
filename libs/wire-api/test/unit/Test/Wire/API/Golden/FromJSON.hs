@@ -20,7 +20,7 @@ module Test.Wire.API.Golden.FromJSON where
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Wire.API.Golden.FromJSON.NewOtrMessage
+import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Runner
 
 tests :: TestTree
@@ -29,5 +29,5 @@ tests =
     "FromJSON golden tests"
     [ testCase ("NewOtrMessage") $
         testFromJSONObjects
-          [(fromJSON_testObject_NewOtrMessage_1, "fromJSON_testObject_NewOtrMessage_1.json")]
+          [(testObject_NewOtrMessage_user_1, "testObject_NewOtrMessage_user_1.json")]
     ]

@@ -34,8 +34,8 @@ testObject_NewOtrMessage_user_1 =
   NewOtrMessage
     { newOtrSender = ClientId {client = "6"},
       newOtrRecipients = OtrRecipients {otrRecipientsMap = UserClientMap {userClientMap = fromList []}},
-      newOtrNativePush = False,
-      newOtrTransient = True,
+      newOtrNativePush = True,
+      newOtrTransient = False,
       newOtrNativePriority = Just HighPriority,
       newOtrData = Nothing,
       newOtrReportMissing = Just []
