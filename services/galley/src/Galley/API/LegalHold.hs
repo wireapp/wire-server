@@ -371,18 +371,37 @@ userLHEnabled = \case
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus :: TeamId -> UserId -> UserLegalHoldStatus -> UserLegalHoldStatus -> Galley ()
-changeLegalholdStatus tid uid oldLhStatus lhStatus = do
-  case (oldLhStatus, lhStatus, userLHEnabled oldLhStatus, userLHEnabled lhStatus) of
-    (UserLegalHoldNoConsent, UserLegalHoldDisabled, _, _) -> do
-      LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
-    (_, _, False, False) -> pure ()
-    (_, _, True, True) -> pure ()
-    (_, _, False, True) -> do
-      blockConnectionsFrom1on1s uid
-      LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
-    (_, _, True, False) -> do
-      LegalHoldData.setUserLegalHoldStatus tid uid lhStatus
-      void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
+changeLegalholdStatus tid uid old new = do
+  case old of
+    UserLegalHoldEnabled -> case new of
+      UserLegalHoldEnabled -> noop
+      UserLegalHoldPending -> illegal
+      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldNoConsent -> illegal
+    --
+    UserLegalHoldPending -> case new of
+      UserLegalHoldEnabled -> update
+      UserLegalHoldPending -> noop
+      UserLegalHoldDisabled -> update >> removeblocks
+      UserLegalHoldNoConsent -> illegal
+    --
+    UserLegalHoldDisabled -> case new of
+      UserLegalHoldEnabled -> illegal
+      UserLegalHoldPending -> addblocks >> update
+      UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeblocks
+      UserLegalHoldNoConsent -> {- withdrawing consent is not (yet?) implemented -} illegal
+    --
+    UserLegalHoldNoConsent -> case new of
+      UserLegalHoldEnabled -> illegal
+      UserLegalHoldPending -> illegal
+      UserLegalHoldDisabled -> update
+      UserLegalHoldNoConsent -> noop
+  where
+    update = LegalHoldData.setUserLegalHoldStatus tid uid new
+    removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
+    addblocks = blockConnectionsFrom1on1s uid
+    noop = pure ()
+    illegal = throwM userLegalHoldIllegalOperation
 
 -- FUTUREWORK: make this async?
 blockConnectionsFrom1on1s :: UserId -> Galley ()

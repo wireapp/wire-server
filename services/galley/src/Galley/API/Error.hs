@@ -209,6 +209,9 @@ userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal
 userLegalHoldNoConsent :: Error
 userLegalHoldNoConsent = Error status409 "legalhold-no-consent" "user has not given consent to using legal hold"
 
+userLegalHoldIllegalOperation :: Error
+userLegalHoldIllegalOperation = Error status500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
+
 userLegalHoldNotPending :: Error
 userLegalHoldNotPending = Error status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
 
