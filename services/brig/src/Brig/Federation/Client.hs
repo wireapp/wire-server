@@ -35,6 +35,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client (FederationError (..), executeFederated)
 import Wire.API.Message (UserClients)
+import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 
@@ -54,23 +55,24 @@ getUsersByIds domain uids = do
   executeFederated domain $ FederatedBrig.getUsersByIds clientRoutes uids
 
 -- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
-claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
-claimPrekey (Qualified user domain) client = do
+claimPrekey :: LegalholdProtectee -> Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
+claimPrekey protectee (Qualified user domain) client = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
-  executeFederated domain $ FederatedBrig.claimPrekey clientRoutes (user, client)
+  executeFederated domain $ FederatedBrig.claimPrekey clientRoutes (protectee, user, client)
 
-claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
-claimPrekeyBundle (Qualified user domain) = do
+claimPrekeyBundle :: LegalholdProtectee -> Qualified UserId -> FederationAppIO PrekeyBundle
+claimPrekeyBundle protectee (Qualified user domain) = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
-  executeFederated domain $ FederatedBrig.claimPrekeyBundle clientRoutes user
+  executeFederated domain $ FederatedBrig.claimPrekeyBundle clientRoutes (protectee, user)
 
 claimMultiPrekeyBundle ::
+  LegalholdProtectee ->
   Domain ->
   UserClients ->
   FederationAppIO UserClientPrekeyMap
-claimMultiPrekeyBundle domain uc = do
+claimMultiPrekeyBundle protectee domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
-  executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc
+  executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes (protectee, uc)
 
 -- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:
 --       decoding error should not throw a 404 most likely

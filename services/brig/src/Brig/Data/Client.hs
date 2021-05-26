@@ -78,6 +78,7 @@ import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (pooledMapConcurrentlyN)
+import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client (ClientCapability, ClientCapabilityList (ClientCapabilityList))
 import Wire.API.UserMap (UserMap (..))
 
@@ -212,8 +213,9 @@ updatePrekeys u c pks = do
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
 
-claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c =
+claimPrekey :: LegalholdProtectee -> UserId -> ClientId -> AppIO (Maybe ClientPrekey)
+claimPrekey _protectee u c =
+  -- TODO: guard the protectee here!
   view randomPrekeyLocalLock >>= \case
     -- Use random prekey selection strategy
     Just localLock -> withLocalLock localLock $ do

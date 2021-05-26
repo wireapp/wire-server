@@ -72,6 +72,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
+import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientPrekeyMap (..), QualifiedUserClients (..), UserClientPrekeyMap, mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
 import qualified Wire.API.User.Client as Client
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
@@ -161,41 +162,43 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
-claimPrekey :: UserId -> UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
-claimPrekey _self u d c = do
+claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
+claimPrekey protectee u d c = do
   -- guardLegalholdPolicyConflicts u d c
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
-    then lift $ claimLocalPrekey u c
-    else claimRemotePrekey (Qualified u d) c
+    then lift $ claimLocalPrekey protectee u c
+    else claimRemotePrekey protectee (Qualified u d) c
 
-claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimLocalPrekey user client = do
-  prekey <- Data.claimPrekey user client
+claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> AppIO (Maybe ClientPrekey)
+claimLocalPrekey protetee user client = do
+  prekey <- Data.claimPrekey protetee user client
   when (isNothing prekey) (noPrekeys user client)
   pure prekey
 
-claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
-claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
+claimRemotePrekey :: LegalholdProtectee -> Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
+claimRemotePrekey protectee quser client = fmapLT ClientFederationError $ Federation.claimPrekey protectee quser client
 
-claimPrekeyBundle :: Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
-claimPrekeyBundle domain uid = do
+claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
+claimPrekeyBundle protectee domain uid = do
   -- guardLegalholdPolicyConflicts u d c -- split this into claimLocalPrekeyBundle, Federation.claimPrekeyBundle
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
-    then lift $ claimLocalPrekeyBundle uid
-    else claimRemotePrekeyBundle (Qualified uid domain)
+    then lift $ claimLocalPrekeyBundle protectee uid
+    else claimRemotePrekeyBundle protectee (Qualified uid domain)
 
-claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
-claimLocalPrekeyBundle u = do
+claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> AppIO PrekeyBundle
+claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> Data.lookupClients u
-  PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
+  PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey protectee u) clients
 
-claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
-claimRemotePrekeyBundle quser = Federation.claimPrekeyBundle quser !>> ClientFederationError
+claimRemotePrekeyBundle :: LegalholdProtectee -> Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
+claimRemotePrekeyBundle protectee quser = do
+  -- FUTUREWORK: guardLegalholdPolicyConflicts
+  Federation.claimPrekeyBundle protectee quser !>> ClientFederationError
 
-claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
-claimMultiPrekeyBundles quc = do
+claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
+claimMultiPrekeyBundles protectee quc = do
   -- guardLegalholdPolicyConflicts quc
   localDomain <- viewFederationDomain
   fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
@@ -207,13 +210,13 @@ claimMultiPrekeyBundles quc = do
   where
     claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
     claim localDomain domain uc
-      | domain == localDomain = lift (claimLocalMultiPrekeyBundles uc)
-      | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
+      | domain == localDomain = lift (claimLocalMultiPrekeyBundles protectee uc)
+      | otherwise = Federation.claimMultiPrekeyBundle protectee domain uc !>> ClientFederationError
 
-claimLocalMultiPrekeyBundles :: UserClients -> AppIO UserClientPrekeyMap
-claimLocalMultiPrekeyBundles = do
+claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> AppIO UserClientPrekeyMap
+claimLocalMultiPrekeyBundles protectee userClients = do
   -- guardLegalholdPolicyConflicts ucs
-  fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
+  fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients $ userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
@@ -223,7 +226,7 @@ claimLocalMultiPrekeyBundles = do
       sequenceA . Map.fromSet (getClientKeys u)
     getClientKeys :: UserId -> ClientId -> AppIO (Maybe Prekey)
     getClientKeys u c = do
-      key <- fmap prekeyData <$> Data.claimPrekey u c
+      key <- fmap prekeyData <$> Data.claimPrekey protectee u c
       when (isNothing key) $ noPrekeys u c
       return key
 

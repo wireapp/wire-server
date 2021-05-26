@@ -30,6 +30,7 @@ import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientError, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (UserClients)
+import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
@@ -61,19 +62,19 @@ data Api routes = Api
       routes
         :- "federation"
         :> "claim-prekey"
-        :> ReqBody '[JSON] (UserId, ClientId)
+        :> ReqBody '[JSON] (LegalholdProtectee, UserId, ClientId)
         :> Post '[JSON] (Maybe ClientPrekey),
     claimPrekeyBundle ::
       routes
         :- "federation"
         :> "claim-prekey-bundle"
-        :> ReqBody '[JSON] UserId
+        :> ReqBody '[JSON] (LegalholdProtectee, UserId)
         :> Post '[JSON] PrekeyBundle,
     claimMultiPrekeyBundle ::
       routes
         :- "federation"
         :> "claim-multi-prekey-bundle"
-        :> ReqBody '[JSON] UserClients
+        :> ReqBody '[JSON] (LegalholdProtectee, UserClients)
         :> Post '[JSON] UserClientPrekeyMap,
     searchUsers ::
       routes

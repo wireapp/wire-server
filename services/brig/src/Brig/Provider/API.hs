@@ -101,6 +101,7 @@ import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
+import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
 import qualified Wire.API.User.Client as Public (Client, PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
@@ -944,7 +945,7 @@ botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd tooManyClients
-  lift (Client.claimLocalMultiPrekeyBundles body)
+  lift (Client.claimLocalMultiPrekeyBundles UnprotectedBot body)
 
 botListUserProfilesH :: List UserId -> Handler Response
 botListUserProfilesH uids = do

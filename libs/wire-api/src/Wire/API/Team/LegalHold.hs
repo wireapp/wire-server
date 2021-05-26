@@ -27,6 +27,7 @@ module Wire.API.Team.LegalHold
     RemoveLegalHoldSettingsRequest (..),
     DisableLegalHoldForUserRequest (..),
     ApproveLegalHoldForUserRequest (..),
+    LegalholdProtectee (..),
   )
 where
 
@@ -340,3 +341,16 @@ camelToUnderscore :: String -> String
 camelToUnderscore = concatMap go . (ix 0 %~ toLower)
   where
     go x = if isUpper x then "_" <> [toLower x] else [x]
+
+-----------------------------------------------------------------------
+
+-- | Bots are not protected to be potentially recorded by legalhold devices.
+data LegalholdProtectee
+  = UnprotectedBot
+  | ProtectedUser UserId
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalholdProtectee)
+
+instance ToJSON LegalholdProtectee
+
+instance FromJSON LegalholdProtectee
