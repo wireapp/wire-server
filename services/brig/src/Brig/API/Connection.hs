@@ -166,7 +166,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       crTeam <- Intra.getTeamId crUser
       pure $ isJust selfTeam && selfTeam == crTeam
 
--- | Throw error if one user ahs a LH device and the other status `no_consent` or vice versa.
+-- | Throw error if one user has a LH device and the other status `no_consent` or vice versa.
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
