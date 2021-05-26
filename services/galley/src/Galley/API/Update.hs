@@ -1074,66 +1074,66 @@ checkOtrRecipients usr sid prs vms vcs val now
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
 guardLegalholdPolicyConflicts :: UserId -> UserClients -> Galley ()
-guardLegalholdPolicyConflicts self clnts = do
-  -- TODO: add: if all clients belong to self -> noop
+guardLegalholdPolicyConflicts self otherClients = do
   let otherCids :: [ClientId]
-      otherCids = Set.toList . Set.unions . Map.elems . userClients $ clnts
+      otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
 
       otherUids :: [UserId]
-      otherUids = nub $ Map.keys . userClients $ clnts
+      otherUids = nub $ Map.keys . userClients $ otherClients
 
-  allClients :: UserClientsFull <- Intra.lookupClientsFull (nub $ self : otherUids)
+  when (nub otherUids /= [self {- if all other clients belong to us, there can be no conflict -}]) $ do
+    allClients :: UserClientsFull <- Intra.lookupClientsFull (nub $ self : otherUids)
 
-  let selfClients :: [Client.Client] =
-        allClients
-          & Client.userClientsFull
-          & Map.lookup self
-          & fromMaybe Set.empty
-          & Set.toList
+    let selfClients :: [Client.Client] =
+          allClients
+            & Client.userClientsFull
+            & Map.lookup self
+            & fromMaybe Set.empty
+            & Set.toList
 
-      otherClientHasLH :: Bool
-      otherClientHasLH =
-        let clients =
-              allClients
-                & Client.userClientsFull
-                & Map.delete self
-                & Map.elems
-                & Set.unions
-                & Set.toList
-                & filter ((`elem` otherCids) . Client.clientId)
-         in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
+        otherClientHasLH :: Bool
+        otherClientHasLH =
+          let clients =
+                allClients
+                  & Client.userClientsFull
+                  & Map.delete self
+                  & Map.elems
+                  & Set.unions
+                  & Set.toList
+                  & filter ((`elem` otherCids) . Client.clientId)
+           in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
 
-      checkSelfHasLHClients :: Bool
-      checkSelfHasLHClients =
-        any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
+        checkSelfHasLHClients :: Bool
+        checkSelfHasLHClients =
+          any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
 
-      checkSelfHasOldClients :: Bool
-      checkSelfHasOldClients =
-        any isOld selfClients
-        where
-          isOld :: Client.Client -> Bool
-          isOld =
-            (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
-              . Client.fromClientCapabilityList
-              . Client.clientCapabilities
+        checkSelfHasOldClients :: Bool
+        checkSelfHasOldClients =
+          any isOld selfClients
+          where
+            isOld :: Client.Client -> Bool
+            isOld =
+              (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
+                . Client.fromClientCapabilityList
+                . Client.clientCapabilities
 
-      checkConsentMissing :: Galley Bool
-      checkConsentMissing = do
-        -- (we could also get the profile from brig.  would make the code slightly more
-        -- concise, but not really help with the rpc back-and-forth, so, like, why?)
-        mbUser <- accountUser <$$> getUser self
-        mbTeamMember <- join <$> for (mbUser >>= userTeam) (`teamMember` self)
-        let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
-        pure (lhStatus == UserLegalHoldNoConsent)
+        checkConsentMissing :: Galley Bool
+        checkConsentMissing = do
+          -- (we could also get the profile from brig.  would make the code slightly more
+          -- concise, but not really help with the rpc back-and-forth, so, like, why?)
+          mbUser <- accountUser <$$> getUser self
+          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`teamMember` self)
+          let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
+          pure (lhStatus == UserLegalHoldNoConsent)
 
-  -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
-  when otherClientHasLH $ do
-    when checkSelfHasOldClients $
-      throwM userLegalHoldNotSupported
-
-    unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
-      whenM checkConsentMissing $
-        -- We assume this is impossible, since conversations are automatically
-        -- blocked if LH consent is missing of any participant.
-        -- We add this check here as an extra failsafe.
+    -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
+    when otherClientHasLH $ do
+      when checkSelfHasOldClients $
         throwM userLegalHoldNotSupported
+
+      unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
+        whenM checkConsentMissing $
+          -- We assume this is impossible, since conversations are automatically
+          -- blocked if LH consent is missing of any participant.
+          -- We add this check here as an extra failsafe.
+          throwM userLegalHoldNotSupported
