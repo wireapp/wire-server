@@ -18,6 +18,7 @@
 module Brig.API.Federation (federationSitemap) where
 
 import qualified Brig.API.Client as API
+import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import qualified Brig.Data.Client as Data
@@ -26,6 +27,7 @@ import Brig.User.API.Handle
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
 import Imports
+import Network.Wai.Utilities ((!>>))
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
@@ -67,7 +69,8 @@ claimPrekey :: (LegalholdProtectee, UserId, ClientId) -> Handler (Maybe ClientPr
 claimPrekey (protectee, user, client) = lift (Data.claimPrekey protectee user client)
 
 claimPrekeyBundle :: (LegalholdProtectee, UserId) -> Handler PrekeyBundle
-claimPrekeyBundle (protectee, user) = lift (API.claimLocalPrekeyBundle protectee user)
+claimPrekeyBundle (protectee, user) =
+  API.claimLocalPrekeyBundle protectee user !>> clientError
 
 claimMultiPrekeyBundle :: (LegalholdProtectee, UserClients) -> Handler UserClientPrekeyMap
 claimMultiPrekeyBundle (protectee, uc) = lift (API.claimLocalMultiPrekeyBundles protectee uc)

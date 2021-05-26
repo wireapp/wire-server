@@ -45,6 +45,7 @@ import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Federation.Client as Federation
+import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Types
@@ -55,6 +56,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Control.Error
 import Control.Lens (view)
+import Data.Bifunctor (second)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.IP (IP)
@@ -162,6 +164,7 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
+-- maybe add a claimPrekayLHUnprotected to prevent checking twice
 claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimPrekey protectee u d c = do
   -- guardLegalholdPolicyConflicts u d c
@@ -184,13 +187,17 @@ claimPrekeyBundle protectee domain uid = do
   -- guardLegalholdPolicyConflicts u d c -- split this into claimLocalPrekeyBundle, Federation.claimPrekeyBundle
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
-    then lift $ claimLocalPrekeyBundle protectee uid
+    then claimLocalPrekeyBundle protectee uid
     else claimRemotePrekeyBundle protectee (Qualified uid domain)
 
-claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> AppIO PrekeyBundle
+claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> Data.lookupClients u
-  PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey protectee u) clients
+  guardLegalhold protectee (mkUserClients [(u, clients)])
+  PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey protectee u) clients)
+
+mkUserClients :: [(UserId, [ClientId])] -> UserClients
+mkUserClients xs = UserClients $ Map.fromList (xs <&> second Set.fromList)
 
 claimRemotePrekeyBundle :: LegalholdProtectee -> Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimRemotePrekeyBundle protectee quser = do
