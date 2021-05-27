@@ -30,7 +30,6 @@ import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
 import Data.Range
-import Data.SOP (I (..), NS (..))
 import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
@@ -56,11 +55,11 @@ import Wire.API.Routes.Public.Galley (ConversationResponses)
 
 -- Servant helpers ------------------------------------------------------
 
-conversationResponse :: ConversationResponse -> Union ConversationResponses
+conversationResponse :: ConversationResponse -> Galley (Union ConversationResponses)
 conversationResponse (ConversationExisted c) =
-  Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (cnvId c) $ c
 conversationResponse (ConversationCreated c) =
-  S . Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (cnvId c) $ c
 
 -------------------------------------------------------------------------
 
@@ -76,10 +75,9 @@ createGroupConversation ::
   Public.NewConvUnmanaged ->
   Galley (Union ConversationResponses)
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
-  conversationResponse
-    <$> case newConvTeam body of
-      Nothing -> createRegularGroupConv user conn wrapped
-      Just tinfo -> createTeamGroupConv user conn tinfo body
+  conversationResponse =<< case newConvTeam body of
+    Nothing -> createRegularGroupConv user conn wrapped
+    Just tinfo -> createTeamGroupConv user conn tinfo body
 
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
@@ -162,10 +160,10 @@ createTeamGroupConv zusr zcon tinfo body = do
 -- Other kinds of conversations
 
 createSelfConversation :: UserId -> Galley (Union ConversationResponses)
-createSelfConversation zusr =
-  conversationResponse <$> do
-    c <- Data.conversation (Id . toUUID $ zusr)
-    maybe create (conversationExisted zusr) c
+createSelfConversation zusr = do
+  c <- Data.conversation (Id . toUUID $ zusr)
+  conversationResponse
+    =<< maybe create (conversationExisted zusr) c
   where
     create = do
       c <- Data.createSelfConversation zusr Nothing
@@ -188,7 +186,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
   resp <- maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
-  pure (conversationResponse resp)
+  conversationResponse resp
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u
