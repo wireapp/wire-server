@@ -1597,3 +1597,31 @@ putCapabilities zusr cid caps = do
           . json (UpdateClient mempty Nothing Nothing (Just . Set.fromList $ caps))
           . expect2xx
       )
+
+getUsersPrekeysClientUnqualified :: HasCallStack => UserId -> UserId -> ClientId -> TestM ResponseLBS
+getUsersPrekeysClientUnqualified zusr uid cid = do
+  brig <- view tsBrig
+  get
+    ( brig
+        . zUser zusr
+        . paths ["users", toByteString' uid, "prekeys", toByteString' cid]
+    )
+
+getUsersPrekeyBundleUnqualified :: HasCallStack => UserId -> UserId -> TestM ResponseLBS
+getUsersPrekeyBundleUnqualified zusr uid = do
+  brig <- view tsBrig
+  get
+    ( brig
+        . zUser zusr
+        . paths ["users", toByteString' uid, "prekeys"]
+    )
+
+getMultiUserPrekeyBundleUnqualified :: HasCallStack => UserId -> UserClients -> TestM ResponseLBS
+getMultiUserPrekeyBundleUnqualified zusr userClients = do
+  brig <- view tsBrig
+  post
+    ( brig
+        . zUser zusr
+        . paths ["users", "prekeys"]
+        . json userClients
+    )

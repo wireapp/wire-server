@@ -96,7 +96,7 @@ import qualified Wire.API.Message as Msg
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
-import Wire.API.User.Client (UserClientsFull (userClientsFull))
+import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
 import qualified Wire.API.User.Client as Client
 
 onlyIfLhEnabled :: TestM () -> TestM ()
@@ -149,7 +149,7 @@ tests s =
           testGroup
             "teams listed"
             [ test s "happy flow" testInWhitelist,
-              test s "XXXXXX handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
+              test s "handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
               test
                 s
                 "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
@@ -186,7 +186,10 @@ tests s =
                 s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
-              test s "bench hack" testBenchHack
+              test s "bench hack" testBenchHack,
+              test s "XXXXXX User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
+              test s "XXXXXX User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
+              test s "XXXXXX User can fetch prekeys of LH users if consent is given and user has only new clients" (testClaimKeys TCKConsentAndNewClients)
             ]
         ]
     ]
@@ -1041,9 +1044,74 @@ testNoConsentBlockGroupConv = do
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-428
   pure ()
 
--- testNoConsentPrekeyFetch :: TestM ()
--- testNoConsentPrekeyFetch = do
---   pure ()
+data TestClaimKeys
+  = TCKConsentMissing
+  | TCKOldClient
+  | TCKConsentAndNewClients
+
+testClaimKeys :: TestClaimKeys -> TestM ()
+testClaimKeys testcase = do
+  -- "cannot fetch prekeys of LH users if requester did not give consent or has old clients"
+  galley <- view tsGalley
+  (legalholder, tid) <- createBindingTeam
+  ensureQueueEmpty
+  (peer, teamPeer) <- createBindingTeam
+  ensureQueueEmpty
+
+  let doEnableLH :: HasCallStack => TeamId -> UserId -> UserId -> TestM ClientId
+      doEnableLH team owner uid = do
+        requestLegalHoldDevice owner uid team !!! testResponse 201 Nothing
+        approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist team (getUserStatusTyped' galley uid team)
+        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+        getInternalClientsFull (UserSet $ Set.fromList [uid])
+          <&> userClientsFull
+          <&> Map.elems
+          <&> Set.unions
+          <&> Set.toList
+          <&> (\[x] -> x)
+          <&> clientId
+
+  let makePeerClient = case testcase of
+        TCKConsentMissing -> do
+          peerClient <- randomClient peer (someLastPrekeys !! 2)
+          upgradeClientToLH peer peerClient
+        TCKOldClient -> do
+          void $ randomClient peer (someLastPrekeys !! 2)
+        TCKConsentAndNewClients -> do
+          peerClient <- randomClient peer (someLastPrekeys !! 2)
+          upgradeClientToLH peer peerClient
+
+  let maybePeerGrantsConsent = case testcase of
+        TCKConsentMissing -> pure ()
+        TCKOldClient -> grantConsent teamPeer peer
+        TCKConsentAndNewClients -> grantConsent teamPeer peer
+
+  let fetchKeys :: ClientId -> Bool -> TestM ()
+      fetchKeys legalholderLHDevice shouldSucceed = do
+        let assertResponse =
+              if shouldSucceed
+                then testResponse 200 Nothing
+                else testResponse 412 (Just "missing-legalhold-consent")
+
+        getUsersPrekeysClientUnqualified peer legalholder legalholderLHDevice !!! assertResponse
+        getUsersPrekeyBundleUnqualified peer legalholder !!! assertResponse
+        let userClients = UserClients (Map.fromList [(legalholder, Set.fromList [legalholderLHDevice])])
+        getMultiUserPrekeyBundleUnqualified peer userClients !!! assertResponse
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    grantConsent tid legalholder
+    legalholderLHDevice <- doEnableLH tid legalholder legalholder
+
+    void makePeerClient
+    maybePeerGrantsConsent
+    fetchKeys
+      legalholderLHDevice
+      ( case testcase of
+          TCKConsentMissing -> False
+          TCKOldClient -> False
+          TCKConsentAndNewClients -> True
+      )
 
 testBenchHack :: HasCallStack => TestM ()
 testBenchHack = do
