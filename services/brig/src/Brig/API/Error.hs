@@ -28,17 +28,13 @@ import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
 import Data.String.Conversions (cs)
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
-import qualified Servant.Client as Servant
-import Wire.API.Federation.Client (FederationClientError (..), FederationError (..))
-import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Federation.Error
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -184,37 +180,7 @@ clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCanno
 clientError ClientMissingLegalholdConsent = StdError missingLegalholdConsent
 
 fedError :: FederationError -> Error
-fedError (FederationUnavailable err) = StdError (federationUnavailable err)
-fedError FederationNotImplemented = StdError federationNotImplemented
-fedError FederationNotConfigured = StdError federationNotConfigured
-fedError (FederationCallFailure err) =
-  case err of
-    FederationClientRPCError msg -> StdError (federationRpcError msg)
-    FederationClientInvalidMethod mth ->
-      StdError $
-        federationInvalidCall
-          ("Unexpected method: " <> LT.fromStrict (T.decodeUtf8 mth))
-    FederationClientStreamingUnsupported -> StdError $ federationInvalidCall "Streaming unsupported"
-    FederationClientOutwardError outwardErr -> StdError $ federationRemoteError outwardErr
-    FederationClientServantError (Servant.DecodeFailure msg _) -> StdError $ federationInvalidBody msg
-    FederationClientServantError (Servant.FailureResponse _ _) ->
-      StdError $ Wai.Error unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
-    FederationClientServantError (Servant.InvalidContentTypeHeader res) ->
-      StdError $
-        Wai.Error
-          unexpectedFederationResponseStatus
-          "federation-invalid-content-type-header"
-          ("Content-type: " <> contentType res)
-    FederationClientServantError (Servant.UnsupportedContentType mediaType res) ->
-      StdError $
-        Wai.Error
-          unexpectedFederationResponseStatus
-          "federation-unsupported-content-type"
-          ("Content-type: " <> contentType res <> ", Media-Type: " <> cs (show mediaType))
-    FederationClientServantError (Servant.ConnectionError excpetion) ->
-      StdError $ federationUnavailable $ cs $ show excpetion
-  where
-    contentType = LT.fromStrict . T.decodeUtf8 . maybe "" snd . find (\(name, _) -> name == "Content-Type") . Servant.responseHeaders
+fedError = StdError . federationErrorToWai
 
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
@@ -542,81 +508,3 @@ customerExtensionBlockedDomain domain = Wai.Error (mkStatus 451 "Unavailable For
       "[Customer extension] the email domain " <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
-
---------------------------------------------------------------------------------
--- Federation
-
-noFederationStatus :: Status
-noFederationStatus = status403
-
-unexpectedFederationResponseStatus :: Status
-unexpectedFederationResponseStatus = HTTP.Status 533 "Unexpected Federation Response"
-
-federatorConnectionRefusedStatus :: Status
-federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection Refused"
-
-federationNotImplemented :: Wai.Error
-federationNotImplemented =
-  Wai.Error
-    noFederationStatus
-    "federation-not-implemented"
-    "Federation is not yet implemented for this endpoint"
-
-federationInvalidCode :: Word32 -> Wai.Error
-federationInvalidCode code =
-  Wai.Error
-    unexpectedFederationResponseStatus
-    "federation-invalid-code"
-    ("Invalid response code from remote federator: " <> LT.pack (show code))
-
-federationInvalidBody :: Text -> Wai.Error
-federationInvalidBody msg =
-  Wai.Error
-    unexpectedFederationResponseStatus
-    "federation-invalid-body"
-    ("Could not parse remote federator response: " <> LT.fromStrict msg)
-
-federationNotConfigured :: Wai.Error
-federationNotConfigured =
-  Wai.Error
-    HTTP.status400
-    "federation-not-enabled"
-    "no federator configured on brig"
-
-federationRpcError :: Text -> Wai.Error
-federationRpcError msg =
-  Wai.Error
-    HTTP.status500
-    "federation-rpc-error"
-    (LT.fromStrict msg)
-
-federationUnavailable :: Text -> Wai.Error
-federationUnavailable err =
-  Wai.Error
-    HTTP.status500
-    "federation-not-available"
-    ("Local federator not available: " <> LT.fromStrict err)
-
-federationRemoteError :: Proto.OutwardError -> Wai.Error
-federationRemoteError err = Wai.Error status (LT.fromStrict label) (LT.fromStrict msg)
-  where
-    decodeError :: Maybe Proto.ErrorPayload -> (Text, Text)
-    decodeError Nothing = ("unknown-federation-error", "Unknown federation error")
-    decodeError (Just (Proto.ErrorPayload label' msg')) = (label', msg')
-
-    (label, msg) = decodeError (Proto.outwardErrorPayload err)
-
-    status = case Proto.outwardErrorType err of
-      Proto.RemoteNotFound -> HTTP.status422
-      Proto.DiscoveryFailed -> HTTP.status500
-      Proto.ConnectionRefused -> HTTP.Status 521 "Web Server Is Down"
-      Proto.TLSFailure -> HTTP.Status 525 "SSL Handshake Failure"
-      Proto.InvalidCertificate -> HTTP.Status 526 "Invalid SSL Certificate"
-      Proto.VersionMismatch -> HTTP.Status 531 "Version Mismatch"
-      Proto.FederationDeniedByRemote -> HTTP.Status 532 "Federation Denied"
-      Proto.FederationDeniedLocally -> HTTP.status400
-      Proto.RemoteFederatorError -> unexpectedFederationResponseStatus
-      Proto.InvalidRequest -> HTTP.status500
-
-federationInvalidCall :: LText -> Wai.Error
-federationInvalidCall = Wai.Error HTTP.status500 "federation-invalid-call"

@@ -66,7 +66,9 @@ import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
+import Control.Monad.Trans.Except
 import Data.Code
+import Data.Domain (Domain)
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
 import Data.List.Extra (nubOrdOn)
@@ -75,6 +77,7 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Tagged (unTagged)
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
@@ -101,7 +104,7 @@ import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (failure, setStatus, _1, _2)
+import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
 import Servant (respond)
 import Servant.API (NoContent (NoContent))
@@ -110,6 +113,9 @@ import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Event.Conversation as Public
+import Wire.API.Federation.API.Brig as FederatedBrig
+import Wire.API.Federation.Client as FederatedBrig
+import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
@@ -474,9 +480,10 @@ mapUpdateToServant Unchanged = Servant.respond NoContent
 -- public by exposing 'addMembersToConversationV2' (currently hidden using /i/
 -- prefix), i.e. by allowing remote members to be actually added in any environment,
 -- we need the following checks/implementation:
---  - (1) Remote qualified users must exist before they can be added (a call to the
---  respective backend should be made): Avoid clients making up random Ids, and
---  increase the chances that the updateConversationMembership call suceeds
+--  - (1) [DONE] Remote qualified users must exist before they can be added (a
+--  call to the respective backend should be made): Avoid clients making up random
+--  Ids, and increase the chances that the updateConversationMembership call
+--  suceeds
 --  - (2) A call must be made to the remote backend informing it that this user is
 --  now part of that conversation. Use and implement 'updateConversationMemberships'.
 --    - that call should probably be made *after* inserting the conversation membership
@@ -499,15 +506,14 @@ addMembers zusr zcon convId invite = do
   ensureMemberLimit (toList $ Data.convMembers conv) newLocals newRemotes
   ensureAccess conv InviteAccess
   ensureConvRoleNotElevated self (invQRoleName invite)
-  case Data.convTeam conv of
-    Nothing -> do
-      ensureAccessRole (Data.convAccessRole conv) (zip newLocals $ repeat Nothing)
-      ensureConnectedOrSameTeam zusr newLocals
-    Just ti -> teamConvChecks ti newLocals conv
+  checkLocals conv (Data.convTeam conv) newLocals
+  checkRemotes newRemotes
   addToConversation mems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
-    teamConvChecks tid newUsers conv = do
+
+    checkLocals :: Data.Conversation -> Maybe TeamId -> [UserId] -> Galley ()
+    checkLocals conv (Just tid) newUsers = do
       tms <- Data.teamMembersLimited tid newUsers
       let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
@@ -515,6 +521,29 @@ addMembers zusr zcon convId invite = do
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
       ensureConnectedOrSameTeam zusr newUsers
+    checkLocals conv Nothing newUsers = do
+      ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
+      ensureConnectedOrSameTeam zusr newUsers
+
+    checkRemotes :: [Remote UserId] -> Galley ()
+    checkRemotes =
+      traverse_ (uncurry checkRemotesFor)
+        . Map.assocs
+        . partitionQualified
+        . map unTagged
+
+    checkRemotesFor :: Domain -> [UserId] -> Galley ()
+    checkRemotesFor domain uids = do
+      let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
+      users <-
+        runExceptT (executeFederated domain rpc)
+          >>= either (throwM . federationErrorToWai) pure
+      let uids' =
+            map
+              (qUnqualified . User.profileQualifiedId)
+              (filter (not . User.profileDeleted) users)
+      unless (Set.fromList uids == Set.fromList uids') $
+        throwM unknownRemoteUser
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do

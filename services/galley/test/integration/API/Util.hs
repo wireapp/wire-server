@@ -29,6 +29,7 @@ import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Exception (finally)
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
@@ -38,10 +39,12 @@ import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Currency as Currency
+import Data.Domain
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.LegalHold (defUserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
 import qualified Data.Map.Strict as Map
@@ -84,10 +87,13 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Timeout
+import Util.Options
 import Web.Cookie
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
+import Wire.API.Federation.GRPC.Types (OutwardResponse (..))
+import qualified Wire.API.Federation.Mock as Mock
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull)
 
@@ -702,6 +708,10 @@ getConvIds u r s = do
 postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
 postQualifiedMembers zusr invitees conv = do
   g <- view tsGalley
+  postQualifiedMembers' g zusr invitees conv
+
+postQualifiedMembers' :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> NonEmpty (Qualified UserId) -> ConvId -> m ResponseLBS
+postQualifiedMembers' g zusr invitees conv = do
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g
@@ -1625,3 +1635,49 @@ getMultiUserPrekeyBundleUnqualified zusr userClients = do
         . paths ["users", "prekeys"]
         . json userClients
     )
+
+mkProfile :: Qualified UserId -> Name -> UserProfile
+mkProfile quid name =
+  UserProfile
+    { profileQualifiedId = quid,
+      profileName = name,
+      profilePict = noPict,
+      profileAssets = mempty,
+      profileAccentId = defaultAccentId,
+      profileDeleted = False,
+      profileService = Nothing,
+      profileHandle = Nothing,
+      profileLocale = Nothing,
+      profileExpire = Nothing,
+      profileTeam = Nothing,
+      profileEmail = Nothing,
+      profileLegalholdStatus = defUserLegalHoldStatus
+    }
+
+-- mock federator
+
+withTempMockFederator ::
+  (MonadIO m, ToJSON a) =>
+  Opts.Opts ->
+  Domain ->
+  a ->
+  WaiTest.Session b ->
+  m (b, Mock.ReceivedRequests)
+withTempMockFederator opts targetDomain resp action = liftIO . assertRightT
+  . Mock.withTempMockFederator st0 (pure oresp)
+  $ \st -> lift $ do
+    let opts' =
+          opts & Opts.optFederator
+            ?~ Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st))
+    withSettingsOverrides opts' action
+  where
+    st0 = Mock.initState targetDomain (Domain "example.com")
+    oresp = OutwardResponseBody (Lazy.toStrict (encode resp))
+
+assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
+assertRight = \case
+  Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
+  Right x -> pure x
+
+assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
+assertRightT = assertRight <=< runExceptT
