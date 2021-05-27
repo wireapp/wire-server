@@ -923,9 +923,6 @@ testNoConsentBlockDeviceHandshake = do
         const 412 === statusCode
         const (Just "missing-legalhold-consent") === fmap Error.label . responseJsonMaybe
 
-    -- consent missing
-    pure ()
-
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
 testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
