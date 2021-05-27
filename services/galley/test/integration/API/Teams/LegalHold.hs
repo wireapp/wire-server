@@ -876,7 +876,7 @@ testNoConsentBlockDeviceHandshake = do
       ]
       !!! do
         const 412 === statusCode
-        const (Just "legalhold-not-supported") === fmap Error.label . responseJsonMaybe
+        const (Just "missing-legalhold-consent") === fmap Error.label . responseJsonMaybe
 
   {-
 
