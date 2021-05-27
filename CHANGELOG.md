@@ -2,61 +2,86 @@
 
 # [2021-xx-xx]
 
-
-
-TODO: group and categorize these PRs:
- - Port instances to schemas library (#1482)
- - wire-api-federator: Make client tests more reliable (#1491)
- - galley: Serve conversation role list on the correct path (#1499)
- - Remove duplicated roundtrip test (#1498)
- - schema-profunctor: Add combinator for nonEmptyArray (#1497)
- - Federation: Add RPC getConversations (#1493)
- - Golden tests for JSON instances (#1486)
- - galley: Convert conversation endpoints to servant (#1444)
- - Fix Arbitrary instances and enable corresponding roundtrip tests (#1492)
- - wire-api-fed: Mark flaky tests as pending (#1488)
- - RFC: Schemas for documented bidirectional JSON encoding (#1474)
- - Prepare remote conversations: Remove Opaque/Mapped Ids, delete remote identifiers from member/user tables. (#1478)
-
-
-
 ## Release Notes
 
-This release introduces a notion of "consent" to legalhold (LH).  If
-you are using LH on your site, follow the instructions in
-https://github.com/wireapp/wire-server/blob/814f3ebc251965ab4492f5df4d9195f3b2e0256f/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
-after the upgrade.  **Legalhold will not work as expected until you
-change `galley.conf` as described!
-
-https://github.com/wireapp/wire-server/pull/1495 introduces changes to
-the way `NameID` is processed: all identifiers are stored in
-lower-case and qualifiers are ignored.  No manual upgrade steps are
-necessary, but consult
-https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html#theoretical-name-clashes-in-saml-nameids
-on whether you need to re-calibrate your SAML IdP / SCIM setup.
-(Reason / technical details: this change is motivated by two facts:
-(1) email casing is complicated, and industry best practice appears to
-be to ignore case information; and (2) SCIM user provisioning does not
-allow to provide SAML NameID qualifiers.)
-
-
-
-
-
 ## Features
- - [legalhold] Whitelisting Teams for LH with implicit consent (#1502)
- - [saml/scim] More lenient matching of user ids (#1495)
 
 ## Bug fixes and other updates
 
 ## Documentation
 
 ## Internal changes
- - Cleanup (no change in behavior) (#1494, #1501)
- - Internal end-point for ejpd request processing. (#1484)
- - Fix: NewTeamMember vs. UserLegalHoldStatus (increase robustness against rogue clients) (#1496)
 
 -->
+
+# [2021-05-26]
+
+## Release Notes
+
+**Legalhold:** This release introduces a notion of "consent" to
+legalhold (LH).  If you are using LH on your site, follow the
+instructions in
+https://github.com/wireapp/wire-server/blob/814f3ebc251965ab4492f5df4d9195f3b2e0256f/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
+after the upgrade.  **Legalhold will not work as expected until you
+change `galley.conf` as described!**
+
+**SAML/SCIM:** This release introduces changes to the way `NameID` is
+processed: all identifiers are stored in lower-case and qualifiers are
+ignored.  No manual upgrade steps are necessary, but consult
+https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html#theoretical-name-clashes-in-saml-nameids
+on whether you need to re-calibrate your SAML IdP / SCIM setup.
+(Reason / technical details: this change is motivated by two facts:
+(1) email casing is complicated, and industry best practice appears to
+be to ignore case information even though that is in conflict with the
+official standard documents; and (2) SCIM user provisioning does not
+allow to provide SAML NameID qualifiers, and guessing them has proven
+to be infeasible.  See
+https://github.com/wireapp/wire-server/pull/1495 for the code
+changes.)
+
+## Features
+ - [SAML/SCIM] More lenient matching of user ids (#1495)
+ - [Legalhold] Block and kick users in case of LH no_consent conflict (1:1 convs). (#1507, #1530)
+ - [Legalhold] Add legalhold status to user profile (#1522)
+ - [Legalhold] Client-supported capabilities end-point (#1503)
+ - [Legalhold] Whitelisting Teams for LH with implicit consent (#1502)
+ - [Federation] Remove OptionallyQualified data type from types-common (#1517)
+ - [Federation] Add RPC getConversations (#1493)
+ - [Federation] Prepare remote conversations: Remove Opaque/Mapped Ids, delete remote identifiers from member/user tables. (#1478)
+ - [Federation] Add schema migration for new tables (#1485)
+ - [SAML/SCIM] Normalize SAML identifiers and fix issues with duplicate account creation (#1495)
+ - Internal end-point for ejpd request processing. (#1484)
+
+## Bug fixes and other updates
+ - Fix: NewTeamMember vs. UserLegalHoldStatus (increase robustness against rogue clients) (#1496)
+
+## Documentation
+ - Fixes a typo in the wire-api documentation (#1513)
+ - Unify Swagger 2.0 docs for brig, galley and spar (#1508)
+
+## Internal changes
+ - Cleanup (no change in behavior) (#1494, #1501)
+ - wire-api: Add golden test for FromJSON instance of NewOtrMessage (#1531)
+ - Swagger/JSON cleanup (#1521, #1525)
+ - Work around a locale issue in Ormolu (#1520)
+ - Expose mock federator in wire-api-federation (#1524)
+ - Prettier looking golden tests (#1527)
+ - Refactorings, bug fixes (in tests only) (#1523)
+ - Use sed instead of yq to read yaml files (#1518)
+ - Remove zauth dependency from wire-api (#1516)
+ - Improve naming conventions federation RPC calls (#1511)
+ - Event refactoring and schema instances (#1506)
+ - Fix: regenerate cabal files. (#1510)
+ - Make DerivingVia a package default. (#1505)
+ - Port instances to schemas library (#1482)
+ - wire-api-federator: Make client tests more reliable (#1491)
+ - Remove duplicated roundtrip test (#1498)
+ - schema-profunctor: Add combinator for nonEmptyArray (#1497)
+ - Golden tests for JSON instances (#1486)
+ - galley: Convert conversation endpoints to servant (#1444, #1499)
+ - Fix Arbitrary instances and enable corresponding roundtrip tests (#1492)
+ - wire-api-fed: Mark flaky tests as pending
+ - RFC: Schemas for documented bidirectional JSON encoding (#1474)
 
 # [2021-05-04]
 

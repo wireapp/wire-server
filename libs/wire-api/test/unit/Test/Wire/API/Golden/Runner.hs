@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Runner (testObjects) where
+module Test.Wire.API.Golden.Runner (testObjects, testFromJSONObjects) where
 
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -51,6 +51,16 @@ testObject obj path = do
     (fromJSON actualValue)
 
   pure exists
+
+testFromJSONObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
+testFromJSONObjects = traverse_ (uncurry testFromJSONObject)
+
+testFromJSONObject :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO ()
+testFromJSONObject expected path = do
+  let dir = "test/golden/fromJSON"
+      fullPath = dir <> "/" <> path
+  parsed <- eitherDecodeFileStrict fullPath
+  assertEqual (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object") (Right expected) parsed
 
 assertRight :: Show a => Either a b -> IO b
 assertRight =

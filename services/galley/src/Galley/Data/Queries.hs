@@ -135,9 +135,6 @@ selectUserTeamsIn = "select team from user_team where user = ? and team in ? ord
 selectUserTeamsFrom :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamsFrom = "select team from user_team where user = ? and team > ? order by team"
 
-selectUsersTeams :: PrepQuery R (Identity [UserId]) (UserId, TeamId)
-selectUsersTeams = "select user, team from user_team where user in ?"
-
 insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, TeamStatus, TeamBinding) ()
 insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
 

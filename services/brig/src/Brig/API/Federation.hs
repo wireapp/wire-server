@@ -21,7 +21,7 @@ import qualified Brig.API.Client as API
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import qualified Brig.Data.Client as Data
-import Brig.Types (Prekey, PrekeyBundle)
+import Brig.Types (PrekeyBundle)
 import Brig.User.API.Handle
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
@@ -31,8 +31,9 @@ import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as Federated
-import Wire.API.Message (UserClientMap, UserClients)
+import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
+import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 
@@ -67,7 +68,7 @@ claimPrekey (user, client) = lift (Data.claimPrekey user client)
 claimPrekeyBundle :: UserId -> Handler PrekeyBundle
 claimPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)
 
-claimMultiPrekeyBundle :: UserClients -> Handler (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundle :: UserClients -> Handler UserClientPrekeyMap
 claimMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles uc)
 
 -- | Searching for federated users on a remote backend should

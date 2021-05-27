@@ -1,8 +1,6 @@
 {
     "native_priority": "high",
     "report_missing": [],
-    "native_push": true,
     "sender": "6",
-    "transient": false,
     "recipients": {}
 }
