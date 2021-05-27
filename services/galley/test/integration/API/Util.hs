@@ -83,6 +83,7 @@ import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import TestHelpers (viewFederationDomain)
 import TestSetup
 import UnliftIO.Timeout
 import Web.Cookie
@@ -90,7 +91,6 @@ import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
-import TestHelpers (viewFederationDomain)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1170,7 +1170,7 @@ connectLocalQualifiedUsers u us = do
   case LMap.lookup localDomain partitionMap of
     Nothing -> err
     Just [] -> err
-    Just (x:xs) -> void $ connectUsersWith expect2xx u (list1 x xs)
+    Just (x : xs) -> void $ connectUsersWith expect2xx u (list1 x xs)
   where
     err = liftIO . assertFailure $ "No user on the domain with " ++ show u
 
@@ -1244,10 +1244,11 @@ putConnectionQualified :: Qualified UserId -> UserId -> Relation -> TestM Respon
 putConnectionQualified fromQualified to r = do
   localDomain <- viewFederationDomain
   let (Qualified from qualifiedDomain) = fromQualified
-  liftIO $ assertEqual
-    "The qualified user's domain is not local"
-    localDomain
-    qualifiedDomain
+  liftIO $
+    assertEqual
+      "The qualified user's domain is not local"
+      localDomain
+      qualifiedDomain
   brig <- view tsBrig
   put $
     brig

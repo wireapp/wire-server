@@ -18,10 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.NewConvUnmanaged_user where
 
-import Data.Domain (Domain(Domain))
+import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
-import Data.Qualified (Qualified(Qualified))
+import Data.Qualified (Qualified (Qualified))
 import qualified Data.Set as Set (fromList)
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False), Maybe (Just, Nothing), fromJust)
@@ -40,8 +40,8 @@ import Wire.API.Conversation
         newConvAccessRole,
         newConvMessageTimer,
         newConvName,
-        newConvReceiptMode,
         newConvQualifiedUsers,
+        newConvReceiptMode,
         newConvTeam,
         newConvUsers,
         newConvUsersRole
