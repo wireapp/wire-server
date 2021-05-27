@@ -1477,7 +1477,7 @@ withDummyTestServiceForTeam owner tid go = do
     initiateResp :: Wai.Response
     initiateResp =
       Wai.json $
-        -- TODO: use another key to prevent collisions with keys used by tests
+        -- FUTUREWORK: use another key to prevent collisions with keys used by tests
         NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
 
     respondOk :: Wai.Response
