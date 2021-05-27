@@ -917,7 +917,7 @@ testAddRemoteMemberFailure = do
         opts
         remoteDomain
         [mkProfile remoteCharlie (Name "charlie")]
-        (postQualifiedMembers' g alice (remoteBob :| []) convId)
+        (postQualifiedMembers' g alice (remoteBob :| [remoteCharlie]) convId)
     statusCode resp @?= 400
     let err = responseJsonUnsafe resp :: Object
     (err ^. at "label") @?= Just "unknown-remote-user"
