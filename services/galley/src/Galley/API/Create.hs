@@ -103,9 +103,10 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let allUsers = map (`Qualified` localDomain) unqualifiedUserIds <> qualifiedUserIds
   checkedUsers <- checkedConvSize allUsers
   let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
-  let (_remotes, locals) = fromConvSize checkedPartitionedUsers
+  let (remotes, locals) = fromConvSize checkedPartitionedUsers
   ensureConnected zusr locals
-  -- FUTUREWORK: Add checks per comments for Update.addMembers.
+  checkRemoteUsersExist remotes
+  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
   c <-
     Data.createConversation
       zusr
