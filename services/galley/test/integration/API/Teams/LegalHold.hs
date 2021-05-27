@@ -972,11 +972,10 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
-        -- FUTUREWORK: test if message sending is blocked
-        -- for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
-        -- (again, other label / 4xx status code would also be fine.)
-        -- postOtrMessageJson peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
-        -- postOtrMessageProto peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
+        for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
+          -- TODO: fails.  again, other label / 4 xx status code would also be fine.
+          postOtrMessageJson peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
+          postOtrMessageProto peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
 
         do
           doDisableLH
@@ -991,9 +990,10 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
                 if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
 
-        -- FUTUREWORK: test if message sending works again
-        -- postOtrMessageJson undefined undefined !!! const 201 === statusCode
-        pure ()
+        for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
+          -- TODO: fails.  again, other label / 4 xx status code would also be fine.
+          postOtrMessageJson peer convId !!! testResponse 201 Nothing
+          postOtrMessageProto peer convId !!! testResponse 201 Nothing
       else do
         doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
