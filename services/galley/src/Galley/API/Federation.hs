@@ -18,7 +18,7 @@ module Galley.API.Federation where
 
 import Data.Qualified (Qualified (Qualified))
 import qualified Galley.API.Mapping as Mapping
-import Galley.API.Util (viewFederationDomain)
+import Galley.API.Util (pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Imports
@@ -43,5 +43,10 @@ getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = d
     then GetConversationsResponse . catMaybes <$> for convs (Mapping.conversationViewMaybe uid)
     else error "FUTUREWORK: implement & exstend integration test when schema ready"
 
+-- FUTUREWORK: also remove users from conversation
 updateConversationMembership :: ConversationMemberUpdate -> Galley ()
-updateConversationMembership = error "FUTUREWORK: implement after schema change"
+updateConversationMembership cmu = do
+  when (not (null (cmuUsersAdd cmu))) $ do
+    e <- Data.addLocalMembersToRemoteConv (cmuTime cmu) (cmuOrigUserId cmu) (cmuUsersAdd cmu) (cmuConvId cmu)
+    -- FUTUREWORK: support bots?
+    pushConversationEvent e (map fst (cmuUsersAdd cmu)) []

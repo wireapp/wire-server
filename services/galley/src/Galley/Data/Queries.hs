@@ -301,10 +301,10 @@ selectRemoteMembers = "select conv, user_remote_domain, user_remote_id, conversa
 
 -- local user with remote conversations
 
--- FUTUREWORK: actually make use of these cql statements.
 insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
 
+-- FUTUREWORK: actually make use of these cql statements.
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
 
