@@ -66,7 +66,9 @@ getUsersByIds uids =
   lift (API.lookupLocalProfiles Nothing uids)
 
 claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
-claimPrekey (user, client) = lift (Data.claimPrekey LegalholdPlusFederationNotImplemented user client)
+claimPrekey (user, client) = do
+  -- FUTUREWORK: guard legalhold policy conflicts
+  lift (Data.claimPrekey user client)
 
 claimPrekeyBundle :: UserId -> Handler PrekeyBundle
 claimPrekeyBundle user =

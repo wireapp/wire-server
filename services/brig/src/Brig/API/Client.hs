@@ -166,8 +166,9 @@ claimPrekey protectee u d c = do
     else claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimLocalPrekey protetee user client = do
-  prekey <- Data.claimPrekey protetee user client
+claimLocalPrekey _protectee user client = do
+  -- TODO: guard here
+  prekey <- Data.claimPrekey user client
   when (isNothing prekey) (noPrekeys user client)
   pure prekey
 
@@ -185,7 +186,7 @@ claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError Ap
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> Data.lookupClients u
   guardLegalhold protectee (Client.mkUserClients [(u, clients)])
-  PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey protectee u) clients)
+  PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey u) clients)
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimRemotePrekeyBundle quser = do
@@ -207,7 +208,8 @@ claimMultiPrekeyBundles protectee quc = do
       | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
 
 claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> AppIO UserClientPrekeyMap
-claimLocalMultiPrekeyBundles protectee userClients = do
+claimLocalMultiPrekeyBundles _protectee userClients = do
+  -- TODO: guard here
   fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients $ userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
@@ -218,7 +220,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
       sequenceA . Map.fromSet (getClientKeys u)
     getClientKeys :: UserId -> ClientId -> AppIO (Maybe Prekey)
     getClientKeys u c = do
-      key <- fmap prekeyData <$> Data.claimPrekey protectee u c
+      key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
       return key
 

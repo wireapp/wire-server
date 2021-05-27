@@ -838,6 +838,7 @@ getPrekeyUnqualifiedH zusr user client = do
 
 getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyH zusr domain user client = do
+  -- guard here
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
