@@ -629,7 +629,7 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
 
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (botUserId zbot) Nothing zcnv val message
+  postNewOtrMessage (botUserId zbot {- TODO: no! -}) Nothing zcnv val message
 
 postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
