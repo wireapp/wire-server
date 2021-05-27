@@ -16,6 +16,10 @@ data:
       host: cannon
       port: 8080
 
+    federator:
+      host: federator
+      port: 8080
+
     provider:
       privateKey: /etc/wire/integration-secrets/provider-privatekey.pem
       publicKey: /etc/wire/integration-secrets/provider-publickey.pem
