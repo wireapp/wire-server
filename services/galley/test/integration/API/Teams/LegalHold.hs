@@ -877,18 +877,9 @@ testNoConsentBlockDeviceHandshake = do
         <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing
                 <!! const 201 === statusCode
             )
-    _convId3 <-
-      decodeConvId
-        <$> ( postConv legalholder2 [peer] (Just "gossip") [] Nothing Nothing
-                <!! const 201 === statusCode
-            )
-    _convId2 <-
-      decodeConvId
-        <$> ( postTeamConv tid legalholder2 [legalholder] (Just "gossip") [] Nothing Nothing -- TODO: 403.  bug in the test helper?
-                <!! const 201 === statusCode
-            )
 
-    -- LH Devices are cabapable
+    -- LH devices are treated as clients that have the
+    -- ClientSupportsLegalholdImplicitConsent capability
     legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
     legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
 
@@ -903,13 +894,15 @@ testNoConsentBlockDeviceHandshake = do
       [ (legalholder2, legalholder2Client, "ciphered"),
         (legalholder, legalholderClient, "ciphered"),
         (legalholder, legalholderLHDevice, "ciphered")
+        -- _legalholder2LHDevice missing on purpose here to trigger the guard
       ]
       !!! do
         const 412 === statusCode
         assertTrue "response is a ClientMismatch" (isJust . responseJsonMaybe @ClientMismatch)
         assertTrue "response isn't an error" (isNothing . responseJsonMaybe @Error.Error)
 
-    -- incabapable clients fail
+    -- If user has a client without the ClientSupportsLegalholdImplicitConsent
+    -- capability then message sending is prevented to legalhold devices.
     peerClient <- randomClient peer (someLastPrekeys !! 2)
 
     postOtrMessage
