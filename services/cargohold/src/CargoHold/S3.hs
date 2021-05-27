@@ -94,9 +94,20 @@ newtype S3AssetKey = S3AssetKey {s3Key :: Text}
 data S3AssetMeta = S3AssetMeta
   { v3AssetOwner :: V3.Principal,
     v3AssetToken :: Maybe V3.AssetToken,
-    v3AssetType :: MIME.Type
+    v3AssetType :: MIME.Type -- should be ignored, see note on overrideMimeTypeAsOctetStream. FUTUREWORK: remove entirely.
   }
   deriving (Show)
+
+-- [Note: overrideMimeTypeAsOctetStream]
+-- The asset V3 upload API allows setting arbitrary Asset MIME types on the
+-- "outside" of an uploaded (generally encrypted, exception: public profile
+-- pictures) asset. (outside meaning outside the encrypted blob in the second
+-- part of the multipart/mixed body section).  However, outside-MIME types are
+-- not really used by Wire clients. To avoid any potential abuse of setting
+-- unexpected outside MIME types, yet remain backwards-compatible with older
+-- clients still setting mime types different to application/octet-stream, we
+-- ignore the uploaded mimetype header and force it to be
+-- application/octet-stream.
 
 uploadV3 ::
   V3.Principal ->
@@ -105,16 +116,20 @@ uploadV3 ::
   Maybe V3.AssetToken ->
   Conduit.ConduitM () ByteString (ResourceT IO) () ->
   ExceptT Error App ()
-uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl) tok src = do
+uploadV3 prc (s3Key . mkKey -> key) originalHeaders@(V3.AssetHeaders _ cl) tok src = do
   Log.info $
     "remote" .= val "S3"
       ~~ "asset.owner" .= toByteString prc
       ~~ "asset.key" .= key
+      ~~ "asset.type_from_request_ignored" .= MIME.showType (V3.hdrType originalHeaders)
       ~~ "asset.type" .= MIME.showType ct
       ~~ "asset.size" .= cl
       ~~ msg (val "Uploading asset")
   void $ exec req
   where
+    ct :: MIME.Type
+    ct = octets -- See note on overrideMimeTypeAsOctetStream
+    stream :: ConduitM () ByteString (ResourceT IO) ()
     stream =
       src
         -- Rechunk bytestream to ensure we satisfy AWS's minimum chunk size
@@ -122,7 +137,11 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl) tok src = do
         .| Conduit.chunksOfCE (fromIntegral defaultChunkSize)
         -- Ignore any 'junk' after the content; take only 'cl' bytes.
         .| Conduit.isolate (fromIntegral cl)
+
+    reqBdy :: ChunkedBody
     reqBdy = ChunkedBody defaultChunkSize (fromIntegral cl) stream
+
+    req :: Text -> PutObject
     req b =
       putObject (BucketName b) (ObjectKey key) (toBody reqBdy)
         & poContentType ?~ MIME.showType ct
@@ -163,7 +182,7 @@ deleteV3 (s3Key . mkKey -> key) = do
     req b = deleteObject (BucketName b) (ObjectKey key)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
-updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
+updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok _) = do
   Log.debug $
     "remote" .= val "S3"
       ~~ "asset.owner" .= show prc
@@ -171,6 +190,8 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
       ~~ msg (val "Updating asset metadata")
   void $ exec req
   where
+    ct :: MIME.Type
+    ct = octets -- See note on overrideMimeTypeAsOctetStream
     copySrc b =
       decodeLatin1 . LBS.toStrict . toLazyByteString $
         urlEncode [] $
@@ -372,7 +393,8 @@ createResumable ::
   V3.TotalSize ->
   Maybe V3.AssetToken ->
   ExceptT Error App S3Resumable
-createResumable k p typ size tok = do
+createResumable k p _ size tok = do
+  let typ = octets -- see note: overrideMimeTypeAsOctetStream
   let csize = calculateChunkSize size
   ex <- addUTCTime V3.assetVolatileSeconds <$> liftIO getCurrentTime
   let key = mkResumableKey k
@@ -438,7 +460,7 @@ uploadChunk r offset rsrc = do
   return (r', rest)
   where
     nr = mkChunkNr r offset
-    ct = MIME.showType (resumableType r)
+    ct = MIME.showType octets -- see note overrideMimeTypeAsOctetStream
     putChunk chunk size = do
       let S3ChunkKey k = mkChunkKey (resumableKey r) nr
       let req b =
@@ -488,7 +510,7 @@ completeResumable r = do
       let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource e chunks)
       let putRq b =
             putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
-              & poContentType ?~ MIME.showType (resumableType r)
+              & poContentType ?~ MIME.showType octets -- see note overrideMimeTypeAsOctetStream
               & poMetadata .~ metaHeaders (resumableToken r) own
       void $ exec putRq
 
