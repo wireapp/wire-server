@@ -19,7 +19,7 @@ module Test.Data.Schema where
 
 import Control.Applicative
 import Control.Arrow ((&&&))
-import Control.Lens (Prism', at, ix, nullOf, prism', (?~), (^.), _1)
+import Control.Lens (Prism', at, ix, makePrisms, nullOf, prism', (?~), (^.), _1)
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, decode, encode, fromJSON)
 import Data.Aeson.QQ
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -384,9 +384,9 @@ instance ToSchema User where
   schema =
     object "User" $
       User
-        <$> userName .= field "name" (unnamed schema)
-        <*> userHandle .= opt (field "handle" (unnamed schema))
-        <*> userExpire .= opt (field "expire" (unnamed schema))
+        <$> userName .= field "name" schema
+        <*> userHandle .= opt (field "handle" schema)
+        <*> userExpire .= opt (field "expire" schema)
 
 exampleUser1 :: User
 exampleUser1 = User "Alice" (Just "alice") Nothing
@@ -473,3 +473,58 @@ instance ToSchema Named where
 
 instance S.ToSchema Named where
   declareNamedSchema = schemaToSwagger
+
+-- examples from documentation (only type-checked)
+
+data Detail
+  = Name Text
+  | Age Int
+
+makePrisms ''Detail
+
+data DetailTag = NameTag | AgeTag
+  deriving (Eq, Enum, Bounded)
+
+tagSchema :: ValueSchema NamedSwaggerDoc DetailTag
+tagSchema =
+  enum @Text "Detail Tag" $
+    mconcat [element "name" NameTag, element "age" AgeTag]
+
+detailSchema :: ValueSchema NamedSwaggerDoc Detail
+detailSchema =
+  object "Detail" $
+    fromTagged <$> toTagged
+      .= bind
+        (fst .= field "tag" tagSchema)
+        (snd .= fieldOver _1 "value" untaggedSchema)
+  where
+    toTagged :: Detail -> (DetailTag, Detail)
+    toTagged d@(Name _) = (NameTag, d)
+    toTagged d@(Age _) = (AgeTag, d)
+
+    fromTagged :: (DetailTag, Detail) -> Detail
+    fromTagged = snd
+
+    untaggedSchema = dispatch $ \case
+      NameTag -> tag _Name (unnamed schema)
+      AgeTag -> tag _Age (unnamed schema)
+
+userSchemaWithDefaultName' :: ValueSchema NamedSwaggerDoc User
+userSchemaWithDefaultName' =
+  object "User" $
+    User
+      <$> (getOptText . userName) .= (fromMaybe "" <$> opt (field "name" schema))
+      <*> userHandle .= opt (field "handle" schema)
+      <*> userExpire .= opt (field "expire" schema)
+  where
+    getOptText :: Text -> Maybe Text
+    getOptText "" = Nothing
+    getOptText t = Just t
+
+userSchemaWithDefaultName :: ValueSchema NamedSwaggerDoc User
+userSchemaWithDefaultName =
+  object "User" $
+    User
+      <$> userName .= (field "name" schema <|> pure "")
+      <*> userHandle .= opt (field "handle" schema)
+      <*> userExpire .= opt (field "expire" schema)
