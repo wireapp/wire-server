@@ -115,7 +115,6 @@ addClient u con ip new = do
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
-  -- TODO: test when this is missing
   when (newClientType new == LegalHoldClientType) $ do
     -- TODO: this only works if there aren't any capabilities set yet.  we should add
     -- capabilities to `NewClient`; do this next line only if LH devices don't send the cap
