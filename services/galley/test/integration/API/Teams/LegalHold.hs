@@ -91,6 +91,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
+import Wire.API.Message (ClientMismatch)
 import qualified Wire.API.Message as Msg
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
@@ -862,7 +863,7 @@ testNoConsentBlockDeviceHandshake = do
     grantConsent tid legalholder2
 
     legalholderLHDevice <- doEnableLH legalholder legalholder
-    legalholder2LHDevice <- doEnableLH legalholder legalholder2
+    _legalholder2LHDevice <- doEnableLH legalholder legalholder2
 
     grantConsent tid2 peer
 
@@ -899,13 +900,13 @@ testNoConsentBlockDeviceHandshake = do
       legalholderClient
       convId
       [ (legalholder2, legalholder2Client, "ciphered"),
-        (legalholder2, legalholder2LHDevice, "ciphered"),
         (legalholder, legalholderClient, "ciphered"),
         (legalholder, legalholderLHDevice, "ciphered")
       ]
       !!! do
-        const 201 === statusCode
-    -- const (Just "missing-legalhold-consent") === fmap Error.label . responseJsonMaybe
+        const 412 === statusCode
+        assertTrue "response is a ClientMismatch" (isJust . responseJsonMaybe @ClientMismatch)
+        assertTrue "response isn't an error" (isNothing . responseJsonMaybe @Error.Error)
 
     -- incabapable clients fail
     peerClient <- randomClient peer (someLastPrekeys !! 2)
