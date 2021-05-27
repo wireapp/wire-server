@@ -149,7 +149,7 @@ tests s =
           testGroup
             "teams listed"
             [ test s "happy flow" testInWhitelist,
-              test s "handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
+              test s "XXXXXX handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
               test
                 s
                 "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
@@ -187,9 +187,9 @@ tests s =
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
               test s "bench hack" testBenchHack,
-              test s "XXXXXX User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
-              test s "XXXXXX User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
-              test s "XXXXXX User can fetch prekeys of LH users if consent is given and user has only new clients" (testClaimKeys TCKConsentAndNewClients)
+              test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
+              test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
+              test s "User can fetch prekeys of LH users if consent is given and user has only new clients" (testClaimKeys TCKConsentAndNewClients)
             ]
         ]
     ]
