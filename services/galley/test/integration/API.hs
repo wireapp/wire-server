@@ -35,7 +35,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
-import Control.Lens (at, view, (^.))
+import Control.Lens (at, view, (.~), (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
@@ -50,6 +50,7 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
+import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
@@ -98,6 +99,8 @@ tests s =
           test s "M:N conversation creation must have <N qualified members" postConvQualifiedFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
           test s "fail to create conversation when blocked by qualified member" postConvQualifiedFailBlocked,
+          test s "fail to create conversation with remote users when remote user doesn't exist" postConvQualifiedNonExistentDomain,
+          test s "fail to create conversation with remote users when federation not configured" postConvQualifiedFederationNotEnabled,
           test s "create self conversation" postSelfConvOk,
           test s "create 1:1 conversation" postO2OConvOk,
           test s "fail to create 1:1 conversation with yourself" postConvO2OFailWithSelf,
@@ -697,6 +700,32 @@ postConvQualifiedFailBlocked = do
   postConvQualified alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
+
+postConvQualifiedNonExistentDomain :: TestM ()
+postConvQualifiedNonExistentDomain = do
+  alice <- randomUser
+  bob <- flip Qualified (Domain "non-existent.example.com") <$> randomId
+  postConvQualified alice [bob] Nothing [] Nothing Nothing !!! do
+    const 422 === statusCode
+
+postConvQualifiedFederationNotEnabled :: TestM ()
+postConvQualifiedFederationNotEnabled = do
+  g <- view tsGalley
+  alice <- randomUser
+  bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
+  opts <- view tsGConf
+  let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
+  withSettingsOverrides federatorNotConfigured $
+    postConvHelper g alice [bob] !!! do
+      const 400 === statusCode
+      const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
+
+-- like postConvQualified
+-- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
+postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
+postConvHelper g zusr newUsers = do
+  let conv = NewConvUnmanaged $ NewConv [] newUsers (Just "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin
+  post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
 postSelfConvOk = do
