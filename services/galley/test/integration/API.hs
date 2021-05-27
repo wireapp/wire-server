@@ -97,6 +97,7 @@ tests s =
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
           test s "M:N conversation creation must have <N qualified members" postConvQualifiedFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
+          test s "fail to create conversation when blocked by qualified member" postConvQualifiedFailBlocked,
           test s "create self conversation" postSelfConvOk,
           test s "create 1:1 conversation" postO2OConvOk,
           test s "fail to create 1:1 conversation with yourself" postConvO2OFailWithSelf,
@@ -676,6 +677,20 @@ postConvFailBlocked = do
   putConnection jane alice Blocked
     !!! const 200 === statusCode
   postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
+    const 403 === statusCode
+    const (Just "not-connected") === fmap label . responseJsonUnsafe
+
+--- | If somebody has blocked a user, that user shouldn't be able to create a
+-- group conversation which includes them.
+postConvQualifiedFailBlocked :: TestM ()
+postConvQualifiedFailBlocked = do
+  alice <- randomUser
+  bob <- randomQualifiedUser
+  jane <- randomQualifiedUser
+  connectLocalQualifiedUsers alice (list1 bob [jane])
+  putConnectionQualified jane alice Blocked
+    !!! const 200 === statusCode
+  postConvQualified alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
 

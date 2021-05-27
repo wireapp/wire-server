@@ -1239,6 +1239,26 @@ putConnection from to r = do
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
+-- | A slightly modified copy of 'putConnection' from above.
+putConnectionQualified :: Qualified UserId -> UserId -> Relation -> TestM ResponseLBS
+putConnectionQualified fromQualified to r = do
+  localDomain <- viewFederationDomain
+  let (Qualified from qualifiedDomain) = fromQualified
+  liftIO $ assertEqual
+    "The qualified user's domain is not local"
+    localDomain
+    qualifiedDomain
+  brig <- view tsBrig
+  put $
+    brig
+      . paths ["/connections", toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object ["status" .= r]
+
 -- | A copy of `assertConnections from Brig integration tests.
 assertConnections :: HasCallStack => UserId -> [ConnectionStatus] -> TestM ()
 assertConnections u cstat = do
