@@ -470,9 +470,10 @@ mapUpdateToServant Unchanged = Servant.respond NoContent
 -- public by exposing 'addMembersToConversationV2' (currently hidden using /i/
 -- prefix), i.e. by allowing remote members to be actually added in any environment,
 -- we need the following checks/implementation:
---  - (1) Remote qualified users must exist before they can be added (a call to the
---  respective backend should be made): Avoid clients making up random Ids, and
---  increase the chances that the updateConversationMembership call suceeds
+--  - (1) [DONE] Remote qualified users must exist before they can be added (a
+--  call to the respective backend should be made): Avoid clients making up random
+--  Ids, and increase the chances that the updateConversationMembership call
+--  suceeds
 --  - (2) A call must be made to the remote backend informing it that this user is
 --  now part of that conversation. Use and implement 'updateConversationMemberships'.
 --    - that call should probably be made *after* inserting the conversation membership
