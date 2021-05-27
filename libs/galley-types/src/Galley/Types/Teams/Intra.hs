@@ -34,6 +34,8 @@ import Data.Json.Util
 import Data.Time (UTCTime)
 import Galley.Types.Teams (Team)
 import Imports
+import Test.QuickCheck.Arbitrary (Arbitrary)
+import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Message (UserClients)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 
@@ -111,6 +113,7 @@ data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
     glhUserClients :: UserClients
   }
   deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform GuardLegalholdPolicyConflicts)
 
 instance ToJSON GuardLegalholdPolicyConflicts
 
