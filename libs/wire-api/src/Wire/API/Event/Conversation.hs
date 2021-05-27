@@ -157,7 +157,7 @@ data EventType
 instance ToSchema EventType where
   schema =
     enum @Text "EventType" $
-      asum
+      mconcat
         [ element "conversation.member-join" MemberJoin,
           element "conversation.member-leave" MemberLeave,
           element "conversation.member-update" MemberStateUpdate,

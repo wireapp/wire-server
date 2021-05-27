@@ -39,9 +39,9 @@ instance ToSchema UserLegalHoldStatus where
     (S.schema . description ?~ desc) $
       enum @Text "UserLegalHoldStatus" $
         element "enabled" UserLegalHoldEnabled
-          <|> element "pending" UserLegalHoldPending
-          <|> element "disabled" UserLegalHoldDisabled
-          <|> element "no_consent" UserLegalHoldNoConsent
+          <> element "pending" UserLegalHoldPending
+          <> element "disabled" UserLegalHoldDisabled
+          <> element "no_consent" UserLegalHoldNoConsent
     where
       desc =
         "states whether a user is under legal hold, "
