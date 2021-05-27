@@ -91,7 +91,6 @@ import TestHelpers
 import TestSetup
 import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
-import Wire.API.Message (ClientMismatch)
 import qualified Wire.API.Message as Msg
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
@@ -865,10 +864,33 @@ testNoConsentBlockDeviceHandshake = do
     grantConsent tid legalholder2
 
     legalholderLHDevice <- doEnableLH legalholder legalholder
-    _legalholder2LHDevice <- doEnableLH legalholder legalholder2
+    legalholder2LHDevice <- doEnableLH legalholder legalholder2
 
-    grantConsent tid2 peer
+    legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
+    legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
 
+    {- TODO: this is test is confusing!
+
+        --
+
+        The idea was to get a 412 "missing-legalhold-consent", but this test was manually
+        adding the capability to the LH devices (which the real ones don't do), and then
+        didn't test for the error label (just the status code).
+
+        The funny way in which I implement `happy` and `sad` makes failure messages more
+        useful.
+
+        --
+
+        now connecting fails.  we should try instead to connect peer to new user proxy, and
+        proxy has consent, but no device, and then proxy creates a group conv with peer and
+        legalholder, and peer tries to text legalholder...
+
+        this will be fine until we implement group conv blocking.  then this test won't be
+        possible to write.  it'll be a safety fallback that we don't know how to hit.
+
+        the more clearly useful thing in this PR is the prekey guarding, though.
+    -}
     connectUsers peer (List1.list1 legalholder [legalholder2])
 
     convId <-
@@ -877,55 +899,44 @@ testNoConsentBlockDeviceHandshake = do
                 <!! const 201 === statusCode
             )
 
-    -- LH devices are treated as clients that have the
-    -- ClientSupportsLegalholdImplicitConsent capability
-    legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
-    legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
+    let runit :: HasCallStack => UserId -> ClientId -> TestM ResponseLBS
+        runit sender senderClient = do
+          postOtrMessage id sender senderClient convId rcps
+          where
+            rcps =
+              [ (legalholder, legalholderClient, "ciphered"),
+                (legalholder, legalholderLHDevice, "ciphered"),
+                (legalholder2, legalholder2Client, "ciphered"),
+                (legalholder2, legalholder2LHDevice, "ciphered")
+              ]
 
-    upgradeClientToLH legalholder legalholderClient
-    upgradeClientToLH legalholder2 legalholder2Client
+        happy :: HasCallStack => ResponseLBS -> TestM ()
+        happy rsp = do
+          liftIO $ assertEqual "" 201 (statusCode rsp)
 
-    postOtrMessage
-      id
-      legalholder
-      legalholderClient
-      convId
-      [ (legalholder2, legalholder2Client, "ciphered"),
-        (legalholder, legalholderClient, "ciphered"),
-        (legalholder, legalholderLHDevice, "ciphered")
-        -- _legalholder2LHDevice missing on purpose here to trigger the guard
-      ]
-      !!! do
-        const 412 === statusCode
-        assertTrue "response is a ClientMismatch" (isJust . responseJsonMaybe @ClientMismatch)
-        assertTrue "response isn't an error" (isNothing . responseJsonMaybe @Error.Error)
+        sad :: HasCallStack => ResponseLBS -> TestM ()
+        sad rsp = do
+          let Just rawbody = responseBody rsp
+              Just jsonbody = responseJsonMaybe rsp
+          when (statusCode rsp /= 412 || Error.label jsonbody /= "missing-legalhold-consent") $ do
+            error $ show (statusCode rsp, rawbody)
+
+    -- LH devices are treated as clients that have the ClientSupportsLegalholdImplicitConsent
+    -- capability (so LH doesn't break for users who have LH devices; it sounds silly, but
+    -- it's good to test this, since it did require adding a few lines of production code in
+    -- 'addClient' about client capabilities).
+    runit legalholder legalholderClient >>= happy
 
     -- If user has a client without the ClientSupportsLegalholdImplicitConsent
     -- capability then message sending is prevented to legalhold devices.
-    let runit :: ClientId -> TestM ResponseLBS
-        runit peerClient = do
-          postOtrMessage
-            id
-            peer
-            peerClient
-            convId
-            [ (legalholder, legalholderClient, "secret"),
-              (legalholder2, legalholder2Client, "secret")
-            ]
-
-        good :: Assertions ()
-        good = do
-          testResponse 201 Nothing
-
-        bad :: Assertions ()
-        bad = do
-          const 412 === statusCode
-          const (Just "missing-legalhold-consent") === fmap Error.label . responseJsonMaybe
-
     peerClient <- randomClient peer (someLastPrekeys !! 2)
-    runit peerClient !!! bad
+    runit peer peerClient >>= sad
+
+    grantConsent tid2 peer
+    runit peer peerClient >>= sad
+
     upgradeClientToLH peer peerClient
-    runit peerClient !!! good
+    runit peer peerClient >>= happy
 
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
