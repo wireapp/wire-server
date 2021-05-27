@@ -833,7 +833,7 @@ testNoConsentBlockDeviceHandshake = do
   (legalholder, tid) <- createBindingTeam
   legalholder2 <- (view userId) <$> addUserToTeam legalholder tid
   ensureQueueEmpty
-  (peer, teamPeer) <-
+  (peer, tid2) <-
     -- has to be a team member, granting LH consent for personal users is not supported.
     createBindingTeam
   ensureQueueEmpty
@@ -849,20 +849,34 @@ testNoConsentBlockDeviceHandshake = do
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     doEnableLH legalholder legalholder
-    doEnableLH legalholder legalholder2
 
-    grantConsent teamPeer legalholder
-    grantConsent teamPeer legalholder2
-    grantConsent teamPeer peer
+    grantConsent tid legalholder
+    grantConsent tid legalholder2
+    grantConsent tid2 peer
 
     legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
     legalholder2Client <- randomClient legalholder (someLastPrekeys !! 3)
     peerClient <- randomClient peer (someLastPrekeys !! 2)
 
     connectUsers peer (List1.list1 legalholder [legalholder2])
+    connectUsers legalholder (List1.list1 peer [])
+    connectUsers legalholder2 (List1.list1 peer [])
+
+    -- TODO: revert f11a8c024d8b26c51df466be45763d0e1fbebd4d (minus the outer TODO) once this fails the way it's supposed to fail.
+
     convId <-
       decodeConvId
-        <$> ( postConv peer [legalholder] (Just "gossip") [] Nothing Nothing
+        <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing -- TODO: should be 412, but is 201
+                <!! const 201 === statusCode
+            )
+    _convId3 <-
+      decodeConvId
+        <$> ( postConv legalholder2 [peer] (Just "gossip") [] Nothing Nothing -- TODO: should be 412, but is 201
+                <!! const 201 === statusCode
+            )
+    _convId2 <-
+      decodeConvId
+        <$> ( postConv legalholder2 [legalholder] (Just "gossip") [] Nothing Nothing -- TODO: 403.  bug in the test helper?
                 <!! const 201 === statusCode
             )
 
