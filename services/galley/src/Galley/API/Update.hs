@@ -1135,11 +1135,11 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
     -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
     when otherClientHasLH $ do
       when checkSelfHasOldClients $
-        throwM userLegalHoldNotSupported
+        throwM missingLegalholdConsent
 
       unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
         whenM checkConsentMissing $
           -- We assume this is impossible, since conversations are automatically
           -- blocked if LH consent is missing of any participant.
           -- We add this check here as an extra failsafe.
-          throwM userLegalHoldNotSupported
+          throwM missingLegalholdConsent

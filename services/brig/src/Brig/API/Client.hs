@@ -117,8 +117,9 @@ addClient u con ip new = do
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
   -- TODO: test when this is missing
   when (newClientType new == LegalHoldClientType) $ do
-    -- TODO: this only works if there aren't any capabilities set yet.  we should really add
-    -- capabilities to `NewClient` instead of this extra call to cassandra.
+    -- TODO: this only works if there aren't any capabilities set yet.  we should add
+    -- capabilities to `NewClient`; do this next line only if LH devices don't send the cap
+    -- themselves; and merge 'Data.updateClientCapabilities' and 'Data.addClient'.
     let caps = Just (Set.singleton Client.ClientSupportsLegalholdImplicitConsent)
     Data.updateClientCapabilities u clientId' caps
   let usr = accountUser acc
@@ -166,7 +167,6 @@ rmClient u con clt pw =
 -- maybe add a claimPrekayLHUnprotected to prevent checking twice
 claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimPrekey protectee u d c = do
-  -- guardLegalholdPolicyConflicts u d c
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
     then lift $ claimLocalPrekey protectee u c
@@ -183,7 +183,6 @@ claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claim
 
 claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
-  -- guardLegalholdPolicyConflicts u d c -- split this into claimLocalPrekeyBundle, Federation.claimPrekeyBundle
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
@@ -197,12 +196,10 @@ claimLocalPrekeyBundle protectee u = do
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimRemotePrekeyBundle quser = do
-  -- FUTUREWORK: guardLegalholdPolicyConflicts
   Federation.claimPrekeyBundle quser !>> ClientFederationError
 
 claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError AppIO QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles protectee quc = do
-  -- guardLegalholdPolicyConflicts quc
   localDomain <- viewFederationDomain
   fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
     -- FUTUREWORK(federation): parallelise federator requests here
@@ -218,7 +215,6 @@ claimMultiPrekeyBundles protectee quc = do
 
 claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> AppIO UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do
-  -- guardLegalholdPolicyConflicts ucs
   fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients $ userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
