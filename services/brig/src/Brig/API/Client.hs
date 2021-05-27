@@ -162,14 +162,15 @@ claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT Cli
 claimPrekey protectee u d c = do
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
-    then lift $ claimLocalPrekey protectee u c
+    then claimLocalPrekey protectee u c
     else claimRemotePrekey (Qualified u d) c
 
-claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimLocalPrekey _protectee user client = do
-  -- TODO: guard here
-  prekey <- Data.claimPrekey user client
-  when (isNothing prekey) (noPrekeys user client)
+claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
+claimLocalPrekey protectee user client = do
+  guardLegalhold protectee (Client.mkUserClients [(user, [client])])
+  prekey <- lift $ Data.claimPrekey user client
+  when (isNothing prekey) $
+    lift (noPrekeys user client)
   pure prekey
 
 claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
@@ -204,13 +205,19 @@ claimMultiPrekeyBundles protectee quc = do
   where
     claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
     claim localDomain domain uc
-      | domain == localDomain = lift (claimLocalMultiPrekeyBundles protectee uc)
+      | domain == localDomain = claimLocalMultiPrekeyBundles protectee uc
       | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
 
-claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> AppIO UserClientPrekeyMap
-claimLocalMultiPrekeyBundles _protectee userClients = do
-  -- TODO: guard here
-  fmap mkUserClientPrekeyMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients $ userClients
+claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> ExceptT ClientError AppIO UserClientPrekeyMap
+claimLocalMultiPrekeyBundles protectee userClients = do
+  guardLegalhold protectee userClients
+  lift
+    . fmap mkUserClientPrekeyMap
+    . foldMap (getChunk . Map.fromList)
+    . chunksOf 16
+    . Map.toList
+    . Message.userClients
+    $ userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =

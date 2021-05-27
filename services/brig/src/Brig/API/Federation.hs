@@ -75,7 +75,7 @@ claimPrekeyBundle user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
 claimMultiPrekeyBundle :: UserClients -> Handler UserClientPrekeyMap
-claimMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc)
+claimMultiPrekeyBundle uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
