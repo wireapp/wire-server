@@ -454,7 +454,7 @@ optWithDefault w0 sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- @lax sch@ is just like the one for @sch@, except that it returns
 -- 'Nothing' in case of failure.
 lax :: Alternative f => f (Maybe a) -> f (Maybe a)
-lax = fmap join . optional
+lax = (<|> pure Nothing)
 
 -- | A schema depending on a parsed value.
 --
