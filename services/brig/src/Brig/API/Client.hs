@@ -34,6 +34,7 @@ module Brig.API.Client
     claimLocalMultiPrekeyBundles,
     claimLocalPrekeyBundle,
     claimPrekey,
+    claimLocalPrekey,
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
     Data.lookupClientIds,

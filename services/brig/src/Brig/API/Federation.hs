@@ -21,7 +21,6 @@ import qualified Brig.API.Client as API
 import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import qualified Brig.Data.Client as Data
 import Brig.Types (PrekeyBundle)
 import Brig.User.API.Handle
 import Data.Handle (Handle (..), parseHandle)
@@ -67,8 +66,7 @@ getUsersByIds uids =
 
 claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
 claimPrekey (user, client) = do
-  -- FUTUREWORK: guard legalhold policy conflicts
-  lift (Data.claimPrekey user client)
+  API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
 claimPrekeyBundle :: UserId -> Handler PrekeyBundle
 claimPrekeyBundle user =
