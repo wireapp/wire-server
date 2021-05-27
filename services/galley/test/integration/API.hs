@@ -109,6 +109,7 @@ tests s =
           test s "repeat / cancel connect requests" postRepeatConnectConvCancel,
           test s "block/unblock a connect/1-1 conversation" putBlockConvOk,
           test s "get conversation" getConvOk,
+          test s "get qualified conversation" getConvQualifiedOk,
           test s "conversation meta access" accessConvMeta,
           test s "add members" postMembersOk,
           test s "add existing members" postMembersOk2,
@@ -878,6 +879,17 @@ getConvOk = do
   getConv alice conv !!! const 200 === statusCode
   getConv bob conv !!! const 200 === statusCode
   getConv chuck conv !!! const 200 === statusCode
+
+getConvQualifiedOk :: TestM ()
+getConvQualifiedOk = do
+  alice <- randomUser
+  bob <- randomQualifiedUser
+  chuck <- randomQualifiedUser
+  connectLocalQualifiedUsers alice (list1 bob [chuck])
+  conv <- decodeConvId <$> postConvQualified alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  getConv alice conv !!! const 200 === statusCode
+  getConv (qUnqualified bob) conv !!! const 200 === statusCode
+  getConv (qUnqualified chuck) conv !!! const 200 === statusCode
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
