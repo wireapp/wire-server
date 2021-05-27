@@ -113,6 +113,7 @@ tests s =
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
+          test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "remove members" deleteMembersOk,
           test s "fail to remove members from self conv." deleteMembersFailSelf,
@@ -918,6 +919,26 @@ testAddRemoteMemberFailure = do
         remoteDomain
         [mkProfile remoteCharlie (Name "charlie")]
         (postQualifiedMembers' g alice (remoteBob :| [remoteCharlie]) convId)
+    statusCode resp @?= 400
+    let err = responseJsonUnsafe resp :: Object
+    (err ^. at "label") @?= Just "unknown-remote-user"
+
+testAddDeletedRemoteUser :: TestM ()
+testAddDeletedRemoteUser = do
+  alice <- randomUser
+  bobId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteBob = Qualified bobId remoteDomain
+  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  opts <- view tsGConf
+  g <- view tsGalley
+  liftIO $ do
+    (resp, _) <-
+      withTempMockFederator
+        opts
+        remoteDomain
+        [(mkProfile remoteBob (Name "bob")) {profileDeleted = True}]
+        (postQualifiedMembers' g alice (remoteBob :| []) convId)
     statusCode resp @?= 400
     let err = responseJsonUnsafe resp :: Object
     (err ^. at "label") @?= Just "unknown-remote-user"

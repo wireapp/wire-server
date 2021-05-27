@@ -527,7 +527,10 @@ addMembers zusr zcon convId invite = do
       users <-
         runExceptT (executeFederated domain rpc)
           >>= either (throwM . federationErrorToWai) pure
-      let uids' = map (qUnqualified . User.profileQualifiedId) users
+      let uids' =
+            map
+              (qUnqualified . User.profileQualifiedId)
+              (filter (not . User.profileDeleted) users)
       unless (Set.fromList uids == Set.fromList uids') $
         throwM unknownRemoteUser
 
