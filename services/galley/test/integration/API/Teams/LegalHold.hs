@@ -831,9 +831,12 @@ testNoConsentBlockDeviceHandshake = do
 
   galley <- view tsGalley
   (legalholder, tid) <- createBindingTeam
+  legalholder2 <- (view userId) <$> addUserToTeam legalholder tid
+  ensureQueueEmpty
   (peer, teamPeer) <-
     -- has to be a team member, granting LH consent for personal users is not supported.
     createBindingTeam
+  ensureQueueEmpty
 
   let doEnableLH :: HasCallStack => UserId -> UserId -> TestM ()
       doEnableLH owner uid = do
@@ -846,18 +849,34 @@ testNoConsentBlockDeviceHandshake = do
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     doEnableLH legalholder legalholder
+    doEnableLH legalholder legalholder2
 
+    grantConsent teamPeer legalholder
+    grantConsent teamPeer legalholder2
     grantConsent teamPeer peer
 
     legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
+    legalholder2Client <- randomClient legalholder (someLastPrekeys !! 3)
     peerClient <- randomClient peer (someLastPrekeys !! 2)
 
-    connectUsers peer (List1.list1 legalholder [])
-    convId <- decodeConvId <$> postConv peer [legalholder] (Just "gossip") [] Nothing Nothing
+    connectUsers peer (List1.list1 legalholder [legalholder2])
+    convId <-
+      decodeConvId
+        <$> ( postConv peer [legalholder] (Just "gossip") [] Nothing Nothing
+                <!! const 201 === statusCode
+            )
 
-    postOtrMessage id peer peerClient convId [(legalholder, legalholderClient, "secret")] !!! do
-      const 412 === statusCode
-      const (Just "legalhold-not-supported") === fmap Error.label . responseJsonMaybe
+    postOtrMessage
+      id
+      peer
+      peerClient
+      convId
+      [ (legalholder, legalholderClient, "secret"),
+        (legalholder2, legalholder2Client, "secret")
+      ]
+      !!! do
+        const 412 === statusCode
+        const (Just "legalhold-not-supported") === fmap Error.label . responseJsonMaybe
 
   {-
 
