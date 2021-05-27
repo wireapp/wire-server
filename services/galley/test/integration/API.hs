@@ -99,7 +99,8 @@ tests s =
           test s "M:N conversation creation must have <N qualified members" postConvQualifiedFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
           test s "fail to create conversation when blocked by qualified member" postConvQualifiedFailBlocked,
-          test s "fail to create conversation with remote users when remote user doesn't exist" postConvQualifiedNonExistentDomain,
+          test s "fail to create conversation with remote users when remote user's domain doesn't exist" postConvQualifiedNonExistentDomain,
+          test s "fail to create conversation with remote users when remote user doesn't exist" postConvQualifiedNonExistentUser,
           test s "fail to create conversation with remote users when federation not configured" postConvQualifiedFederationNotEnabled,
           test s "create self conversation" postSelfConvOk,
           test s "create 1:1 conversation" postO2OConvOk,
@@ -707,6 +708,12 @@ postConvQualifiedNonExistentDomain = do
   bob <- flip Qualified (Domain "non-existent.example.com") <$> randomId
   postConvQualified alice [bob] Nothing [] Nothing Nothing !!! do
     const 422 === statusCode
+
+postConvQualifiedNonExistentUser :: TestM ()
+postConvQualifiedNonExistentUser = do
+  -- TODO: test the case of a remote user not existing by using a mockedFederator similar to
+  -- https://github.com/wireapp/wire-server/blob/7db6eba56744ae6a8c7b5d1449b1595b3af2ea9b/services/galley/test/integration/API.hs#L905-L925
+  liftIO $ assertEqual "TODO" True False
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do

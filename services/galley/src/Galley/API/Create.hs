@@ -106,7 +106,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let (remotes, locals) = fromConvSize checkedPartitionedUsers
   ensureConnected zusr locals
   checkRemoteUsersExist remotes
-  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
+  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
       zusr
@@ -135,7 +135,7 @@ createTeamGroupConv zusr zcon tinfo body = do
   void $ permissionCheck CreateConversation zusrMembership
   checkedUsers <- checkedConvSize allUserIds
   let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
-      (_, localUserIds) = fromConvSize checkedPartitionedUsers
+      (remotes, localUserIds) = fromConvSize checkedPartitionedUsers
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
   ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
   checkedPartitionedUsers' <-
@@ -163,6 +163,8 @@ createTeamGroupConv zusr zcon tinfo body = do
         -- 'ensureConnected' for non-team-members.
         ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convMemberships))
         pure checkedPartitionedUsers
+  checkRemoteUsersExist remotes
+  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
   conv <- Data.createConversation zusr name (access body) (accessRole body) checkedPartitionedUsers' (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
   -- NOTE: We only send (conversation) events to members of the conversation
