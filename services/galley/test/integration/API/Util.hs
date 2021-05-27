@@ -44,6 +44,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
+import qualified Data.Map as LMap
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.ProtocolBuffers (encodeMessage)
@@ -89,6 +90,7 @@ import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
+import TestHelpers (viewFederationDomain)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1157,6 +1159,20 @@ zType = header "Z-Type"
 -- users differently
 connectUsers :: UserId -> List1 UserId -> TestM ()
 connectUsers u us = void $ connectUsersWith expect2xx u us
+
+-- TODO: it'd be nicer to just take a list here and handle the cases with 0
+-- users differently
+connectLocalQualifiedUsers :: UserId -> List1 (Qualified UserId) -> TestM ()
+connectLocalQualifiedUsers u us = do
+  localDomain <- viewFederationDomain
+  let partitionMap = partitionQualified . toList . toNonEmpty $ us
+  -- FUTUREWORK: connect all users, not just those on the same domain as 'u'
+  case LMap.lookup localDomain partitionMap of
+    Nothing -> err
+    Just [] -> err
+    Just (x:xs) -> void $ connectUsersWith expect2xx u (list1 x xs)
+  where
+    err = liftIO . assertFailure $ "No user on the domain with " ++ show u
 
 connectUsersUnchecked ::
   UserId ->

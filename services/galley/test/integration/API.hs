@@ -95,6 +95,7 @@ tests s =
           test s "fail to create conversation when not connected" postConvFailNotConnected,
           test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
+          test s "M:N conversation creation must have <N qualified members" postConvQualifiedFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
           test s "create self conversation" postSelfConvOk,
           test s "create 1:1 conversation" postO2OConvOk,
@@ -651,6 +652,16 @@ postConvFailNumMembers = do
   bob : others <- replicateM n (randomUser)
   connectUsers alice (list1 bob others)
   postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
+    const 400 === statusCode
+    const (Just "client-error") === fmap label . responseJsonUnsafe
+
+postConvQualifiedFailNumMembers :: TestM ()
+postConvQualifiedFailNumMembers = do
+  n <- fromIntegral <$> view tsMaxConvSize
+  alice <- randomUser
+  bob : others <- replicateM n randomQualifiedUser
+  connectLocalQualifiedUsers alice (list1 bob others)
+  postConvQualified alice (bob : others) Nothing [] Nothing Nothing !!! do
     const 400 === statusCode
     const (Just "client-error") === fmap label . responseJsonUnsafe
 
