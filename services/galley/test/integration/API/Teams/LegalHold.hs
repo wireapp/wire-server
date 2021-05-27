@@ -869,8 +869,6 @@ testNoConsentBlockDeviceHandshake = do
 
     connectUsers peer (List1.list1 legalholder [legalholder2])
 
-    -- TODO: revert f11a8c024d8b26c51df466be45763d0e1fbebd4d (minus the outer TODO) once this fails the way it's supposed to fail.
-
     convId <-
       decodeConvId
         <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing
