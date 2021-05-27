@@ -855,32 +855,17 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
 -- | Set local users as belonging to a remote conversation. This is invoked by
 -- a remote galley (using the RPC updateConversationMembership) when users from
 -- the current backend are added to conversations on the remote end.
-addLocalMembersToRemoteConv ::
-  MonadClient m =>
-  UTCTime ->
-  Qualified UserId ->
-  [(UserId, RoleName)] ->
-  Qualified ConvId ->
-  m Event
-addLocalMembersToRemoteConv t qorig users qconv = do
+addLocalMembersToRemoteConv :: MonadClient m => [UserId] -> Qualified ConvId -> m ()
+addLocalMembersToRemoteConv users qconv = do
   -- FUTUREWORK: consider using pooledMapConcurrentlyN
   for_ (List.chunksOf 32 users) $ \chunk ->
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
-      for_ chunk $ \(u, _) ->
+      for_ chunk $ \u ->
         addPrepQuery
           Cql.insertUserRemoteConv
           (u, qDomain qconv, qUnqualified qconv)
-  let mems = SimpleMembers (map (uncurry SimpleMember) users)
-  -- FUTUREWORK: the resulting event should record the originating domain
-  pure $
-    Event
-      MemberJoin
-      (qUnqualified qconv)
-      (qUnqualified qorig)
-      t
-      (EdMembersJoin mems)
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do

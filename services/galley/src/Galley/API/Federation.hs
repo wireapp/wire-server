@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
-import Data.Qualified (Qualified (Qualified))
+import Control.Arrow (first)
+import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util (pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
@@ -25,6 +26,7 @@ import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 
@@ -46,7 +48,19 @@ getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = d
 -- FUTUREWORK: also remove users from conversation
 updateConversationMembership :: ConversationMemberUpdate -> Galley ()
 updateConversationMembership cmu = do
-  when (not (null (cmuUsersAdd cmu))) $ do
-    e <- Data.addLocalMembersToRemoteConv (cmuTime cmu) (cmuOrigUserId cmu) (cmuUsersAdd cmu) (cmuConvId cmu)
-    -- FUTUREWORK: support bots?
-    pushConversationEvent e (map fst (cmuUsersAdd cmu)) []
+  localDomain <- viewFederationDomain
+  let localUsers = filter ((== localDomain) . qDomain . fst) (cmuUsersAdd cmu)
+  when (not (null localUsers)) $ do
+    Data.addLocalMembersToRemoteConv (map (qUnqualified . fst) localUsers) (cmuConvId cmu)
+  -- FUTUREWORK: the resulting event should have qualified users and conversations
+  let mems = SimpleMembers (map (uncurry SimpleMember . first qUnqualified) (cmuUsersAdd cmu))
+  let event =
+        Event
+          MemberJoin
+          (qUnqualified (cmuConvId cmu))
+          (qUnqualified (cmuOrigUserId cmu))
+          (cmuTime cmu)
+          (EdMembersJoin mems)
+
+  -- FUTUREWORK: support bots?
+  pushConversationEvent event (cmuAlreadyPresentUsers cmu) []

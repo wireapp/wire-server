@@ -75,7 +75,7 @@ data ConversationMemberUpdate = ConversationMemberUpdate
     cmuOrigUserId :: Qualified UserId,
     cmuConvId :: Qualified ConvId,
     cmuAlreadyPresentUsers :: [UserId], -- pre-existing users in the conversation from the receiving domain
-    cmuUsersAdd :: [(UserId, RoleName)],
+    cmuUsersAdd :: [(Qualified UserId, RoleName)],
     cmuUsersRemove :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
