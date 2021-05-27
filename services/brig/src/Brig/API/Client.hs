@@ -173,10 +173,10 @@ claimPrekey protectee u d c = do
 claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimLocalPrekey protectee user client = do
   guardLegalhold protectee (Client.mkUserClients [(user, [client])])
-  prekey <- lift $ Data.claimPrekey user client
-  when (isNothing prekey) $
-    lift (noPrekeys user client)
-  pure prekey
+  lift $ do
+    prekey <- Data.claimPrekey user client
+    when (isNothing prekey) (noPrekeys user client)
+    pure prekey
 
 claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
