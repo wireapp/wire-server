@@ -511,16 +511,15 @@ postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> 
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
 postConvQualified :: UserId -> [Qualified UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
-postConvQualified u us name a r mtimer = do
-  g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv [] us name (Set.fromList a) r Nothing mtimer Nothing roleNameWireAdmin
-  post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
-
+postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
 
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
-postConvWithRole u us name a r mtimer role = do
+postConvWithRole = postConvWithRoleQualified []
+
+postConvWithRoleQualified :: [Qualified UserId] -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+postConvWithRoleQualified qualifiedUsers u unqualifiedUsers name a r mtimer role = do
   g <- view tsGalley
-  let conv = NewConvUnmanaged $ NewConv us [] name (Set.fromList a) r Nothing mtimer Nothing role
+  let conv = NewConvUnmanaged $ NewConv unqualifiedUsers qualifiedUsers name (Set.fromList a) r Nothing mtimer Nothing role
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
