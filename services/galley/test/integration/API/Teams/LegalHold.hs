@@ -929,18 +929,25 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
 
-  let doEnableLH :: HasCallStack => TestM ()
+  let doEnableLH :: HasCallStack => TestM (Maybe ClientId)
       doEnableLH = do
         -- register & (possibly) approve LH device for legalholder
         withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
         when approveLH $
           withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
-        liftIO $
-          assertEqual
-            "approving should change status"
-            (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending)
-            userStatus
+        liftIO $ assertEqual "approving should change status" (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending) userStatus
+        if approveLH
+          then
+            getInternalClientsFull (UserSet $ Set.fromList [legalholder])
+              <&> userClientsFull
+              <&> Map.elems
+              <&> Set.unions
+              <&> Set.toList
+              <&> (\[x] -> x)
+              <&> clientId
+              <&> Just
+          else pure Nothing
 
       doDisableLH :: HasCallStack => TestM ()
       doDisableLH = do
@@ -955,7 +962,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
       then do
         postConnection legalholder peer !!! const 201 === statusCode
 
-        _mbConn :: Maybe UserConnection <-
+        mbConn :: Maybe UserConnection <-
           if testPendingConnection
             then pure Nothing
             else do
@@ -964,7 +971,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         ensureQueueEmpty
 
-        doEnableLH
+        mbLegalholderLHDevice <- doEnableLH
 
         assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
@@ -985,10 +992,19 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
-        -- for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
-        --   -- TODO: fails.  again, other label / 4 xx status code would also be fine.
-        --   postOtrMessageJson peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
-        --   postOtrMessageProto peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
+        -- peer can't send message to legalhodler. the conversation appears gone.
+        peerClient <- randomClient peer (someLastPrekeys !! 2)
+        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
+          postOtrMessage
+            id
+            peer
+            peerClient
+            convId
+            [ (legalholder, legalholderLHDevice, "cipher")
+            ]
+            !!! do
+              const 404 === statusCode
+              const (Just "no-conversation") === fmap Error.label . responseJsonMaybe
 
         do
           doDisableLH
@@ -1003,14 +1019,19 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
                 if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
 
-        -- for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
-        --   -- TODO: fails.  again, other label / 4 xx status code would also be fine.
-        --   postOtrMessageJson peer convId !!! testResponse 201 Nothing
-        --   postOtrMessageProto peer convId !!! testResponse 201 Nothing
-
-        pure ()
+        -- conversation reappears. peer can send message to legalholder again
+        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
+          postOtrMessage
+            id
+            peer
+            peerClient
+            convId
+            [ (legalholder, legalholderLHDevice, "cipher")
+            ]
+            !!! do
+              const 201 === statusCode
       else do
-        doEnableLH
+        void doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
         postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
 
