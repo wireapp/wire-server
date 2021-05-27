@@ -163,7 +163,6 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
--- maybe add a claimPrekayLHUnprotected to prevent checking twice
 claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimPrekey protectee u d c = do
   isLocalDomain <- (d ==) <$> viewFederationDomain
