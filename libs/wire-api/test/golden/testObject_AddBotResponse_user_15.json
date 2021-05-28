@@ -10,18 +10,34 @@
             "users": [
                 {
                     "conversation_role": "uk7gwif0crc3wgiak6qae948ny57lwbwbtgbhran16vnewvp10eqialhaq9m38bqbczm_17nl46lhxs3h2cf448_7zcazh1f4ao8gnrzutbhd29j_lvsz",
+                    "qualified_id": {
+                        "domain": "faraway.example.com",
+                        "id": "00000002-0000-0002-0000-000200000001"
+                    },
                     "id": "00000002-0000-0002-0000-000200000001"
                 },
                 {
                     "conversation_role": "il2dfqczvqqvs3vcob7t6t7zi61y4hxgxmmpp19ueznkasq5q1cssn72l5df92b64yuqsizc6up2p1270hu18t97oifzl",
+                    "qualified_id": {
+                        "domain": "faraway.example.com",
+                        "id": "00000000-0000-0000-0000-000000000001"
+                    },
                     "id": "00000000-0000-0000-0000-000000000001"
                 },
                 {
                     "conversation_role": "jf7f75hkum6_zxqiabxu8zix2_1kutsjijedcjckapwmymcxx11",
+                    "qualified_id": {
+                        "domain": "faraway.example.com",
+                        "id": "00000001-0000-0000-0000-000000000002"
+                    },
                     "id": "00000001-0000-0000-0000-000000000002"
                 },
                 {
                     "conversation_role": "i700417q9qqygs5k5a0zvvnpkvg2jimgi_stuyzfxgokyvy05n3_vgikqr0t5ldsb5fvltb8pylb",
+                    "qualified_id": {
+                        "domain": "faraway.example.com",
+                        "id": "00000001-0000-0001-0000-000000000002"
+                    },
                     "id": "00000001-0000-0001-0000-000000000002"
                 }
             ],

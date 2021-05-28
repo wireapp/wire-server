@@ -137,7 +137,7 @@ import Wire.API.Event.Conversation
         misOtrMutedStatus,
         misTarget
       ),
-    SimpleMember (SimpleMember, smConvRoleName, smId),
+    SimpleMember (..),
     SimpleMembers (SimpleMembers, mMembers),
     UserIdList (UserIdList, mUsers),
   )
@@ -641,7 +641,7 @@ testObject_AddBotResponse_user_15 =
                   ( SimpleMembers
                       { mMembers =
                           [ SimpleMember
-                              { smId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000001"))),
+                              { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000001"))) (Domain "faraway.example.com"),
                                 smConvRoleName =
                                   ( fromJust
                                       ( parseRoleName
@@ -650,7 +650,7 @@ testObject_AddBotResponse_user_15 =
                                   )
                               },
                             SimpleMember
-                              { smId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+                              { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "faraway.example.com"),
                                 smConvRoleName =
                                   ( fromJust
                                       ( parseRoleName
@@ -659,12 +659,12 @@ testObject_AddBotResponse_user_15 =
                                   )
                               },
                             SimpleMember
-                              { smId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002"))),
+                              { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002"))) (Domain "faraway.example.com"),
                                 smConvRoleName =
                                   (fromJust (parseRoleName "jf7f75hkum6_zxqiabxu8zix2_1kutsjijedcjckapwmymcxx11"))
                               },
                             SimpleMember
-                              { smId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002"))),
+                              { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002"))) (Domain "faraway.example.com"),
                                 smConvRoleName =
                                   ( fromJust
                                       ( parseRoleName

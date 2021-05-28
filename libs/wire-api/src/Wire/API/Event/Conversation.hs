@@ -26,6 +26,7 @@ module Wire.API.Event.Conversation
 
     -- * Event data helpers
     SimpleMember (..),
+    smId,
     SimpleMembers (..),
     Connect (..),
     MemberUpdateData (..),
@@ -297,22 +298,15 @@ newtype SimpleMembers = SimpleMembers
 instance ToSchema SimpleMembers where
   schema =
     object "Members" $
-      (`withParser` either fail pure) $
-        mk
-          <$> mMembers .= optional (field "users" (array schema))
-          <*> (fmap smId . mMembers)
-            .= optional
-              ( fieldWithDocModifier
-                  "user_ids"
-                  (description ?~ "deprecated")
-                  (array schema)
-              )
-    where
-      -- This is to make migration easier and not dependent on deployment ordering
-      mk :: Maybe [SimpleMember] -> Maybe [UserId] -> Either String SimpleMembers
-      mk Nothing Nothing = Left "Either users or user_ids required"
-      mk Nothing (Just ids) = pure (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) ids))
-      mk (Just membs) _ = pure (SimpleMembers membs)
+      SimpleMembers
+        <$> mMembers .= field "users" (array schema)
+        <* (fmap smId . mMembers)
+          .= optional
+            ( fieldWithDocModifier
+                "user_ids"
+                (description ?~ "deprecated")
+                (array schema)
+            )
 
 -- | Used both for 'SimpleMembers' and 'UserIdList'.
 modelMembers :: Doc.Model
@@ -322,18 +316,22 @@ modelMembers =
       Doc.description "List of user IDs"
 
 data SimpleMember = SimpleMember
-  { smId :: UserId,
+  { smQualifiedId :: Qualified UserId,
     smConvRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SimpleMember)
   deriving (FromJSON, ToJSON) via Schema SimpleMember
 
+smId :: SimpleMember -> UserId
+smId = qUnqualified . smQualifiedId
+
 instance ToSchema SimpleMember where
   schema =
     object "SimpleMember" $
       SimpleMember
-        <$> smId .= field "id" schema
+        <$> smQualifiedId .= field "qualified_id" schema
+        <* smId .= optional (field "id" schema)
         <*> smConvRoleName
           .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
 
