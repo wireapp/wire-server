@@ -95,6 +95,7 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
+  localDomain <- viewFederationDomain
   name <- rangeCheckedMaybe (newConvName body)
   _uids <- checkedConvSize (newConvUsers body) -- currently not needed, as we only consider local IDs
   let localUserIds = newConvUsers body
@@ -102,6 +103,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   localCheckedUsers <- checkedConvSize localUserIds
   c <-
     Data.createConversation
+      localDomain
       zusr
       name
       (access body)

@@ -239,7 +239,10 @@ uncheckedUpdateConversationAccess ::
   [BotMember] ->
   Galley Event
 uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAccess) (currentRole, targetRole) users bots = do
+  localDomain <- viewFederationDomain
   let cnv = convId conv
+      qcnv = Qualified cnv localDomain
+      qusr = Qualified usr localDomain
   -- Remove conversation codes if CodeAccess is revoked
   when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
     key <- mkKey cnv
@@ -267,7 +270,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       _ -> return ()
   -- Update Cassandra & send an event
   now <- liftIO getCurrentTime
-  let accessEvent = Event ConvAccessUpdate cnv usr now (EdConvAccessUpdate body)
+  let accessEvent = Event ConvAccessUpdate qcnv qusr now (EdConvAccessUpdate body)
   Data.updateConversationAccess cnv targetAccess targetRole
   pushEvent accessEvent users bots zcon
   -- Remove users and bots
@@ -278,10 +281,10 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     [] -> return ()
     x : xs -> do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
-      e <- Data.removeLocalMembers conv usr (list1 x xs)
+      e <- Data.removeLocalMembers localDomain conv usr (list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
@@ -298,18 +301,21 @@ updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
 
 updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> Public.ConversationReceiptModeUpdate -> Galley UpdateResult
 updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.ConversationReceiptModeUpdate target) = do
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified cnv localDomain
+      qusr = Qualified usr localDomain
   (bots, users) <- botsAndUsers =<< Data.members cnv
   ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember usr users
   current <- Data.lookupReceiptMode cnv
   if current == Just target
     then pure Unchanged
-    else Updated <$> update users bots
+    else Updated <$> update qcnv qusr users bots
   where
-    update users bots = do
+    update qcnv qusr users bots = do
       -- Update Cassandra & send an event
       Data.updateConversationReceiptMode cnv target
       now <- liftIO getCurrentTime
-      let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (EdConvReceiptModeUpdate receiptModeUpdate)
+      let receiptEvent = Event ConvReceiptModeUpdate qcnv qusr now (EdConvReceiptModeUpdate receiptModeUpdate)
       pushEvent receiptEvent users bots zcon
       pure receiptEvent
 
@@ -320,6 +326,9 @@ updateConversationMessageTimerH (usr ::: zcon ::: cnv ::: req) = do
 
 updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley UpdateResult
 updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified cnv localDomain
+      qusr = Qualified usr localDomain
   -- checks and balances
   (bots, users) <- botsAndUsers =<< Data.members cnv
   ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
@@ -328,19 +337,19 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
   let currentTimer = Data.convMessageTimer conv
   if currentTimer == target
     then pure Unchanged
-    else Updated <$> update users bots
+    else Updated <$> update qcnv qusr users bots
   where
-    update users bots = do
+    update qcnv qusr users bots = do
       -- update cassandra & send event
       now <- liftIO getCurrentTime
-      let timerEvent = Event ConvMessageTimerUpdate cnv usr now (EdConvMessageTimerUpdate timerUpdate)
+      let timerEvent = Event ConvMessageTimerUpdate qcnv qusr now (EdConvMessageTimerUpdate timerUpdate)
       Data.updateConversationMessageTimer cnv target
       pushEvent timerEvent users bots zcon
       pure timerEvent
 
 pushEvent :: Event -> [LocalMember] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
-  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
@@ -356,6 +365,9 @@ data AddCodeResult
 
 addCode :: UserId -> ConnId -> ConvId -> Galley AddCodeResult
 addCode usr zcon cnv = do
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified cnv localDomain
+      qusr = Qualified usr localDomain
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureConvMember (Data.convMembers conv) usr
   ensureAccess conv CodeAccess
@@ -368,7 +380,7 @@ addCode usr zcon cnv = do
       Data.insertCode code
       now <- liftIO getCurrentTime
       conversationCode <- createCode code
-      let event = Event ConvCodeUpdate cnv usr now (EdConvCodeUpdate conversationCode)
+      let event = Event ConvCodeUpdate qcnv qusr now (EdConvCodeUpdate conversationCode)
       pushEvent event users bots zcon
       pure $ CodeAdded event
     Just code -> do
@@ -386,6 +398,9 @@ rmCodeH (usr ::: zcon ::: cnv) = do
 
 rmCode :: UserId -> ConnId -> ConvId -> Galley Public.Event
 rmCode usr zcon cnv = do
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified cnv localDomain
+      qusr = Qualified usr localDomain
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureConvMember (Data.convMembers conv) usr
   ensureAccess conv CodeAccess
@@ -393,7 +408,7 @@ rmCode usr zcon cnv = do
   key <- mkKey cnv
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
-  let event = Event ConvCodeDelete cnv usr now EdConvCodeDelete
+  let event = Event ConvCodeDelete qcnv qusr now EdConvCodeDelete
   pushEvent event users bots zcon
   pure event
 
@@ -585,6 +600,7 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 
 removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
 removeMember zusr zcon convId victim = do
+  localDomain <- viewFederationDomain
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
   conv <- Data.conversation convId >>= ifNothing convNotFound
   (bots, users) <- botsAndUsers (Data.convMembers conv)
@@ -595,9 +611,9 @@ removeMember zusr zcon convId victim = do
   if victim `isMember` users
     then do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
-      event <- Data.removeLocalMembers conv zusr (singleton victim)
+      event <- Data.removeLocalMembers localDomain conv zusr (singleton victim)
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
-      for_ (newPush ListComplete (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
+      for_ (newPush ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn ?~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
       pure $ Updated event
@@ -692,37 +708,42 @@ allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrep
 -- | bots are not supported on broadcast
 postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrBroadcast usr con val msg = do
-  let sender = newOtrSender msg
-  let recvrs = newOtrRecipients msg
+  localDomain <- viewFederationDomain
+  let qusr = Qualified usr localDomain
+      sender = newOtrSender msg
+      recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
   withValidOtrBroadcastRecipients usr sender recvrs val now $ \rs -> do
-    let (_, toUsers) = foldr (newMessage usr con Nothing msg now) ([], []) rs
+    let (_, toUsers) = foldr (newMessage qusr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
 postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage protectee con cnv val msg = do
+  localDomain <- viewFederationDomain
   let usr = legalholdProtectee'2UserId protectee
-  let sender = newOtrSender msg
-  let recvrs = newOtrRecipients msg
+      qusr = Qualified usr localDomain
+      qcnv = Qualified cnv localDomain
+      sender = newOtrSender msg
+      recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
   withValidOtrRecipients protectee sender cnv recvrs val now $ \rs -> do
-    let (toBots, toUsers) = foldr (newMessage usr con (Just cnv) msg now) ([], []) rs
+    let (toBots, toUsers) = foldr (newMessage qusr con (Just qcnv) msg now) ([], []) rs
     pushSome (catMaybes toUsers)
     void . forkIO $ do
       gone <- External.deliver toBots
       mapM_ (deleteBot cnv . botMemId) gone
 
 newMessage ::
-  UserId ->
+  Qualified UserId ->
   Maybe ConnId ->
   -- | Conversation Id (if Nothing, recipient's self conversation is used)
-  Maybe ConvId ->
+  Maybe (Qualified ConvId) ->
   NewOtrMessage ->
   UTCTime ->
   (LocalMember, ClientId, Text) ->
   ([(BotMember, Event)], [Maybe Push]) ->
   ([(BotMember, Event)], [Maybe Push])
-newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
+newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
   let o =
         OtrMessage
           { otrSender = newOtrSender msg,
@@ -732,14 +753,15 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
           }
       -- use recipient's client's self conversation on broadcast
       -- (with federation, this might not work for remote members)
-      conv = fromMaybe (selfConv $ memId m) cnv
-      e = Event OtrMessageAdd conv usr now (EdOtrMessage o)
+      -- FUTUREWORK: for remote recipients, set the domain correctly here
+      qconv = fromMaybe ((`Qualified` (qDomain qusr)) . selfConv $ memId m) qcnv
+      e = Event OtrMessageAdd qconv qusr now (EdOtrMessage o)
       r = recipient m & recipientClients .~ RecipientClientsSome (singleton c)
    in case newBotMember m of
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
           let p =
-                newPush ListComplete (evtFrom e) (ConvEvent e) [r]
+                newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) [r]
                   <&> set pushConn con
                     . set pushNativePriority (newOtrNativePriority msg)
                     . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
@@ -758,6 +780,9 @@ updateConversationNameH (zusr ::: zcon ::: cnv ::: req) = do
 
 updateConversationName :: UserId -> ConnId -> ConvId -> Public.ConversationRename -> Galley Public.Event
 updateConversationName zusr zcon cnv convRename = do
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified cnv localDomain
+      qusr = Qualified zusr localDomain
   alive <- Data.isConvAlive cnv
   unless alive $ do
     Data.deleteConversation cnv
@@ -767,8 +792,8 @@ updateConversationName zusr zcon cnv convRename = do
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
-  let e = Event ConvRename cnv zusr now (EdConvRename convRename)
-  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  let e = Event ConvRename qcnv qusr now (EdConvRename convRename)
+  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
@@ -781,12 +806,15 @@ isTypingH (zusr ::: zcon ::: cnv ::: req) = do
 
 isTyping :: UserId -> ConnId -> ConvId -> Public.TypingData -> Galley ()
 isTyping zusr zcon cnv typingData = do
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified cnv localDomain
+      qusr = Qualified zusr localDomain
   mm <- Data.members cnv
   unless (zusr `isMember` mm) $
     throwM convNotFound
   now <- liftIO getCurrentTime
-  let e = Event Typing cnv zusr now (EdTyping typingData)
-  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mm)) $ \p ->
+  let e = Event Typing qcnv qusr now (EdTyping typingData)
+  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -810,14 +838,16 @@ addBotH (zusr ::: zcon ::: req) = do
 
 addBot :: UserId -> ConnId -> AddBot -> Galley Event
 addBot zusr zcon b = do
+  localDomain <- viewFederationDomain
+  let qusr = Qualified zusr localDomain
   c <- Data.conversation (b ^. addBotConv) >>= ifNothing convNotFound
   -- Check some preconditions on adding bots to a conversation
   for_ (Data.convTeam c) $ teamConvChecks (b ^. addBotConv)
   (bots, users) <- regularConvChecks c
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
-  (e, bm) <- Data.addBotMember zusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
-  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+  (e, bm) <- Data.addBotMember qusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
+  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
   pure e
@@ -844,6 +874,9 @@ rmBotH (zusr ::: zcon ::: req) = do
 rmBot :: UserId -> Maybe ConnId -> RemoveBot -> Galley UpdateResult
 rmBot zusr zcon b = do
   c <- Data.conversation (b ^. rmBotConv) >>= ifNothing convNotFound
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified (Data.convId c) localDomain
+      qusr = Qualified zusr localDomain
   unless (zusr `isMember` Data.convMembers c) $
     throwM convNotFound
   (bots, users) <- botsAndUsers (Data.convMembers c)
@@ -852,8 +885,8 @@ rmBot zusr zcon b = do
     else do
       t <- liftIO getCurrentTime
       let evd = EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)])
-      let e = Event MemberLeave (Data.convId c) zusr t evd
-      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+      let e = Event MemberLeave qcnv qusr t evd
+      for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
@@ -866,13 +899,14 @@ rmBot zusr zcon b = do
 addToConversation :: ([BotMember], [LocalMember]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
 addToConversation _ _ _ [] [] _ = pure Unchanged
 addToConversation (bots, others) (usr, usrRole) conn locals remotes c = do
+  localDomain <- viewFederationDomain
   ensureGroupConv c
   mems <- checkedMemberAddSize locals remotes
   now <- liftIO getCurrentTime
-  (e, mm, _remotes) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
+  (e, mm, _remotes) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
   -- FUTUREWORK: send events to '_remotes' users here, too
   let allMembers = nubOrdOn memId (toList mm <> others)
-  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> allMembers)) $ \p ->
+  for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
@@ -916,11 +950,14 @@ processUpdateMemberEvent ::
   MemberUpdate ->
   Galley Event
 processUpdateMemberEvent zusr zcon cid users target update = do
+  localDomain <- viewFederationDomain
+  let qcnv = Qualified cid localDomain
+      qusr = Qualified zusr localDomain
   up <- Data.updateMember cid (memId target) update
   now <- liftIO getCurrentTime
-  let e = Event MemberStateUpdate cid zusr now (EdMemberUpdate up)
+  let e = Event MemberStateUpdate qcnv qusr now (EdMemberUpdate up)
   let recipients = fmap recipient (target : filter ((/= memId target) . memId) users)
-  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) recipients) $ \p ->
+  for_ (newPush ListComplete zusr (ConvEvent e) recipients) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon

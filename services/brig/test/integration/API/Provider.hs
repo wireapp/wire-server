@@ -1654,9 +1654,9 @@ wsAssertMemberJoin ws conv usr new = void $
       \n -> do
         let e = List1.head (unpackEvents n)
         ntfTransient n @?= False
-        evtConv e @?= conv
+        qUnqualified (evtConv e) @?= conv
         evtType e @?= MemberJoin
-        evtFrom e @?= usr
+        qUnqualified (evtFrom e) @?= usr
         evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
@@ -1666,9 +1666,9 @@ wsAssertMemberLeave ws conv usr old = void $
       \n -> do
         let e = List1.head (unpackEvents n)
         ntfTransient n @?= False
-        evtConv e @?= conv
+        qUnqualified (evtConv e) @?= conv
         evtType e @?= MemberLeave
-        evtFrom e @?= usr
+        qUnqualified (evtFrom e) @?= usr
         evtData e @?= EdMembersLeave (UserIdList old)
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
@@ -1678,9 +1678,9 @@ wsAssertConvDelete ws conv from = void $
       \n -> do
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False
-        evtConv e @?= conv
+        qUnqualified (evtConv e) @?= conv
         evtType e @?= ConvDelete
-        evtFrom e @?= from
+        qUnqualified (evtFrom e) @?= from
         evtData e @?= EdConvDelete
 
 wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
@@ -1690,9 +1690,9 @@ wsAssertMessage ws conv fromu fromc to txt = void $
       \n -> do
         let e = List1.head (unpackEvents n)
         ntfTransient n @?= False
-        evtConv e @?= conv
+        qUnqualified (evtConv e) @?= conv
         evtType e @?= OtrMessageAdd
-        evtFrom e @?= fromu
+        qUnqualified (evtFrom e) @?= fromu
         evtData e @?= EdOtrMessage (OtrMessage fromc to txt (Just "data"))
 
 svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()

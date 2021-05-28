@@ -25,7 +25,7 @@ import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Remote)
+import Data.Qualified (Remote, qUnqualified)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
@@ -167,28 +167,30 @@ permissionCheckTeamConv zusr cnv perm =
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
-acceptOne2One usr conv conn = case Data.convType conv of
-  One2OneConv ->
-    if usr `isMember` mems
-      then return conv
-      else do
+acceptOne2One usr conv conn = do
+  localDomain <- viewFederationDomain
+  case Data.convType conv of
+    One2OneConv ->
+      if usr `isMember` mems
+        then return conv
+        else do
+          now <- liftIO getCurrentTime
+          mm <- snd <$> Data.addMember localDomain now cid usr
+          return $ conv {Data.convMembers = mems <> toList mm}
+    ConnectConv -> case mems of
+      [_, _] | usr `isMember` mems -> promote
+      [_, _] -> throwM convNotFound
+      _ -> do
+        when (length mems > 2) $
+          throwM badConvState
         now <- liftIO getCurrentTime
-        mm <- snd <$> Data.addMember now cid usr
-        return $ conv {Data.convMembers = mems <> toList mm}
-  ConnectConv -> case mems of
-    [_, _] | usr `isMember` mems -> promote
-    [_, _] -> throwM convNotFound
-    _ -> do
-      when (length mems > 2) $
-        throwM badConvState
-      now <- liftIO getCurrentTime
-      (e, mm) <- Data.addMember now cid usr
-      conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
-      let mems' = mems <> toList mm
-      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
-        push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
-      return $ conv' {Data.convMembers = mems'}
-  _ -> throwM $ invalidOp "accept: invalid conversation type"
+        (e, mm) <- Data.addMember localDomain now cid usr
+        conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
+        let mems' = mems <> toList mm
+        for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> mems')) $ \p ->
+          push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+        return $ conv' {Data.convMembers = mems'}
+    _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
     cid = Data.convId conv
     mems = Data.convMembers conv
