@@ -70,26 +70,47 @@ Connected users who are not members of user's team will not receive an event (no
 
 ## SCIM support {#RefRichInfoScim}
 
-Rich info can be pushed to Wire by setting the `"richInfo"` field belonging to the `"urn:wire:scim:schemas:profile:1.0"` extension. Both `PUT /scim/v2/Users/:id` and `POST /scim/v2/Users/:id` can contain rich info. Here is an example for `PUT`:
+Rich info can be pushed to Wire by setting JSON keys under the `"urn:ietf:params:scim:schemas:extension:wire:1.0:User"` extension. Both `PUT /scim/v2/Users/:id` , `PATCH /scim/v2/Users/:id` and `POST /scim/v2/Users/:id` can contain rich info. Here is an example for `PUT`:
 
 ```javascript
 PUT /scim/v2/Users/:id
 
 {
     ...,
-    "urn:wire:scim:schemas:profile:1.0": {
-        "richInfo": [
-            {
-                "type": "Department",
-                "value": "Sales & Marketing"
-            },
-            {
-                "type": "Favorite color",
-                "value": "Blue"
-            }
-        ]
+    "urn:ietf:params:scim:schemas:extension:wire:1.0:User": {
+        "Department": "Sales & Marketing",
+        "FavoriteColor": "Blue"
     }
 }
+```
+
+Here is an example for `PATCH`:
+
+```json
+PATCH /scim/v2/Users/:id
+
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ],
+  "operations": [
+    {
+      "op": "add",
+      "path": "urn:ietf:params:scim:schemas:extension:wire:1.0:User:Department",
+      "value": "Development "
+    },
+    {
+      "op": "replace",
+      "path": "urn:ietf:params:scim:schemas:extension:wire:1.0:User:Country",
+      "value": "Germany"
+    },
+    {
+      "op": "remove",
+      "path": "urn:ietf:params:scim:schemas:extension:wire:1.0:User:City"
+    }
+  ]
+}
+
 ```
 
 Rich info set via SCIM can be queried by doing a `GET /scim/v2/Users` or `GET /scim/v2/Users/:id` query.
