@@ -168,7 +168,7 @@ typeAssetSize =
 instance ToSchema AssetSize where
   schema =
     enum @Text "AssetSize" $
-      asum
+      mconcat
         [ element "preview" AssetPreview,
           element "complete" AssetComplete
         ]

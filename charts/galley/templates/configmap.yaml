@@ -32,6 +32,10 @@ data:
       host: spar
       port: 8080
 
+    federator:
+      host: federator
+      port: 8080
+
     {{- if (.journal) }}
     journal:
       queueName: {{ .journal.queue }}

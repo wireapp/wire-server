@@ -39,6 +39,7 @@ dependencies:
 - time >=1.8
 - types-common
 - warp
+- wai-utilities
 - wire-api
 library:
   source-dirs: src

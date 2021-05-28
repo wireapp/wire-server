@@ -128,7 +128,7 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationEnd2End <- Federation.End2end.spec brigOpts mg b f brigTwo
+  federationEnd2End <- Federation.End2end.spec brigOpts mg b g f brigTwo
   federationEndpoints <- API.Federation.tests mg b fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg b (brig iConf) gd

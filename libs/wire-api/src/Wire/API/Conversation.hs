@@ -294,7 +294,7 @@ data ConvType
 instance ToSchema ConvType where
   schema =
     enum @Integer "ConvType" $
-      asum
+      mconcat
         [ element 0 RegularConv,
           element 1 SelfConv,
           element 2 One2OneConv,

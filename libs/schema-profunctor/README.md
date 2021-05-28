@@ -143,8 +143,8 @@ we can produce a schema for `Invite` as follows:
 ```haskell
 inviteSchema :: ValueSchema NamedSwaggerDoc Invite
 inviteSchema = object "Invite" $ Invite
-  <$> users .= field "users" (array schema)
-  <*> permissions .= field "permissions" (nonEmptyArray schema)
+  <$> users .= field "users" (nonEmptyrray schema)
+  <*> permissions .= field "permissions" (array schema)
 ```
 
 Here, we cannot use `schema` to deduce the schema for the list or the
@@ -203,7 +203,71 @@ Finally, we add a name to the schema using the `named`
 combinator. This does nothing to the JSON encoding-deconding part of
 the schema, and only affects the documentation.
 
-It is important to note how this sum type example is realised as a
+### Enumerations
+
+As a special case of sum types, we have *enumerations*, where every
+summand is a unit type (i.e. the corresponding constructor has no
+arguments). These require some special support, so there are specific
+combinators `element` and `enum`, which can be used to produce schemas
+for enumerations.
+
+For example, consider the type:
+
+```haskell
+data Access
+  = PrivateAccess
+  | InviteAccess
+  | LinkAccess
+  | CodeAccess
+```
+
+We can define a schema for `Access` as follows:
+
+```haskell
+accessSchema :: ValueSchema NamedSwaggerDoc Access
+accessSchema = enum @Text "Access" $
+  mconcat
+    [ element "private" PrivateAccess,
+      element "invite" InviteAccess,
+      element "link" LinkAccess,
+      element "code" CodeAccess
+    ]
+```
+
+The `element` combinator takes two arguments: the value corresponding to
+a case alternative on the JSON side, and the corresponding value on the
+Haskell side. All the intermediate schemas returned by `element` are
+joined together using the `Monoid` instance, and finaly passed to
+`enum`, which takes care of creating the final schema. Note the `@Text`
+type annotation for `enum`, which is required when using
+`OverloadedStrings`.
+
+Similar schema definitions can be used for enumerations that are
+implemented using types other than strings on the JSON side. For
+example:
+
+```haskell
+data ConvType
+  = RegularConv
+  | SelfConv
+  | One2OneConv
+  | ConnectConv
+
+convTypeSchema = enum @Integer "ConvType" $
+  mconcat
+    [ element 0 RegularConv,
+      element 1 SelfConv,
+      element 2 One2OneConv,
+      element 3 ConnectConv
+    ]
+```
+
+uses integers instead of strings for the enumeration values on the JSON
+side.
+
+### Tagged unions
+
+It is important to note how the sum type example above is realised as a
 "tagged" union on the haskell side, but an "untagged" one on the JSON
 side. That means that the JSON values that this schema parses and
 produces distinguish the two cases simply using the type of the
@@ -211,14 +275,168 @@ underlying value. In particular, this approach would not work for sums
 that cannot be distinguished in this way, like for example `Either Int
 Int`.
 
-In those cases, one can for example make use of the `field` and
-`object` combinators to move values inside JSON objects, and use the
-keys as tags on the JSON side. Ultimately, since JSON does not
-directly have a notion of sum types, how these types are represented
-is up to the application, and the `SchemaP` combinators should have
-enough flexibility to accommodate most choices of encoding.
+In those cases, one can for example make use of the `field` and `object`
+combinators to move values inside JSON objects, and use the keys as tags
+on the JSON side. Ultimately, since JSON does not directly have a notion
+of sum types, how these types are represented is up to the application,
+and the `SchemaP` combinators have enough flexibility to accommodate
+most choices of encoding.
 
-## Advanced usage
+For example, consider the `Detail` type again:
+
+```haskell
+data Detail
+  = Name Text
+  | Age Int
+```
+
+but this time, we want to create a schema where the correct summand is tagged on the JSON side by wrapping the value corresponding to a `Detail` into a JSON object containing a `tag` field, like:
+
+```json
+{"tag": "name", "value": "Alice"}
+```
+
+This can be achieved by introducing a type for tags, and using the
+`bind` and `dispatch` combinators as follows:
+
+```haskell
+data DetailTag = NameTag | AgeTag
+  deriving (Eq, Enum, Bounded)
+
+tagSchema :: ValueSchema NamedSwaggerDoc DetailTag
+tagSchema = enum @Text "Detail Tag" $
+  mconcat [ element "name" NameTag, element "age" AgeTag ]
+
+detailSchema :: ValueSchema NamedSwaggerDoc Detail
+detailSchema = object "Detail" $
+  fromTagged <$> toTagged .= bind
+    (fst .= field "tag" tagSchema)
+    (snd .= fieldOver _1 "value" untaggedSchema)
+  where
+    toTagged :: Detail -> (DetailTag, Detail)
+    toTagged d@(Name _) = (NameTag, d)
+    toTagged d@(Age _) = (AgeTag, d)
+
+    fromTagged :: (DetailTag, Detail) -> Detail
+    fromTagged = snd
+
+    untaggedSchema = dispatch $ \case
+      NameTag -> tag _Name (unnamed schema)
+      AgeTag -> tag _Age (unnamed schema)
+```
+
+Here `bind` provides a limited monadic interface for `SchemaP`: its
+first argument is a parser for some "tag" value, which in this case is
+simply an enumeration schema for `DetailTag`, while the second argument
+is a special schema whose parser part takes a tag as an extra argument.
+
+Almost always, one is supposed to create this second argument for `bind`
+using the `dispatch` combinator, which takes a function mapping tag
+values to their corresponding schemas. Note that the tag type is
+required to have instances for `Bounded` and `Enum`, to ensure that we
+are able to generate a (finite) documentation for the dispatching
+parser.
+
+The schema returned by `bind` is for a pair of a tag and a value, so in
+the example we use `toTagged` and `fromTagged` to convert it back and
+forth to simply a value of type `Detail`. This part might be different
+in other situations, depending on how exactly the tagged union is
+represented on the Haskell side.
+
+### Optional fields and default values
+
+To define a schema for a JSON object, there are multiple ways to deal
+with the serialisation of optional fields, which we will illustrate
+here.
+
+The simplest (and most common) scenario is an optional field represented by a
+`Maybe` type, that is simply omitted from the generated JSON if it happens to
+be `Nothing`.
+
+For example:
+
+```haskell
+data User = User
+  { userName :: Text,
+    userHandle :: Maybe Text,
+    userExpire :: Maybe Int
+  }
+
+userSchema = object "User" $
+  User
+    <$> userName .= field "name" schema
+    <*> userHandle .= opt (field "handle" schema)
+    <*> userExpire .= opt (field "expire" schema)
+```
+
+Here we apply the `opt` combinator to the optional field, to turn it from a
+schema for `Text` into a schema for `Maybe Text`. The parser for `userHandle`
+will return `Nothing` when the field is missing (or is `null`), and
+correspondingly the serialiser will not produce the field at all when its value
+is `Nothing`.
+
+Another possibility is a field that, when missing, is assumed to have a given default value. Most likely, in this case we do not want the field to be omitted when serialising. The schema can then be defined simply by using the `Alternative` instance of `SchemaP` to provide the default value:
+
+```haskell
+userSchemaWithDefaultName :: ValueSchema NamedSwaggerDoc User
+userSchemaWithDefaultName =
+  object "User" $
+    User
+      <$> userName .= (field "name" schema <|> pure "")
+      <*> userHandle .= opt (field "handle" schema)
+      <*> userExpire .= opt (field "expire" schema)
+```
+
+Now the `name` field is optional, and it is set to the empty string when missing.
+However, the field will still be present in the generated JSON when its value
+is the empty string. If we want the field to be omitted in that case, we can
+use the previous approach, and then convert back and forth from `Maybe Text`:
+
+```haskell
+userSchemaWithDefaultName' :: ValueSchema NamedSwaggerDoc User
+userSchemaWithDefaultName' =
+  object "User" $
+    User
+      <$> (getOptText . userName) .= (fromMaybe "" <$> opt (field "name" schema))
+      <*> userHandle .= opt (field "handle" schema)
+      <*> userExpire .= opt (field "expire" schema)
+  where
+    getOptText :: Text -> Maybe Text
+    getOptText "" = Nothing
+    getOptText t = Just t
+```
+
+In some cases, it might be desirable for the serialiser to output a field even
+when its value is `Nothing`. In that case, we can essentially combine the
+techniques of the previous two examples:
+
+```haskell
+userSchema' :: ValueSchema NamedSwaggerDoc User
+userSchema' = object "User" $ User
+  <$> field "name" schema
+  <*> lax (field "handle" (optWithDefault Aeson.null schema))
+  <*> opt (field "expire" schema)
+```
+
+Two things to note here:
+
+ - the `optWithDefault` combinator is applied to the schema value *inside*
+ `field`, because the value to use if the value is `Nothing` (`Aeson.null` in
+ this case) applies to the value of the field, and not the containing object.
+ - we have wrapped the whole field inside a call to the `lax` combinator. All
+ this does is to add a `pure Nothing` alternative for the field, which ensures
+ we get a `Nothing` value (as opposed to a failure) when the field is not
+ present at all in the JSON object.
+
+One might wonder why we are using the special combinator `optWithDefault` here
+instead of simply using the `Alternative` instance (via `optional` or
+directly). The reason is that the `Alternative` instance only really affects
+the parser (and its return type), whereas here we also want to encode the fact
+that the serialiser should output the default when the value of the field is
+`Nothing`. That means we need to also change the input type to a `Maybe`, which
+is what `opt` and `optWithDefault` do.
+
+### Redundant fields
 
 Sometimes, JSON encoding of haskell types is not as straightfoward as
 in the previous examples. For example, for backward-compatibility

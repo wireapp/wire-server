@@ -64,7 +64,7 @@ instance ToSchema TypingStatus where
   schema =
     enum @Text "TypingStatus" $
       element "started" StartedTyping
-        <|> element "stopped" StoppedTyping
+        <> element "stopped" StoppedTyping
 
 typeTypingStatus :: Doc.DataType
 typeTypingStatus =
