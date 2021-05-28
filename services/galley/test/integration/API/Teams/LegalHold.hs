@@ -899,11 +899,14 @@ testOldClientsBlockDeviceHandshake = do
               ]
 
         errWith :: (HasCallStack, Typeable a, FromJSON a) => Int -> (a -> Bool) -> ResponseLBS -> TestM ()
-        errWith wantStatus wantBody rsp = do
-          let rawbody = responseBody rsp
-              jsonbody = responseJsonMaybe rsp
-          when (statusCode rsp /= wantStatus || maybe False (not . wantBody) jsonbody) $ do
-            error $ show (statusCode rsp, show rawbody)
+        errWith wantStatus wantBody rsp = liftIO $ do
+          assertEqual "" wantStatus (statusCode rsp)
+          assertBool
+            (show $ responseBody rsp)
+            ( case responseJsonMaybe rsp of
+                Nothing -> False
+                Just bdy -> wantBody bdy
+            )
 
     -- LH devices are treated as clients that have the ClientSupportsLegalholdImplicitConsent
     -- capability (so LH doesn't break for users who have LH devices; it sounds silly, but
