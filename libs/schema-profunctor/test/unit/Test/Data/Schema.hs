@@ -50,6 +50,7 @@ tests =
       testUser1FromJSON,
       testUser2ToJSON,
       testUser2FromJSON,
+      testUserSchema,
       testTaggedObjectToJSON,
       testTaggedObjectFromJSON,
       testTaggedObject2ToJSON,
@@ -96,6 +97,10 @@ testFooSchema =
       "Description should match"
       (Just "A Foo object")
       (s ^. description)
+    assertEqual
+      "a, b and str should be required"
+      ["a", "b", "str"]
+      (s ^. S.required)
     assertEqual
       "Schema for \"a\" should be referenced"
       (Just (S.Ref (S.Reference "A")))
@@ -185,6 +190,15 @@ testUser2FromJSON =
       "fromJSON should match example"
       (Just exampleUser2)
       (decode exampleUser2JSON)
+
+testUserSchema :: TestTree
+testUserSchema =
+  testCase "User schema" $ do
+    let s = S.toSchema (Proxy @User)
+    assertEqual
+      "only name should be required"
+      ["name"]
+      (s ^. S.required)
 
 testTaggedObjectToJSON :: TestTree
 testTaggedObjectToJSON =
@@ -378,7 +392,7 @@ data User = User
     userExpire :: Maybe Int
   }
   deriving (Eq, Show)
-  deriving (ToJSON, FromJSON) via Schema User
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema User
 
 instance ToSchema User where
   schema =
