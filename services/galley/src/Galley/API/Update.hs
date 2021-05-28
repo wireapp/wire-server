@@ -1127,6 +1127,13 @@ guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley ()
 guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure ()
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
+  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> pure () -- FUTUREWORK: if federation is enabled, still run the guard!
+    FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
+
+guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley ()
+guardLegalholdPolicyConflictsUid self otherClients = do
   let otherCids :: [ClientId]
       otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
 
