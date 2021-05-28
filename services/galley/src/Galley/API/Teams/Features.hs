@@ -35,22 +35,20 @@ module Galley.API.Teams.Features
   )
 where
 
-import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
-import Data.Range as Range
 import Data.String.Conversions (cs)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
+import Galley.API.Teams (ensureNotTooLargeForLegalHold)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
-import qualified Galley.Intra.Team as BrigTeam
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
@@ -204,15 +202,9 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
         throwM legalHoldWhitelistedOnly
   case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
-    -- FUTUREWORK: We cannot enable legalhold on large teams right now
-    Public.TeamFeatureEnabled -> checkTeamSize
+    Public.TeamFeatureEnabled -> do
+      ensureNotTooLargeForLegalHold tid Nothing
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
-  where
-    checkTeamSize = do
-      (TeamSize size) <- BrigTeam.getSize tid
-      limit <- fromIntegral . fromRange <$> fanoutLimit
-      when (size > limit) $ do
-        throwM cannotEnableLegalHoldServiceLargeTeam
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do
