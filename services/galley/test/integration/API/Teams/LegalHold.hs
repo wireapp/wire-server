@@ -148,7 +148,7 @@ tests s =
           testGroup
             "teams listed"
             [ test s "happy flow" testInWhitelist,
-              test s "handshake between LH device and user without consent is blocked" testOldClientsBlockDeviceHandshake,
+              test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
               test
                 s
                 "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
