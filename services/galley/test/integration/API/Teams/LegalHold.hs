@@ -874,7 +874,9 @@ testOldClientsBlockDeviceHandshake = do
     _legalholder2LHDevice <- doEnableLH legalholder legalholder2
 
     legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
+    upgradeClientToLH peer legalholderClient
     legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
+    upgradeClientToLH peer legalholder2Client
 
     grantConsent tid2 peer
     connectUsers peer (List1.list1 legalholder [legalholder2])
