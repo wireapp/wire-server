@@ -896,28 +896,25 @@ testOldClientsBlockDeviceHandshake = do
                 -- legalholder2 LH device missing
               ]
 
-        happy :: HasCallStack => ResponseLBS -> TestM ()
-        happy rsp = liftIO $ assertEqual (show $ Error.label <$> responseJsonEither rsp) 201 (statusCode rsp)
-
-        sad :: HasCallStack => ResponseLBS -> TestM ()
-        sad rsp = do
+        errWith :: (HasCallStack, Typeable a, FromJSON a) => Int -> (a -> Bool) -> ResponseLBS -> TestM ()
+        errWith wantStatus wantBody rsp = do
           let Just rawbody = responseBody rsp
               Just jsonbody = responseJsonMaybe rsp
-          when (statusCode rsp /= 412 || Error.label jsonbody /= "missing-legalhold-consent") $ do
+          when (statusCode rsp /= wantStatus || not (wantBody jsonbody)) $ do
             error $ show (statusCode rsp, rawbody)
 
     -- LH devices are treated as clients that have the ClientSupportsLegalholdImplicitConsent
     -- capability (so LH doesn't break for users who have LH devices; it sounds silly, but
     -- it's good to test this, since it did require adding a few lines of production code in
     -- 'addClient' about client capabilities).
-    runit legalholder legalholderClient >>= happy
+    runit legalholder legalholderClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
 
     -- If user has a client without the ClientSupportsLegalholdImplicitConsent
     -- capability then message sending is prevented to legalhold devices.
     peerClient <- randomClient peer (someLastPrekeys !! 2)
-    runit peer peerClient >>= sad
+    runit peer peerClient >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
     upgradeClientToLH peer peerClient
-    runit peer peerClient >>= happy
+    runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
 
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
