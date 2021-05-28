@@ -149,7 +149,6 @@ tests s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
-              test s "handshake between LH device and user with old clients is blocked (old implementation of test)" testOldClientsBlockDeviceHandshake',
               test
                 s
                 "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
@@ -918,92 +917,6 @@ testOldClientsBlockDeviceHandshake = do
     runit peer peerClient >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
     upgradeClientToLH peer peerClient
     runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
-
-testOldClientsBlockDeviceHandshake' :: TestM ()
-testOldClientsBlockDeviceHandshake' = do
-  -- "handshake between LH device and user without consent is blocked"
-  -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
-
-  galley <- view tsGalley
-  (legalholder, tid) <- createBindingTeam
-  legalholder2 <- view userId <$> addUserToTeam legalholder tid
-  ensureQueueEmpty
-  (peer, tid2) <-
-    -- has to be a team member, granting LH consent for personal users is not supported.
-    createBindingTeam
-  ensureQueueEmpty
-
-  let doEnableLH :: HasCallStack => UserId -> UserId -> TestM ClientId
-      doEnableLH owner uid = do
-        requestLegalHoldDevice owner uid tid !!! testResponse 201 Nothing
-        approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
-        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley uid tid)
-        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
-
-  ensureQueueEmpty
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    grantConsent tid legalholder
-    grantConsent tid legalholder2
-
-    legalholderLHDevice <- doEnableLH legalholder legalholder
-    _legalholder2LHDevice <- doEnableLH legalholder legalholder2
-
-    grantConsent tid2 peer
-
-    connectUsers peer (List1.list1 legalholder [legalholder2])
-
-    convId <-
-      decodeConvId
-        <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing
-                <!! const 201 === statusCode
-            )
-
-    -- LH devices are treated as clients that have the
-    -- ClientSupportsLegalholdImplicitConsent capability
-    legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
-    legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
-
-    upgradeClientToLH legalholder legalholderClient
-    upgradeClientToLH legalholder2 legalholder2Client
-
-    postOtrMessage
-      id
-      legalholder
-      legalholderClient
-      convId
-      [ (legalholder2, legalholder2Client, "ciphered"),
-        (legalholder, legalholderClient, "ciphered"),
-        (legalholder, legalholderLHDevice, "ciphered")
-        -- _legalholder2LHDevice missing on purpose here to trigger the guard
-      ]
-      !!! do
-        const 412 === statusCode
-        assertTrue "response is a ClientMismatch" (isJust . responseJsonMaybe @ClientMismatch)
-        assertTrue "response isn't an error" (isNothing . responseJsonMaybe @Error.Error)
-
-    -- If user has a client without the ClientSupportsLegalholdImplicitConsent
-    -- capability then message sending is prevented to legalhold devices.
-    peerClient <- randomClient peer (someLastPrekeys !! 2)
-
-    postOtrMessage
-      id
-      peer
-      peerClient
-      convId
-      [ (legalholder, legalholderClient, "secret"),
-        (legalholder2, legalholder2Client, "secret")
-      ]
-      !!! do
-        const 412 === statusCode
-        const (Just "missing-legalhold-consent") === fmap Error.label . responseJsonMaybe
 
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
