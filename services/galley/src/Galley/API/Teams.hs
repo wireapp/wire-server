@@ -53,6 +53,7 @@ module Galley.API.Teams
     canUserJoinTeamH,
     internalDeleteBindingTeamWithOneMemberH,
     internalDeleteBindingTeamWithOneMember,
+    ensureNotTooLargeForLegalHold,
   )
 where
 
@@ -82,6 +83,7 @@ import Galley.API.LegalHold
 import qualified Galley.API.Teams.Notifications as APITeamQueue
 import Galley.API.Util
 import Galley.App
+import Galley.Data (teamMembersForFanout)
 import qualified Galley.Data as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
@@ -94,6 +96,7 @@ import qualified Galley.Intra.Spar as Spar
 import qualified Galley.Intra.Team as BrigTeam
 import Galley.Intra.User
 import Galley.Options
+import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
 import Galley.Types (UserIdList (UserIdList))
 import qualified Galley.Types as Conv
@@ -574,7 +577,7 @@ addTeamMember zusr zcon tid nmem = do
   ensureConnectedToLocals zusr [uid]
   memList <- Data.teamMembersForFanout tid
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
-  ensureNotTooLargeForLegalHold tid memList
+  ensureNotTooLargeForLegalHold tid (Just memList)
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -588,7 +591,7 @@ uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersForFanout tid
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
-  ensureNotTooLargeForLegalHold tid mems
+  ensureNotTooLargeForLegalHold tid (Just mems)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
@@ -856,15 +859,29 @@ ensureNotTooLarge tid = do
     throwM tooManyTeamMembers
   return $ TeamSize size
 
--- FUTUREWORK: Large teams cannot have legalhold enabled, needs rethinking
---             due to the expensive operation of removing settings
-ensureNotTooLargeForLegalHold :: TeamId -> TeamMemberList -> Galley ()
-ensureNotTooLargeForLegalHold tid mems = do
-  limit <- fromIntegral . fromRange <$> fanoutLimit
-  when (length (mems ^. teamMembers) >= limit) $ do
-    lhEnabled <- isLegalHoldEnabledForTeam tid
-    when lhEnabled $
-      throwM tooManyTeamMembersOnTeamWithLegalhold
+-- | Ensure that a team doesn't exceed the member count limit for the LegalHold
+-- feature. A team with more members than the fanout limit is too large, because
+-- the fanout limit would prevent turning LegalHold feature _off_ again (for
+-- details see 'Galley.API.LegalHold.removeSettings').
+--
+-- If LegalHold is configured for whitelisted teams only we consider the team
+-- size unlimited, because we make the assumption that these teams won't turn
+-- LegalHold off after activation.
+-- FUTUREWORK: Find a way around the fanout limit.
+ensureNotTooLargeForLegalHold :: TeamId -> Maybe TeamMemberList -> Galley ()
+ensureNotTooLargeForLegalHold tid mMems = do
+  let assertTeamBelowFanoutLimit :: Galley ()
+      assertTeamBelowFanoutLimit = do
+        mems <- maybe (teamMembersForFanout tid) pure mMems
+        limit <- fromIntegral . fromRange <$> fanoutLimit
+        when (length (mems ^. teamMembers) >= limit) $ do
+          throwM tooManyTeamMembersOnTeamWithLegalhold
+
+  whenM (isLegalHoldEnabledForTeam tid) $
+    view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+      FeatureLegalHoldDisabledPermanently -> assertTeamBelowFanoutLimit -- impossible case
+      FeatureLegalHoldDisabledByDefault -> assertTeamBelowFanoutLimit
+      FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> pure ()
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
 addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
@@ -956,7 +973,7 @@ canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 canUserJoinTeam :: TeamId -> Galley ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
-  when (lhEnabled) $
+  when lhEnabled $
     checkTeamSize
   where
     checkTeamSize = do
