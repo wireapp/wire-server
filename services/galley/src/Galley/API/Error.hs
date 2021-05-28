@@ -206,6 +206,9 @@ legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal 
 legalHoldNotEnabled :: Error
 legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
 
+legalHoldDisableUnimplemented :: Error
+legalHoldDisableUnimplemented = Error status403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
+
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
 
