@@ -212,7 +212,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
 
-  let conv = NewConvUnmanaged $ NewConv [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConvUnmanaged $ NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   convId <-
     cnvId . responseJsonUnsafe
       <$> post
