@@ -116,6 +116,12 @@ addClient u con ip new = do
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
+  when (newClientType new == LegalHoldClientType) $ do
+    -- FUTUREWORK: this only works if there aren't any capabilities set yet.  we should add
+    -- capabilities to `NewClient`; do this next line only if LH devices don't send the cap
+    -- themselves; and merge 'Data.updateClientCapabilities' and 'Data.addClient'.
+    let caps = Just (Set.singleton Client.ClientSupportsLegalholdImplicitConsent)
+    Data.updateClientCapabilities u clientId' caps
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
