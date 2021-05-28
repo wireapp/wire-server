@@ -629,9 +629,22 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult <$> postBotMessage zbot zcnv val' message
 
+data LegalholdProtectee'
+  = ProtectedUser' UserId
+  | UnprotectedBot' UserId
+  deriving (Show, Eq, Ord, Generic)
+
+legalholdProtectee'2LegalholdProtectee :: LegalholdProtectee' -> LegalholdProtectee
+legalholdProtectee'2LegalholdProtectee (ProtectedUser' uid) = ProtectedUser uid
+legalholdProtectee'2LegalholdProtectee (UnprotectedBot' _uid) = UnprotectedBot
+
+legalholdProtectee'2UserId :: LegalholdProtectee' -> UserId
+legalholdProtectee'2UserId (ProtectedUser' uid) = uid
+legalholdProtectee'2UserId (UnprotectedBot' uid) = uid
+
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (botUserId zbot {- TODO: no! -}) Nothing zcnv val message
+  postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
 
 postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
@@ -647,7 +660,7 @@ postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
 
 postOtrMessage :: UserId -> ConnId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postOtrMessage zusr zcon cnv val message =
-  postNewOtrMessage zusr (Just zcon) cnv val message
+  postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val message
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -685,12 +698,13 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage usr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
-postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
-postNewOtrMessage usr con cnv val msg = do
+postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postNewOtrMessage protectee con cnv val msg = do
+  let usr = legalholdProtectee'2UserId protectee
   let sender = newOtrSender msg
   let recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
-  withValidOtrRecipients usr sender cnv recvrs val now $ \rs -> do
+  withValidOtrRecipients protectee sender cnv recvrs val now $ \rs -> do
     let (toBots, toUsers) = foldr (newMessage usr con (Just cnv) msg now) ([], []) rs
     pushSome (catMaybes toUsers)
     void . forkIO $ do
@@ -926,6 +940,7 @@ data CheckedOtrRecipients
   | -- | Invalid sender (client).
     InvalidOtrSenderClient
 
+-- | bots are not supported on broadcast
 withValidOtrBroadcastRecipients ::
   UserId ->
   ClientId ->
@@ -954,7 +969,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       then Clients.fromUserClients <$> Intra.lookupClients users
       else Data.lookupClients users
   let membs = Data.newMember <$> users
-  handleOtrResponse usr clt rcps membs clts val now go
+  handleOtrResponse (ProtectedUser' usr) clt rcps membs clts val now go
   where
     maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
       -- Get the users in the filter (remote ids are not in a local team)
@@ -971,7 +986,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  UserId ->
+  LegalholdProtectee' ->
   ClientId ->
   ConvId ->
   OtrRecipients ->
@@ -979,7 +994,7 @@ withValidOtrRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrRecipients usr clt cnv rcps val now go = do
+withValidOtrRecipients protectee clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
     Data.deleteConversation cnv
@@ -992,11 +1007,11 @@ withValidOtrRecipients usr clt cnv rcps val now go = do
     if isInternal
       then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
       else Data.lookupClients localMemberIds
-  handleOtrResponse usr clt rcps localMembers clts val now go
+  handleOtrResponse protectee clt rcps localMembers clts val now go
 
 handleOtrResponse ::
   -- | Proposed sender (user)
-  UserId ->
+  LegalholdProtectee' ->
   -- | Proposed sender (client)
   ClientId ->
   -- | Proposed recipients (users & clients).
@@ -1012,10 +1027,10 @@ handleOtrResponse ::
   -- | Callback if OtrRecipients are valid
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
+handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipients (legalholdProtectee'2UserId protectee) clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
-    guardLegalholdPolicyConflicts (ProtectedUser usr) (missingClients m)
+    guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> throwM convNotFound
   InvalidOtrSenderClient -> throwM unknownClient
