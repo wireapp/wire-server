@@ -14,6 +14,22 @@
 
 -->
 
+[upcoming]
+
+## Release Notes
+
+Deploy brig before galley (#1526)
+
+## Features
+
+- Legalhold: Ensure device handshake is blocked in case of policy conflict (#1526)
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
 # [2021-05-26]
 
 ## Release Notes
