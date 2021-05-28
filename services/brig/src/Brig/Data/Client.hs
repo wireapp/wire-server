@@ -138,17 +138,6 @@ lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
-lookupPubClientsBulk uids = do
-  UserMap . Map.map (Set.map toPublic) <$> lookupClientsBulk uids
-  where
-    toPublic :: Client -> PubClient
-    toPublic client =
-      PubClient
-        { pubClientId = clientId client,
-          pubClientClass = clientClass client
-        }
-
 lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
 lookupClientsBulk uids = liftClient $ do
   userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
@@ -159,6 +148,17 @@ lookupClientsBulk uids = liftClient $ do
 
     executeQuery :: MonadClient m => UserId -> m [Client]
     executeQuery u = toClient <$$> retry x1 (query selectClients (params Quorum (Identity u)))
+
+lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
+lookupPubClientsBulk uids = liftClient $ do
+  userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
+  pure $ UserMap $ Map.fromList userClientTuples
+  where
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set PubClient)
+    getClientSetWithUser u = (u,) . Set.fromList . map toPubClient <$> executeQuery u
+
+    executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
+    executeQuery u = retry x1 (query selectPubClients (params Quorum (Identity u)))
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u =
@@ -265,6 +265,9 @@ selectClientIds = "SELECT client from clients where user = ?"
 selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
 selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ?"
 
+selectPubClients :: PrepQuery R (Identity UserId) (ClientId, Maybe ClientClass)
+selectPubClients = "SELECT client, class from clients where user = ?"
+
 selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
 selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ? and client = ?"
 
@@ -308,6 +311,9 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
       clientModel = mdl,
       clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps
     }
+
+toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
+toPubClient = uncurry PubClient
 
 -------------------------------------------------------------------------------
 -- Best-effort optimistic locking for prekeys via DynamoDB
