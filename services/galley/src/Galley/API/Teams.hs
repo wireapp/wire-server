@@ -885,6 +885,7 @@ teamSizeNotTooLargeForLegalhold :: Int -> Galley Bool
 teamSizeNotTooLargeForLegalhold nMembersFanout = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   let withinLimit = nMembersFanout <= limit
+  Log.info $ Log.msg (show (nMembersFanout, limit))
   view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure withinLimit
     FeatureLegalHoldDisabledByDefault -> pure withinLimit

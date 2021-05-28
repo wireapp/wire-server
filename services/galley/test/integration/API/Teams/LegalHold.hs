@@ -128,11 +128,12 @@ tests s =
       test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testGetLegalHoldTeamSettings),
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testRemoveLegalHoldFromTeam),
       test s "GET, PUT [/i]?/teams/{tid}/legalhold" (onlyIfLhEnabled testEnablePerTeam),
-      test s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" (onlyIfLhEnabled testEnablePerTeamTooLarge),
+      test s "XXXXXX GET, PUT [/i]?/teams/{tid}/legalhold - too large" (onlyIfLhEnabled testEnablePerTeamTooLarge),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
-      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      test s "POST /register - cannot add team members in large teams with LH" (onlyIfLhEnabled (testAddTeamUserTooLargeWithLegalhold False)),
+      test s "POST /register - can add team members in large teams with whitelisting feature" (onlyIfLhEnabled (testAddTeamUserTooLargeWithLegalhold True)),
       test s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
@@ -642,7 +643,9 @@ testEnablePerTeamTooLarge :: TestM ()
 testEnablePerTeamTooLarge = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
-  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 1)
+  -- TODO: it is impossible in this test to create teams bigger than the fanout limit.
+  -- Change the +1 to anything else and look at the logs
+  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 5)
 
   status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   let statusValue = Public.tfwoStatus status
@@ -652,20 +655,27 @@ testEnablePerTeamTooLarge = do
     const 403 === statusCode
     const (Just "too-large-team-for-legalhold") === fmap Error.label . responseJsonMaybe
 
-testAddTeamUserTooLargeWithLegalhold :: TestM ()
-testAddTeamUserTooLargeWithLegalhold = do
+testAddTeamUserTooLargeWithLegalhold :: Bool -> TestM ()
+testAddTeamUserTooLargeWithLegalhold withWhitelist = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
-  status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-  let statusValue = Public.tfwoStatus status
-  liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
-  -- You can still enable for this team
-  putEnabled tid Public.TeamFeatureEnabled
-  -- But now Adding a user should now fail since the team is too large
-  addUserToTeam' owner tid !!! do
-    const 403 === statusCode
-    const (Just "too-many-members-for-legalhold") === fmap Error.label . responseJsonMaybe
+
+  if withWhitelist
+    then do
+      withDummyTestServiceForTeam owner tid $ \_chan -> do
+        addUserToTeam' owner tid !!! do
+          const 200 === statusCode
+    else do
+      status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      let statusValue = Public.tfwoStatus status
+      liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
+      -- You can still enable for this team
+      putEnabled tid Public.TeamFeatureEnabled
+      -- But now Adding a user should now fail since the team is too large
+      addUserToTeam' owner tid !!! do
+        const 403 === statusCode
+        const (Just "too-many-members-for-legalhold") === fmap Error.label . responseJsonMaybe
 
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
