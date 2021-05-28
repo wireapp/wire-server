@@ -973,15 +973,8 @@ canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 canUserJoinTeam :: TeamId -> Galley ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
-  when lhEnabled $
-    checkTeamSize
-  where
-    checkTeamSize = do
-      (TeamSize size) <- BrigTeam.getSize tid
-      limit <- fromIntegral . fromRange <$> fanoutLimit
-      -- Teams larger than fanout limit cannot use legalhold
-      when (size >= limit) $ do
-        throwM tooManyTeamMembersOnTeamWithLegalhold
+  when lhEnabled $ do
+    ensureNotTooLargeForLegalHold tid Nothing
 
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do
