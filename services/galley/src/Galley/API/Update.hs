@@ -55,17 +55,23 @@ module Galley.API.Update
     Galley.API.Update.addBotH,
     rmBotH,
     postBotMessageH,
+
+    -- * Legalhold
+    guardLegalholdPolicyConflicts,
   )
 where
 
+import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Trans.Except
+import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
 import Data.Id
+import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
 import Data.List.Extra (nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -79,13 +85,14 @@ import Galley.API.Mapping
 import qualified Galley.API.Teams as Teams
 import Galley.API.Util
 import Galley.App
+import Galley.Data (teamMember)
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
-import Galley.Intra.User
+import Galley.Intra.User (deleteBot, getContactList, getUser, lookupActivatedUsers)
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot hiding (addBot)
@@ -103,6 +110,7 @@ import Network.Wai.Utilities
 import Servant (respond)
 import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
+import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
@@ -113,6 +121,10 @@ import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
+import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.User (userTeam)
+import Wire.API.User.Client (UserClientsFull)
+import qualified Wire.API.User.Client as Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -617,9 +629,22 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult <$> postBotMessage zbot zcnv val' message
 
+data LegalholdProtectee'
+  = ProtectedUser' UserId
+  | UnprotectedBot' UserId
+  deriving (Show, Eq, Ord, Generic)
+
+legalholdProtectee'2LegalholdProtectee :: LegalholdProtectee' -> LegalholdProtectee
+legalholdProtectee'2LegalholdProtectee (ProtectedUser' uid) = ProtectedUser uid
+legalholdProtectee'2LegalholdProtectee (UnprotectedBot' _uid) = UnprotectedBot
+
+legalholdProtectee'2UserId :: LegalholdProtectee' -> UserId
+legalholdProtectee'2UserId (ProtectedUser' uid) = uid
+legalholdProtectee'2UserId (UnprotectedBot' uid) = uid
+
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (botUserId zbot) Nothing zcnv val message
+  postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
 
 postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
@@ -635,7 +660,7 @@ postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
 
 postOtrMessage :: UserId -> ConnId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postOtrMessage zusr zcon cnv val message =
-  postNewOtrMessage zusr (Just zcon) cnv val message
+  postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val message
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -673,12 +698,13 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage usr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
-postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
-postNewOtrMessage usr con cnv val msg = do
+postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postNewOtrMessage protectee con cnv val msg = do
+  let usr = legalholdProtectee'2UserId protectee
   let sender = newOtrSender msg
   let recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
-  withValidOtrRecipients usr sender cnv recvrs val now $ \rs -> do
+  withValidOtrRecipients protectee sender cnv recvrs val now $ \rs -> do
     let (toBots, toUsers) = foldr (newMessage usr con (Just cnv) msg now) ([], []) rs
     pushSome (catMaybes toUsers)
     void . forkIO $ do
@@ -914,6 +940,7 @@ data CheckedOtrRecipients
   | -- | Invalid sender (client).
     InvalidOtrSenderClient
 
+-- | bots are not supported on broadcast
 withValidOtrBroadcastRecipients ::
   UserId ->
   ClientId ->
@@ -942,7 +969,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       then Clients.fromUserClients <$> Intra.lookupClients users
       else Data.lookupClients users
   let membs = Data.newMember <$> users
-  handleOtrResponse usr clt rcps membs clts val now go
+  handleOtrResponse (ProtectedUser' usr) clt rcps membs clts val now go
   where
     maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
       -- Get the users in the filter (remote ids are not in a local team)
@@ -959,7 +986,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  UserId ->
+  LegalholdProtectee' ->
   ClientId ->
   ConvId ->
   OtrRecipients ->
@@ -967,7 +994,7 @@ withValidOtrRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrRecipients usr clt cnv rcps val now go = do
+withValidOtrRecipients protectee clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
     Data.deleteConversation cnv
@@ -980,11 +1007,11 @@ withValidOtrRecipients usr clt cnv rcps val now go = do
     if isInternal
       then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
       else Data.lookupClients localMemberIds
-  handleOtrResponse usr clt rcps localMembers clts val now go
+  handleOtrResponse protectee clt rcps localMembers clts val now go
 
 handleOtrResponse ::
   -- | Proposed sender (user)
-  UserId ->
+  LegalholdProtectee' ->
   -- | Proposed sender (client)
   ClientId ->
   -- | Proposed recipients (users & clients).
@@ -1000,9 +1027,11 @@ handleOtrResponse ::
   -- | Callback if OtrRecipients are valid
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
+handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipients (legalholdProtectee'2UserId protectee) clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
-  MissingOtrRecipients m -> pure (OtrMissingRecipients m)
+  MissingOtrRecipients m -> do
+    guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
+    pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> throwM convNotFound
   InvalidOtrSenderClient -> throwM unknownClient
 
@@ -1087,3 +1116,93 @@ checkOtrRecipients usr sid prs vms vcs val now
       OtrIgnoreAllMissing -> Clients.nil
       OtrReportMissing us -> Clients.filter (`Set.member` us) miss
       OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
+
+-- | If user has legalhold status `no_consent` or has client devices that have no legalhold
+-- capability, and some of the clients she is about to get connected are LH devices, respond
+-- with 412 and do not process notification.
+--
+-- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
+-- intended.
+guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley ()
+guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure ()
+guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
+guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
+  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> pure () -- FUTUREWORK: if federation is enabled, still run the guard!
+    FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
+
+guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley ()
+guardLegalholdPolicyConflictsUid self otherClients = do
+  let otherCids :: [ClientId]
+      otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
+
+      otherUids :: [UserId]
+      otherUids = nub $ Map.keys . userClients $ otherClients
+
+  when (nub otherUids /= [self {- if all other clients belong to us, there can be no conflict -}]) $ do
+    allClients :: UserClientsFull <- Intra.lookupClientsFull (nub $ self : otherUids)
+
+    let selfClients :: [Client.Client] =
+          allClients
+            & Client.userClientsFull
+            & Map.lookup self
+            & fromMaybe Set.empty
+            & Set.toList
+
+        otherClientHasLH :: Bool
+        otherClientHasLH =
+          let clients =
+                allClients
+                  & Client.userClientsFull
+                  & Map.delete self
+                  & Map.elems
+                  & Set.unions
+                  & Set.toList
+                  & filter ((`elem` otherCids) . Client.clientId)
+           in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
+
+        checkSelfHasLHClients :: Bool
+        checkSelfHasLHClients =
+          any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
+
+        checkSelfHasOldClients :: Bool
+        checkSelfHasOldClients =
+          any isOld selfClients
+          where
+            isOld :: Client.Client -> Bool
+            isOld =
+              (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
+                . Client.fromClientCapabilityList
+                . Client.clientCapabilities
+
+        checkConsentMissing :: Galley Bool
+        checkConsentMissing = do
+          -- (we could also get the profile from brig.  would make the code slightly more
+          -- concise, but not really help with the rpc back-and-forth, so, like, why?)
+          mbUser <- accountUser <$$> getUser self
+          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`teamMember` self)
+          let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
+          pure (lhStatus == UserLegalHoldNoConsent)
+
+    Log.debug $
+      Log.field "self" (toByteString' self)
+        Log.~~ Log.field "otherClients" (toByteString' $ show otherClients)
+        Log.~~ Log.field "otherClientHasLH" (toByteString' otherClientHasLH)
+        Log.~~ Log.field "checkSelfHasOldClients" (toByteString' checkSelfHasOldClients)
+        Log.~~ Log.field "checkSelfHasLHClients" (toByteString' checkSelfHasLHClients)
+        Log.~~ Log.msg ("guardLegalholdPolicyConflicts[1]" :: Text)
+
+    -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
+    when otherClientHasLH $ do
+      when checkSelfHasOldClients $ do
+        Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[2]: old clients" :: Text)
+        throwM missingLegalholdConsent
+
+      unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
+        whenM checkConsentMissing $ do
+          -- We assume this is impossible, since conversations are automatically
+          -- blocked if LH consent is missing of any participant.
+          -- We add this check here as an extra failsafe.
+          Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
+          throwM missingLegalholdConsent

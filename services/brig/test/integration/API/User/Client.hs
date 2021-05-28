@@ -313,12 +313,12 @@ generateClients n brig = do
 testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
   [(uid, _c, lpk, cpk)] <- generateClients 1 brig
-  get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
+  get (brig . paths ["users", toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
   -- prekeys are deleted when retrieved, except the last one
   replicateM_ 2 $
-    get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
+    get (brig . paths ["users", toByteString' uid, "prekeys"] . zUser uid) !!! do
       const 200 === statusCode
       const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
 
@@ -326,20 +326,20 @@ testGetUserPrekeysQualified :: Brig -> Opt.Opts -> Http ()
 testGetUserPrekeysQualified brig opts = do
   let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   [(uid, _c, _lpk, cpk)] <- generateClients 1 brig
-  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"]) !!! do
+  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
 
 testGetUserPrekeysInvalidDomain :: Brig -> Http ()
 testGetUserPrekeysInvalidDomain brig = do
   [(uid, _c, _lpk, _)] <- generateClients 1 brig
-  get (brig . paths ["users", "invalid.example.com", toByteString' uid, "prekeys"]) !!! do
+  get (brig . paths ["users", "invalid.example.com", toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 422 === statusCode
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
   [(uid, c, _lpk, cpk)] <- generateClients 1 brig
-  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
+  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ cpk) === responseJsonMaybe
 
@@ -347,7 +347,7 @@ testGetClientPrekeyQualified :: Brig -> Opt.Opts -> Http ()
 testGetClientPrekeyQualified brig opts = do
   let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   [(uid, c, _lpk, cpk)] <- generateClients 1 brig
-  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
+  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ cpk) === responseJsonMaybe
 
@@ -366,11 +366,14 @@ testMultiUserGetPrekeys brig = do
             xs <&> \(uid, c, _lpk, cpk) ->
               (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
 
+  uid <- userId <$> randomUser brig
+
   post
     ( brig
         . paths ["users", "prekeys"]
         . contentJson
         . body (RequestBodyLBS $ encode userClients)
+        . zUser uid
     )
     !!! do
       const 200 === statusCode
@@ -389,19 +392,22 @@ testMultiUserGetPrekeysQualified brig opts = do
                 xs <&> \(uid, c, _lpk, _cpk) ->
                   (uid, Set.fromList [clientId c])
 
+  uid <- userId <$> randomUser brig
+
   let expectedUserClientMap =
         mkQualifiedUserClientPrekeyMap $
           Map.singleton domain $
             mkUserClientPrekeyMap $
               Map.fromList $
-                xs <&> \(uid, c, _lpk, cpk) ->
-                  (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
+                xs <&> \(uid', c, _lpk, cpk) ->
+                  (uid', Map.singleton (clientId c) (Just (prekeyData cpk)))
 
   post
     ( brig
         . paths ["users", "list-prekeys"]
         . contentJson
         . body (RequestBodyLBS $ encode userClients)
+        . zUser uid
     )
     !!! do
       const 200 === statusCode
@@ -454,7 +460,7 @@ testRemoveClient hasPwd brig cannon = do
   -- Not found on retry
   deleteClient brig uid (clientId c) Nothing !!! const 404 === statusCode
   -- Prekeys are gone
-  getPreKey brig uid (clientId c) !!! const 404 === statusCode
+  getPreKey brig uid uid (clientId c) !!! const 404 === statusCode
   -- Cookies are gone
   numCookies' <- countCookies brig (userId u) defCookieLabel
   liftIO $ Just 0 @=? numCookies'
@@ -474,7 +480,7 @@ testUpdateClient opts brig = do
             newClientModel = Just "featurephone"
           }
   c <- responseJsonError =<< addClient brig uid clt
-  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
+  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
   getClient brig uid (clientId c) !!! do
@@ -493,7 +499,7 @@ testUpdateClient opts brig = do
     )
     !!! const 200
     === statusCode
-  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
+  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
 
@@ -573,7 +579,7 @@ testUpdateClient opts brig = do
         flushClientPrekey = do
           responseJsonMaybe
             <$> ( get
-                    (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)])
+                    (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid)
                     <!! const 200
                     === statusCode
                 )
@@ -660,7 +666,7 @@ testPreKeyRace brig = do
   let pks = map (\i -> somePrekeys !! i) [1 .. 10]
   c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
   pks' <- flip mapConcurrently pks $ \_ -> do
-    rs <- getPreKey brig uid (clientId c) <!! const 200 === statusCode
+    rs <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
     return $ prekeyId . prekeyData <$> responseJsonMaybe rs
   -- We should not hand out regular prekeys more than once (i.e. at most once).
   let actual = catMaybes pks'

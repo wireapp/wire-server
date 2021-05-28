@@ -290,7 +290,7 @@ postCryptoMessage2 = do
   liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
   -- Fetch all missing clients prekeys
   r2 <-
-    post (b . path "/users/prekeys" . json (missingClients x))
+    post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
@@ -315,7 +315,7 @@ postCryptoMessage3 = do
   liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
   -- Fetch all missing clients prekeys
   r2 <-
-    post (b . path "/users/prekeys" . json (missingClients x))
+    post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do

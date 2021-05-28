@@ -23,7 +23,7 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..))
+import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), UserSet)
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Exception (finally)
@@ -95,6 +95,7 @@ import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.User.Client (ClientCapability (..), UserClientsFull)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -310,9 +311,11 @@ addTeamMember usr tid muid mperms mmbinv = do
   post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
     !!! const 200 === statusCode
 
+-- | FUTUREWORK: do not use this, it's broken!!  use 'addUserToTeam' instead!  https://wearezeta.atlassian.net/browse/SQSERVICES-471
 addTeamMemberInternal :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
 addTeamMemberInternal tid muid mperms mmbinv = addTeamMemberInternal' tid muid mperms mmbinv !!! const 200 === statusCode
 
+-- | FUTUREWORK: do not use this, it's broken!!  use 'addUserToTeam' instead!  https://wearezeta.atlassian.net/browse/SQSERVICES-471
 addTeamMemberInternal' :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ResponseLBS
 addTeamMemberInternal' tid muid mperms mmbinv = do
   g <- view tsGalley
@@ -515,6 +518,12 @@ createOne2OneTeamConv u1 u2 n tid = do
 
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
+
+postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
+postTeamConv tid u us name a r mtimer = do
+  g <- view tsGalley
+  let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r (Just (ConvTeamInfo tid False)) mtimer Nothing roleNameWireAdmin
+  post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
 postConvWithRole u us name a r mtimer role = do
@@ -1315,6 +1324,17 @@ getClients u = do
       . zUser u
       . zConn "conn"
 
+getInternalClientsFull :: UserSet -> TestM UserClientsFull
+getInternalClientsFull userSet = do
+  b <- view tsBrig
+  res <-
+    post $
+      b
+        . paths ["i", "clients", "full"]
+        . zConn "conn"
+        . json userSet
+  responseJsonError res
+
 -- TODO: Refactor, as used also in brig
 deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
 deleteClient u c pw = do
@@ -1571,6 +1591,50 @@ getUserProfile zusr uid = do
   brig <- view tsBrig
   res <- get (brig . zUser zusr . paths ["users", toByteString' uid])
   responseJsonError res
+
+upgradeClientToLH :: HasCallStack => UserId -> ClientId -> TestM ()
+upgradeClientToLH zusr cid =
+  putCapabilities zusr cid [ClientSupportsLegalholdImplicitConsent]
+
+putCapabilities :: HasCallStack => UserId -> ClientId -> [ClientCapability] -> TestM ()
+putCapabilities zusr cid caps = do
+  brig <- view tsBrig
+  void $
+    put
+      ( brig
+          . zUser zusr
+          . paths ["clients", toByteString' cid]
+          . json (UpdateClient mempty Nothing Nothing (Just . Set.fromList $ caps))
+          . expect2xx
+      )
+
+getUsersPrekeysClientUnqualified :: HasCallStack => UserId -> UserId -> ClientId -> TestM ResponseLBS
+getUsersPrekeysClientUnqualified zusr uid cid = do
+  brig <- view tsBrig
+  get
+    ( brig
+        . zUser zusr
+        . paths ["users", toByteString' uid, "prekeys", toByteString' cid]
+    )
+
+getUsersPrekeyBundleUnqualified :: HasCallStack => UserId -> UserId -> TestM ResponseLBS
+getUsersPrekeyBundleUnqualified zusr uid = do
+  brig <- view tsBrig
+  get
+    ( brig
+        . zUser zusr
+        . paths ["users", toByteString' uid, "prekeys"]
+    )
+
+getMultiUserPrekeyBundleUnqualified :: HasCallStack => UserId -> UserClients -> TestM ResponseLBS
+getMultiUserPrekeyBundleUnqualified zusr userClients = do
+  brig <- view tsBrig
+  post
+    ( brig
+        . zUser zusr
+        . paths ["users", "prekeys"]
+        . json userClients
+    )
 
 mkProfile :: Qualified UserId -> Name -> UserProfile
 mkProfile quid name =

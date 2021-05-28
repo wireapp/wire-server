@@ -24,6 +24,7 @@ module Test.Galley.Types where
 import Control.Lens
 import Data.Set hiding (drop)
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts)
 import Imports
 import Test.Galley.Roundtrip (testRoundTrip)
 import Test.QuickCheck (Arbitrary (arbitrary))
@@ -52,7 +53,8 @@ tests =
         -- accordingly.  Just maintain the property that adding a new feature name will break
         -- this test, and force future develpers to consider what permissions they want to set.
         assertBool "all covered" (all (roleHasPerm RoleExternalPartner) (ViewTeamFeature <$> [minBound ..])),
-      testRoundTrip @FeatureFlags
+      testRoundTrip @FeatureFlags,
+      testRoundTrip @GuardLegalholdPolicyConflicts
     ]
 
 instance Arbitrary FeatureFlags where
