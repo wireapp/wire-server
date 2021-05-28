@@ -148,7 +148,7 @@ tests s =
           testGroup
             "teams listed"
             [ test s "happy flow" testInWhitelist,
-              test s "handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
+              test s "handshake between LH device and user without consent is blocked" testOldClientsBlockDeviceHandshake,
               test
                 s
                 "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
@@ -830,9 +830,18 @@ testInWhitelist = do
           assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
           assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
-testNoConsentBlockDeviceHandshake :: TestM ()
-testNoConsentBlockDeviceHandshake = do
-  -- "handshake between LH device and user without consent is blocked"
+testOldClientsBlockDeviceHandshake :: TestM ()
+testOldClientsBlockDeviceHandshake = do
+  -- "handshake between LH device and user with old devices is blocked"
+  --
+  -- this specifically checks the place that handles otr messages and responds with status
+  -- 412 and a list of missing clients.
+  --
+  -- if any of those clients are LH, this test provodes a "missing-legalhold-consent" error
+  -- instead, without any information about the LH clients.  the condition is actually "has
+  -- old device or has not granted consent", but the latter part is blocked earlier in 1:1 and
+  -- group conversations, and hard to test at the device level.)
+  --
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
 
   (legalholder, tid) <- createBindingTeam
@@ -857,40 +866,17 @@ testNoConsentBlockDeviceHandshake = do
           <&> (\[x] -> x)
           <&> clientId
 
-  ensureQueueEmpty
-
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     grantConsent tid legalholder
     grantConsent tid legalholder2
 
     legalholderLHDevice <- doEnableLH legalholder legalholder
-    legalholder2LHDevice <- doEnableLH legalholder legalholder2
+    _legalholder2LHDevice <- doEnableLH legalholder legalholder2
 
     legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
     legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
 
-    {- TODO: this is test is confusing!
-
-        --
-
-        The idea was to get a 412 "missing-legalhold-consent", but this test was manually
-        adding the capability to the LH devices (which the real ones don't do), and then
-        didn't test for the error label (just the status code).
-
-        The funny way in which I implement `happy` and `sad` makes failure messages more
-        useful.
-
-        --
-
-        now connecting fails.  we should try instead to connect peer to new user proxy, and
-        proxy has consent, but no device, and then proxy creates a group conv with peer and
-        legalholder, and peer tries to text legalholder...
-
-        this will be fine until we implement group conv blocking.  then this test won't be
-        possible to write.  it'll be a safety fallback that we don't know how to hit.
-
-        the more clearly useful thing in this PR is the prekey guarding, though.
-    -}
+    grantConsent tid2 peer
     connectUsers peer (List1.list1 legalholder [legalholder2])
 
     convId <-
@@ -906,13 +892,12 @@ testNoConsentBlockDeviceHandshake = do
             rcps =
               [ (legalholder, legalholderClient, "ciphered"),
                 (legalholder, legalholderLHDevice, "ciphered"),
-                (legalholder2, legalholder2Client, "ciphered"),
-                (legalholder2, legalholder2LHDevice, "ciphered")
+                (legalholder2, legalholder2Client, "ciphered")
+                -- legalholder2 LH device missing
               ]
 
         happy :: HasCallStack => ResponseLBS -> TestM ()
-        happy rsp = do
-          liftIO $ assertEqual "" 201 (statusCode rsp)
+        happy rsp = liftIO $ assertEqual (show $ Error.label <$> responseJsonEither rsp) 201 (statusCode rsp)
 
         sad :: HasCallStack => ResponseLBS -> TestM ()
         sad rsp = do
@@ -931,10 +916,6 @@ testNoConsentBlockDeviceHandshake = do
     -- capability then message sending is prevented to legalhold devices.
     peerClient <- randomClient peer (someLastPrekeys !! 2)
     runit peer peerClient >>= sad
-
-    grantConsent tid2 peer
-    runit peer peerClient >>= sad
-
     upgradeClientToLH peer peerClient
     runit peer peerClient >>= happy
 
