@@ -81,5 +81,7 @@ joinCall:
     # Overrides the image tag whose default is the chart appVersion.
     tag: "1.19.5"
 
-# Make the SFT to proxy itself with some TURN server when trying to connect to clients
+# Allow SFT instances to choose/consider using a TURN server for themselves as a proxy when
+# trying to establish a connection to clients
+# DOCS: https://docs.wire.com/understand/sft.html#prerequisites
 turnDiscoveryEnabled: false
