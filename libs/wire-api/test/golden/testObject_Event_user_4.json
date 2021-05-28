@@ -1,7 +1,15 @@
 {
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00004f04-0000-3939-0000-472d0000316b"
+    },
     "conversation": "00004f04-0000-3939-0000-472d0000316b",
     "time": "1864-05-12T00:59:09.200Z",
     "data": null,
     "from": "00007c90-0000-766a-0000-01b700002ab7",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "00007c90-0000-766a-0000-01b700002ab7"
+    },
     "type": "conversation.code-delete"
 }

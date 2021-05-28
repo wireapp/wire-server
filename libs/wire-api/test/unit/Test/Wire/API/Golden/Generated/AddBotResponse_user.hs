@@ -20,8 +20,10 @@ module Test.Wire.API.Golden.Generated.AddBotResponse_user where
 
 import Data.Code (Key (Key, asciiKey), Value (Value, asciiValue))
 import Data.Coerce (coerce)
+import Data.Domain
 import Data.Id (BotId (BotId), ClientId (ClientId, client), Id (Id))
 import Data.Misc (HttpsUrl (HttpsUrl), Milliseconds (Ms, ms))
+import Data.Qualified
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID (fromString)
@@ -162,8 +164,8 @@ testObject_AddBotResponse_user_1 =
       rsAddBotEvent =
         ( Event
             (ConvRename)
-            ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000003"))))
-            ((Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000400000004"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000003"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000400000004"))) (Domain "faraway.example.com"))
             (read "1864-05-12 19:20:22.286 UTC")
             ((EdConvRename (ConversationRename {cupName = "6"})))
         )
@@ -184,8 +186,8 @@ testObject_AddBotResponse_user_2 =
       rsAddBotEvent =
         ( Event
             (Typing)
-            ((Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000300000001"))))
-            ((Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000300000001"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000300000001"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000300000001"))) (Domain "faraway.example.com"))
             (read "1864-05-08 19:02:58.6 UTC")
             ((EdTyping (TypingData {tdStatus = StartedTyping})))
         )
@@ -211,8 +213,8 @@ testObject_AddBotResponse_user_3 =
       rsAddBotEvent =
         ( Event
             (ConvCreate)
-            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000003"))))
-            ((Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000004"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000003"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000004"))) (Domain "faraway.example.com"))
             (read "1864-05-10 11:22:13.523 UTC")
             ( ( EdConversation
                   ( Conversation
@@ -264,8 +266,8 @@ testObject_AddBotResponse_user_4 =
       rsAddBotEvent =
         ( Event
             (ConvDelete)
-            ((Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000300000003"))))
-            ((Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000300000001"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000300000003"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000300000001"))) (Domain "faraway.example.com"))
             (read "1864-05-06 03:03:10.788 UTC")
             (EdConvDelete)
         )
@@ -290,8 +292,8 @@ testObject_AddBotResponse_user_5 =
       rsAddBotEvent =
         ( Event
             (ConvCreate)
-            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))))
-            ((Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000002"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000002"))) (Domain "faraway.example.com"))
             (read "1864-05-13 21:19:26.488 UTC")
             ( ( EdConversation
                   ( Conversation
@@ -356,8 +358,8 @@ testObject_AddBotResponse_user_6 =
       rsAddBotEvent =
         ( Event
             (ConvCodeUpdate)
-            ((Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000000000003"))))
-            ((Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000300000001"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000000000003"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000300000001"))) (Domain "faraway.example.com"))
             (read "1864-05-14 23:40:44.551 UTC")
             ( ( EdConvCodeUpdate
                   ( ConversationCode
@@ -405,8 +407,8 @@ testObject_AddBotResponse_user_7 =
       rsAddBotEvent =
         ( Event
             (ConvReceiptModeUpdate)
-            ((Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000300000004"))))
-            ((Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000400000001"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000300000004"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000400000001"))) (Domain "faraway.example.com"))
             (read "1864-05-07 22:30:05.775 UTC")
             ((EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -4}})))
         )
@@ -427,8 +429,8 @@ testObject_AddBotResponse_user_8 =
       rsAddBotEvent =
         ( Event
             (ConvAccessUpdate)
-            ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000003"))))
-            ((Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000400000000"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000003"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000400000000"))) (Domain "faraway.example.com"))
             (read "1864-05-05 09:04:05.078 UTC")
             ( ( EdConvAccessUpdate
                   (ConversationAccessUpdate {cupAccess = [LinkAccess, PrivateAccess], cupAccessRole = ActivatedAccessRole})
@@ -453,8 +455,8 @@ testObject_AddBotResponse_user_9 =
       rsAddBotEvent =
         ( Event
             (MemberStateUpdate)
-            ((Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000000000004"))))
-            ((Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000002"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000000000004"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000002"))) (Domain "faraway.example.com"))
             (read "1864-05-07 17:13:06.966 UTC")
             ( ( EdMemberUpdate
                   ( MemberUpdateData
@@ -489,8 +491,8 @@ testObject_AddBotResponse_user_10 =
       rsAddBotEvent =
         ( Event
             (MemberLeave)
-            ((Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000400000001"))))
-            ((Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000400000001"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))) (Domain "faraway.example.com"))
             (read "1864-05-04 10:22:33.842 UTC")
             ((EdMembersLeave (UserIdList {mUsers = []})))
         )
@@ -511,8 +513,8 @@ testObject_AddBotResponse_user_11 =
       rsAddBotEvent =
         ( Event
             (ConvAccessUpdate)
-            ((Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000300000004"))))
-            ((Id (fromJust (UUID.fromString "00000003-0000-0003-0000-000100000000"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000300000004"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0003-0000-000100000000"))) (Domain "faraway.example.com"))
             (read "1864-05-04 14:10:34.032 UTC")
             ( ( EdConvAccessUpdate
                   (ConversationAccessUpdate {cupAccess = [CodeAccess], cupAccessRole = ActivatedAccessRole})
@@ -532,8 +534,8 @@ testObject_AddBotResponse_user_12 =
       rsAddBotEvent =
         ( Event
             (ConvConnect)
-            ((Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000200000000"))))
-            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000200000000"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))) (Domain "faraway.example.com"))
             (read "1864-05-05 01:06:47.245 UTC")
             ( ( EdConnect
                   ( Connect
@@ -569,8 +571,8 @@ testObject_AddBotResponse_user_13 =
       rsAddBotEvent =
         ( Event
             (ConvReceiptModeUpdate)
-            ((Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000100000001"))))
-            ((Id (fromJust (UUID.fromString "00000004-0000-0001-0000-000400000002"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000100000001"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0001-0000-000400000002"))) (Domain "faraway.example.com"))
             (read "1864-05-13 05:09:37.371 UTC")
             ((EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 3}})))
         )
@@ -591,8 +593,8 @@ testObject_AddBotResponse_user_14 =
       rsAddBotEvent =
         ( Event
             (MemberStateUpdate)
-            ((Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000004"))))
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000004"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))) (Domain "faraway.example.com"))
             (read "1864-05-13 06:48:06.601 UTC")
             ( ( EdMemberUpdate
                   ( MemberUpdateData
@@ -632,8 +634,8 @@ testObject_AddBotResponse_user_15 =
       rsAddBotEvent =
         ( Event
             (MemberJoin)
-            ((Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000"))))
-            ((Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000200000003"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000200000003"))) (Domain "faraway.example.com"))
             (read "1864-05-11 04:21:51.377 UTC")
             ( ( EdMembersJoin
                   ( SimpleMembers
@@ -693,8 +695,8 @@ testObject_AddBotResponse_user_16 =
       rsAddBotEvent =
         ( Event
             (ConvRename)
-            ((Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000200000000"))))
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000200000000"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))) (Domain "faraway.example.com"))
             (read "1864-05-07 11:54:38.133 UTC")
             ((EdConvRename (ConversationRename {cupName = "\72291)@\16969"})))
         )
@@ -711,8 +713,8 @@ testObject_AddBotResponse_user_17 =
       rsAddBotEvent =
         ( Event
             (ConvAccessUpdate)
-            ((Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000100000002"))))
-            ((Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000400000001"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000100000002"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000400000001"))) (Domain "faraway.example.com"))
             (read "1864-05-09 16:18:32.395 UTC")
             ( ( EdConvAccessUpdate
                   ( ConversationAccessUpdate
@@ -746,8 +748,8 @@ testObject_AddBotResponse_user_18 =
       rsAddBotEvent =
         ( Event
             (ConvRename)
-            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))))
-            ((Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000003"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000003"))) (Domain "faraway.example.com"))
             (read "1864-05-13 04:14:10.186 UTC")
             ((EdConvRename (ConversationRename {cupName = "+S\994417x1"})))
         )
@@ -764,8 +766,8 @@ testObject_AddBotResponse_user_19 =
       rsAddBotEvent =
         ( Event
             (ConvCodeDelete)
-            ((Id (fromJust (UUID.fromString "00000003-0000-0003-0000-000000000000"))))
-            ((Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000400000002"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0003-0000-000000000000"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000400000002"))) (Domain "faraway.example.com"))
             (read "1864-05-14 03:03:50.569 UTC")
             (EdConvCodeDelete)
         )
@@ -786,8 +788,8 @@ testObject_AddBotResponse_user_20 =
       rsAddBotEvent =
         ( Event
             (ConvMessageTimerUpdate)
-            ((Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000200000004"))))
-            ((Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000200000004"))))
+            (Qualified (Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000200000004"))) (Domain "faraway.example.com"))
+            (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000200000004"))) (Domain "faraway.example.com"))
             (read "1864-05-08 05:48:34.348 UTC")
             ( ( EdConvMessageTimerUpdate
                   (ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 3346692440762670})})

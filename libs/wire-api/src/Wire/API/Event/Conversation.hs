@@ -70,6 +70,7 @@ import qualified Data.Aeson as A
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -89,8 +90,8 @@ import Wire.API.User (UserIdList (..))
 
 data Event = Event
   { evtType :: EventType,
-    evtConv :: ConvId,
-    evtFrom :: UserId,
+    evtConv :: Qualified ConvId,
+    evtFrom :: Qualified UserId,
     evtTime :: UTCTime,
     evtData :: EventData
   }
@@ -545,8 +546,10 @@ eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
   mk
     <$> (evtType &&& evtData) .= taggedEventDataSchema
-    <*> evtConv .= field "conversation" schema
-    <*> evtFrom .= field "from" schema
+    <* (qUnqualified . evtConv) .= optional (field "conversation" schema)
+    <*> evtConv .= field "qualified_conversation" schema
+    <* (qUnqualified . evtFrom) .= optional (field "from" schema)
+    <*> evtFrom .= field "qualified_from" schema
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
   where
     mk (ty, d) cid uid tm = Event ty cid uid tm d

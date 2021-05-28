@@ -1,5 +1,9 @@
 {
     "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "000031b6-0000-7f2c-0000-22ca000012a0"
+        },
         "conversation": "000031b6-0000-7f2c-0000-22ca000012a0",
         "time": "1864-04-23T02:07:23.620Z",
         "data": {
@@ -109,6 +113,10 @@
             ]
         },
         "from": "00005a35-0000-3751-0000-76fe000044c2",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00005a35-0000-3751-0000-76fe000044c2"
+        },
         "type": "conversation.member-join"
     }
 }

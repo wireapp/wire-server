@@ -77,8 +77,8 @@ testObject_Event_user_1 :: Event
 testObject_Event_user_1 =
   ( Event
       (ConvDelete)
-      ((Id (fromJust (UUID.fromString "00005d81-0000-0d71-0000-1d8f00007d32"))))
-      ((Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))))
+      (Qualified (Id (fromJust (UUID.fromString "00005d81-0000-0d71-0000-1d8f00007d32"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00003b8b-0000-3395-0000-076a00007830"))) (Domain "faraway.example.com"))
       (read "1864-05-22 09:51:07.104 UTC")
       (EdConvDelete)
   )
@@ -87,8 +87,8 @@ testObject_Event_user_2 :: Event
 testObject_Event_user_2 =
   ( Event
       (ConvAccessUpdate)
-      ((Id (fromJust (UUID.fromString "0000064d-0000-7a7f-0000-5749000029e1"))))
-      ((Id (fromJust (UUID.fromString "00006a88-0000-2acb-0000-6aa0000061b2"))))
+      (Qualified (Id (fromJust (UUID.fromString "0000064d-0000-7a7f-0000-5749000029e1"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00006a88-0000-2acb-0000-6aa0000061b2"))) (Domain "faraway.example.com"))
       (read "1864-06-05 23:01:18.769 UTC")
       ( ( EdConvAccessUpdate
             ( ConversationAccessUpdate
@@ -104,8 +104,8 @@ testObject_Event_user_3 :: Event
 testObject_Event_user_3 =
   ( Event
       (OtrMessageAdd)
-      ((Id (fromJust (UUID.fromString "00006f8c-0000-00d6-0000-1568000001e9"))))
-      ((Id (fromJust (UUID.fromString "00004b11-0000-5504-0000-55d800002188"))))
+      (Qualified (Id (fromJust (UUID.fromString "00006f8c-0000-00d6-0000-1568000001e9"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00004b11-0000-5504-0000-55d800002188"))) (Domain "faraway.example.com"))
       (read "1864-04-27 15:44:23.844 UTC")
       ( ( EdOtrMessage
             ( OtrMessage
@@ -123,8 +123,8 @@ testObject_Event_user_4 :: Event
 testObject_Event_user_4 =
   ( Event
       (ConvCodeDelete)
-      ((Id (fromJust (UUID.fromString "00004f04-0000-3939-0000-472d0000316b"))))
-      ((Id (fromJust (UUID.fromString "00007c90-0000-766a-0000-01b700002ab7"))))
+      (Qualified (Id (fromJust (UUID.fromString "00004f04-0000-3939-0000-472d0000316b"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00007c90-0000-766a-0000-01b700002ab7"))) (Domain "faraway.example.com"))
       (read "1864-05-12 00:59:09.2 UTC")
       (EdConvCodeDelete)
   )
@@ -133,8 +133,8 @@ testObject_Event_user_5 :: Event
 testObject_Event_user_5 =
   ( Event
       (MemberStateUpdate)
-      ((Id (fromJust (UUID.fromString "00003c8c-0000-6394-0000-294b0000098b"))))
-      ((Id (fromJust (UUID.fromString "00002a12-0000-73e1-0000-71f700002ec9"))))
+      (Qualified (Id (fromJust (UUID.fromString "00003c8c-0000-6394-0000-294b0000098b"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00002a12-0000-73e1-0000-71f700002ec9"))) (Domain "faraway.example.com"))
       (read "1864-04-12 03:04:00.298 UTC")
       ( ( EdMemberUpdate
             ( MemberUpdateData
@@ -161,8 +161,8 @@ testObject_Event_user_6 :: Event
 testObject_Event_user_6 =
   ( Event
       (ConvMessageTimerUpdate)
-      ((Id (fromJust (UUID.fromString "00001fdb-0000-3127-0000-23ef00007183"))))
-      ((Id (fromJust (UUID.fromString "0000705a-0000-0b62-0000-425c000049c8"))))
+      (Qualified (Id (fromJust (UUID.fromString "00001fdb-0000-3127-0000-23ef00007183"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "0000705a-0000-0b62-0000-425c000049c8"))) (Domain "faraway.example.com"))
       (read "1864-05-09 05:44:41.382 UTC")
       ((EdConvMessageTimerUpdate (ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 5029817038083912})})))
   )
@@ -171,8 +171,8 @@ testObject_Event_user_7 :: Event
 testObject_Event_user_7 =
   ( Event
       (Typing)
-      ((Id (fromJust (UUID.fromString "00006ac1-0000-543e-0000-7c8f00000be7"))))
-      ((Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e"))))
+      (Qualified (Id (fromJust (UUID.fromString "00006ac1-0000-543e-0000-7c8f00000be7"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e"))) (Domain "faraway.example.com"))
       (read "1864-04-18 05:01:13.761 UTC")
       ((EdTyping (TypingData {tdStatus = StoppedTyping})))
   )
@@ -181,8 +181,8 @@ testObject_Event_user_8 :: Event
 testObject_Event_user_8 =
   ( Event
       (ConvCodeDelete)
-      ((Id (fromJust (UUID.fromString "00000892-0000-53c7-0000-0c870000027a"))))
-      ((Id (fromJust (UUID.fromString "000008e8-0000-43fa-0000-4dd1000034cc"))))
+      (Qualified (Id (fromJust (UUID.fromString "00000892-0000-53c7-0000-0c870000027a"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "000008e8-0000-43fa-0000-4dd1000034cc"))) (Domain "faraway.example.com"))
       (read "1864-06-08 15:19:01.916 UTC")
       (EdConvCodeDelete)
   )
@@ -191,8 +191,8 @@ testObject_Event_user_9 :: Event
 testObject_Event_user_9 =
   ( Event
       (ConvAccessUpdate)
-      ((Id (fromJust (UUID.fromString "00004847-0000-1eb9-0000-2973000039ca"))))
-      ((Id (fromJust (UUID.fromString "000044e3-0000-1c36-0000-42fd00006e01"))))
+      (Qualified (Id (fromJust (UUID.fromString "00004847-0000-1eb9-0000-2973000039ca"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "000044e3-0000-1c36-0000-42fd00006e01"))) (Domain "faraway.example.com"))
       (read "1864-05-21 16:22:14.886 UTC")
       ( ( EdConvAccessUpdate
             ( ConversationAccessUpdate
@@ -209,8 +209,8 @@ testObject_Event_user_10 :: Event
 testObject_Event_user_10 =
   ( Event
       (ConvCreate)
-      ((Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d"))))
-      ((Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c"))))
+      (Qualified (Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00000457-0000-0689-0000-77a00000021c"))) (Domain "faraway.example.com"))
       (read "1864-05-29 19:31:31.226 UTC")
       ( ( EdConversation
             ( Conversation
@@ -326,8 +326,8 @@ testObject_Event_user_11 :: Event
 testObject_Event_user_11 =
   ( Event
       (MemberStateUpdate)
-      ((Id (fromJust (UUID.fromString "000031c2-0000-108c-0000-10a500000882"))))
-      ((Id (fromJust (UUID.fromString "00005335-0000-2983-0000-46460000082f"))))
+      (Qualified (Id (fromJust (UUID.fromString "000031c2-0000-108c-0000-10a500000882"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00005335-0000-2983-0000-46460000082f"))) (Domain "faraway.example.com"))
       (read "1864-05-03 06:49:41.178 UTC")
       ( ( EdMemberUpdate
             ( MemberUpdateData
@@ -350,8 +350,8 @@ testObject_Event_user_12 :: Event
 testObject_Event_user_12 =
   ( Event
       (ConvDelete)
-      ((Id (fromJust (UUID.fromString "00007474-0000-2a7b-0000-125900006ac9"))))
-      ((Id (fromJust (UUID.fromString "00000795-0000-709d-0000-11270000007a"))))
+      (Qualified (Id (fromJust (UUID.fromString "00007474-0000-2a7b-0000-125900006ac9"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00000795-0000-709d-0000-11270000007a"))) (Domain "faraway.example.com"))
       (read "1864-05-23 17:16:29.326 UTC")
       (EdConvDelete)
   )
@@ -360,8 +360,8 @@ testObject_Event_user_13 :: Event
 testObject_Event_user_13 =
   ( Event
       (OtrMessageAdd)
-      ((Id (fromJust (UUID.fromString "00006355-0000-5f6e-0000-592c0000680c"))))
-      ((Id (fromJust (UUID.fromString "000029eb-0000-06f8-0000-514100000a84"))))
+      (Qualified (Id (fromJust (UUID.fromString "00006355-0000-5f6e-0000-592c0000680c"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "000029eb-0000-06f8-0000-514100000a84"))) (Domain "faraway.example.com"))
       (read "1864-05-21 03:22:42.926 UTC")
       ( ( EdOtrMessage
             ( OtrMessage
@@ -379,8 +379,8 @@ testObject_Event_user_14 :: Event
 testObject_Event_user_14 =
   ( Event
       (ConvReceiptModeUpdate)
-      ((Id (fromJust (UUID.fromString "00000b98-0000-618d-0000-19e200004651"))))
-      ((Id (fromJust (UUID.fromString "00004bee-0000-45a0-0000-2c0300005726"))))
+      (Qualified (Id (fromJust (UUID.fromString "00000b98-0000-618d-0000-19e200004651"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00004bee-0000-45a0-0000-2c0300005726"))) (Domain "faraway.example.com"))
       (read "1864-05-01 11:57:35.123 UTC")
       ((EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -10505}})))
   )
@@ -389,8 +389,8 @@ testObject_Event_user_15 :: Event
 testObject_Event_user_15 =
   ( Event
       (ConvConnect)
-      ((Id (fromJust (UUID.fromString "00005e43-0000-3b56-0000-7c270000538c"))))
-      ((Id (fromJust (UUID.fromString "00007f28-0000-40b1-0000-56ab0000748d"))))
+      (Qualified (Id (fromJust (UUID.fromString "00005e43-0000-3b56-0000-7c270000538c"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00007f28-0000-40b1-0000-56ab0000748d"))) (Domain "faraway.example.com"))
       (read "1864-05-25 01:31:49.802 UTC")
       ( ( EdConnect
             ( Connect
@@ -408,8 +408,8 @@ testObject_Event_user_16 :: Event
 testObject_Event_user_16 =
   ( Event
       (ConvAccessUpdate)
-      ((Id (fromJust (UUID.fromString "00004b59-0000-55d6-0000-5aad00007373"))))
-      ((Id (fromJust (UUID.fromString "0000211e-0000-0b37-0000-563100003a5d"))))
+      (Qualified (Id (fromJust (UUID.fromString "00004b59-0000-55d6-0000-5aad00007373"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "0000211e-0000-0b37-0000-563100003a5d"))) (Domain "faraway.example.com"))
       (read "1864-05-24 00:49:37.413 UTC")
       ((EdConvAccessUpdate (ConversationAccessUpdate {cupAccess = [], cupAccessRole = ActivatedAccessRole})))
   )
@@ -418,8 +418,8 @@ testObject_Event_user_17 :: Event
 testObject_Event_user_17 =
   ( Event
       (Typing)
-      ((Id (fromJust (UUID.fromString "00006ac8-0000-1342-0000-76880000021d"))))
-      ((Id (fromJust (UUID.fromString "0000145f-0000-2ce0-0000-4ca800006c72"))))
+      (Qualified (Id (fromJust (UUID.fromString "00006ac8-0000-1342-0000-76880000021d"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "0000145f-0000-2ce0-0000-4ca800006c72"))) (Domain "faraway.example.com"))
       (read "1864-04-17 07:39:54.846 UTC")
       ((EdTyping (TypingData {tdStatus = StoppedTyping})))
   )
@@ -428,8 +428,8 @@ testObject_Event_user_18 :: Event
 testObject_Event_user_18 =
   ( Event
       (MemberLeave)
-      ((Id (fromJust (UUID.fromString "0000303b-0000-23a9-0000-25de00002f80"))))
-      ((Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))))
+      (Qualified (Id (fromJust (UUID.fromString "0000303b-0000-23a9-0000-25de00002f80"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
       (read "1864-04-12 01:28:25.705 UTC")
       ( ( EdMembersLeave
             ( UserIdList
@@ -470,8 +470,8 @@ testObject_Event_user_19 :: Event
 testObject_Event_user_19 =
   ( Event
       (MemberJoin)
-      ((Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))))
-      ((Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))))
+      (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
       (read "1864-05-12 20:29:47.483 UTC")
       ( ( EdMembersJoin
             ( SimpleMembers
@@ -577,8 +577,8 @@ testObject_Event_user_20 :: Event
 testObject_Event_user_20 =
   ( Event
       (MemberLeave)
-      ((Id (fromJust (UUID.fromString "00000c88-0000-433f-0000-669100006374"))))
-      ((Id (fromJust (UUID.fromString "00007547-0000-26d8-0000-52280000157c"))))
+      (Qualified (Id (fromJust (UUID.fromString "00000c88-0000-433f-0000-669100006374"))) (Domain "faraway.example.com"))
+      (Qualified (Id (fromJust (UUID.fromString "00007547-0000-26d8-0000-52280000157c"))) (Domain "faraway.example.com"))
       (read "1864-04-21 23:40:54.462 UTC")
       ( ( EdMembersLeave
             ( UserIdList

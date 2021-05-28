@@ -1,5 +1,9 @@
 {
     "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000001-0000-0004-0000-000000000004"
+        },
         "conversation": "00000001-0000-0004-0000-000000000004",
         "time": "1864-05-13T06:48:06.601Z",
         "data": {
@@ -12,6 +16,10 @@
             "otr_archived_ref": ""
         },
         "from": "00000000-0000-0000-0000-000200000001",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00000000-0000-0000-0000-000200000001"
+        },
         "type": "conversation.member-update"
     },
     "accent_id": 4,
