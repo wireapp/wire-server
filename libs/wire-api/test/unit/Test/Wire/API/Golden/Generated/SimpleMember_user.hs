@@ -30,8 +30,7 @@ testObject_SimpleMember_user_1 =
     { smId = (Id (fromJust (UUID.fromString "0000003a-0000-0042-0000-007500000037"))),
       smConvRoleName =
         ( fromJust
-            ( parseRoleName
-                "qbyp4d5whcwd0owjlrr6oktss00oxflwtid8_ram9r3c2nywq7skew91tok1xxivpkbw6n5l8o5ww4zm220_3pozpvt0obaicadhku7f6e93"
+            ( parseRoleName "wire_admin"
             )
         )
     }
@@ -42,8 +41,7 @@ testObject_SimpleMember_user_2 =
     { smId = (Id (fromJust (UUID.fromString "00000046-0000-0027-0000-003c00000022"))),
       smConvRoleName =
         ( fromJust
-            ( parseRoleName
-                "ofyvdxbbaf291eyoxm1i16mv2wfa52snql2p9os7shshqpfiw7ivbstjt_nkdqt6_9lz3on3r1nnur8ydc4xae4xf8i2iuu7"
+            ( parseRoleName "wire_member"
             )
         )
     }

@@ -295,26 +295,24 @@ newtype SimpleMembers = SimpleMembers
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema SimpleMembers
 
 instance ToSchema SimpleMembers where
-  schema = object "Members" simpleMembersObjectSchema
-
-simpleMembersObjectSchema :: ObjectSchema SwaggerDoc SimpleMembers
-simpleMembersObjectSchema =
-  (`withParser` either fail pure) $
-    mk
-      <$> mMembers .= optional (field "users" (array schema))
-      <*> (fmap smId . mMembers)
-        .= optional
-          ( fieldWithDocModifier
-              "user_ids"
-              (description ?~ "deprecated")
-              (array schema)
-          )
-  where
-    -- This is to make migration easier and not dependent on deployment ordering
-    mk :: Maybe [SimpleMember] -> Maybe [UserId] -> Either String SimpleMembers
-    mk Nothing Nothing = Left "Either users or user_ids required"
-    mk Nothing (Just ids) = pure (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) ids))
-    mk (Just membs) _ = pure (SimpleMembers membs)
+  schema =
+    object "Members" $
+      (`withParser` either fail pure) $
+        mk
+          <$> mMembers .= optional (field "users" (array schema))
+          <*> (fmap smId . mMembers)
+            .= optional
+              ( fieldWithDocModifier
+                  "user_ids"
+                  (description ?~ "deprecated")
+                  (array schema)
+              )
+    where
+      -- This is to make migration easier and not dependent on deployment ordering
+      mk :: Maybe [SimpleMember] -> Maybe [UserId] -> Either String SimpleMembers
+      mk Nothing Nothing = Left "Either users or user_ids required"
+      mk Nothing (Just ids) = pure (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) ids))
+      mk (Just membs) _ = pure (SimpleMembers membs)
 
 -- | Used both for 'SimpleMembers' and 'UserIdList'.
 modelMembers :: Doc.Model
@@ -329,6 +327,7 @@ data SimpleMember = SimpleMember
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SimpleMember)
+  deriving (FromJSON, ToJSON) via Schema SimpleMember
 
 instance ToSchema SimpleMember where
   schema =
@@ -336,20 +335,7 @@ instance ToSchema SimpleMember where
       SimpleMember
         <$> smId .= field "id" schema
         <*> smConvRoleName
-          .= field "conversation_role" schema
-
-instance ToJSON SimpleMember where
-  toJSON m =
-    A.object
-      [ "id" A..= smId m,
-        "conversation_role" A..= smConvRoleName m
-      ]
-
-instance FromJSON SimpleMember where
-  parseJSON = A.withObject "simple member object" $ \o ->
-    SimpleMember
-      <$> o A..: "id"
-      <*> o A..:? "conversation_role" A..!= roleNameWireAdmin
+          .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
 
 data Connect = Connect
   { cRecipient :: UserId,
