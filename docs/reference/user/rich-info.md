@@ -115,11 +115,31 @@ PATCH /scim/v2/Users/:id
 
 Rich info set via SCIM can be queried by doing a `GET /scim/v2/Users` or `GET /scim/v2/Users/:id` query.
 
-### SCIM provisioning agent support {#RefRichInfoScimAgents}
+### Set up SCIM RichInfo mapping in Azure {#RefRichInfoScimAgents}
 
-* Okta: unable to push fields in the format we require (checked on 2019-02-21).
+Go to your provisioning page
 
-* OneLogin: likely able to push fields.
+![image](https://user-images.githubusercontent.com/628387/119977043-393b3000-bfb8-11eb-9e5b-18a955ca3181.png)
+
+Click "Edit attribute mappings"
+
+Then click "Mappings" And then click **Synchronize Azure Active Directory Users to _appname_**
+![image](https://user-images.githubusercontent.com/628387/119977488-c9797500-bfb8-11eb-81b8-46376f5fdadb.png)
+
+Click "Show Advanced options" and then **Edit attribute list for _appname_**
+![image](https://user-images.githubusercontent.com/628387/119977905-3f7ddc00-bfb9-11eb-90e2-28da82c6f13e.png)
+
+Add a new attribute name. The type should be `String` and the name should be prefixed with `urn:ietf:params:scim:schemas:extension:wire:1.0:User:`
+e.g. `urn:ietf:params:scim:schemas:extension:wire:1.0:User:Location`
+
+![image](https://user-images.githubusercontent.com/628387/119978050-70f6a780-bfb9-11eb-8919-93e32bf76d79.png)
+
+Hit **Save** and afterwards hit **Add New Mapping**
+
+Select the Azure AD Source attribute you want to map, and map it to the custom **Target Attribute** that you just added.
+![image](https://user-images.githubusercontent.com/628387/119978316-c5018c00-bfb9-11eb-9290-2076ac1a05df.png)
+
+
 
 ## Limitations {#RefRichInfoLimitations}
 
