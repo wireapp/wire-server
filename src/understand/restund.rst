@@ -90,6 +90,8 @@ also for ingress traffic. Tools like ``iptables`` or ``ufw`` can be used to set 
 .. [1] `Details about CVE-2020-26262, bypass of Coturn's default access control protection <https://www.rtcsec.com/post/2021/01/details-about-cve-2020-26262-bypass-of-coturns-default-access-control-protection/>`__
 
 
+.. _understand-restund-protocal-and-ports:
+
 Protocols and open ports
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -112,8 +114,8 @@ UDP and TCP.
 If *Conference Calling 2.0* (:ref:`SFT <understand-sft>`) is enabled, a Restund instance,
 additionally, must be allowed to communicate with ::ref:`SFT instances <install-sft-firewall-rules>`
 on the same UDP ports mentioned above. In this scenario a Restund server becomes sort
-of a proxy for the client, if the client is not able to establish a direct connection
-to the SFT server.
+of a proxy for the client, if the client is not able to establish a media channel between
+itself and the SFT server.
 
 *For more information, please refer to the source code of the Ansible role:* `restund <https://github.com/wireapp/ansible-restund/blob/master/tasks/firewall.yml>`__.
 

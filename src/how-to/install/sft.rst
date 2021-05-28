@@ -120,7 +120,7 @@ The SFT also has an HTTP interface for initializing (allocation) or joining (sig
 the ingress controller as an HTTPS service.
 
 SFT does require access to the TURN control port during process startup, but does not use it for any real purpose.
-It is a health check, that is goung to be removed eventually.
+It is a health check, that is going to be removed eventually.
 
 An SFT instance does **not** communicate with other SFT instances, TURN does talk to TURN.
 
