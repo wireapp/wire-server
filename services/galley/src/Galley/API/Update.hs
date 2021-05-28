@@ -67,6 +67,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Trans.Except
+import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
 import Data.Id
@@ -109,6 +110,7 @@ import Network.Wai.Utilities
 import Servant (respond)
 import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
+import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
@@ -1161,14 +1163,24 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
           let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
           pure (lhStatus == UserLegalHoldNoConsent)
 
+    Log.debug $
+      Log.field "self" (toByteString' self)
+        Log.~~ Log.field "otherClients" (toByteString' $ show otherClients)
+        Log.~~ Log.field "otherClientHasLH" (toByteString' otherClientHasLH)
+        Log.~~ Log.field "checkSelfHasOldClients" (toByteString' checkSelfHasOldClients)
+        Log.~~ Log.field "checkSelfHasLHClients" (toByteString' checkSelfHasLHClients)
+        Log.~~ Log.msg ("guardLegalholdPolicyConflicts[1]" :: Text)
+
     -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
     when otherClientHasLH $ do
-      when checkSelfHasOldClients $
+      when checkSelfHasOldClients $ do
+        Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[2]: old clients" :: Text)
         throwM missingLegalholdConsent
 
       unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
-        whenM checkConsentMissing $
+        whenM checkConsentMissing $ do
           -- We assume this is impossible, since conversations are automatically
           -- blocked if LH consent is missing of any participant.
           -- We add this check here as an extra failsafe.
+          Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
           throwM missingLegalholdConsent
