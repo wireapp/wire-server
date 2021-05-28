@@ -43,7 +43,7 @@ import Data.Id
 import Data.String.Conversions (cs)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
-import Galley.API.Teams (ensureNotTooLargeForLegalHold)
+import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -203,7 +203,7 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
     Public.TeamFeatureEnabled -> do
-      ensureNotTooLargeForLegalHold tid Nothing
+      ensureNotTooLargeToActivateLegalHold tid
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
