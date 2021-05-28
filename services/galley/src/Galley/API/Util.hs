@@ -21,12 +21,15 @@ import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
+import Control.Monad.Except (runExceptT)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
+import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Remote)
+import Data.Qualified (Qualified (qUnqualified), Remote, partitionQualified)
 import qualified Data.Set as Set
+import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
@@ -48,6 +51,10 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
+import qualified Wire.API.Federation.API.Brig as FederatedBrig
+import qualified Wire.API.Federation.Client as Federation
+import Wire.API.Federation.Error (federationErrorToWai)
+import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
 
@@ -298,3 +305,24 @@ canDeleteMember deleter deletee
 
 viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
+
+checkRemoteUsersExist :: [Remote UserId] -> Galley ()
+checkRemoteUsersExist =
+  -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
+  traverse_ (uncurry checkRemotesFor)
+    . Map.assocs
+    . partitionQualified
+    . map unTagged
+
+checkRemotesFor :: Domain -> [UserId] -> Galley ()
+checkRemotesFor domain uids = do
+  let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
+  users <-
+    runExceptT (Federation.executeFederated domain rpc)
+      >>= either (throwM . federationErrorToWai) pure
+  let uids' =
+        map
+          (qUnqualified . User.profileQualifiedId)
+          (filter (not . User.profileDeleted) users)
+  unless (Set.fromList uids == Set.fromList uids') $
+    throwM unknownRemoteUser

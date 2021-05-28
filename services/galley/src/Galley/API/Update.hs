@@ -62,9 +62,7 @@ import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
-import Control.Monad.Trans.Except
 import Data.Code
-import Data.Domain (Domain)
 import Data.Id
 import Data.List.Extra (nubOrdOn)
 import Data.List1
@@ -72,7 +70,6 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged (unTagged)
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
@@ -107,9 +104,6 @@ import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Event.Conversation as Public
-import Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.Client as FederatedBrig
-import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
@@ -497,7 +491,7 @@ addMembers zusr zcon convId invite = do
   ensureAccess conv InviteAccess
   ensureConvRoleNotElevated self (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
-  checkRemotes newRemotes
+  checkRemoteUsersExist newRemotes
   addToConversation mems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
@@ -514,26 +508,6 @@ addMembers zusr zcon convId invite = do
     checkLocals conv Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
       ensureConnectedOrSameTeam zusr newUsers
-
-    checkRemotes :: [Remote UserId] -> Galley ()
-    checkRemotes =
-      traverse_ (uncurry checkRemotesFor)
-        . Map.assocs
-        . partitionQualified
-        . map unTagged
-
-    checkRemotesFor :: Domain -> [UserId] -> Galley ()
-    checkRemotesFor domain uids = do
-      let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
-      users <-
-        runExceptT (executeFederated domain rpc)
-          >>= either (throwM . federationErrorToWai) pure
-      let uids' =
-            map
-              (qUnqualified . User.profileQualifiedId)
-              (filter (not . User.profileDeleted) users)
-      unless (Set.fromList uids == Set.fromList uids') $
-        throwM unknownRemoteUser
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
