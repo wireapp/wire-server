@@ -1104,7 +1104,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 testNoConsentBlockAndRestorePending :: HasCallStack => TestM ()
 testNoConsentBlockAndRestorePending = do
   (legalholder :: UserId, tid) <- createBindingTeam
-  (peer :: UserId, teamPeer) <- createBindingTeam
+  (peer :: UserId, _teamPeer) <- createBindingTeam
   galley <- view tsGalley
 
   let doEnableLH :: HasCallStack => TestM ClientId
@@ -1122,22 +1122,25 @@ testNoConsentBlockAndRestorePending = do
           <&> (\[x] -> x)
           <&> clientId
 
-  let assertConnsPendingSent :: HasCallStack => TestM ()
-      assertConnsPendingSent = do
-        assertConnections legalholder [ConnectionStatus legalholder peer Conn.Sent]
-        assertConnections peer [ConnectionStatus peer legalholder Conn.Pending]
+      doDisableLH :: HasCallStack => TestM ()
+      doDisableLH = do
+        -- remove (only) LH device again
+        withLHWhitelist tid (disableLegalHoldForUser' galley (Just defPassword) tid legalholder legalholder)
+          !!! testResponse 200 Nothing
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     postConnection legalholder peer !!! const 201 === statusCode
-    assertConnsPendingSent
+    assertConnections legalholder [ConnectionStatus legalholder peer Conn.Sent]
+    assertConnections peer [ConnectionStatus peer legalholder Conn.Pending]
 
-    ensureQueueEmpty
     void doEnableLH
     assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
     assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
-    grantConsent teamPeer peer
-    assertConnsPendingSent
+    -- FUTUREWORK: @grantConsent teamPeer peer@ <- also test this
+    doDisableLH
+    assertConnections legalholder [ConnectionStatus legalholder peer Conn.Sent]
+    assertConnections peer [ConnectionStatus peer legalholder Conn.Pending]
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do
