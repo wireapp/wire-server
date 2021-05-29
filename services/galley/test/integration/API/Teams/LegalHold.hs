@@ -205,6 +205,10 @@ tests s =
                 (testNoConsentBlockOne2OneConv True True True False),
               test
                 s
+                "XXXXXX Pending/Sent connections revert to original state after consent"
+                testNoConsentBlockAndRestorePending,
+              test
+                s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
               test s "bench hack" testBenchHack,
@@ -1096,6 +1100,44 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         void doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
         postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
+
+testNoConsentBlockAndRestorePending :: HasCallStack => TestM ()
+testNoConsentBlockAndRestorePending = do
+  (legalholder :: UserId, tid) <- createBindingTeam
+  (peer :: UserId, teamPeer) <- createBindingTeam
+  galley <- view tsGalley
+
+  let doEnableLH :: HasCallStack => TestM ClientId
+      doEnableLH = do
+        withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
+        withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
+        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+
+        getInternalClientsFull (UserSet $ Set.fromList [legalholder])
+          <&> userClientsFull
+          <&> Map.elems
+          <&> Set.unions
+          <&> Set.toList
+          <&> (\[x] -> x)
+          <&> clientId
+
+  let assertConnsPendingSent :: HasCallStack => TestM ()
+      assertConnsPendingSent = do
+        assertConnections legalholder [ConnectionStatus legalholder peer Conn.Sent]
+        assertConnections peer [ConnectionStatus peer legalholder Conn.Pending]
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    postConnection legalholder peer !!! const 201 === statusCode
+    assertConnsPendingSent
+
+    ensureQueueEmpty
+    void doEnableLH
+    assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
+    assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
+
+    grantConsent teamPeer peer
+    assertConnsPendingSent
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do
