@@ -31,6 +31,7 @@ where
 
 import Brig.Types.Client.Prekey
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
+import Brig.Types.Intra (ConnectionStatus (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Control.Lens (view, (^.))
@@ -41,11 +42,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc
-import Data.Proxy
-import Data.Qualified (Qualified, partitionRemoteOrLocalIds)
-import Data.Range (toRange)
 import Galley.API.Error
-import Galley.API.Query (iterateConversations)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -53,7 +50,7 @@ import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
-import Galley.Intra.User (putConnectionInternal)
+import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
@@ -64,7 +61,6 @@ import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..), cnvType)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 
@@ -415,22 +411,19 @@ changeLegalholdStatus tid uid old new = do
 -- FUTUREWORK: make this async?
 blockConnectionsFrom1on1s :: UserId -> Galley ()
 blockConnectionsFrom1on1s uid = do
-  errmsgs <-
-    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
-      conflicts <- mconcat <$> findConflicts (filter ((== One2OneConv) . cnvType) convs)
-      blockConflicts uid conflicts
+  conns <- getConnections [uid] Nothing Nothing
+  errmsgs <- do
+    conflicts <- mconcat <$> findConflicts conns
+    blockConflicts uid conflicts
   case mconcat errmsgs of
     [] -> pure ()
     msgs@(_ : _) -> do
-      Log.warn $ Log.msg @String (intercalate ", " msgs)
+      Log.warn $ Log.msg @String msgs
       throwM legalHoldCouldNotBlockConnections
   where
-    findConflicts :: [Conversation] -> Galley [[UserId]]
-    findConflicts convs = do
-      let otherUids :: [Qualified UserId] =
-            concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
-      ownDomain <- viewFederationDomain
-      let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
+    findConflicts :: [ConnectionStatus] -> Galley [[UserId]]
+    findConflicts conns = do
+      let localUids = csTo <$> conns
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- Data.usersTeams others
