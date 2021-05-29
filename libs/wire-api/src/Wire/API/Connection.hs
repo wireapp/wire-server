@@ -188,7 +188,19 @@ data RelationWithHistory
   deriving (Arbitrary) via (GenericUniform RelationWithHistory)
 
 relationDropHistory :: RelationWithHistory -> Relation
-relationDropHistory = undefined
+relationDropHistory = \case
+  AcceptedWithHistory -> Accepted
+  BlockedWithHistory -> Blocked
+  PendingWithHistory -> Pending
+  IgnoredWithHistory -> Ignored
+  SentWithHistory -> Sent
+  CancelledWithHistory -> Cancelled
+  MissingLegalholdConsentFromAccepted -> MissingLegalholdConsent
+  MissingLegalholdConsentFromBlocked -> MissingLegalholdConsent
+  MissingLegalholdConsentFromPending -> MissingLegalholdConsent
+  MissingLegalholdConsentFromIgnored -> MissingLegalholdConsent
+  MissingLegalholdConsentFromSent -> MissingLegalholdConsent
+  MissingLegalholdConsentFromCancelled -> MissingLegalholdConsent
 
 typeRelation :: Doc.DataType
 typeRelation =
