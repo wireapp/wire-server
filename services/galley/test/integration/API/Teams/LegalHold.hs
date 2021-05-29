@@ -171,7 +171,7 @@ tests s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
-              testGroup "XXX no-consent" $
+              testGroup "no-consent" $
                 flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
                   \args@(a, b, c, d) ->
                     test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
