@@ -287,6 +287,7 @@ updateConnection self other newStatus conn = do
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     unblock s2o o2s new = do
+      -- FUTUREWORK: new is always in [Sent, Accepted]. Refactor to total function.
       when (new `elem` [Sent, Accepted]) $
         checkLimit self
       Log.info $
@@ -301,7 +302,7 @@ updateConnection self other newStatus conn = do
         e2o :: ConnectionEvent <- ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
         -- TODO: is this correct? shouldnt o2s be sent to other?
         Intra.onConnectionEvent self conn e2o
-      lift $ Just <$> Data.updateConnection s2o ((error "TODO") new)
+      lift $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
 
     cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (Maybe UserConnection)
     cancel s2o o2s = do
@@ -315,10 +316,30 @@ updateConnection self other newStatus conn = do
       change s2o Cancelled
 
     change :: UserConnection -> Relation -> ExceptT ConnectionError AppIO (Maybe UserConnection)
-    change c s = lift $ Just <$> Data.updateConnection c ((error "TODO") s)
+    change c s = do
+      -- FUTUREWORK: refactor to total function. Gets only called with either Ignored, Accepted, Cancelled
+      lift $ Just <$> Data.updateConnection c (mkRelationWithHistory (error "impossible") s)
 
 connection :: UserId -> UserId -> ExceptT ConnectionError AppIO UserConnection
 connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
+
+mkRelationWithHistory :: HasCallStack => Relation -> Relation -> RelationWithHistory
+mkRelationWithHistory oldRel = \case
+  Accepted -> AcceptedWithHistory
+  Blocked -> BlockedWithHistory
+  Pending -> PendingWithHistory
+  Ignored -> IgnoredWithHistory
+  Sent -> SentWithHistory
+  Cancelled -> CancelledWithHistory
+  MissingLegalholdConsent ->
+    case oldRel of
+      Accepted -> MissingLegalholdConsentFromAccepted
+      Blocked -> MissingLegalholdConsentFromBlocked
+      Pending -> MissingLegalholdConsentFromPending
+      Ignored -> MissingLegalholdConsentFromIgnored
+      Sent -> MissingLegalholdConsentFromSent
+      Cancelled -> MissingLegalholdConsentFromCancelled
+      MissingLegalholdConsent -> error "impossible old relation"
 
 updateConnectionInternal ::
   UpdateConnectionsInternal ->
@@ -338,9 +359,8 @@ updateConnectionInternal = \case
         s2o <- connection self other
         o2s <- connection other self
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
-          -- TODO: check if Ignored is a possibility
           Intra.blockConv (ucFrom uconn) Nothing `mapM_` ucConvId uconn
-          uconn' <- Data.updateConnection uconn ((error "TODO") MissingLegalholdConsent)
+          uconn' <- Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           Intra.onConnectionEvent self Nothing ev
 
@@ -373,6 +393,7 @@ updateConnectionInternal = \case
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ()
         unblockDirected uconn uconnRev = do
           cnv :: Maybe Conv.Conversation <- lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
+
           uconnRev' :: UserConnection <- do
             newRelation <- case cnvType <$> cnv of
               Just RegularConv -> throwE (InvalidTransition (ucFrom uconn) Accepted) -- (impossible, connection conv is always 1:1)
