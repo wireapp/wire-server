@@ -56,7 +56,7 @@ import Wire.API.User.RichInfo (RichInfo)
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.getConnectionsStatusH'.
-getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnections :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
 getConnections uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-

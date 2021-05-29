@@ -26,6 +26,7 @@ module Brig.Data.Connection
     lookupRelationWithHistory,
     lookupConnections,
     lookupConnectionStatus,
+    lookupConnectionStatus',
     lookupContactList,
     lookupContactListWithRelation,
     countConnections,
@@ -125,6 +126,12 @@ lookupConnectionStatus from to =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect (params Quorum (from, to)))
 
+-- | Lookup all relations between two sets of users (cartesian product).
+lookupConnectionStatus' :: [UserId] -> AppIO [ConnectionStatus]
+lookupConnectionStatus' from =
+  map toConnectionStatus
+    <$> retry x1 (query connectionStatusSelect' (params Quorum (Identity from)))
+
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
 lookupContactList u =
@@ -175,6 +182,9 @@ relationSelect = "SELECT status FROM connection WHERE left = ? AND right = ?"
 
 connectionStatusSelect :: PrepQuery R ([UserId], [UserId]) (UserId, UserId, RelationWithHistory)
 connectionStatusSelect = "SELECT left, right, status FROM connection WHERE left IN ? AND right IN ?"
+
+connectionStatusSelect' :: PrepQuery R (Identity [UserId]) (UserId, UserId, RelationWithHistory)
+connectionStatusSelect' = "SELECT left, right, status FROM connection WHERE left IN ?"
 
 contactsSelect :: PrepQuery R (Identity UserId) (UserId, RelationWithHistory)
 contactsSelect = "SELECT right, status FROM connection WHERE left = ?"

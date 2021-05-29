@@ -30,6 +30,7 @@ module Brig.API.Connection
     lookupConnections,
     Data.lookupConnection,
     Data.lookupConnectionStatus,
+    Data.lookupConnectionStatus',
     Data.lookupContactList,
   )
 where

@@ -499,7 +499,7 @@ getConnectionsStatusH (_ ::: req ::: flt) = do
 
 getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> AppIO [ConnectionStatus]
 getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = do
-  r <- API.lookupConnectionStatus csrFrom csrTo
+  r <- maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
