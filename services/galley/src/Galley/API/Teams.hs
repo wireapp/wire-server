@@ -84,7 +84,6 @@ import Galley.API.LegalHold
 import qualified Galley.API.Teams.Notifications as APITeamQueue
 import Galley.API.Util
 import Galley.App
-import Galley.Data (teamMembersForFanout)
 import qualified Galley.Data as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
@@ -576,9 +575,9 @@ addTeamMember zusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
+  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- Data.teamMembersForFanout tid
-  -- FUTUREWORK: We cannot enable legalhold on large teams right now
-  ensureNotTooLargeForLegalHold tid (length (memList ^. teamMembers) + 1)
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -591,8 +590,8 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersForFanout tid
-  -- FUTUREWORK: We cannot enable legalhold on large teams right now
-  ensureNotTooLargeForLegalHold tid (length (mems ^. teamMembers) + 1)
+  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
@@ -870,26 +869,27 @@ ensureNotTooLarge tid = do
 -- LegalHold off after activation.
 -- FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold :: TeamId -> Int -> Galley ()
-ensureNotTooLargeForLegalHold tid nMembersFanout = do
+ensureNotTooLargeForLegalHold tid teamSize = do
   whenM (isLegalHoldEnabledForTeam tid) $ do
-    unlessM (teamSizeNotTooLargeForLegalhold nMembersFanout) $ do
+    unlessM (teamSizeBelowLimit teamSize) $ do
       throwM tooManyTeamMembersOnTeamWithLegalhold
 
 ensureNotTooLargeToActivateLegalHold :: TeamId -> Galley ()
 ensureNotTooLargeToActivateLegalHold tid = do
-  mems <- teamMembersForFanout tid
-  unlessM (teamSizeNotTooLargeForLegalhold (length (mems ^. teamMembers))) $ do
+  (TeamSize teamSize) <- BrigTeam.getSize tid
+  unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $ do
     throwM cannotEnableLegalHoldServiceLargeTeam
 
-teamSizeNotTooLargeForLegalhold :: Int -> Galley Bool
-teamSizeNotTooLargeForLegalhold nMembersFanout = do
+teamSizeBelowLimit :: Int -> Galley Bool
+teamSizeBelowLimit teamSize = do
   limit <- fromIntegral . fromRange <$> fanoutLimit
-  let withinLimit = nMembersFanout <= limit
-  Log.info $ Log.msg (show (nMembersFanout, limit))
+  let withinLimit = teamSize <= limit
   view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure withinLimit
     FeatureLegalHoldDisabledByDefault -> pure withinLimit
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> pure True -- no limit, see 'ensureNotTooLargeForLegalHold'
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+      -- unlimited, see docs of 'ensureNotTooLargeForLegalHold'
+      pure True
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
 addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
@@ -982,8 +982,8 @@ canUserJoinTeam :: TeamId -> Galley ()
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
-    mems <- Data.teamMembersForFanout tid
-    ensureNotTooLargeForLegalHold tid (length (mems ^. teamMembers) + 1)
+    (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+    ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
 
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do
