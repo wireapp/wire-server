@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,6 +17,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module API.Teams.LegalHold
   ( tests,
@@ -111,6 +111,26 @@ onlyIfLhEnabled action = do
         "`FeatureLegalHoldWhitelistTeamsAndImplicitConsent` requires setting up a mock galley \
         \with `withLHWhitelist`; don't call `onlyIfLhEnabled` if you do that, that's redundant."
 
+onlyIfLhWhitelisted :: TestM () -> TestM ()
+onlyIfLhWhitelisted action = do
+  featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+  case featureLegalHold of
+    FeatureLegalHoldDisabledPermanently ->
+      liftIO $
+        hPutStrLn
+          stderr
+          "*** skipping test. This test only works if you manually adjust the server config files\
+          \(the 'withLHWhitelist' trick does not work because it does not allow \
+          \brig to talk to the dynamically spawned galley)."
+    FeatureLegalHoldDisabledByDefault ->
+      liftIO $
+        hPutStrLn
+          stderr
+          "*** skipping test. This test only works if you manually adjust the server config files\
+          \(the 'withLHWhitelist' trick does not work because it does not allow \
+          \brig to talk to the dynamically spawned galley)."
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> action
+
 tests :: IO TestSetup -> TestTree
 tests s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
@@ -132,7 +152,9 @@ tests s =
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
-      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      test s "POST /register - cannot add team members above fanout limit" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      -- test s "POST /register - Enable this to create a test team for next test" (testAddTeamUserTooLargeWithLegalholdWhitelisted Nothing),
+      -- test s "POST /register - can add team members above fanout limit when whitelisting is enabled" (testAddTeamUserTooLargeWithLegalholdWhitelisted (Just (read "86bd1ba6-6c29-4d3b-af54-579c5e9b1fa3", read "310b550d-3832-47cc-b6dc-50d979879985"))),
       test s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
@@ -642,7 +664,9 @@ testEnablePerTeamTooLarge :: TestM ()
 testEnablePerTeamTooLarge = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
-  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 1)
+  -- TODO: it is impossible in this test to create teams bigger than the fanout limit.
+  -- Change the +1 to anything else and look at the logs
+  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 5)
 
   status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   let statusValue = Public.tfwoStatus status
@@ -666,6 +690,44 @@ testAddTeamUserTooLargeWithLegalhold = do
   addUserToTeam' owner tid !!! do
     const 403 === statusCode
     const (Just "too-many-members-for-legalhold") === fmap Error.label . responseJsonMaybe
+
+-- | This test only works if you manually adjust the server config files (the 'withLHWhitelist' trick does not work because it does not allow brig to talk to the dynamically spawned galley).
+-- This test is weird: we can't use 'withLHWhitelist', since we need brig to call the galley with the changed settings; and we wan't even run it fully after updating the galley settings, but we need to add the team id of a team we create to the settings in between.
+--
+-- So the test consists of two parts: (1) create and populate a team and return owner id and team id; (2) take owner id and team id as arguments and run the test with galley restarted on the changed settings.
+--
+-- As a consequence, this test needs to be stay disabled in the automatic integration tests, but it can do its things with a little bit of manual work:
+--
+-- (a) run the first phase
+-- (b) change services/brig/brig.integration.yaml as follows
+-- -  setMaxTeamSize: 32
+-- +  setMaxTeamSize: 100000
+--     change services/galley/galley.integration.yaml as follows:
+-- @@ settings:
+-- -  maxTeamSize: 32
+-- +  maxTeamSize: 100000
+-- +  legalHoldTeamsWhitelist: [<team id generate in (1)>]
+-- +
+-- -    legalhold: disabled-by-default
+-- +    legalhold: whitelist-teams-and-implicit-consent
+-- (c) run the second phase with the arguemnts returned in the first phase.
+testAddTeamUserTooLargeWithLegalholdWhitelisted :: HasCallStack => Maybe (UserId, TeamId) -> TestM ()
+testAddTeamUserTooLargeWithLegalholdWhitelisted Nothing = do
+  o <- view tsGConf
+  (owner, tid) <- createBindingTeam
+  let fanoutLimit = fromIntegral @_ @Integer . fromRange $ Galley.currentFanoutLimit o
+  forM_ [2 .. fanoutLimit] $ \_n -> do
+    addUserToTeam' owner tid !!! do
+      const 201 === statusCode
+  error $
+    ( "**** testAddTeamUserTooLargeWithLegalholdWhitelisted. Created (owner, tid):  " <> show (owner, tid)
+        <> " Use these values to run the test."
+    )
+testAddTeamUserTooLargeWithLegalholdWhitelisted (Just (owner, tid)) = onlyIfLhWhitelisted $ do
+  replicateM_ 40 $ do
+    addUserToTeam' owner tid !!! do
+      const 201 === statusCode
+  ensureQueueEmpty
 
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do

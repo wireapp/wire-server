@@ -133,6 +133,7 @@ removeSettingsH (zusr ::: tid ::: req ::: _) = do
 
 removeSettings :: UserId -> TeamId -> Public.RemoveLegalHoldSettingsRequest -> Galley ()
 removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
+  assertNotWhitelisting
   assertLegalHoldEnabledForTeam tid
   zusrMembership <- Data.teamMember tid zusr
   -- let zothers = map (view userId) membs
@@ -142,6 +143,14 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
   removeSettings' tid
+  where
+    assertNotWhitelisting :: Galley ()
+    assertNotWhitelisting = do
+      view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+        FeatureLegalHoldDisabledPermanently -> pure ()
+        FeatureLegalHoldDisabledByDefault -> pure ()
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+          throwM legalHoldDisableUnimplemented
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
