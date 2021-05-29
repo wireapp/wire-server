@@ -171,42 +171,10 @@ tests s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
-                (testNoConsentBlockOne2OneConv False False False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
-                (testNoConsentBlockOne2OneConv False True False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv False True True False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, leave conn pending)"
-                (testNoConsentBlockOne2OneConv False True False True),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device, leave conn pending)"
-                (testNoConsentBlockOne2OneConv False True True True),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
-                (testNoConsentBlockOne2OneConv True False False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
-                (testNoConsentBlockOne2OneConv True True False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv True True True False),
-              test
-                s
-                "XXXXXX Pending/Sent connections revert to original state after consent"
-                testNoConsentBlockAndRestorePending,
+              testGroup "XXX no-consent" $
+                flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
+                  \args@(a, b, c, d) ->
+                    test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
               test
                 s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
@@ -1100,47 +1068,6 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         void doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
         postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
-
-testNoConsentBlockAndRestorePending :: HasCallStack => TestM ()
-testNoConsentBlockAndRestorePending = do
-  (legalholder :: UserId, tid) <- createBindingTeam
-  (peer :: UserId, _teamPeer) <- createBindingTeam
-  galley <- view tsGalley
-
-  let doEnableLH :: HasCallStack => TestM ClientId
-      doEnableLH = do
-        withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
-        withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
-        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
-        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-
-        getInternalClientsFull (UserSet $ Set.fromList [legalholder])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
-
-      doDisableLH :: HasCallStack => TestM ()
-      doDisableLH = do
-        -- remove (only) LH device again
-        withLHWhitelist tid (disableLegalHoldForUser' galley (Just defPassword) tid legalholder legalholder)
-          !!! testResponse 200 Nothing
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    postConnection legalholder peer !!! const 201 === statusCode
-    assertConnections legalholder [ConnectionStatus legalholder peer Conn.Sent]
-    assertConnections peer [ConnectionStatus peer legalholder Conn.Pending]
-
-    void doEnableLH
-    assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
-    assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
-
-    -- FUTUREWORK: @grantConsent teamPeer peer@ <- also test this
-    doDisableLH
-    assertConnections legalholder [ConnectionStatus legalholder peer Conn.Sent]
-    assertConnections peer [ConnectionStatus peer legalholder Conn.Pending]
 
 testNoConsentBlockGroupConv :: TestM ()
 testNoConsentBlockGroupConv = do
