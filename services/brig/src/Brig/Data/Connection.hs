@@ -23,6 +23,7 @@ module Brig.Data.Connection
     insertConnection,
     updateConnection,
     lookupConnection,
+    lookupRelationWithHistory,
     lookupConnections,
     lookupConnectionStatus,
     lookupContactList,
@@ -97,6 +98,17 @@ lookupConnection from to =
   liftM toUserConnection
     <$> retry x1 (query1 connectionSelect (params Quorum (from, to)))
 
+-- | 'lookupConnection' with more 'Relation' info.
+lookupRelationWithHistory ::
+  -- | User 'A'
+  UserId ->
+  -- | User 'B'
+  UserId ->
+  AppIO (Maybe RelationWithHistory)
+lookupRelationWithHistory from to =
+  liftM runIdentity
+    <$> retry x1 (query1 relationSelect (params Quorum (from, to)))
+
 -- | For a given user 'A', lookup his outgoing connections (A -> X) to other users.
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
 lookupConnections from start (fromRange -> size) =
@@ -157,6 +169,9 @@ connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left
 
 connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right = ?"
+
+relationSelect :: PrepQuery R (UserId, UserId) (Identity RelationWithHistory)
+relationSelect = "SELECT status FROM connection WHERE left = ? AND right = ?"
 
 connectionStatusSelect :: PrepQuery R ([UserId], [UserId]) (UserId, UserId, RelationWithHistory)
 connectionStatusSelect = "SELECT left, right, status FROM connection WHERE left IN ? AND right IN ?"

@@ -394,17 +394,38 @@ updateConnectionInternal = \case
         unblockDirected uconn uconnRev = do
           cnv :: Maybe Conv.Conversation <- lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
 
+          uconnRevRel :: RelationWithHistory <- relationWithHistory (ucFrom uconnRev) (ucTo uconnRev)
           uconnRev' :: UserConnection <- do
             newRelation <- case cnvType <$> cnv of
               Just RegularConv -> throwE (InvalidTransition (ucFrom uconn) Accepted) -- (impossible, connection conv is always 1:1)
               Just SelfConv -> throwE (InvalidTransition (ucFrom uconn) Accepted)
-              Just One2OneConv -> pure Accepted
-              Just ConnectConv -> pure Sent
+              Just One2OneConv -> pure AcceptedWithHistory
+              Just ConnectConv -> pure $ undoRelationHistory uconnRevRel
               Nothing -> throwE (InvalidTransition (ucFrom uconn) Accepted)
-            lift $ Data.updateConnection uconnRev ((error "TODO") newRelation)
+            lift $ Data.updateConnection uconnRev newRelation
 
           connEvent :: ConnectionEvent <- lift $ ConnectionUpdated uconnRev' (Just $ ucStatus uconnRev) <$> Data.lookupName (ucFrom uconn)
           lift $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent
+
+    relationWithHistory :: UserId -> UserId -> ExceptT ConnectionError AppIO RelationWithHistory
+    relationWithHistory a b = lift (Data.lookupRelationWithHistory a b) >>= tryJust (NotConnected a b)
+
+    undoRelationHistory :: RelationWithHistory -> RelationWithHistory
+    undoRelationHistory = \case
+      -- these cases are relevant.
+      MissingLegalholdConsentFromAccepted -> AcceptedWithHistory
+      MissingLegalholdConsentFromBlocked -> BlockedWithHistory
+      MissingLegalholdConsentFromPending -> PendingWithHistory
+      MissingLegalholdConsentFromIgnored -> IgnoredWithHistory
+      MissingLegalholdConsentFromSent -> SentWithHistory
+      MissingLegalholdConsentFromCancelled -> CancelledWithHistory
+      -- these cases should not be reachable, but if they are, this is probably what is expected from this function.
+      AcceptedWithHistory -> AcceptedWithHistory
+      BlockedWithHistory -> BlockedWithHistory
+      PendingWithHistory -> PendingWithHistory
+      IgnoredWithHistory -> IgnoredWithHistory
+      SentWithHistory -> SentWithHistory
+      CancelledWithHistory -> CancelledWithHistory
 
 autoConnect ::
   UserId ->
