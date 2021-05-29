@@ -55,8 +55,8 @@ connectUsers from to = do
     setType BatchLogged
     setConsistency Quorum
     forM_ to $ \(u, c) -> do
-      addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
-      addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
+      addPrepQuery connectionInsert (from, u, AcceptedWithHistory, now, Nothing, c)
+      addPrepQuery connectionInsert (u, from, AcceptedWithHistory, now, Nothing, c)
   return . concat . (`map` to) $ \(u, c) ->
     [ UserConnection from u Accepted now Nothing (Just c),
       UserConnection u from Accepted now Nothing (Just c)
@@ -82,7 +82,7 @@ updateConnection c@UserConnection {..} status = do
   retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
   return $
     c
-      { ucStatus = status,
+      { ucStatus = relationDropHistory status,
         ucLastUpdate = now
       }
 
@@ -116,7 +116,7 @@ lookupConnectionStatus from to =
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
 lookupContactList u =
-  fst <$$> (filter ((== Accepted) . snd) <$> lookupContactListWithRelation u)
+  fst <$$> (filter ((== AcceptedWithHistory) . snd) <$> lookupContactListWithRelation u)
 
 -- | For a given user 'A', lookup the list of users that form his contact list,
 -- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
