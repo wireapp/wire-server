@@ -531,7 +531,7 @@ handleGroupConvPolicyConflicts uid =
     getAdmins :: Member -> [(OtherMember, UserLegalHoldStatus)] -> [(UserId, ConsentGiven)]
     getAdmins mem oths =
       [(memId mem, ConsentGiven) | memConvRoleName mem == roleNameWireAdmin]
-        <> fmap (bimap memberUnqualId consentGiven) oths
+        <> fmap (bimap memberUnqualId consentGiven) (filter ((== roleNameWireAdmin) . omConvRoleName . fst) oths)
 
     memberUnqualId :: OtherMember -> UserId
     memberUnqualId = qUnqualified . omQualifiedId
