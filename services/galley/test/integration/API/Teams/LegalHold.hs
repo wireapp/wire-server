@@ -1011,8 +1011,6 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
         forM_ [legalholderWs, peerWs] $ \ws -> do
-          -- (if this fails, it may be because there are other messages in the queue, but i
-          -- think we implemented this in a way that doens't trip over wrong orderings.)
           assertNotification ws $
             \case
               (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
@@ -1052,6 +1050,13 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             [ ConnectionStatus peer legalholder $
                 if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
+
+        forM_ [legalholderWs, peerWs] $ \ws -> do
+          assertNotification ws $
+            \case
+              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
+                assertBool "" (rel `elem` [Conn.Sent, Conn.Pending, Conn.Accepted])
+              _ -> assertBool "wrong event type" False
 
         -- conversation reappears. peer can send message to legalholder again
         for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
