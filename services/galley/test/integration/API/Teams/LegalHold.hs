@@ -945,6 +945,8 @@ testNoConsentBlockGroupConv = do
   WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     ensureQueueEmpty
 
+    postConnection legalholder peer !!! const 201 === statusCode
+
     -- Regular conversation:
     convId <- createTeamConv legalholder tid [peer] (Just "group chat with external peer") Nothing Nothing
     checkConvCreateEvent convId legalholderWs
@@ -953,6 +955,8 @@ testNoConsentBlockGroupConv = do
     mapM_ (assertConvMemberWithRole roleNameWireMember convId) [peer]
 
     void $ doEnableLH
+
+    mapConcurrently_ (checkTeamMemberLeave tid peer) [legalholder, peer]
 
 -- TODO: assert that peer is no longer in group
 
