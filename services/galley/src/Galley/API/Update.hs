@@ -580,9 +580,9 @@ updateOtherMember zusr zcon cid victim update = do
 
 removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
-  handleUpdateResult <$> removeMember zusr zcon cid victim
+  handleUpdateResult <$> removeMember zusr (Just zcon) cid victim
 
-removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
+removeMember :: UserId -> Maybe ConnId -> ConvId -> UserId -> Galley UpdateResult
 removeMember zusr zcon convId victim = do
   localDomain <- viewFederationDomain
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
@@ -598,7 +598,7 @@ removeMember zusr zcon convId victim = do
       event <- Data.removeLocalMembers localDomain conv zusr (singleton victim)
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
       for_ (newPush ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
-        push1 $ p & pushConn ?~ zcon
+        push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
       pure $ Updated event
     else pure Unchanged
