@@ -94,8 +94,8 @@ ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnections [u] uids (Just Accepted)
-      `concurrently` getConnections uids [u] (Just Accepted)
+    getConnections [u] (Just uids) (Just Accepted)
+      `concurrently` getConnections uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throwM notConnected
 

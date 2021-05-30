@@ -18,7 +18,7 @@
 
 ## Release Notes
 
-Deploy brig before galley (#1526)
+Deploy brig before galley (#1526, #1549)
 
 ## Features
 

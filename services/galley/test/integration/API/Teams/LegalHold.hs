@@ -171,38 +171,10 @@ tests s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
-                (testNoConsentBlockOne2OneConv False False False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
-                (testNoConsentBlockOne2OneConv False True False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv False True True False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, leave conn pending)"
-                (testNoConsentBlockOne2OneConv False True False True),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device, leave conn pending)"
-                (testNoConsentBlockOne2OneConv False True True True),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
-                (testNoConsentBlockOne2OneConv True False False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
-                (testNoConsentBlockOne2OneConv True True False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv True True True False),
+              testGroup "no-consent" $
+                flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
+                  \args@(a, b, c, d) ->
+                    test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
               test
                 s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
@@ -1039,8 +1011,6 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
         forM_ [legalholderWs, peerWs] $ \ws -> do
-          -- (if this fails, it may be because there are other messages in the queue, but i
-          -- think we implemented this in a way that doens't trip over wrong orderings.)
           assertNotification ws $
             \case
               (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
@@ -1080,6 +1050,13 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             [ ConnectionStatus peer legalholder $
                 if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
+
+        forM_ [legalholderWs, peerWs] $ \ws -> do
+          assertNotification ws $
+            \case
+              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
+                assertBool "" (rel `elem` [Conn.Sent, Conn.Pending, Conn.Accepted])
+              _ -> assertBool "wrong event type" False
 
         -- conversation reappears. peer can send message to legalholder again
         for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
