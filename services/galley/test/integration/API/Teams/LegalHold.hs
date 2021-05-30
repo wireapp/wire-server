@@ -26,7 +26,7 @@ where
 
 import API.SQS
 import qualified API.SQS as SQS
-import API.Util
+import API.Util hiding (timeout)
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import qualified Bilge.TestSession as BilgeTest
@@ -87,6 +87,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
+import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import qualified Wire.API.Message as Msg
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
@@ -149,7 +150,7 @@ testsPublic s =
                     test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
               test
                 s
-                "If LH is activated for other user in group conv, this user gets removed with helpful message"
+                "XXXXXX If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
               test s "bench hack" testBenchHack,
               test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
@@ -917,11 +918,43 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
         postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
 
-testNoConsentBlockGroupConv :: TestM ()
+testNoConsentBlockGroupConv :: HasCallStack => TestM ()
 testNoConsentBlockGroupConv = do
-  -- "If LH is activated for other user in group conv, this user gets removed with helpful message"
-  -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-428
-  pure ()
+  -- FUTUREWORK: maybe regular user for legalholder?
+  (legalholder :: UserId, tid) <- createBindingTeam
+  (peer :: UserId, _teamPeer) <- createBindingTeam
+  galley <- view tsGalley
+
+  let doEnableLH :: HasCallStack => TestM ClientId
+      doEnableLH = do
+        -- register & (possibly) approve LH device for legalholder
+        withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
+        withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
+        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+        getInternalClientsFull (UserSet $ Set.fromList [legalholder])
+          <&> userClientsFull
+          <&> Map.elems
+          <&> Set.unions
+          <&> Set.toList
+          <&> (\[x] -> x)
+          <&> clientId
+
+  cannon <- view tsCannon
+
+  WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    ensureQueueEmpty
+
+    -- Regular conversation:
+    convId <- createTeamConv legalholder tid [peer] (Just "group chat with external peer") Nothing Nothing
+    checkConvCreateEvent convId legalholderWs
+    checkConvCreateEvent convId peerWs
+    mapM_ (assertConvMemberWithRole roleNameWireAdmin convId) [legalholder]
+    mapM_ (assertConvMemberWithRole roleNameWireMember convId) [peer]
+
+    void $ doEnableLH
+
+-- TODO: assert that peer is no longer in group
 
 data TestClaimKeys
   = TCKConsentMissing
