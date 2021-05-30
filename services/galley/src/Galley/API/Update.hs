@@ -75,6 +75,7 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLega
 import Data.List.Extra (nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
+import Data.Misc (FutureWork (..))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -1000,7 +1001,7 @@ withValidOtrRecipients protectee clt cnv rcps val now go = do
     Data.deleteConversation cnv
     throwM convNotFound
   -- FUTUREWORK(federation): also handle remote members
-  localMembers <- Data.members cnv
+  (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
   let localMemberIds = memId <$> localMembers
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
@@ -1128,7 +1129,8 @@ guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClient
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
-    FeatureLegalHoldDisabledPermanently -> pure () -- FUTUREWORK: if federation is enabled, still run the guard!
+    FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
+      FutureWork () -> pure () -- FUTUREWORK: if federation is enabled, we still need to run the guard!
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
 

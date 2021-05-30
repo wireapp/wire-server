@@ -48,8 +48,6 @@ instance ToSchema CountryCode
 
 -- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
 
--- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
-
 -- | The options to use for schema generation. Must match the options used
 -- for 'ToJSON' instances elsewhere.
 samlSchemaOptions :: SchemaOptions
