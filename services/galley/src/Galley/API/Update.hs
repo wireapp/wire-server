@@ -64,7 +64,7 @@ where
 
 import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
-import Control.Arrow ((&&&))
+import Control.Arrow ((&&&), (>>>))
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
@@ -72,13 +72,14 @@ import Control.Monad.State
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
+import Data.Foldable.Extra (anyM)
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
-import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
-import Data.List.Extra (nubOrd, nubOrdOn)
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.List.Extra (chunksOf, nubOrd, nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
-import Data.Misc (FutureWork (..))
+import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -530,6 +531,9 @@ addMembers zusr zcon convId invite = do
   ensureConvRoleNotElevated self (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
   checkRemoteUsersExist newRemotes
+  checkLHPolicyConflicts conv newLocals
+  checkRemotes newRemotes
+  checkLHPolicyConflictsRemote (FutureWork newRemotes)
   addToConversation mems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
@@ -546,6 +550,58 @@ addMembers zusr zcon convId invite = do
     checkLocals conv Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
       ensureConnectedOrSameTeam zusr newUsers
+
+    checkLHPolicyConflicts :: Data.Conversation -> [UserId] -> Galley ()
+    checkLHPolicyConflicts conv newUsers =
+      whenM (anyLHActivatedLocalUsers (fmap memId . Data.convMembers $ conv)) $ do
+        whenM (anyM consentMissing newUsers) $ do
+          throwM missingLegalholdConsent
+
+    consentMissing :: UserId -> Galley Bool
+    consentMissing = error "TODO"
+
+    anyLHActivatedLocalUsers :: [UserId] -> Galley Bool
+    anyLHActivatedLocalUsers uids =
+      view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+        FeatureLegalHoldDisabledPermanently -> pure False
+        FeatureLegalHoldDisabledByDefault -> do
+          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+            teamsOfUsers <- Data.usersTeams uidsPage
+            anyM (getLHStatus teamsOfUsers >=> (userLHEnabled >>> pure)) uidsPage
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+          mbTeamIds <- view (options . optSettings . setLegalHoldTeamsWhitelist)
+          case mbTeamIds of
+            Nothing -> pure False -- impossible (see options validation)
+            Just whitelistedTeams ->
+              flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+                teamsPage <- Map.elems <$> Data.usersTeams uidsPage
+                pure $ any (`elem` teamsPage) whitelistedTeams
+
+    getLHStatus = error "TODO: move from Galley.API.Legalhold to a utils module to prevent import cycles"
+    userLHEnabled = error "TODO: move from Galley.API.Legalhold to a utils module to prevent import cycles"
+
+    checkLHPolicyConflictsRemote :: futurework 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
+    checkLHPolicyConflictsRemote = error "TODO"
+
+    checkRemotes :: [Remote UserId] -> Galley ()
+    checkRemotes =
+      traverse_ (uncurry checkRemotesFor)
+        . Map.assocs
+        . partitionQualified
+        . map unTagged
+
+    checkRemotesFor :: Domain -> [UserId] -> Galley ()
+    checkRemotesFor domain uids = do
+      let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
+      users <-
+        runExceptT (executeFederated domain rpc)
+          >>= either (throwM . federationErrorToWai) pure
+      let uids' =
+            map
+              (qUnqualified . User.profileQualifiedId)
+              (filter (not . User.profileDeleted) users)
+      unless (Set.fromList uids == Set.fromList uids') $
+        throwM unknownRemoteUser
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
