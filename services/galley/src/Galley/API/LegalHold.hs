@@ -488,7 +488,7 @@ handleGroupConvPolicyConflicts uid =
         let admins = getAdmins (cmSelf . cnvMembers $ conv) membersAndLHStatus
         if all ((== ConsentGiven) . snd) admins
           then do
-            for_ (filter ((== UserLegalHoldNoConsent) . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
+            for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
               removeMember (memberUnqualId memberNoConsent) Nothing (cnvId conv) (memberUnqualId memberNoConsent)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) ->
