@@ -46,6 +46,7 @@ import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Galley.API.Error
+import Galley.API.Update (removeMember)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data

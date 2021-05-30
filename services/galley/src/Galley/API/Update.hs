@@ -38,6 +38,7 @@ module Galley.API.Update
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
+    removeMember,
 
     -- * Servant
     UpdateResponses,
@@ -85,7 +86,6 @@ import Data.Tagged (unTagged)
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
-import qualified Galley.API.Teams as Teams
 import Galley.API.Util
 import Galley.App
 import Galley.Data (teamMember)
@@ -1024,7 +1024,7 @@ withValidOtrBroadcastRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
+withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
@@ -1284,3 +1284,12 @@ guardLegalholdPolicyConflictsUid self otherClients = do
           -- We add this check here as an extra failsafe.
           Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
           throwM missingLegalholdConsent
+
+-- Duplicate from 'Galley.API.Team' to break import cycles
+withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
+withBindingTeam zusr callback = do
+  tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
+  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+  case binding of
+    Binding -> callback tid
+    NonBinding -> throwM nonBindingTeam
