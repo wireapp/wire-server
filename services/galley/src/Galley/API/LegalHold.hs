@@ -42,7 +42,11 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc
+import Data.Proxy (Proxy (Proxy))
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import Data.Range (toRange)
 import Galley.API.Error
+import Galley.API.Query (iterateConversations)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -61,7 +65,10 @@ import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..), cmOthers)
+import Wire.API.Conversation.Member (Member)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import qualified Wire.API.Team.LegalHold as Public
 
 assertLegalHoldEnabledForTeam :: TeamId -> Galley ()
@@ -404,13 +411,15 @@ changeLegalholdStatus tid uid old new = do
   where
     update = LegalHoldData.setUserLegalHoldStatus tid uid new
     removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
-    addblocks = blockConnectionsFrom1on1s uid
+    addblocks = do
+      blockNonConsentingConnections uid
+      removeNonConsentingFromGroupConvs uid
     noop = pure ()
     illegal = throwM userLegalHoldIllegalOperation
 
 -- FUTUREWORK: make this async?
-blockConnectionsFrom1on1s :: UserId -> Galley ()
-blockConnectionsFrom1on1s uid = do
+blockNonConsentingConnections :: UserId -> Galley ()
+blockNonConsentingConnections uid = do
   conns <- getConnections [uid] Nothing Nothing
   errmsgs <- do
     conflicts <- mconcat <$> findConflicts conns
@@ -427,7 +436,7 @@ blockConnectionsFrom1on1s uid = do
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- Data.usersTeams others
-        filterM (shouldBlock teamsOfUsers) others
+        filterM (fmap (== ConsentNotGiven) . checkConsent teamsOfUsers) others
 
     blockConflicts :: UserId -> [UserId] -> Galley [String]
     blockConflicts _ [] = pure []
@@ -435,11 +444,50 @@ blockConnectionsFrom1on1s uid = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-    shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
-    shouldBlock teamsOfUsers other =
-      (== UserLegalHoldNoConsent)
-        <$> case Map.lookup other teamsOfUsers of
-          Nothing -> pure defUserLegalHoldStatus
-          Just team -> do
-            mMember <- Data.teamMember team other
-            pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+checkConsent :: Map UserId TeamId -> UserId -> Galley ConsentGiven
+checkConsent teamsOfUsers other = do
+  lhStatus <- case Map.lookup other teamsOfUsers of
+    Nothing -> pure defUserLegalHoldStatus
+    Just team -> do
+      mMember <- Data.teamMember team other
+      pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+  pure $
+    if lhStatus == UserLegalHoldNoConsent
+      then ConsentNotGiven
+      else ConsentGiven
+
+data ConsentGiven = ConsentGiven | ConsentNotGiven
+  deriving (Eq, Ord, Show)
+
+removeNonConsentingFromGroupConvs :: UserId -> Galley ()
+removeNonConsentingFromGroupConvs uid =
+  -- Assumption: uid has given consent
+  void $
+    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+      for_ (filter ((== RegularConv) . cnvType) convs) $ \conv -> do
+        let qualifiedMembers :: [Qualified OtherMember] = concatMap (fmap qualifyMember . cmOthers . cnvMembers) convs
+        ownDomain <- viewFederationDomain
+        let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localOtherMembers) =
+              partitionRemoteOrLocalIds ownDomain qualifiedMembers
+        membersAndConsent <-
+          mconcat
+            <$> ( for (chunksOf 32 localOtherMembers) $ \oMems -> do
+                    teamsOfUsers <- Data.usersTeams (qUnqualified . omQualifiedId <$> oMems)
+                    for oMems $ \mem -> do
+                      (mem,) <$> checkConsent teamsOfUsers (qUnqualified . omQualifiedId $ mem)
+                )
+
+        let admins = getAdmins (cmSelf . cnvMembers $ conv) membersAndConsent
+        if any ((== ConsentNotGiven) . snd) admins
+          then do
+            -- Wenn mind ein Admin non-consenting => kick all legholder users
+            pure ()
+          else do
+            -- Wenn alle Admins consenting sind => kick all non-censenting
+            pure ()
+  where
+    qualifyMember :: OtherMember -> Qualified OtherMember
+    qualifyMember mem = Qualified mem (qDomain . omQualifiedId $ mem)
+
+    getAdmins :: Member -> [(OtherMember, ConsentGiven)] -> [(UserId, ConsentGiven)]
+    getAdmins = error "TODO"
