@@ -38,6 +38,7 @@ module Galley.API.Update
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
+    removeMember,
 
     -- * Servant
     UpdateResponses,
@@ -82,7 +83,6 @@ import Data.Tagged (unTagged)
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
-import qualified Galley.API.Teams as Teams
 import Galley.API.Util
 import Galley.App
 import Galley.Data (teamMember)
@@ -580,9 +580,9 @@ updateOtherMember zusr zcon cid victim update = do
 
 removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
-  handleUpdateResult <$> removeMember zusr zcon cid victim
+  handleUpdateResult <$> removeMember zusr (Just zcon) cid victim
 
-removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
+removeMember :: UserId -> Maybe ConnId -> ConvId -> UserId -> Galley UpdateResult
 removeMember zusr zcon convId victim = do
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
   conv <- Data.conversation convId >>= ifNothing convNotFound
@@ -597,7 +597,7 @@ removeMember zusr zcon convId victim = do
       event <- Data.removeLocalMembers conv zusr (singleton victim)
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
       for_ (newPush ListComplete (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
-        push1 $ p & pushConn ?~ zcon
+        push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
       pure $ Updated event
     else pure Unchanged
@@ -949,7 +949,7 @@ withValidOtrBroadcastRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
+withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
@@ -1206,3 +1206,12 @@ guardLegalholdPolicyConflictsUid self otherClients = do
           -- We add this check here as an extra failsafe.
           Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
           throwM missingLegalholdConsent
+
+-- Duplicate from 'Galley.API.Team' to break import cycles
+withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
+withBindingTeam zusr callback = do
+  tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
+  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+  case binding of
+    Binding -> callback tid
+    NonBinding -> throwM nonBindingTeam
