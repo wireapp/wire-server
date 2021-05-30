@@ -148,10 +148,8 @@ testsPublic s =
                 flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
                   \args@(a, b, c, d) ->
                     test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
-              test
-                s
-                "XXXXXX If LH is activated for other user in group conv, this user gets removed with helpful message"
-                testNoConsentBlockGroupConv,
+              testGroup "XXXXXX If LH is activated for other user in group conv, this user gets removed with helpful message" $
+                [a | a <- [minBound ..]] <&> \whoIsAdmin -> test s ("test case " <> show whoIsAdmin) (testNoConsentRemoveFromGroupConv whoIsAdmin),
               test s "bench hack" testBenchHack,
               test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
               test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
@@ -918,27 +916,26 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
         postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
 
-testNoConsentBlockGroupConv :: HasCallStack => TestM ()
-testNoConsentBlockGroupConv = do
+data GroupConvAdmin
+  = LegalholderIsAdmin
+  | PeerIsAdmin
+  | BothAreAdmins
+  deriving (Show, Eq, Ord, Bounded, Enum)
+
+testNoConsentRemoveFromGroupConv :: GroupConvAdmin -> HasCallStack => TestM ()
+testNoConsentRemoveFromGroupConv whoIsAdmin = do
   -- FUTUREWORK: maybe regular user for legalholder?
   (legalholder :: UserId, tid) <- createBindingTeam
-  (peer :: UserId, _teamPeer) <- createBindingTeam
+  (peer :: UserId, teamPeer) <- createBindingTeam
   galley <- view tsGalley
 
-  let doEnableLH :: HasCallStack => TestM ClientId
-      doEnableLH = do
+  let enableLHForLegalholder :: HasCallStack => TestM ()
+      enableLHForLegalholder = do
         -- register & (possibly) approve LH device for legalholder
         withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
         withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [legalholder])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
 
   cannon <- view tsCannon
 
@@ -946,19 +943,38 @@ testNoConsentBlockGroupConv = do
     ensureQueueEmpty
 
     postConnection legalholder peer !!! const 201 === statusCode
+    void $ putConnection peer legalholder Conn.Accepted <!! const 200 === statusCode
 
-    -- Regular conversation:
-    convId <- createTeamConv legalholder tid [peer] (Just "group chat with external peer") Nothing Nothing
+    convId <- do
+      let (inviter, tidInviter, invitee, inviteeRole) =
+            case whoIsAdmin of
+              LegalholderIsAdmin -> (legalholder, tid, peer, roleNameWireMember)
+              PeerIsAdmin -> (peer, teamPeer, legalholder, roleNameWireMember)
+              BothAreAdmins -> (legalholder, tid, peer, roleNameWireAdmin)
+
+      convId <- createTeamConvWithRole inviter tidInviter [invitee] (Just "group chat with external peer") Nothing Nothing inviteeRole
+      mapM_ (assertConvMemberWithRole roleNameWireAdmin convId) ([inviter] <> [invitee | whoIsAdmin == BothAreAdmins])
+      mapM_ (assertConvMemberWithRole roleNameWireMember convId) [invitee | whoIsAdmin /= BothAreAdmins]
+      pure convId
+
     checkConvCreateEvent convId legalholderWs
     checkConvCreateEvent convId peerWs
-    mapM_ (assertConvMemberWithRole roleNameWireAdmin convId) [legalholder]
-    mapM_ (assertConvMemberWithRole roleNameWireMember convId) [peer]
 
-    void $ doEnableLH
+    assertConvMember legalholder convId
+    assertConvMember peer convId
 
-    mapConcurrently_ (checkTeamMemberLeave tid peer) [legalholder, peer]
+    void enableLHForLegalholder
 
--- TODO: assert that peer is no longer in group
+    case whoIsAdmin of
+      LegalholderIsAdmin -> do
+        assertConvMember legalholder convId
+        assertNotConvMember peer convId
+      PeerIsAdmin -> do
+        assertConvMember peer convId
+        assertNotConvMember legalholder convId
+      BothAreAdmins -> do
+        assertConvMember peer convId
+        assertNotConvMember legalholder convId
 
 data TestClaimKeys
   = TCKConsentMissing
