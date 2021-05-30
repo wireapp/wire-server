@@ -413,7 +413,7 @@ changeLegalholdStatus tid uid old new = do
     removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
     addblocks = do
       blockNonConsentingConnections uid
-      removeNonConsentingFromGroupConvs uid
+      handleGroupConvPolicyConflicts uid
     noop = pure ()
     illegal = throwM userLegalHoldIllegalOperation
 
@@ -459,8 +459,8 @@ checkConsent teamsOfUsers other = do
 data ConsentGiven = ConsentGiven | ConsentNotGiven
   deriving (Eq, Ord, Show)
 
-removeNonConsentingFromGroupConvs :: UserId -> Galley ()
-removeNonConsentingFromGroupConvs uid =
+handleGroupConvPolicyConflicts :: UserId -> Galley ()
+handleGroupConvPolicyConflicts uid =
   -- Assumption: uid has given consent
   void $
     iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
