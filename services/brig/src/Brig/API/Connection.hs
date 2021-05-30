@@ -393,6 +393,7 @@ updateConnectionInternal = \case
 
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ()
         unblockDirected uconn uconnRev = do
+          void . lift . for (ucConvId uconn) $ Intra.unblockConv (ucFrom uconn) Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory (ucFrom uconnRev) (ucTo uconnRev)
           uconnRev' <- lift $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
           connEvent :: ConnectionEvent <- lift $ ConnectionUpdated uconnRev' (Just $ ucStatus uconnRev) <$> Data.lookupName (ucFrom uconn)
