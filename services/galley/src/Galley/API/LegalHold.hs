@@ -433,7 +433,7 @@ blockNonConsentingConnections uid = do
   where
     findConflicts :: [ConnectionStatus] -> Galley [[UserId]]
     findConflicts conns = do
-      let localUids = csTo <$> conns
+      let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteUids, localUids) = (undefined, csTo <$> conns)
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- Data.usersTeams others
