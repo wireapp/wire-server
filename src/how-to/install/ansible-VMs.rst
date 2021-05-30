@@ -15,7 +15,7 @@ Assumptions
 -----------
 
 - A bare-metal setup (no cloud provider)
-- All machines run ubuntu 16.04 or ubuntu 18.04
+- All machines run ubuntu 18.04
 - All machines have static IP addresses
 - Time on all machines is being kept in sync
 - You have the following virtual machines:
