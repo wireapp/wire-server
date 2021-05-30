@@ -1001,7 +1001,7 @@ withValidOtrRecipients protectee clt cnv rcps val now go = do
     Data.deleteConversation cnv
     throwM convNotFound
   -- FUTUREWORK(federation): also handle remote members
-  (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined, Data.members cnv)
+  (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
   let localMemberIds = memId <$> localMembers
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
