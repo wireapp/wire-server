@@ -95,7 +95,6 @@ modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
   Doc.property "name" Doc.string' $
     Doc.description "User name"
 
--- FUTUREWORK: use @Range 1 128 Text@ and deriving this instance.
 instance ToSchema Name where
   schema = Name <$> fromName .= untypedRangedSchema 1 128 schema
 
