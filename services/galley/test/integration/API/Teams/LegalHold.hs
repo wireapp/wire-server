@@ -1772,6 +1772,7 @@ assertMatchChan c match = go []
               Nothing -> go (n : buf)
         Nothing -> do
           refill buf
+          error "Timeout"
 
 getLHWhitelistedTeams :: HasCallStack => TestM ResponseLBS
 getLHWhitelistedTeams = do
