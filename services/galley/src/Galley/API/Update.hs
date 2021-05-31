@@ -620,17 +620,21 @@ removeMember zusr zcon convId victim = do
 data OtrResult
   = OtrSent !Public.ClientMismatch
   | OtrMissingRecipients !Public.ClientMismatch
+  | OtrUnknownClient !GalleyAPI.UnknownClient
+  | OtrConversationNotFound !GalleyAPI.ConversationNotFound
 
-handleOtrResult :: OtrResult -> Response
+handleOtrResult :: OtrResult -> Galley Response
 handleOtrResult = \case
-  OtrSent m -> json m & setStatus status201
-  OtrMissingRecipients m -> json m & setStatus status412
+  OtrSent m -> pure $ json m & setStatus status201
+  OtrMissingRecipients m -> pure $ json m & setStatus status412
+  OtrUnknownClient _ -> throwM unknownClient
+  OtrConversationNotFound _ -> throwM convNotFound
 
 postBotMessageH :: BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   message <- fromJsonBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postBotMessage zbot zcnv val' message
+  handleOtrResult =<< postBotMessage zbot zcnv val' message
 
 data LegalholdProtectee'
   = ProtectedUser' UserId
@@ -653,7 +657,7 @@ postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val' message
+  handleOtrResult =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val' message
 
 postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe GalleyAPI.IgnoreMissing -> Maybe GalleyAPI.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
@@ -664,6 +668,8 @@ postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
     translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
     translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
     translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
+    translateToServant (OtrUnknownClient e) = Servant.respond e
+    translateToServant (OtrConversationNotFound e) = Servant.respond e
 
     resolveQueryMissingOptions :: Maybe GalleyAPI.IgnoreMissing -> Maybe GalleyAPI.ReportMissing -> Public.OtrFilterMissing
     resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
@@ -676,13 +682,13 @@ postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Requ
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
+  handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage -> Galley Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   message <- fromJsonBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
+  handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast :: UserId -> ConnId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postOtrBroadcast zusr zcon val message =
@@ -1006,18 +1012,20 @@ withValidOtrRecipients ::
   Galley OtrResult
 withValidOtrRecipients protectee clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
-  unless alive $ do
-    Data.deleteConversation cnv
-    throwM convNotFound
-  -- FUTUREWORK(federation): also handle remote members
-  (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
-  let localMemberIds = memId <$> localMembers
-  isInternal <- view $ options . optSettings . setIntraListing
-  clts <-
-    if isInternal
-      then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-      else Data.lookupClients localMemberIds
-  handleOtrResponse protectee clt rcps localMembers clts val now go
+  if not alive
+    then do
+      Data.deleteConversation cnv
+      pure $ OtrConversationNotFound GalleyAPI.convNotFound
+    else do
+      -- FUTUREWORK(federation): also handle remote members
+      (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
+      let localMemberIds = memId <$> localMembers
+      isInternal <- view $ options . optSettings . setIntraListing
+      clts <-
+        if isInternal
+          then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
+          else Data.lookupClients localMemberIds
+      handleOtrResponse protectee clt rcps localMembers clts val now go
 
 handleOtrResponse ::
   -- | Proposed sender (user)
@@ -1042,8 +1050,8 @@ handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipi
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
     pure (OtrMissingRecipients m)
-  InvalidOtrSenderUser -> throwM convNotFound
-  InvalidOtrSenderClient -> throwM unknownClient
+  InvalidOtrSenderUser -> pure $ OtrConversationNotFound GalleyAPI.convNotFound
+  InvalidOtrSenderClient -> pure $ OtrUnknownClient GalleyAPI.unknownClient
 
 -- | Check OTR sender and recipients for validity and completeness
 -- against a given list of valid members and clients, optionally
