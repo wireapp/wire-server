@@ -87,7 +87,8 @@ servantSitemap =
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
-        GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation
+        GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
+        GalleyAPI.postOtrMessage = Update.postOtrMessage
       }
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -766,45 +767,6 @@ sitemap = do
     response 204 "No change" end
     errorResponse Error.convNotFound
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - OtrMessageAdd event to recipients
-  post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. def Public.OtrReportAllMissing filterMissing
-      .&. jsonRequest @Public.NewOtrMessage
-  document "POST" "postOtrMessage" $ do
-    summary "Post an encrypted message to a conversation (accepts JSON)"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Query "ignore_missing" bool' $ do
-      description
-        "Force message delivery even when clients are missing. \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is allowed to \
-        \have missing clients."
-      optional
-    parameter Query "report_missing" bool' $ do
-      description
-        "Don't allow message delivery when clients are missing \
-        \('ignore_missing' takes precedence when present). \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is forbidden from \
-        \having missing clients. \
-        \To support large lists of user IDs exceeding the allowed \
-        \URL length, you can also put this list in the body, in \
-        \the optional field 'report_missing'.  That body field takes \
-        \precedence over both query params."
-      optional
-    body (ref Public.modelNewOtrMessage) $
-      description "JSON body"
-    returns (ref Public.modelClientMismatch)
-    response 201 "Message posted" end
-    response 412 "Missing clients" end
-    errorResponse Error.convNotFound
-    errorResponse Error.unknownClient
 
   -- This endpoint can lead to the following events being sent:
   -- - OtrMessageAdd event to recipients

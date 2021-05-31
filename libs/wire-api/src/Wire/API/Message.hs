@@ -42,11 +42,12 @@ module Wire.API.Message
   )
 where
 
-import Data.Aeson
+import qualified Data.Aeson as A
 import Data.Id
 import Data.Json.Util
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Time
 import Imports
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.User.Client (UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
@@ -69,6 +70,7 @@ data NewOtrMessage = NewOtrMessage
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewOtrMessage)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOtrMessage)
 
 modelNewOtrMessage :: Doc.Model
 modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
@@ -95,28 +97,17 @@ modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
     Doc.description "List of user IDs"
     Doc.optional
 
-instance ToJSON NewOtrMessage where
-  toJSON otr =
-    object $
-      "sender" .= newOtrSender otr
-        # "recipients" .= newOtrRecipients otr
-        # "native_push" .= newOtrNativePush otr
-        # "transient" .= newOtrTransient otr
-        # "native_priority" .= newOtrNativePriority otr
-        # "data" .= newOtrData otr
-        # "report_missing" .= newOtrReportMissing otr
-        # []
-
-instance FromJSON NewOtrMessage where
-  parseJSON = withObject "new-otr-message" $ \o ->
-    NewOtrMessage
-      <$> o .: "sender"
-      <*> o .: "recipients"
-      <*> o .:? "native_push" .!= True
-      <*> o .:? "transient" .!= False
-      <*> o .:? "native_priority"
-      <*> o .:? "data"
-      <*> o .:? "report_missing"
+instance ToSchema NewOtrMessage where
+  schema =
+    object "new-otr-message" $
+      NewOtrMessage
+        <$> newOtrSender .= field "sender" schema
+        <*> newOtrRecipients .= field "recipients" schema
+        <*> newOtrNativePush .= (field "native_push" schema <|> pure True)
+        <*> newOtrTransient .= (field "transient" schema <|> pure False)
+        <*> newOtrNativePriority .= opt (field "native_priority" schema)
+        <*> newOtrData .= opt (field "data" schema)
+        <*> newOtrReportMissing .= opt (field "report_missing" (array schema))
 
 --------------------------------------------------------------------------------
 -- Priority
@@ -134,6 +125,7 @@ instance FromJSON NewOtrMessage where
 data Priority = LowPriority | HighPriority
   deriving stock (Eq, Show, Ord, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform Priority)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema Priority
 
 typePriority :: Doc.DataType
 typePriority =
@@ -143,15 +135,13 @@ typePriority =
         "high"
       ]
 
-instance ToJSON Priority where
-  toJSON LowPriority = String "low"
-  toJSON HighPriority = String "high"
-
-instance FromJSON Priority where
-  parseJSON = withText "Priority" $ \case
-    "low" -> pure LowPriority
-    "high" -> pure HighPriority
-    x -> fail $ "Invalid push priority: " ++ show x
+instance ToSchema Priority where
+  schema =
+    enum @Text "Priority" $
+      mconcat
+        [ element "low" LowPriority,
+          element "high" HighPriority
+        ]
 
 --------------------------------------------------------------------------------
 -- Recipients
@@ -161,7 +151,7 @@ newtype OtrRecipients = OtrRecipients
   { otrRecipientsMap :: UserClientMap Text
   }
   deriving stock (Eq, Show)
-  deriving newtype (ToJSON, FromJSON, Semigroup, Monoid, Arbitrary)
+  deriving newtype (ToSchema, A.ToJSON, A.FromJSON, Semigroup, Monoid, Arbitrary)
 
 -- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
 modelOtrRecipients :: Doc.Model
@@ -189,8 +179,11 @@ data OtrFilterMissing
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtrFilterMissing)
 
+-- TODO: Verify if the change from UTCTime to UTCTimeMillis has any significant
+-- effect. The ToJSON instance was already translating it to millis and fromJSON
+-- didn't care for it (as it is never being sent by clients)
 data ClientMismatch = ClientMismatch
-  { cmismatchTime :: UTCTime,
+  { cmismatchTime :: UTCTimeMillis,
     -- | Clients that the message /should/ have been encrypted for, but wasn't.
     missingClients :: UserClients,
     -- | Clients that the message /should not/ have been encrypted for, but was.
@@ -198,13 +191,12 @@ data ClientMismatch = ClientMismatch
     deletedClients :: UserClients
   }
   deriving stock (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema ClientMismatch
 
 instance Arbitrary ClientMismatch where
   arbitrary =
     ClientMismatch
-      <$> (milli <$> arbitrary) <*> arbitrary <*> arbitrary <*> arbitrary
-    where
-      milli = fromUTCTimeMillis . toUTCTimeMillis
+      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 modelClientMismatch :: Doc.Model
 modelClientMismatch = Doc.defineModel "ClientMismatch" $ do
@@ -218,19 +210,11 @@ modelClientMismatch = Doc.defineModel "ClientMismatch" $ do
   Doc.property "deleted" (Doc.ref modelUserClients) $
     Doc.description "Map of deleted clients per user."
 
-instance ToJSON ClientMismatch where
-  toJSON m =
-    object
-      [ "time" .= toUTCTimeMillis (cmismatchTime m),
-        "missing" .= missingClients m,
-        "redundant" .= redundantClients m,
-        "deleted" .= deletedClients m
-      ]
-
-instance FromJSON ClientMismatch where
-  parseJSON = withObject "ClientMismatch" $ \o ->
-    ClientMismatch
-      <$> o .: "time"
-      <*> o .: "missing"
-      <*> o .: "redundant"
-      <*> o .: "deleted"
+instance ToSchema ClientMismatch where
+  schema =
+    object "ClientMismatch" $
+      ClientMismatch
+        <$> cmismatchTime .= field "time" schema
+        <*> missingClients .= field "missing" schema
+        <*> redundantClients .= field "redundant" schema
+        <*> deletedClients .= field "deleted" schema

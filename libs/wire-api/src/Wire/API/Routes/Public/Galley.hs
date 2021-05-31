@@ -21,8 +21,9 @@
 module Wire.API.Routes.Public.Galley where
 
 import Data.CommaSeparatedList
-import Data.Id (ConvId, TeamId)
+import Data.Id (ConvId, TeamId, UserId)
 import Data.Range
+import qualified Data.Set as Set
 import Data.Swagger
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
@@ -34,6 +35,7 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Event.Team as Public ()
+import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import qualified Wire.API.Team.Conversation as Public
 
@@ -45,6 +47,11 @@ type ConversationResponses =
 type UpdateResponses =
   '[ WithStatus 200 Public.Event,
      NoContent
+   ]
+
+type PostOtrResponses =
+  '[ WithStatus 201 Public.ClientMismatch,
+     WithStatus 412 Public.ClientMismatch
    ]
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
@@ -205,11 +212,99 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Delete '[] (EmptyResult 200)
+        :> Delete '[] (EmptyResult 200),
+    -- | This endpoint can lead to the following events being sent:
+    --
+    -- - OtrMessageAdd event to recipients
+    --
+    -- TODO: Add 404 for conv not found
+    -- TODO: Add 403 for unknown sending client
+    postOtrMessage ::
+      routes
+        :- Summary "Post an encrypted message to a conversation (accepts JSON)"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
+        :> "otr"
+        :> "messages"
+        :> ReqBody '[Servant.JSON] Public.NewOtrMessage
+        :> UVerb 'POST '[Servant.JSON] PostOtrResponses
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi Api
 
+data IgnoreMissing
+  = IgnoreMissingAll
+  | IgnoreMissingList (Set UserId)
+  deriving (Show, Eq)
+
+-- TODO: Fill this in
+instance ToParamSchema IgnoreMissing where
+  toParamSchema _ = mempty
+
+-- TODO: Test what happens when empty string is sent, is it backwards compatible?
+-- TODO: Test what happens when true and false have different cases, is it backwards compatible?
+instance FromHttpApiData IgnoreMissing where
+  parseQueryParam = \case
+    "true" -> Right IgnoreMissingAll
+    "false" -> Right $ IgnoreMissingList mempty
+    list -> IgnoreMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
+
+data ReportMissing
+  = ReportMissingAll
+  | ReportMissingList (Set UserId)
+
+instance ToParamSchema ReportMissing where
+  toParamSchema _ = mempty
+
+-- TODO: Test what happens when empty string is sent, is it backwards compatible?
+-- TODO: Test what happens when true and false have different cases, is it backwards compatible?
+instance FromHttpApiData ReportMissing where
+  parseQueryParam = \case
+    "true" -> Right ReportMissingAll
+    "false" -> Right $ ReportMissingList mempty
+    list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
+
 swaggerDoc :: Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)
+
+-- post "/conversations/:cnv/otr/messages" (continue Update.postOtrMessageH) $
+--     zauthUserId
+--       .&. zauthConnId
+--       .&. capture "cnv"
+--       .&. def Public.OtrReportAllMissing filterMissing
+--       .&. jsonRequest @Public.NewOtrMessage
+--   document "POST" "postOtrMessage" $ do
+--     summary "Post an encrypted message to a conversation (accepts JSON)"
+--     parameter Path "cnv" bytes' $
+--       description "Conversation ID"
+--     parameter Query "ignore_missing" bool' $ do
+--       description
+--         "Force message delivery even when clients are missing. \
+--         \NOTE: can also be a comma-separated list of user IDs, \
+--         \in which case it specifies who exactly is allowed to \
+--         \have missing clients."
+--       optional
+--     parameter Query "report_missing" bool' $ do
+--       description
+--         "Don't allow message delivery when clients are missing \
+--         \('ignore_missing' takes precedence when present). \
+--         \NOTE: can also be a comma-separated list of user IDs, \
+--         \in which case it specifies who exactly is forbidden from \
+--         \having missing clients. \
+--         \To support large lists of user IDs exceeding the allowed \
+--         \URL length, you can also put this list in the body, in \
+--         \the optional field 'report_missing'.  That body field takes \
+--         \prhttps://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/376439791/Use%2Bcase%2BClassified%2Bdomains?focusedCommentId=384861252#comment-384861252ecedence over both query params."
+--       optional
+--     body (ref Public.modelNewOtrMessage) $
+--       description "JSON body"
+--     returns (ref Public.modelClientMismatch)
+--     response 201 "Message posted" end
+--     response 412 "Missing clients" end
+--     errorResponse Error.convNotFound
+--     errorResponse Error.unknownClient

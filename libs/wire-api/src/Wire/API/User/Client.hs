@@ -334,18 +334,21 @@ newtype UserClients = UserClients
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via Schema UserClients
 
 mkUserClients :: [(UserId, [ClientId])] -> UserClients
 mkUserClients xs = UserClients $ Map.fromList (xs <&> second Set.fromList)
 
-instance Swagger.ToSchema UserClients where
-  declareNamedSchema _ = do
-    mapSch <- Swagger.declareSchema (Proxy @(Map UserId (Set ClientId)))
-    return $
-      Swagger.NamedSchema (Just "UserClients") $
-        mapSch
-          & Swagger.description ?~ "Map of user id to list of client ids."
-          & Swagger.example
+-- TODO: Is using genericToSchema OK here? Maybe it is better to write a `set`
+-- combinator?
+instance ToSchema UserClients where
+  schema =
+    addDoc . named "UserClients" $ UserClients <$> userClients .= map_ (genericToSchema @(Set ClientId))
+    where
+      addDoc sch =
+        sch
+          & Swagger.schema . Swagger.description ?~ "Map of user id to list of client ids."
+          & Swagger.schema . Swagger.example
             ?~ toJSON
               ( Map.fromList
                   [ (generateExample @UserId, [newClientId 1684636986166846496, newClientId 4940483633899001999]),
@@ -353,26 +356,12 @@ instance Swagger.ToSchema UserClients where
                   ]
               )
 
--- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
+-- TODO: Remove when 'NewOtrMessage' has ToSchema
 modelUserClients :: Doc.Model
 modelUserClients =
   Doc.defineModel "UserClients" $
     Doc.property "" (Doc.unique $ Doc.array Doc.bytes') $
       Doc.description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
-
-instance ToJSON UserClients where
-  toJSON =
-    toJSON . Map.foldrWithKey' fn Map.empty . userClients
-    where
-      fn u c m =
-        let k = Text.E.decodeLatin1 (toASCIIBytes (toUUID u))
-         in Map.insert k c m
-
-instance FromJSON UserClients where
-  parseJSON =
-    A.withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
-    where
-      fn (k, v) m = Map.insert <$> parseJSON (A.String k) <*> parseJSON v <*> pure m
 
 instance Arbitrary UserClients where
   arbitrary = UserClients <$> mapOf' arbitrary (setOf' arbitrary)

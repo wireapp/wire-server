@@ -43,7 +43,7 @@ module Galley.API.Update
     UpdateResponses,
 
     -- * Talking
-    postOtrMessageH,
+    postOtrMessage,
     postProtoOtrMessageH,
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
@@ -72,6 +72,7 @@ import Data.Code
 import Data.Domain (Domain)
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
+import Data.Json.Util (toUTCTimeMillis)
 import Data.List.Extra (nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -126,6 +127,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (userTeam)
 import Wire.API.User.Client (UserClientsFull)
 import qualified Wire.API.User.Client as Client
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -651,17 +653,24 @@ postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
+  handleOtrResult <$> postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val' message
 
-postOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage -> Galley Response
-postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
-  message <- fromJsonBody req
-  let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
+postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe GalleyAPI.IgnoreMissing -> Maybe GalleyAPI.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
+  let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
+      overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
+  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv overallResovedMissingOptions message
+  where
+    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
+    translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
+    translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
 
-postOtrMessage :: UserId -> ConnId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
-postOtrMessage zusr zcon cnv val message =
-  postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val message
+    resolveQueryMissingOptions :: Maybe GalleyAPI.IgnoreMissing ->  Maybe GalleyAPI.ReportMissing -> Public.OtrFilterMissing
+    resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
+    resolveQueryMissingOptions (Just GalleyAPI.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
+    resolveQueryMissingOptions (Just (GalleyAPI.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
+    resolveQueryMissingOptions Nothing (Just GalleyAPI.ReportMissingAll )= Public.OtrReportAllMissing
+    resolveQueryMissingOptions Nothing (Just (GalleyAPI.ReportMissingList uids) )= Public.OtrReportMissing uids
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -1105,7 +1114,7 @@ checkOtrRecipients usr sid prs vms vcs val now
     mismatch :: ClientMismatch
     mismatch =
       ClientMismatch
-        { cmismatchTime = now,
+        { cmismatchTime = toUTCTimeMillis now,
           missingClients = UserClients (Clients.toMap missing),
           redundantClients = UserClients (Clients.toMap redundant),
           deletedClients = UserClients (Clients.toMap deleted)
