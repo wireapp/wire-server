@@ -86,8 +86,7 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      whitelist <- LegalHoldData.getLegalholdWhitelistedTeams
-      pure $ tid `elem` whitelist
+      LegalHoldData.isTeamLegalholdWhitelisted tid
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
