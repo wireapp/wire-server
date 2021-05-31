@@ -27,6 +27,7 @@ import Control.Lens (view)
 import qualified Data.LegalHold as LH
 import Data.List1
 import Data.Misc
+import Data.Qualified
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
@@ -140,6 +141,7 @@ messageTimerChangeO2O = do
 
 messageTimerEvent :: TestM ()
 messageTimerEvent = do
+  localDomain <- viewFederationDomain
   ca <- view tsCannon
   -- Create a conversation
   [alice, bob] <- randomUsers 2
@@ -151,11 +153,13 @@ messageTimerEvent = do
   -- Set timer to 1 second and check that all participants got the event
   WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do
     let update = ConversationMessageTimerUpdate timer1sec
+        qcid = Qualified cid localDomain
+        qalice = Qualified alice localDomain
     putMessageTimerUpdate alice cid update
       !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        wsAssertConvMessageTimerUpdate cid alice update
+        wsAssertConvMessageTimerUpdate qcid qalice update
 
 ----------------------------------------------------------------------------
 -- Utilities

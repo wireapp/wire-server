@@ -1038,10 +1038,10 @@ assertConvWithRole r t c s us n mt role = do
       _ -> return ()
   return cId
 
-wsAssertOtr :: ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr :: Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
 wsAssertOtr = wsAssertOtr' "data"
 
-wsAssertOtr' :: Text -> ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr' :: Text -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
 wsAssertOtr' evData conv usr from to txt n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1051,10 +1051,10 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 -- | This assumes the default role name
-wsAssertMemberJoin :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberJoin :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new n = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin n
 
-wsAssertMemberJoinWithRole :: ConvId -> UserId -> [UserId] -> RoleName -> Notification -> IO ()
+wsAssertMemberJoinWithRole :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1063,7 +1063,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtFrom e @?= usr
   evtData e @?= EdMembersJoin (SimpleMembers (fmap (\x -> SimpleMember x role) new))
 
-wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
+wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1076,7 +1076,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 
-wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
+wsAssertConvAccessUpdate :: Qualified ConvId -> Qualified UserId -> ConversationAccessUpdate -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1085,7 +1085,7 @@ wsAssertConvAccessUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvAccessUpdate new
 
-wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
+wsAssertConvMessageTimerUpdate :: Qualified ConvId -> Qualified UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1094,7 +1094,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvMessageTimerUpdate new
 
-wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False

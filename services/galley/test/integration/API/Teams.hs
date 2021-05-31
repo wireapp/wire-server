@@ -44,6 +44,7 @@ import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc (HttpsUrl, PlainTextPassword (..))
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -71,7 +72,7 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers (test)
+import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Team.Export (TeamExportUser (..))
@@ -595,6 +596,7 @@ testAddTeamMemberInternal = do
 
 testRemoveNonBindingTeamMember :: TestM ()
 testRemoveNonBindingTeamMember = do
+  localDomain <- viewFederationDomain
   c <- view tsCannon
   g <- view tsGalley
   owner <- Util.randomUser
@@ -635,12 +637,13 @@ testRemoveNonBindingTeamMember = do
     -- Ensure that `mem1` is still a user (tid is not a binding team)
     Util.ensureDeletedState False owner (mem1 ^. userId)
     mapConcurrently_ (checkTeamMemberLeave tid (mem1 ^. userId)) [wsOwner, wsMem1, wsMem2]
-    checkConvMemberLeaveEvent cid2 (mem1 ^. userId) wsMext1
-    checkConvMemberLeaveEvent cid3 (mem1 ^. userId) wsMext3
+    checkConvMemberLeaveEvent (Qualified cid2 localDomain) (mem1 ^. userId) wsMext1
+    checkConvMemberLeaveEvent (Qualified cid3 localDomain) (mem1 ^. userId) wsMext3
     WS.assertNoEvent timeout ws
 
 testRemoveBindingTeamMember :: Bool -> TestM ()
 testRemoveBindingTeamMember ownerHasPassword = do
+  localDomain <- viewFederationDomain
   g <- view tsGalley
   c <- view tsCannon
   -- Owner who creates the team must have an email, This is why we run all tests with a second
@@ -719,7 +722,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           !!! const 202
           === statusCode
     checkTeamMemberLeave tid (mem1 ^. userId) wsOwner
-    checkConvMemberLeaveEvent cid1 (mem1 ^. userId) wsMext
+    checkConvMemberLeaveEvent (Qualified cid1 localDomain) (mem1 ^. userId) wsMext
     assertQueue "team member leave" $ tUpdate 2 [ownerWithPassword, owner]
     WS.assertNoEvent timeout [wsMext]
     -- Mem1 is now gone from Wire
@@ -1001,6 +1004,7 @@ testUpdateTeamConv (rolePermissions -> perms) convRole = do
 
 testDeleteTeam :: TestM ()
 testDeleteTeam = do
+  localDomain <- viewFederationDomain
   g <- view tsGalley
   c <- view tsCannon
   owner <- Util.randomUser
@@ -1024,7 +1028,7 @@ testDeleteTeam = do
     checkTeamDeleteEvent tid wsOwner
     checkTeamDeleteEvent tid wsMember
     -- team members should not receive conversation delete events
-    checkConvDeleteEvent cid1 wsExtern
+    checkConvDeleteEvent (Qualified cid1 localDomain) wsExtern
     WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
   get (g . paths ["teams", toByteString' tid] . zUser owner)
     !!! const 404 === statusCode
@@ -1187,6 +1191,7 @@ testDeleteBindingTeam ownerHasPassword = do
 
 testDeleteTeamConv :: TestM ()
 testDeleteTeamConv = do
+  localDomain <- viewFederationDomain
   g <- view tsGalley
   c <- view tsCannon
   owner <- Util.randomUser
@@ -1216,8 +1221,9 @@ testDeleteTeamConv = do
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"
     -- to all team members not part of the conversation
-    checkConvDeleteEvent cid2 wsOwner
-    checkConvDeleteEvent cid2 wsMember
+    let qcid2 = Qualified cid2 localDomain
+    checkConvDeleteEvent qcid2 wsOwner
+    checkConvDeleteEvent qcid2 wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
     delete
       ( g
@@ -1231,9 +1237,10 @@ testDeleteTeamConv = do
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"
     -- to all team members not part of the conversation
-    checkConvDeleteEvent cid1 wsOwner
-    checkConvDeleteEvent cid1 wsMember
-    checkConvDeleteEvent cid1 wsExtern
+    let qcid1 = Qualified cid1 localDomain
+    checkConvDeleteEvent qcid1 wsOwner
+    checkConvDeleteEvent qcid1 wsMember
+    checkConvDeleteEvent qcid1 wsExtern
     WS.assertNoEvent timeout [wsOwner, wsMember, wsExtern]
   for_ [cid1, cid2] $ \x ->
     for_ [owner, member ^. userId, extern] $ \u -> do
@@ -1281,6 +1288,7 @@ testUpdateTeam = do
 
 testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
+  localDomain <- viewFederationDomain
   o <- view tsGConf
   c <- view tsCannon
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
@@ -1329,7 +1337,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   Util.postMembers owner (list1 extern []) cid1 !!! const 200 === statusCode
   -- Test team deletion (should contain only conv. removal and user.deletion for _non_ team members)
-  deleteTeam tid owner [] [cid1] extern
+  deleteTeam tid owner [] [Qualified cid1 localDomain] extern
   ensureQueueEmpty
   where
     modifyUserProfileAndExpectEvent :: HasCallStack => Bool -> UserId -> [UserId] -> TestM ()
@@ -1400,7 +1408,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         -- User deletion events
         mapM_ (checkUserDeleteEvent victim) wsOthers
         Util.ensureDeletedState True owner victim
-    deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [ConvId] -> UserId -> TestM ()
+    deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [Qualified ConvId] -> UserId -> TestM ()
     deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
       c <- view tsCannon
       g <- view tsGalley
@@ -1704,7 +1712,7 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= Nothing
 
-checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
+checkConvDeleteEvent :: HasCallStack => Qualified ConvId -> WS.WebSocket -> TestM ()
 checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
@@ -1712,7 +1720,7 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
 
-checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> TestM ()
+checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
@@ -1724,6 +1732,9 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
 
 postCryptoBroadcastMessageJson :: TestM ()
 postCryptoBroadcastMessageJson = do
+  localDomain <- viewFederationDomain
+  let q :: Id a -> Qualified (Id a)
+      q = (`Qualified` localDomain)
   c <- view tsCannon
   -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
   (alice, tid) <- Util.createBindingTeam
@@ -1750,18 +1761,21 @@ postCryptoBroadcastMessageJson = do
           const 201 === statusCode
           assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
         -- Bob should get the broadcast (team member of alice)
-        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
+        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext1")
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
-        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext2")
         -- Dan should get the broadcast (contact of alice and not user of teams feature)
-        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (selfConv dan) alice ac dc "ciphertext3")
+        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (q (selfConv dan)) (q alice) ac dc "ciphertext3")
         -- Alice's first client should not get the broadcast
-        assertNoMsg wsA1 (wsAssertOtr (selfConv alice) alice ac ac "ciphertext0")
+        assertNoMsg wsA1 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac "ciphertext0")
         -- Alice's second client should get the broadcast
-        void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
+        void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 "ciphertext0")
 
 postCryptoBroadcastMessageJsonFilteredTooLargeTeam :: TestM ()
 postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
+  localDomain <- viewFederationDomain
+  let q :: Id a -> Qualified (Id a)
+      q = (`Qualified` localDomain)
   opts <- view tsGConf
   g <- view tsCannon
   c <- view tsCannon
@@ -1806,15 +1820,15 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
             const 201 === statusCode
             assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
         -- Bob should get the broadcast (team member of alice)
-        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
+        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext1")
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
-        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext2")
         -- Dan should get the broadcast (contact of alice and not user of teams feature)
-        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (selfConv dan) alice ac dc "ciphertext3")
+        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (q (selfConv dan)) (q alice) ac dc "ciphertext3")
         -- Alice's first client should not get the broadcast
-        assertNoMsg wsA1 (wsAssertOtr (selfConv alice) alice ac ac "ciphertext0")
+        assertNoMsg wsA1 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac "ciphertext0")
         -- Alice's second client should get the broadcast
-        void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
+        void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 "ciphertext0")
 
 postCryptoBroadcastMessageJsonReportMissingBody :: TestM ()
 postCryptoBroadcastMessageJsonReportMissingBody = do
@@ -1833,6 +1847,9 @@ postCryptoBroadcastMessageJsonReportMissingBody = do
 
 postCryptoBroadcastMessageJson2 :: TestM ()
 postCryptoBroadcastMessageJson2 = do
+  localDomain <- viewFederationDomain
+  let q :: Id a -> Qualified (Id a)
+      q = (`Qualified` localDomain)
   c <- view tsCannon
   -- Team1: Alice, Bob. Team2: Charlie. Connect Alice,Charlie
   (alice, tid) <- Util.createBindingTeam
@@ -1857,18 +1874,18 @@ postCryptoBroadcastMessageJson2 = do
     Util.postOtrBroadcastMessage id alice ac m2 !!! do
       const 201 === statusCode
       assertTrue "No devices expected" (eqMismatch [] [] [] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext2")
+    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext2")
   -- Redundant self
   WS.bracketR3 c alice bob charlie $ \(wsA, wsB, wsE) -> do
     let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
     Util.postOtrBroadcastMessage id alice ac m3 !!! do
       const 201 === statusCode
       assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext3")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext3")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext3")
+    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext3")
     -- Alice should not get it
-    assertNoMsg wsA (wsAssertOtr (selfConv alice) alice ac ac "ciphertext3")
+    assertNoMsg wsA (wsAssertOtr (q (selfConv alice)) (q alice) ac ac "ciphertext3")
   -- Deleted charlie
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
@@ -1876,12 +1893,15 @@ postCryptoBroadcastMessageJson2 = do
     Util.postOtrBroadcastMessage id alice ac m4 !!! do
       const 201 === statusCode
       assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext4")
     -- charlie should not get it
-    assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")
+    assertNoMsg wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext4")
 
 postCryptoBroadcastMessageProto :: TestM ()
 postCryptoBroadcastMessageProto = do
+  localDomain <- viewFederationDomain
+  let q :: Id a -> Qualified (Id a)
+      q = (`Qualified` localDomain)
   -- similar to postCryptoBroadcastMessageJson, postCryptoBroadcastMessageJsonReportMissingBody except uses protobuf
 
   c <- view tsCannon
@@ -1906,11 +1926,11 @@ postCryptoBroadcastMessageProto = do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
     -- Bob should get the broadcast (team member of alice)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (encodeCiphertext "data") (selfConv bob) alice ac bc ciphertext)
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (encodeCiphertext "data") (q (selfConv bob)) (q alice) ac bc ciphertext)
     -- Charlie should get the broadcast (contact of alice and user of teams feature)
-    void . liftIO $ WS.assertMatch t wsC (wsAssertOtr' (encodeCiphertext "data") (selfConv charlie) alice ac cc ciphertext)
+    void . liftIO $ WS.assertMatch t wsC (wsAssertOtr' (encodeCiphertext "data") (q (selfConv charlie)) (q alice) ac cc ciphertext)
     -- Dan should get the broadcast (contact of alice and not user of teams feature)
-    void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (encodeCiphertext "data") (selfConv dan) alice ac dc ciphertext)
+    void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (encodeCiphertext "data") (q (selfConv dan)) (q alice) ac dc ciphertext)
     -- Alice should not get her own broadcast
     WS.assertNoEvent timeout ws
   let inbody = Just [bob] -- body triggers report
@@ -1929,8 +1949,10 @@ postCryptoBroadcastMessageNoTeam = do
 
 postCryptoBroadcastMessage100OrMaxConns :: TestM ()
 postCryptoBroadcastMessage100OrMaxConns = do
+  localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
+  let qalice = Qualified alice localDomain
   _ <- createBindingTeamInternal "foo" alice
   assertQueue "" tActivate
   ((bob, bc), others) <- createAndConnectUserWhileLimitNotReached alice (100 :: Int) [] (someLastPrekeys !! 1)
@@ -1942,9 +1964,11 @@ postCryptoBroadcastMessage100OrMaxConns = do
     Util.postOtrBroadcastMessage id alice ac msg !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
-    for_ (zip (tail ws) others) $ \(wsU, (u, clt)) ->
-      liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")
+    let qbobself = Qualified (selfConv bob) localDomain
+    void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr qbobself qalice ac bc "ciphertext")
+    for_ (zip (tail ws) others) $ \(wsU, (u, clt)) -> do
+      let qself = Qualified (selfConv u) localDomain
+      liftIO $ WS.assertMatch t wsU (wsAssertOtr qself qalice ac clt "ciphertext")
   where
     createAndConnectUserWhileLimitNotReached alice remaining acc pk = do
       (uid, cid) <- randomUserWithClient pk
