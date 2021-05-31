@@ -1576,6 +1576,19 @@ deleteTeamMember g tid owner deletee =
     !!! do
       const 202 === statusCode
 
+deleteTeam :: UserId -> TeamId -> TestM ()
+deleteTeam owner tid = do
+  g <- view tsGalley
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just defPassword))
+    )
+    !!! do
+      const 202 === statusCode
+
 -- (Duplicate of 'Galley.Intra.User.getUsers'.)
 getUsersByUid :: [UserId] -> TestM [User]
 getUsersByUid = getUsersBy "ids"

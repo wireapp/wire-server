@@ -206,25 +206,20 @@ testSwaggerJsonConsistency = do
 
 testWhitelistingTeams :: TestM ()
 testWhitelistingTeams = do
-  (_owner, tid) <- createBindingTeam
-  g <- view tsGalley
+  let expectWhitelisted :: HasCallStack => Bool -> TeamId -> TestM ()
+      expectWhitelisted yes tid = do
+        whitelist :: [TeamId] <- responseJsonError =<< (getLHWhitelistedTeams <!! const 200 === statusCode)
+        liftIO $
+          if yes
+            then assertBool "team should be whitelisted" (tid `elem` whitelist)
+            else assertBool "team should not be whitelisted" (tid `notElem` whitelist)
 
-  let listWhiteListed :: TestM [TeamId]
-      listWhiteListed = do
-        r <- withLHWhitelistFeature (getLHWhitelistedTeams' g) <!! const 200 === statusCode
-        responseJsonError r
-
-  withLHWhitelistFeature (putLHWhitelistTeam' g tid) !!! const 200 === statusCode
-
-  do
-    tids <- listWhiteListed
-    void $ liftIO $ assertBool "team should be whitelisted" $ tid `elem` tids
-
-  withLHWhitelistFeature (deleteLHWhitelistTeam' g tid) !!! const 204 === statusCode
-
-  do
-    tids <- listWhiteListed
-    void $ liftIO $ assertBool "team should no longer be whitelisted" $ tid `notElem` tids
+  tid <- withTeam $ \_owner tid -> do
+    expectWhitelisted False tid
+    putLHWhitelistTeam tid !!! const 200 === statusCode
+    expectWhitelisted True tid
+    pure tid
+  expectWhitelisted False tid
 
 testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = do
@@ -1551,21 +1546,29 @@ withDummyTestServiceForTeam owner tid go = do
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name req = lookup (fromString name) $ requestHeaders req
 
-withLHWhitelistFeature :: forall a. HasCallStack => WaiTest.Session a -> TestM a
-withLHWhitelistFeature action = do
-  opts <- view tsGConf
-  let opts' = opts & optSettings . setFeatureFlags . flagLegalHold .~ FeatureLegalHoldWhitelistTeamsAndImplicitConsent
-  withSettingsOverrides opts' $ do
-    action
-
+-- | FUTUREWORK: this function calls an internal end-point to whitelist a team.  It only
+-- appears to bracket this state change and undo it in a finalizer.
+--
+-- We should probably not have this function, just do the call inline, and use the 'TestM'
+-- actions again rather than the polymorphic ones that we have here.
+--
+-- it's here for historical reason because we did this in galley.yaml
+-- at some point in the past rather than in an internal end-point, and that required spawning
+-- another galley 'Application' with 'withSettingsOverrides'.
 withLHWhitelist :: forall a. HasCallStack => TeamId -> WaiTest.Session a -> TestM a
 withLHWhitelist tid action = do
+  void $ putLHWhitelistTeam tid
   opts <- view tsGConf
-  galley <- view tsGalley
-  let opts' = opts & optSettings . setFeatureFlags . flagLegalHold .~ FeatureLegalHoldWhitelistTeamsAndImplicitConsent
-  withSettingsOverrides opts' $ do
-    void $ putLHWhitelistTeam' galley tid
-    action
+  withSettingsOverrides opts action
+
+-- | If you play with whitelists, you should use this one.  Every whitelisted team that does
+-- not get fully deleted will blow up the whitelist that is cached in every warp handler.
+withTeam :: forall a. HasCallStack => (UserId -> TeamId -> TestM a) -> TestM a
+withTeam action =
+  bracket
+    createBindingTeam
+    (uncurry deleteTeam)
+    (uncurry action)
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
 -- to a TCP socket for the backend to connect to.  The mock service can expose internal
