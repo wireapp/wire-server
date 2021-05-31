@@ -177,6 +177,7 @@ clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
+clientError ClientMissingLegalholdConsent = StdError missingLegalholdConsent
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai

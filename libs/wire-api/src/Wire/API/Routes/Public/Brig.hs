@@ -213,6 +213,7 @@ data Api routes = Api
     getUsersPrekeysClientUnqualified ::
       routes
         :- Summary "(deprecated) Get a prekey for a specific client of a user."
+        :> ZUser
         :> "users"
         :> CaptureUserId "uid"
         :> "prekeys"
@@ -221,6 +222,7 @@ data Api routes = Api
     getUsersPrekeysClientQualified ::
       routes
         :- Summary "Get a prekey for a specific client of a user."
+        :> ZUser
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
@@ -230,6 +232,7 @@ data Api routes = Api
     getUsersPrekeyBundleUnqualified ::
       routes
         :- Summary "(deprecated) Get a prekey for each client of a user."
+        :> ZUser
         :> "users"
         :> CaptureUserId "uid"
         :> "prekeys"
@@ -237,6 +240,7 @@ data Api routes = Api
     getUsersPrekeyBundleQualified ::
       routes
         :- Summary "Get a prekey for each client of a user."
+        :> ZUser
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
@@ -248,6 +252,7 @@ data Api routes = Api
              "(deprecated)  Given a map of user IDs to client IDs return a \
              \prekey for each one. You can't request information for more users than \
              \maximum conversation size."
+        :> ZUser
         :> "users"
         :> "prekeys"
         :> ReqBody '[JSON] UserClients
@@ -258,6 +263,7 @@ data Api routes = Api
              "Given a map of domain to (map of user IDs to client IDs) return a \
              \prekey for each one. You can't request information for more users than \
              \maximum conversation size."
+        :> ZUser
         :> "users"
         :> "list-prekeys"
         :> ReqBody '[JSON] QualifiedUserClients

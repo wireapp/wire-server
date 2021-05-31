@@ -153,7 +153,7 @@ tooManyTeamMembers :: Error
 tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
 
 tooManyTeamMembersOnTeamWithLegalhold :: Error
-tooManyTeamMembersOnTeamWithLegalhold = Error status403 "too-many-members-for-legalhold" "cannot add more members to team legalhold service is enabled."
+tooManyTeamMembersOnTeamWithLegalhold = Error status403 "too-many-members-for-legalhold" "cannot add more members to team when legalhold service is enabled."
 
 teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
@@ -206,6 +206,9 @@ legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal 
 legalHoldNotEnabled :: Error
 legalHoldNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
 
+legalHoldDisableUnimplemented :: Error
+legalHoldDisableUnimplemented = Error status403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
+
 userLegalHoldAlreadyEnabled :: Error
 userLegalHoldAlreadyEnabled = Error status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
 
@@ -223,6 +226,9 @@ noLegalHoldDeviceAllocated = Error status404 "legalhold-no-device-allocated" "no
 
 legalHoldCouldNotBlockConnections :: Error
 legalHoldCouldNotBlockConnections = Error status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
+
+missingLegalholdConsent :: Error
+missingLegalholdConsent = Error status412 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
 
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =

@@ -56,12 +56,16 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+
+    -- * Legalhold
+    guardLegalhold,
   )
 where
 
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Bilge.Retry
+import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
@@ -70,7 +74,10 @@ import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
+import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
+import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Trans.Except (throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -86,6 +93,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
 import qualified Galley.Types.Teams as Team
+import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import qualified Galley.Types.Teams.Intra as Team
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Push.V2
@@ -95,7 +103,9 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
+import Wire.API.Message (UserClients)
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Team.LegalHold (LegalholdProtectee)
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -882,3 +892,17 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
+
+guardLegalhold :: LegalholdProtectee -> UserClients -> ExceptT ClientError AppIO ()
+guardLegalhold protectee userClients = do
+  res <- lift $ galleyRequest PUT req
+  case Bilge.statusCode res of
+    200 -> pure ()
+    412 -> throwE ClientMissingLegalholdConsent
+    404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
+    _ -> throwM internalServerError
+  where
+    req =
+      paths ["i", "guard-legalhold-policy-conflicts"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode $ GuardLegalholdPolicyConflicts protectee userClients)

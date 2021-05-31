@@ -48,7 +48,7 @@ import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.API as Servant
 import Servant.API.Generic (ToServantApi, genericApi)
 import qualified Servant.Server as Servant
-import qualified System.Logger.Class as Log
+import qualified System.Logger as Log
 import Util.Options
 import qualified Wire.API.Federation.API.Galley as FederationGalley
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -81,6 +81,7 @@ mkApp o = do
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
   let finalizer = do
+        Log.info l $ Log.msg @Text "Galley application finished."
         Log.flush l
         Log.close l
   return (middlewares l m $ servantApp e, e, finalizer)

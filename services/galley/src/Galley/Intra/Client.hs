@@ -17,6 +17,7 @@
 
 module Galley.Intra.Client
   ( lookupClients,
+    lookupClientsFull,
     notifyClientsAboutLegalHoldRequest,
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
@@ -40,12 +41,12 @@ import Galley.API.Error
 import Galley.App
 import Galley.External.LegalHoldService
 import Galley.Intra.Util
-import Galley.Types (UserClients, filterClients)
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Logger
+import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
 lookupClients :: [UserId] -> Galley UserClients
@@ -59,6 +60,19 @@ lookupClients uids = do
         . expect2xx
   clients <- parseResponse (Error status502 "server-error") r
   return $ filterClients (not . Set.null) clients
+
+-- | Calls 'Brig.API.internalListClientsFullH'.
+lookupClientsFull :: [UserId] -> Galley UserClientsFull
+lookupClientsFull uids = do
+  (brigHost, brigPort) <- brigReq
+  r <-
+    call "brig" $
+      method POST . host brigHost . port brigPort
+        . path "/i/clients/full"
+        . json (UserSet $ Set.fromList uids)
+        . expect2xx
+  clients <- parseResponse (Error status502 "server-error") r
+  return $ filterClientsFull (not . Set.null) clients
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
 notifyClientsAboutLegalHoldRequest :: UserId -> UserId -> LastPrekey -> Galley ()

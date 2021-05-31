@@ -1878,7 +1878,7 @@ testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
     assertEqual "assets" defServiceAssets (profileAssets bp)
   -- Check that the bot client exists and has prekeys
   let isBotPrekey = (`elem` testBotPrekeys bot) . prekeyData
-  getPreKey brig buid (rsAddBotClient rs) !!! do
+  getPreKey brig buid buid (rsAddBotClient rs) !!! do
     const 200 === statusCode
     const (Just True) === fmap isBotPrekey . responseJsonMaybe
   -- Remove the bot and check that everyone is notified via an event,

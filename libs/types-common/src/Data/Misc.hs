@@ -54,6 +54,9 @@ module Data.Misc
 
     -- * Swagger
     modelLocation,
+
+    -- * Typesafe FUTUREWORKS
+    FutureWork (..),
   )
 where
 
@@ -348,3 +351,12 @@ instance FromJSON PlainTextPassword where
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
   arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+
+-- | Usage:
+-- 1. Use this type in patterns to mark FUTUREWORKS.
+-- 2. Remove the label constructor -> all futureworks become compiler errors
+--
+-- Example:
+-- >>> let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteUsers, localUsers)
+-- >>>      = partitionRemoteOrLocalIds domain qualifiedUids
+newtype FutureWork label payload = FutureWork payload

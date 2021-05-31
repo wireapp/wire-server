@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,6 +17,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module API.Teams.LegalHold
   ( tests,
@@ -29,7 +29,7 @@ import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Client
-import Brig.Types.Intra (ConnectionStatus (ConnectionStatus))
+import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserSet (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
@@ -52,10 +52,12 @@ import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
+import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword)
 import Data.PEM
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
+import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Time.Clock as Time
@@ -93,6 +95,8 @@ import qualified Wire.API.Message as Msg
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
+import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
+import qualified Wire.API.User.Client as Client
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
@@ -106,6 +110,26 @@ onlyIfLhEnabled action = do
       error
         "`FeatureLegalHoldWhitelistTeamsAndImplicitConsent` requires setting up a mock galley \
         \with `withLHWhitelist`; don't call `onlyIfLhEnabled` if you do that, that's redundant."
+
+onlyIfLhWhitelisted :: TestM () -> TestM ()
+onlyIfLhWhitelisted action = do
+  featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
+  case featureLegalHold of
+    FeatureLegalHoldDisabledPermanently ->
+      liftIO $
+        hPutStrLn
+          stderr
+          "*** skipping test. This test only works if you manually adjust the server config files\
+          \(the 'withLHWhitelist' trick does not work because it does not allow \
+          \brig to talk to the dynamically spawned galley)."
+    FeatureLegalHoldDisabledByDefault ->
+      liftIO $
+        hPutStrLn
+          stderr
+          "*** skipping test. This test only works if you manually adjust the server config files\
+          \(the 'withLHWhitelist' trick does not work because it does not allow \
+          \brig to talk to the dynamically spawned galley)."
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> action
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -128,7 +152,9 @@ tests s =
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
-      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      test s "POST /register - cannot add team members above fanout limit" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      -- test s "POST /register - Enable this to create a test team for next test" (testAddTeamUserTooLargeWithLegalholdWhitelisted Nothing),
+      -- test s "POST /register - can add team members above fanout limit when whitelisting is enabled" (testAddTeamUserTooLargeWithLegalholdWhitelisted (Just (read "86bd1ba6-6c29-4d3b-af54-579c5e9b1fa3", read "310b550d-3832-47cc-b6dc-50d979879985"))),
       test s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
@@ -144,44 +170,19 @@ tests s =
           testGroup
             "teams listed"
             [ test s "happy flow" testInWhitelist,
-              test s "handshake between LH device and user without consent is blocked" testNoConsentBlockDeviceHandshake,
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, personal peer)"
-                (testNoConsentBlockOne2OneConv False False False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer)"
-                (testNoConsentBlockOne2OneConv False True False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv False True True False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, leave conn pending)"
-                (testNoConsentBlockOne2OneConv False True False True),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect after, team peer, approve LH device, leave conn pending)"
-                (testNoConsentBlockOne2OneConv False True True True),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, personal peer)"
-                (testNoConsentBlockOne2OneConv True False False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer)"
-                (testNoConsentBlockOne2OneConv True True False False),
-              test
-                s
-                "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked (connect before, team peer, approve LH device)"
-                (testNoConsentBlockOne2OneConv True True True False),
+              test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
+              testGroup "no-consent" $
+                flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
+                  \args@(a, b, c, d) ->
+                    test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
               test
                 s
                 "If LH is activated for other user in group conv, this user gets removed with helpful message"
                 testNoConsentBlockGroupConv,
-              test s "bench hack" testBenchHack
+              test s "bench hack" testBenchHack,
+              test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
+              test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
+              test s "User can fetch prekeys of LH users if consent is given and user has only new clients" (testClaimKeys TCKConsentAndNewClients)
             ]
         ]
     ]
@@ -635,7 +636,9 @@ testEnablePerTeamTooLarge :: TestM ()
 testEnablePerTeamTooLarge = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
-  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 1)
+  -- TODO: it is impossible in this test to create teams bigger than the fanout limit.
+  -- Change the +1 to anything else and look at the logs
+  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 5)
 
   status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   let statusValue = Public.tfwoStatus status
@@ -659,6 +662,44 @@ testAddTeamUserTooLargeWithLegalhold = do
   addUserToTeam' owner tid !!! do
     const 403 === statusCode
     const (Just "too-many-members-for-legalhold") === fmap Error.label . responseJsonMaybe
+
+-- | This test only works if you manually adjust the server config files (the 'withLHWhitelist' trick does not work because it does not allow brig to talk to the dynamically spawned galley).
+-- This test is weird: we can't use 'withLHWhitelist', since we need brig to call the galley with the changed settings; and we wan't even run it fully after updating the galley settings, but we need to add the team id of a team we create to the settings in between.
+--
+-- So the test consists of two parts: (1) create and populate a team and return owner id and team id; (2) take owner id and team id as arguments and run the test with galley restarted on the changed settings.
+--
+-- As a consequence, this test needs to be stay disabled in the automatic integration tests, but it can do its things with a little bit of manual work:
+--
+-- (a) run the first phase
+-- (b) change services/brig/brig.integration.yaml as follows
+-- -  setMaxTeamSize: 32
+-- +  setMaxTeamSize: 100000
+--     change services/galley/galley.integration.yaml as follows:
+-- @@ settings:
+-- -  maxTeamSize: 32
+-- +  maxTeamSize: 100000
+-- +  legalHoldTeamsWhitelist: [<team id generate in (1)>]
+-- +
+-- -    legalhold: disabled-by-default
+-- +    legalhold: whitelist-teams-and-implicit-consent
+-- (c) run the second phase with the arguemnts returned in the first phase.
+testAddTeamUserTooLargeWithLegalholdWhitelisted :: HasCallStack => Maybe (UserId, TeamId) -> TestM ()
+testAddTeamUserTooLargeWithLegalholdWhitelisted Nothing = do
+  o <- view tsGConf
+  (owner, tid) <- createBindingTeam
+  let fanoutLimit = fromIntegral @_ @Integer . fromRange $ Galley.currentFanoutLimit o
+  forM_ [2 .. fanoutLimit] $ \_n -> do
+    addUserToTeam' owner tid !!! do
+      const 201 === statusCode
+  error $
+    ( "**** testAddTeamUserTooLargeWithLegalholdWhitelisted. Created (owner, tid):  " <> show (owner, tid)
+        <> " Use these values to run the test."
+    )
+testAddTeamUserTooLargeWithLegalholdWhitelisted (Just (owner, tid)) = onlyIfLhWhitelisted $ do
+  replicateM_ 40 $ do
+    addUserToTeam' owner tid !!! do
+      const 201 === statusCode
+  ensureQueueEmpty
 
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
@@ -823,11 +864,96 @@ testInWhitelist = do
           assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
           assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
-testNoConsentBlockDeviceHandshake :: TestM ()
-testNoConsentBlockDeviceHandshake = do
-  -- "handshake between LH device and user without consent is blocked"
+testOldClientsBlockDeviceHandshake :: TestM ()
+testOldClientsBlockDeviceHandshake = do
+  -- "handshake between LH device and user with old devices is blocked"
+  --
+  -- this specifically checks the place that handles otr messages and responds with status
+  -- 412 and a list of missing clients.
+  --
+  -- if any of those clients are LH, this test provodes a "missing-legalhold-consent" error
+  -- instead, without any information about the LH clients.  the condition is actually "has
+  -- old device or has not granted consent", but the latter part is blocked earlier in 1:1 and
+  -- group conversations, and hard to test at the device level.)
+  --
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
-  pure ()
+
+  (legalholder, tid) <- createBindingTeam
+  legalholder2 <- view userId <$> addUserToTeam legalholder tid
+  ensureQueueEmpty
+  (peer, tid2) <-
+    -- has to be a team member, granting LH consent for personal users is not supported.
+    createBindingTeam
+  ensureQueueEmpty
+
+  let doEnableLH :: HasCallStack => UserId -> UserId -> TestM ClientId
+      doEnableLH owner uid = do
+        requestLegalHoldDevice owner uid tid !!! testResponse 201 Nothing
+        approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid tid
+        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+        getInternalClientsFull (UserSet $ Set.fromList [uid])
+          <&> userClientsFull
+          <&> Map.elems
+          <&> Set.unions
+          <&> Set.toList
+          <&> (\[x] -> x)
+          <&> clientId
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    grantConsent tid legalholder
+    grantConsent tid legalholder2
+
+    legalholderLHDevice <- doEnableLH legalholder legalholder
+    _legalholder2LHDevice <- doEnableLH legalholder legalholder2
+
+    legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
+    upgradeClientToLH legalholder legalholderClient
+    legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
+    upgradeClientToLH legalholder2 legalholder2Client
+
+    grantConsent tid2 peer
+    connectUsers peer (List1.list1 legalholder [legalholder2])
+
+    convId <-
+      decodeConvId
+        <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing
+                <!! const 201 === statusCode
+            )
+
+    let runit :: HasCallStack => UserId -> ClientId -> TestM ResponseLBS
+        runit sender senderClient = do
+          postOtrMessage id sender senderClient convId rcps
+          where
+            rcps =
+              [ (legalholder, legalholderClient, "ciphered"),
+                (legalholder, legalholderLHDevice, "ciphered"),
+                (legalholder2, legalholder2Client, "ciphered")
+                -- legalholder2 LH device missing
+              ]
+
+        errWith :: (HasCallStack, Typeable a, FromJSON a) => Int -> (a -> Bool) -> ResponseLBS -> TestM ()
+        errWith wantStatus wantBody rsp = liftIO $ do
+          assertEqual "" wantStatus (statusCode rsp)
+          assertBool
+            (show $ responseBody rsp)
+            ( case responseJsonMaybe rsp of
+                Nothing -> False
+                Just bdy -> wantBody bdy
+            )
+
+    -- LH devices are treated as clients that have the ClientSupportsLegalholdImplicitConsent
+    -- capability (so LH doesn't break for users who have LH devices; it sounds silly, but
+    -- it's good to test this, since it did require adding a few lines of production code in
+    -- 'addClient' about client capabilities).
+    runit legalholder legalholderClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
+
+    -- If user has a client without the ClientSupportsLegalholdImplicitConsent
+    -- capability then message sending is prevented to legalhold devices.
+    peerClient <- randomClient peer (someLastPrekeys !! 2)
+    runit peer peerClient >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+    upgradeClientToLH peer peerClient
+    runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
 
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
@@ -837,18 +963,25 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
 
-  let doEnableLH :: HasCallStack => TestM ()
+  let doEnableLH :: HasCallStack => TestM (Maybe ClientId)
       doEnableLH = do
         -- register & (possibly) approve LH device for legalholder
         withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
         when approveLH $
           withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
-        liftIO $
-          assertEqual
-            "approving should change status"
-            (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending)
-            userStatus
+        liftIO $ assertEqual "approving should change status" (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending) userStatus
+        if approveLH
+          then
+            getInternalClientsFull (UserSet $ Set.fromList [legalholder])
+              <&> userClientsFull
+              <&> Map.elems
+              <&> Set.unions
+              <&> Set.toList
+              <&> (\[x] -> x)
+              <&> clientId
+              <&> Just
+          else pure Nothing
 
       doDisableLH :: HasCallStack => TestM ()
       doDisableLH = do
@@ -863,7 +996,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
       then do
         postConnection legalholder peer !!! const 201 === statusCode
 
-        _mbConn :: Maybe UserConnection <-
+        mbConn :: Maybe UserConnection <-
           if testPendingConnection
             then pure Nothing
             else do
@@ -872,14 +1005,12 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         ensureQueueEmpty
 
-        doEnableLH
+        mbLegalholderLHDevice <- doEnableLH
 
         assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
         forM_ [legalholderWs, peerWs] $ \ws -> do
-          -- (if this fails, it may be because there are other messages in the queue, but i
-          -- think we implemented this in a way that doens't trip over wrong orderings.)
           assertNotification ws $
             \case
               (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
@@ -893,11 +1024,19 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
         assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
 
-        -- FUTUREWORK: test if message sending is blocked
-        -- for_ (mbConn >>= Conn.ucConvId) $ \convId -> do
-        -- (again, other label / 4xx status code would also be fine.)
-        -- postOtrMessageJson peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
-        -- postOtrMessageProto peer convId !!! testResponse 412 (Just "missing-legalhold-consent")
+        -- peer can't send message to legalhodler. the conversation appears gone.
+        peerClient <- randomClient peer (someLastPrekeys !! 2)
+        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
+          postOtrMessage
+            id
+            peer
+            peerClient
+            convId
+            [ (legalholder, legalholderLHDevice, "cipher")
+            ]
+            !!! do
+              const 404 === statusCode
+              const (Just "no-conversation") === fmap Error.label . responseJsonMaybe
 
         do
           doDisableLH
@@ -912,11 +1051,26 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
                 if testPendingConnection then Conn.Pending else Conn.Accepted
             ]
 
-        -- FUTUREWORK: test if message sending works again
-        -- postOtrMessageJson undefined undefined !!! const 201 === statusCode
-        pure ()
+        forM_ [legalholderWs, peerWs] $ \ws -> do
+          assertNotification ws $
+            \case
+              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
+                assertBool "" (rel `elem` [Conn.Sent, Conn.Pending, Conn.Accepted])
+              _ -> assertBool "wrong event type" False
+
+        -- conversation reappears. peer can send message to legalholder again
+        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
+          postOtrMessage
+            id
+            peer
+            peerClient
+            convId
+            [ (legalholder, legalholderLHDevice, "cipher")
+            ]
+            !!! do
+              const 201 === statusCode
       else do
-        doEnableLH
+        void doEnableLH
         postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
         postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
 
@@ -925,6 +1079,69 @@ testNoConsentBlockGroupConv = do
   -- "If LH is activated for other user in group conv, this user gets removed with helpful message"
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-428
   pure ()
+
+data TestClaimKeys
+  = TCKConsentMissing
+  | TCKOldClient
+  | TCKConsentAndNewClients
+
+testClaimKeys :: TestClaimKeys -> TestM ()
+testClaimKeys testcase = do
+  -- "cannot fetch prekeys of LH users if requester did not give consent or has old clients"
+  (legalholder, tid) <- createBindingTeam
+  ensureQueueEmpty
+  (peer, teamPeer) <- createBindingTeam
+  ensureQueueEmpty
+
+  let doEnableLH :: HasCallStack => TeamId -> UserId -> UserId -> TestM ClientId
+      doEnableLH team owner uid = do
+        requestLegalHoldDevice owner uid team !!! testResponse 201 Nothing
+        approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid team
+        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+        getInternalClientsFull (UserSet $ Set.fromList [uid])
+          <&> userClientsFull
+          <&> Map.elems
+          <&> Set.unions
+          <&> Set.toList
+          <&> (\[x] -> x)
+          <&> clientId
+
+  let makePeerClient :: TestM ()
+      makePeerClient = case testcase of
+        TCKConsentMissing -> do
+          peerClient <- randomClient peer (someLastPrekeys !! 2)
+          upgradeClientToLH peer peerClient
+        TCKOldClient -> do
+          void $ randomClient peer (someLastPrekeys !! 2)
+          grantConsent teamPeer peer
+        TCKConsentAndNewClients -> do
+          peerClient <- randomClient peer (someLastPrekeys !! 2)
+          upgradeClientToLH peer peerClient
+          grantConsent teamPeer peer
+
+  let assertResponse :: Assertions ()
+      assertResponse = case testcase of
+        TCKConsentMissing -> bad
+        TCKOldClient -> bad
+        TCKConsentAndNewClients -> good
+        where
+          good = testResponse 200 Nothing
+          bad = testResponse 412 (Just "missing-legalhold-consent")
+
+  let fetchKeys :: ClientId -> TestM ()
+      fetchKeys legalholderLHDevice = do
+        getUsersPrekeysClientUnqualified peer legalholder legalholderLHDevice !!! assertResponse
+        getUsersPrekeyBundleUnqualified peer legalholder !!! assertResponse
+        let userClients = UserClients (Map.fromList [(legalholder, Set.fromList [legalholderLHDevice])])
+        getMultiUserPrekeyBundleUnqualified peer userClients !!! assertResponse
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    grantConsent tid legalholder
+    legalholderLHDevice <- doEnableLH tid legalholder legalholder
+
+    makePeerClient
+    fetchKeys legalholderLHDevice
 
 testBenchHack :: HasCallStack => TestM ()
 testBenchHack = do
@@ -1290,6 +1507,7 @@ withDummyTestServiceForTeam owner tid go = do
     initiateResp :: Wai.Response
     initiateResp =
       Wai.json $
+        -- FUTUREWORK: use another key to prevent collisions with keys used by tests
         NewLegalHoldClient somePrekeys (head $ someLastPrekeys)
 
     respondOk :: Wai.Response
@@ -1468,6 +1686,7 @@ instance FromJSON Ev.ClientEvent where
           Nothing
           Nothing
           Nothing
+          (Client.ClientCapabilityList mempty)
 
 instance FromJSON Ev.ConnectionEvent where
   parseJSON = Aeson.withObject "ConnectionEvent" $ \o -> do
