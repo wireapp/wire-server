@@ -19,7 +19,8 @@ testFedError =
   testGroup
     "fedEror"
     [ testCase "when federation is unavailable" $
-        assertFedErrorStatus (FederationUnavailable "federator down!") 500,
+        -- FUTUREWORK: make this a 500 once we implement a way to say "federation is disabled on this backend"
+        assertFedErrorStatus (FederationUnavailable "federator down!") 400,
       testCase "when federation is not implemented" $
         assertFedErrorStatus FederationNotImplemented 403,
       testCase "when federation is not configured" $
@@ -41,8 +42,9 @@ testFedError =
         assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.InvalidContentTypeHeader emptyRes))) 533,
       testCase "when federation call fails due to unsupported content type" $
         assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.UnsupportedContentType "application/xml" emptyRes))) 533,
+      -- FUTUREWORK: make this a 500 once we implement a way to say "federation is disabled on this backend"
       testCase "when federation call fails due to connection error" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.ConnectionError (SomeException TestException)))) 500
+        assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.ConnectionError (SomeException TestException)))) 400
     ]
 
 testOutwardError :: TestTree
