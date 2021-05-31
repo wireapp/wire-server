@@ -53,6 +53,9 @@ class KnownComponent (c :: Proto.Component) where
 instance KnownComponent 'Proto.Brig where
   componentVal = Proto.Brig
 
+instance KnownComponent 'Proto.Galley where
+  componentVal = Proto.Galley
+
 -- | expectedStatuses is ignored as we don't get any status from the federator,
 -- all responses have '200 OK' as their status.
 instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent component) => RunClient (FederatorClient component m) where
