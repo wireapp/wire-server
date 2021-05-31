@@ -79,6 +79,7 @@ module Galley.Data
     -- * Conversation Members
     addMember,
     addMembersWithRole,
+    addLocalMembersToRemoteConv,
     member,
     members,
     removeMember,
@@ -850,6 +851,21 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)
+
+-- | Set local users as belonging to a remote conversation. This is invoked by
+-- a remote galley (using the RPC updateConversationMembership) when users from
+-- the current backend are added to conversations on the remote end.
+addLocalMembersToRemoteConv :: MonadClient m => [UserId] -> Qualified ConvId -> m ()
+addLocalMembersToRemoteConv users qconv = do
+  -- FUTUREWORK: consider using pooledMapConcurrentlyN
+  for_ (List.chunksOf 32 users) $ \chunk ->
+    retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency Quorum
+      for_ chunk $ \u ->
+        addPrepQuery
+          Cql.insertUserRemoteConv
+          (u, qDomain qconv, qUnqualified qconv)
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do

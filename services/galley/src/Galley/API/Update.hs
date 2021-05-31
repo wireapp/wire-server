@@ -485,7 +485,7 @@ mapUpdateToServant Unchanged = Servant.respond NoContent
 -- we need the following checks/implementation:
 --  - (1) [DONE] Remote qualified users must exist before they can be added (a
 --  call to the respective backend should be made): Avoid clients making up random
---  Ids, and increase the chances that the updateConversationMembership call
+--  Ids, and increase the chances that the updateConversationMemberships call
 --  suceeds
 --  - (2) A call must be made to the remote backend informing it that this user is
 --  now part of that conversation. Use and implement 'updateConversationMemberships'.

@@ -89,8 +89,8 @@ import Wire.API.User (UserIdList (..))
 
 data Event = Event
   { evtType :: EventType,
-    evtConv :: ConvId,
-    evtFrom :: UserId,
+    evtConv :: ConvId, -- FUTUREWORK: make this qualified
+    evtFrom :: UserId, -- FUTUREWORK: make this qualified
     evtTime :: UTCTime,
     evtData :: EventData
   }
