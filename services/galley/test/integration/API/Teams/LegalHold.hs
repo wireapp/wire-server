@@ -65,7 +65,7 @@ import qualified Galley.App as Galley
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
 import Galley.External.LegalHoldService (validateServiceKey)
-import Galley.Options (optSettings, setFeatureFlags, setLegalHoldTeamsWhitelist)
+import Galley.Options (optSettings, setFeatureFlags)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams
 import Gundeck.Types.Notification (ntfPayload)
@@ -107,9 +107,7 @@ onlyIfLhEnabled action = do
     FeatureLegalHoldDisabledByDefault ->
       action
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      error
-        "`FeatureLegalHoldWhitelistTeamsAndImplicitConsent` requires setting up a mock galley \
-        \with `withLHWhitelist`; don't call `onlyIfLhEnabled` if you do that, that's redundant."
+      action
 
 onlyIfLhWhitelisted :: TestM () -> TestM ()
 onlyIfLhWhitelisted action = do
@@ -194,9 +192,7 @@ testsInternal :: IO TestSetup -> TestTree
 testsInternal s =
   testGroup
     "Legalhold Internal API"
-    [ -- whitelisting feature
-      test s "PUT, DELETE /i/legalhold/whitelisted-teams" (onlyIfLhEnabled testWhitelistingTeams)
-    ]
+    [test s "PUT, DELETE /i/legalhold/whitelisted-teams" (onlyIfLhEnabled testWhitelistingTeams)]
 
 -- | Make sure the ToSchema and ToJSON instances are in sync for all of the swagger docs.
 -- (this is more of a unit test, but galley doesn't have any, and it seems not worth it to
@@ -215,16 +211,16 @@ testWhitelistingTeams = do
 
   let listWhiteListed :: TestM [TeamId]
       listWhiteListed = do
-        r <- withLHWhitelist tid (getLHWhitelistedTeams g) <!! const 200 === statusCode
+        r <- withLHWhitelistFeature (getLHWhitelistedTeams' g) <!! const 200 === statusCode
         responseJsonError r
 
-  withLHWhitelist tid (putLHWhitelistTeam g tid) !!! const 200 === statusCode
+  withLHWhitelistFeature (putLHWhitelistTeam' g tid) !!! const 200 === statusCode
 
   do
     tids <- listWhiteListed
     void $ liftIO $ assertBool "team should be whitelisted" $ tid `elem` tids
 
-  withLHWhitelist tid (deleteLHWhitelistTeam g tid) !!! const 204 === statusCode
+  withLHWhitelistFeature (deleteLHWhitelistTeam' g tid) !!! const 204 === statusCode
 
   do
     tids <- listWhiteListed
@@ -475,9 +471,10 @@ testDisableLegalHoldForUser = do
 data IsWorking = Working | NotWorking
   deriving (Eq, Show)
 
-testCreateLegalHoldTeamSettings :: TestM ()
+testCreateLegalHoldTeamSettings :: HasCallStack => TestM ()
 testCreateLegalHoldTeamSettings = do
   (owner, tid) <- createBindingTeam
+  putLHWhitelistTeam tid !!! const 200 === statusCode
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -1176,8 +1173,9 @@ testClaimKeys testcase = do
         let userClients = UserClients (Map.fromList [(legalholder, Set.fromList [legalholderLHDevice])])
         getMultiUserPrekeyBundleUnqualified peer userClients !!! assertResponse
 
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    grantConsent tid legalholder
     legalholderLHDevice <- doEnableLH tid legalholder legalholder
 
     makePeerClient
@@ -1453,23 +1451,14 @@ assertZeroLegalHoldDevices uid = do
 ---------------------------------------------------------------------
 --- Device helpers
 
+-- | TODO: Remove this
 grantConsent :: HasCallStack => TeamId -> UserId -> TestM ()
-grantConsent tid zusr = do
-  g <- view tsGalley
-  grantConsent' g tid zusr
+grantConsent tid _zusr = do
+  putLHWhitelistTeam tid !!! const 200 === statusCode
 
 grantConsent' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> UserId -> m ()
-grantConsent' = grantConsent'' expect2xx
-
-grantConsent'' :: (HasCallStack, MonadHttp m, MonadIO m) => (Bilge.Request -> Bilge.Request) -> GalleyR -> TeamId -> UserId -> m ()
-grantConsent'' expectation g tid zusr = do
-  void . post $
-    g
-      . paths ["teams", toByteString' tid, "legalhold", "consent"]
-      . zUser zusr
-      . zConn "conn"
-      . zType "access"
-      . expectation
+grantConsent' g tid _zusr =
+  void $ putLHWhitelistTeam' g tid
 
 requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do
@@ -1562,13 +1551,21 @@ withDummyTestServiceForTeam owner tid go = do
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name req = lookup (fromString name) $ requestHeaders req
 
+withLHWhitelistFeature :: forall a. HasCallStack => WaiTest.Session a -> TestM a
+withLHWhitelistFeature action = do
+  opts <- view tsGConf
+  let opts' = opts & optSettings . setFeatureFlags . flagLegalHold .~ FeatureLegalHoldWhitelistTeamsAndImplicitConsent
+  withSettingsOverrides opts' $ do
+    action
+
 withLHWhitelist :: forall a. HasCallStack => TeamId -> WaiTest.Session a -> TestM a
 withLHWhitelist tid action = do
   opts <- view tsGConf
-  let opts' =
-        opts & optSettings . setLegalHoldTeamsWhitelist .~ Just [tid]
-          & optSettings . setFeatureFlags . flagLegalHold .~ FeatureLegalHoldWhitelistTeamsAndImplicitConsent
-  withSettingsOverrides opts' action
+  galley <- view tsGalley
+  let opts' = opts & optSettings . setFeatureFlags . flagLegalHold .~ FeatureLegalHoldWhitelistTeamsAndImplicitConsent
+  withSettingsOverrides opts' $ do
+    void $ putLHWhitelistTeam' galley tid
+    action
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
 -- to a TCP socket for the backend to connect to.  The mock service can expose internal
@@ -1775,24 +1772,38 @@ assertMatchChan c match = go []
               Nothing -> go (n : buf)
         Nothing -> do
           refill buf
-          error "Timeout"
 
-getLHWhitelistedTeams :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> m ResponseLBS
-getLHWhitelistedTeams g = do
+getLHWhitelistedTeams :: HasCallStack => TestM ResponseLBS
+getLHWhitelistedTeams = do
+  galley <- view tsGalley
+  getLHWhitelistedTeams' galley
+
+getLHWhitelistedTeams' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> m ResponseLBS
+getLHWhitelistedTeams' g = do
   get
     ( g
         . paths ["i", "legalhold", "whitelisted-teams"]
     )
 
-putLHWhitelistTeam :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
-putLHWhitelistTeam g tid = do
+putLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
+putLHWhitelistTeam tid = do
+  galley <- view tsGalley
+  putLHWhitelistTeam' galley tid
+
+putLHWhitelistTeam' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
+putLHWhitelistTeam' g tid = do
   put
     ( g
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-deleteLHWhitelistTeam :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
-deleteLHWhitelistTeam g tid = do
+deleteLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
+deleteLHWhitelistTeam tid = do
+  galley <- view tsGalley
+  deleteLHWhitelistTeam' galley tid
+
+deleteLHWhitelistTeam' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
+deleteLHWhitelistTeam' g tid = do
   delete
     ( g
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
