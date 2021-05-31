@@ -14,21 +14,35 @@
 
 -->
 
-[upcoming]
+[2021-05-31]
 
 ## Release Notes
 
-Deploy brig before galley (#1526, #1549)
+- deploy brig before galley (#1526, #1549)
 
 ## Features
 
 - Legalhold: Ensure device handshake is blocked in case of policy conflict (#1526)
+- Legalhold: Allow for large teams (>2000) if enabled via whitelist (#1546)
+- Legalhold: Add ClientCapabilities to NewClient type and addClient end-point (#1552)
 
 ## Bug fixes and other updates
 
+ - Fix: Connection type when unblocking after LH (#1549)
+ - cargohold: Override outside mimetype on upload (20d0028c)
+
 ## Documentation
 
+ - Update Rich Info docs (#1544)
+
 ## Internal changes
+
+ - Refactoring-friendly FutureWork data type (#1550)
+ - Add required fields to Swagger for SchemaP (#1536)
+ - Add end2end test for adding remote users to a conversation (#1538)
+ - Add remote members to conversations (#1529)
+ - Use Servant.respond instead of explicit SOP (#1535)
+ - More examples in schema-profunctor documentation (#1539)
 
 # [2021-05-26]
 
