@@ -34,8 +34,9 @@ federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      getConversations
-      updateConversationMembership
+      { FederationAPIGalley.getConversations = getConversations,
+        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
+      }
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = do
@@ -46,8 +47,8 @@ getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = d
     else error "FUTUREWORK: implement & exstend integration test when schema ready"
 
 -- FUTUREWORK: also remove users from conversation
-updateConversationMembership :: ConversationMemberUpdate -> Galley ()
-updateConversationMembership cmu = do
+updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
+updateConversationMemberships cmu = do
   localDomain <- viewFederationDomain
   let localUsers = filter ((== localDomain) . qDomain . fst) (cmuUsersAdd cmu)
   when (not (null localUsers)) $ do

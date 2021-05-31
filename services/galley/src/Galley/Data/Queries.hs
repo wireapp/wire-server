@@ -304,12 +304,12 @@ selectRemoteMembers = "select conv, user_remote_domain, user_remote_id, conversa
 insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
 
+selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
+selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain"
+
 -- FUTUREWORK: actually make use of these cql statements.
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
-
-selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
-selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain"
 
 -- Clients ------------------------------------------------------------------
 
