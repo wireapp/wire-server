@@ -49,11 +49,11 @@ tests s =
       test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
       test
         s
-        "POST /federation/update-conversation-memberships : Add local user"
+        "POST /federation/update-conversation-memberships : Add local user to remote conversation"
         addLocalUser,
       test
         s
-        "POST /federation/update-conversation-memberships : Notify local user"
+        "POST /federation/update-conversation-memberships : Notify local user about other members joining"
         notifyLocalUser
     ]
 
@@ -117,6 +117,7 @@ getConversationsNotPartOf = do
 addLocalUser :: TestM ()
 addLocalUser = do
   localDomain <- viewFederationDomain
+  c <- view tsCannon
   alice <- randomUser
   let qalice = Qualified alice localDomain
   let dom = Domain "bobland.example.com"
@@ -135,7 +136,11 @@ addLocalUser = do
             FedGalley.cmuUsersAdd = [(qalice, roleNameWireMember)],
             FedGalley.cmuUsersRemove = []
           }
-  FedGalley.updateConversationMemberships fedGalleyClient cmu
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.updateConversationMemberships fedGalleyClient cmu
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertMemberJoinWithRole conv bob [alice] roleNameWireMember
   cassState <- view tsCass
   convs <-
     Cql.runClient cassState

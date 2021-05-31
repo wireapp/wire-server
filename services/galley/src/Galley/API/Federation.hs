@@ -17,6 +17,7 @@
 module Galley.API.Federation where
 
 import Control.Arrow (first)
+import Data.Containers.ListUtils (nubOrd)
 import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util (pushConversationEvent, viewFederationDomain)
@@ -51,8 +52,9 @@ updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
 updateConversationMemberships cmu = do
   localDomain <- viewFederationDomain
   let localUsers = filter ((== localDomain) . qDomain . fst) (cmuUsersAdd cmu)
+      localUserIds = map (qUnqualified . fst) localUsers
   when (not (null localUsers)) $ do
-    Data.addLocalMembersToRemoteConv (map (qUnqualified . fst) localUsers) (cmuConvId cmu)
+    Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
   -- FUTUREWORK: the resulting event should have qualified users and conversations
   let mems = SimpleMembers (map (uncurry SimpleMember . first qUnqualified) (cmuUsersAdd cmu))
   let event =
@@ -63,5 +65,7 @@ updateConversationMemberships cmu = do
           (cmuTime cmu)
           (EdMembersJoin mems)
 
+  -- send notifications
+  let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
   -- FUTUREWORK: support bots?
-  pushConversationEvent event (cmuAlreadyPresentUsers cmu) []
+  pushConversationEvent event targets []
