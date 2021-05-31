@@ -63,6 +63,7 @@ where
 
 import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
+import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
@@ -97,6 +98,7 @@ import Galley.Types
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
+import Galley.Types.Conversations.Members (RemoteMember (..))
 import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Validation
@@ -114,6 +116,10 @@ import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Event.Conversation as Public
+import Wire.API.Federation.API.Brig as FederatedBrig
+import Wire.API.Federation.API.Galley as FederatedGalley
+import qualified Wire.API.Federation.Client as Federation
+import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
@@ -474,7 +480,8 @@ joinConversation zusr zcon cnv access = do
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
   let mems = botsAndUsers (Data.convMembers conv)
-  addToConversation mems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) [] conv
+  let rMems = Data.convRemoteMembers conv
+  addToConversation mems rMems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) [] conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
@@ -495,7 +502,7 @@ mapUpdateToServant Unchanged = Servant.respond NoContent
 --  call to the respective backend should be made): Avoid clients making up random
 --  Ids, and increase the chances that the updateConversationMemberships call
 --  suceeds
---  - (2) A call must be made to the remote backend informing it that this user is
+--  - (2) [DONE] A call must be made to the remote backend informing it that this user is
 --  now part of that conversation. Use and implement 'updateConversationMemberships'.
 --    - that call should probably be made *after* inserting the conversation membership
 --    happens in this backend.
@@ -507,6 +514,7 @@ addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley Upd
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing convNotFound
   let mems = botsAndUsers (Data.convMembers conv)
+  let rMems = Data.convRemoteMembers conv
   self <- getSelfMember zusr (snd mems)
   ensureActionAllowed AddConversationMember self
   let invitedUsers = toList $ Public.invQUsers invite
@@ -519,7 +527,7 @@ addMembers zusr zcon convId invite = do
   ensureConvRoleNotElevated self (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
   checkRemoteUsersExist newRemotes
-  addToConversation mems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
+  addToConversation mems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
 
@@ -876,20 +884,60 @@ rmBot zusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [LocalMember]) -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
-addToConversation _ _ _ [] [] _ = pure Unchanged
-addToConversation (bots, others) (usr, usrRole) conn locals remotes c = do
-  localDomain <- viewFederationDomain
+addToConversation :: ([BotMember], [LocalMember]) -> [RemoteMember] -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
+addToConversation _ _ _ _ [] [] _ = pure Unchanged
+addToConversation (bots, lothers) rothers (usr, usrRole) conn locals remotes c = do
   ensureGroupConv c
   mems <- checkedMemberAddSize locals remotes
   now <- liftIO getCurrentTime
-  (e, mm, _remotes) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
-  -- FUTUREWORK: send events to '_remotes' users here, too
-  let allMembers = nubOrdOn memId (toList mm <> others)
+  localDomain <- viewFederationDomain
+  (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
+  let others = catMembers localDomain lothers rothers
+      mm = catMembers localDomain lmm rmm
+      qcnv = Qualified (Data.convId c) localDomain
+      qusr = Qualified usr localDomain
+  -- FUTUREWORK: parallelise federated requests
+  traverse_ (uncurry (updateRemoteConversations now mm qusr qcnv))
+    . Map.assocs
+    . partitionQualified
+    . map fst
+    $ others
+  let allMembers = nubOrdOn memId (lmm <> lothers)
   for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
     push1 $ p & pushConn ?~ conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   pure $ Updated e
+  where
+    catMembers ::
+      Domain ->
+      [LocalMember] ->
+      [RemoteMember] ->
+      [(Qualified UserId, RoleName)]
+    catMembers localDomain ls rs =
+      map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
+        <> map ((unTagged . rmId) &&& rmConvRoleName) rs
+
+updateRemoteConversations ::
+  UTCTime ->
+  [(Qualified UserId, RoleName)] ->
+  Qualified UserId ->
+  Qualified ConvId ->
+  Domain ->
+  [UserId] ->
+  Galley ()
+updateRemoteConversations now uids orig cnv domain others = do
+  let cmu =
+        ConversationMemberUpdate
+          { cmuTime = now,
+            cmuOrigUserId = orig,
+            cmuConvId = cnv,
+            cmuAlreadyPresentUsers = others,
+            cmuUsersAdd = uids,
+            cmuUsersRemove = []
+          }
+  let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
+  runExceptT (Federation.executeFederated domain rpc)
+    >>= either (throwM . federationErrorToWai) pure
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
 ensureGroupConv c = case Data.convType c of
