@@ -37,6 +37,7 @@ import Brig.Types
 import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, view, (^.))
 import Data.Aeson hiding (json)
+import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain))
@@ -64,7 +65,6 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
-import qualified Data.ByteString as BS
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -348,7 +348,7 @@ postCryptoMessage5 :: TestM ()
 postCryptoMessage5 = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
-  (chad, cc) <- randomUserWithClient (someLastPrekeys  !! 2)
+  (chad, cc) <- randomUserWithClient (someLastPrekeys !! 2)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 3)
   connectUsers alice (list1 bob [chad, eve])
   conv <- decodeConvId <$> postConv alice [bob, chad, eve] (Just "gossip") [] Nothing Nothing

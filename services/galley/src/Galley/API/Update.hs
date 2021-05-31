@@ -71,8 +71,8 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
 import Data.Id
-import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
 import Data.Json.Util (toUTCTimeMillis)
+import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
 import Data.List.Extra (nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -123,11 +123,11 @@ import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (userTeam)
 import Wire.API.User.Client (UserClientsFull)
 import qualified Wire.API.User.Client as Client
-import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -665,12 +665,12 @@ postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
     translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
     translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
 
-    resolveQueryMissingOptions :: Maybe GalleyAPI.IgnoreMissing ->  Maybe GalleyAPI.ReportMissing -> Public.OtrFilterMissing
+    resolveQueryMissingOptions :: Maybe GalleyAPI.IgnoreMissing -> Maybe GalleyAPI.ReportMissing -> Public.OtrFilterMissing
     resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
     resolveQueryMissingOptions (Just GalleyAPI.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
     resolveQueryMissingOptions (Just (GalleyAPI.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
-    resolveQueryMissingOptions Nothing (Just GalleyAPI.ReportMissingAll )= Public.OtrReportAllMissing
-    resolveQueryMissingOptions Nothing (Just (GalleyAPI.ReportMissingList uids) )= Public.OtrReportMissing uids
+    resolveQueryMissingOptions Nothing (Just GalleyAPI.ReportMissingAll) = Public.OtrReportAllMissing
+    resolveQueryMissingOptions Nothing (Just (GalleyAPI.ReportMissingList uids)) = Public.OtrReportMissing uids
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
