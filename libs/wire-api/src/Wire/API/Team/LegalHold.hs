@@ -347,7 +347,9 @@ camelToUnderscore = concatMap go . (ix 0 %~ toLower)
 -- | Bots are not protected to be potentially recorded by legalhold devices.
 data LegalholdProtectee
   = ProtectedUser UserId
-  | UnprotectedBot
+  | -- | add UserId here if you want to protect bots as well (or just remove and use
+    -- 'ProtectedUser', but then you'll loose the user type information).
+    UnprotectedBot
   | -- | FUTUREWORK: protection against legalhold when looking up prekeys accross federated
     -- instances.
     LegalholdPlusFederationNotImplemented
