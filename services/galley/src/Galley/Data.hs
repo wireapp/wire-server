@@ -132,6 +132,7 @@ import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.App
 import Galley.Data.Instances ()
+import qualified Galley.Data.LegalHold as LegalholdData
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
 import qualified Galley.Options as Opts
@@ -182,7 +183,7 @@ mkResultSet page = ResultSet (result page) typ
       | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
-schemaVersion = 49
+schemaVersion = 50
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -992,19 +993,27 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 
 -- Internal utilities
 
--- | Construct 'TeamMember' from database tuple.  Read 'setLegalHoldTeamsWhitelist' from 'Env'
--- to handle implicit consent (ie., fill in 'UserLegalHoldDisabled' instead of
--- 'UserLegalHoldNoConsent' if team is whitelisted.)
+-- | Construct 'TeamMember' from database tuple.
+-- If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set UserLegalHoldDisabled
+-- if team is whitelisted.
 --
 -- Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
 -- other is 'Just', which can only be caused by inconsistent database content.
-newTeamMember' :: (MonadThrow m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
+newTeamMember' :: (MonadThrow m, MonadReader Env m, MonadClient m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
 newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
-  whitelist <- view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
-  maybeGrant whitelist <$> mk minvu minvt
+  legalhold <- view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold)
+  whitelist <- LegalholdData.getLegalholdWhitelistedTeams
+  maybeGrant legalhold whitelist <$> mk minvu minvt
   where
-    maybeGrant :: Maybe [TeamId] -> TeamMember -> TeamMember
-    maybeGrant whitelist = bool id grantImplicitConsent (maybe False (tid `elem`) whitelist)
+    maybeGrant :: FeatureLegalHold -> [TeamId] -> TeamMember -> TeamMember
+    maybeGrant legalhold whitelist mem =
+      case legalhold of
+        FeatureLegalHoldDisabledPermanently -> mem
+        FeatureLegalHoldDisabledByDefault -> mem
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+          if tid `elem` whitelist
+            then grantImplicitConsent mem
+            else mem
 
     grantImplicitConsent :: TeamMember -> TeamMember
     grantImplicitConsent =

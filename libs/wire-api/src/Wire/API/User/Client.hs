@@ -145,7 +145,7 @@ import Wire.API.User.Client.Prekey as Prekey
 -- ancient capabilities.
 data ClientCapability
   = -- | Clients have minimum support for LH, but not for explicit consent.  Implicit consent
-    -- is granted via the galley server config (see '_setLegalHoldTeamsWhitelist').
+    -- is granted via the galley server config.
     ClientSupportsLegalholdImplicitConsent
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientCapability)

@@ -25,6 +25,10 @@ module Galley.Data.LegalHold
     Galley.Data.LegalHold.selectPendingPrekeys,
     Galley.Data.LegalHold.dropPendingPrekeys,
     setUserLegalHoldStatus,
+    getLegalholdWhitelistedTeams,
+    setTeamLegalholdWhitelisted,
+    unsetTeamLegalholdWhitelisted,
+    isTeamLegalholdWhitelisted,
   )
 where
 
@@ -82,3 +86,19 @@ dropPendingPrekeys uid = retry x5 (write Q.dropPendingPrekeys (params Quorum (Id
 setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStatus -> m ()
 setUserLegalHoldStatus tid uid status =
   retry x5 (write Q.updateUserLegalHoldStatus (params Quorum (status, tid, uid)))
+
+getLegalholdWhitelistedTeams :: MonadClient m => m [TeamId]
+getLegalholdWhitelistedTeams =
+  runIdentity <$$> retry x1 (query Q.selectLegalHoldWhitelistedTeams (params Quorum ()))
+
+setTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
+setTeamLegalholdWhitelisted tid =
+  retry x5 (write Q.insertLegalHoldWhitelistedTeam (params Quorum (Identity tid)))
+
+unsetTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
+unsetTeamLegalholdWhitelisted tid =
+  retry x5 (write Q.removeLegalHoldWhitelistedTeam (params Quorum (Identity tid)))
+
+isTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m Bool
+isTeamLegalholdWhitelisted tid =
+  isJust <$> (runIdentity <$$> retry x1 (query1 Q.selectLegalHoldWhitelistedTeam (params Quorum (Identity tid))))

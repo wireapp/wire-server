@@ -200,6 +200,9 @@ legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold
 legalHoldWhitelistedOnly :: Error
 legalHoldWhitelistedOnly = Error status403 "legalhold-whitelisted-only" "legal hold is enabled for teams via server config and cannot be changed here"
 
+legalHoldWhitelistedFlagRequired :: Error
+legalHoldWhitelistedFlagRequired = Error status403 "legalhold-whitelisted-required" "legal hold feature flag is not whitelist-teams-and-implicit-consent"
+
 legalHoldFeatureFlagNotEnabled :: Error
 legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
 

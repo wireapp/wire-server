@@ -36,7 +36,7 @@ import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
 import qualified Galley.Data as Data
-import Galley.Options (Opts, optGalley, validateOpts)
+import Galley.Options (Opts, optGalley)
 import qualified Galley.Queue as Q
 import Imports
 import Network.Wai (Application)
@@ -77,7 +77,6 @@ mkApp o = do
   m <- M.metrics
   e <- App.createEnv m o
   let l = e ^. App.applog
-  validateOpts l o
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
   let finalizer = do

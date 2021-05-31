@@ -399,6 +399,30 @@ updateUserLegalHoldStatus =
           where team = ? and user = ?
     |]
 
+selectLegalHoldWhitelistedTeams :: PrepQuery R () (Identity TeamId)
+selectLegalHoldWhitelistedTeams =
+  [r|
+        select team from legalhold_whitelisted
+    |]
+
+selectLegalHoldWhitelistedTeam :: PrepQuery R (Identity TeamId) (Identity TeamId)
+selectLegalHoldWhitelistedTeam =
+  [r|
+        select team from legalhold_whitelisted where team = ?
+    |]
+
+insertLegalHoldWhitelistedTeam :: PrepQuery W (Identity TeamId) ()
+insertLegalHoldWhitelistedTeam =
+  [r|
+        insert into legalhold_whitelisted (team) values (?)
+    |]
+
+removeLegalHoldWhitelistedTeam :: PrepQuery W (Identity TeamId) ()
+removeLegalHoldWhitelistedTeam =
+  [r|
+        delete from legalhold_whitelisted where team = ?
+    |]
+
 -- Search Visibility --------------------------------------------------------
 
 selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))

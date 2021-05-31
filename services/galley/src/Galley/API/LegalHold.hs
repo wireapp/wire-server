@@ -26,6 +26,13 @@ module Galley.API.LegalHold
     approveDeviceH,
     disableForUserH,
     isLegalHoldEnabledForTeam,
+    getLegalholdWhitelistedTeams,
+    getLegalholdWhitelistedTeamsH,
+    isTeamLegalholdWhitelisted,
+    setTeamLegalholdWhitelisted,
+    setTeamLegalholdWhitelistedH,
+    unsetTeamLegalholdWhitelisted,
+    unsetTeamLegalholdWhitelistedH,
   )
 where
 
@@ -79,10 +86,8 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
-        <&> maybe
-          False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
-          (tid `elem`)
+      whitelist <- LegalHoldData.getLegalholdWhitelistedTeams
+      pure $ tid `elem` whitelist
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
@@ -443,3 +448,42 @@ blockConnectionsFrom1on1s uid = do
           Just team -> do
             mMember <- Data.teamMember team other
             pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+
+getLegalholdWhitelistedTeams :: Galley [TeamId]
+getLegalholdWhitelistedTeams = do
+  assertLegalholdWhitelistFeature
+  LegalHoldData.getLegalholdWhitelistedTeams
+
+getLegalholdWhitelistedTeamsH :: JSON -> Galley Response
+getLegalholdWhitelistedTeamsH _ = do
+  json <$> getLegalholdWhitelistedTeams
+
+setTeamLegalholdWhitelisted :: TeamId -> Galley ()
+setTeamLegalholdWhitelisted tid = do
+  assertLegalholdWhitelistFeature
+  LegalHoldData.setTeamLegalholdWhitelisted tid
+
+setTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+setTeamLegalholdWhitelistedH tid = do
+  empty <$ setTeamLegalholdWhitelisted tid
+
+unsetTeamLegalholdWhitelisted :: TeamId -> Galley ()
+unsetTeamLegalholdWhitelisted tid = do
+  assertLegalholdWhitelistFeature
+  LegalHoldData.unsetTeamLegalholdWhitelisted tid
+
+unsetTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+unsetTeamLegalholdWhitelistedH tid = do
+  setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
+
+assertLegalholdWhitelistFeature :: Galley ()
+assertLegalholdWhitelistFeature = do
+  view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> throwM legalHoldWhitelistedFlagRequired
+    FeatureLegalHoldDisabledByDefault -> throwM legalHoldWhitelistedFlagRequired
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> pure ()
+
+isTeamLegalholdWhitelisted :: TeamId -> Galley Bool
+isTeamLegalholdWhitelisted tid = do
+  assertLegalholdWhitelistFeature
+  LegalHoldData.isTeamLegalholdWhitelisted tid

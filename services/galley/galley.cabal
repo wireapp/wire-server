@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f39a353c80f1b7496eb99667a495a494ad2b7126fe12890cfac1db5ce16086f
+-- hash: a75e1043bb64e95e54fa4df902b37cf966f5591f1065a1cb63c0f34d600b5cc9
 
 name:           galley
 version:        0.83.0
@@ -346,6 +346,7 @@ executable galley-schema
       V47_RemoveFederationIdMapping
       V48_DeleteRemoteIdentifiers
       V49_ReAddRemoteIdentifiers
+      V50_AddLegalholdWhitelisted
       Paths_galley
   hs-source-dirs:
       schema/src

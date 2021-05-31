@@ -132,7 +132,10 @@ onlyIfLhWhitelisted action = do
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> action
 
 tests :: IO TestSetup -> TestTree
-tests s =
+tests s = testGroup "Legalhold" [testsPublic s, testsInternal s]
+
+testsPublic :: IO TestSetup -> TestTree
+testsPublic s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
   testGroup
     "Teams LegalHold API"
@@ -187,6 +190,14 @@ tests s =
         ]
     ]
 
+testsInternal :: IO TestSetup -> TestTree
+testsInternal s =
+  testGroup
+    "Legalhold Internal API"
+    [ -- whitelisting feature
+      test s "PUT, DELETE /i/legalhold/whitelisted-teams" (onlyIfLhEnabled testWhitelistingTeams)
+    ]
+
 -- | Make sure the ToSchema and ToJSON instances are in sync for all of the swagger docs.
 -- (this is more of a unit test, but galley doesn't have any, and it seems not worth it to
 -- start another test suite just for this one line.)
@@ -196,6 +207,28 @@ tests s =
 testSwaggerJsonConsistency :: TestM ()
 testSwaggerJsonConsistency = do
   liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @LegalHoldAPI.ServantAPI)
+
+testWhitelistingTeams :: TestM ()
+testWhitelistingTeams = do
+  (_owner, tid) <- createBindingTeam
+  g <- view tsGalley
+
+  let listWhiteListed :: TestM [TeamId]
+      listWhiteListed = do
+        r <- withLHWhitelist tid (getLHWhitelistedTeams g) <!! const 200 === statusCode
+        responseJsonError r
+
+  withLHWhitelist tid (putLHWhitelistTeam g tid) !!! const 200 === statusCode
+
+  do
+    tids <- listWhiteListed
+    void $ liftIO $ assertBool "team should be whitelisted" $ tid `elem` tids
+
+  withLHWhitelist tid (deleteLHWhitelistTeam g tid) !!! const 204 === statusCode
+
+  do
+    tids <- listWhiteListed
+    void $ liftIO $ assertBool "team should no longer be whitelisted" $ tid `notElem` tids
 
 testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = do
@@ -1743,3 +1776,24 @@ assertMatchChan c match = go []
         Nothing -> do
           refill buf
           error "Timeout"
+
+getLHWhitelistedTeams :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> m ResponseLBS
+getLHWhitelistedTeams g = do
+  get
+    ( g
+        . paths ["i", "legalhold", "whitelisted-teams"]
+    )
+
+putLHWhitelistTeam :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
+putLHWhitelistTeam g tid = do
+  put
+    ( g
+        . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
+    )
+
+deleteLHWhitelistTeam :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
+deleteLHWhitelistTeam g tid = do
+  delete
+    ( g
+        . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
+    )
