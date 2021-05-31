@@ -108,6 +108,7 @@ runTests iConf brigOpts otherArgs = do
 
   let turnFile = Opts.servers . Opts.turn $ brigOpts
       turnFileV2 = (Opts.serversV2 . Opts.turn) brigOpts
+      localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
       casHost = (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) brigOpts
       casPort = (\v -> (Opts.cassandra v) ^. casEndpoint . epPort) brigOpts
       casKey = (\v -> (Opts.cassandra v) ^. casKeyspace) brigOpts
@@ -119,7 +120,7 @@ runTests iConf brigOpts otherArgs = do
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   userApi <- User.tests brigOpts mg b c ch g n awsEnv
-  providerApi <- Provider.tests (provider iConf) mg db b c g
+  providerApi <- Provider.tests localDomain (provider iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
