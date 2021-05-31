@@ -711,9 +711,28 @@ postConvQualifiedNonExistentDomain = do
 
 postConvQualifiedNonExistentUser :: TestM ()
 postConvQualifiedNonExistentUser = do
-  -- TODO: test the case of a remote user not existing by using a mockedFederator similar to
-  -- https://github.com/wireapp/wire-server/blob/7db6eba56744ae6a8c7b5d1449b1595b3af2ea9b/services/galley/test/integration/API.hs#L905-L925
-  liftIO $ assertEqual "TODO" True False
+  alice <- randomUser
+  bobId <- randomId
+  charlieId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      bob = Qualified bobId remoteDomain
+      charlie = Qualified charlieId remoteDomain
+  --  convId <- decodeConvId <$>
+  opts <- view tsGConf
+  _g <- view tsGalley
+  --  liftIO $ do
+  (resp', _) <-
+    liftIO $
+      withTempMockFederator
+        opts
+        remoteDomain
+        [mkProfile charlie (Name "charlie")]
+        (pure $ postConvQualified alice [bob, charlie] (Just "remote gossip") [] Nothing Nothing)
+  resp <- resp'
+  liftIO $ do
+    statusCode resp @?= 400
+    let err = responseJsonUnsafe resp :: Object
+    (err ^. at "label") @?= Just "unknown-remote-user"
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
