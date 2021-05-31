@@ -86,6 +86,8 @@ setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStat
 setUserLegalHoldStatus tid uid status =
   retry x5 (write Q.updateUserLegalHoldStatus (params Quorum (status, tid, uid)))
 
+-- | This is cached for every request in 'Galley.App.Env', so you probably don't want to call
+-- it anywhere else.
 getLegalholdWhitelistedTeams :: MonadClient m => m [TeamId]
 getLegalholdWhitelistedTeams =
   runIdentity <$$> retry x1 (query Q.selectLegalHoldWhitelistedTeams (params Quorum ()))
