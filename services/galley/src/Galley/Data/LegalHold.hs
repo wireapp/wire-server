@@ -28,7 +28,6 @@ module Galley.Data.LegalHold
     getLegalholdWhitelistedTeams,
     setTeamLegalholdWhitelisted,
     unsetTeamLegalholdWhitelisted,
-    isTeamLegalholdWhitelisted,
   )
 where
 
@@ -98,7 +97,3 @@ setTeamLegalholdWhitelisted tid =
 unsetTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
 unsetTeamLegalholdWhitelisted tid =
   retry x5 (write Q.removeLegalHoldWhitelistedTeam (params Quorum (Identity tid)))
-
-isTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m Bool
-isTeamLegalholdWhitelisted tid =
-  isJust <$> (runIdentity <$$> retry x1 (query1 Q.selectLegalHoldWhitelistedTeam (params Quorum (Identity tid))))
