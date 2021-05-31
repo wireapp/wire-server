@@ -471,6 +471,11 @@ unsetTeamLegalholdWhitelisted tid = do
 
 unsetTeamLegalholdWhitelistedH :: TeamId -> Galley Response
 unsetTeamLegalholdWhitelistedH tid = do
+  () <-
+    error
+      "FUTUREWORK: if we remove entries from the list, that means removing an unknown \
+      \number of LH devices as well, and possibly other things.  think this through \
+      \before you enable the end-point."
   setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
 
 isTeamLegalholdWhitelisted :: TeamId -> Galley Bool
