@@ -24,18 +24,8 @@ import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
--- This migration replaces the remote identifiers deleted in migration 48 with separate tables.
--- This change occurs because we decided to stop using opaque Ids. Instead, we'll be explict with remote identifiers.
--- Since two backends may have a conversation or user with the same UUID
--- (whether by chance or maliciously so), this change guarantees we don't
--- accidentally override information about a conversation on one backend by
--- information about a conversation on another backend.
 migration :: Migration
-migration = Migration 50 "Add table that defines whitelisted teams if for the FeatureLegalHoldWhitelistTeamsAndImplicitConsent feature." $ do
-  -- The user_remote_conv (similar to the user) table answers the question:
-  -- Which conversations am I a member of?
-  -- With federation one now also needs to know: Where are these conversations located?
-  -- This table stores *local* users who are part of *remote* conversations
+migration = Migration 50 "Add table that defines whitelisted teams for FeatureLegalHoldWhitelistTeamsAndImplicitConsent feature setting." $ do
   schema'
     [r|
       CREATE TABLE legalhold_whitelisted (
