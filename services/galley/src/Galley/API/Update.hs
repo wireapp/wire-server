@@ -66,7 +66,6 @@ import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
-import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Id
