@@ -191,20 +191,23 @@ getLegalholdStatusInternal tid = do
 
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
-  do
-    featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
-    case featureLegalHold of
-      FeatureLegalHoldDisabledByDefault -> do
-        pure ()
-      FeatureLegalHoldDisabledPermanently -> do
-        throwM legalHoldFeatureFlagNotEnabled
-      FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-        throwM legalHoldWhitelistedOnly
-  case statusValue of
-    Public.TeamFeatureDisabled -> removeSettings' tid
-    Public.TeamFeatureEnabled -> do
-      ensureNotTooLargeToActivateLegalHold tid
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
+  featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
+
+  let activate = do
+        case statusValue of
+          Public.TeamFeatureDisabled -> removeSettings' tid
+          Public.TeamFeatureEnabled -> do
+            ensureNotTooLargeToActivateLegalHold tid
+        TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
+
+  case featureLegalHold of
+    FeatureLegalHoldDisabledByDefault -> activate
+    FeatureLegalHoldDisabledPermanently -> throwM legalHoldFeatureFlagNotEnabled
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+      isWhitelisted <- isTeamLegalholdWhitelisted tid
+      if isWhitelisted
+        then activate
+        else throwM legalHoldWhitelistedOnly
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do
