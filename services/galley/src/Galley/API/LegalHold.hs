@@ -450,7 +450,6 @@ blockConnectionsFrom1on1s uid = do
 
 getLegalholdWhitelistedTeams :: Galley [TeamId]
 getLegalholdWhitelistedTeams = do
-  assertLegalholdWhitelistFeature
   LegalHoldData.getLegalholdWhitelistedTeams
 
 getLegalholdWhitelistedTeamsH :: JSON -> Galley Response
@@ -459,7 +458,6 @@ getLegalholdWhitelistedTeamsH _ = do
 
 setTeamLegalholdWhitelisted :: TeamId -> Galley ()
 setTeamLegalholdWhitelisted tid = do
-  assertLegalholdWhitelistFeature
   LegalHoldData.setTeamLegalholdWhitelisted tid
 
 setTeamLegalholdWhitelistedH :: TeamId -> Galley Response
@@ -468,21 +466,12 @@ setTeamLegalholdWhitelistedH tid = do
 
 unsetTeamLegalholdWhitelisted :: TeamId -> Galley ()
 unsetTeamLegalholdWhitelisted tid = do
-  assertLegalholdWhitelistFeature
   LegalHoldData.unsetTeamLegalholdWhitelisted tid
 
 unsetTeamLegalholdWhitelistedH :: TeamId -> Galley Response
 unsetTeamLegalholdWhitelistedH tid = do
   setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
 
-assertLegalholdWhitelistFeature :: Galley ()
-assertLegalholdWhitelistFeature = do
-  view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
-    FeatureLegalHoldDisabledPermanently -> throwM legalHoldWhitelistedFlagRequired
-    FeatureLegalHoldDisabledByDefault -> throwM legalHoldWhitelistedFlagRequired
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> pure ()
-
 isTeamLegalholdWhitelisted :: TeamId -> Galley Bool
 isTeamLegalholdWhitelisted tid = do
-  assertLegalholdWhitelistFeature
   LegalHoldData.isTeamLegalholdWhitelisted tid
