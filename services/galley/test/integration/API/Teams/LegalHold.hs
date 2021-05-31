@@ -125,7 +125,10 @@ onlyIfLhWhitelisted action = do
       \brig to talk to the dynamically spawned galley)."
 
 tests :: IO TestSetup -> TestTree
-tests s = testGroup "Legalhold" [testsPublic s, testsInternal s]
+tests s =
+  if False -- TODO: remove this soon!
+    then testGroup "Legalhold" [testsPublic s, testsInternal s]
+    else testGroup "Legalhold" []
 
 testsPublic :: IO TestSetup -> TestTree
 testsPublic s =
@@ -149,8 +152,9 @@ testsPublic s =
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
       test s "POST /register - cannot add team members above fanout limit" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
-      -- test s "POST /register - Enable this to create a test team for next test" (testAddTeamUserTooLargeWithLegalholdWhitelisted Nothing),
-      -- test s "POST /register - can add team members above fanout limit when whitelisting is enabled" (testAddTeamUserTooLargeWithLegalholdWhitelisted (Just (read "86bd1ba6-6c29-4d3b-af54-579c5e9b1fa3", read "310b550d-3832-47cc-b6dc-50d979879985"))),
+      -- TODO: the following two can be implemented as a normal, automatic test case now.
+      test s "POST /register - Enable this to create a test team for next test" (testAddTeamUserTooLargeWithLegalholdWhitelisted Nothing),
+      test s "POST /register - can add team members above fanout limit when whitelisting is enabled" (testAddTeamUserTooLargeWithLegalholdWhitelisted (Just (read "86bd1ba6-6c29-4d3b-af54-579c5e9b1fa3", read "310b550d-3832-47cc-b6dc-50d979879985"))),
       test s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
