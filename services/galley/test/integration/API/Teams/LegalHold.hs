@@ -114,20 +114,15 @@ onlyIfLhWhitelisted action = do
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledPermanently ->
-      liftIO $
-        hPutStrLn
-          stderr
-          "*** skipping test. This test only works if you manually adjust the server config files\
-          \(the 'withLHWhitelist' trick does not work because it does not allow \
-          \brig to talk to the dynamically spawned galley)."
+      liftIO $ hPutStrLn stderr errmsg
     FeatureLegalHoldDisabledByDefault ->
-      liftIO $
-        hPutStrLn
-          stderr
-          "*** skipping test. This test only works if you manually adjust the server config files\
-          \(the 'withLHWhitelist' trick does not work because it does not allow \
-          \brig to talk to the dynamically spawned galley)."
+      liftIO $ hPutStrLn stderr errmsg
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> action
+  where
+    errmsg =
+      "*** skipping test. This test only works if you manually adjust the server config files\
+      \(the 'withLHWhitelist' trick does not work because it does not allow \
+      \brig to talk to the dynamically spawned galley)."
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Legalhold" [testsPublic s, testsInternal s]
