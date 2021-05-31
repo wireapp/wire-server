@@ -64,6 +64,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
+import qualified Data.ByteString as BS
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -127,11 +128,11 @@ tests s =
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
-          test s "post cryptomessage 1" postCryptoMessage1,
-          test s "post cryptomessage 2" postCryptoMessage2,
-          test s "post cryptomessage 3" postCryptoMessage3,
-          test s "post cryptomessage 4" postCryptoMessage4,
-          test s "post cryptomessage 5" postCryptoMessage5,
+          test s "post conversation/:cnv/otr/message: message delivery and missing clients" postCryptoMessage1,
+          test s "post conversation/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessage2,
+          test s "post conversation/:cnv/otr/message: mismatch with protobuf" postCryptoMessage3,
+          test s "post conversation/:cnv/otr/message: unknown sender client" postCryptoMessage4,
+          test s "post conversation/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
           test s "join conversation" postJoinConvOk,
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
@@ -190,6 +191,8 @@ postConvOk = do
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
+-- | This test verifies whether a message actually gets sent all the way to
+-- cannon.
 postCryptoMessage1 :: TestM ()
 postCryptoMessage1 = do
   c <- view tsCannon
@@ -273,6 +276,7 @@ postCryptoMessage1 = do
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
       assertNoMsg wsB2 (wsAssertOtr conv alice ac bc cipher)
 
+-- | This test verifies basic mismatch behaviour of the the JSON endpoint.
 postCryptoMessage2 :: TestM ()
 postCryptoMessage2 = do
   b <- view tsBrig
@@ -297,6 +301,7 @@ postCryptoMessage2 = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
+-- | This test verifies basic mismatch behaviour of the protobuf endpoint.
 postCryptoMessage3 :: TestM ()
 postCryptoMessage3 = do
   b <- view tsBrig
@@ -322,6 +327,8 @@ postCryptoMessage3 = do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
     Map.keys <$> Map.lookup eve (userClientMap (getUserClientPrekeyMap p)) @=? Just [ec]
 
+-- | This test verfies behaviour when an unknown client posts the message. Only
+-- tests the Protobuf endpoint.
 postCryptoMessage4 :: TestM ()
 postCryptoMessage4 = do
   alice <- randomUser
@@ -335,56 +342,63 @@ postCryptoMessage4 = do
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
 
+-- | This test verifies behaviour under various values of ignore_missing and
+-- report_missing. Only tests the JSON endpoint.
 postCryptoMessage5 :: TestM ()
 postCryptoMessage5 = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
-  (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
-  connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  (chad, cc) <- randomUserWithClient (someLastPrekeys  !! 2)
+  (eve, ec) <- randomUserWithClient (someLastPrekeys !! 3)
+  connectUsers alice (list1 bob [chad, eve])
+  conv <- decodeConvId <$> postConv alice [bob, chad, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
-  let m = [(bob, bc, "hello bob")]
+  let msgMissingChadAndEve = [(bob, bc, "hello bob")]
   let m' = otrRecipients [(bob, [(bc, encodeCiphertext "hello bob")])]
   -- These three are equivalent (i.e. report all missing clients)
-  postOtrMessage id alice ac conv m
+  postOtrMessage id alice ac conv msgMissingChadAndEve
     !!! const 412 === statusCode
-  postOtrMessage (queryItem "ignore_missing" "false") alice ac conv m
+  postOtrMessage (queryItem "ignore_missing" "false") alice ac conv msgMissingChadAndEve
     !!! const 412 === statusCode
-  postOtrMessage (queryItem "report_missing" "true") alice ac conv m
+  postOtrMessage (queryItem "report_missing" "true") alice ac conv msgMissingChadAndEve
     !!! const 412 === statusCode
   -- These two are equivalent (i.e. ignore all missing clients)
-  postOtrMessage (queryItem "ignore_missing" "true") alice ac conv m
+  postOtrMessage (queryItem "ignore_missing" "true") alice ac conv msgMissingChadAndEve
     !!! const 201 === statusCode
-  postOtrMessage (queryItem "report_missing" "false") alice ac conv m
+  postOtrMessage (queryItem "report_missing" "false") alice ac conv msgMissingChadAndEve
     !!! const 201 === statusCode
   -- Report missing clients of a specific user only
-  postOtrMessage (queryItem "report_missing" (toByteString' bob)) alice ac conv m
+  postOtrMessage (queryItem "report_missing" (toByteString' bob)) alice ac conv msgMissingChadAndEve
     !!! const 201 === statusCode
   -- Let's make sure that the same logic using protobuf in the body works too
   postProtoOtrMessage' Nothing (queryItem "report_missing" (toByteString' bob)) alice ac conv m'
     !!! const 201 === statusCode
   -- Body takes precedence
-  postOtrMessage' (Just [bob]) (queryItem "report_missing" (toByteString' eve)) alice ac conv m
+  postOtrMessage' (Just [bob]) (queryItem "report_missing" (listToByteString [eve, chad])) alice ac conv msgMissingChadAndEve
     !!! const 201 === statusCode
   -- Set it only in the body of the message
-  postOtrMessage' (Just [bob]) id alice ac conv m
+  postOtrMessage' (Just [bob]) id alice ac conv msgMissingChadAndEve
     !!! const 201 === statusCode
   -- Let's make sure that protobuf works too, when specified in the body only
   postProtoOtrMessage' (Just [bob]) id alice ac conv m'
     !!! const 201 === statusCode
-  _rs <-
-    postOtrMessage (queryItem "report_missing" (toByteString' eve)) alice ac conv []
+  reportEveAndChad <-
+    -- send message with no clients
+    postOtrMessage (queryItem "report_missing" (listToByteString [eve, chad])) alice ac conv []
       <!! const 412 === statusCode
-  let _mm = responseJsonUnsafeWithMsg "ClientMismatch" _rs
-  liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just _mm))
+  let reportEveAndChandMismatch = responseJsonUnsafeWithMsg "ClientMismatch" reportEveAndChad
+  liftIO $
+    assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec), (chad, Set.singleton cc)] [] [] (Just reportEveAndChandMismatch))
   -- Ignore missing clients of a specific user only
-  postOtrMessage (queryItem "ignore_missing" (toByteString' eve)) alice ac conv m
+  postOtrMessage (queryItem "ignore_missing" (listToByteString [chad, eve])) alice ac conv msgMissingChadAndEve
     !!! const 201 === statusCode
-  _rs <-
-    postOtrMessage (queryItem "ignore_missing" (toByteString' eve)) alice ac conv []
+  ignoreEveAndChadButNotBob <-
+    postOtrMessage (queryItem "ignore_missing" (listToByteString [chad, eve])) alice ac conv []
       <!! const 412 === statusCode
-  let _mm = responseJsonUnsafeWithMsg "ClientMismatch" _rs
-  liftIO $ assertBool "client mismatch" (eqMismatch [(bob, Set.singleton bc)] [] [] (Just _mm))
+  let ignoreEveAndChadButNotBobMismatch = responseJsonUnsafeWithMsg "ClientMismatch" ignoreEveAndChadButNotBob
+  liftIO $ assertBool "client mismatch" (eqMismatch [(bob, Set.singleton bc)] [] [] (Just ignoreEveAndChadButNotBobMismatch))
+  where
+    listToByteString = BS.intercalate "," . map toByteString'
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do
