@@ -26,6 +26,7 @@ import Control.Monad.Except (runExceptT)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (qUnqualified), Remote, partitionQualified)
@@ -342,3 +343,33 @@ runFederated :: forall (c :: Component) a. Domain -> FederatorClient c (ExceptT 
 runFederated remoteDomain rpc = do
   runExceptT (executeFederated remoteDomain rpc)
     >>= either (throwM . federationErrorToWai) pure
+
+--------------------------------------------------------------------------------
+-- Legalhold
+
+userLHEnabled :: UserLegalHoldStatus -> Bool
+userLHEnabled = \case
+  UserLegalHoldEnabled -> True
+  UserLegalHoldPending -> True
+  UserLegalHoldDisabled -> False
+  UserLegalHoldNoConsent -> False
+
+data ConsentGiven = ConsentGiven | ConsentNotGiven
+  deriving (Eq, Ord, Show)
+
+consentGiven :: UserLegalHoldStatus -> ConsentGiven
+consentGiven = \case
+  UserLegalHoldDisabled -> ConsentGiven
+  UserLegalHoldPending -> ConsentGiven
+  UserLegalHoldEnabled -> ConsentGiven
+  UserLegalHoldNoConsent -> ConsentNotGiven
+
+-- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
+-- doesn't belong to a team.
+getLHStatus :: Maybe TeamId -> UserId -> Galley UserLegalHoldStatus
+getLHStatus teamOfUser other = do
+  case teamOfUser of
+    Nothing -> pure defUserLegalHoldStatus
+    Just team -> do
+      mMember <- Data.teamMember team other
+      pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember

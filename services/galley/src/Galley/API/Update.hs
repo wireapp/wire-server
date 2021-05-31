@@ -554,11 +554,16 @@ addMembers zusr zcon convId invite = do
     checkLHPolicyConflicts :: Data.Conversation -> [UserId] -> Galley ()
     checkLHPolicyConflicts conv newUsers =
       whenM (anyLHActivatedLocalUsers (fmap memId . Data.convMembers $ conv)) $ do
-        whenM (anyM consentMissing newUsers) $ do
+        whenM (anyLHConsentMissing newUsers) $ do
           throwM missingLegalholdConsent
 
-    consentMissing :: UserId -> Galley Bool
-    consentMissing = error "TODO"
+    anyLHConsentMissing :: [UserId] -> Galley Bool
+    anyLHConsentMissing uids = do
+      let go = undefined
+      view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+        FeatureLegalHoldDisabledPermanently -> go
+        FeatureLegalHoldDisabledByDefault -> go
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> go
 
     anyLHActivatedLocalUsers :: [UserId] -> Galley Bool
     anyLHActivatedLocalUsers uids =
@@ -567,7 +572,10 @@ addMembers zusr zcon convId invite = do
         FeatureLegalHoldDisabledByDefault -> do
           flip anyM (chunksOf 32 uids) $ \uidsPage -> do
             teamsOfUsers <- Data.usersTeams uidsPage
-            anyM (getLHStatus teamsOfUsers >=> (userLHEnabled >>> pure)) uidsPage
+            anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
+        -- For this feature the implementation is more efficient We assume that
+        -- being part of a whitelisted team is enough to be considered under
+        -- legalhold.
         FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
           mbTeamIds <- view (options . optSettings . setLegalHoldTeamsWhitelist)
           case mbTeamIds of
@@ -576,9 +584,6 @@ addMembers zusr zcon convId invite = do
               flip anyM (chunksOf 32 uids) $ \uidsPage -> do
                 teamsPage <- Map.elems <$> Data.usersTeams uidsPage
                 pure $ any (`elem` teamsPage) whitelistedTeams
-
-    getLHStatus = error "TODO: move from Galley.API.Legalhold to a utils module to prevent import cycles"
-    userLHEnabled = error "TODO: move from Galley.API.Legalhold to a utils module to prevent import cycles"
 
     checkLHPolicyConflictsRemote :: futurework 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote = error "TODO"

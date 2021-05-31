@@ -373,14 +373,6 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
       changeLegalholdStatus tid uid userLHStatus UserLegalHoldDisabled
 
--- | If not enabled nor pending, then it's disabled
-userLHEnabled :: UserLegalHoldStatus -> Bool
-userLHEnabled = \case
-  UserLegalHoldEnabled -> True
-  UserLegalHoldPending -> True
-  UserLegalHoldDisabled -> False
-  UserLegalHoldNoConsent -> False
-
 -- | Allow no-consent => consent without further changes.  If LH device is requested, enabled,
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
@@ -477,25 +469,7 @@ getTeamLegalholdWhitelistedH tid = do
 
 checkConsent :: Map UserId TeamId -> UserId -> Galley ConsentGiven
 checkConsent teamsOfUsers other = do
-  consentGiven <$> getLHStatus teamsOfUsers other
-
-consentGiven :: UserLegalHoldStatus -> ConsentGiven
-consentGiven = \case
-  UserLegalHoldDisabled -> ConsentGiven
-  UserLegalHoldPending -> ConsentGiven
-  UserLegalHoldEnabled -> ConsentGiven
-  UserLegalHoldNoConsent -> ConsentNotGiven
-
-getLHStatus :: Map UserId TeamId -> UserId -> Galley UserLegalHoldStatus
-getLHStatus teamsOfUsers other = do
-  case Map.lookup other teamsOfUsers of
-    Nothing -> pure defUserLegalHoldStatus
-    Just team -> do
-      mMember <- Data.teamMember team other
-      pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
-
-data ConsentGiven = ConsentGiven | ConsentNotGiven
-  deriving (Eq, Ord, Show)
+  consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
 
 handleGroupConvPolicyConflicts :: UserId -> Galley ()
 handleGroupConvPolicyConflicts uid =
@@ -512,7 +486,7 @@ handleGroupConvPolicyConflicts uid =
             <$> ( for (chunksOf 32 localOtherMembers) $ \oMems -> do
                     teamsOfUsers <- Data.usersTeams (memberUnqualId <$> oMems)
                     for oMems $ \mem -> do
-                      (mem,) <$> getLHStatus teamsOfUsers (memberUnqualId mem)
+                      (mem,) <$> getLHStatus (Map.lookup (memberUnqualId mem) teamsOfUsers) (memberUnqualId mem)
                 )
 
         let admins = getAdmins (cmSelf . cnvMembers $ conv) membersAndLHStatus
