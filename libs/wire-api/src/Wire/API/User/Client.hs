@@ -604,7 +604,8 @@ data NewClient = NewClient
     newClientClass :: Maybe ClientClass,
     newClientCookie :: Maybe CookieLabel,
     newClientPassword :: Maybe PlainTextPassword,
-    newClientModel :: Maybe Text
+    newClientModel :: Maybe Text,
+    newClientCapabilities :: Maybe (Set ClientCapability)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
@@ -644,6 +645,9 @@ modelNewClient = Doc.defineModel "NewClient" $ do
   Doc.property "model" Doc.string' $ do
     Doc.description "Optional model information of this client"
     Doc.optional
+  Doc.property "capabilities" typeClientCapability $ do
+    Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
+    Doc.optional
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -655,7 +659,8 @@ newClient t k =
       newClientClass = if t == LegalHoldClientType then Just LegalHoldClient else Nothing,
       newClientCookie = Nothing,
       newClientPassword = Nothing,
-      newClientModel = Nothing
+      newClientModel = Nothing,
+      newClientCapabilities = Nothing
     }
 
 instance ToJSON NewClient where
@@ -669,6 +674,7 @@ instance ToJSON NewClient where
         # "cookie" A..= newClientCookie c
         # "password" A..= newClientPassword c
         # "model" A..= newClientModel c
+        # "capabilities" A..= newClientCapabilities c
         # []
 
 instance FromJSON NewClient where
@@ -682,6 +688,7 @@ instance FromJSON NewClient where
       <*> o A..:? "cookie"
       <*> o A..:? "password"
       <*> o A..:? "model"
+      <*> o A..:? "capabilities"
 
 --------------------------------------------------------------------------------
 -- UpdateClient
