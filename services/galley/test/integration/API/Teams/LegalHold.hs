@@ -143,12 +143,15 @@ testsPublic s =
       test s "POST /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testCreateLegalHoldTeamSettings),
       test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testGetLegalHoldTeamSettings),
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testRemoveLegalHoldFromTeam),
+      -- TODO: GET okay, PUT case: test that it throws error (TODO: check in handler, what is does).
       test s "GET, PUT [/i]?/teams/{tid}/legalhold" (onlyIfLhEnabled testEnablePerTeam),
       test s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" (onlyIfLhEnabled testEnablePerTeamTooLarge),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
+      -- TODO: remove this -> merge 3 tests to one case: if enabled fanout limit remove
       test s "POST /register - cannot add team members above fanout limit" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
+      -- TODO: re-enable these
       -- test s "POST /register - Enable this to create a test team for next test" (testAddTeamUserTooLargeWithLegalholdWhitelisted Nothing),
       -- test s "POST /register - can add team members above fanout limit when whitelisting is enabled" (testAddTeamUserTooLargeWithLegalholdWhitelisted (Just (read "86bd1ba6-6c29-4d3b-af54-579c5e9b1fa3", read "310b550d-3832-47cc-b6dc-50d979879985"))),
       test s "GET legalhold status in user profile" testGetLegalholdStatus,
@@ -193,7 +196,7 @@ testsInternal s =
 -- (this is more of a unit test, but galley doesn't have any, and it seems not worth it to
 -- start another test suite just for this one line.)
 --
--- UPDATE(fisx): galley does have unit tests now!  (and of course the "not worth it" was
+-- TODO: (fisx): galley does have unit tests now!  (and of course the "not worth it" was
 -- deeply misguided from me.)
 testSwaggerJsonConsistency :: TestM ()
 testSwaggerJsonConsistency = do
@@ -219,6 +222,7 @@ testWhitelistingTeams = do
   expectWhitelisted False tid
   ensureQueueEmpty
 
+-- TODO: test 2 casese: team whitelisted and team not whitelisted
 testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = do
   (owner, tid) <- createBindingTeam
