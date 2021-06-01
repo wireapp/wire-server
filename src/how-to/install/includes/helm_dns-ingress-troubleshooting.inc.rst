@@ -21,8 +21,13 @@ If you are on the most recent charts from wire-server-deploy, these are your nam
 * webapp.<domain>
 * assets.<domain>
 * account.<domain>
+
+And optionally:
+
 * teams.<domain>
 * sftd.<domain>
+* restund01.<domain>
+* federator.<domain>
 
 (Yes, they all need to point to the same IP address - this is necessary for the nginx ingress to know how to do internal routing based on virtual hosting.)
 
