@@ -17,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module API.Teams.LegalHold
   ( tests,
@@ -1094,8 +1093,8 @@ renewToken tok = do
       . cookieRaw "zuid" (toByteString' tok)
       . expect2xx
 
-putEnabled :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putEnabled tid enabled = do
+_putEnabled :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+_putEnabled tid enabled = do
   g <- view tsGalley
   putEnabledM g tid enabled
 
@@ -1605,8 +1604,8 @@ putLHWhitelistTeam' g tid = do
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
-deleteLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
-deleteLHWhitelistTeam tid = do
+_deleteLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
+_deleteLHWhitelistTeam tid = do
   galley <- view tsGalley
   deleteLHWhitelistTeam' galley tid
 
