@@ -221,7 +221,7 @@ isRemoteRegistered u c = do
     recovering retry3x rpcHandlers $
       const $
         rpc' "gundeck" (upstream e) (method GET . paths ["/i/presences", toByteString' u] . expect2xx)
-  cs <- map connId <$> parseResponse (Error status502 "server-error") rs
+  cs <- map connId <$> parseResponse (mkError status502 "server-error") rs
   return $ c `elem` cs
 
 sendMsg :: L.ByteString -> Key -> Websocket -> WS ()

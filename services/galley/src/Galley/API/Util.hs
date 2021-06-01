@@ -197,7 +197,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
       Data.acceptConnect cid
       return $ conv {Data.convType = One2OneConv}
     badConvState =
-      Error status500 "bad-state" $
+      mkError status500 "bad-state" $
         "Connect conversation with more than 2 members: "
           <> LT.pack (show cid)
 

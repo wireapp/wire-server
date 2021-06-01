@@ -37,4 +37,4 @@ getSize tid = do
       method GET . host h . port p
         . paths ["/i/teams", toByteString' tid, "size"]
         . expect2xx
-  parseResponse (Error status502 "server-error") r
+  parseResponse (mkError status502 "server-error") r

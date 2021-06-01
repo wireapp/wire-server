@@ -572,7 +572,7 @@ errorPage err inputs mcky =
     }
   where
     werr = either forceWai id $ renderSparError err
-    forceWai ServerError {..} = Wai.Error (Http.Status errHTTPCode "") (cs errReasonPhrase) (cs errBody)
+    forceWai ServerError {..} = Wai.mkError (Http.Status errHTTPCode "") (cs errReasonPhrase) (cs errBody)
     errbody :: [LT]
     errbody =
       [ "<head>",
