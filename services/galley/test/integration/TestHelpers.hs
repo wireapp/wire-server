@@ -29,6 +29,7 @@ import Imports
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, assertBool, testCase)
 import TestSetup
+import UnliftIO.Exception (finally)
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest
@@ -48,7 +49,7 @@ test s n h = testCase n runTest
     runTest :: Assertion
     runTest = do
       setup <- s
-      void . flip runReaderT setup . runTestM $ h >> assertClean
+      void . flip runReaderT setup . runTestM $ h `finally` assertClean
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsGConf . optSettings . setFederationDomain)
