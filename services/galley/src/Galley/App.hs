@@ -118,7 +118,7 @@ data Env = Env
     -- | A cache of cassandra table `galley.legalhold_whitelisted`, read once for every
     -- request.  (This is not ideal, but it's better than reading it once per member that is
     -- looked at, which can be hundrets or thousands of times in many requests.)
-    _legalholdWhitelist :: Maybe [TeamId]
+    _legalholdWhitelist :: IORef (Maybe [TeamId])
   }
 
 -- | Environment specific to the communication with external
@@ -211,7 +211,7 @@ createEnv mkLegalholdWhitelist m o = do
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
-    <*> mkLegalholdWhitelist cass o
+    <*> (newIORef =<< mkLegalholdWhitelist cass o)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

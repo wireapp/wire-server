@@ -82,7 +82,7 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      view legalholdWhitelist
+      (readIORef =<< view legalholdWhitelist)
         <&> maybe
           False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
           (tid `elem`)
@@ -449,7 +449,7 @@ blockConnectionsFrom1on1s uid = do
 
 getLegalholdWhitelistedTeams :: Galley [TeamId]
 getLegalholdWhitelistedTeams = do
-  fromMaybe [] <$> view legalholdWhitelist
+  fromMaybe [] <$> (readIORef =<< view legalholdWhitelist)
 
 getLegalholdWhitelistedTeamsH :: JSON -> Galley Response
 getLegalholdWhitelistedTeamsH _ = do

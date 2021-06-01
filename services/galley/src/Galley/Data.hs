@@ -997,9 +997,9 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 --
 -- Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
 -- other is 'Just', which can only be caused by inconsistent database content.
-newTeamMember' :: (MonadThrow m, MonadReader Env m, MonadClient m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
+newTeamMember' :: (MonadIO m, MonadThrow m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
 newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
-  mbWhitelist <- view legalholdWhitelist
+  mbWhitelist <- readIORef =<< view legalholdWhitelist
   maybeGrant mbWhitelist <$> mk minvu minvt
   where
     maybeGrant :: Maybe [TeamId] -> TeamMember -> TeamMember

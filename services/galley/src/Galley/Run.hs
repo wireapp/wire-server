@@ -43,7 +43,7 @@ import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
 import qualified Galley.Types.Teams as Teams
 import Imports
-import Network.Wai (Application)
+import Network.Wai (Application, Middleware)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
@@ -87,7 +87,13 @@ mkApp o = do
         Log.info l $ Log.msg @Text "Galley application finished."
         Log.flush l
         Log.close l
-  return (middlewares l m $ servantApp e, e, finalizer)
+      middlewares =
+        servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
+          . catchErrors l [Right m]
+          . GZip.gunzip
+          . GZip.gzip GZip.def
+          . refreshLegalholdWhitelist e
+  return (middlewares $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap
     app e r k = runGalley e r (route rtree r k)
@@ -101,12 +107,6 @@ mkApp o = do
             :<|> Servant.Tagged (app e)
         )
         r
-
-    middlewares l m =
-      servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
-        . catchErrors l [Right m]
-        . GZip.gunzip
-        . GZip.gzip GZip.def
 
 type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
@@ -125,3 +125,11 @@ mkLegalholdWhitelist cass opts = do
     Teams.FeatureLegalHoldDisabledPermanently -> pure Nothing
     Teams.FeatureLegalHoldDisabledByDefault -> pure Nothing
     Teams.FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> Just <$> runClient cass getLegalholdWhitelistedTeams
+
+-- | FUTUREWORK: if this is taking too much server load, we can run it probabilistically
+-- (@whenM ((== 1) <$> randomRIO (1, 10)) ...@).
+refreshLegalholdWhitelist :: Env -> Middleware
+refreshLegalholdWhitelist env app req cont = do
+  mbWhitelist <- mkLegalholdWhitelist (env ^. cstate) (env ^. options)
+  atomicModifyIORef' (env ^. legalholdWhitelist) (\_ -> (mbWhitelist, ()))
+  app req cont
