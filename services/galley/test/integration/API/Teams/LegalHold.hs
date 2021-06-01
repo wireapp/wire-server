@@ -107,7 +107,7 @@ onlyIfLhEnabled action = do
     FeatureLegalHoldDisabledByDefault ->
       action
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      action
+      liftIO $ hPutStrLn stderr "*** legalhold feature flag is whitelist-teams-and-implicit-consent, not running this test case"
 
 onlyIfLhWhitelisted :: TestM () -> TestM ()
 onlyIfLhWhitelisted action = do
