@@ -136,7 +136,7 @@ testsPublic s =
       test s "DELETE /teams/{tid}/legalhold/{uid}" (onlyIfLhWhitelisted testDisableLegalHoldForUser),
       -- legal hold settings
       test s "POST /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testCreateLegalHoldTeamSettings),
-      test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testGetLegalHoldTeamSettings),
+      test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testGetLegalHoldTeamSettings),
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testRemoveLegalHoldFromTeam),
       -- TODO: GET okay, PUT case: test that it throws error (TODO: check in handler, what is does).
       test s "GET, PUT [/i]?/teams/{tid}/legalhold" (onlyIfLhEnabled testEnablePerTeam),
@@ -526,7 +526,8 @@ testGetLegalHoldTeamSettings = do
             assertEqual "bad body" ViewLegalHoldServiceDisabled (responseJsonUnsafe resp)
       getSettings owner tid >>= respOk
       getSettings member tid >>= respOk
-    putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
+
+    putLHWhitelistTeam tid !!! const 200 === statusCode
 
     -- returns 200 with corresp. status if legalhold for team is enabled, but not configured
     do
