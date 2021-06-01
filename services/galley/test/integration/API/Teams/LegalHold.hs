@@ -277,6 +277,7 @@ testRequestLegalHoldDevice = withTeam $ \owner tid -> do
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
   (owner, tid) <- createBindingTeam
+  ensureQueueEmpty
   member <- do
     usr <- randomUser
     addTeamMemberInternal tid usr (rolePermissions RoleMember) Nothing
@@ -438,6 +439,7 @@ data IsWorking = Working | NotWorking
 
 testCreateLegalHoldTeamSettings :: HasCallStack => TestM ()
 testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
+  ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
