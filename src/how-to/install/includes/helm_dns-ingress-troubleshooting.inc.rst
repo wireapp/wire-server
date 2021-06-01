@@ -35,7 +35,7 @@ You may be happy with skipping the DNS setup and just make sure that the ``/etc/
 
 ::
 
-   1.2.3.4 nginz-https.<domain> nginz-ssl.<domain> assets.<domain> webapp.<domain> teams.<domain> account.<domain> sftd.<domain>
+   1.2.3.4 nginz-https.<domain> nginz-ssl.<domain> assets.<domain> webapp.<domain> teams.<domain> account.<domain> sftd.<domain> restund01.<domain> federator.<domain>
 
 
 How to direct traffic to your cluster
