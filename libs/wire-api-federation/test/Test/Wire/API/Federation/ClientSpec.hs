@@ -49,7 +49,7 @@ spec = do
         expectedResponse :: Maybe UserProfile <- generate arbitrary
 
         (actualResponse, sentRequests) <-
-          assertRightT . withMockFederatorClient stateRef (mkSuccessResponse expectedResponse) $
+          assertRightT . withMockFederatorClient stateRef (const (mkSuccessResponse expectedResponse)) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         sentRequests `shouldBe` [FederatedRequest "target.example.com" (Just $ Request Brig "/federation/get-user-by-handle" (LBS.toStrict (Aeson.encode handle)) "origin.example.com")]
@@ -60,7 +60,7 @@ spec = do
         someErr <- generate arbitrary
 
         (actualResponse, _) <-
-          assertRightT . withMockFederatorClient stateRef (mkErrorResponse someErr) $
+          assertRightT . withMockFederatorClient stateRef (const (mkErrorResponse someErr)) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         actualResponse `shouldBe` Left (FederationClientOutwardError someErr)
@@ -84,7 +84,7 @@ spec = do
         handle <- generate arbitrary
 
         (actualResponse, _) <-
-          assertRightT . withMockFederatorClient stateRef (throwError $ Mu.ServerError Mu.NotFound "Just testing") $
+          assertRightT . withMockFederatorClient stateRef (const (throwError $ Mu.ServerError Mu.NotFound "Just testing")) $
             Brig.getUserByHandle Brig.clientRoutes handle
 
         actualResponse `shouldBe` Left (FederationClientRPCError "grpc error: GRPC status indicates failure: status-code=NOT_FOUND, status-message=\"Just testing\"")

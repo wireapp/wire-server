@@ -24,7 +24,7 @@ module Wire.API.Federation.Mock where
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Lifted (finally)
 import Control.Monad.Except (ExceptT (..), MonadError (..), runExceptT)
-import Control.Monad.State (MonadState (..), modify)
+import Control.Monad.State (MonadState (..), gets, modify)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
@@ -50,7 +50,8 @@ outwardService = Mu.singleService (Mu.method @"call" callOutward)
 callOutward :: FederatedRequest -> MockT ServerErrorIO OutwardResponse
 callOutward req = do
   modify (\s -> s {receivedRequests = receivedRequests s <> [req]})
-  MockT . lift . effectfulResponse =<< get
+  resp <- gets effectfulResponse
+  MockT . lift $ resp req
 
 mkSuccessResponse :: Aeson.ToJSON a => a -> ServerErrorIO OutwardResponse
 mkSuccessResponse = pure . OutwardResponseBody . LBS.toStrict . Aeson.encode
@@ -90,7 +91,7 @@ initState targetDomain originDomain = MockState [] (error "No mock response prov
 
 withMockFederator ::
   IORef MockState ->
-  ServerErrorIO OutwardResponse ->
+  (FederatedRequest -> ServerErrorIO OutwardResponse) ->
   (MockState -> ExceptT String IO a) ->
   ExceptT String IO (a, ReceivedRequests)
 withMockFederator ref resp action = do
@@ -102,7 +103,7 @@ withMockFederator ref resp action = do
 
 withMockFederatorClient ::
   IORef MockState ->
-  ServerErrorIO OutwardResponse ->
+  (FederatedRequest -> ServerErrorIO OutwardResponse) ->
   FederatorClient component (ExceptT e IO) a ->
   ExceptT String IO (Either e a, ReceivedRequests)
 withMockFederatorClient ref resp action = withMockFederator ref resp $ \st -> do
@@ -116,7 +117,7 @@ withMockFederatorClient ref resp action = withMockFederator ref resp $ \st -> do
 withTempMockFederator ::
   forall a.
   MockState ->
-  ServerErrorIO OutwardResponse ->
+  (FederatedRequest -> ServerErrorIO OutwardResponse) ->
   (MockState -> ExceptT String IO a) ->
   ExceptT String IO (a, ReceivedRequests)
 withTempMockFederator st resp action = do
@@ -142,7 +143,7 @@ instance MonadIO m => MonadState MockState (MockT m) where
 
 data MockState = MockState
   { receivedRequests :: ReceivedRequests,
-    effectfulResponse :: ServerErrorIO OutwardResponse,
+    effectfulResponse :: FederatedRequest -> ServerErrorIO OutwardResponse,
     serverThread :: Async.Async (),
     serverPort :: Integer,
     stateTarget :: Domain,
