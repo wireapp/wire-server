@@ -130,7 +130,7 @@ testsPublic s =
     "Teams LegalHold API"
     [ -- device handling (CRUD)
       test s "POST /teams/{tid}/legalhold/{uid}" (onlyIfLhWhitelisted testRequestLegalHoldDevice),
-      test s "PUT /teams/{tid}/legalhold/approve" (onlyIfLhEnabled testApproveLegalHoldDevice),
+      test s "PUT /teams/{tid}/legalhold/approve" (onlyIfLhWhitelisted testApproveLegalHoldDevice),
       test s "(user denies approval: nothing needs to be done in backend)" (pure ()),
       test s "GET /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testGetLegalHoldDeviceStatus),
       test s "DELETE /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testDisableLegalHoldForUser),
@@ -305,8 +305,10 @@ testApproveLegalHoldDevice = do
   grantConsent tid member2
   ensureQueueEmpty
   -- not allowed to approve if team setting is disabled
+  -- TODO: approveLegalHoldDevice (Just defPassword) owner member tid
+  --   !!! testResponse 403 (Just "legalhold-not-enabled")
   approveLegalHoldDevice (Just defPassword) owner member tid
-    !!! testResponse 403 (Just "legalhold-not-enabled")
+    !!! testResponse 403 (Just "access-denied")
   cannon <- view tsCannon
   WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
     \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam owner tid $ \chan -> do
