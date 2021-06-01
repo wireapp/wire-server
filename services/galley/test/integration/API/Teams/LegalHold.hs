@@ -152,10 +152,6 @@ testsPublic s =
       testGroup
         "settings.legalholdEnabledTeams"
         [ testGroup
-            "teams not listed"
-            [ test s "happy flow" testNotInWhitelist
-            ],
-          testGroup
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
@@ -654,53 +650,6 @@ testGetTeamMembersIncludesLHStatus = do
     check UserLegalHoldPending "pending after requesting device"
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     check UserLegalHoldEnabled "enabled after confirming device"
-
-testNotInWhitelist :: TestM ()
-testNotInWhitelist = do
-  g <- view tsGalley
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  ensureQueueEmpty
-  (_, tid') <- createBindingTeam -- we enable for this team, and then see how the above team behaves.
-  cannon <- view tsCannon
-  WS.bracketR2 cannon member member $ \(_ws, _ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
-    do
-      -- enable NOT-whitelisted team should fail
-      withLHWhitelist tid' (putEnabledM' g id tid Public.TeamFeatureEnabled)
-        !!! testResponse 403 (Just "legalhold-whitelisted-only")
-
-      -- disable whitelisted team should fail
-      withLHWhitelist tid (putEnabledM' g id tid Public.TeamFeatureDisabled)
-        !!! testResponse 403 (Just "legalhold-whitelisted-only")
-
-      -- enable whitelisted team should fail (no need for this to work)
-      withLHWhitelist tid (putEnabledM' g id tid Public.TeamFeatureEnabled)
-        !!! testResponse 403 (Just "legalhold-whitelisted-only")
-
-      -- disable NOT-whitelisted team should fail (no need for this to work)
-      withLHWhitelist tid' (putEnabledM' g id tid Public.TeamFeatureDisabled)
-        !!! testResponse 403 (Just "legalhold-whitelisted-only")
-
-    do
-      -- members have not granted consent implicitly...
-      lhs <- view legalHoldStatus <$> withLHWhitelist tid' (getTeamMember' g member tid member)
-      liftIO $ assertEqual "" lhs UserLegalHoldNoConsent
-
-      -- ... but can do so explicitly.
-      withLHWhitelist tid' (grantConsent' g tid member)
-      lhs' <- withLHWhitelist tid' $ view legalHoldStatus <$> getTeamMember' g member tid member
-      liftIO $ assertEqual "" lhs' UserLegalHoldDisabled
-
-    do
-      -- nobody can request LH device.
-      withLHWhitelist tid' (requestLegalHoldDevice' g owner member tid) !!! testResponse 403 (Just "legalhold-not-enabled")
-      UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid' (getUserStatusTyped' g member tid)
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice should leave user status in Disabled"
-          UserLegalHoldDisabled
-          userStatus
 
 testInWhitelist :: TestM ()
 testInWhitelist = do
