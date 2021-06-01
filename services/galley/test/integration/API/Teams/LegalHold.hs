@@ -359,8 +359,9 @@ testGetLegalHoldDeviceStatus = do
         "unexpected status"
         (UserLegalHoldStatusResponse UserLegalHoldNoConsent Nothing Nothing)
         status
-  withDummyTestServiceForTeam owner tid $ \_chan -> do
-    grantConsent tid member
+
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+  withDummyTestServiceForTeamNoService $ \_chan -> do
     do
       UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
       liftIO $
@@ -368,7 +369,10 @@ testGetLegalHoldDeviceStatus = do
           assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
           assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
           assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
+
     do
+      newService <- newLegalHoldService
+      postSettings owner tid newService !!! testResponse 201 Nothing
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
       assertZeroLegalHoldDevices member
       UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
