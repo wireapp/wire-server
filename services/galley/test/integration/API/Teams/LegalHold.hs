@@ -132,8 +132,7 @@ testsPublic s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
   testGroup
     "Teams LegalHold API"
-    [ test s "swagger / json consistency" (onlyIfLhEnabled testSwaggerJsonConsistency),
-      -- device handling (CRUD)
+    [ -- device handling (CRUD)
       test s "POST /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testRequestLegalHoldDevice),
       test s "PUT /teams/{tid}/legalhold/approve" (onlyIfLhEnabled testApproveLegalHoldDevice),
       test s "(user denies approval: nothing needs to be done in backend)" (pure ()),
@@ -191,16 +190,6 @@ testsInternal s =
   testGroup
     "Legalhold Internal API"
     [test s "PUT, DELETE /i/legalhold/whitelisted-teams" (onlyIfLhEnabled testWhitelistingTeams)]
-
--- | Make sure the ToSchema and ToJSON instances are in sync for all of the swagger docs.
--- (this is more of a unit test, but galley doesn't have any, and it seems not worth it to
--- start another test suite just for this one line.)
---
--- TODO: (fisx): galley does have unit tests now!  (and of course the "not worth it" was
--- deeply misguided from me.)
-testSwaggerJsonConsistency :: TestM ()
-testSwaggerJsonConsistency = do
-  liftIO . withArgs [] . hspec $ validateEveryToJSON (Proxy @LegalHoldAPI.ServantAPI)
 
 testWhitelistingTeams :: TestM ()
 testWhitelistingTeams = do
