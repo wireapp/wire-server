@@ -150,7 +150,7 @@ galley:
       federationDomain: integration.example.com
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
-        legalhold: disabled-by-default
+        legalhold: whitelist-teams-and-implicit-consent
         teamSearchVisibility: disabled-by-default
     journal:
       endpoint: http://fake-aws-sqs:4568
