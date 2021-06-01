@@ -143,7 +143,7 @@ testsPublic s =
       test s "GET [/i]?/teams/{tid}/legalhold" (onlyIfLhWhitelisted testEnablePerTeam),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhWhitelisted testCannotCreateLegalHoldDeviceOldAPI),
-      test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
+      test s "GET /teams/{tid}/members" (onlyIfLhWhitelisted testGetTeamMembersIncludesLHStatus),
       -- TODO: remove this -> merge 3 tests to one case: if enabled fanout limit remove
       test s "POST /register - cannot add team members above fanout limit" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
       -- TODO: re-enable these
@@ -735,9 +735,13 @@ testGetTeamMembersIncludesLHStatus = do
             (findMemberStatus members')
 
   check UserLegalHoldNoConsent "disabled when it is disabled for the team"
-  withDummyTestServiceForTeam owner tid $ \_chan -> do
+  withDummyTestServiceForTeamNoService $ \_chan -> do
     check UserLegalHoldNoConsent "no_consent on new team members"
-    grantConsent tid member
+
+    putLHWhitelistTeam tid !!! const 200 === statusCode
+    newService <- newLegalHoldService
+    postSettings owner tid newService !!! testResponse 201 Nothing
+
     check UserLegalHoldDisabled "disabled on team members that have granted consent"
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     check UserLegalHoldPending "pending after requesting device"
