@@ -291,9 +291,7 @@ testApproveLegalHoldDevice = do
     connectUsers member (List1.singleton usr)
     pure usr
   stranger <- randomUser
-  grantConsent tid owner
-  grantConsent tid member
-  grantConsent tid member2
+  putLHWhitelistTeam tid !!! const 200 === statusCode
   ensureQueueEmpty
   -- not allowed to approve if team setting is disabled
   -- TODO: approveLegalHoldDevice (Just defPassword) owner member tid
@@ -572,7 +570,7 @@ testEnablePerTeam = withTeam $ \owner tid -> do
     let statusValue = Public.tfwoStatus status
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.TeamFeatureEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
-    grantConsent tid member
+    putLHWhitelistTeam tid !!! const 200 === statusCode
     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     do
@@ -675,7 +673,7 @@ testInWhitelist = do
       liftIO $ assertEqual "" lhs UserLegalHoldDisabled
 
       -- ... and can do so again (idempotency).
-      _ <- withLHWhitelist tid (grantConsent' g tid member)
+      _ <- withLHWhitelist tid (void $ putLHWhitelistTeam' g tid)
       lhs' <- withLHWhitelist tid $ view legalHoldStatus <$> getTeamMember' g member tid member
       liftIO $ assertEqual "" lhs' UserLegalHoldDisabled
 
@@ -755,8 +753,7 @@ testOldClientsBlockDeviceHandshake = do
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    grantConsent tid legalholder
-    grantConsent tid legalholder2
+    putLHWhitelistTeam tid !!! const 200 === statusCode
 
     legalholderLHDevice <- doEnableLH legalholder legalholder
     _legalholder2LHDevice <- doEnableLH legalholder legalholder2
@@ -773,7 +770,7 @@ testOldClientsBlockDeviceHandshake = do
       upgradeClientToLH legalholder2 clnt
       ensureClientCaps legalholder2 clnt (Client.ClientCapabilityList caps)
       pure clnt
-    grantConsent tid2 peer
+    putLHWhitelistTeam tid2 !!! const 200 === statusCode
     connectUsers peer (List1.list1 legalholder [legalholder2])
 
     convId <-
@@ -977,11 +974,11 @@ testClaimKeys testcase = do
           upgradeClientToLH peer peerClient
         TCKOldClient -> do
           void $ randomClient peer (someLastPrekeys !! 2)
-          grantConsent teamPeer peer
+          putLHWhitelistTeam teamPeer !!! const 200 === statusCode
         TCKConsentAndNewClients -> do
           peerClient <- randomClient peer (someLastPrekeys !! 2)
           upgradeClientToLH peer peerClient
-          grantConsent teamPeer peer
+          putLHWhitelistTeam teamPeer !!! const 200 === statusCode
 
   let assertResponse :: Assertions ()
       assertResponse = case testcase of
@@ -1276,15 +1273,6 @@ assertZeroLegalHoldDevices uid = do
 
 ---------------------------------------------------------------------
 --- Device helpers
-
--- | TODO: Remove this
-grantConsent :: HasCallStack => TeamId -> UserId -> TestM ()
-grantConsent tid _zusr = do
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-grantConsent' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> UserId -> m ()
-grantConsent' g tid _zusr =
-  void $ putLHWhitelistTeam' g tid
 
 requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do
