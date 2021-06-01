@@ -49,6 +49,8 @@ test s n h = testCase n runTest
     runTest :: Assertion
     runTest = do
       setup <- s
+      -- this `finally` doesnt seem to help. if there is an exception in a test
+      -- the other tests still see remaining messages on the queue
       void . flip runReaderT setup . runTestM $ h `finally` assertClean
 
 viewFederationDomain :: TestM Domain
