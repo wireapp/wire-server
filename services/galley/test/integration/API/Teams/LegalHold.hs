@@ -839,6 +839,9 @@ testInWhitelist = do
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   cannon <- view tsCannon
+
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+
   WS.bracketR2 cannon member member $ \(_ws, _ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
     do
       -- members have granted consent (implicitly)...
@@ -923,6 +926,8 @@ testOldClientsBlockDeviceHandshake = do
           <&> (\[x] -> x)
           <&> clientId
 
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     grantConsent tid legalholder
     grantConsent tid legalholder2
@@ -992,6 +997,8 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
   (legalholder :: UserId, tid) <- createBindingTeam
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
   galley <- view tsGalley
+
+  putLHWhitelistTeam tid !!! const 200 === statusCode
 
   let doEnableLH :: HasCallStack => TestM (Maybe ClientId)
       doEnableLH = do
