@@ -1509,7 +1509,6 @@ withDummyTestServiceForTeam owner tid go = do
     runTest :: Chan (Wai.Request, LBS) -> TestM a
     runTest chan = do
       newService <- newLegalHoldService
-      putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
       postSettings owner tid newService !!! testResponse 201 Nothing
       go chan
 
