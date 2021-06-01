@@ -137,8 +137,7 @@ testsPublic s =
       -- legal hold settings
       test s "POST /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testCreateLegalHoldTeamSettings),
       test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testGetLegalHoldTeamSettings),
-      -- TODO: Implement DELETE again? Currently "legalhold-disable-unimplemented"
-      test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testRemoveLegalHoldFromTeam),
+      test s "Not implemented: DELETE /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testRemoveLegalHoldFromTeam),
       test s "GET [/i]?/teams/{tid}/legalhold" (onlyIfLhWhitelisted testEnablePerTeam),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhWhitelisted testCannotCreateLegalHoldDeviceOldAPI),
@@ -548,54 +547,11 @@ testGetLegalHoldTeamSettings = do
 testRemoveLegalHoldFromTeam :: TestM ()
 testRemoveLegalHoldFromTeam = do
   (owner, tid) <- createBindingTeam
-  stranger <- randomUser
   member <- randomUser
   addTeamMemberInternal tid member noPermissions Nothing
   ensureQueueEmpty
   -- fails if LH for team is disabled
-  deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-not-enabled")
-  withDummyTestServiceForTeam owner tid $ \chan -> do
-    newService <- newLegalHoldService
-    postSettings owner tid newService !!! testResponse 201 Nothing
-    -- enable legalhold for member
-    do
-      grantConsent tid member
-      requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "After approval user legalhold status should be Enabled"
-          UserLegalHoldEnabled
-          userStatus
-    -- returns 403 if user is not in team or has unsufficient permissions.
-    deleteSettings (Just defPassword) stranger tid !!! testResponse 403 (Just "no-team-member")
-    deleteSettings (Just defPassword) member tid !!! testResponse 403 (Just "operation-denied")
-    -- Fails without password
-    deleteSettings Nothing owner tid !!! testResponse 403 (Just "access-denied")
-    let delete'' expectRemoteLHCall = do
-          deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
-          when expectRemoteLHCall . liftIO . assertMatchChan chan $ \(req, _) -> do
-            putStrLn (show (pathInfo req, pathInfo req == ["legalhold", "remove"]))
-            putStrLn (show (requestMethod req, requestMethod req == "POST"))
-            assertEqual "path" ["legalhold", "remove"] (pathInfo req)
-            assertEqual "method" "POST" (requestMethod req)
-          resp <- getSettings owner tid
-          liftIO $ assertEqual "bad body" ViewLegalHoldServiceNotConfigured (responseJsonUnsafe resp)
-    -- returns 204 if legal hold is successfully removed from team
-    -- is idempotent (deleting twice in a row works) from BE's PoV
-    -- NOTE: Only if LH is active will there be a remote call to the LH service
-    delete'' True
-    delete'' False
-    -- deletion of settings should disable for all team members and remove their clients
-    do
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "After approval user legalhold status should be Disabled"
-          UserLegalHoldDisabled
-          userStatus
-      assertZeroLegalHoldDevices member
+  deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-disable-unimplemented")
 
 testEnablePerTeam :: TestM ()
 testEnablePerTeam = withTeam $ \owner tid -> do
