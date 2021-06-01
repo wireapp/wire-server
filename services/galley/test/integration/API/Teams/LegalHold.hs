@@ -135,7 +135,7 @@ testsPublic s =
       test s "GET /teams/{tid}/legalhold/{uid}" (onlyIfLhWhitelisted testGetLegalHoldDeviceStatus),
       test s "DELETE /teams/{tid}/legalhold/{uid}" (onlyIfLhWhitelisted testDisableLegalHoldForUser),
       -- legal hold settings
-      test s "POST /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testCreateLegalHoldTeamSettings),
+      test s "POST /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testCreateLegalHoldTeamSettings),
       test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testGetLegalHoldTeamSettings),
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhEnabled testRemoveLegalHoldFromTeam),
       -- TODO: GET okay, PUT case: test that it throws error (TODO: check in handler, what is does).
@@ -447,16 +447,17 @@ data IsWorking = Working | NotWorking
   deriving (Eq, Show)
 
 testCreateLegalHoldTeamSettings :: HasCallStack => TestM ()
-testCreateLegalHoldTeamSettings = do
-  (owner, tid) <- createBindingTeam
+testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
   putLHWhitelistTeam tid !!! const 200 === statusCode
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   newService <- newLegalHoldService
   -- not allowed to create if team setting is disabled
-  postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
-  putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
+  -- TODO: postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
+  postSettings owner tid newService !!! testResponse 412 (Just "legalhold-unavailable")
+
+  putLHWhitelistTeam tid !!! const 200 === statusCode
 
   -- not allowed for users with corresp. permission bit missing
   postSettings member tid newService !!! testResponse 403 (Just "operation-denied")
