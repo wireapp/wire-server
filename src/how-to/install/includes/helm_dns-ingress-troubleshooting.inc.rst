@@ -9,7 +9,7 @@ You need
 * one DNS name for the asset store (images, audio files etc. that your users are sharing); usually `assets.<domain>` or `s3.<domain>`.
 * one DNS name for the webapp (equivalent of https://app.wire.com, i.e. the javascript app running in the browser), usually called `webapp.<domain>`.
 * one DNS name for the account pages (hosts some html/javascript pages for e.g. password reset), usually called `account.<domain>`.
-* one DNS name for SFTD support (conference calling), usually called `sftd.<domain>`
+* (optional) one DNS name for SFTD support (conference calling), usually called `sftd.<domain>`
 * (optional) one DNS name for team settings (to manage team membership if using PRO accounts), usually called `teams.<domain>`
 * (optional) one DNS name for a audio/video calling server, usually called `restund01.<domain>`.
 * (optional) one DNS name for federation, usually called `federator.<domain>`
