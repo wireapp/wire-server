@@ -51,7 +51,7 @@ test s n h = testCase n runTest
       setup <- s
       -- this `finally` doesnt seem to help. if there is an exception in a test
       -- the other tests still see remaining messages on the queue
-      void . flip runReaderT setup . runTestM $ h `finally` assertClean
+      void . flip runReaderT setup . runTestM $ (ensureQueueEmpty >> h) `finally` assertClean
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsGConf . optSettings . setFederationDomain)
