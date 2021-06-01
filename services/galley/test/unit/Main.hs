@@ -28,10 +28,8 @@ import Test.Tasty
 
 main :: IO ()
 main =
-  defaultMain
-    =<< testGroup
-      "Tests"
-    $ sequence
+  defaultMain . testGroup "Tests"
+    =<< sequence
       [ pure Test.Galley.API.tests,
         pure Test.Galley.Intra.User.tests,
         Test.Galley.Roundtrip.tests

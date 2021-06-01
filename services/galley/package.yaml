@@ -116,6 +116,7 @@ tests:
     - types-common
     - QuickCheck
     - wai
+    - servant-swagger
     - wai-predicates
 
 executables:

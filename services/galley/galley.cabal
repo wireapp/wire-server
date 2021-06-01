@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d117307412143415e221534d16423447d85aead965f79a45c69538f16d53c614
+-- hash: d6a28e7971e34c3dfbcfb559e4a8362e370965670afe6741c574feacca170e31
 
 name:           galley
 version:        0.83.0
@@ -393,6 +393,7 @@ test-suite galley-types-tests
     , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-swagger
     , ssl-util
     , tasty
     , tasty-hspec
