@@ -54,6 +54,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as LBS
+import Data.Domain (domainText)
 import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
@@ -352,7 +353,10 @@ logError' g mr (Wai.Error c l m md) = liftIO $ Log.debug g logMsg
         . msg (val "\"" +++ m +++ val "\"")
 
     -- TODO: actually log error data fields
-    logErrorData _ = id
+    logErrorData (Wai.FederationErrorData d p e) =
+      field "domain" (domainText d)
+        . field "path" p
+        . field "remote_error" (encode e)
 
 logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()
 logIO lg lv r a =

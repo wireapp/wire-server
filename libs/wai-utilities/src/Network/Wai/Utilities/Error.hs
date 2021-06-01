@@ -20,6 +20,7 @@
 
 module Network.Wai.Utilities.Error
   ( Error (..),
+    ErrorData (..),
     mkError,
     (!>>),
     byteStringError,
@@ -29,6 +30,7 @@ where
 import Control.Error
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Pair)
+import Data.Domain
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Imports
 import Network.HTTP.Types
@@ -47,13 +49,27 @@ mkError c l m = Error c l m Nothing
 instance Exception Error
 
 data ErrorData = FederationErrorData
+  { federrDomain :: !Domain,
+    federrPath :: !Text,
+    federrError :: !Value
+  }
   deriving (Show, Typeable)
 
 instance ToJSON ErrorData where
-  toJSON _ = object []
+  toJSON (FederationErrorData d p e) =
+    object
+      [ "type" .= ("federation" :: Text),
+        "domain" .= d,
+        "path" .= p,
+        "remote_error" .= e
+      ]
 
 instance FromJSON ErrorData where
-  parseJSON = withObject "ErrorData" (\_ -> pure FederationErrorData)
+  parseJSON = withObject "ErrorData" $ \o ->
+    FederationErrorData
+      <$> o .: "domain"
+      <*> o .: "path"
+      <*> o .: "remote_error"
 
 -- | Assumes UTF-8 encoding.
 byteStringError :: Status -> LByteString -> LByteString -> Error
