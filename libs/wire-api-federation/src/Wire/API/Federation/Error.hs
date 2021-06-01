@@ -17,6 +17,7 @@
 
 module Wire.API.Federation.Error where
 
+import Data.Aeson (Value (Null))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
@@ -25,15 +26,19 @@ import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Servant.Client as Servant
-import Wire.API.Federation.Client (FederationClientError (..), FederationError (..))
+import Wire.API.Federation.Client
+  ( FederationClientError (..),
+    FederationClientFailure (..),
+    FederationError (..),
+  )
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 federationErrorToWai :: FederationError -> Wai.Error
 federationErrorToWai (FederationUnavailable err) = federationUnavailable err
 federationErrorToWai FederationNotImplemented = federationNotImplemented
 federationErrorToWai FederationNotConfigured = federationNotConfigured
-federationErrorToWai (FederationCallFailure err) =
-  case err of
+federationErrorToWai (FederationCallFailure failure) = addErrorData $
+  case fedFailError failure of
     FederationClientRPCError msg -> federationRpcError msg
     FederationClientInvalidMethod mth ->
       federationInvalidCall
@@ -57,6 +62,19 @@ federationErrorToWai (FederationCallFailure err) =
       federationUnavailable . T.pack . show $ exception
   where
     contentType = LT.fromStrict . T.decodeUtf8 . maybe "" snd . find (\(name, _) -> name == "Content-Type") . Servant.responseHeaders
+    addErrorData :: Wai.Error -> Wai.Error
+    addErrorData err =
+      err
+        { Wai.errorData =
+            Just
+              Wai.FederationErrorData
+                { Wai.federrDomain = fedFailDomain failure,
+                  Wai.federrPath = T.decodeUtf8 (fedFailPath failure),
+                  Wai.federrError = remoteError
+                }
+        }
+      where
+        remoteError = fromMaybe Null (fmap Wai.federrError (Wai.errorData err))
 
 noFederationStatus :: Status
 noFederationStatus = status403

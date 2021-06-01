@@ -27,7 +27,7 @@ import Servant.API.Generic
 import Servant.Client.Generic (AsClientT, genericClient)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
-import Wire.API.Federation.Client (FederationClientError, FederatorClient)
+import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
@@ -86,5 +86,5 @@ data Api routes = Api
   }
   deriving (Generic)
 
-clientRoutes :: (MonadError FederationClientError m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Brig m))
+clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Brig m))
 clientRoutes = genericClient
