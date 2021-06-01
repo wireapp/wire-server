@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -114,7 +115,7 @@ testsPublic :: IO TestSetup -> TestTree
 testsPublic s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
   testGroup
-    "Teams LegalHold API"
+    "Teams LegalHold API (with flag whitelist-teams-and-implicit-consent)"
     [ -- device handling (CRUD)
       test s "POST /teams/{tid}/legalhold/{uid}" (onlyIfLhWhitelisted testRequestLegalHoldDevice),
       test s "PUT /teams/{tid}/legalhold/approve" (onlyIfLhWhitelisted testApproveLegalHoldDevice),

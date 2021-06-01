@@ -103,7 +103,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
   testGroup
-    "Teams LegalHold API (with flag=`disabled-by-default`"
+    "Teams LegalHold API (with flag disabled-by-default)"
     [ -- device handling (CRUD)
       test s "POST /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testRequestLegalHoldDevice),
       test s "PUT /teams/{tid}/legalhold/approve" (onlyIfLhEnabled testApproveLegalHoldDevice),
