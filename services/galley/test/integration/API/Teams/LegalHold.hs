@@ -264,6 +264,7 @@ testRequestLegalHoldDevice = withTeam $ \owner tid -> do
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
+  ensureQueueEmpty
   (owner, tid) <- createBindingTeam
   ensureQueueEmpty
   member <- do
@@ -489,6 +490,7 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
 
 testGetLegalHoldTeamSettings :: TestM ()
 testGetLegalHoldTeamSettings = do
+  ensureQueueEmpty
   (owner, tid) <- createBindingTeam
   stranger <- randomUser
   member <- randomUser
@@ -582,6 +584,7 @@ testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do
 testCannotCreateLegalHoldDeviceOldAPI :: TestM ()
 testCannotCreateLegalHoldDeviceOldAPI = do
   member <- randomUser
+  ensureQueueEmpty
   (owner, tid) <- createBindingTeam
   ensureQueueEmpty
   -- user without team can't add LH device
@@ -1379,7 +1382,7 @@ withLHWhitelist tid action = do
 
 -- | If you play with whitelists, you should use this one.  Every whitelisted team that does
 -- not get fully deleted will blow up the whitelist that is cached in every warp handler.
-withTeam :: forall a. HasCallStack => (UserId -> TeamId -> TestM a) -> TestM a
+withTeam :: forall a. HasCallStack => (HasCallStack => UserId -> TeamId -> TestM a) -> TestM a
 withTeam action =
   bracket
     createBindingTeam
@@ -1429,6 +1432,7 @@ publicKeyNotMatchingService =
 
 testGetLegalholdStatus :: TestM ()
 testGetLegalholdStatus = do
+  ensureQueueEmpty
   (owner1, tid1) <- createBindingTeam
   member1 <- view userId <$> addUserToTeam owner1 tid1
   ensureQueueEmpty
