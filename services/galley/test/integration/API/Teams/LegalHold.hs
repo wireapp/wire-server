@@ -93,18 +93,6 @@ import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
 import qualified Wire.API.User.Client as Client
 
--- TODO: remove
-onlyIfLhEnabled :: TestM () -> TestM ()
-onlyIfLhEnabled action = do
-  featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
-  case featureLegalHold of
-    FeatureLegalHoldDisabledPermanently ->
-      liftIO $ hPutStrLn stderr "*** legalhold feature flag disabled, not running this test case"
-    FeatureLegalHoldDisabledByDefault ->
-      action
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      action
-
 onlyIfLhWhitelisted :: TestM () -> TestM ()
 onlyIfLhWhitelisted action = do
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
@@ -175,7 +163,7 @@ testsInternal :: IO TestSetup -> TestTree
 testsInternal s =
   testGroup
     "Legalhold Internal API"
-    [test s "PUT, DELETE /i/legalhold/whitelisted-teams" (onlyIfLhEnabled testWhitelistingTeams)]
+    [test s "PUT, DELETE /i/legalhold/whitelisted-teams" (onlyIfLhWhitelisted testWhitelistingTeams)]
 
 testWhitelistingTeams :: TestM ()
 testWhitelistingTeams = do
