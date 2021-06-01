@@ -28,7 +28,6 @@ module Galley.Data.LegalHold
     getLegalholdWhitelistedTeams,
     setTeamLegalholdWhitelisted,
     unsetTeamLegalholdWhitelisted,
-    isTeamLegalholdWhitelisted,
   )
 where
 
@@ -87,6 +86,8 @@ setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStat
 setUserLegalHoldStatus tid uid status =
   retry x5 (write Q.updateUserLegalHoldStatus (params Quorum (status, tid, uid)))
 
+-- | This is cached for every request in 'Galley.App.Env', so you probably don't want to call
+-- it anywhere else.
 getLegalholdWhitelistedTeams :: MonadClient m => m [TeamId]
 getLegalholdWhitelistedTeams =
   runIdentity <$$> retry x1 (query Q.selectLegalHoldWhitelistedTeams (params Quorum ()))
@@ -98,7 +99,3 @@ setTeamLegalholdWhitelisted tid =
 unsetTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
 unsetTeamLegalholdWhitelisted tid =
   retry x5 (write Q.removeLegalHoldWhitelistedTeam (params Quorum (Identity tid)))
-
-isTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m Bool
-isTeamLegalholdWhitelisted tid =
-  isJust <$> (runIdentity <$$> retry x1 (query1 Q.selectLegalHoldWhitelistedTeam (params Quorum (Identity tid))))

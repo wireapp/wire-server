@@ -26,12 +26,8 @@ module Galley.API.LegalHold
     approveDeviceH,
     disableForUserH,
     isLegalHoldEnabledForTeam,
-    getLegalholdWhitelistedTeams,
     getLegalholdWhitelistedTeamsH,
-    isTeamLegalholdWhitelisted,
-    setTeamLegalholdWhitelisted,
     setTeamLegalholdWhitelistedH,
-    unsetTeamLegalholdWhitelisted,
     unsetTeamLegalholdWhitelistedH,
   )
 where
@@ -86,7 +82,10 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      LegalHoldData.isTeamLegalholdWhitelisted tid
+      view legalholdWhitelist
+        <&> maybe
+          False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
+          (tid `elem`)
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
@@ -450,7 +449,7 @@ blockConnectionsFrom1on1s uid = do
 
 getLegalholdWhitelistedTeams :: Galley [TeamId]
 getLegalholdWhitelistedTeams = do
-  LegalHoldData.getLegalholdWhitelistedTeams
+  fromMaybe [] <$> view legalholdWhitelist
 
 getLegalholdWhitelistedTeamsH :: JSON -> Galley Response
 getLegalholdWhitelistedTeamsH _ = do
@@ -476,7 +475,3 @@ unsetTeamLegalholdWhitelistedH tid = do
       \number of LH devices as well, and possibly other things.  think this through \
       \before you enable the end-point."
   setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
-
-isTeamLegalholdWhitelisted :: TeamId -> Galley Bool
-isTeamLegalholdWhitelisted tid = do
-  LegalHoldData.isTeamLegalholdWhitelisted tid
