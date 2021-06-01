@@ -23,7 +23,7 @@ module API.Teams
 where
 
 import API.SQS
-import API.Util
+import API.Util hiding (deleteTeam)
 import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge hiding (timeout)
