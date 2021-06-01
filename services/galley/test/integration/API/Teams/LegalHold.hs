@@ -1226,22 +1226,6 @@ disableLegalHoldForUser' g mPassword tid zusr uid = do
       . zType "access"
       . json (DisableLegalHoldForUserRequest mPassword)
 
-_postOtrMessageJson :: UserId -> ConvId -> TestM ResponseLBS
-_postOtrMessageJson zusr cnvid = do
-  g <- view tsGalley
-  otrmsg :: Msg.NewOtrMessage <- pure (error "TODO")
-  post $
-    g
-      . paths ["conversations", toByteString' cnvid, "otr", "messages"]
-      . zUser zusr
-      . zConn "conn"
-      . zType "access"
-      -- TODO: @.&. def Public.OtrReportAllMissing filterMissing@
-      . json otrmsg
-
-_postOtrMessageProto :: UserId -> ConvId -> TestM ResponseLBS
-_postOtrMessageProto = (error "TODO")
-
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
   clients :: [Client] <-
