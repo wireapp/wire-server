@@ -55,7 +55,6 @@ import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword)
 import Data.PEM
-import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
@@ -79,10 +78,7 @@ import qualified Network.Wai.Handler.WarpTLS as Warp
 import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Response as Wai
-import Servant.Swagger (validateEveryToJSON)
-import System.Environment (withArgs)
 import System.IO (hPutStrLn)
-import Test.Hspec (hspec)
 import Test.QuickCheck.Instances ()
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -92,12 +88,12 @@ import TestSetup
 import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
 import qualified Wire.API.Message as Msg
-import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
 import qualified Wire.API.User.Client as Client
 
+-- TODO: remove
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
@@ -133,7 +129,7 @@ testsPublic s =
   testGroup
     "Teams LegalHold API"
     [ -- device handling (CRUD)
-      test s "POST /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testRequestLegalHoldDevice),
+      test s "POST /teams/{tid}/legalhold/{uid}" (onlyIfLhWhitelisted testRequestLegalHoldDevice),
       test s "PUT /teams/{tid}/legalhold/approve" (onlyIfLhEnabled testApproveLegalHoldDevice),
       test s "(user denies approval: nothing needs to be done in backend)" (pure ()),
       test s "GET /teams/{tid}/legalhold/{uid}" (onlyIfLhEnabled testGetLegalHoldDeviceStatus),
@@ -213,8 +209,7 @@ testWhitelistingTeams = do
 
 -- TODO: test 2 casese: team whitelisted and team not whitelisted
 testRequestLegalHoldDevice :: TestM ()
-testRequestLegalHoldDevice = do
-  (owner, tid) <- createBindingTeam
+testRequestLegalHoldDevice = withTeam $ \owner tid -> do
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -223,10 +218,11 @@ testRequestLegalHoldDevice = do
   cannon <- view tsCannon
   -- Assert that the appropriate LegalHold Request notification is sent to the user's
   -- clients
-  WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
+  WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeamNoService $ \_chan -> do
     do
       -- test device creation without consent
-      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
+      -- TODO: requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
+      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "legalhold-not-enabled")
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
       liftIO $
         assertEqual
@@ -235,7 +231,8 @@ testRequestLegalHoldDevice = do
           userStatus
 
     do
-      requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-no-consent")
+      -- TODO: requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-no-consent")
+      requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
       liftIO $
         assertEqual
@@ -243,18 +240,9 @@ testRequestLegalHoldDevice = do
           UserLegalHoldNoConsent
           userStatus
 
-    do
-      -- test granting consent
-      lhs <- view legalHoldStatus <$> getTeamMember member tid member
-      liftIO $ assertEqual "" lhs UserLegalHoldNoConsent
-
-      grantConsent tid member
-      lhs' <- view legalHoldStatus <$> getTeamMember member tid member
-      liftIO $ assertEqual "" lhs' UserLegalHoldDisabled
-
-      grantConsent tid member
-      lhs'' <- view legalHoldStatus <$> getTeamMember member tid member
-      liftIO $ assertEqual "" lhs'' UserLegalHoldDisabled
+    putLHWhitelistTeam tid !!! const 200 === statusCode
+    newService <- newLegalHoldService
+    postSettings owner tid newService !!! testResponse 201 Nothing
 
     do
       requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
@@ -1493,8 +1481,6 @@ readServiceKey fp = liftIO $ do
   let Right [k] = pemParseBS bs
   return (ServiceKeyPEM k)
 
--- FUTUREWORK: run this test suite against an actual LH service (by changing URL and key in
--- the config file), and see if it works as well as with our mock service.
 withDummyTestServiceForTeam ::
   forall a.
   HasCallStack =>
@@ -1503,13 +1489,25 @@ withDummyTestServiceForTeam ::
   -- | the test
   (Chan (Wai.Request, LBS) -> TestM a) ->
   TestM a
-withDummyTestServiceForTeam owner tid go = do
+withDummyTestServiceForTeam owner tid go =
+  withDummyTestServiceForTeamNoService $ \chan -> do
+    newService <- newLegalHoldService
+    postSettings owner tid newService !!! testResponse 201 Nothing
+    go chan
+
+-- FUTUREWORK: run this test suite against an actual LH service (by changing URL and key in
+-- the config file), and see if it works as well as with our mock service.
+withDummyTestServiceForTeamNoService ::
+  forall a.
+  HasCallStack =>
+  -- | the test
+  (Chan (Wai.Request, LBS) -> TestM a) ->
+  TestM a
+withDummyTestServiceForTeamNoService go = do
   withTestService dummyService runTest
   where
     runTest :: Chan (Wai.Request, LBS) -> TestM a
     runTest chan = do
-      newService <- newLegalHoldService
-      postSettings owner tid newService !!! testResponse 201 Nothing
       go chan
 
     dummyService :: Chan (Wai.Request, LBS) -> Wai.Application
