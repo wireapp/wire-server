@@ -201,13 +201,15 @@ testSwaggerJsonConsistency = do
 
 testWhitelistingTeams :: TestM ()
 testWhitelistingTeams = do
+  let testTeamWhitelisted :: HasCallStack => TeamId -> TestM Bool
+      testTeamWhitelisted tid = do
+        whitelist :: [TeamId] <- responseJsonError =<< (getLHWhitelistedTeams <!! const 200 === statusCode)
+        pure $ tid `elem` whitelist
+
   let expectWhitelisted :: HasCallStack => Bool -> TeamId -> TestM ()
       expectWhitelisted yes tid = do
-        whitelist :: [TeamId] <- responseJsonError =<< (getLHWhitelistedTeams <!! const 200 === statusCode)
-        liftIO $
-          if yes
-            then assertBool "team should be whitelisted" (tid `elem` whitelist)
-            else assertBool "team should not be whitelisted" (tid `notElem` whitelist)
+        let msg = if yes then "team should be whitelisted" else "team should not be whitelisted"
+        aFewTimesAssertBool msg (== yes) (testTeamWhitelisted tid)
 
   tid <- withTeam $ \_owner tid -> do
     expectWhitelisted False tid
@@ -215,6 +217,7 @@ testWhitelistingTeams = do
     expectWhitelisted True tid
     pure tid
   expectWhitelisted False tid
+  ensureQueueEmpty
 
 testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = do
