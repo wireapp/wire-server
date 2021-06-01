@@ -141,7 +141,6 @@ testsPublic s =
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testRemoveLegalHoldFromTeam),
       -- TODO: GET okay, PUT case: test that it throws error (TODO: check in handler, what is does).
       test s "GET [/i]?/teams/{tid}/legalhold" (onlyIfLhWhitelisted testEnablePerTeam),
-      test s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" (onlyIfLhEnabled testEnablePerTeamTooLarge),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
@@ -631,22 +630,6 @@ testEnablePerTeam = withTeam $ \owner tid -> do
       status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
       let statusValue = Public.tfwoStatus status
       liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.TeamFeatureEnabled
-
-testEnablePerTeamTooLarge :: TestM ()
-testEnablePerTeamTooLarge = do
-  o <- view tsGConf
-  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
-  -- TODO: it is impossible in this test to create teams bigger than the fanout limit.
-  -- Change the +1 to anything else and look at the logs
-  (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 5)
-
-  status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-  let statusValue = Public.tfwoStatus status
-  liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
-  -- You cannot enable legal hold on a team that is too large
-  putEnabled' id tid Public.TeamFeatureEnabled !!! do
-    const 403 === statusCode
-    const (Just "too-large-team-for-legalhold") === fmap Error.label . responseJsonMaybe
 
 testAddTeamUserTooLargeWithLegalhold :: TestM ()
 testAddTeamUserTooLargeWithLegalhold = do
