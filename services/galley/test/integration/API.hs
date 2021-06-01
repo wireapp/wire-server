@@ -886,7 +886,7 @@ testAddRemoteMember = do
       withTempMockFederator
         opts
         remoteDomain
-        [mkProfile remoteBob (Name "bob")]
+        (const [mkProfile remoteBob (Name "bob")])
         (postQualifiedMembers' g alice (remoteBob :| []) convId)
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
@@ -917,7 +917,7 @@ testAddRemoteMemberFailure = do
       withTempMockFederator
         opts
         remoteDomain
-        [mkProfile remoteCharlie (Name "charlie")]
+        (const [mkProfile remoteCharlie (Name "charlie")])
         (postQualifiedMembers' g alice (remoteBob :| [remoteCharlie]) convId)
     statusCode resp @?= 400
     let err = responseJsonUnsafe resp :: Object
@@ -937,7 +937,7 @@ testAddDeletedRemoteUser = do
       withTempMockFederator
         opts
         remoteDomain
-        [(mkProfile remoteBob (Name "bob")) {profileDeleted = True}]
+        (const [(mkProfile remoteBob (Name "bob")) {profileDeleted = True}])
         (postQualifiedMembers' g alice (remoteBob :| []) convId)
     statusCode resp @?= 400
     let err = responseJsonUnsafe resp :: Object

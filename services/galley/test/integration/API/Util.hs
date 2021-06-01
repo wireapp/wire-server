@@ -92,7 +92,7 @@ import Web.Cookie
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
-import Wire.API.Federation.GRPC.Types (OutwardResponse (..))
+import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
@@ -1670,11 +1670,11 @@ withTempMockFederator ::
   (MonadIO m, ToJSON a) =>
   Opts.Opts ->
   Domain ->
-  a ->
+  (FederatedRequest -> a) ->
   WaiTest.Session b ->
   m (b, Mock.ReceivedRequests)
 withTempMockFederator opts targetDomain resp action = liftIO . assertRightT
-  . Mock.withTempMockFederator st0 (pure oresp)
+  . Mock.withTempMockFederator st0 (pure . oresp)
   $ \st -> lift $ do
     let opts' =
           opts & Opts.optFederator
@@ -1682,7 +1682,7 @@ withTempMockFederator opts targetDomain resp action = liftIO . assertRightT
     withSettingsOverrides opts' action
   where
     st0 = Mock.initState targetDomain (Domain "example.com")
-    oresp = OutwardResponseBody (Lazy.toStrict (encode resp))
+    oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
 assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
 assertRight = \case
