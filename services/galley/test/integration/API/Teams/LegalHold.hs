@@ -139,7 +139,6 @@ testsPublic s =
       test s "GET /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testGetLegalHoldTeamSettings),
       -- TODO: Implement DELETE again? Currently "legalhold-disable-unimplemented"
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testRemoveLegalHoldFromTeam),
-      -- TODO: GET okay, PUT case: test that it throws error (TODO: check in handler, what is does).
       test s "GET [/i]?/teams/{tid}/legalhold" (onlyIfLhWhitelisted testEnablePerTeam),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhWhitelisted testCannotCreateLegalHoldDeviceOldAPI),
