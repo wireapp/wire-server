@@ -227,11 +227,15 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
   let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
   post
     ( galley1
-        -- FUTUREWORK: use an endpoint without /i/ once it's ready.
-        . paths ["i", "conversations", toByteString' convId, "members", "v2"]
+        . paths ["conversations", toByteString' convId, "members", "v2"]
         . zUser (userId alice)
         . zConn "conn"
         . header "Z-Type" "access"
         . json invite
     )
     !!! (const 200 === statusCode)
+
+-- FUTUREWORK: check the happy path case as implementation of these things progresses:
+--  - conversation can be queried and shows members (galley1)
+--  - conversation can be queried and shows members (galley2 via qualified get conversation endpoint)
+--  - this (qualified) convId pops up for both alice (on galley1) and bob (on galley2) when they request their own conversations ( GET /conversations )
