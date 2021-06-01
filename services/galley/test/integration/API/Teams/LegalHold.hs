@@ -197,7 +197,6 @@ testWhitelistingTeams = do
   expectWhitelisted False tid
   ensureQueueEmpty
 
--- TODO: test 2 casese: team whitelisted and team not whitelisted
 testRequestLegalHoldDevice :: TestM ()
 testRequestLegalHoldDevice = withTeam $ \owner tid -> do
   member <- randomUser
@@ -273,6 +272,7 @@ testRequestLegalHoldDevice = withTeam $ \owner tid -> do
     assertNotification ws pluck
     -- all devices get notified.
     assertNotification ws' pluck
+    ensureQueueEmpty
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
