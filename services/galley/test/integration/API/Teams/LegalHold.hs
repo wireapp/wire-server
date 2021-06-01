@@ -140,7 +140,7 @@ testsPublic s =
       -- TODO: Implement DELETE again? Currently "legalhold-disable-unimplemented"
       test s "DELETE /teams/{tid}/legalhold/settings" (onlyIfLhWhitelisted testRemoveLegalHoldFromTeam),
       -- TODO: GET okay, PUT case: test that it throws error (TODO: check in handler, what is does).
-      test s "GET, PUT [/i]?/teams/{tid}/legalhold" (onlyIfLhEnabled testEnablePerTeam),
+      test s "GET [/i]?/teams/{tid}/legalhold" (onlyIfLhWhitelisted testEnablePerTeam),
       test s "GET, PUT [/i]?/teams/{tid}/legalhold - too large" (onlyIfLhEnabled testEnablePerTeamTooLarge),
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
@@ -604,8 +604,7 @@ testRemoveLegalHoldFromTeam = do
       assertZeroLegalHoldDevices member
 
 testEnablePerTeam :: TestM ()
-testEnablePerTeam = do
-  (owner, tid) <- createBindingTeam
+testEnablePerTeam = withTeam $ \owner tid -> do
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
@@ -613,7 +612,9 @@ testEnablePerTeam = do
     status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     let statusValue = Public.tfwoStatus status
     liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
-  putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
+
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+
   do
     status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     let statusValue = Public.tfwoStatus status
@@ -626,19 +627,10 @@ testEnablePerTeam = do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
-      putEnabled tid Public.TeamFeatureDisabled -- disable again
+      putEnabled' id tid Public.TeamFeatureDisabled !!! testResponse 403 (Just "legalhold-whitelisted-only")
       status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
       let statusValue = Public.tfwoStatus status
-      liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" statusValue Public.TeamFeatureDisabled
-    do
-      UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-      liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
-    viewLHS <- getSettingsTyped owner tid
-    liftIO $
-      assertEqual
-        "LH Service settings should be disabled"
-        ViewLegalHoldServiceDisabled
-        viewLHS
+      liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.TeamFeatureEnabled
 
 testEnablePerTeamTooLarge :: TestM ()
 testEnablePerTeamTooLarge = do
