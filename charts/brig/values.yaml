@@ -29,6 +29,7 @@ config:
   # -- If set to false,  'dynamoDBEndpoint' _must_ be set.
   randomPrekeys: true
   useSES: true
+  enableFederator: false # keep enableFederator default in sync with galley chart's config.enableFederator as well as wire-server chart's tag.federator
   emailSMS:
     general:
       templateBranding:

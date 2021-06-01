@@ -32,9 +32,11 @@ data:
       host: spar
       port: 8080
 
+    {{- if .enableFederator }}
     federator:
       host: federator
       port: 8080
+    {{- end }}
 
     {{- if (.journal) }}
     journal:
