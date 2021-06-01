@@ -68,6 +68,7 @@ import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
+import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
 
 tests :: IO TestSetup -> TestTree
@@ -1018,7 +1019,7 @@ testAddRemoteMember = do
     withTempMockFederator
       opts
       remoteDomain
-      (const [mkProfile remoteBob (Name "bob")])
+      (respond remoteBob)
       (postQualifiedMembers' g alice (remoteBob :| []) convId)
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
@@ -1032,6 +1033,12 @@ testAddRemoteMember = do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
     assertEqual "other members should include remoteBob" expected actual
+  where
+    respond :: Qualified UserId -> F.FederatedRequest -> Value
+    respond bob req
+      | fmap F.component (F.request req) == Just F.Brig =
+        toJSON [mkProfile bob (Name "bob")]
+      | otherwise = toJSON ()
 
 testGetRemoteConversation :: TestM ()
 testGetRemoteConversation = do
