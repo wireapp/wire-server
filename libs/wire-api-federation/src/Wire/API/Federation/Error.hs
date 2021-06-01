@@ -105,16 +105,8 @@ federationRpcError msg =
 federationUnavailable :: Text -> Wai.Error
 federationUnavailable err =
   Wai.Error
-    -- FUTUREWORK: This can be changed back to a
-    --   status500 / "federation-not-available"
-    -- if we have a way of actually stating that federation should be turned
-    -- off. Right now, helm charts configure federator inside galley/brig by
-    -- default, but don't deploy federator by default. This is not ideal, as
-    -- clients can attempt to make requests involving remote users but then
-    -- would get a 500 which isn't expected - they may assume that they should
-    -- retry the request.
-    HTTP.status400
-    "federation-not-enabled"
+    HTTP.status500
+    "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
 
 federationRemoteError :: Proto.OutwardError -> Wai.Error
