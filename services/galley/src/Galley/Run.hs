@@ -21,12 +21,11 @@ module Galley.Run
   )
 where
 
-import Cassandra (ClientState, runClient, shutdown)
+import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (^.))
-import Data.Id (TeamId)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
@@ -37,11 +36,8 @@ import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
 import qualified Galley.Data as Data
-import Galley.Data.LegalHold (getLegalholdWhitelistedTeams)
 import Galley.Options (Opts, optGalley)
-import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
-import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
@@ -79,7 +75,7 @@ run o = do
 mkApp :: Opts -> IO (Application, Env, IO ())
 mkApp o = do
   m <- M.metrics
-  e <- App.createEnv mkLegalholdWhitelist m o
+  e <- App.createEnv m o
   let l = e ^. App.applog
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
@@ -118,10 +114,3 @@ refreshMetrics = do
     n <- Q.len q
     M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
     threadDelay 1000000
-
-mkLegalholdWhitelist :: ClientState -> Opts -> IO (Maybe [TeamId])
-mkLegalholdWhitelist cass opts = do
-  case opts ^. Opts.optSettings . Opts.setFeatureFlags . Teams.flagLegalHold of
-    Teams.FeatureLegalHoldDisabledPermanently -> pure Nothing
-    Teams.FeatureLegalHoldDisabledByDefault -> pure Nothing
-    Teams.FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> Just <$> runClient cass getLegalholdWhitelistedTeams

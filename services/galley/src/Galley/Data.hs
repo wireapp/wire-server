@@ -132,8 +132,10 @@ import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.App
 import Galley.Data.Instances ()
+import qualified Galley.Data.LegalHold as LegalholdData
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
+import qualified Galley.Options as Opts
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
@@ -999,12 +1001,19 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 -- other is 'Just', which can only be caused by inconsistent database content.
 newTeamMember' :: (MonadThrow m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
 newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
-  mbWhitelist <- view legalholdWhitelist
-  maybeGrant mbWhitelist <$> mk minvu minvt
+  legalhold <- view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold)
+  whitelist <- LegalholdData.getLegalholdWhitelistedTeams
+  maybeGrant legalhold whitelist <$> mk minvu minvt
   where
-    maybeGrant :: Maybe [TeamId] -> TeamMember -> TeamMember
-    maybeGrant Nothing = id
-    maybeGrant (Just whitelist) = if tid `elem` whitelist then grantImplicitConsent else id
+    maybeGrant :: FeatureLegalHold -> [TeamId] -> TeamMember -> TeamMember
+    maybeGrant legalhold whitelist mem =
+      case legalhold of
+        FeatureLegalHoldDisabledPermanently -> mem
+        FeatureLegalHoldDisabledByDefault -> mem
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+          if tid `elem` whitelist
+            then grantImplicitConsent mem
+            else mem
 
     grantImplicitConsent :: TeamMember -> TeamMember
     grantImplicitConsent =
