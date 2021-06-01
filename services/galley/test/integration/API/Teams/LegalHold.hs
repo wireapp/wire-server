@@ -142,7 +142,7 @@ testsPublic s =
       -- TODO: GET okay, PUT case: test that it throws error (TODO: check in handler, what is does).
       test s "GET [/i]?/teams/{tid}/legalhold" (onlyIfLhWhitelisted testEnablePerTeam),
       -- behavior of existing end-points
-      test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
+      test s "POST /clients" (onlyIfLhWhitelisted testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
       -- TODO: remove this -> merge 3 tests to one case: if enabled fanout limit remove
       test s "POST /register - cannot add team members above fanout limit" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
