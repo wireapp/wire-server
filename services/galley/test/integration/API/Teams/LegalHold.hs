@@ -428,9 +428,8 @@ testDisableLegalHoldForUser = withTeam $ \owner tid -> do
 data IsWorking = Working | NotWorking
   deriving (Eq, Show)
 
-testCreateLegalHoldTeamSettings :: HasCallStack => TestM ()
+testCreateLegalHoldTeamSettings :: TestM ()
 testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
-  ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
@@ -1370,7 +1369,7 @@ withTeam :: forall a. HasCallStack => (HasCallStack => UserId -> TeamId -> TestM
 withTeam action =
   bracket
     createBindingTeam
-    (uncurry deleteTeam)
+    (uncurry deleteTeam >=> const ensureQueueEmpty)
     (uncurry action)
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
@@ -1470,6 +1469,8 @@ testGetLegalholdStatus = do
 
     approveDev member1 tid1
     check personal member1 (Just tid1) UserLegalHoldEnabled
+
+  ensureQueueEmpty
 
 ----------------------------------------------------------------------
 -- test helpers
