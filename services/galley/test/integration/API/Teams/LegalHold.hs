@@ -145,7 +145,7 @@ testsPublic s =
       test s "POST /clients" (onlyIfLhWhitelisted testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhWhitelisted testGetTeamMembersIncludesLHStatus),
       test s "POST /register - can add team members above fanout limit when whitelisting is enabled" (onlyIfLhWhitelisted testAddTeamUserTooLargeWithLegalholdWhitelisted),
-      test s "GET legalhold status in user profile" testGetLegalholdStatus,
+      test s "GET legalhold status in user profile" (onlyIfLhWhitelisted testGetLegalholdStatus),
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
@@ -1584,18 +1584,18 @@ testGetLegalholdStatus = do
   check member2 personal Nothing UserLegalHoldNoConsent
   check personal personal Nothing UserLegalHoldNoConsent
 
-  onlyIfLhEnabled $
-    withDummyTestServiceForTeam owner1 tid1 $ \_chan -> do
-      grantConsent tid1 member1
-      check owner1 member1 (Just tid1) UserLegalHoldDisabled
-      check member2 member1 (Just tid1) UserLegalHoldDisabled
-      check personal member1 (Just tid1) UserLegalHoldDisabled
+  putLHWhitelistTeam tid1 !!! const 200 === statusCode
 
-      requestDev owner1 member1 tid1
-      check personal member1 (Just tid1) UserLegalHoldPending
+  withDummyTestServiceForTeam owner1 tid1 $ \_chan -> do
+    check owner1 member1 (Just tid1) UserLegalHoldDisabled
+    check member2 member1 (Just tid1) UserLegalHoldDisabled
+    check personal member1 (Just tid1) UserLegalHoldDisabled
 
-      approveDev member1 tid1
-      check personal member1 (Just tid1) UserLegalHoldEnabled
+    requestDev owner1 member1 tid1
+    check personal member1 (Just tid1) UserLegalHoldPending
+
+    approveDev member1 tid1
+    check personal member1 (Just tid1) UserLegalHoldEnabled
 
 ----------------------------------------------------------------------
 -- test helpers
