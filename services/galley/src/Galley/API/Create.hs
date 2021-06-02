@@ -138,13 +138,15 @@ createTeamGroupConv zusr zcon tinfo body = do
       (remotes, localUserIds) = fromConvSize checkedPartitionedUsers
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
   ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
-  checkedPartitionedUsers' <-
+  checkedPartitionedUsersManaged <-
     if cnvManaged tinfo
       then do
         -- ConvMaxSize MUST be < than hardlimit so the conv size check is enough
         maybeAllMembers <- Data.teamMembersForFanout convTeam
         let otherConvMems = filter (/= zusr) $ map (view userId) $ (maybeAllMembers ^. teamMembers)
         checkedLocalUsers <- checkedConvSize otherConvMems
+        -- FUTUREWORK: See if this is always the case that there are no remote
+        -- users in this case
         pure (fmap ([],) checkedLocalUsers)
       else do
         -- In teams we don't have 1:1 conversations, only regular conversations. We want
@@ -165,7 +167,7 @@ createTeamGroupConv zusr zcon tinfo body = do
         pure checkedPartitionedUsers
   checkRemoteUsersExist remotes
   -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
-  conv <- Data.createConversation zusr name (access body) (accessRole body) checkedPartitionedUsers' (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
+  conv <- Data.createConversation zusr name (access body) (accessRole body) checkedPartitionedUsersManaged (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
   now <- liftIO getCurrentTime
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) zusr (Just zcon) conv
