@@ -25,7 +25,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Monad.Catch (MonadMask)
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except (ExceptT (..), MonadError (..), runExceptT)
-import Control.Monad.State (MonadState (..), modify, gets)
+import Control.Monad.State (MonadState (..), gets, modify)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
