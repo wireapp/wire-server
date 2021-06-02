@@ -265,7 +265,6 @@ testRequestLegalHoldDevice = withTeam $ \owner tid -> do
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do
-  ensureQueueEmpty
   (owner, tid) <- createBindingTeam
   ensureQueueEmpty
   member <- do
@@ -490,7 +489,6 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
 
 testGetLegalHoldTeamSettings :: TestM ()
 testGetLegalHoldTeamSettings = do
-  ensureQueueEmpty
   (owner, tid) <- createBindingTeam
   stranger <- randomUser
   member <- randomUser
@@ -1420,7 +1418,6 @@ publicKeyNotMatchingService =
 
 testGetLegalholdStatus :: TestM ()
 testGetLegalholdStatus = do
-  ensureQueueEmpty
   (owner1, tid1) <- createBindingTeam
   member1 <- view userId <$> addUserToTeam owner1 tid1
   ensureQueueEmpty
