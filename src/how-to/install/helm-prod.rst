@@ -156,7 +156,7 @@ As part of configuring wire-server, we need to change some values, and provide s
 
 .. note::
 
-    this part of the process makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.*
+    This part of the process makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.
 
 
 .. code:: shell

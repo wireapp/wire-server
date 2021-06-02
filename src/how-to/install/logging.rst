@@ -78,7 +78,9 @@ Deploying fluent-bit
 Configuring fluent-bit
 ----------------------
 
-*Note: the following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.*
+.. note::
+
+    The following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.
 
 Per pod-template, you can specify what parsers ``fluent-bit`` needs to
 use to interpret the pod's logs in a structured way. By default, it just
