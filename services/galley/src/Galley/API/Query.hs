@@ -54,7 +54,7 @@ import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (executeFederated)
-import Wire.API.Federation.Error (federationErrorToWai)
+import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
@@ -93,16 +93,15 @@ getRemoteConversation zusr (Qualified convId remoteDomain) = do
   let qualifiedZUser = Qualified zusr localDomain
       req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
       rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+  -- we expect the remote galley to make adequate checks on conversation
+  -- membership and just pass through the reponse
   conversations <-
     runExceptT (executeFederated remoteDomain rpc)
       >>= either (throwM . federationErrorToWai) pure
-
-  -- TODO: check membership
-  -- TODO: any other checks?
   case gcresConvs conversations of
     [] -> throwM convNotFound
     [conv] -> pure conv
-    _convs -> throwM convNotFound -- TODO something odd happened here.
+    _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do

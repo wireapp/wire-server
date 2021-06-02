@@ -88,6 +88,13 @@ federationInvalidBody msg =
     "federation-invalid-body"
     ("Could not parse remote federator response: " <> LT.fromStrict msg)
 
+federationUnexpectedBody :: Text -> Wai.Error
+federationUnexpectedBody msg =
+  Wai.Error
+    unexpectedFederationResponseStatus
+    "federation-unexpected-body"
+    ("Could parse body, but response was not expected: " <> LT.fromStrict msg)
+
 federationNotConfigured :: Wai.Error
 federationNotConfigured =
   Wai.Error
