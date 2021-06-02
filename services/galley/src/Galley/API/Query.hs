@@ -28,12 +28,13 @@ module Galley.API.Query
   )
 where
 
+import Control.Error (runExceptT)
 import Control.Monad.Catch (throwM)
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Proxy
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified (Qualified (..))
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -50,6 +51,10 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
+import Wire.API.Federation.API.Galley (gcresConvs)
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Client (executeFederated)
+import Wire.API.Federation.Error (federationErrorToWai)
 import qualified Wire.API.Provider.Bot as Public
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
@@ -83,8 +88,21 @@ getConversation zusr domain cnv = do
     else getRemoteConversation zusr (Qualified cnv domain)
 
 getRemoteConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
-getRemoteConversation _zusr _convId = do
-  throwM convNotFound
+getRemoteConversation zusr (Qualified convId remoteDomain) = do
+  localDomain <- viewFederationDomain
+  let qualifiedZUser = Qualified zusr localDomain
+      req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
+      rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+  conversations <-
+    runExceptT (executeFederated remoteDomain rpc)
+      >>= either (throwM . federationErrorToWai) pure
+
+  -- TODO: check membership
+  -- TODO: any other checks?
+  case gcresConvs conversations of
+    [] -> throwM convNotFound
+    [conv] -> pure conv
+    _convs -> throwM convNotFound -- TODO something odd happened here.
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do

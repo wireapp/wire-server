@@ -65,6 +65,7 @@ import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
 import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
 
 tests :: IO TestSetup -> TestTree
@@ -916,18 +917,20 @@ testGetRemoteConversation = do
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
       remoteConversationResponse =
-        Conversation
-          { cnvId = convId,
-            cnvType = RegularConv,
-            cnvCreator = alice,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
+        GetConversationsResponse
+          [ Conversation
+              { cnvId = convId,
+                cnvType = RegularConv,
+                cnvCreator = alice,
+                cnvAccess = [],
+                cnvAccessRole = ActivatedAccessRole,
+                cnvName = Just "federated gossip",
+                cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
+                cnvTeam = Nothing,
+                cnvMessageTimer = Nothing,
+                cnvReceiptMode = Nothing
+              }
+          ]
   opts <- view tsGConf
   g <- view tsGalley
   (resp, _) <-
