@@ -874,7 +874,9 @@ leaveConnectConversation = do
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
-  alice <- randomUser
+  aliceQ <- randomQualifiedUser
+  let alice = qUnqualified aliceQ
+  let localDomain = qDomain aliceQ
   bobId <- randomId
   let remoteDomain = Domain "far-away.example.com"
       remoteBob = Qualified bobId remoteDomain
@@ -895,7 +897,7 @@ testAddRemoteMember = do
     -- FUTUREWORK: implement returning remote users in the event.
     -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
     evtFrom e @?= alice
-  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
+  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice (Qualified convId localDomain)
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]

@@ -17,6 +17,7 @@
 
 module Galley.API.Query
   ( getBotConversationH,
+    getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
     getConversationIds,
@@ -68,10 +69,21 @@ getBotConversation zbot zcnv = do
       | otherwise =
         Just (OtherMember (Qualified (memId m) domain) (memService m) (memConvRoleName m))
 
-getConversation :: UserId -> ConvId -> Galley Public.Conversation
-getConversation zusr cnv = do
+getUnqualifiedConversation :: UserId -> ConvId -> Galley Public.Conversation
+getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
+
+getConversation :: UserId -> Domain -> ConvId -> Galley Public.Conversation
+getConversation zusr domain cnv = do
+  localDomain <- viewFederationDomain
+  if domain == localDomain
+    then getUnqualifiedConversation zusr cnv
+    else getRemoteConversation zusr (Qualified cnv domain)
+
+getRemoteConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
+getRemoteConversation = do
+  undefined
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do

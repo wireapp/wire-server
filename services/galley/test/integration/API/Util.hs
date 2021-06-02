@@ -695,6 +695,16 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
+getConvQualified :: UserId -> Qualified ConvId -> TestM ResponseLBS
+getConvQualified u (Qualified conv domain) = do
+  g <- view tsGalley
+  get $
+    g
+      . paths ["conversations", toByteString' domain, toByteString' conv]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+
 getConvIds :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvIds u r s = do
   g <- view tsGalley
