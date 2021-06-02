@@ -25,6 +25,7 @@ module API.Teams.LegalHold
 where
 
 import API.SQS
+import qualified API.SQS as SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
@@ -1369,8 +1370,12 @@ withTeam :: forall a. HasCallStack => (HasCallStack => UserId -> TeamId -> TestM
 withTeam action =
   bracket
     createBindingTeam
-    (uncurry deleteTeam >=> const ensureQueueEmpty)
+    (uncurry deleteTeam >=> const waitForDeleteEvent)
     (uncurry action)
+  where
+    waitForDeleteEvent :: TestM ()
+    waitForDeleteEvent =
+      tryAssertQueue 10 "waitForDeleteEvent" SQS.tDelete
 
 -- | Run a test with an mock legal hold service application.  The mock service is also binding
 -- to a TCP socket for the backend to connect to.  The mock service can expose internal
