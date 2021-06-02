@@ -24,7 +24,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types
-import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), UserSet)
+import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), UserSet (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding (from, to, (#), (.=))
@@ -97,7 +97,8 @@ import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
 import qualified Wire.API.Message.Proto as Proto
-import Wire.API.User.Client (ClientCapability (..), UserClientsFull)
+import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
+import qualified Wire.API.User.Client as Client
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -732,8 +733,7 @@ postQualifiedMembers' g zusr invitees conv = do
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g
-      -- FUTUREWORK: use an endpoint without /i/ once it's ready.
-      . paths ["i", "conversations", toByteString' conv, "members", "v2"]
+      . paths ["conversations", toByteString' conv, "members", "v2"]
       . zUser zusr
       . zConn "conn"
       . zType "access"
@@ -1336,7 +1336,10 @@ ephemeralUser = do
   return $ Brig.Types.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
-randomClient uid lk = do
+randomClient uid lk = randomClientWithCaps uid lk Nothing
+
+randomClientWithCaps :: HasCallStack => UserId -> LastPrekey -> Maybe (Set Client.ClientCapability) -> TestM ClientId
+randomClientWithCaps uid lk caps = do
   b <- view tsBrig
   resp <-
     post (b . paths ["i", "clients", toByteString' uid] . json newClientBody)
@@ -1348,7 +1351,8 @@ randomClient uid lk = do
     rStatus = 201
     newClientBody =
       (newClient cType lk)
-        { newClientPassword = Just defPassword
+        { newClientPassword = Just defPassword,
+          newClientCapabilities = caps
         }
 
 ensureDeletedState :: HasCallStack => Bool -> UserId -> UserId -> TestM ()
@@ -1386,6 +1390,12 @@ getInternalClientsFull userSet = do
         . zConn "conn"
         . json userSet
   responseJsonError res
+
+ensureClientCaps :: HasCallStack => UserId -> ClientId -> Client.ClientCapabilityList -> TestM ()
+ensureClientCaps uid cid caps = do
+  UserClientsFull (Map.lookup uid -> (Just clnts)) <- getInternalClientsFull (UserSet $ Set.singleton uid)
+  let [clnt] = filter ((== cid) . clientId) $ Set.toList clnts
+  liftIO $ assertEqual ("ensureClientCaps: " <> show (uid, cid, caps)) (clientCapabilities clnt) caps
 
 -- TODO: Refactor, as used also in brig
 deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS

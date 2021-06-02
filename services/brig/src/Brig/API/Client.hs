@@ -115,13 +115,15 @@ addClient u con ip new = do
   acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
-  (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
-  when (newClientType new == LegalHoldClientType) $ do
-    -- FUTUREWORK: this only works if there aren't any capabilities set yet.  we should add
-    -- capabilities to `NewClient`; do this next line only if LH devices don't send the cap
-    -- themselves; and merge 'Data.updateClientCapabilities' and 'Data.addClient'.
-    let caps = Just (Set.singleton Client.ClientSupportsLegalholdImplicitConsent)
-    Data.updateClientCapabilities u clientId' caps
+  let caps :: Maybe (Set Client.ClientCapability)
+      caps = updlhdev $ newClientCapabilities new
+        where
+          updlhdev =
+            if newClientType new == LegalHoldClientType
+              then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
+              else id
+          lhcaps = Client.ClientSupportsLegalholdImplicitConsent
+  (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc caps !>> ClientDataError
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con

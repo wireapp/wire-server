@@ -473,13 +473,10 @@ mapUpdateToServant :: UpdateResult -> Galley (Union UpdateResponses)
 mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
 mapUpdateToServant Unchanged = Servant.respond NoContent
 
--- FUTUREWORK(federation): Before 'addMembers' in its current form can be made
--- public by exposing 'addMembersToConversationV2' (currently hidden using /i/
--- prefix), i.e. by allowing remote members to be actually added in any environment,
--- we need the following checks/implementation:
+-- FUTUREWORK(federation): we need the following checks/implementation:
 --  - (1) [DONE] Remote qualified users must exist before they can be added (a
 --  call to the respective backend should be made): Avoid clients making up random
---  Ids, and increase the chances that the updateConversationMembership call
+--  Ids, and increase the chances that the updateConversationMemberships call
 --  suceeds
 --  - (2) A call must be made to the remote backend informing it that this user is
 --  now part of that conversation. Use and implement 'updateConversationMemberships'.

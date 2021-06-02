@@ -37,13 +37,14 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
+import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options (optSettings, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
+import Galley.Types.Teams hiding (Event)
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -299,6 +300,12 @@ canDeleteMember deleter deletee
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+
+pushConversationEvent :: Event -> [UserId] -> [BotMember] -> Galley ()
+pushConversationEvent e users bots = do
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (map userRecipient users)) $ \p ->
+    push1 $ p & pushConn .~ Nothing
+  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
 --------------------------------------------------------------------------------
 -- Federation

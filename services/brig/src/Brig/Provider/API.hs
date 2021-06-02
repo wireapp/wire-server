@@ -65,7 +65,7 @@ import Data.LegalHold
 import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
-import Data.Misc (Fingerprint (..), Rsa)
+import Data.Misc (Fingerprint (..), FutureWork (FutureWork), Rsa)
 import Data.Predicate
 import Data.Qualified
 import Data.Range
@@ -103,7 +103,7 @@ import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
-import qualified Wire.API.User.Client as Public (Client, PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
@@ -858,8 +858,12 @@ addBot zuid zcon cid add = do
           }
   lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
-  (clt, _, _) <-
-    User.addClient (botUserId bid) bcl newClt maxPermClients Nothing
+  (clt, _, _) <- do
+    _ <- do
+      -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
+      -- implicitly in the next line.
+      pure $ FutureWork @'UnprotectedBot undefined
+    User.addClient (botUserId bid) bcl newClt maxPermClients Nothing (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent)
       !>> const (StdError badGateway) -- MalformedPrekeys
 
   -- Add the bot to the conversation

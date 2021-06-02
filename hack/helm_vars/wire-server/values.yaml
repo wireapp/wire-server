@@ -6,7 +6,7 @@ tags:
   cannon: true
   cargohold: true
   spar: true
-  federator: true
+  federator: true # also see galley.config.enableFederator and brig.config.enableFederator
   proxy: false
   webapp: false
   team-settings: false
@@ -53,6 +53,7 @@ brig:
       sessionTokenTimeout: 20
       accessTokenTimeout: 30
       providerTokenTimeout: 60
+    enableFederator: true # keep in sync with galley.config.enableFederator and tags.federator!
     optSettings:
       setActivationTimeout: 5
       # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
@@ -140,6 +141,7 @@ galley:
     cassandra:
       host: cassandra-ephemeral
       replicaCount: 1
+    enableFederator: true # keep in sync with brig.config.enableFederator and tags.federator!
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32

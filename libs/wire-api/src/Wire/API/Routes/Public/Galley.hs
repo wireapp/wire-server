@@ -153,10 +153,9 @@ data Api routes = Api
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
     addMembersToConversationV2 ::
       routes
-        :- Summary "Add qualified members to an existing conversation: WIP, inaccessible for clients until ready"
+        :- Summary "Add qualified members to an existing conversation: WIP, events not propagated yet."
         :> ZUser
         :> ZConn
-        :> "i" -- FUTUREWORK: remove this /i/ once it's ready. See comment on 'Update.addMembers'
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "members"

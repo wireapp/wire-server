@@ -906,11 +906,18 @@ testOldClientsBlockDeviceHandshake = do
     legalholderLHDevice <- doEnableLH legalholder legalholder
     _legalholder2LHDevice <- doEnableLH legalholder legalholder2
 
-    legalholderClient <- randomClient legalholder (someLastPrekeys !! 1)
-    upgradeClientToLH legalholder legalholderClient
-    legalholder2Client <- randomClient legalholder2 (someLastPrekeys !! 3)
-    upgradeClientToLH legalholder2 legalholder2Client
-
+    let caps = Set.singleton Client.ClientSupportsLegalholdImplicitConsent
+    legalholderClient <- do
+      clnt <- randomClientWithCaps legalholder (someLastPrekeys !! 1) (Just caps)
+      ensureClientCaps legalholder clnt (Client.ClientCapabilityList caps)
+      pure clnt
+    legalholder2Client <- do
+      clnt <- randomClient legalholder2 (someLastPrekeys !! 3)
+      -- this another way to do it (instead of providing caps during client creation).
+      ensureClientCaps legalholder2 clnt (Client.ClientCapabilityList mempty)
+      upgradeClientToLH legalholder2 clnt
+      ensureClientCaps legalholder2 clnt (Client.ClientCapabilityList caps)
+      pure clnt
     grantConsent tid2 peer
     connectUsers peer (List1.list1 legalholder [legalholder2])
 

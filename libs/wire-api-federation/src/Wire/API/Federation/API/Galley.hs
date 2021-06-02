@@ -17,14 +17,20 @@
 
 module Wire.API.Federation.API.Galley where
 
+import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
 import Data.Qualified (Qualified)
+import Data.Time.Clock (UTCTime)
 import Imports
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
+import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Conversation)
+import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Federation.Client (FederationClientError, FederatorClient)
+import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -65,10 +71,16 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
-  { cmuConvId :: Qualified ConvId,
-    cmuUsersAdd :: [UserId],
+  { cmuTime :: UTCTime,
+    cmuOrigUserId :: Qualified UserId,
+    cmuConvId :: Qualified ConvId,
+    cmuAlreadyPresentUsers :: [UserId], -- pre-existing users in the conversation from the receiving domain
+    cmuUsersAdd :: [(Qualified UserId, RoleName)],
     cmuUsersRemove :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+
+clientRoutes :: (MonadError FederationClientError m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
+clientRoutes = genericClient
