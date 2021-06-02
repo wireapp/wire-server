@@ -199,7 +199,6 @@ testRequestLegalHoldDevice = withTeam $ \owner tid -> do
   WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeamNoService $ \_chan -> do
     do
       -- test device creation without consent
-      -- TODO: requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
       requestLegalHoldDevice member member tid !!! testResponse 403 (Just "legalhold-not-enabled")
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
       liftIO $
@@ -209,7 +208,6 @@ testRequestLegalHoldDevice = withTeam $ \owner tid -> do
           userStatus
 
     do
-      -- TODO: requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-no-consent")
       requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
       liftIO $
@@ -432,8 +430,7 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   newService <- newLegalHoldService
-  -- not allowed to create if team setting is disabled
-  -- TODO: postSettings owner tid newService !!! testResponse 403 (Just "legalhold-not-enabled")
+  -- not allowed to create if team is not whitelisted
   postSettings owner tid newService !!! testResponse 412 (Just "legalhold-unavailable")
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
