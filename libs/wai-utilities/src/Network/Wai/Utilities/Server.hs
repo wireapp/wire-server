@@ -353,10 +353,9 @@ logError' g mr (Wai.Error c l m md) = liftIO $ Log.debug g logMsg
         . msg (val "\"" +++ m +++ val "\"")
 
     -- TODO: actually log error data fields
-    logErrorData (Wai.FederationErrorData d p e) =
+    logErrorData (Wai.FederationErrorData d p) =
       field "domain" (domainText d)
         . field "path" p
-        . field "remote_error" (encode e)
 
 logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()
 logIO lg lv r a =

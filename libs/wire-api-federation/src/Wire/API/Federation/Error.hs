@@ -17,7 +17,6 @@
 
 module Wire.API.Federation.Error where
 
-import Data.Aeson (Value (Null))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
@@ -69,12 +68,9 @@ federationErrorToWai (FederationCallFailure failure) = addErrorData $
             Just
               Wai.FederationErrorData
                 { Wai.federrDomain = fedFailDomain failure,
-                  Wai.federrPath = T.decodeUtf8 (fedFailPath failure),
-                  Wai.federrError = remoteError
+                  Wai.federrPath = T.decodeUtf8 (fedFailPath failure)
                 }
         }
-      where
-        remoteError = fromMaybe Null (fmap Wai.federrError (Wai.errorData err))
 
 noFederationStatus :: Status
 noFederationStatus = status403
