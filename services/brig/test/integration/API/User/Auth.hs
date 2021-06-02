@@ -103,17 +103,17 @@ tests conf m z b g n =
           testGroup
             "legalhold-login"
             [ test m "failure-no-team" (testRegularUserLegalHoldLogin b),
-              test m "XXXXXX team-user-with-legalhold-enabled" (onlyIfLhWhitelisted (testTeamUserLegalHoldLogin b g)),
+              test m "team-user-with-legalhold-enabled" (onlyIfLhWhitelisted (testTeamUserLegalHoldLogin b g)),
               test m "failure-suspended" (testSuspendedLegalHoldLogin b),
               test m "failure-no-user" (testNoUserLegalHoldLogin b),
-              test m "XXXXXX failure-wrong-password" (onlyIfLhWhitelisted (testWrongPasswordLegalHoldLogin b g)),
-              test m "XXXXXX always-persistent-cookie" (onlyIfLhWhitelisted (testLegalHoldSessionCookie b g)),
-              test m "XXXXXX legalhold-logout" (onlyIfLhWhitelisted (testLegalHoldLogout b g))
+              test m "failure-wrong-password" (onlyIfLhWhitelisted (testWrongPasswordLegalHoldLogin b g)),
+              test m "always-persistent-cookie" (onlyIfLhWhitelisted (testLegalHoldSessionCookie b g)),
+              test m "legalhold-logout" (onlyIfLhWhitelisted (testLegalHoldLogout b g))
             ],
           testGroup
             "nginz"
             [ test m "nginz-login" (testNginz b n),
-              test m "XXXXXX nginz-legalhold-login" (onlyIfLhWhitelisted (testNginzLegalHold b g n)),
+              test m "nginz-legalhold-login" (onlyIfLhWhitelisted (testNginzLegalHold b g n)),
               test m "nginz-login-multiple-cookies" (testNginzMultipleCookies conf b n)
             ]
         ],
@@ -126,7 +126,7 @@ tests conf m z b g n =
           test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b),
           test m "unknown-cookie" (testUnknownCookie @ZAuth.User z b),
           test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LegalHoldUser z b),
-          test m "XXXXXX token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
+          test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
           test m "suspend-inactive" (testSuspendInactiveUsers conf b)
