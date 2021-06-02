@@ -20,6 +20,7 @@
 
 module Wire.API.Routes.Public.Galley where
 
+import Control.Lens ((?~))
 import Data.CommaSeparatedList
 import Data.Id (ConvId, TeamId)
 import Data.Range
@@ -49,7 +50,9 @@ type UpdateResponses =
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema Servant.NoContent where
-  declareNamedSchema _ = declareNamedSchema (Proxy @())
+  declareNamedSchema _ =
+    pure . NamedSchema Nothing $
+      mempty & description ?~ "No Content"
 
 data Api routes = Api
   { -- Conversations
