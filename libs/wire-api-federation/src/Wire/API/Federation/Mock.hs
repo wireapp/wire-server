@@ -89,6 +89,14 @@ flushState = flip modifyIORef $ \s -> s {receivedRequests = [], effectfulRespons
 initState :: Domain -> Domain -> MockState
 initState targetDomain originDomain = MockState [] (error "No mock response provided") (error "server not started") (error "No port selected yet") targetDomain originDomain
 
+-- | Run an action with access to a mock federator.
+--
+-- The function argument `resp :: FederatedRequest -> ServerErrorIO
+-- OutwardResponse` can be used to provide a fake federator response for each
+-- possible request it is expected to receive.
+--
+-- More explicitly, any request `req` to the federator within the provided
+-- action will return `resp req` as its response.
 withMockFederator ::
   IORef MockState ->
   (FederatedRequest -> ServerErrorIO OutwardResponse) ->

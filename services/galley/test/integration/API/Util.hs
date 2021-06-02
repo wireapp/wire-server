@@ -1666,6 +1666,12 @@ mkProfile quid name =
 
 -- mock federator
 
+-- | Run the given action on a temporary galley instance with access to a mock
+-- federator.
+--
+-- The `resp :: FederatedRequest -> a` argument can be used to provide a fake
+-- federator response (of an arbitrary JSON-serialisable type a) for every
+-- expected request.
 withTempMockFederator ::
   (MonadIO m, ToJSON a) =>
   Opts.Opts ->
