@@ -21,6 +21,7 @@ dependencies:
 - bytestring
 - either
 - errors
+- exceptions
 - http-types
 - http2-client-grpc
 - imports
