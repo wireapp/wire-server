@@ -70,7 +70,7 @@ import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 -- which will contact this mocked federator instead of a real federator.
 withMockFederator :: Opt.Opts -> IORef Mock.MockState -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
 withMockFederator opts ref resp action = assertRightT
-  . Mock.withMockFederator ref (pure resp)
+  . Mock.withMockFederator ref (const (pure resp))
   $ \st -> lift $ do
     let opts' =
           opts
@@ -81,7 +81,7 @@ withMockFederator opts ref resp action = assertRightT
 
 withTempMockFederator :: Opt.Opts -> Domain -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
 withTempMockFederator opts targetDomain resp action = assertRightT
-  . Mock.withTempMockFederator st0 (pure resp)
+  . Mock.withTempMockFederator st0 (const (pure resp))
   $ \st -> lift $ do
     let opts' =
           opts
