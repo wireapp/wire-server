@@ -120,16 +120,16 @@ tests s =
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
       test s "POST /register - cannot add team members above fanout limit" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
-      test s "GET legalhold status in user profile" testGetLegalholdStatus,
+      test s "GET legalhold status in user profile" (onlyIfLhEnabled testGetLegalholdStatus),
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
 
       -}
-      test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
-      test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
-      test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
-      test s "User can fetch prekeys of LH users if consent is given and user has only new clients" (testClaimKeys TCKConsentAndNewClients)
+      test s "handshake between LH device and user with old clients is blocked" (onlyIfLhEnabled testOldClientsBlockDeviceHandshake),
+      test s "User cannot fetch prekeys of LH users if consent is missing" (onlyIfLhEnabled (testClaimKeys TCKConsentMissing)),
+      test s "User cannot fetch prekeys of LH users: if user has old client" (onlyIfLhEnabled (testClaimKeys TCKOldClient)),
+      test s "User can fetch prekeys of LH users if consent is given and user has only new clients" (onlyIfLhEnabled (testClaimKeys TCKConsentAndNewClients))
     ]
 
 testRequestLegalHoldDevice :: TestM ()
