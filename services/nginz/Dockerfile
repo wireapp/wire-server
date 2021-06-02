@@ -41,11 +41,6 @@ ENV CONFIG --prefix=/etc/nginx \
         --add-module=/src/third_party/headers-more-nginx-module \
         --add-module=/src/third_party/nginx-module-vts
 
-# extra build dependencies needed for libzauth/nginx-xauth-module
-RUN apk add --no-cache --virtual .build-deps \
-        libsodium-dev \
-        llvm-libunwind-dev
-
 ################# similar block as upstream ########################################
 # see https://github.com/nginxinc/docker-nginx/blob/master/stable/alpine/Dockerfile
 # This uses dockerfile logic from before 1.16
@@ -53,7 +48,9 @@ RUN apk add --no-cache --virtual .build-deps \
 
 ENV NGINX_VERSION 1.16.1
 
-RUN apk update && apk add --virtual .build-deps \
+RUN apk update
+
+RUN apk add -vv --virtual .build-deps \
         libsodium-dev \
         llvm-libunwind-dev \
         gcc \
@@ -69,6 +66,7 @@ RUN apk update && apk add --virtual .build-deps \
         gd-dev \
         geoip-dev
 
+# This line checks whether the 'apk add' succeeded, sometimes it doesn't work.
 RUN curl -h
 
 RUN set -x \
