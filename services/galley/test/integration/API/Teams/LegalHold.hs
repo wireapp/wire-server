@@ -282,9 +282,6 @@ testApproveLegalHoldDevice = do
   stranger <- randomUser
   putLHWhitelistTeam tid !!! const 200 === statusCode
   ensureQueueEmpty
-  -- not allowed to approve if team setting is disabled
-  -- TODO: approveLegalHoldDevice (Just defPassword) owner member tid
-  --   !!! testResponse 403 (Just "legalhold-not-enabled")
   approveLegalHoldDevice (Just defPassword) owner member tid
     !!! testResponse 403 (Just "access-denied")
   cannon <- view tsCannon
