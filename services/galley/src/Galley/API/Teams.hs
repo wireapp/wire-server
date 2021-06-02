@@ -85,6 +85,7 @@ import qualified Galley.API.Teams.Notifications as APITeamQueue
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.LegalHold as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
@@ -320,6 +321,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
       mapM_ (deleteUser . view userId) membs
       Journal.teamDelete tid
+    Data.unsetTeamLegalholdWhitelisted tid
     Data.deleteTeam tid
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley ()

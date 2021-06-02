@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,22 +17,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module Test.Galley.Roundtrip
+  ( tests,
   )
 where
 
+import Data.Proxy (Proxy (Proxy))
 import Imports
-import qualified Test.Galley.API
-import qualified Test.Galley.Intra.User
-import qualified Test.Galley.Roundtrip
-import Test.Tasty
+import Servant.Swagger (validateEveryToJSON)
+import Test.Tasty (TestTree)
+import Test.Tasty.Hspec (testSpec)
+import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 
-main :: IO ()
-main =
-  defaultMain . testGroup "Tests"
-    =<< sequence
-      [ pure Test.Galley.API.tests,
-        pure Test.Galley.Intra.User.tests,
-        Test.Galley.Roundtrip.tests
-      ]
+tests :: IO TestTree
+tests = testSpec "Roundtrip" $ validateEveryToJSON (Proxy @LegalHoldAPI.ServantAPI)

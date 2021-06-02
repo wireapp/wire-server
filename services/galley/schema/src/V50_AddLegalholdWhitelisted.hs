@@ -15,22 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module V50_AddLegalholdWhitelisted
+  ( migration,
   )
 where
 
+import Cassandra.Schema
 import Imports
-import qualified Test.Galley.API
-import qualified Test.Galley.Intra.User
-import qualified Test.Galley.Roundtrip
-import Test.Tasty
+import Text.RawString.QQ
 
-main :: IO ()
-main =
-  defaultMain . testGroup "Tests"
-    =<< sequence
-      [ pure Test.Galley.API.tests,
-        pure Test.Galley.Intra.User.tests,
-        Test.Galley.Roundtrip.tests
-      ]
+migration :: Migration
+migration = Migration 50 "Add table that defines whitelisted teams for FeatureLegalHoldWhitelistTeamsAndImplicitConsent feature setting." $ do
+  schema'
+    [r|
+      CREATE TABLE legalhold_whitelisted (
+        team uuid,
+        PRIMARY KEY (team)
+      )
+    |]

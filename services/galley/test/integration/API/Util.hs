@@ -30,7 +30,7 @@ import Control.Exception (finally)
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Retry (constantDelay, limitRetries, retrying)
+import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
@@ -1575,6 +1575,19 @@ deleteTeamMember g tid owner deletee =
     !!! do
       const 202 === statusCode
 
+deleteTeam :: UserId -> TeamId -> TestM ()
+deleteTeam owner tid = do
+  g <- view tsGalley
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just defPassword))
+    )
+    !!! do
+      const 202 === statusCode
+
 -- (Duplicate of 'Galley.Intra.User.getUsers'.)
 getUsersByUid :: [UserId] -> TestM [User]
 getUsersByUid = getUsersBy "ids"
@@ -1697,3 +1710,21 @@ assertRight = \case
 
 assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
 assertRightT = assertRight <=< runExceptT
+
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+-- (after ~2secs).
+-- If all retries were unsuccessful, 'aFewTimes' will return the last obtained value, even
+-- if it does not satisfy the predicate.
+aFewTimes :: TestM a -> (a -> Bool) -> TestM a
+aFewTimes action good = do
+  env <- ask
+  liftIO $
+    retrying
+      (exponentialBackoff 1000 <> limitRetries 11)
+      (\_ -> pure . not . good)
+      (\_ -> runReaderT (runTestM action) env)
+
+aFewTimesAssertBool :: HasCallStack => String -> (a -> Bool) -> TestM a -> TestM ()
+aFewTimesAssertBool msg good action = do
+  result <- aFewTimes action good
+  liftIO $ assertBool msg (good result)

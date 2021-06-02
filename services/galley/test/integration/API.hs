@@ -30,6 +30,7 @@ import API.SQS
 import qualified API.Teams as Teams
 import qualified API.Teams.Feature as TeamFeature
 import qualified API.Teams.LegalHold as Teams.LegalHold
+import qualified API.Teams.LegalHold.DisabledByDefault
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
@@ -72,6 +73,7 @@ tests s =
   testGroup
     "Galley integration tests"
     [ Teams.LegalHold.tests s,
+      API.Teams.LegalHold.DisabledByDefault.tests s,
       mainTests,
       Teams.tests s,
       MessageTimer.tests s,

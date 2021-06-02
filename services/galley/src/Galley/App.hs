@@ -32,6 +32,7 @@ module Galley.App
     createEnv,
     extEnv,
     aEnv,
+    legalholdWhitelist,
     ExtEnv (..),
     extGetManager,
 
@@ -113,7 +114,11 @@ data Env = Env
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
-    _aEnv :: Maybe Aws.Env
+    _aEnv :: Maybe Aws.Env,
+    -- | A cache of cassandra table `galley.legalhold_whitelisted`, read once for every
+    -- request.  (This is not ideal, but it's better than reading it once per member that is
+    -- looked at, which can be hundrets or thousands of times in many requests.)
+    _legalholdWhitelist :: IORef (Maybe [TeamId])
   }
 
 -- | Environment specific to the communication with external
@@ -196,15 +201,17 @@ instance MonadHttp Galley where
 instance HasRequestId Galley where
   getRequestId = view reqId
 
-createEnv :: Metrics -> Opts -> IO Env
-createEnv m o = do
+createEnv :: (ClientState -> Opts -> IO (Maybe [TeamId])) -> Metrics -> Opts -> IO Env
+createEnv mkLegalholdWhitelist m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  cass <- initCassandra o l
   mgr <- initHttpManager o
   validateOptions l o
-  Env def m o l mgr (o ^. optFederator) <$> initCassandra o l
-    <*> Q.new 16000
+  Env def m o l mgr (o ^. optFederator) cass
+    <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
+    <*> (newIORef =<< mkLegalholdWhitelist cass o)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
