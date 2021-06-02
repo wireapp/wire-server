@@ -120,9 +120,8 @@ createBindingTeamWithMembers numUsers = do
   members <- forM [2 .. numUsers] $ \n -> do
     mem <- addUserToTeam owner tid
     SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
-    refreshIndex
     return $ view Galley.Types.Teams.userId $ mem
-
+  refreshIndex
   return (tid, owner, members)
 
 getTeams :: UserId -> TestM TeamList
