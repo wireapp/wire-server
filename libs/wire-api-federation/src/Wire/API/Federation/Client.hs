@@ -42,6 +42,7 @@ data FederatorClientEnv = FederatorClientEnv
     originDomain :: Domain
   }
 
+-- the state monad is used to store the request path in case of servant errors
 newtype FederatorClient (component :: Proto.Component) m a = FederatorClient {runFederatorClient :: ReaderT FederatorClientEnv (StateT (Maybe ByteString) m) a}
   deriving newtype (Functor, Applicative, Monad, MonadReader FederatorClientEnv, MonadState (Maybe ByteString), MonadIO)
 
@@ -72,6 +73,8 @@ instance (Monad m, MonadIO m, MonadError FederationClientFailure m, KnownCompone
           RequestBodyLBS lbs -> pure $ LBS.toStrict lbs
           RequestBodyBS bs -> pure bs
           RequestBodySource _ -> failure FederationClientStreamingUnsupported
+    -- save path in the state, so that we can access it from throwClientError
+    -- if necessary
     put (Just path)
     body <- readBody . maybe (RequestBodyBS "") fst $ requestBody req
     let call =
