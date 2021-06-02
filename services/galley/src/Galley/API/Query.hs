@@ -28,6 +28,7 @@ module Galley.API.Query
   )
 where
 
+import Control.Monad.Catch (throwM)
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -82,8 +83,8 @@ getConversation zusr domain cnv = do
     else getRemoteConversation zusr (Qualified cnv domain)
 
 getRemoteConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
-getRemoteConversation = do
-  undefined
+getRemoteConversation _zusr _convId = do
+  throwM convNotFound
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do

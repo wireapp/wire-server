@@ -115,6 +115,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
+          test s "get remote conversation" testGetRemoteConversation,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
@@ -901,6 +902,45 @@ testAddRemoteMember = do
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
+    assertEqual "other members should include remoteBob" expected actual
+
+testGetRemoteConversation :: TestM ()
+testGetRemoteConversation = do
+  aliceQ <- randomQualifiedUser
+  let alice = qUnqualified aliceQ
+  bobId <- randomId
+  convId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteConv = Qualified convId remoteDomain
+
+  let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
+      bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      remoteConversationResponse =
+        Conversation
+          { cnvId = convId,
+            cnvType = RegularConv,
+            cnvCreator = alice,
+            cnvAccess = [],
+            cnvAccessRole = ActivatedAccessRole,
+            cnvName = Just "federated gossip",
+            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
+            cnvTeam = Nothing,
+            cnvMessageTimer = Nothing,
+            cnvReceiptMode = Nothing
+          }
+  opts <- view tsGConf
+  g <- view tsGalley
+  (resp, _) <-
+    liftIO $
+      withTempMockFederator
+        opts
+        remoteDomain
+        (const remoteConversationResponse)
+        (getConvQualified' g alice remoteConv)
+  conv :: Conversation <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
+  liftIO $ do
+    let actual = cmOthers $ cnvMembers conv
+    let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
     assertEqual "other members should include remoteBob" expected actual
 
 testAddRemoteMemberFailure :: TestM ()
