@@ -103,6 +103,16 @@ import qualified Wire.API.User.Client as Client
 -------------------------------------------------------------------------------
 -- API Operations
 
+-- | A class for monads with access to a Galley instance
+class HasGalley m where
+  viewGalley :: m GalleyR
+
+instance HasGalley TestM where
+  viewGalley = view tsGalley
+
+instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
+  viewGalley = lift viewGalley
+
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
@@ -533,15 +543,6 @@ postTeamConv tid u us name a r mtimer = do
 
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
 postConvWithRole = postConvWithRoleQualified []
-
-class HasGalley m where
-  viewGalley :: m GalleyR
-
-instance HasGalley TestM where
-  viewGalley = view tsGalley
-
-instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
-  viewGalley = lift viewGalley
 
 postConvWithRoleQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => [Qualified UserId] -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> m ResponseLBS
 postConvWithRoleQualified qualifiedUsers u unqualifiedUsers name a r mtimer role = do
