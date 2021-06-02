@@ -47,7 +47,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
@@ -213,18 +212,13 @@ isRemoteMember u = isJust . find ((u ==) . rmId)
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
 
-botsAndUsers :: (Log.MonadLogger m, Traversable t) => t LocalMember -> m ([BotMember], [LocalMember])
-botsAndUsers = fmap fold . traverse botOrUser
+botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
+botsAndUsers = foldMap botOrUser
   where
     botOrUser m = case memService m of
-      Just _ -> do
-        -- we drop invalid bots here, which shouldn't happen
-        bot <- mkBotMember m
-        pure (toList bot, [])
-      Nothing ->
-        pure ([], [m])
-    mkBotMember :: Log.MonadLogger m => LocalMember -> m (Maybe BotMember)
-    mkBotMember m = pure $ newBotMember m
+      -- we drop invalid bots here, which shouldn't happen
+      Just _ -> (toList (newBotMember m), [])
+      Nothing -> ([], [m])
 
 location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
