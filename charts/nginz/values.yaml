@@ -214,6 +214,7 @@ nginx_conf:
       envs:
         - staging
       disable_zauth: true
+      basic_auth: true
     - path: /cookies
       envs:
       - all
