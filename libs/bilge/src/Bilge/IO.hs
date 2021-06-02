@@ -156,7 +156,6 @@ instance MonadIO m => MonadHttp (SessionT m) where
               Wai.httpVersion = Client.requestVersion req,
               Wai.requestHeaders = Client.requestHeaders req,
               Wai.isSecure = Client.secure req,
-              -- Wai.remoteHost = error "no remote host",
               Wai.requestHeaderHost = lookupHeader "HOST" req,
               Wai.requestHeaderRange = lookupHeader "RANGE" req,
               Wai.requestHeaderReferer = lookupHeader "REFERER" req,
