@@ -28,6 +28,7 @@ import API.SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
+import qualified Bilge.TestSession as BilgeTest
 import Brig.Types.Client
 import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserSet (..))
 import Brig.Types.Provider
@@ -71,12 +72,10 @@ import Galley.Types.Teams
 import Gundeck.Types.Notification (ntfPayload)
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
-import Network.Wai
 import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
-import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Response as Wai
 import Servant.Swagger (validateEveryToJSON)
@@ -1522,7 +1521,7 @@ withDummyTestServiceForTeam owner tid go = do
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name req = lookup (fromString name) $ requestHeaders req
 
-withLHWhitelist :: forall a. HasCallStack => TeamId -> WaiTest.Session a -> TestM a
+withLHWhitelist :: forall a. HasCallStack => TeamId -> BilgeTest.SessionT TestM a -> TestM a
 withLHWhitelist tid action = do
   opts <- view tsGConf
   let opts' =

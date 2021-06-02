@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f39a353c80f1b7496eb99667a495a494ad2b7126fe12890cfac1db5ce16086f
+-- hash: ff0aeac10e294f1695ed5bbb280ff56e5c7e605e688c01617954cacd54a14891
 
 name:           galley
 version:        0.83.0
@@ -214,6 +214,7 @@ executable galley-integration
     , brig-types
     , bytestring
     , bytestring-conversion
+    , case-insensitive
     , cassandra-util
     , cassava
     , cereal

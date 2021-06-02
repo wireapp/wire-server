@@ -151,6 +151,7 @@ executables:
     - brig-types
     - bytestring
     - bytestring-conversion
+    - case-insensitive
     - cassandra-util
     - cassava
     - cereal

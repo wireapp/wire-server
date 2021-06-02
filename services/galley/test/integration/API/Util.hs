@@ -22,13 +22,14 @@ module API.Util where
 import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
+import Bilge.TestSession
 import Brig.Types
 import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), UserSet)
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
-import Control.Exception (finally)
 import Control.Lens hiding (from, to, (#), (.=))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
@@ -80,7 +81,6 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
-import qualified Network.Wai.Test as WaiTest
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -109,7 +109,7 @@ createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
   ownerid <- randomTeamCreator
   teams <- getTeams ownerid
-  let [team] = view (teamListTeams) teams
+  let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertQueue "create team" SQS.tActivate
   refreshIndex
@@ -122,7 +122,7 @@ createBindingTeamWithMembers numUsers = do
     mem <- addUserToTeam owner tid
     SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
     refreshIndex
-    return $ view Galley.Types.Teams.userId $ mem
+    return $ view Galley.Types.Teams.userId mem
 
   return (tid, owner, members)
 
@@ -419,13 +419,13 @@ getInvitationCode t ref = do
                 . queryItem "invitation_id" (toByteString' ref)
             )
         let lbs = fromMaybe "" $ responseBody r
-        return $ fromByteString . Text.encodeUtf8 =<< (lbs ^? key "code" . _String)
+        return $ fromByteString . Text.encodeUtf8 =<< lbs ^? key "code" . _String
 
   fromMaybe (error "No code?")
     <$> retrying
       (constantDelay 800000 <> limitRetries 3)
       (\_ -> pure . isNothing)
-      (\_ -> getm)
+      (const getm)
 
 -- Note that here we don't make use of the datatype because NewConv has a default
 -- and therefore cannot be unset. However, given that this is to test the legacy
@@ -521,7 +521,7 @@ createOne2OneTeamConv u1 u2 n tid = do
 postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
-postConvQualified :: UserId -> [Qualified UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
+postConvQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => UserId -> [Qualified UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> m ResponseLBS
 postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
@@ -533,9 +533,18 @@ postTeamConv tid u us name a r mtimer = do
 postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
 postConvWithRole = postConvWithRoleQualified []
 
-postConvWithRoleQualified :: [Qualified UserId] -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+class HasGalley m where
+  viewGalley :: m GalleyR
+
+instance HasGalley TestM where
+  viewGalley = view tsGalley
+
+instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
+  viewGalley = lift viewGalley
+
+postConvWithRoleQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => [Qualified UserId] -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> RoleName -> m ResponseLBS
 postConvWithRoleQualified qualifiedUsers u unqualifiedUsers name a r mtimer role = do
-  g <- view tsGalley
+  g <- viewGalley
   let conv = NewConvUnmanaged $ NewConv unqualifiedUsers qualifiedUsers name (Set.fromList a) r Nothing mtimer Nothing role
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
@@ -613,7 +622,7 @@ postOtrBroadcastMessage req usrs clt rcps = do
 
 -- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
 postOtrBroadcastMessage' :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => (Request -> Request) -> Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> m ResponseLBS
-postOtrBroadcastMessage' g reportMissingBody f u d rec = do
+postOtrBroadcastMessage' g reportMissingBody f u d rec =
   post $
     g
       . f
@@ -919,7 +928,7 @@ deleteUser u = do
   delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
 getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe (Int, Bool) -> Bool -> TestM [(NotificationId, UserId)]
-getTeamQueue zusr msince msize onlyLast = do
+getTeamQueue zusr msince msize onlyLast =
   parseEventList . responseJsonUnsafe
     <$> ( getTeamQueue' zusr msince (fst <$> msize) onlyLast
             <!! const 200 === statusCode
@@ -927,9 +936,9 @@ getTeamQueue zusr msince msize onlyLast = do
   where
     parseEventList :: QueuedNotificationList -> [(NotificationId, UserId)]
     parseEventList qnl
-      | isJust msize && qnl ^. queuedHasMore /= (snd $ fromJust msize) =
+      | isJust msize && qnl ^. queuedHasMore /= snd (fromJust msize) =
         error $ "expected has_more: " <> show (snd $ fromJust msize) <> "; but found: " <> show (qnl ^. queuedHasMore)
-      | qnl ^. queuedTime /= Nothing =
+      | isJust (qnl ^. queuedTime) =
         error $ "expected time: Nothing; but found: " <> show (qnl ^. queuedTime)
       | otherwise =
         fmap (_2 %~ parseEvt) . mconcat . fmap parseEvts . view queuedNotifications $ qnl
@@ -1033,7 +1042,7 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "self" (Just s) (memId <$> _self)
     assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map (qUnqualified . omQualifiedId) . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
-    assertBool "others role" (all (\x -> x == role) $ fromMaybe (error "Cannot be null") ((map omConvRoleName . toList <$> others)))
+    assertBool "others role" (all (== role) $ maybe (error "Cannot be null") (map omConvRoleName . toList) others)
     assertBool "otr muted not false" (Just False == (memOtrMuted <$> _self))
     assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
     assertBool "otr archived not false" (Just False == (memOtrArchived <$> _self))
@@ -1059,7 +1068,7 @@ wsAssertOtr' evData conv usr from to txt n = do
 
 -- | This assumes the default role name
 wsAssertMemberJoin :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
-wsAssertMemberJoin conv usr new n = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin n
+wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin
 
 wsAssertMemberJoinWithRole :: ConvId -> UserId -> [UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
@@ -1068,7 +1077,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtConv e @?= conv
   evtType e @?= MemberJoin
   evtFrom e @?= usr
-  evtData e @?= EdMembersJoin (SimpleMembers (fmap (\x -> SimpleMember x role) new))
+  evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
 
 wsAssertMemberUpdateWithRole :: ConvId -> UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1204,7 +1213,7 @@ connectUsersWith ::
   UserId ->
   List1 UserId ->
   TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
-connectUsersWith fn u us = mapM connectTo us
+connectUsersWith fn u = mapM connectTo
   where
     connectTo v = do
       b <- view tsBrig
@@ -1286,7 +1295,7 @@ assertConnections u cstat = do
   resp <- listConnections brig u <!! const 200 === statusCode
   let cstat' :: [ConnectionStatus]
       cstat' = fmap status . clConnections . fromMaybe (error "bad response") . responseJsonMaybe $ resp
-  unless (all (`elem` cstat') cstat) $ do
+  unless (all (`elem` cstat') cstat) $
     error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
     status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
@@ -1313,7 +1322,7 @@ randomUser' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= (Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
+            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
   selfProfile <- responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
   pure . userQualifiedId . selfUser $ selfProfile
 
@@ -1406,7 +1415,7 @@ isUserDeleted u = do
   case responseBody r of
     Nothing -> error $ "getStatus: failed to parse response: " ++ show r
     Just j -> do
-      let st = maybeFromJSON =<< (j ^? key "status")
+      let st = maybeFromJSON =<< j ^? key "status"
       let decoded = fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
       return $ decoded == Deleted
   where
@@ -1576,11 +1585,11 @@ defCookieLabel = CookieLabel "auth"
 -- | This allows you to run requests against a galley instantiated using the given options.
 --   Note that ONLY 'galley' calls should occur within the provided action, calls to other
 --   services will fail.
-withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
-withSettingsOverrides opts action = liftIO $ do
-  (galleyApp, _, finalizer) <- Run.mkApp opts
-  WaiTest.runSession action galleyApp
-    `finally` liftIO finalizer
+withSettingsOverrides :: (HasGalley m, MonadIO m, MonadMask m) => Opts.Opts -> SessionT m a -> m a
+withSettingsOverrides opts action = do
+  (galleyApp, _, finalizer) <- liftIO $ Run.mkApp opts
+  runSessionT action galleyApp
+    `Catch.finally` liftIO finalizer
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
@@ -1700,13 +1709,13 @@ mkProfile quid name =
 -- mock federator
 
 withTempMockFederator ::
-  (MonadIO m, ToJSON a) =>
+  (MonadIO m, ToJSON a, HasGalley m, MonadMask m) =>
   Opts.Opts ->
   Domain ->
   a ->
-  WaiTest.Session b ->
+  SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action = liftIO . assertRightT
+withTempMockFederator opts targetDomain resp action = assertRightT
   . Mock.withTempMockFederator st0 (pure oresp)
   $ \st -> lift $ do
     let opts' =
