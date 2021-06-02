@@ -210,7 +210,7 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path /i/legalhold/whitelisted-teams(.*)
+    - path: ~* ^/i/legalhold/whitelisted-teams(.*)
       envs:
         - staging
       disable_zauth: true
