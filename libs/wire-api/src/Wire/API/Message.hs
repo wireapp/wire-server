@@ -33,8 +33,8 @@ module Wire.API.Message
     OtrFilterMissing (..),
     ClientMismatch (..),
     UserClients (..),
-    ReportMissing(..),
-    IgnoreMissing(..),
+    ReportMissing (..),
+    IgnoreMissing (..),
 
     -- * Swagger
     modelNewOtrMessage,
