@@ -1028,17 +1028,7 @@ testAddRemoteMemberFederationDisabled = do
   withSettingsOverrides federatorUnavailable $ do
     postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
       const 500 === statusCode
-      -- FUTUREWORK: this should be a federation-not-available
-      -- but the error is hidden inside a server-error, confusingly.
-      -- separate task see cryptpad
-      --
-      -- Error {code = Status {statusCode = 500, statusMessage = "Internal
-      -- Server Error"}, label = "server-error", message =
-      -- "{\"code\":500,\"message\":\"Local federator not available:
-      -- Network.Socket.connect: <socket: 146>: does not exist (Connection
-      -- refused)Host: \\\"127.0.0.1\\\" Port:
-      -- 1\",\"label\":\"federation-not-available\"}"}
-      const (Just "server-error") === fmap label . responseJsonUnsafe
+      const (Just "federation-not-available") === fmap label . responseJsonUnsafe
 
 postMembersOk :: TestM ()
 postMembersOk = do

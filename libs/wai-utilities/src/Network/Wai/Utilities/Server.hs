@@ -47,9 +47,10 @@ module Network.Wai.Utilities.Server
 where
 
 import Control.Concurrent.Async
+import Control.Error.Util ((?:))
 import Control.Exception (throw, throwIO)
 import Control.Monad.Catch hiding (onError, onException)
-import Data.Aeson (encode)
+import Data.Aeson (decode, encode)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
@@ -299,7 +300,16 @@ rethrow5xx logger app req k = app req k'
         then k resp
         else do
           rsbody :: LText <- liftIO $ cs <$> lazyResponseBody resp
-          throwM $ Wai.mkError st "server-error" rsbody
+          throwM $ wrapError st rsbody
+
+-- | Wrap the body of an HTTP error into a Wai.Error structure.
+--
+-- If the error is already a JSON serialisation of a Wai.Error, avoid creating
+-- an unnecessary wrapper.
+wrapError :: Status -> LText -> Wai.Error
+wrapError st body =
+  decode (LT.encodeUtf8 body)
+    ?: Wai.mkError st "server-error" body
 
 -- | This flushes the response!  If you want to keep using the response, you need to construct
 -- a new one with a fresh body stream.
