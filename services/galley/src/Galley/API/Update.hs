@@ -116,7 +116,6 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
-import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client as FederatedBrig
@@ -618,15 +617,11 @@ removeMember zusr zcon convId victim = do
 data OtrResult
   = OtrSent !Public.ClientMismatch
   | OtrMissingRecipients !Public.ClientMismatch
-  | OtrUnknownClient !Public.UnknownClient
-  | OtrConversationNotFound !Public.ConversationNotFound
 
 handleOtrResult :: OtrResult -> Galley Response
 handleOtrResult = \case
   OtrSent m -> pure $ json m & setStatus status201
   OtrMissingRecipients m -> pure $ json m & setStatus status412
-  OtrUnknownClient _ -> throwM unknownClient
-  OtrConversationNotFound _ -> throwM convNotFound
 
 postBotMessageH :: BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
@@ -666,8 +661,6 @@ postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
     translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
     translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
     translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
-    translateToServant (OtrUnknownClient e) = Servant.respond e
-    translateToServant (OtrConversationNotFound e) = Servant.respond e
 
     resolveQueryMissingOptions :: Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.OtrFilterMissing
     resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
@@ -1010,22 +1003,20 @@ withValidOtrRecipients ::
   Galley OtrResult
 withValidOtrRecipients protectee clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
-  if not alive
-    then do
+  unless alive $ do
       Data.deleteConversation cnv
-      pure $ OtrConversationNotFound Public.convNotFound
-    else do
-      -- FUTUREWORK(federation): also handle remote members
-      (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
-      let localMemberIds = memId <$> localMembers
-      isInternal <- view $ options . optSettings . setIntraListing
-      clts <-
-        if isInternal
-          then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-          else Data.lookupClients localMemberIds
-      handleOtrResponse protectee clt rcps localMembers clts val now go
+      throwM convNotFound
+  -- FUTUREWORK(federation): also handle remote members
+  (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
+  let localMemberIds = memId <$> localMembers
+  isInternal <- view $ options . optSettings . setIntraListing
+  clts <-
+    if isInternal
+      then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
+      else Data.lookupClients localMemberIds
+  handleOtrResponse protectee clt rcps localMembers clts val now go
 
-handleOtrResponse ::
+handleOtrResponse :: 
   -- | Proposed sender (user)
   LegalholdProtectee' ->
   -- | Proposed sender (client)
@@ -1048,8 +1039,8 @@ handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipi
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
     pure (OtrMissingRecipients m)
-  InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
-  InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient
+  InvalidOtrSenderUser -> throwM convNotFound
+  InvalidOtrSenderClient -> throwM unknownClient
 
 -- | Check OTR sender and recipients for validity and completeness
 -- against a given list of valid members and clients, optionally

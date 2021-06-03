@@ -33,7 +33,6 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
@@ -51,9 +50,7 @@ type UpdateResponses =
 
 type PostOtrResponses =
   '[ WithStatus 201 Public.ClientMismatch,
-     WithStatus 412 Public.ClientMismatch,
-     ConversationNotFound,
-     UnknownClient
+     WithStatus 412 Public.ClientMismatch
    ]
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
