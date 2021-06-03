@@ -234,12 +234,6 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cid" ConvId
         :> Delete '[] (EmptyResult 200),
-    -- | This endpoint can lead to the following events being sent:
-    --
-    -- - OtrMessageAdd event to recipients
-    --
-    -- TODO: Add 404 for conv not found
-    -- TODO: Add 403 for unknown sending client
     postOtrMessage ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON)"
@@ -264,7 +258,6 @@ data IgnoreMissing
   | IgnoreMissingList (Set UserId)
   deriving (Show, Eq)
 
--- TODO: Fill this in
 instance Swagger.ToParamSchema IgnoreMissing where
   toParamSchema _ = mempty & Swagger.type_ ?~ Swagger.SwaggerString
 
@@ -285,7 +278,9 @@ type PostOtrDescription =
   \All three of these should be considered mutually exclusive. The server however does not error if more than one is specified, it reads them in this order of precedence:\n\
   \- `report_missing` in the request body has highest precedence.\n\
   \- `ignore_missing` in the query param is the next.\n\
-  \- `report_missing` in the query param has the lowest precedence."
+  \- `report_missing` in the query param has the lowest precedence.\n\
+  \\n\
+  \This endpoint can lead to OtrMessageAdd event being sent to the recipients."
 
 instance FromHttpApiData IgnoreMissing where
   parseQueryParam = \case
