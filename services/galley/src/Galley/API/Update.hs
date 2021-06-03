@@ -1004,8 +1004,8 @@ withValidOtrRecipients ::
 withValidOtrRecipients protectee clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
-      Data.deleteConversation cnv
-      throwM convNotFound
+    Data.deleteConversation cnv
+    throwM convNotFound
   -- FUTUREWORK(federation): also handle remote members
   (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
   let localMemberIds = memId <$> localMembers
@@ -1016,7 +1016,7 @@ withValidOtrRecipients protectee clt cnv rcps val now go = do
       else Data.lookupClients localMemberIds
   handleOtrResponse protectee clt rcps localMembers clts val now go
 
-handleOtrResponse :: 
+handleOtrResponse ::
   -- | Proposed sender (user)
   LegalholdProtectee' ->
   -- | Proposed sender (client)
