@@ -104,7 +104,7 @@ federationInvalidBody msg =
 
 federationUnexpectedBody :: Text -> Wai.Error
 federationUnexpectedBody msg =
-  Wai.Error
+  Wai.mkError
     unexpectedFederationResponseStatus
     "federation-unexpected-body"
     ("Could parse body, but response was not expected: " <> LT.fromStrict msg)
