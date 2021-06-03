@@ -112,9 +112,11 @@ tests:
     - tasty
     - tasty-hunit
     - tasty-quickcheck
+    - tasty-hspec
     - types-common
     - QuickCheck
     - wai
+    - servant-swagger
     - wai-predicates
 
 executables:

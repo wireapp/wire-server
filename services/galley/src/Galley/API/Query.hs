@@ -17,6 +17,7 @@
 
 module Galley.API.Query
   ( getBotConversationH,
+    getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
     getConversationIds,
@@ -27,11 +28,13 @@ module Galley.API.Query
   )
 where
 
+import Control.Error (runExceptT)
+import Control.Monad.Catch (throwM)
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Proxy
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified (Qualified (..))
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -48,6 +51,10 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
+import Wire.API.Federation.API.Galley (gcresConvs)
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Client (executeFederated)
+import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
@@ -68,10 +75,33 @@ getBotConversation zbot zcnv = do
       | otherwise =
         Just (OtherMember (Qualified (memId m) domain) (memService m) (memConvRoleName m))
 
-getConversation :: UserId -> ConvId -> Galley Public.Conversation
-getConversation zusr cnv = do
+getUnqualifiedConversation :: UserId -> ConvId -> Galley Public.Conversation
+getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
+
+getConversation :: UserId -> Domain -> ConvId -> Galley Public.Conversation
+getConversation zusr domain cnv = do
+  localDomain <- viewFederationDomain
+  if domain == localDomain
+    then getUnqualifiedConversation zusr cnv
+    else getRemoteConversation zusr (Qualified cnv domain)
+
+getRemoteConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
+getRemoteConversation zusr (Qualified convId remoteDomain) = do
+  localDomain <- viewFederationDomain
+  let qualifiedZUser = Qualified zusr localDomain
+      req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
+      rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+  -- we expect the remote galley to make adequate checks on conversation
+  -- membership and just pass through the reponse
+  conversations <-
+    runExceptT (executeFederated remoteDomain rpc)
+      >>= either (throwM . federationErrorToWai) pure
+  case gcresConvs conversations of
+    [] -> throwM convNotFound
+    [conv] -> pure conv
+    _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do

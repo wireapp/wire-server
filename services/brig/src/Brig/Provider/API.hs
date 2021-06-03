@@ -1091,31 +1091,31 @@ rangeChecked :: Within a n m => a -> Handler (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
 
 invalidServiceKey :: Wai.Error
-invalidServiceKey = Wai.Error status400 "invalid-service-key" "Invalid service key."
+invalidServiceKey = Wai.mkError status400 "invalid-service-key" "Invalid service key."
 
 invalidProvider :: Wai.Error
-invalidProvider = Wai.Error status403 "invalid-provider" "The provider does not exist."
+invalidProvider = Wai.mkError status403 "invalid-provider" "The provider does not exist."
 
 invalidBot :: Wai.Error
-invalidBot = Wai.Error status403 "invalid-bot" "The targeted user is not a bot."
+invalidBot = Wai.mkError status403 "invalid-bot" "The targeted user is not a bot."
 
 invalidConv :: Wai.Error
-invalidConv = Wai.Error status403 "invalid-conversation" "The operation is not allowed in this conversation."
+invalidConv = Wai.mkError status403 "invalid-conversation" "The operation is not allowed in this conversation."
 
 badGateway :: Wai.Error
-badGateway = Wai.Error status502 "bad-gateway" "The upstream service returned an invalid response."
+badGateway = Wai.mkError status502 "bad-gateway" "The upstream service returned an invalid response."
 
 tooManyMembers :: Wai.Error
-tooManyMembers = Wai.Error status403 "too-many-members" "Maximum number of members per conversation reached."
+tooManyMembers = Wai.mkError status403 "too-many-members" "Maximum number of members per conversation reached."
 
 tooManyBots :: Wai.Error
-tooManyBots = Wai.Error status409 "too-many-bots" "Maximum number of bots for the service reached."
+tooManyBots = Wai.mkError status409 "too-many-bots" "Maximum number of bots for the service reached."
 
 serviceDisabled :: Wai.Error
-serviceDisabled = Wai.Error status403 "service-disabled" "The desired service is currently disabled."
+serviceDisabled = Wai.mkError status403 "service-disabled" "The desired service is currently disabled."
 
 serviceNotWhitelisted :: Wai.Error
-serviceNotWhitelisted = Wai.Error status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
+serviceNotWhitelisted = Wai.mkError status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
 
 serviceError :: RPC.ServiceError -> Wai.Error
 serviceError RPC.ServiceUnavailable = badGateway

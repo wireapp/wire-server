@@ -21,6 +21,7 @@
 module Wire.API.Federation.Client where
 
 import Control.Monad.Except (ExceptT, MonadError (..), withExceptT)
+import Control.Monad.State (MonadState (..), StateT, evalStateT, gets)
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText)
@@ -41,11 +42,12 @@ data FederatorClientEnv = FederatorClientEnv
     originDomain :: Domain
   }
 
-newtype FederatorClient (component :: Proto.Component) m a = FederatorClient {runFederatorClient :: ReaderT FederatorClientEnv m a}
-  deriving newtype (Functor, Applicative, Monad, MonadReader FederatorClientEnv, MonadIO)
+-- the state monad is used to store the request path in case of servant errors
+newtype FederatorClient (component :: Proto.Component) m a = FederatorClient {runFederatorClient :: ReaderT FederatorClientEnv (StateT (Maybe ByteString) m) a}
+  deriving newtype (Functor, Applicative, Monad, MonadReader FederatorClientEnv, MonadState (Maybe ByteString), MonadIO)
 
-runFederatorClientWith :: GrpcClient -> Domain -> Domain -> FederatorClient component m a -> m a
-runFederatorClientWith client targetDomain originDomain = flip runReaderT (FederatorClientEnv client targetDomain originDomain) . runFederatorClient
+runFederatorClientWith :: Monad m => GrpcClient -> Domain -> Domain -> FederatorClient component m a -> m a
+runFederatorClientWith client targetDomain originDomain = flip evalStateT Nothing . flip runReaderT (FederatorClientEnv client targetDomain originDomain) . runFederatorClient
 
 class KnownComponent (c :: Proto.Component) where
   componentVal :: Proto.Component
@@ -58,26 +60,39 @@ instance KnownComponent 'Proto.Galley where
 
 -- | expectedStatuses is ignored as we don't get any status from the federator,
 -- all responses have '200 OK' as their status.
-instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent component) => RunClient (FederatorClient component m) where
+instance (Monad m, MonadIO m, MonadError FederationClientFailure m, KnownComponent component) => RunClient (FederatorClient component m) where
   runRequestAcceptStatus _expectedStatuses req = do
     env <- ask
+    let path = LBS.toStrict . toLazyByteString $ requestPath req
+        domain = targetDomain env
+        mkFailure = FederationClientFailure domain path
+        failure :: MonadError FederationClientFailure n => FederationClientError -> n x
+        failure = throwError . mkFailure
+        rpcFailure = failure . FederationClientRPCError
+        readBody = \case
+          RequestBodyLBS lbs -> pure $ LBS.toStrict lbs
+          RequestBodyBS bs -> pure bs
+          RequestBodySource _ -> failure FederationClientStreamingUnsupported
+    -- save path in the state, so that we can access it from throwClientError
+    -- if necessary
+    put (Just path)
     body <- readBody . maybe (RequestBodyBS "") fst $ requestBody req
     let call =
           Proto.ValidatedFederatedRequest
-            (targetDomain env)
+            domain
             ( Proto.Request
                 (componentVal @component)
-                (LBS.toStrict . toLazyByteString $ requestPath req)
+                path
                 body
                 (domainText (originDomain env))
             )
     grpcResponse <- callRemote (grpcClient env) call
     case grpcResponse of
-      GRpcTooMuchConcurrency _tmc -> rpcErr "too much concurrency"
-      GRpcErrorCode code -> rpcErr $ "grpc error code: " <> T.pack (show code)
-      GRpcErrorString msg -> rpcErr $ "grpc error: " <> T.pack msg
-      GRpcClientError msg -> rpcErr $ "grpc client error: " <> T.pack (show msg)
-      GRpcOk (Proto.OutwardResponseError err) -> throwError (FederationClientOutwardError err)
+      GRpcTooMuchConcurrency _tmc -> rpcFailure "too much concurrency"
+      GRpcErrorCode code -> rpcFailure $ "grpc error code: " <> T.pack (show code)
+      GRpcErrorString msg -> rpcFailure $ "grpc error: " <> T.pack msg
+      GRpcClientError msg -> rpcFailure $ "grpc client error: " <> T.pack (show msg)
+      GRpcOk (Proto.OutwardResponseError err) -> failure (FederationClientOutwardError err)
       GRpcOk (Proto.OutwardResponseBody res) -> do
         pure $
           Response
@@ -89,15 +104,13 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent
               responseHttpVersion = HTTP.http11,
               responseBody = LBS.fromStrict res
             }
-    where
-      rpcErr = throwError . FederationClientRPCError
-      readBody = \case
-        RequestBodyLBS lbs -> pure $ LBS.toStrict lbs
-        RequestBodyBS bs -> pure bs
-        RequestBodySource _ -> throwError FederationClientStreamingUnsupported
-  throwClientError = throwError . FederationClientServantError
 
-instance (Monad m, MonadError FederationClientError m) => MonadError FederationClientError (FederatorClient c m) where
+  throwClientError err = do
+    dom <- asks targetDomain
+    path <- gets (fromMaybe "")
+    throwError (FederationClientFailure dom path (FederationClientServantError err))
+
+instance (Monad m, MonadError FederationClientFailure m) => MonadError FederationClientFailure (FederatorClient c m) where
   throwError = FederatorClient . throwError
   catchError (FederatorClient action) f = FederatorClient $ catchError action (runFederatorClient . f)
 
@@ -105,7 +118,14 @@ data FederationError
   = FederationUnavailable Text
   | FederationNotImplemented
   | FederationNotConfigured
-  | FederationCallFailure FederationClientError
+  | FederationCallFailure FederationClientFailure
+
+data FederationClientFailure = FederationClientFailure
+  { fedFailDomain :: Domain,
+    fedFailPath :: ByteString,
+    fedFailError :: FederationClientError
+  }
+  deriving (Show, Eq)
 
 data FederationClientError
   = FederationClientInvalidMethod HTTP.Method
@@ -141,7 +161,7 @@ mkFederatorClient = do
 executeFederated ::
   (MonadIO m, HasFederatorConfig m) =>
   Domain ->
-  FederatorClient component (ExceptT FederationClientError m) a ->
+  FederatorClient component (ExceptT FederationClientFailure m) a ->
   ExceptT FederationError m a
 executeFederated targetDomain action = do
   federatorClient <- mkFederatorClient

@@ -58,7 +58,7 @@ lookupClients uids = do
         . path "/i/clients"
         . json (UserSet $ Set.fromList uids)
         . expect2xx
-  clients <- parseResponse (Error status502 "server-error") r
+  clients <- parseResponse (mkError status502 "server-error") r
   return $ filterClients (not . Set.null) clients
 
 -- | Calls 'Brig.API.internalListClientsFullH'.
@@ -71,7 +71,7 @@ lookupClientsFull uids = do
         . path "/i/clients/full"
         . json (UserSet $ Set.fromList uids)
         . expect2xx
-  clients <- parseResponse (Error status502 "server-error") r
+  clients <- parseResponse (mkError status502 "server-error") r
   return $ filterClientsFull (not . Set.null) clients
 
 -- | Calls 'Brig.API.legalHoldClientRequestedH'.
@@ -148,4 +148,4 @@ brigAddClient uid connId client = do
         . contentJson
         . json client
         . expect2xx
-  parseResponse (Error status502 "server-error") r
+  parseResponse (mkError status502 "server-error") r

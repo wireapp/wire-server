@@ -23,7 +23,7 @@ module API.Teams
 where
 
 import API.SQS
-import API.Util
+import API.Util hiding (deleteTeam)
 import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge hiding (timeout)
@@ -362,7 +362,7 @@ testEnableSSOPerTeam = do
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
         g <- view tsGalley
-        Wai.Error status label _ <-
+        Wai.Error status label _ _ <-
           responseJsonUnsafe
             <$> put
               ( g
@@ -392,7 +392,7 @@ testEnableTeamSearchVisibilityPerTeam = do
         liftIO $ assertEqual msg enabledness statusValue
   let putSearchVisibilityCheckNotAllowed :: (HasCallStack, Monad m, MonadIO m, MonadHttp m) => m ()
       putSearchVisibilityCheckNotAllowed = do
-        Wai.Error status label _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
+        Wai.Error status label _ _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "team-search-visibility-not-enabled" label

@@ -36,7 +36,7 @@ import Brig.Types.User.Auth hiding (user)
 import qualified Brig.Types.User.Auth as Auth
 import qualified CargoHold.Types.V3 as CHV3
 import Control.Arrow ((&&&))
-import Control.Lens ((^.), (^?))
+import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson
 import qualified Data.Aeson as Aeson
@@ -449,7 +449,12 @@ testUserInvalidDomain brig = do
   qself <- userQualifiedId <$> randomUser brig
   let uid = qUnqualified qself
   get (brig . paths ["users", "invalid.example.com", toByteString' uid] . zUser uid)
-    !!! const 422 === statusCode
+    !!! do
+      const 422 === statusCode
+      const (Just "/federation/get-users-by-ids")
+        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
+      const (Just "invalid.example.com")
+        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
 
 testExistingUserUnqualified :: Brig -> Http ()
 testExistingUserUnqualified brig = do

@@ -22,7 +22,8 @@
 module Wire.API.Federation.Mock where
 
 import qualified Control.Concurrent.Async as Async
-import Control.Exception.Lifted (finally)
+import Control.Monad.Catch (MonadMask)
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except (ExceptT (..), MonadError (..), runExceptT)
 import Control.Monad.State (MonadState (..), gets, modify)
 import qualified Data.Aeson as Aeson
@@ -59,8 +60,8 @@ mkSuccessResponse = pure . OutwardResponseBody . LBS.toStrict . Aeson.encode
 mkErrorResponse :: OutwardError -> ServerErrorIO OutwardResponse
 mkErrorResponse = pure . OutwardResponseError
 
-startMockFederator :: IORef MockState -> ExceptT String IO ()
-startMockFederator ref = ExceptT $ do
+startMockFederator :: MonadIO m => IORef MockState -> ExceptT String m ()
+startMockFederator ref = ExceptT . liftIO $ do
   (port, sock) <- Warp.openFreePort
   serverStarted <- newEmptyMVar
   let settings =
@@ -79,15 +80,15 @@ startMockFederator ref = ExceptT $ do
       liftIO . modifyIORef ref $ \s -> s {serverThread = federatorThread, serverPort = toInteger port}
       pure (Right ())
 
-stopMockFederator :: IORef MockState -> IO ()
-stopMockFederator ref = do
-  Async.cancel . serverThread <=< readIORef $ ref
+stopMockFederator :: MonadIO m => IORef MockState -> m ()
+stopMockFederator ref =
+  liftIO $ Async.cancel . serverThread <=< readIORef $ ref
 
 flushState :: IORef MockState -> IO ()
 flushState = flip modifyIORef $ \s -> s {receivedRequests = [], effectfulResponse = error "No mock response provided"}
 
 initState :: Domain -> Domain -> MockState
-initState targetDomain originDomain = MockState [] (error "No mock response provided") (error "server not started") (error "No port selected yet") targetDomain originDomain
+initState = MockState [] (error "No mock response provided") (error "server not started") (error "No port selected yet")
 
 -- | Run an action with access to a mock federator.
 --
@@ -98,10 +99,11 @@ initState targetDomain originDomain = MockState [] (error "No mock response prov
 -- More explicitly, any request `req` to the federator within the provided
 -- action will return `resp req` as its response.
 withMockFederator ::
+  (MonadIO m, MonadMask m) =>
   IORef MockState ->
   (FederatedRequest -> ServerErrorIO OutwardResponse) ->
-  (MockState -> ExceptT String IO a) ->
-  ExceptT String IO (a, ReceivedRequests)
+  (MockState -> ExceptT String m a) ->
+  ExceptT String m (a, ReceivedRequests)
 withMockFederator ref resp action = do
   liftIO . modifyIORef ref $ \s -> s {effectfulResponse = resp}
   st <- liftIO $ readIORef ref
@@ -110,10 +112,11 @@ withMockFederator ref resp action = do
   pure (actualResponse, receivedRequests st')
 
 withMockFederatorClient ::
+  (MonadIO m, MonadMask m) =>
   IORef MockState ->
   (FederatedRequest -> ServerErrorIO OutwardResponse) ->
-  FederatorClient component (ExceptT e IO) a ->
-  ExceptT String IO (Either e a, ReceivedRequests)
+  FederatorClient component (ExceptT e m) a ->
+  ExceptT String m (Either e a, ReceivedRequests)
 withMockFederatorClient ref resp action = withMockFederator ref resp $ \st -> do
   let cfg = grpcClientConfigSimple "127.0.0.1" (fromInteger (serverPort st)) False
   client <- fmapLT (Text.unpack . reason) (ExceptT (createGrpcClient cfg))
@@ -123,16 +126,16 @@ withMockFederatorClient ref resp action = withMockFederator ref resp $ \st -> do
 -- | Like 'withMockFederator', but spawn a new instance of the mock federator
 -- just for this action.
 withTempMockFederator ::
-  forall a.
+  (MonadIO m, MonadMask m) =>
   MockState ->
   (FederatedRequest -> ServerErrorIO OutwardResponse) ->
-  (MockState -> ExceptT String IO a) ->
-  ExceptT String IO (a, ReceivedRequests)
+  (MockState -> ExceptT String m a) ->
+  ExceptT String m (a, ReceivedRequests)
 withTempMockFederator st resp action = do
-  ref <- liftIO $ newIORef st
+  ref <- newIORef st
   startMockFederator ref
   withMockFederator ref resp action
-    `finally` lift (stopMockFederator ref)
+    `Catch.finally` stopMockFederator ref
 
 newtype MockT m a = MockT {unMock :: ReaderT (IORef MockState) m a}
   deriving newtype (Functor, Applicative, Monad, MonadReader (IORef MockState), MonadIO)

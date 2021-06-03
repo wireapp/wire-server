@@ -29,7 +29,7 @@ import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Conversation)
 import Wire.API.Conversation.Role (RoleName)
-import Wire.API.Federation.Client (FederationClientError, FederatorClient)
+import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
@@ -82,5 +82,5 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
 
-clientRoutes :: (MonadError FederationClientError m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
+clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

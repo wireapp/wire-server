@@ -106,7 +106,7 @@ lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
 fromJsonBody :: FromJSON a => JsonRequest a -> Gundeck a
-fromJsonBody r = exceptT (throwM . Error status400 "bad-request") return (parseBody r)
+fromJsonBody r = exceptT (throwM . mkError status400 "bad-request") return (parseBody r)
 {-# INLINE fromJsonBody #-}
 
 ifNothing :: Error -> Maybe a -> Gundeck a

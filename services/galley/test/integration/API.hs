@@ -30,12 +30,13 @@ import API.SQS
 import qualified API.Teams as Teams
 import qualified API.Teams.Feature as TeamFeature
 import qualified API.Teams.LegalHold as Teams.LegalHold
+import qualified API.Teams.LegalHold.DisabledByDefault
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
-import Control.Lens (at, view, (.~), (?~), (^.))
+import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
@@ -65,6 +66,7 @@ import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
 import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
 
 tests :: IO TestSetup -> TestTree
@@ -72,6 +74,7 @@ tests s =
   testGroup
     "Galley integration tests"
     [ Teams.LegalHold.tests s,
+      API.Teams.LegalHold.DisabledByDefault.tests s,
       mainTests,
       Teams.tests s,
       MessageTimer.tests s,
@@ -115,6 +118,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
+          test s "get remote conversation" testGetRemoteConversation,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
@@ -874,7 +878,9 @@ leaveConnectConversation = do
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
-  alice <- randomUser
+  aliceQ <- randomQualifiedUser
+  let alice = qUnqualified aliceQ
+  let localDomain = qDomain aliceQ
   bobId <- randomId
   let remoteDomain = Domain "far-away.example.com"
       remoteBob = Qualified bobId remoteDomain
@@ -895,10 +901,51 @@ testAddRemoteMember = do
     -- FUTUREWORK: implement returning remote users in the event.
     -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
     evtFrom e @?= alice
-  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
+  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice (Qualified convId localDomain)
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
+    assertEqual "other members should include remoteBob" expected actual
+
+testGetRemoteConversation :: TestM ()
+testGetRemoteConversation = do
+  aliceQ <- randomQualifiedUser
+  let alice = qUnqualified aliceQ
+  bobId <- randomId
+  convId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteConv = Qualified convId remoteDomain
+
+  let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
+      bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      remoteConversationResponse =
+        GetConversationsResponse
+          [ Conversation
+              { cnvId = convId,
+                cnvType = RegularConv,
+                cnvCreator = alice,
+                cnvAccess = [],
+                cnvAccessRole = ActivatedAccessRole,
+                cnvName = Just "federated gossip",
+                cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
+                cnvTeam = Nothing,
+                cnvMessageTimer = Nothing,
+                cnvReceiptMode = Nothing
+              }
+          ]
+  opts <- view tsGConf
+  g <- view tsGalley
+  (resp, _) <-
+    liftIO $
+      withTempMockFederator
+        opts
+        remoteDomain
+        (const remoteConversationResponse)
+        (getConvQualified' g alice remoteConv)
+  conv :: Conversation <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
+  liftIO $ do
+    let actual = cmOthers $ cnvMembers conv
+    let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
     assertEqual "other members should include remoteBob" expected actual
 
 testAddRemoteMemberFailure :: TestM ()
@@ -950,7 +997,12 @@ testAddRemoteMemberInvalidDomain = do
   let remoteBob = Qualified bobId (Domain "invalid.example.com")
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   postQualifiedMembers alice (remoteBob :| []) convId
-    !!! const 422 === statusCode
+    !!! do
+      const 422 === statusCode
+      const (Just "/federation/get-users-by-ids")
+        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
+      const (Just "invalid.example.com")
+        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)

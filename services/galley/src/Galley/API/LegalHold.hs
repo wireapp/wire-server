@@ -26,6 +26,9 @@ module Galley.API.LegalHold
     approveDeviceH,
     disableForUserH,
     isLegalHoldEnabledForTeam,
+    getLegalholdWhitelistedTeamsH,
+    setTeamLegalholdWhitelistedH,
+    unsetTeamLegalholdWhitelistedH,
   )
 where
 
@@ -79,7 +82,7 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
+      (readIORef =<< view legalholdWhitelist)
         <&> maybe
           False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
           (tid `elem`)
@@ -443,3 +446,32 @@ blockConnectionsFrom1on1s uid = do
           Just team -> do
             mMember <- Data.teamMember team other
             pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+
+getLegalholdWhitelistedTeams :: Galley [TeamId]
+getLegalholdWhitelistedTeams = do
+  fromMaybe [] <$> (readIORef =<< view legalholdWhitelist)
+
+getLegalholdWhitelistedTeamsH :: JSON -> Galley Response
+getLegalholdWhitelistedTeamsH _ = do
+  json <$> getLegalholdWhitelistedTeams
+
+setTeamLegalholdWhitelisted :: TeamId -> Galley ()
+setTeamLegalholdWhitelisted tid = do
+  LegalHoldData.setTeamLegalholdWhitelisted tid
+
+setTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+setTeamLegalholdWhitelistedH tid = do
+  empty <$ setTeamLegalholdWhitelisted tid
+
+unsetTeamLegalholdWhitelisted :: TeamId -> Galley ()
+unsetTeamLegalholdWhitelisted tid = do
+  LegalHoldData.unsetTeamLegalholdWhitelisted tid
+
+unsetTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+unsetTeamLegalholdWhitelistedH tid = do
+  () <-
+    error
+      "FUTUREWORK: if we remove entries from the list, that means removing an unknown \
+      \number of LH devices as well, and possibly other things.  think this through \
+      \before you enable the end-point."
+  setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid

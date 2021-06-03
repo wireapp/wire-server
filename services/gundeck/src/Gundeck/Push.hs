@@ -80,7 +80,7 @@ push ps = do
     Right () -> return ()
     Left exs -> do
       forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
-      throwM (Error status500 "server-error" "Server Error")
+      throwM (mkError status500 "server-error" "Server Error")
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class MonadThrow m => MonadPushAll m where
@@ -452,7 +452,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
     update n t arn = do
       when (n >= 3) $ do
         Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
-        throwM (Error status500 "server-error" "Server Error")
+        throwM (mkError status500 "server-error" "Server Error")
       aws <- view awsEnv
       ept <- Aws.execute aws (Aws.lookupEndpoint arn)
       case ept of
@@ -497,7 +497,7 @@ updateEndpoint uid t arn e = do
   env <- view awsEnv
   unless (equalTransport && equalApp) $ do
     Log.err $ logMessage uid arn (t ^. token) "Transport or app mismatch"
-    throwM $ Error status500 "server-error" "Server Error"
+    throwM $ mkError status500 "server-error" "Server Error"
   Log.info $ logMessage uid arn (t ^. token) "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
   Aws.execute env $ Aws.updateEndpoint users (t ^. token) arn
@@ -514,7 +514,7 @@ deleteToken :: UserId -> Token -> Gundeck ()
 deleteToken uid tok = do
   as <- filter (\x -> x ^. addrToken == tok) <$> Data.lookup uid Data.Quorum
   when (null as) $
-    throwM (Error status404 "not-found" "Push token not found")
+    throwM (mkError status404 "not-found" "Push token not found")
   Native.deleteTokens as Nothing
 
 listTokens :: UserId -> Gundeck PushTokenList
