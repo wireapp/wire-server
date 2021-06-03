@@ -275,7 +275,6 @@ type PostOtrDescription =
   \  - When 'true' all missing clients are ignored.\n\
   \  - When 'false' all missing clients are reported.\n\
   \  - When comma separated list of user-ids, only clients for listed users are ignored.\n\
-  \\
   \- `report_missing`: Can be 'true' 'false' or a comma separated list of user IDs.\n\
   \  - When 'true' all missing clients are reported.\n\
   \  - When 'false' all missing clients are ignored.\n\
