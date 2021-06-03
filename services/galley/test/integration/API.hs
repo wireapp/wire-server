@@ -888,12 +888,11 @@ testAddRemoteMember = do
   opts <- view tsGConf
   g <- view tsGalley
   (resp, _) <-
-    liftIO $
-      withTempMockFederator
-        opts
-        remoteDomain
-        (const [mkProfile remoteBob (Name "bob")])
-        (postQualifiedMembers' g alice (remoteBob :| []) convId)
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [mkProfile remoteBob (Name "bob")])
+      (postQualifiedMembers' g alice (remoteBob :| []) convId)
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
     evtConv e @?= convId
@@ -936,12 +935,11 @@ testGetRemoteConversation = do
   opts <- view tsGConf
   g <- view tsGalley
   (resp, _) <-
-    liftIO $
-      withTempMockFederator
-        opts
-        remoteDomain
-        (const remoteConversationResponse)
-        (getConvQualified' g alice remoteConv)
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const remoteConversationResponse)
+      (getConvQualified' g alice remoteConv)
   conv :: Conversation <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
@@ -959,16 +957,15 @@ testAddRemoteMemberFailure = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   opts <- view tsGConf
   g <- view tsGalley
-  liftIO $ do
-    (resp, _) <-
-      withTempMockFederator
-        opts
-        remoteDomain
-        (const [mkProfile remoteCharlie (Name "charlie")])
-        (postQualifiedMembers' g alice (remoteBob :| [remoteCharlie]) convId)
-    statusCode resp @?= 400
-    let err = responseJsonUnsafe resp :: Object
-    (err ^. at "label") @?= Just "unknown-remote-user"
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [mkProfile remoteCharlie (Name "charlie")])
+      (postQualifiedMembers' g alice (remoteBob :| [remoteCharlie]) convId)
+  liftIO $ statusCode resp @?= 400
+  let err = responseJsonUnsafe resp :: Object
+  liftIO $ (err ^. at "label") @?= Just "unknown-remote-user"
 
 testAddDeletedRemoteUser :: TestM ()
 testAddDeletedRemoteUser = do
@@ -979,16 +976,15 @@ testAddDeletedRemoteUser = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   opts <- view tsGConf
   g <- view tsGalley
-  liftIO $ do
-    (resp, _) <-
-      withTempMockFederator
-        opts
-        remoteDomain
-        (const [(mkProfile remoteBob (Name "bob")) {profileDeleted = True}])
-        (postQualifiedMembers' g alice (remoteBob :| []) convId)
-    statusCode resp @?= 400
-    let err = responseJsonUnsafe resp :: Object
-    (err ^. at "label") @?= Just "unknown-remote-user"
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [(mkProfile remoteBob (Name "bob")) {profileDeleted = True}])
+      (postQualifiedMembers' g alice (remoteBob :| []) convId)
+  liftIO $ statusCode resp @?= 400
+  let err = responseJsonUnsafe resp :: Object
+  liftIO $ (err ^. at "label") @?= Just "unknown-remote-user"
 
 testAddRemoteMemberInvalidDomain :: TestM ()
 testAddRemoteMemberInvalidDomain = do
