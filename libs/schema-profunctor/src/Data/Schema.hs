@@ -704,6 +704,8 @@ instance ToSchema Int32 where schema = genericToSchema
 
 instance ToSchema Int64 where schema = genericToSchema
 
+instance ToSchema Integer where schema = genericToSchema
+
 instance ToSchema Word where schema = genericToSchema
 
 instance ToSchema Word8 where schema = genericToSchema

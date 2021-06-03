@@ -31,7 +31,7 @@ instance (KnownNat status, KnownSymbol desc) => ToSchema (ErrorDescription statu
         ErrorDescription
           <$> label .= field "label" schema
           <*> message .= field "message" schema
-          <* const (natVal (Proxy @status)) .= field "status" genericToSchema
+          <* const (natVal (Proxy @status)) .= field "status" schema
     where
       -- FUTUREWORK: Make this description go into swagger's response
       -- description
