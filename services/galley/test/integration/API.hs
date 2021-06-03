@@ -98,8 +98,14 @@ tests s =
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
+          test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
+          test s "M:N conversation creation must have <N qualified members" postConvQualifiedFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
+          test s "fail to create conversation when blocked by qualified member" postConvQualifiedFailBlocked,
+          test s "fail to create conversation with remote users when remote user's domain doesn't exist" postConvQualifiedNonExistentDomain,
+          test s "fail to create conversation with remote users when remote user doesn't exist" postConvQualifiedNonExistentUser,
+          test s "fail to create conversation with remote users when federation not configured" postConvQualifiedFederationNotEnabled,
           test s "create self conversation" postSelfConvOk,
           test s "create 1:1 conversation" postO2OConvOk,
           test s "fail to create 1:1 conversation with yourself" postConvO2OFailWithSelf,
@@ -111,6 +117,7 @@ tests s =
           test s "repeat / cancel connect requests" postRepeatConnectConvCancel,
           test s "block/unblock a connect/1-1 conversation" putBlockConvOk,
           test s "get conversation" getConvOk,
+          test s "get qualified conversation" getConvQualifiedOk,
           test s "conversation meta access" accessConvMeta,
           test s "add members" postMembersOk,
           test s "add existing members" postMembersOk2,
@@ -658,6 +665,15 @@ postConvFailNotConnected = do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
 
+postConvQualifiedFailNotConnected :: TestM ()
+postConvQualifiedFailNotConnected = do
+  alice <- randomUser
+  bob <- randomQualifiedUser
+  jane <- randomQualifiedUser
+  postConvQualified alice [bob, jane] Nothing [] Nothing Nothing !!! do
+    const 403 === statusCode
+    const (Just "not-connected") === fmap label . responseJsonUnsafe
+
 postConvFailNumMembers :: TestM ()
 postConvFailNumMembers = do
   n <- fromIntegral <$> view tsMaxConvSize
@@ -665,6 +681,16 @@ postConvFailNumMembers = do
   bob : others <- replicateM n (randomUser)
   connectUsers alice (list1 bob others)
   postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
+    const 400 === statusCode
+    const (Just "client-error") === fmap label . responseJsonUnsafe
+
+postConvQualifiedFailNumMembers :: TestM ()
+postConvQualifiedFailNumMembers = do
+  n <- fromIntegral <$> view tsMaxConvSize
+  alice <- randomUser
+  bob : others <- replicateM n randomQualifiedUser
+  connectLocalQualifiedUsers alice (list1 bob others)
+  postConvQualified alice (bob : others) Nothing [] Nothing Nothing !!! do
     const 400 === statusCode
     const (Just "client-error") === fmap label . responseJsonUnsafe
 
@@ -681,6 +707,67 @@ postConvFailBlocked = do
   postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
+
+--- | If somebody has blocked a user, that user shouldn't be able to create a
+-- group conversation which includes them.
+postConvQualifiedFailBlocked :: TestM ()
+postConvQualifiedFailBlocked = do
+  alice <- randomUser
+  bob <- randomQualifiedUser
+  jane <- randomQualifiedUser
+  connectLocalQualifiedUsers alice (list1 bob [jane])
+  putConnectionQualified jane alice Blocked
+    !!! const 200 === statusCode
+  postConvQualified alice [bob, jane] Nothing [] Nothing Nothing !!! do
+    const 403 === statusCode
+    const (Just "not-connected") === fmap label . responseJsonUnsafe
+
+postConvQualifiedNonExistentDomain :: TestM ()
+postConvQualifiedNonExistentDomain = do
+  alice <- randomUser
+  bob <- flip Qualified (Domain "non-existent.example.com") <$> randomId
+  postConvQualified alice [bob] Nothing [] Nothing Nothing !!! do
+    const 422 === statusCode
+
+postConvQualifiedNonExistentUser :: TestM ()
+postConvQualifiedNonExistentUser = do
+  alice <- randomUser
+  bobId <- randomId
+  charlieId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      bob = Qualified bobId remoteDomain
+      charlie = Qualified charlieId remoteDomain
+  opts <- view tsGConf
+  _g <- view tsGalley
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [mkProfile charlie (Name "charlie")])
+      (postConvQualified alice [bob, charlie] (Just "remote gossip") [] Nothing Nothing)
+  liftIO $ do
+    statusCode resp @?= 400
+    let err = responseJsonUnsafe resp :: Object
+    (err ^. at "label") @?= Just "unknown-remote-user"
+
+postConvQualifiedFederationNotEnabled :: TestM ()
+postConvQualifiedFederationNotEnabled = do
+  g <- view tsGalley
+  alice <- randomUser
+  bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
+  opts <- view tsGConf
+  let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
+  withSettingsOverrides federatorNotConfigured $
+    postConvHelper g alice [bob] !!! do
+      const 400 === statusCode
+      const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
+
+-- like postConvQualified
+-- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
+postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
+postConvHelper g zusr newUsers = do
+  let conv = NewConvUnmanaged $ NewConv [] newUsers (Just "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin
+  post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
 postSelfConvOk = do
@@ -706,7 +793,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
+  let inv = NewConvUnmanaged (NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -866,6 +953,17 @@ getConvOk = do
   getConv alice conv !!! const 200 === statusCode
   getConv bob conv !!! const 200 === statusCode
   getConv chuck conv !!! const 200 === statusCode
+
+getConvQualifiedOk :: TestM ()
+getConvQualifiedOk = do
+  alice <- randomUser
+  bob <- randomQualifiedUser
+  chuck <- randomQualifiedUser
+  connectLocalQualifiedUsers alice (list1 bob [chuck])
+  conv <- decodeConvId <$> postConvQualified alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  getConv alice conv !!! const 200 === statusCode
+  getConv (qUnqualified bob) conv !!! const 200 === statusCode
+  getConv (qUnqualified chuck) conv !!! const 200 === statusCode
 
 accessConvMeta :: TestM ()
 accessConvMeta = do

@@ -20,6 +20,7 @@ module Test.Wire.API.Golden.FromJSON where
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Wire.API.Golden.Generated.NewConvUnmanaged_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Runner
@@ -33,5 +34,8 @@ tests =
           [(testObject_NewOtrMessage_user_1, "testObject_NewOtrMessage_user_1.json")],
       testCase "SimpleMember" $
         testFromJSONObjects
-          [(testObject_SimpleMember_user_1, "testObject_SimpleMember_user_1.json")]
+          [(testObject_SimpleMember_user_1, "testObject_SimpleMember_user_1.json")],
+      testCase "NewConv" $
+        testFromJSONObjects
+          [(testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json")]
     ]

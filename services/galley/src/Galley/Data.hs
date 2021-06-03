@@ -575,7 +575,7 @@ createConversation ::
   Maybe (Range 1 256 Text) ->
   [Access] ->
   AccessRole ->
-  ConvSizeChecked [UserId] ->
+  ConvSizeChecked ([Remote UserId], [UserId]) ->
   Maybe ConvTeamInfo ->
   -- | Message timer
   Maybe Milliseconds ->
@@ -593,10 +593,8 @@ createConversation localDomain usr name acc role others tinfo mtimer recpt other
       setConsistency Quorum
       addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-  -- FUTUREWORK: split users into list of remote and local users
-  let remoteUsers :: [Remote UserId]
-      remoteUsers = []
-  (_, mems, rMems) <- addMembersUncheckedWithRole localDomain now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others)) ((,othersConversationRole) <$> remoteUsers)
+  let (remoteUsers, localUsers) = fromConvSize others
+  (_, mems, rMems) <- addMembersUncheckedWithRole localDomain now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> localUsers)) ((,othersConversationRole) <$> remoteUsers)
   return $ newConv conv RegularConv usr mems rMems acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => Domain -> UserId -> Maybe (Range 1 256 Text) -> m Conversation
