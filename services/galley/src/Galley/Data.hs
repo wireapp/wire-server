@@ -79,6 +79,7 @@ module Galley.Data
     -- * Conversation Members
     addMember,
     addMembersWithRole,
+    addLocalMembersToRemoteConv,
     member,
     members,
     removeMember,
@@ -134,7 +135,6 @@ import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
-import qualified Galley.Options as Opts
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
@@ -182,7 +182,7 @@ mkResultSet page = ResultSet (result page) typ
       | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
-schemaVersion = 49
+schemaVersion = 50
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -856,6 +856,21 @@ addMembersUncheckedWithRole localDomain t conv (orig, _origRole) lusrs rusrs = d
       e = Event MemberJoin qconv qorig t (EdMembersJoin (SimpleMembers (lmems <> rmems)))
   return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
 
+-- | Set local users as belonging to a remote conversation. This is invoked by
+-- a remote galley (using the RPC updateConversationMembership) when users from
+-- the current backend are added to conversations on the remote end.
+addLocalMembersToRemoteConv :: MonadClient m => [UserId] -> Qualified ConvId -> m ()
+addLocalMembersToRemoteConv users qconv = do
+  -- FUTUREWORK: consider using pooledMapConcurrentlyN
+  for_ (List.chunksOf 32 users) $ \chunk ->
+    retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency Quorum
+      for_ chunk $ \u ->
+        addPrepQuery
+          Cql.insertUserRemoteConv
+          (u, qDomain qconv, qUnqualified qconv)
+
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do
   retry x5 . batch $ do
@@ -999,19 +1014,20 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 
 -- Internal utilities
 
--- | Construct 'TeamMember' from database tuple.  Read 'setLegalHoldTeamsWhitelist' from 'Env'
--- to handle implicit consent (ie., fill in 'UserLegalHoldDisabled' instead of
--- 'UserLegalHoldNoConsent' if team is whitelisted.)
+-- | Construct 'TeamMember' from database tuple.
+-- If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set UserLegalHoldDisabled
+-- if team is whitelisted.
 --
 -- Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
 -- other is 'Just', which can only be caused by inconsistent database content.
-newTeamMember' :: (MonadThrow m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
+newTeamMember' :: (MonadIO m, MonadThrow m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
 newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
-  whitelist <- view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
-  maybeGrant whitelist <$> mk minvu minvt
+  mbWhitelist <- readIORef =<< view legalholdWhitelist
+  maybeGrant mbWhitelist <$> mk minvu minvt
   where
     maybeGrant :: Maybe [TeamId] -> TeamMember -> TeamMember
-    maybeGrant whitelist = bool id grantImplicitConsent (maybe False (tid `elem`) whitelist)
+    maybeGrant Nothing = id
+    maybeGrant (Just whitelist) = if tid `elem` whitelist then grantImplicitConsent else id
 
     grantImplicitConsent :: TeamMember -> TeamMember
     grantImplicitConsent =

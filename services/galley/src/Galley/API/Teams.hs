@@ -86,6 +86,7 @@ import qualified Galley.API.Teams.Notifications as APITeamQueue
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.LegalHold as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
@@ -321,6 +322,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
       mapM_ (deleteUser . view userId) membs
       Journal.teamDelete tid
+    Data.unsetTeamLegalholdWhitelisted tid
     Data.deleteTeam tid
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley ()
@@ -351,7 +353,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (c ^. conversationId) localDomain
           qorig = Qualified zusr localDomain
-      (bots, convMembs) <- botsAndUsers =<< Data.members (c ^. conversationId)
+      (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
@@ -751,7 +753,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (Data.convId dc) localDomain
           qusr = Qualified zusr localDomain
-      (bots, users) <- botsAndUsers (Data.convMembers dc)
+      let (bots, users) = botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPush (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
@@ -777,7 +779,7 @@ deleteTeamConversation zusr zcon tid cid = do
   localDomain <- viewFederationDomain
   let qconvId = Qualified cid localDomain
       qusr = Qualified zusr localDomain
-  (bots, cmems) <- botsAndUsers =<< Data.members cid
+  (bots, cmems) <- botsAndUsers <$> Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime

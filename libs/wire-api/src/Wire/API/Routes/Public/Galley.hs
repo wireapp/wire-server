@@ -21,6 +21,7 @@
 module Wire.API.Routes.Public.Galley where
 
 import Data.CommaSeparatedList
+import Data.Domain
 import Data.Id (ConvId, TeamId)
 import Data.Range
 import Data.Swagger
@@ -54,11 +55,19 @@ instance ToSchema Servant.NoContent where
 data Api routes = Api
   { -- Conversations
 
+    getUnqualifiedConversation ::
+      routes
+        :- Summary "Get a conversation by ID"
+        :> ZUser
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> Get '[Servant.JSON] Public.Conversation,
     getConversation ::
       routes
         :- Summary "Get a conversation by ID"
         :> ZUser
         :> "conversations"
+        :> Capture "domain" Domain
         :> Capture "cnv" ConvId
         :> Get '[Servant.JSON] Public.Conversation,
     getConversationRoles ::
@@ -153,10 +162,9 @@ data Api routes = Api
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
     addMembersToConversationV2 ::
       routes
-        :- Summary "Add qualified members to an existing conversation: WIP, inaccessible for clients until ready"
+        :- Summary "Add qualified members to an existing conversation: WIP, events not propagated yet."
         :> ZUser
         :> ZConn
-        :> "i" -- FUTUREWORK: remove this /i/ once it's ready. See comment on 'Update.addMembers'
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "members"

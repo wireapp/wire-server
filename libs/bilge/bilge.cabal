@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d7b6994200506c693bb43f8b717b697cb25b91d7f649aea638af47d010c72c40
+-- hash: 8edb13a7bddfafe7d2906bff5e3671bd529be1c1726e113907c70a373cfc2606
 
 name:           bilge
 version:        0.22.0
@@ -30,6 +30,7 @@ library
       Bilge.Response
       Bilge.Retry
       Bilge.RPC
+      Bilge.TestSession
   other-modules:
       Paths_bilge
   hs-source-dirs:

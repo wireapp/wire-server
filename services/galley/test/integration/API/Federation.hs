@@ -20,17 +20,24 @@ module API.Federation where
 import API.Util
 import Bilge
 import Bilge.Assert
-import Control.Lens
-import Data.Id (Id (..))
+import qualified Cassandra as Cql
+import Control.Lens hiding ((#))
+import Data.Domain
+import Data.Id (Id (..), randomId)
 import Data.List1
 import Data.Qualified (Qualified (..))
+import Data.Time.Clock
+import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
+import qualified Galley.Data.Queries as Cql
 import Galley.Types
 import Imports
 import Test.Tasty
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 
@@ -38,8 +45,16 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "federation"
-    [ test s "GET /federation/get-conversations : All Found" getConversationsAllFound,
-      test s "GET /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf
+    [ test s "POST /federation/get-conversations : All Found" getConversationsAllFound,
+      test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
+      test
+        s
+        "POST /federation/update-conversation-memberships : Add local user to remote conversation"
+        addLocalUser,
+      test
+        s
+        "POST /federation/update-conversation-memberships : Notify local user about other members joining"
+        notifyLocalUser
     ]
 
 getConversationsAllFound :: TestM ()
@@ -98,3 +113,66 @@ getConversationsNotPartOf = do
   let randoQualified = Qualified rando localDomain
   GetConversationsResponse cs <- FedGalley.getConversations fedGalleyClient (GetConversationsRequest randoQualified [cnvId cnv1])
   liftIO $ assertEqual "conversation list not empty" [] cs
+
+addLocalUser :: TestM ()
+addLocalUser = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  let qalice = Qualified alice localDomain
+  let dom = Domain "bobland.example.com"
+  bob <- randomId
+  let qbob = Qualified bob dom
+  conv <- randomId
+  let qconv = Qualified conv dom
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cmu =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qbob,
+            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuAlreadyPresentUsers = [],
+            FedGalley.cmuUsersAdd = [(qalice, roleNameWireMember)],
+            FedGalley.cmuUsersRemove = []
+          }
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.updateConversationMemberships fedGalleyClient cmu
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
+  cassState <- view tsCass
+  convs <-
+    Cql.runClient cassState
+      . Cql.query Cql.selectUserRemoteConvs
+      $ Cql.params Cql.Quorum (Identity alice)
+  liftIO $ [(dom, conv)] @?= convs
+
+notifyLocalUser :: TestM ()
+notifyLocalUser = do
+  c <- view tsCannon
+  alice <- randomUser
+  bob <- randomId
+  charlie <- randomId
+  conv <- randomId
+  let bdom = Domain "bob.example.com"
+      cdom = Domain "charlie.example.com"
+      qbob = Qualified bob bdom
+      qconv = Qualified conv bdom
+      qcharlie = Qualified charlie cdom
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cmu =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qbob,
+            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuAlreadyPresentUsers = [alice],
+            FedGalley.cmuUsersAdd = [(qcharlie, roleNameWireMember)],
+            FedGalley.cmuUsersRemove = []
+          }
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.updateConversationMemberships fedGalleyClient cmu
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertMemberJoinWithRole qconv qbob [qcharlie] roleNameWireMember
