@@ -14,8 +14,6 @@ import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import Servant.API.Status (KnownStatus)
 import Servant.Swagger.Internal
-import Servant.Swagger.Internal.Orphans ()
-import qualified Wire.API.Event.Team as Public ()
 
 data ErrorDescription (status :: Nat) (desc :: Symbol) = ErrorDescription
   { label :: !Text,

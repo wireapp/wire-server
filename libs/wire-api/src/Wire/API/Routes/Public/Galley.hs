@@ -35,7 +35,6 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (ErrorDescription (ErrorDescription))
 import qualified Wire.API.Event.Conversation as Public
-import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import qualified Wire.API.Team.Conversation as Public
