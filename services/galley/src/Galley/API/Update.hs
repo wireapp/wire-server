@@ -43,7 +43,7 @@ module Galley.API.Update
     UpdateResponses,
 
     -- * Talking
-    postOtrMessageH,
+    postOtrMessage,
     postProtoOtrMessageH,
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
@@ -69,6 +69,7 @@ import Control.Monad.State
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Id
+import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
 import Data.List.Extra (nubOrdOn)
 import Data.List1
@@ -116,6 +117,7 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (userTeam)
 import Wire.API.User.Client (UserClientsFull)
@@ -590,16 +592,16 @@ data OtrResult
   = OtrSent !Public.ClientMismatch
   | OtrMissingRecipients !Public.ClientMismatch
 
-handleOtrResult :: OtrResult -> Response
+handleOtrResult :: OtrResult -> Galley Response
 handleOtrResult = \case
-  OtrSent m -> json m & setStatus status201
-  OtrMissingRecipients m -> json m & setStatus status412
+  OtrSent m -> pure $ json m & setStatus status201
+  OtrMissingRecipients m -> pure $ json m & setStatus status412
 
 postBotMessageH :: BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   message <- fromJsonBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postBotMessage zbot zcnv val' message
+  handleOtrResult =<< postBotMessage zbot zcnv val' message
 
 data LegalholdProtectee'
   = ProtectedUser' UserId
@@ -622,29 +624,36 @@ postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
+  handleOtrResult =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val' message
 
-postOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage -> Galley Response
-postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
-  message <- fromJsonBody req
-  let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
+postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
+  let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
+      overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
+  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv overallResovedMissingOptions message
+  where
+    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
+    translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
+    translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
 
-postOtrMessage :: UserId -> ConnId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
-postOtrMessage zusr zcon cnv val message =
-  postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val message
+    resolveQueryMissingOptions :: Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.OtrFilterMissing
+    resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
+    resolveQueryMissingOptions (Just Public.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
+    resolveQueryMissingOptions (Just (Public.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
+    resolveQueryMissingOptions Nothing (Just Public.ReportMissingAll) = Public.OtrReportAllMissing
+    resolveQueryMissingOptions Nothing (Just (Public.ReportMissingList uids)) = Public.OtrReportMissing uids
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
+  handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage -> Galley Response
 postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   message <- fromJsonBody req
   let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult <$> postOtrBroadcast zusr zcon val' message
+  handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast :: UserId -> ConnId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postOtrBroadcast zusr zcon val message =
@@ -1076,7 +1085,7 @@ checkOtrRecipients usr sid prs vms vcs val now
     mismatch :: ClientMismatch
     mismatch =
       ClientMismatch
-        { cmismatchTime = now,
+        { cmismatchTime = toUTCTimeMillis now,
           missingClients = UserClients (Clients.toMap missing),
           redundantClients = UserClients (Clients.toMap redundant),
           deletedClients = UserClients (Clients.toMap deleted)

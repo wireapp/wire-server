@@ -24,7 +24,7 @@ import Data.CommaSeparatedList
 import Data.Domain
 import Data.Id (ConvId, TeamId)
 import Data.Range
-import Data.Swagger
+import qualified Data.Swagger as Swagger
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import qualified Servant
@@ -34,7 +34,7 @@ import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Event.Conversation as Public
-import qualified Wire.API.Event.Team as Public ()
+import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import qualified Wire.API.Team.Conversation as Public
 
@@ -48,9 +48,14 @@ type UpdateResponses =
      NoContent
    ]
 
+type PostOtrResponses =
+  '[ WithStatus 201 Public.ClientMismatch,
+     WithStatus 412 Public.ClientMismatch
+   ]
+
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
-instance ToSchema Servant.NoContent where
-  declareNamedSchema _ = declareNamedSchema (Proxy @())
+instance Swagger.ToSchema Servant.NoContent where
+  declareNamedSchema _ = Swagger.declareNamedSchema (Proxy @())
 
 data Api routes = Api
   { -- Conversations
@@ -213,11 +218,46 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Delete '[] (EmptyResult 200)
+        :> Delete '[] (EmptyResult 200),
+    postOtrMessage ::
+      routes
+        :- Summary "Post an encrypted message to a conversation (accepts JSON)"
+        :> Description PostOtrDescription
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> QueryParam "ignore_missing" Public.IgnoreMissing
+        :> QueryParam "report_missing" Public.ReportMissing
+        :> "otr"
+        :> "messages"
+        :> ReqBody '[Servant.JSON] Public.NewOtrMessage
+        :> UVerb 'POST '[Servant.JSON] PostOtrResponses
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi Api
 
-swaggerDoc :: Swagger
+type PostOtrDescription =
+  "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
+  \To override this, the endpoint accepts two query params:\n\
+  \- `ignore_missing`: Can be 'true' 'false' or a comma separated list of user IDs.\n\
+  \  - When 'true' all missing clients are ignored.\n\
+  \  - When 'false' all missing clients are reported.\n\
+  \  - When comma separated list of user-ids, only clients for listed users are ignored.\n\
+  \- `report_missing`: Can be 'true' 'false' or a comma separated list of user IDs.\n\
+  \  - When 'true' all missing clients are reported.\n\
+  \  - When 'false' all missing clients are ignored.\n\
+  \  - When comma separated list of user-ids, only clients for listed users are reported.\n\
+  \\n\
+  \Apart from these, the request body also accepts `report_missing` which can only be a list of user ids and behaves the same way as the query parameter.\n\
+  \\n\
+  \All three of these should be considered mutually exclusive. The server however does not error if more than one is specified, it reads them in this order of precedence:\n\
+  \- `report_missing` in the request body has highest precedence.\n\
+  \- `ignore_missing` in the query param is the next.\n\
+  \- `report_missing` in the query param has the lowest precedence.\n\
+  \\n\
+  \This endpoint can lead to OtrMessageAdd event being sent to the recipients."
+
+swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)

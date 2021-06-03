@@ -47,6 +47,7 @@ module Data.Schema
     fieldWithDocModifier,
     fieldOver,
     array,
+    set,
     nonEmptyArray,
     map_,
     enum,
@@ -72,7 +73,8 @@ where
 
 import Control.Applicative
 import Control.Comonad
-import Control.Lens hiding (element, enum, (.=))
+import Control.Lens hiding (element, enum, set, (.=))
+import qualified Control.Lens as Lens
 import Control.Monad.Trans.Cont
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
@@ -81,6 +83,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
+import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as T
@@ -232,7 +235,7 @@ instance Choice (SchemaP doc v v') where
   right' (SchemaP d i o) = SchemaP (right' d) (right' i) (right' o)
 
 instance HasDoc (SchemaP doc v v' a b) (SchemaP doc' v v' a b) doc doc' where
-  doc = lens schemaDoc $ \(SchemaP d i o) d' -> SchemaP (set doc d' d) i o
+  doc = lens schemaDoc $ \(SchemaP d i o) d' -> SchemaP (Lens.set doc d' d) i o
 
 withParser :: SchemaP doc v w a b -> (b -> A.Parser b') -> SchemaP doc v w a b'
 withParser (SchemaP (SchemaDoc d) (SchemaIn p) (SchemaOut o)) q =
@@ -366,6 +369,18 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     r = A.withArray (T.unpack name) $ \arr -> mapM (schemaIn sch) $ V.toList arr
     s = mkArray (schemaDoc sch)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
+
+set ::
+  (HasArray ndoc doc, HasName ndoc, Ord a) =>
+  ValueSchema ndoc a ->
+  ValueSchema doc (Set a)
+set sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+  where
+    name = maybe "set" ("set of " <>) (getName (schemaDoc sch))
+    r = A.withArray (T.unpack name) $ \arr ->
+      fmap Set.fromList . mapM (schemaIn sch) $ V.toList arr
+    s = mkArray (schemaDoc sch)
+    w x = A.Array . V.fromList <$> mapM (schemaOut sch) (Set.toList x)
 
 nonEmptyArray ::
   (HasArray ndoc doc, HasName ndoc, HasMinItems doc (Maybe Integer)) =>
@@ -705,6 +720,8 @@ instance ToSchema Int where schema = genericToSchema
 instance ToSchema Int32 where schema = genericToSchema
 
 instance ToSchema Int64 where schema = genericToSchema
+
+instance ToSchema Integer where schema = genericToSchema
 
 instance ToSchema Word where schema = genericToSchema
 
