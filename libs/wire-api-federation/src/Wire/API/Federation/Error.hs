@@ -25,15 +25,19 @@ import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Servant.Client as Servant
-import Wire.API.Federation.Client (FederationClientError (..), FederationError (..))
+import Wire.API.Federation.Client
+  ( FederationClientError (..),
+    FederationClientFailure (..),
+    FederationError (..),
+  )
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 federationErrorToWai :: FederationError -> Wai.Error
 federationErrorToWai (FederationUnavailable err) = federationUnavailable err
 federationErrorToWai FederationNotImplemented = federationNotImplemented
 federationErrorToWai FederationNotConfigured = federationNotConfigured
-federationErrorToWai (FederationCallFailure err) =
-  case err of
+federationErrorToWai (FederationCallFailure failure) = addErrorData $
+  case fedFailError failure of
     FederationClientRPCError msg -> federationRpcError msg
     FederationClientInvalidMethod mth ->
       federationInvalidCall
@@ -42,14 +46,14 @@ federationErrorToWai (FederationCallFailure err) =
     FederationClientOutwardError outwardErr -> federationRemoteError outwardErr
     FederationClientServantError (Servant.DecodeFailure msg _) -> federationInvalidBody msg
     FederationClientServantError (Servant.FailureResponse _ _) ->
-      Wai.Error unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
+      Wai.mkError unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
     FederationClientServantError (Servant.InvalidContentTypeHeader res) ->
-      Wai.Error
+      Wai.mkError
         unexpectedFederationResponseStatus
         "federation-invalid-content-type-header"
         ("Content-type: " <> contentType res)
     FederationClientServantError (Servant.UnsupportedContentType mediaType res) ->
-      Wai.Error
+      Wai.mkError
         unexpectedFederationResponseStatus
         "federation-unsupported-content-type"
         ("Content-type: " <> contentType res <> ", Media-Type: " <> LT.pack (show mediaType))
@@ -57,6 +61,16 @@ federationErrorToWai (FederationCallFailure err) =
       federationUnavailable . T.pack . show $ exception
   where
     contentType = LT.fromStrict . T.decodeUtf8 . maybe "" snd . find (\(name, _) -> name == "Content-Type") . Servant.responseHeaders
+    addErrorData :: Wai.Error -> Wai.Error
+    addErrorData err =
+      err
+        { Wai.errorData =
+            Just
+              Wai.FederationErrorData
+                { Wai.federrDomain = fedFailDomain failure,
+                  Wai.federrPath = T.decodeUtf8 (fedFailPath failure)
+                }
+        }
 
 noFederationStatus :: Status
 noFederationStatus = status403
@@ -69,21 +83,21 @@ federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection 
 
 federationNotImplemented :: Wai.Error
 federationNotImplemented =
-  Wai.Error
+  Wai.mkError
     noFederationStatus
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
 
 federationInvalidCode :: Word32 -> Wai.Error
 federationInvalidCode code =
-  Wai.Error
+  Wai.mkError
     unexpectedFederationResponseStatus
     "federation-invalid-code"
     ("Invalid response code from remote federator: " <> LT.pack (show code))
 
 federationInvalidBody :: Text -> Wai.Error
 federationInvalidBody msg =
-  Wai.Error
+  Wai.mkError
     unexpectedFederationResponseStatus
     "federation-invalid-body"
     ("Could not parse remote federator response: " <> LT.fromStrict msg)
@@ -97,27 +111,27 @@ federationUnexpectedBody msg =
 
 federationNotConfigured :: Wai.Error
 federationNotConfigured =
-  Wai.Error
+  Wai.mkError
     HTTP.status400
     "federation-not-enabled"
     "no federator configured"
 
 federationRpcError :: Text -> Wai.Error
 federationRpcError msg =
-  Wai.Error
+  Wai.mkError
     HTTP.status500
     "federation-rpc-error"
     (LT.fromStrict msg)
 
 federationUnavailable :: Text -> Wai.Error
 federationUnavailable err =
-  Wai.Error
+  Wai.mkError
     HTTP.status500
     "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
 
 federationRemoteError :: Proto.OutwardError -> Wai.Error
-federationRemoteError err = Wai.Error status (LT.fromStrict label) (LT.fromStrict msg)
+federationRemoteError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
   where
     decodeError :: Maybe Proto.ErrorPayload -> (Text, Text)
     decodeError Nothing = ("unknown-federation-error", "Unknown federation error")
@@ -138,4 +152,4 @@ federationRemoteError err = Wai.Error status (LT.fromStrict label) (LT.fromStric
       Proto.InvalidRequest -> HTTP.status500
 
 federationInvalidCall :: LText -> Wai.Error
-federationInvalidCall = Wai.Error HTTP.status500 "federation-invalid-call"
+federationInvalidCall = Wai.mkError HTTP.status500 "federation-invalid-call"

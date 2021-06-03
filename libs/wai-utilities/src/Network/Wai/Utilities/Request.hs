@@ -56,7 +56,7 @@ parseBody r = readBody r >>= hoistEither . fmapL Text.pack . eitherDecode'
 parseBody' :: (FromJSON a, MonadIO m, MonadThrow m) => JsonRequest a -> m a
 parseBody' r = either thrw pure =<< runExceptT (parseBody r)
   where
-    thrw msg = throwM $ Wai.Error status400 "bad-request" msg
+    thrw msg = throwM $ Wai.mkError status400 "bad-request" msg
 
 parseOptionalBody ::
   (MonadIO m, FromJSON a) =>
