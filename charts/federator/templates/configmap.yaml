@@ -28,7 +28,7 @@ data:
       port: 8080
 
     galley:
-      host: brig
+      host: galley
       port: 8080
 
     {{- with .Values.config }}
