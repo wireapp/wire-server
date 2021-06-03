@@ -20,9 +20,9 @@
 module Test.Federator.ExternalServer where
 
 import Data.Domain (Domain (..))
-import Federator.Brig (Brig)
 import Federator.ExternalServer (callLocal)
 import Federator.Options (FederationStrategy (AllowAll), RunSettings (..))
+import Federator.Service (Service)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy (embed, runM)
@@ -36,7 +36,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 import Wire.API.Federation.GRPC.Types
 
-genMock ''Brig
+genMock ''Service
 
 tests :: TestTree
 tests =
@@ -48,27 +48,27 @@ tests =
 requestBrigSuccess :: TestTree
 requestBrigSuccess =
   testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
-    runM . evalMock @Brig @IO $ do
-      mockBrigCallReturns @IO (\_ _ _ -> pure (HTTP.ok200, Just "response body"))
+    runM . evalMock @Service @IO $ do
+      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
       let request = Request Brig "/users" "\"foo\"" exampleDomain
 
-      res :: InwardResponse <- mock @Brig @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
-      actualCalls <- mockBrigCallCalls @IO
-      let expectedCall = ("/users", "\"foo\"", aValidDomain)
+      res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
+      actualCalls <- mockServiceCallCalls @IO
+      let expectedCall = (Brig, "/users", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
 requestBrigFailure :: TestTree
 requestBrigFailure =
   testCase "should translate response from brig to 'InwardResponseBody' when response has status 404" $
-    runM . evalMock @Brig @IO $ do
-      mockBrigCallReturns @IO (\_ _ _ -> pure (HTTP.notFound404, Just "response body"))
+    runM . evalMock @Service @IO $ do
+      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.notFound404, Just "response body"))
       let request = Request Brig "/users" "\"foo\"" exampleDomain
 
-      res <- mock @Brig @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
+      res <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
 
-      actualCalls <- mockBrigCallCalls @IO
-      let expectedCall = ("/users", "\"foo\"", aValidDomain)
+      actualCalls <- mockServiceCallCalls @IO
+      let expectedCall = (Brig, "/users", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseErr "Invalid HTTP status from component: 404 Not Found") res
 

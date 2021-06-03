@@ -27,6 +27,10 @@ data:
       host: brig
       port: 8080
 
+    galley:
+      host: brig
+      port: 8080
+
     {{- with .Values.config }}
 
     logNetStrings: True # log using netstrings encoding:

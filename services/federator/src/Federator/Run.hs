@@ -51,6 +51,7 @@ import qualified System.Logger.Extended as LogExt
 import UnliftIO (bracket)
 import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
+import Wire.API.Federation.GRPC.Types
 import qualified Wire.Network.DNS.Helper as DNS
 
 ------------------------------------------------------------------------------
@@ -86,8 +87,8 @@ newEnv o _dnsResolver = do
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = Opt.optSettings o
-  let _brig = mkEndpoint (Opt.brig o)
-  let _brigEndpoint = Opt.brig o
+  let _brig Brig = mkEndpoint (Opt.brig o)
+      _brig Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
   return Env {..}
   where

@@ -15,10 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Brig where
+module Federator.Service where
 
--- Is there is a point in creating an effect for each service?
---
 -- FUTUREWORK(federation): Once we authenticate the call, we should send authentication data
 -- to brig so brig can do some authorization as required.
 
@@ -32,30 +30,31 @@ import Federator.Env (brig)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
+import Wire.API.Federation.GRPC.Types
 
-newtype BrigError = BrigErrorInvalidStatus HTTP.Status
+newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
   deriving (Eq, Show)
 
-data Brig m a where
+data Service m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  BrigCall :: ByteString -> ByteString -> Domain -> Brig m (HTTP.Status, Maybe LByteString)
+  ServiceCall :: Component -> ByteString -> ByteString -> Domain -> Service m (HTTP.Status, Maybe LByteString)
 
-makeSem ''Brig
+makeSem ''Service
 
 -- FUTUREWORK(federation): Do we want to use servant client here? May make
 -- everything typed and safe
 --
 -- FUTUREWORK: Avoid letting the IO errors escape into `Embed Federator` and
 -- return them as `Left`
-interpretBrig ::
+interpretService ::
   Member (Embed Federator) r =>
-  Sem (Brig ': r) a ->
+  Sem (Service ': r) a ->
   Sem r a
-interpretBrig = interpret $ \case
-  BrigCall path body domain -> embed @Federator . liftAppIOToFederator $ do
+interpretService = interpret $ \case
+  ServiceCall component path body domain -> embed @Federator . liftAppIOToFederator $ do
     brigReq <- view brig <$> ask
     res <-
-      rpc' "brig" brigReq $
+      rpc' "brig" (brigReq component) $
         RPC.method HTTP.POST
           . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
           . RPC.body (RPC.RequestBodyBS body)

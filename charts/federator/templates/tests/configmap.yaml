@@ -13,4 +13,6 @@ data:
     brig:
       host: brig
       port: 8080
-
+    galley:
+      host: brig
+      port: 8080

@@ -28,7 +28,7 @@ import Federator.Options (RunSettings)
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
 import qualified System.Logger.Class as LC
-import Util.Options
+import Wire.API.Federation.GRPC.Types
 
 data Env = Env
   { _metrics :: Metrics,
@@ -36,8 +36,7 @@ data Env = Env
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
-    _brig :: RPC.Request,
-    _brigEndpoint :: Endpoint,
+    _brig :: Component -> RPC.Request,
     _httpManager :: HTTP.Manager
   }
 

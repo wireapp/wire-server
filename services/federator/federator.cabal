@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9838302126363c5c21222de184bbf831d238744bb2871b425aadee55a917b341
+-- hash: b7d470767dc3f1475b43b3914d7aa4572f00de52e59a396331bf20062d1e71fb
 
 name:           federator
 version:        1.0.0
@@ -19,7 +19,6 @@ build-type:     Simple
 library
   exposed-modules:
       Federator.App
-      Federator.Brig
       Federator.Discovery
       Federator.Env
       Federator.ExternalServer
@@ -27,6 +26,7 @@ library
       Federator.Options
       Federator.Remote
       Federator.Run
+      Federator.Service
       Federator.Utils.PolysemyServerError
       Federator.Validation
   other-modules:
