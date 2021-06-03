@@ -20,12 +20,10 @@
 
 module Wire.API.Routes.Public.Galley where
 
-import Control.Lens ((?~))
 import Data.CommaSeparatedList
 import Data.Domain
-import Data.Id (ConvId, TeamId, UserId)
+import Data.Id (ConvId, TeamId)
 import Data.Range
-import qualified Data.Set as Set
 import qualified Data.Swagger as Swagger
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
@@ -35,7 +33,7 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (ErrorDescription (ErrorDescription))
+import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
@@ -50,16 +48,6 @@ type UpdateResponses =
   '[ WithStatus 200 Public.Event,
      NoContent
    ]
-
-type ConversationNotFound = ErrorDescription 404 "Conversation not found"
-
-convNotFound :: ConversationNotFound
-convNotFound = ErrorDescription "no-conversation" "conversation not found"
-
-type UnknownClient = ErrorDescription 403 "Unknown Client"
-
-unknownClient :: UnknownClient
-unknownClient = ErrorDescription "unknown-client" "Sending client not known"
 
 type PostOtrResponses =
   '[ WithStatus 201 Public.ClientMismatch,
@@ -242,8 +230,8 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> QueryParam "ignore_missing" IgnoreMissing
-        :> QueryParam "report_missing" ReportMissing
+        :> QueryParam "ignore_missing" Public.IgnoreMissing
+        :> QueryParam "report_missing" Public.ReportMissing
         :> "otr"
         :> "messages"
         :> ReqBody '[Servant.JSON] Public.NewOtrMessage
@@ -252,14 +240,6 @@ data Api routes = Api
   deriving (Generic)
 
 type ServantAPI = ToServantApi Api
-
-data IgnoreMissing
-  = IgnoreMissingAll
-  | IgnoreMissingList (Set UserId)
-  deriving (Show, Eq)
-
-instance Swagger.ToParamSchema IgnoreMissing where
-  toParamSchema _ = mempty & Swagger.type_ ?~ Swagger.SwaggerString
 
 type PostOtrDescription =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
@@ -281,25 +261,6 @@ type PostOtrDescription =
   \- `report_missing` in the query param has the lowest precedence.\n\
   \\n\
   \This endpoint can lead to OtrMessageAdd event being sent to the recipients."
-
-instance FromHttpApiData IgnoreMissing where
-  parseQueryParam = \case
-    "true" -> Right IgnoreMissingAll
-    "false" -> Right $ IgnoreMissingList mempty
-    list -> IgnoreMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
-
-data ReportMissing
-  = ReportMissingAll
-  | ReportMissingList (Set UserId)
-
-instance Swagger.ToParamSchema ReportMissing where
-  toParamSchema _ = mempty & Swagger.type_ ?~ Swagger.SwaggerString
-
-instance FromHttpApiData ReportMissing where
-  parseQueryParam = \case
-    "true" -> Right ReportMissingAll
-    "false" -> Right $ ReportMissingList mempty
-    list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)

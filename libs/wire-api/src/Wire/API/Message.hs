@@ -33,6 +33,8 @@ module Wire.API.Message
     OtrFilterMissing (..),
     ClientMismatch (..),
     UserClients (..),
+    ReportMissing(..),
+    IgnoreMissing(..),
 
     -- * Swagger
     modelNewOtrMessage,
@@ -42,13 +44,17 @@ module Wire.API.Message
   )
 where
 
+import Control.Lens ((?~))
 import qualified Data.Aeson as A
+import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Id
 import Data.Json.Util
 import Data.Schema
+import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Servant (FromHttpApiData (..))
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.User.Client (UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
 
@@ -218,3 +224,32 @@ instance ToSchema ClientMismatch where
         <*> missingClients .= field "missing" schema
         <*> redundantClients .= field "redundant" schema
         <*> deletedClients .= field "deleted" schema
+
+-- QueryParams
+
+data IgnoreMissing
+  = IgnoreMissingAll
+  | IgnoreMissingList (Set UserId)
+  deriving (Show, Eq)
+
+instance S.ToParamSchema IgnoreMissing where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
+instance FromHttpApiData IgnoreMissing where
+  parseQueryParam = \case
+    "true" -> Right IgnoreMissingAll
+    "false" -> Right $ IgnoreMissingList mempty
+    list -> IgnoreMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
+
+data ReportMissing
+  = ReportMissingAll
+  | ReportMissingList (Set UserId)
+
+instance S.ToParamSchema ReportMissing where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
+instance FromHttpApiData ReportMissing where
+  parseQueryParam = \case
+    "true" -> Right ReportMissingAll
+    "false" -> Right $ ReportMissingList mempty
+    list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list

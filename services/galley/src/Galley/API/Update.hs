@@ -116,6 +116,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
+import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client as FederatedBrig
@@ -617,8 +618,8 @@ removeMember zusr zcon convId victim = do
 data OtrResult
   = OtrSent !Public.ClientMismatch
   | OtrMissingRecipients !Public.ClientMismatch
-  | OtrUnknownClient !GalleyAPI.UnknownClient
-  | OtrConversationNotFound !GalleyAPI.ConversationNotFound
+  | OtrUnknownClient !Public.UnknownClient
+  | OtrConversationNotFound !Public.ConversationNotFound
 
 handleOtrResult :: OtrResult -> Galley Response
 handleOtrResult = \case
@@ -656,7 +657,7 @@ postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val' message
 
-postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe GalleyAPI.IgnoreMissing -> Maybe GalleyAPI.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
   let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
       overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
@@ -668,12 +669,12 @@ postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
     translateToServant (OtrUnknownClient e) = Servant.respond e
     translateToServant (OtrConversationNotFound e) = Servant.respond e
 
-    resolveQueryMissingOptions :: Maybe GalleyAPI.IgnoreMissing -> Maybe GalleyAPI.ReportMissing -> Public.OtrFilterMissing
+    resolveQueryMissingOptions :: Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.OtrFilterMissing
     resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
-    resolveQueryMissingOptions (Just GalleyAPI.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
-    resolveQueryMissingOptions (Just (GalleyAPI.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
-    resolveQueryMissingOptions Nothing (Just GalleyAPI.ReportMissingAll) = Public.OtrReportAllMissing
-    resolveQueryMissingOptions Nothing (Just (GalleyAPI.ReportMissingList uids)) = Public.OtrReportMissing uids
+    resolveQueryMissingOptions (Just Public.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
+    resolveQueryMissingOptions (Just (Public.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
+    resolveQueryMissingOptions Nothing (Just Public.ReportMissingAll) = Public.OtrReportAllMissing
+    resolveQueryMissingOptions Nothing (Just (Public.ReportMissingList uids)) = Public.OtrReportMissing uids
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -1012,7 +1013,7 @@ withValidOtrRecipients protectee clt cnv rcps val now go = do
   if not alive
     then do
       Data.deleteConversation cnv
-      pure $ OtrConversationNotFound GalleyAPI.convNotFound
+      pure $ OtrConversationNotFound Public.convNotFound
     else do
       -- FUTUREWORK(federation): also handle remote members
       (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
@@ -1047,8 +1048,8 @@ handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipi
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
     pure (OtrMissingRecipients m)
-  InvalidOtrSenderUser -> pure $ OtrConversationNotFound GalleyAPI.convNotFound
-  InvalidOtrSenderClient -> pure $ OtrUnknownClient GalleyAPI.unknownClient
+  InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
+  InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient
 
 -- | Check OTR sender and recipients for validity and completeness
 -- against a given list of valid members and clients, optionally

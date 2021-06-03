@@ -111,3 +111,16 @@ instance
 
 instance (KnownNat status, KnownStatus status) => HasStatus (ErrorDescription status desc) where
   type StatusOf (ErrorDescription status desc) = status
+
+-- * Errors
+
+type ConversationNotFound = ErrorDescription 404 "Conversation not found"
+
+convNotFound :: ConversationNotFound
+convNotFound = ErrorDescription "no-conversation" "conversation not found"
+
+type UnknownClient = ErrorDescription 403 "Unknown Client"
+
+unknownClient :: UnknownClient
+unknownClient = ErrorDescription "unknown-client" "Sending client not known"
+
