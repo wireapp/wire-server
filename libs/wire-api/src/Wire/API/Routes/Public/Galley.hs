@@ -20,9 +20,10 @@
 
 module Wire.API.Routes.Public.Galley where
 
+import Control.Lens ((?~))
 import Data.CommaSeparatedList
-import Data.Id (ConvId, TeamId, UserId)
 import Data.Domain
+import Data.Id (ConvId, TeamId, UserId)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Swagger as Swagger
@@ -242,6 +243,7 @@ data Api routes = Api
     postOtrMessage ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON)"
+        :> Description PostOtrDescription
         :> ZUser
         :> ZConn
         :> "conversations"
@@ -264,7 +266,27 @@ data IgnoreMissing
 
 -- TODO: Fill this in
 instance Swagger.ToParamSchema IgnoreMissing where
-  toParamSchema _ = mempty
+  toParamSchema _ = mempty & Swagger.type_ ?~ Swagger.SwaggerString
+
+type PostOtrDescription =
+  "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
+  \To override this, the endpoint accepts two query params:\n\
+  \- `ignore_missing`: Can be 'true' 'false' or a comma separated list of user IDs.\n\
+  \  - When 'true' all missing clients are ignored.\n\
+  \  - When 'false' all missing clients are reported.\n\
+  \  - When comma separated list of user-ids, only clients for listed users are ignored.\n\
+  \\
+  \- `report_missing`: Can be 'true' 'false' or a comma separated list of user IDs.\n\
+  \  - When 'true' all missing clients are reported.\n\
+  \  - When 'false' all missing clients are ignored.\n\
+  \  - When comma separated list of user-ids, only clients for listed users are reported.\n\
+  \\n\
+  \Apart from these, the request body also accepts `report_missing` which can only be a list of user ids and behaves the same way as the query parameter.\n\
+  \\n\
+  \All three of these should be considered mutually exclusive. The server however does not error if more than one is specified, it reads them in this order of precedence:\n\
+  \- `report_missing` in the request body has highest precedence.\n\
+  \- `ignore_missing` in the query param is the next.\n\
+  \- `report_missing` in the query param has the lowest precedence."
 
 instance FromHttpApiData IgnoreMissing where
   parseQueryParam = \case
@@ -277,7 +299,7 @@ data ReportMissing
   | ReportMissingList (Set UserId)
 
 instance Swagger.ToParamSchema ReportMissing where
-  toParamSchema _ = mempty
+  toParamSchema _ = mempty & Swagger.type_ ?~ Swagger.SwaggerString
 
 instance FromHttpApiData ReportMissing where
   parseQueryParam = \case
