@@ -14,5 +14,11 @@
         "managed": true,
         "teamid": "00000002-0000-0002-0000-000200000002"
     },
-    "message_timer": 5509522199847054
+    "message_timer": 5509522199847054,
+    "qualified_users": [
+        {
+            "domain": "test.example.com",
+            "id": "00000000-0000-0000-0000-000100000001"
+        }
+    ]
 }

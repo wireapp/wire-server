@@ -8,5 +8,6 @@
         "managed": true,
         "teamid": "00000001-0000-0000-0000-000100000001"
     },
-    "receipt_mode": -1
+    "receipt_mode": -1,
+    "qualified_users": []
 }
