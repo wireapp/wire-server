@@ -266,8 +266,6 @@ data IgnoreMissing
 instance Swagger.ToParamSchema IgnoreMissing where
   toParamSchema _ = mempty
 
--- TODO: Test what happens when empty string is sent, is it backwards compatible?
--- TODO: Test what happens when true and false have different cases, is it backwards compatible?
 instance FromHttpApiData IgnoreMissing where
   parseQueryParam = \case
     "true" -> Right IgnoreMissingAll
@@ -281,8 +279,6 @@ data ReportMissing
 instance Swagger.ToParamSchema ReportMissing where
   toParamSchema _ = mempty
 
--- TODO: Test what happens when empty string is sent, is it backwards compatible?
--- TODO: Test what happens when true and false have different cases, is it backwards compatible?
 instance FromHttpApiData ReportMissing where
   parseQueryParam = \case
     "true" -> Right ReportMissingAll
