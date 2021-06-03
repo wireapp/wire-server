@@ -879,7 +879,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             ]
             !!! do
               const 404 === statusCode
-              const (Just "no-conversation") === fmap Error.label . responseJsonMaybe
+              const (Right "no-conversation") === fmap Error.label . responseJsonEither
 
         do
           doDisableLH
