@@ -47,6 +47,7 @@ import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import qualified Data.Text as Text
+import Data.Text.IO (hPutStrLn)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
@@ -59,7 +60,25 @@ import Test.Tasty.HUnit
 import qualified Test.Tasty.HUnit as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+
+-- | FUTUREWORK: Implement this function. This wrapper should make sure that
+-- wrapped tests run only when the feature flag 'legalhold' is set to
+-- 'whitelist-teams-and-implicit-consent' in galley's config. If tests marked
+-- with this are failing then assumption that
+-- 'whitelist-teams-and-implicit-consent' is set in all test environments is no
+-- longer correct.
+onlyIfLhWhitelisted :: (MonadIO m, Monad m) => m () -> m ()
+onlyIfLhWhitelisted action = do
+  let isGalleyLegalholdFeatureWhitelist = True
+  if isGalleyLegalholdFeatureWhitelist
+    then action
+    else
+      liftIO $
+        hPutStrLn
+          stderr
+          "*** skipping test. This test only works if you manually adjust the server config files\
+          \(the 'withLHWhitelist' trick does not work because it does not allow \
+          \brig to talk to the dynamically spawned galley)."
 
 tests :: Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> Nginz -> TestTree
 tests conf m z b g n =
@@ -84,17 +103,17 @@ tests conf m z b g n =
           testGroup
             "legalhold-login"
             [ test m "failure-no-team" (testRegularUserLegalHoldLogin b),
-              test m "team-user-with-legalhold-enabled" (testTeamUserLegalHoldLogin b g),
+              test m "team-user-with-legalhold-enabled" (onlyIfLhWhitelisted (testTeamUserLegalHoldLogin b g)),
               test m "failure-suspended" (testSuspendedLegalHoldLogin b),
               test m "failure-no-user" (testNoUserLegalHoldLogin b),
-              test m "failure-wrong-password" (testWrongPasswordLegalHoldLogin b g),
-              test m "always-persistent-cookie" (testLegalHoldSessionCookie b g),
-              test m "legalhold-logout" (testLegalHoldLogout b g)
+              test m "failure-wrong-password" (onlyIfLhWhitelisted (testWrongPasswordLegalHoldLogin b g)),
+              test m "always-persistent-cookie" (onlyIfLhWhitelisted (testLegalHoldSessionCookie b g)),
+              test m "legalhold-logout" (onlyIfLhWhitelisted (testLegalHoldLogout b g))
             ],
           testGroup
             "nginz"
             [ test m "nginz-login" (testNginz b n),
-              test m "nginz-legalhold-login" (testNginzLegalHold b g n),
+              test m "nginz-legalhold-login" (onlyIfLhWhitelisted (testNginzLegalHold b g n)),
               test m "nginz-login-multiple-cookies" (testNginzMultipleCookies conf b n)
             ]
         ],
@@ -107,7 +126,7 @@ tests conf m z b g n =
           test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b),
           test m "unknown-cookie" (testUnknownCookie @ZAuth.User z b),
           test m "unknown-cookie legalhold" (testUnknownCookie @ZAuth.LegalHoldUser z b),
-          test m "token mismatch" (testTokenMismatch z b g),
+          test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
           test m "suspend-inactive" (testSuspendInactiveUsers conf b)
@@ -167,7 +186,7 @@ testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
   -- create team user Alice
   (alice, tid) <- createUserWithTeam' b
-  putLegalHoldEnabled tid TeamFeatureEnabled g -- enable it for this team
+  putLHWhitelistTeam g tid !!! const 200 === statusCode
   (c, t) <- do
     -- we need to get the cookie domain from a login through nginz.  otherwise, if brig and
     -- nginz are running on different hosts, no cookie will be presented in the later requests
@@ -455,7 +474,7 @@ testRegularUserLegalHoldLogin brig = do
   legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
     const 403 === statusCode
 
-testTeamUserLegalHoldLogin :: Brig -> Galley -> Http ()
+testTeamUserLegalHoldLogin :: HasCallStack => Brig -> Galley -> Http ()
 testTeamUserLegalHoldLogin brig galley = do
   -- create team user Alice
   (alice, tid) <- createUserWithTeam brig
@@ -463,7 +482,7 @@ testTeamUserLegalHoldLogin brig galley = do
   -- fail if legalhold isn't activated yet for this user
   legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie !!! do
     const 403 === statusCode
-  putLegalHoldEnabled tid TeamFeatureEnabled galley -- enable it for this team
+  putLHWhitelistTeam galley tid !!! const 200 === statusCode
   _rs <-
     legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
       <!! const 200 === statusCode
@@ -620,8 +639,8 @@ testUnknownCookie z b = do
     const 403 === statusCode
     const (Just "invalid-credentials") =~= responseBody
 
-testTokenMismatch :: ZAuth.Env -> Brig -> Galley -> Http ()
-testTokenMismatch z brig galley = do
+testTokenMismatchLegalhold :: ZAuth.Env -> Brig -> Galley -> Http ()
+testTokenMismatchLegalhold z brig galley = do
   u <- randomUser brig
   let Just email = userEmail u
   _rs <-
@@ -635,7 +654,7 @@ testTokenMismatch z brig galley = do
     const (Just "Token mismatch") =~= responseBody
   -- try refresh with a regular AccessToken but a LegalHoldUserCookie
   (alice, tid) <- createUserWithTeam brig
-  putLegalHoldEnabled tid TeamFeatureEnabled galley -- enable it for this team
+  putLHWhitelistTeam galley tid !!! const 200 === statusCode
   _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
   let c' = decodeCookie _rs
   t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
@@ -920,7 +939,7 @@ prepareLegalHoldUser :: Brig -> Galley -> Http (UserId)
 prepareLegalHoldUser brig galley = do
   (uid, tid) <- createUserWithTeam brig
   -- enable it for this team - without that, legalhold login will fail.
-  putLegalHoldEnabled tid TeamFeatureEnabled galley
+  putLHWhitelistTeam galley tid !!! const 200 === statusCode
   return uid
 
 getCookieId :: forall u. (HasCallStack, ZAuth.UserTokenLike u) => Http.Cookie -> CookieId

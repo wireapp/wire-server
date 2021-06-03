@@ -293,6 +293,13 @@ putLegalHoldEnabled tid enabled g = do
       . lbytes (encode (Public.TeamFeatureStatusNoConfig enabled))
       . expect2xx
 
+putLHWhitelistTeam :: HasCallStack => Galley -> TeamId -> Http ResponseLBS
+putLHWhitelistTeam galley tid = do
+  put
+    ( galley
+        . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
+    )
+
 accept :: Email -> InvitationCode -> RequestBody
 accept email code = acceptWithName (Name "Bob") email code
 

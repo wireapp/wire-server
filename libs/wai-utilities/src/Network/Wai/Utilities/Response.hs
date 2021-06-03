@@ -46,7 +46,7 @@ jsonContent :: Header
 jsonContent = (hContentType, "application/json")
 
 errorRs :: Status -> LText -> LText -> Response
-errorRs s l m = errorRs' (Error s l m)
+errorRs s l m = errorRs' (mkError s l m)
 
 errorRs' :: Error -> Response
 errorRs' e = setStatus (code e) (json e)

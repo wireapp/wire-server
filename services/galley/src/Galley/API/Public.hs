@@ -76,7 +76,8 @@ servantSitemap :: ServerT GalleyAPI.ServantAPI Galley
 servantSitemap =
   genericServerT $
     GalleyAPI.Api
-      { GalleyAPI.getConversation = Query.getConversation,
+      { GalleyAPI.getUnqualifiedConversation = Query.getUnqualifiedConversation,
+        GalleyAPI.getConversation = Query.getConversation,
         GalleyAPI.getConversationRoles = Query.getConversationRoles,
         GalleyAPI.getConversationIds = Query.getConversationIds,
         GalleyAPI.getConversations = Query.getConversations,

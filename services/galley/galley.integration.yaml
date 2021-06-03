@@ -44,7 +44,7 @@ settings:
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
-    legalhold: disabled-by-default
+    legalhold: whitelist-teams-and-implicit-consent
     teamSearchVisibility: disabled-by-default
     appLock:
       defaults:

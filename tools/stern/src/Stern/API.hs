@@ -505,13 +505,13 @@ revokeIdentity emailOrPhone = Intra.revokeIdentity emailOrPhone >> return empty
 
 changeEmail :: JSON ::: UserId ::: JsonRequest EmailUpdate -> Handler Response
 changeEmail (_ ::: uid ::: req) = do
-  upd <- parseBody req !>> Error status400 "client-error"
+  upd <- parseBody req !>> mkError status400 "client-error"
   Intra.changeEmail uid upd
   return empty
 
 changePhone :: JSON ::: UserId ::: JsonRequest PhoneUpdate -> Handler Response
 changePhone (_ ::: uid ::: req) = do
-  upd <- parseBody req !>> Error status400 "client-error"
+  upd <- parseBody req !>> mkError status400 "client-error"
   Intra.changePhone uid upd
   return empty
 
@@ -525,7 +525,7 @@ deleteUser (uid ::: emailOrPhone) = do
           info $ userMsg uid . msg (val "Deleting account")
           void $ Intra.deleteAccount uid
           return empty
-        else throwE $ Error status400 "match-error" "email or phone did not match UserId"
+        else throwE $ mkError status400 "match-error" "email or phone did not match UserId"
     _ -> return $ setStatus status404 empty
   where
     checkUUID u = userId u == uid
@@ -542,10 +542,10 @@ deleteTeam (givenTid ::: email) = do
   void $ Intra.deleteBindingTeam givenTid
   return $ setStatus status202 empty
   where
-    handleNoUser = ifNothing (Error status404 "no-user" "No such user with that email")
-    handleNoTeam = ifNothing (Error status404 "no-binding-team" "No such binding team")
-    wrongMemberCount = Error status403 "wrong-member-count" "Only teams with 1 user can be deleted"
-    bindingTeamMismatch = Error status404 "binding-team-mismatch" "Binding team mismatch"
+    handleNoUser = ifNothing (mkError status404 "no-user" "No such user with that email")
+    handleNoTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
+    wrongMemberCount = mkError status403 "wrong-member-count" "Only teams with 1 user can be deleted"
+    bindingTeamMismatch = mkError status404 "binding-team-mismatch" "Binding team mismatch"
 
 isUserKeyBlacklisted :: Either Email Phone -> Handler Response
 isUserKeyBlacklisted emailOrPhone = do
@@ -597,7 +597,7 @@ setTeamFeatureFlagH ::
   TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
   Handler Response
 setTeamFeatureFlagH (tid ::: req ::: _) = do
-  status :: Public.TeamFeatureStatus a <- parseBody req !>> Error status400 "client-error"
+  status :: Public.TeamFeatureStatus a <- parseBody req !>> mkError status400 "client-error"
   empty <$ Intra.setTeamFeatureFlag @a tid status
 
 getTeamFeatureFlagNoConfigH ::
@@ -614,7 +614,7 @@ setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue) =
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
-  status :: Team.TeamSearchVisibility <- parseBody req !>> Error status400 "client-error"
+  status :: Team.TeamSearchVisibility <- parseBody req !>> mkError status400 "client-error"
   liftM json $ Intra.setSearchVisibility tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response
@@ -622,17 +622,17 @@ getTeamBillingInfo tid = do
   ti <- Intra.getTeamBillingInfo tid
   case ti of
     Just t -> return $ json t
-    Nothing -> throwE (Error status404 "no-team" "No team or no billing info for team")
+    Nothing -> throwE (mkError status404 "no-team" "No team or no billing info for team")
 
 updateTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfoUpdate -> Handler Response
 updateTeamBillingInfo (_ ::: tid ::: req) = do
-  update <- parseBody req !>> Error status400 "client-error"
+  update <- parseBody req !>> mkError status400 "client-error"
   current <- Intra.getTeamBillingInfo tid >>= handleNoTeam
   let changes = parse update current
   Intra.setTeamBillingInfo tid changes
   liftM json $ Intra.getTeamBillingInfo tid
   where
-    handleNoTeam = ifNothing (Error status404 "no-team" "No team or no billing info for team")
+    handleNoTeam = ifNothing (mkError status404 "no-team" "No team or no billing info for team")
     parse :: TeamBillingInfoUpdate -> TeamBillingInfo -> TeamBillingInfo
     parse TeamBillingInfoUpdate {..} tbi =
       tbi
@@ -648,10 +648,10 @@ updateTeamBillingInfo (_ ::: tid ::: req) = do
 
 setTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfo -> Handler Response
 setTeamBillingInfo (_ ::: tid ::: req) = do
-  billingInfo <- parseBody req !>> Error status400 "client-error"
+  billingInfo <- parseBody req !>> mkError status400 "client-error"
   current <- Intra.getTeamBillingInfo tid
   when (isJust current) $
-    throwE (Error status403 "existing-team" "Cannot set info on existing team, use update instead")
+    throwE (mkError status403 "existing-team" "Cannot set info on existing team, use update instead")
   Intra.setTeamBillingInfo tid billingInfo
   getTeamBillingInfo tid
 
@@ -661,8 +661,8 @@ getTeamInfoByMemberEmail e = do
   tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
   liftM json $ Intra.getTeamInfo tid
   where
-    handleUser = ifNothing (Error status404 "no-user" "No such user with that email")
-    handleTeam = ifNothing (Error status404 "no-binding-team" "No such binding team")
+    handleUser = ifNothing (mkError status404 "no-user" "No such user with that email")
+    handleTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
 
 getTeamInvoice :: TeamId ::: InvoiceId ::: JSON -> Handler Response
 getTeamInvoice (tid ::: iid ::: _) = do
@@ -674,7 +674,7 @@ getConsentLog e = do
   acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left e))
   when (isJust acc) $
     throwE $
-      Error status403 "user-exists" "Trying to access consent log of existing user!"
+      mkError status403 "user-exists" "Trying to access consent log of existing user!"
   consentLog <- Intra.getEmailConsentLog e
   marketo <- Intra.getMarketoResult e
   return . json $
@@ -735,7 +735,7 @@ ifNothing :: Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwE e) return
 
 noSuchUser :: Maybe a -> Handler a
-noSuchUser = ifNothing (Error status404 "no-user" "No such user")
+noSuchUser = ifNothing (mkError status404 "no-user" "No such user")
 
 mkFeaturePutGetRoute ::
   forall (a :: Public.TeamFeatureName).

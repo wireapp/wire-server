@@ -34,19 +34,19 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
+import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options (optSettings, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
+import Galley.Types.Teams hiding (Event)
 import Imports
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
@@ -196,7 +196,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
       Data.acceptConnect cid
       return $ conv {Data.convType = One2OneConv}
     badConvState =
-      Error status500 "bad-state" $
+      mkError status500 "bad-state" $
         "Connect conversation with more than 2 members: "
           <> LT.pack (show cid)
 
@@ -212,18 +212,13 @@ isRemoteMember u = isJust . find ((u ==) . rmId)
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
 
-botsAndUsers :: (Log.MonadLogger m, Traversable t) => t LocalMember -> m ([BotMember], [LocalMember])
-botsAndUsers = fmap fold . traverse botOrUser
+botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
+botsAndUsers = foldMap botOrUser
   where
     botOrUser m = case memService m of
-      Just _ -> do
-        -- we drop invalid bots here, which shouldn't happen
-        bot <- mkBotMember m
-        pure (toList bot, [])
-      Nothing ->
-        pure ([], [m])
-    mkBotMember :: Log.MonadLogger m => LocalMember -> m (Maybe BotMember)
-    mkBotMember m = pure $ newBotMember m
+      -- we drop invalid bots here, which shouldn't happen
+      Just _ -> (toList (newBotMember m), [])
+      Nothing -> ([], [m])
 
 location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
@@ -292,6 +287,12 @@ canDeleteMember deleter deletee
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+
+pushConversationEvent :: Event -> [UserId] -> [BotMember] -> Galley ()
+pushConversationEvent e users bots = do
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (map userRecipient users)) $ \p ->
+    push1 $ p & pushConn .~ Nothing
+  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
 --------------------------------------------------------------------------------
 -- Federation

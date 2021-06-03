@@ -30,7 +30,7 @@ import Control.Exception (finally)
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Retry (constantDelay, limitRetries, retrying)
+import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
@@ -92,7 +92,7 @@ import Web.Cookie
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
-import Wire.API.Federation.GRPC.Types (OutwardResponse (..))
+import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
@@ -695,6 +695,20 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
+getConvQualified :: UserId -> Qualified ConvId -> TestM ResponseLBS
+getConvQualified u convId = do
+  g <- view tsGalley
+  getConvQualified' g u convId
+
+getConvQualified' :: (MonadIO m, MonadHttp m) => GalleyR -> UserId -> Qualified ConvId -> m ResponseLBS
+getConvQualified' g u (Qualified conv domain) = do
+  get $
+    g
+      . paths ["conversations", toByteString' domain, toByteString' conv]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+
 getConvIds :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvIds u r s = do
   g <- view tsGalley
@@ -716,8 +730,7 @@ postQualifiedMembers' g zusr invitees conv = do
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g
-      -- FUTUREWORK: use an endpoint without /i/ once it's ready.
-      . paths ["i", "conversations", toByteString' conv, "members", "v2"]
+      . paths ["conversations", toByteString' conv, "members", "v2"]
       . zUser zusr
       . zConn "conn"
       . zType "access"
@@ -1576,6 +1589,19 @@ deleteTeamMember g tid owner deletee =
     !!! do
       const 202 === statusCode
 
+deleteTeam :: UserId -> TeamId -> TestM ()
+deleteTeam owner tid = do
+  g <- view tsGalley
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just defPassword))
+    )
+    !!! do
+      const 202 === statusCode
+
 -- (Duplicate of 'Galley.Intra.User.getUsers'.)
 getUsersByUid :: [UserId] -> TestM [User]
 getUsersByUid = getUsersBy "ids"
@@ -1667,15 +1693,21 @@ mkProfile quid name =
 
 -- mock federator
 
+-- | Run the given action on a temporary galley instance with access to a mock
+-- federator.
+--
+-- The `resp :: FederatedRequest -> a` argument can be used to provide a fake
+-- federator response (of an arbitrary JSON-serialisable type a) for every
+-- expected request.
 withTempMockFederator ::
   (MonadIO m, ToJSON a) =>
   Opts.Opts ->
   Domain ->
-  a ->
+  (FederatedRequest -> a) ->
   WaiTest.Session b ->
   m (b, Mock.ReceivedRequests)
 withTempMockFederator opts targetDomain resp action = liftIO . assertRightT
-  . Mock.withTempMockFederator st0 (pure oresp)
+  . Mock.withTempMockFederator st0 (pure . oresp)
   $ \st -> lift $ do
     let opts' =
           opts & Opts.optFederator
@@ -1683,7 +1715,7 @@ withTempMockFederator opts targetDomain resp action = liftIO . assertRightT
     withSettingsOverrides opts' action
   where
     st0 = Mock.initState targetDomain (Domain "example.com")
-    oresp = OutwardResponseBody (Lazy.toStrict (encode resp))
+    oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
 assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
 assertRight = \case
@@ -1692,3 +1724,21 @@ assertRight = \case
 
 assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
 assertRightT = assertRight <=< runExceptT
+
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+-- (after ~2secs).
+-- If all retries were unsuccessful, 'aFewTimes' will return the last obtained value, even
+-- if it does not satisfy the predicate.
+aFewTimes :: TestM a -> (a -> Bool) -> TestM a
+aFewTimes action good = do
+  env <- ask
+  liftIO $
+    retrying
+      (exponentialBackoff 1000 <> limitRetries 11)
+      (\_ -> pure . not . good)
+      (\_ -> runReaderT (runTestM action) env)
+
+aFewTimesAssertBool :: HasCallStack => String -> (a -> Bool) -> TestM a -> TestM ()
+aFewTimesAssertBool msg good action = do
+  result <- aFewTimes action good
+  liftIO $ assertBool msg (good result)

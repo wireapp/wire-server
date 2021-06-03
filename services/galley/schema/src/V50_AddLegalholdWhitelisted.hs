@@ -15,26 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Team where
+module V50_AddLegalholdWhitelisted
+  ( migration,
+  )
+where
 
-import Bilge
-import Bilge.RPC
-import Brig.Types.Team
-import Data.ByteString.Conversion
-import Data.Id
-import Galley.App
-import Galley.Intra.Util
+import Cassandra.Schema
 import Imports
-import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
+import Text.RawString.QQ
 
-getSize :: TeamId -> Galley TeamSize
-getSize tid = do
-  (h, p) <- brigReq
-  r <-
-    call "brig" $
-      method GET . host h . port p
-        . paths ["/i/teams", toByteString' tid, "size"]
-        . expect2xx
-  parseResponse (mkError status502 "server-error") r
+migration :: Migration
+migration = Migration 50 "Add table that defines whitelisted teams for FeatureLegalHoldWhitelistTeamsAndImplicitConsent feature setting." $ do
+  schema'
+    [r|
+      CREATE TABLE legalhold_whitelisted (
+        team uuid,
+        PRIMARY KEY (team)
+      )
+    |]

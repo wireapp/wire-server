@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f39a353c80f1b7496eb99667a495a494ad2b7126fe12890cfac1db5ce16086f
+-- hash: c1d012009b1ef15dcf63843768bedfcf8ca4b2e86ac33d5f43ab680cb82e7450
 
 name:           galley
 version:        0.83.0
@@ -190,6 +190,7 @@ executable galley-integration
       API.Teams
       API.Teams.Feature
       API.Teams.LegalHold
+      API.Teams.LegalHold.DisabledByDefault
       API.Util
       API.Util.TeamFeature
       TestHelpers
@@ -346,6 +347,7 @@ executable galley-schema
       V47_RemoveFederationIdMapping
       V48_DeleteRemoteIdentifiers
       V49_ReAddRemoteIdentifiers
+      V50_AddLegalholdWhitelisted
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -374,6 +376,7 @@ test-suite galley-types-tests
   other-modules:
       Test.Galley.API
       Test.Galley.Intra.User
+      Test.Galley.Roundtrip
       Paths_galley
   hs-source-dirs:
       test/unit
@@ -391,8 +394,10 @@ test-suite galley-types-tests
     , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-swagger
     , ssl-util
     , tasty
+    , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
     , types-common

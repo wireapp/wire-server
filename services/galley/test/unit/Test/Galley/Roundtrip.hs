@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,26 +17,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Team where
+module Test.Galley.Roundtrip
+  ( tests,
+  )
+where
 
-import Bilge
-import Bilge.RPC
-import Brig.Types.Team
-import Data.ByteString.Conversion
-import Data.Id
-import Galley.App
-import Galley.Intra.Util
+import Data.Proxy (Proxy (Proxy))
 import Imports
-import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
+import Servant.Swagger (validateEveryToJSON)
+import Test.Tasty (TestTree)
+import Test.Tasty.Hspec (testSpec)
+import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 
-getSize :: TeamId -> Galley TeamSize
-getSize tid = do
-  (h, p) <- brigReq
-  r <-
-    call "brig" $
-      method GET . host h . port p
-        . paths ["/i/teams", toByteString' tid, "size"]
-        . expect2xx
-  parseResponse (mkError status502 "server-error") r
+tests :: IO TestTree
+tests = testSpec "Roundtrip" $ validateEveryToJSON (Proxy @LegalHoldAPI.ServantAPI)

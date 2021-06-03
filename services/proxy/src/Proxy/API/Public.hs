@@ -219,10 +219,10 @@ isError :: Status -> Bool
 isError (statusCode -> c) = c < 200 || c > 299
 
 error500 :: Error
-error500 = Error status500 "internal-error" "Internal server error"
+error500 = mkError status500 "internal-error" "Internal server error"
 
 error502 :: Error
-error502 = Error status502 "bad-gateway" "Bad gateway"
+error502 = mkError status502 "bad-gateway" "Bad gateway"
 
 newtype S = S Status
 

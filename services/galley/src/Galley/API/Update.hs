@@ -191,7 +191,7 @@ updateConversationAccess usr zcon cnv update = do
   when (PrivateAccess `elem` targetAccess || PrivateAccessRole == targetRole) $
     throwM invalidTargetAccess
   -- The user who initiated access change has to be a conversation member
-  (bots, users) <- botsAndUsers =<< Data.members cnv
+  (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureConvMember users usr
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   -- The conversation has to be a group conversation
@@ -300,7 +300,7 @@ updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
 
 updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> Public.ConversationReceiptModeUpdate -> Galley UpdateResult
 updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.ConversationReceiptModeUpdate target) = do
-  (bots, users) <- botsAndUsers =<< Data.members cnv
+  (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember usr users
   current <- Data.lookupReceiptMode cnv
   if current == Just target
@@ -323,7 +323,7 @@ updateConversationMessageTimerH (usr ::: zcon ::: cnv ::: req) = do
 updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley UpdateResult
 updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
   -- checks and balances
-  (bots, users) <- botsAndUsers =<< Data.members cnv
+  (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureGroupConv conv
@@ -361,7 +361,7 @@ addCode usr zcon cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureConvMember (Data.convMembers conv) usr
   ensureAccess conv CodeAccess
-  (bots, users) <- botsAndUsers $ Data.convMembers conv
+  let (bots, users) = botsAndUsers $ Data.convMembers conv
   key <- mkKey cnv
   mCode <- Data.lookupCode key ReusableCode
   case mCode of
@@ -391,7 +391,7 @@ rmCode usr zcon cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureConvMember (Data.convMembers conv) usr
   ensureAccess conv CodeAccess
-  (bots, users) <- botsAndUsers $ Data.convMembers conv
+  let (bots, users) = botsAndUsers $ Data.convMembers conv
   key <- mkKey cnv
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
@@ -464,7 +464,7 @@ joinConversation zusr zcon cnv access = do
   -- NOTE: When joining conversations, all users become members
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
-  mems <- botsAndUsers (Data.convMembers conv)
+  let mems = botsAndUsers (Data.convMembers conv)
   addToConversation mems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) [] conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
@@ -481,13 +481,10 @@ mapUpdateToServant :: UpdateResult -> Galley (Union UpdateResponses)
 mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
 mapUpdateToServant Unchanged = Servant.respond NoContent
 
--- FUTUREWORK(federation): Before 'addMembers' in its current form can be made
--- public by exposing 'addMembersToConversationV2' (currently hidden using /i/
--- prefix), i.e. by allowing remote members to be actually added in any environment,
--- we need the following checks/implementation:
+-- FUTUREWORK(federation): we need the following checks/implementation:
 --  - (1) [DONE] Remote qualified users must exist before they can be added (a
 --  call to the respective backend should be made): Avoid clients making up random
---  Ids, and increase the chances that the updateConversationMembership call
+--  Ids, and increase the chances that the updateConversationMemberships call
 --  suceeds
 --  - (2) A call must be made to the remote backend informing it that this user is
 --  now part of that conversation. Use and implement 'updateConversationMemberships'.
@@ -500,7 +497,7 @@ mapUpdateToServant Unchanged = Servant.respond NoContent
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing convNotFound
-  mems <- botsAndUsers (Data.convMembers conv)
+  let mems = botsAndUsers (Data.convMembers conv)
   self <- getSelfMember zusr (snd mems)
   ensureActionAllowed AddConversationMember self
   let invitedUsers = toList $ Public.invQUsers invite
@@ -575,7 +572,7 @@ updateOtherMember zusr zcon cid victim update = do
   when (zusr == victim) $
     throwM invalidTargetUserOp
   conv <- getConversationAndCheckMembership zusr cid
-  (bots, users) <- botsAndUsers (Data.convMembers conv)
+  let (bots, users) = botsAndUsers (Data.convMembers conv)
   ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
   memTarget <- getOtherMember victim users
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
@@ -589,7 +586,7 @@ removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
 removeMember zusr zcon convId victim = do
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
   conv <- Data.conversation convId >>= ifNothing convNotFound
-  (bots, users) <- botsAndUsers (Data.convMembers conv)
+  let (bots, users) = botsAndUsers (Data.convMembers conv)
   genConvChecks conv users
   case Data.convTeam conv of
     Nothing -> pure ()
@@ -777,7 +774,7 @@ updateConversationName zusr zcon cnv convRename = do
   unless alive $ do
     Data.deleteConversation cnv
     throwM convNotFound
-  (bots, users) <- botsAndUsers =<< Data.members cnv
+  (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationName =<< getSelfMember zusr users
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
@@ -838,7 +835,7 @@ addBot zusr zcon b = do
   pure e
   where
     regularConvChecks c = do
-      (bots, users) <- botsAndUsers (Data.convMembers c)
+      let (bots, users) = botsAndUsers (Data.convMembers c)
       unless (zusr `isMember` users) $
         throwM convNotFound
       ensureGroupConv c
@@ -861,7 +858,7 @@ rmBot zusr zcon b = do
   c <- Data.conversation (b ^. rmBotConv) >>= ifNothing convNotFound
   unless (zusr `isMember` Data.convMembers c) $
     throwM convNotFound
-  (bots, users) <- botsAndUsers (Data.convMembers c)
+  let (bots, users) = botsAndUsers (Data.convMembers c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
     then pure Unchanged
     else do

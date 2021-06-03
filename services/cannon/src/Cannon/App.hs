@@ -153,7 +153,7 @@ readLoop ws s = loop
 
 rejectOnError :: PendingConnection -> HandshakeException -> IO a
 rejectOnError p x = do
-  let f lb mg = toStrict . encode $ Error status400 lb mg
+  let f lb mg = toStrict . encode $ mkError status400 lb mg
   case x of
     NotSupported -> rejectRequest p (f "protocol not supported" "N/A")
     MalformedRequest _ m -> rejectRequest p (f "malformed-request" (Text.pack m))

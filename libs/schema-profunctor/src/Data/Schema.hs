@@ -503,9 +503,11 @@ text :: Text -> ValueSchema NamedSwaggerDoc Text
 text name =
   named name $
     mkSchema
-      (pure mempty)
+      (pure d)
       (A.withText (T.unpack name) pure)
       (pure . A.String)
+  where
+    d = mempty & S.type_ ?~ S.SwaggerString
 
 -- | A schema for a textual value with possible failure.
 parsedText ::

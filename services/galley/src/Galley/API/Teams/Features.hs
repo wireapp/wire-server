@@ -192,6 +192,9 @@ getLegalholdStatusInternal tid = do
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   do
+    -- this extra do is to encapsulate the assertions running before the actual operation.
+    -- enabeling LH for teams is only allowed in normal operation; disabled-permanently and
+    -- whitelist-teams have no or their own way to do that, resp.
     featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
     case featureLegalHold of
       FeatureLegalHoldDisabledByDefault -> do
@@ -200,6 +203,8 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
         throwM legalHoldFeatureFlagNotEnabled
       FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
         throwM legalHoldWhitelistedOnly
+
+  -- we're good to update the status now.
   case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
     Public.TeamFeatureEnabled -> do

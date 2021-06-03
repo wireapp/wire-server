@@ -9,5 +9,5 @@ tags:
   team-settings: false
   account-pages: false
   legalhold: false
-  federator: false
+  federator: false # see also galley.config.enableFederator and brig.config.enableFederator
   sftd: false

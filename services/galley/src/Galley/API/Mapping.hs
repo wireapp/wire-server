@@ -51,7 +51,7 @@ conversationView uid conv = do
           +++ val " is not a member of conv "
           +++ idToText (convId conv)
       throwM badState
-    badState = Error status500 "bad-state" "Bad internal member state."
+    badState = mkError status500 "bad-state" "Bad internal member state."
 
 -- | View for a given user of a stored conversation.
 -- Returns 'Nothing' when the user is not part of the conversation.
