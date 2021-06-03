@@ -185,9 +185,6 @@ data OtrFilterMissing
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtrFilterMissing)
 
--- TODO: Verify if the change from UTCTime to UTCTimeMillis has any significant
--- effect. The ToJSON instance was already translating it to millis and fromJSON
--- didn't care for it (as it is never being sent by clients)
 data ClientMismatch = ClientMismatch
   { cmismatchTime :: UTCTimeMillis,
     -- | Clients that the message /should/ have been encrypted for, but wasn't.

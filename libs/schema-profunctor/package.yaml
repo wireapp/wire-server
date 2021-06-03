@@ -23,6 +23,7 @@ library:
     - text
     - transformers
     - vector
+    - containers
 tests:
   schemas-tests:
     main: Main.hs
