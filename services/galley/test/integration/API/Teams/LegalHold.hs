@@ -29,6 +29,7 @@ import qualified API.SQS as SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
+import qualified Bilge.TestSession as BilgeTest
 import Brig.Types.Client
 import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserSet (..))
 import Brig.Types.Provider
@@ -71,12 +72,10 @@ import Galley.Types.Teams
 import Gundeck.Types.Notification (ntfPayload)
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
-import Network.Wai
 import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
-import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Response as Wai
 import System.IO (hPutStrLn)
@@ -1350,7 +1349,7 @@ withDummyTestServiceForTeamNoService go = do
 -- it's here for historical reason because we did this in galley.yaml
 -- at some point in the past rather than in an internal end-point, and that required spawning
 -- another galley 'Application' with 'withSettingsOverrides'.
-withLHWhitelist :: forall a. HasCallStack => TeamId -> WaiTest.Session a -> TestM a
+withLHWhitelist :: forall a. HasCallStack => TeamId -> BilgeTest.SessionT TestM a -> TestM a
 withLHWhitelist tid action = do
   void $ putLHWhitelistTeam tid
   opts <- view tsGConf

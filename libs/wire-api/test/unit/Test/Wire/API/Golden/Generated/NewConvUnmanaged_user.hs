@@ -18,8 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.NewConvUnmanaged_user where
 
+import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
+import Data.Qualified (Qualified (Qualified))
 import qualified Data.Set as Set (fromList)
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False), Maybe (Just, Nothing), fromJust)
@@ -38,6 +40,7 @@ import Wire.API.Conversation
         newConvAccessRole,
         newConvMessageTimer,
         newConvName,
+        newConvQualifiedUsers,
         newConvReceiptMode,
         newConvTeam,
         newConvUsers,
@@ -48,6 +51,9 @@ import Wire.API.Conversation
   )
 import Wire.API.Conversation.Role (parseRoleName)
 
+testDomain :: Domain
+testDomain = Domain "testdomain.example.com"
+
 testObject_NewConvUnmanaged_user_1 :: NewConvUnmanaged
 testObject_NewConvUnmanaged_user_1 =
   NewConvUnmanaged
@@ -56,6 +62,7 @@ testObject_NewConvUnmanaged_user_1 =
             [ (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
               (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Nothing,
           newConvAccess = Set.fromList [PrivateAccess, InviteAccess],
           newConvAccessRole = Just ActivatedAccessRole,
@@ -77,6 +84,7 @@ testObject_NewConvUnmanaged_user_2 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [],
+          newConvQualifiedUsers = [Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) testDomain],
           newConvName = Just "\128527\1061495",
           newConvAccess = Set.fromList [],
           newConvAccessRole = Just PrivateAccessRole,
@@ -103,6 +111,7 @@ testObject_NewConvUnmanaged_user_3 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [],
+          newConvQualifiedUsers = [],
           newConvName = Just "f",
           newConvAccess = Set.fromList [InviteAccess, LinkAccess, CodeAccess],
           newConvAccessRole = Just ActivatedAccessRole,
@@ -129,6 +138,7 @@ testObject_NewConvUnmanaged_user_4 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [],
+          newConvQualifiedUsers = [],
           newConvName = Just "\135359\70751z",
           newConvAccess = Set.fromList [CodeAccess],
           newConvAccessRole = Nothing,
@@ -159,6 +169,7 @@ testObject_NewConvUnmanaged_user_5 =
               (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
               (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Just "X9",
           newConvAccess = Set.fromList [InviteAccess, LinkAccess],
           newConvAccessRole = Nothing,
@@ -185,6 +196,7 @@ testObject_NewConvUnmanaged_user_6 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [],
+          newConvQualifiedUsers = [],
           newConvName = Just "`3",
           newConvAccess = Set.fromList [LinkAccess],
           newConvAccessRole = Just TeamAccessRole,
@@ -200,6 +212,7 @@ testObject_NewConvUnmanaged_user_7 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [(Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000400000004")))],
+          newConvQualifiedUsers = [],
           newConvName = Just "\1038759\b\1057989'",
           newConvAccess = Set.fromList [],
           newConvAccessRole = Just ActivatedAccessRole,
@@ -221,6 +234,7 @@ testObject_NewConvUnmanaged_user_8 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [(Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))],
+          newConvQualifiedUsers = [],
           newConvName = Just "",
           newConvAccess = Set.fromList [InviteAccess],
           newConvAccessRole = Just ActivatedAccessRole,
@@ -250,6 +264,7 @@ testObject_NewConvUnmanaged_user_9 =
             [ (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Just "L",
           newConvAccess = Set.fromList [PrivateAccess, InviteAccess, LinkAccess],
           newConvAccessRole = Just ActivatedAccessRole,
@@ -268,6 +283,7 @@ testObject_NewConvUnmanaged_user_10 =
             [ (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Just "",
           newConvAccess = Set.fromList [PrivateAccess, CodeAccess],
           newConvAccessRole = Just ActivatedAccessRole,
@@ -289,6 +305,7 @@ testObject_NewConvUnmanaged_user_11 =
             [ (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Nothing,
           newConvAccess = Set.fromList [],
           newConvAccessRole = Nothing,
@@ -310,6 +327,7 @@ testObject_NewConvUnmanaged_user_12 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [],
+          newConvQualifiedUsers = [],
           newConvName = Just ">+",
           newConvAccess = Set.fromList [],
           newConvAccessRole = Nothing,
@@ -330,6 +348,7 @@ testObject_NewConvUnmanaged_user_13 =
               (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Just ".L'",
           newConvAccess = Set.fromList [],
           newConvAccessRole = Nothing,
@@ -359,6 +378,7 @@ testObject_NewConvUnmanaged_user_14 =
             [ (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
               (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Just "",
           newConvAccess = Set.fromList [CodeAccess],
           newConvAccessRole = Just NonActivatedAccessRole,
@@ -374,6 +394,7 @@ testObject_NewConvUnmanaged_user_15 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [(Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000300000003")))],
+          newConvQualifiedUsers = [],
           newConvName = Just "b\1008988",
           newConvAccess = Set.fromList [PrivateAccess, InviteAccess, CodeAccess],
           newConvAccessRole = Nothing,
@@ -395,6 +416,7 @@ testObject_NewConvUnmanaged_user_16 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [],
+          newConvQualifiedUsers = [],
           newConvName = Just "!",
           newConvAccess = Set.fromList [PrivateAccess, CodeAccess],
           newConvAccessRole = Just PrivateAccessRole,
@@ -426,6 +448,7 @@ testObject_NewConvUnmanaged_user_17 =
               (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
               (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Just "\ETXB\119338",
           newConvAccess = Set.fromList [PrivateAccess, LinkAccess, CodeAccess],
           newConvAccessRole = Nothing,
@@ -457,6 +480,7 @@ testObject_NewConvUnmanaged_user_18 =
               (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
             ],
+          newConvQualifiedUsers = [],
           newConvName = Just "sd\ACK",
           newConvAccess = Set.fromList [PrivateAccess, CodeAccess],
           newConvAccessRole = Nothing,
@@ -473,6 +497,7 @@ testObject_NewConvUnmanaged_user_19 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [(Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002")))],
+          newConvQualifiedUsers = [],
           newConvName = Just "Cu\DC1",
           newConvAccess = Set.fromList [InviteAccess, LinkAccess],
           newConvAccessRole = Nothing,
@@ -489,6 +514,7 @@ testObject_NewConvUnmanaged_user_20 =
   NewConvUnmanaged
     ( NewConv
         { newConvUsers = [],
+          newConvQualifiedUsers = [],
           newConvName = Just "\SI\1070774",
           newConvAccess = Set.fromList [PrivateAccess],
           newConvAccessRole = Nothing,

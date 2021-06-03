@@ -20,6 +20,7 @@ module API.Util.TeamFeature where
 import API.Util (zUser)
 import qualified API.Util as Util
 import Bilge
+import qualified Bilge.TestSession as BilgeTest
 import Control.Lens (view, (.~))
 import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion (toByteString')
@@ -27,11 +28,10 @@ import Data.Id (TeamId, UserId)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
-import qualified Network.Wai.Test as WaiTest
 import TestSetup
 import qualified Wire.API.Team.Feature as Public
 
-withCustomSearchFeature :: FeatureTeamSearchVisibility -> WaiTest.Session () -> TestM ()
+withCustomSearchFeature :: FeatureTeamSearchVisibility -> BilgeTest.SessionT TestM () -> TestM ()
 withCustomSearchFeature flag action = do
   opts <- view tsGConf
   let opts' = opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag
