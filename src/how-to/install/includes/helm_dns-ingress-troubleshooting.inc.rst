@@ -58,7 +58,7 @@ Inside the ``nginx-ingress-services`` directory, open ``values.yaml`` and replac
 
 Next, open ``secrets.yaml`` and add a TLS wildcard certificate and private key matching your domain. For ``example.com``, you need a certificate for ``*.example.com``. The easiest and cheapest option is `Let's Encrypt <https://letsencrypt.org/getting-started/>`__
 
-The certificate should be provided in the `PKCS 12 format<https://en.wikipedia.org/wiki/PKCS_12>` (`.p12` extension).
+The certificate should be provided in the `PKCS 12 format <https://en.wikipedia.org/wiki/PKCS_12>`__ (.p12 extension)
 
 .. note::
 
