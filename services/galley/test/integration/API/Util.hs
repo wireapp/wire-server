@@ -28,8 +28,7 @@ import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), 
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding (from, to, (#), (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask)
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch (MonadCatch, MonadMask, finally)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
@@ -1614,7 +1613,7 @@ withSettingsOverrides :: (HasGalley m, MonadIO m, MonadMask m) => Opts.Opts -> S
 withSettingsOverrides opts action = do
   (galleyApp, _, finalizer) <- liftIO $ Run.mkApp opts
   runSessionT action galleyApp
-    `Catch.finally` liftIO finalizer
+    `finally` liftIO finalizer
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
