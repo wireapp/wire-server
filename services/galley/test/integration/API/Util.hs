@@ -22,13 +22,13 @@ module API.Util where
 import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
+import Bilge.TestSession
 import Brig.Types
 import Brig.Types.Intra (ConnectionStatus (ConnectionStatus), UserAccount (..), UserSet (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
-import Control.Exception (finally)
 import Control.Lens hiding (from, to, (#), (.=))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
@@ -100,6 +100,16 @@ import qualified Wire.API.User.Client as Client
 
 -------------------------------------------------------------------------------
 -- API Operations
+
+-- | A class for monads with access to a Galley instance
+class HasGalley m where
+  viewGalley :: m GalleyR
+
+instance HasGalley TestM where
+  viewGalley = view tsGalley
+
+instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
+  viewGalley = lift viewGalley
 
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
