@@ -26,18 +26,11 @@ data ErrorDescription (status :: Nat) (desc :: Symbol) = ErrorDescription
 
 instance (KnownNat status, KnownSymbol desc) => ToSchema (ErrorDescription status desc) where
   schema =
-    addDoc $
-      object "ErrorDescription" $
-        ErrorDescription
-          <$> label .= field "label" schema
-          <*> message .= field "message" schema
-          <* const (natVal (Proxy @status)) .= field "status" schema
-    where
-      -- FUTUREWORK: Make this description go into swagger's response
-      -- description
-      addDoc sch =
-        sch
-          & Swagger.schema . Swagger.description ?~ Text.pack (symbolVal (Proxy @desc))
+    object "ErrorDescription" $
+      ErrorDescription
+        <$> label .= field "label" schema
+        <*> message .= field "message" schema
+        <* const (natVal (Proxy @status)) .= field "code" schema
 
 -- | This insance works with 'UVerb' only becaue of the following overlapping
 -- instance for 'UVerb method cs (ErrorDescription status desc ': rest))'
@@ -125,4 +118,3 @@ type UnknownClient = ErrorDescription 403 "Unknown Client"
 
 unknownClient :: UnknownClient
 unknownClient = ErrorDescription "unknown-client" "Sending client not known"
-
