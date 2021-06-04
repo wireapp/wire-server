@@ -1,4 +1,8 @@
 {
-    "conversation_role": "ofyvdxbbaf291eyoxm1i16mv2wfa52snql2p9os7shshqpfiw7ivbstjt_nkdqt6_9lz3on3r1nnur8ydc4xae4xf8i2iuu7",
+    "conversation_role": "wire_member",
+    "qualified_id": {
+        "domain": "faraway.example.com",
+        "id": "00000046-0000-0027-0000-003c00000022"
+    },
     "id": "00000046-0000-0027-0000-003c00000022"
 }

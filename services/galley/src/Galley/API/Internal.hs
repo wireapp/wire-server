@@ -45,7 +45,7 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember)
+import Galley.API.Util (JSON, isMember, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -303,6 +303,7 @@ rmUser user conn = do
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
     leaveConversations :: List1 UserId -> Cql.Page ConvId -> Galley ()
     leaveConversations u ids = do
+      localDomain <- viewFederationDomain
       cc <- Data.conversations (Cql.result ids)
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
@@ -311,9 +312,9 @@ rmUser user conn = do
         RegularConv
           | user `isMember` Data.convMembers c -> do
             -- FUTUREWORK: deal with remote members, too, see removeMembers
-            e <- Data.removeLocalMembers c user u
+            e <- Data.removeLocalMembers localDomain c user u
             return $
-              (Intra.newPush ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPush ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

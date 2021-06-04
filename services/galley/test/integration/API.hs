@@ -177,7 +177,8 @@ metrics = do
 postConvOk :: TestM ()
 postConvOk = do
   c <- view tsCannon
-  alice <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
   bob <- randomUser
   jane <- randomUser
   connectUsers alice (list1 bob [jane])
@@ -192,15 +193,15 @@ postConvOk = do
     print rsp
     cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, bob, jane]
-    liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])
+    liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qalice) (zip cvs [wsA, wsB, wsJ])
   where
     convView cnv usr = responseJsonUnsafeWithMsg "conversation" <$> getConv usr cnv
-    checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
+    checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= cnvId cnv
+      evtConv e @?= Qualified (cnvId cnv) (qDomain qalice)
       evtType e @?= ConvCreate
-      evtFrom e @?= alice
+      evtFrom e @?= qalice
       case evtData e of
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
@@ -209,12 +210,15 @@ postConvOk = do
 -- cannon.
 postCryptoMessage1 :: TestM ()
 postCryptoMessage1 = do
+  localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  let qalice = Qualified alice localDomain
+      qconv = Qualified conv localDomain
   -- WS receive timeout
   let t = 5 # Second
   -- Missing eve
@@ -228,18 +232,18 @@ postCryptoMessage1 = do
     postOtrMessage id alice ac conv m2 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext2")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr conv alice ac ec "ciphertext2")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext2")
+    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec "ciphertext2")
   -- Redundant self
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
     let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (eve, ec, "ciphertext3")]
     postOtrMessage id alice ac conv m3 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext3")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr conv alice ac ec "ciphertext3")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext3")
+    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec "ciphertext3")
     -- Alice should not get it
-    assertNoMsg wsA (wsAssertOtr conv alice ac ac "ciphertext3")
+    assertNoMsg wsA (wsAssertOtr qconv qalice ac ac "ciphertext3")
   -- Deleted eve
   WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
     deleteClient eve ec (Just defPassword) !!! const 200 === statusCode
@@ -247,19 +251,19 @@ postCryptoMessage1 = do
     postOtrMessage id alice ac conv m4 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [] [(eve, Set.singleton ec)] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext4")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext4")
     -- Eve should not get it
-    assertNoMsg wsE (wsAssertOtr conv alice ac ec "ciphertext4")
+    assertNoMsg wsE (wsAssertOtr qconv qalice ac ec "ciphertext4")
   -- Deleted eve & redundant self
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
     let m5 = [(bob, bc, "ciphertext5"), (eve, ec, "ciphertext5"), (alice, ac, "ciphertext5")]
     postOtrMessage id alice ac conv m5 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [(eve, Set.singleton ec)] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc "ciphertext5")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext5")
     -- Neither Alice nor Eve should get it
-    assertNoMsg wsA (wsAssertOtr conv alice ac ac "ciphertext5")
-    assertNoMsg wsE (wsAssertOtr conv alice ac ec "ciphertext5")
+    assertNoMsg wsA (wsAssertOtr qconv qalice ac ac "ciphertext5")
+    assertNoMsg wsE (wsAssertOtr qconv qalice ac ec "ciphertext5")
   -- Missing Bob, deleted eve & redundant self
   let m6 = [(eve, ec, "ciphertext6"), (alice, ac, "ciphertext6")]
   postOtrMessage id alice ac conv m6 !!! do
@@ -283,12 +287,12 @@ postCryptoMessage1 = do
         const 201 === statusCode
         assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
       -- Bob's first client gets both messages
-      void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc cipher)
-      void . liftIO $ WS.assertMatch t wsB (wsAssertOtr conv alice ac bc2 cipher)
+      void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc cipher)
+      void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc2 cipher)
       -- Bob's second client gets only the message destined for him
-      void . liftIO $ WS.assertMatch t wsB2 (wsAssertOtr conv alice ac bc2 cipher)
+      void . liftIO $ WS.assertMatch t wsB2 (wsAssertOtr qconv qalice ac bc2 cipher)
       liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
-      assertNoMsg wsB2 (wsAssertOtr conv alice ac bc cipher)
+      assertNoMsg wsB2 (wsAssertOtr qconv qalice ac bc cipher)
 
 -- | This test verifies basic mismatch behaviour of the the JSON endpoint.
 postCryptoMessage2 :: TestM ()
@@ -418,23 +422,27 @@ postJoinConvOk :: TestM ()
 postJoinConvOk = do
   c <- view tsCannon
   alice <- randomUser
-  bob <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [InviteAccess, LinkAccess] Nothing Nothing
+  let qconv = Qualified conv (qDomain qbob)
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     postJoinConv bob conv !!! const 200 === statusCode
     postJoinConv bob conv !!! const 204 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
+        wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
   c <- view tsCannon
   alice <- randomUser
-  bob <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
   eve <- ephemeralUser
   dave <- ephemeralUser
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just ActivatedAccessRole) Nothing
+  let qconv = Qualified conv (qDomain qbob)
   cCode <- decodeConvCodeEvent <$> postConvCode alice conv
   -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
   -- POST /code gives code,key,uri
@@ -454,7 +462,7 @@ postJoinCodeConvOk = do
     postJoinCodeConv eve payload !!! const 403 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
+        wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
     -- changing access to non-activated should give eve access
     let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
@@ -467,8 +475,10 @@ postJoinCodeConvOk = do
 postConvertCodeConv :: TestM ()
 postConvertCodeConv = do
   c <- view tsCannon
-  alice <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [InviteAccess] Nothing Nothing
+  let qconv = Qualified conv (qDomain qalice)
   -- Cannot do code operations if conversation not in code access
   postConvCode alice conv !!! const 403 === statusCode
   deleteConvCode alice conv !!! const 403 === statusCode
@@ -484,7 +494,7 @@ postConvertCodeConv = do
     putAccessUpdate alice conv nonActivatedAccess !!! const 204 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA] $
-        wsAssertConvAccessUpdate conv alice nonActivatedAccess
+        wsAssertConvAccessUpdate qconv qalice nonActivatedAccess
   -- Create/get/update/delete codes
   getConvCode alice conv !!! const 404 === statusCode
   c1 <- decodeConvCodeEvent <$> (postConvCode alice conv <!! const 201 === statusCode)
@@ -504,10 +514,12 @@ postConvertCodeConv = do
 
 postConvertTeamConv :: TestM ()
 postConvertTeamConv = do
+  localDomain <- viewFederationDomain
   c <- view tsCannon
   -- Create a team conversation with team-alice, team-bob, activated-eve
   -- Non-activated mallory can join
   (alice, tid) <- createBindingTeam
+  let qalice = Qualified alice localDomain
   bob <- view Teams.userId <$> addUserToTeam alice tid
   assertQueue "team member (bob) join" $ tUpdate 2 [alice]
   refreshIndex
@@ -524,22 +536,24 @@ postConvertTeamConv = do
   conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole) Nothing Nothing
   -- mallory joins by herself
   mallory <- ephemeralUser
+  let qmallory = Qualified mallory localDomain
+      qconv = Qualified conv localDomain
   j <- decodeConvCodeEvent <$> postConvCode alice conv
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
     postJoinCodeConv mallory j !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
-        wsAssertMemberJoinWithRole conv mallory [mallory] roleNameWireMember
+        wsAssertMemberJoinWithRole qconv qmallory [qmallory] roleNameWireMember
   WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
     let teamAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
     putAccessUpdate alice conv teamAccess !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertConvAccessUpdate conv alice teamAccess
+        wsAssertConvAccessUpdate qconv qalice teamAccess
     -- non-team members get kicked out
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave conv alice [eve, mallory]
+        wsAssertMemberLeave qconv qalice [eve, mallory]
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -990,13 +1004,14 @@ leaveConnectConversation = do
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
-  aliceQ <- randomQualifiedUser
-  let alice = qUnqualified aliceQ
-  let localDomain = qDomain aliceQ
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  let localDomain = qDomain qalice
   bobId <- randomId
   let remoteDomain = Domain "far-away.example.com"
       remoteBob = Qualified bobId remoteDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
   opts <- view tsGConf
   g <- view tsGalley
   (resp, _) <-
@@ -1007,12 +1022,12 @@ testAddRemoteMember = do
       (postQualifiedMembers' g alice (remoteBob :| []) convId)
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
-    evtConv e @?= convId
+    evtConv e @?= qconvId
     evtType e @?= MemberJoin
     -- FUTUREWORK: implement returning remote users in the event.
     -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
-    evtFrom e @?= alice
-  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice (Qualified convId localDomain)
+    evtFrom e @?= qalice
+  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
@@ -1140,19 +1155,22 @@ testAddRemoteMemberFederationDisabled = do
 
 postMembersOk :: TestM ()
 postMembersOk = do
-  alice <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
   bob <- randomUser
   chuck <- randomUser
-  eve <- randomUser
+  qeve <- randomQualifiedUser
+  let eve = qUnqualified qeve
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  let qconv = Qualified conv (qDomain qalice)
   e <- responseJsonUnsafe <$> (postMembers alice (singleton eve) conv <!! const 200 === statusCode)
   liftIO $ do
-    evtConv e @?= conv
+    evtConv e @?= qconv
     evtType e @?= MemberJoin
-    evtData e @?= EdMembersJoin (SimpleMembers [SimpleMember eve roleNameWireAdmin])
-    evtFrom e @?= alice
+    evtData e @?= EdMembersJoin (SimpleMembers [SimpleMember qeve roleNameWireAdmin])
+    evtFrom e @?= qalice
   -- Check that last_event markers are set for all members
   forM_ [alice, bob, chuck, eve] $ \u -> do
     _ <- getSelfMember u conv <!! const 200 === statusCode
@@ -1255,18 +1273,20 @@ putConvRenameOk :: TestM ()
 putConvRenameOk = do
   c <- view tsCannon
   alice <- randomUser
-  bob <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
   conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  let qconv = Qualified conv (qDomain qbob)
   -- This endpoint should be deprecated but clients still use it
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= qconv
       evtType e @?= ConvRename
-      evtFrom e @?= bob
+      evtFrom e @?= qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putMemberOtrMuteOk :: TestM ()
@@ -1302,9 +1322,11 @@ putMemberOk :: MemberUpdate -> TestM ()
 putMemberOk update = do
   c <- view tsCannon
   alice <- randomUser
-  bob <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
   connectUsers alice (singleton bob)
   conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  let qconv = Qualified conv (qDomain qbob)
   getConv alice conv !!! const 200 === statusCode
   -- Expected member state
   let memberBob =
@@ -1326,9 +1348,9 @@ putMemberOk update = do
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
-      evtConv e @?= conv
+      evtConv e @?= qconv
       evtType e @?= MemberStateUpdate
-      evtFrom e @?= bob
+      evtFrom e @?= qbob
       case evtData e of
         EdMemberUpdate mis -> do
           assertEqual "otr_muted" (mupOtrMute update) (misOtrMuted mis)
@@ -1355,11 +1377,13 @@ putMemberOk update = do
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do
   c <- view tsCannon
-  alice <- randomUser
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
   bob <- randomUser
   jane <- randomUser
   connectUsers alice (list1 bob [jane])
   cnv <- decodeConvId <$> postConv alice [bob, jane] (Just "gossip") [] Nothing Nothing
+  let qcnv = Qualified cnv (qDomain qalice)
   WS.bracketR3 c alice bob jane $ \(_wsA, wsB, _wsJ) -> do
     -- By default, nothing is set
     getConv alice cnv !!! do
@@ -1371,7 +1395,7 @@ putReceiptModeOk = do
     getConv alice cnv !!! do
       const 200 === statusCode
       const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . responseJsonUnsafe
-    void . liftIO $ checkWs alice (cnv, wsB)
+    void . liftIO $ checkWs qalice (qcnv, wsB)
     -- No changes
     putReceiptMode alice cnv (ReceiptMode 0) !!! const 204 === statusCode
     -- No event should have been generated
@@ -1385,12 +1409,12 @@ putReceiptModeOk = do
     const 200 === statusCode
     const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . responseJsonUnsafe
   where
-    checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
+    checkWs qalice (qcnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= cnv
+      evtConv e @?= qcnv
       evtType e @?= ConvReceiptModeUpdate
-      evtFrom e @?= alice
+      evtFrom e @?= qalice
       case evtData e of
         EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)) ->
           assertEqual "modes should match" mode 0
@@ -1434,14 +1458,16 @@ removeUser = do
   conv1 <- decodeConvId <$> postConv alice [bob'] (Just "gossip") [] Nothing Nothing
   conv2 <- decodeConvId <$> postConv alice [bob', carl'] (Just "gossip2") [] Nothing Nothing
   conv3 <- decodeConvId <$> postConv alice [carl'] (Just "gossip3") [] Nothing Nothing
+  let qconv1 = Qualified conv1 (qDomain bob)
+      qconv2 = Qualified conv2 (qDomain bob)
   WS.bracketR3 c alice bob' carl' $ \(wsA, wsB, wsC) -> do
     deleteUser bob'
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        matchMemberLeave conv1 bob'
+        matchMemberLeave qconv1 bob
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        matchMemberLeave conv2 bob'
+        matchMemberLeave qconv2 bob
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
@@ -1460,4 +1486,4 @@ removeUser = do
       evtConv e @?= conv
       evtType e @?= MemberLeave
       evtFrom e @?= u
-      evtData e @?= EdMembersLeave (UserIdList [u])
+      evtData e @?= EdMembersLeave (UserIdList [qUnqualified u])

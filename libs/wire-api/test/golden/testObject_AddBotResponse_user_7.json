@@ -1,11 +1,19 @@
 {
     "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000000-0000-0004-0000-000300000004"
+        },
         "conversation": "00000000-0000-0004-0000-000300000004",
         "time": "1864-05-07T22:30:05.775Z",
         "data": {
             "receipt_mode": -4
         },
         "from": "00000003-0000-0001-0000-000400000001",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00000003-0000-0001-0000-000400000001"
+        },
         "type": "conversation.receipt-mode-update"
     },
     "accent_id": -4,

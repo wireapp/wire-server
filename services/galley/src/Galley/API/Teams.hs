@@ -72,6 +72,7 @@ import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import qualified Data.Map.Strict as M
 import Data.Misc (HttpsUrl)
+import Data.Qualified
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
@@ -349,12 +350,15 @@ uncheckedDeleteTeam zusr zcon tid = do
       ([Push], [(BotMember, Conv.Event)]) ->
       Galley ([Push], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
+      localDomain <- viewFederationDomain
+      let qconvId = Qualified (c ^. conversationId) localDomain
+          qorig = Qualified zusr localDomain
       (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Conv.EdConvDelete
+      let e = Conv.Event Conv.ConvDelete qconvId qorig now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPush ListComplete zusr (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
@@ -746,9 +750,12 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
               pushEvent tmids edata now dc
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
+      localDomain <- viewFederationDomain
+      let qconvId = Qualified (Data.convId dc) localDomain
+          qusr = Qualified zusr localDomain
       let (bots, users) = botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
-      let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now edata
+      let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPush (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
@@ -769,11 +776,14 @@ getTeamConversation zusr tid cid = do
 
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley (EmptyResult 200)
 deleteTeamConversation zusr zcon tid cid = do
+  localDomain <- viewFederationDomain
+  let qconvId = Qualified cid localDomain
+      qusr = Qualified zusr localDomain
   (bots, cmems) <- botsAndUsers <$> Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
-  let ce = Conv.Event Conv.ConvDelete cid zusr now Conv.EdConvDelete
+  let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete
   let recps = fmap recipient cmems
   let convPush = newPush ListComplete zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
   pushSome $ maybeToList convPush
@@ -902,8 +912,9 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
   Data.addTeamMember tid new
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
   now <- liftIO getCurrentTime
+  localDomain <- viewFederationDomain
   for_ cc $ \c ->
-    Data.addMember now (c ^. conversationId) (new ^. userId)
+    Data.addMember localDomain now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPush1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e

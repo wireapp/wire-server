@@ -16,7 +16,6 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
-import Control.Arrow (first)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
@@ -56,12 +55,12 @@ updateConversationMemberships cmu = do
   when (not (null localUsers)) $ do
     Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
   -- FUTUREWORK: the resulting event should have qualified users and conversations
-  let mems = SimpleMembers (map (uncurry SimpleMember . first qUnqualified) (cmuUsersAdd cmu))
+  let mems = SimpleMembers (map (uncurry SimpleMember) (cmuUsersAdd cmu))
   let event =
         Event
           MemberJoin
-          (qUnqualified (cmuConvId cmu))
-          (qUnqualified (cmuOrigUserId cmu))
+          (cmuConvId cmu)
+          (cmuOrigUserId cmu)
           (cmuTime cmu)
           (EdMembersJoin mems)
 

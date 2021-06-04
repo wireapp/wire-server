@@ -1,5 +1,9 @@
 {
     "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000002-0000-0004-0000-000000000004"
+        },
         "conversation": "00000002-0000-0004-0000-000000000004",
         "time": "1864-05-07T17:13:06.966Z",
         "data": {
@@ -14,6 +18,10 @@
             "target": "00000001-0000-0000-0000-000000000001"
         },
         "from": "00000002-0000-0002-0000-000100000002",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00000002-0000-0002-0000-000100000002"
+        },
         "type": "conversation.member-update"
     },
     "accent_id": 2,

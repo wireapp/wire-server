@@ -18,18 +18,20 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.SimpleMembers_user where
 
+import Data.Domain
 import Data.Id (Id (Id))
+import Data.Qualified
 import qualified Data.UUID as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.Conversation.Role (parseRoleName)
-import Wire.API.Event.Conversation (SimpleMember (SimpleMember, smConvRoleName, smId), SimpleMembers (..))
+import Wire.API.Event.Conversation (SimpleMember (..), SimpleMembers (..))
 
 testObject_SimpleMembers_user_1 :: SimpleMembers
 testObject_SimpleMembers_user_1 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000048-0000-0011-0000-002300000050"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000048-0000-0011-0000-002300000050"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -38,7 +40,7 @@ testObject_SimpleMembers_user_1 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000030-0000-003d-0000-00620000002a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000030-0000-003d-0000-00620000002a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -47,29 +49,29 @@ testObject_SimpleMembers_user_1 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001f-0000-002b-0000-005500000013"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-002b-0000-005500000013"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "n0_wuagfmm6ltcjr0n2ib7l2mdg3i0zwtzmb6aribmg2107sirkgo17wjt9d2h66nj3lerw_blivsh6by09a")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000062-0000-0017-0000-005a00000019"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000062-0000-0017-0000-005a00000019"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "4q8i3kin7cuo_xpa"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000065-0000-002e-0000-00730000002f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000065-0000-002e-0000-00730000002f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "e52wem88ym9kubyydku"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000048-0000-0068-0000-002300000042"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000048-0000-0068-0000-002300000042"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "yson37f_88qcp5chnwpjnwin427qoptb7bmlx5u2454vw95vvt241red8i1pkavlha4l9vx3cr1ajgklb")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000021-0000-0057-0000-005d00000055"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000021-0000-0057-0000-005d00000055"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -78,19 +80,19 @@ testObject_SimpleMembers_user_1 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000080-0000-0071-0000-003400000066"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000080-0000-0071-0000-003400000066"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "0otsqpgjh2ctmp22nsof114767_vow59km_e"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000036-0000-0050-0000-002a0000005b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000036-0000-0050-0000-002a0000005b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "406ogeb8o68w"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000044-0000-0025-0000-002e00000026"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000044-0000-0025-0000-002e00000026"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "vgwq1mfqei0embh6msg2q0ucobreh9jl61ql0fge66e9xe"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000059-0000-0000-0000-002e0000002d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000059-0000-0000-0000-002e0000002d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -99,15 +101,15 @@ testObject_SimpleMembers_user_1 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000014-0000-0003-0000-002600000025"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000014-0000-0003-0000-002600000025"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "9pryu0zv3nw_xtb3xr1naukqs0e"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002c-0000-0006-0000-007300000061"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002c-0000-0006-0000-007300000061"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "iy"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003f-0000-002c-0000-00670000002f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003f-0000-002c-0000-00670000002f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -116,15 +118,15 @@ testObject_SimpleMembers_user_1 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006c-0000-0072-0000-00400000002d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006c-0000-0072-0000-00400000002d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "5v6_cttr3ctgrijw4h1_gsyi41f4t3dgyh64dhcgeoxvao1h68"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000064-0000-0070-0000-000800000049"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000064-0000-0070-0000-000800000049"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "x0"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006a-0000-002e-0000-006000000070"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006a-0000-002e-0000-006000000070"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -133,7 +135,7 @@ testObject_SimpleMembers_user_1 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000059-0000-005a-0000-002300000061"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000059-0000-005a-0000-002300000061"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "vb_ng523gxc0ci13cmxscmusff8uw12hvbsvfsa"))
             }
         ]
@@ -144,7 +146,7 @@ testObject_SimpleMembers_user_2 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004c-0000-0022-0000-00720000007c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004c-0000-0022-0000-00720000007c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -153,15 +155,15 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002c-0000-0079-0000-004b0000002a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002c-0000-0079-0000-004b0000002a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "jhrez7dufl3ne050doxot1f7mhup7a0rr59472xmcvukln0cw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006d-0000-0033-0000-006d00000070"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006d-0000-0033-0000-006d00000070"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "t9e5nbirc5uv1n4jda1bo8mwc72si1wi0_hngmo0sw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000018-0000-0022-0000-001b00000048"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000018-0000-0022-0000-001b00000048"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -170,14 +172,14 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000000-0000-004e-0000-002f00000038"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-004e-0000-002f00000038"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "4o0ctcw73niokwjhjo8_65khxlxx_1o9ktctoq5kdmm39640gc2f3uc3nq99bq_93sgnhvd04wx3pgw1n1l")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003e-0000-005f-0000-004b00000038"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003e-0000-005f-0000-004b00000038"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -186,11 +188,11 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000008-0000-0030-0000-004000000062"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000008-0000-0030-0000-004000000062"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "g1lrkbr7ouvsrch981kwrz1k8un"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000071-0000-0074-0000-007500000032"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000071-0000-0074-0000-007500000032"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -199,15 +201,15 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000025-0000-003f-0000-000c0000000a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000025-0000-003f-0000-000c0000000a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "yqpt1iljztlmcsh2u3gt5s_gg1t7x81iwpp8ui501"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006f-0000-007f-0000-007300000013"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006f-0000-007f-0000-007300000013"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "vq6envh0bnegl9x1t"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000001-0000-006b-0000-00200000006a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-006b-0000-00200000006a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -216,7 +218,7 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000000-0000-0009-0000-003f00000060"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0009-0000-003f00000060"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -225,18 +227,18 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000071-0000-0077-0000-004600000064"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000071-0000-0077-0000-004600000064"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "191um99jwj93l_cv5zdb6op2a5j3tkismgxlv0jzf90zbw4hi9i611nilzp2i3dq16fj1naa0mdqou9")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005d-0000-0060-0000-000500000063"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005d-0000-0060-0000-000500000063"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "b0oxc3cm4deaiuhqlip8cerktwoqbdp_z56h8jeyfc5any"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000074-0000-0013-0000-005700000074"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000074-0000-0013-0000-005700000074"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -245,15 +247,15 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000063-0000-0078-0000-001000000046"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000063-0000-0078-0000-001000000046"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "5tsp_2"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006c-0000-0062-0000-00440000002e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006c-0000-0062-0000-00440000002e"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "xn825hf3etf479oc7vjahb"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000070-0000-0030-0000-000e00000075"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000070-0000-0030-0000-000e00000075"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -262,7 +264,7 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007b-0000-0058-0000-003000000071"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007b-0000-0058-0000-003000000071"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -271,7 +273,7 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007f-0000-0070-0000-007700000034"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007f-0000-0070-0000-007700000034"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -280,11 +282,11 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000042-0000-001c-0000-005900000054"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000042-0000-001c-0000-005900000054"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "2ogp8swsxisn1w2bohi8rcvl_1rtx0m34lr6x8sqkt9"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000c-0000-0072-0000-001100000014"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000c-0000-0072-0000-001100000014"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -293,16 +295,16 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000073-0000-0042-0000-005a0000001c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000073-0000-0042-0000-005a0000001c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "pma4ikgggpi_q0rvtdvjoff8fztnbolrl6oty_yvxm3qksaeg0l9bh8byrde5mto2f2a1rmn"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000029-0000-0042-0000-001a00000071"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000029-0000-0042-0000-001a00000071"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "njm9ltp6fr3yk2ke5skszy0xspo7blk"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000057-0000-0025-0000-002400000040"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000057-0000-0025-0000-002400000040"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -311,19 +313,19 @@ testObject_SimpleMembers_user_2 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000009-0000-0034-0000-006c00000009"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000009-0000-0034-0000-006c00000009"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "x61tv07e4higron1y"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000071-0000-0069-0000-00310000002b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000071-0000-0069-0000-00310000002b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "y7ttveh1qbqrww6el6rpjbz13kla3873tu2t"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007a-0000-0016-0000-005a0000001f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007a-0000-0016-0000-005a0000001f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "y2791q0e6ve5oof9ep"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003b-0000-0075-0000-000500000008"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003b-0000-0075-0000-000500000008"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "db051rwfps8foxf3bqqk8"))
             }
         ]
@@ -334,7 +336,7 @@ testObject_SimpleMembers_user_3 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000003-0000-001c-0000-004200000050"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000003-0000-001c-0000-004200000050"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -343,7 +345,7 @@ testObject_SimpleMembers_user_3 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000025-0000-000b-0000-005200000004"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000025-0000-000b-0000-005200000004"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -352,19 +354,19 @@ testObject_SimpleMembers_user_3 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000022-0000-0022-0000-00560000005b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000022-0000-0022-0000-00560000005b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "so7mgd7pd8f5bl2hc28161aqhqht1ii3ysfmj"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000065-0000-001d-0000-00530000001a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000065-0000-001d-0000-00530000001a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "dcd0mqj2i4w35js"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000021-0000-003e-0000-00140000005d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000021-0000-003e-0000-00140000005d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "0n5d40stfqajajw2_q70xrtjct7oursrdqbr"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000016-0000-001d-0000-002400000078"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000016-0000-001d-0000-002400000078"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "6xsb6xh6qstehp328c8pbh4z4nnkjqtv8"))
             }
         ]
@@ -375,7 +377,7 @@ testObject_SimpleMembers_user_4 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007f-0000-007b-0000-002c00000013"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007f-0000-007b-0000-002c00000013"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -384,7 +386,7 @@ testObject_SimpleMembers_user_4 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000079-0000-0021-0000-007000000061"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000079-0000-0021-0000-007000000061"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "2dpw9m0sf8_"))
             }
         ]
@@ -395,7 +397,7 @@ testObject_SimpleMembers_user_5 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000053-0000-0076-0000-00100000004e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000053-0000-0076-0000-00100000004e"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -404,7 +406,7 @@ testObject_SimpleMembers_user_5 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000001-0000-0075-0000-006500000014"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0075-0000-006500000014"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -413,11 +415,11 @@ testObject_SimpleMembers_user_5 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000a-0000-0068-0000-00100000000c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000a-0000-0068-0000-00100000000c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "48idob6a3qg0k4cyr4x5b3gvqafdeogqtnh_69ov347xwn54j"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000070-0000-000f-0000-002400000032"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000070-0000-000f-0000-002400000032"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -426,20 +428,20 @@ testObject_SimpleMembers_user_5 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002c-0000-0000-0000-007500000037"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002c-0000-0000-0000-007500000037"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "rc779wbhz5nabuxyzdrv6n9oiq06olf0"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005c-0000-0009-0000-001700000033"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005c-0000-0009-0000-001700000033"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "1yeunp1yvablh18tnsoaa8xnggbpbviyabkfh6abd9vw0mrcy3x3gu3m2jvnjhroe44y55c9"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000011-0000-004f-0000-007400000055"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000011-0000-004f-0000-007400000055"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "opmdgq5u1h4ersm_ydrpyydfv2cdlsj7uwkqaz892ajcmuwi28c197"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005b-0000-0076-0000-007f00000034"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005b-0000-0076-0000-007f00000034"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -448,7 +450,7 @@ testObject_SimpleMembers_user_5 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000044-0000-0065-0000-004f00000039"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000044-0000-0065-0000-004f00000039"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -457,11 +459,11 @@ testObject_SimpleMembers_user_5 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000f-0000-0059-0000-002100000019"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000f-0000-0059-0000-002100000019"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "d87qu8t82u8q8isnqw_0_55hpuuwnjfvra2ieaogqqdn6iwv8b"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000076-0000-0044-0000-00110000002b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000076-0000-0044-0000-00110000002b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -470,19 +472,19 @@ testObject_SimpleMembers_user_5 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007c-0000-0016-0000-001200000027"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007c-0000-0016-0000-001200000027"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "g43z_vqs1w3nubu3uuvq7eycshex3ug1mz7h50o8k4mu9q1tm_z"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003b-0000-0005-0000-002a00000003"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003b-0000-0005-0000-002a00000003"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "toatgflm9kmzec4xpbt596ti99yjqh96g4tp"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002c-0000-005d-0000-005e0000005e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002c-0000-005d-0000-005e0000005e"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "xgpcwa43"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004b-0000-004c-0000-001300000001"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004b-0000-004c-0000-001300000001"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -498,7 +500,7 @@ testObject_SimpleMembers_user_6 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000079-0000-002a-0000-004d0000001d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000079-0000-002a-0000-004d0000001d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -507,11 +509,11 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001f-0000-0042-0000-00530000002e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-0042-0000-00530000002e"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "99uoa6zruc85ailr9e9lu5537qrixoaq1ufioh4uepukbae"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000049-0000-0022-0000-003f00000045"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000049-0000-0022-0000-003f00000045"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -520,16 +522,16 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000011-0000-002d-0000-004e0000003c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000011-0000-002d-0000-004e0000003c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "xxj8_x7sgu_7j6fjxshorrc5pn_nwrx1_kft7yl8w2383w5eti15qiu0xzmaqa3913938f_"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000039-0000-0032-0000-006b0000007c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000039-0000-0032-0000-006b0000007c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "jr8qjzzzoqzxh67eh8qsqp531s0a7ji3a7vtji48tcf56g_fnjn3nax"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000071-0000-0033-0000-006e00000063"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000071-0000-0033-0000-006e00000063"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -538,7 +540,7 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005e-0000-0062-0000-00220000003f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005e-0000-0062-0000-00220000003f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -547,11 +549,11 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000036-0000-003e-0000-00330000002b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000036-0000-003e-0000-00330000002b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "v3m955rl1j5st0fk3t8l0ist2rq5lefq_wt2uwd_h6b1obaa3mt115ph0ukx"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000026-0000-0070-0000-006f00000029"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000026-0000-0070-0000-006f00000029"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -560,23 +562,23 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000059-0000-0053-0000-005e00000079"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000059-0000-0053-0000-005e00000079"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "l_1m2"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001a-0000-0069-0000-002e00000072"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001a-0000-0069-0000-002e00000072"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "e65xwo7h8khwqvfvmvj02jj2jkz3wa8bei_"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006c-0000-000a-0000-00470000007f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006c-0000-000a-0000-00470000007f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "ly60ylpqtqx3vqe00gw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001c-0000-0019-0000-007300000070"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001c-0000-0019-0000-007300000070"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "0obmr5yj455s75alew"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000017-0000-0046-0000-003e0000005c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000017-0000-0046-0000-003e0000005c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -585,7 +587,7 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000f-0000-005f-0000-006200000042"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000f-0000-005f-0000-006200000042"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -594,11 +596,11 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000d-0000-0027-0000-002300000072"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000d-0000-0027-0000-002300000072"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "_b64sbeqrp8ou_09bincmxn3"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005a-0000-004f-0000-00700000006b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005a-0000-004f-0000-00700000006b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -607,27 +609,27 @@ testObject_SimpleMembers_user_6 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000001-0000-0015-0000-000a0000000c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0015-0000-000a0000000c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "jstp31co2rpas6er_oyazeow51_1aho0uqvdvu6uqv2"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005f-0000-003c-0000-007600000061"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005f-0000-003c-0000-007600000061"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "0gk_nlyr50ot8v0s39c1wgjry6z3e78hcjtv2wmcb397ojix5l8p47tlmsvw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000076-0000-002c-0000-002d00000016"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000076-0000-002c-0000-002d00000016"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "cm"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000074-0000-001e-0000-007400000071"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000074-0000-001e-0000-007400000071"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "e9kre1i15j22d"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000051-0000-007c-0000-007b00000025"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000051-0000-007c-0000-007b00000025"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "nb8blnutjrsntylz671x"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000046-0000-0031-0000-004400000018"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000046-0000-0031-0000-004400000018"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -643,15 +645,15 @@ testObject_SimpleMembers_user_7 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000054-0000-0012-0000-005900000011"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000054-0000-0012-0000-005900000011"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "eldahjnjgyux49p6u4qxz9a0q7e"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000e-0000-004f-0000-003b0000004e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000e-0000-004f-0000-003b0000004e"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "yw31a4ikpn_zfb5fd0vee3e1536ak74rqp_qtok7xrhsn5pa"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000062-0000-0055-0000-00600000003d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000062-0000-0055-0000-00600000003d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -660,16 +662,16 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000049-0000-0058-0000-005000000000"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000049-0000-0058-0000-005000000000"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "810s8rqja"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005a-0000-0020-0000-005400000016"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005a-0000-0020-0000-005400000016"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "yb41udiftgjzo36lbvwtw9xj5qlohvljde90frfx0r26jzgpq08xeo4xw2tepnvx"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000018-0000-002f-0000-006b00000044"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000018-0000-002f-0000-006b00000044"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -678,16 +680,16 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007a-0000-0058-0000-001200000069"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007a-0000-0058-0000-001200000069"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "zze7ew9qk8gurfh"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006f-0000-0018-0000-006f00000076"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006f-0000-0018-0000-006f00000076"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "n_roifhghi_l_9b_75beixjh703zyg806b1hin3fui2nj3nj040_7r3ijtyfox4o3o"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002d-0000-0074-0000-003f00000059"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002d-0000-0074-0000-003f00000059"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -696,11 +698,11 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000057-0000-0078-0000-005700000001"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000057-0000-0078-0000-005700000001"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "kue8gimoaxn3wdbzwb2l9ygk0"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000078-0000-0080-0000-002b0000005c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000078-0000-0080-0000-002b0000005c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -709,7 +711,7 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000004-0000-007f-0000-007c00000022"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000004-0000-007f-0000-007c00000022"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -718,20 +720,20 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006f-0000-0011-0000-004100000002"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006f-0000-0011-0000-004100000002"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "hdirky_2tz3se2ehu7by2csj7a_jy7qyo1oghueqc_4h118v79xz49olrwkojns"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000042-0000-002f-0000-00030000007d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000042-0000-002f-0000-00030000007d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "9122iz2g941gnqs08mcaqa33l58irkmohj5r"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000027-0000-0014-0000-00250000003b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000027-0000-0014-0000-00250000003b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "0lyosg4pvc5q1dazb5z1v59plf2nqgs"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000e-0000-0055-0000-002200000000"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000e-0000-0055-0000-002200000000"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -740,7 +742,7 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006a-0000-0009-0000-003d0000007f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006a-0000-0009-0000-003d0000007f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -749,7 +751,7 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000018-0000-000d-0000-006d00000072"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000018-0000-000d-0000-006d00000072"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -758,11 +760,11 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000031-0000-0023-0000-005f0000004a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000031-0000-0023-0000-005f0000004a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "hcy75iscpnouf9aqpon3edkh4uln4gma0niecrde5"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000063-0000-0061-0000-006900000077"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000063-0000-0061-0000-006900000077"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -771,12 +773,12 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002e-0000-0003-0000-00790000001d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002e-0000-0003-0000-00790000001d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "y0u0avpt3orbo6xcee13613ik0sb8xcz308vkb5u33q9np2ws_pvhakw3gjbtihe3"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000052-0000-0054-0000-003e0000005b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000052-0000-0054-0000-003e0000005b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -785,20 +787,20 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000062-0000-0049-0000-005000000022"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000062-0000-0049-0000-005000000022"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "3n2q64e9ea8hxbcwm9n4mlyy330f1zoiaq_ao1d_t90kr4sahr365ji7svmbr6k58bx7o0bjeqij"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000007-0000-0069-0000-000f00000032"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000007-0000-0069-0000-000f00000032"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "x7shwqzfrj3qnlvus111ufwgzstnmmob_xhzern6niel5pahgi1_"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000003-0000-0057-0000-00680000003c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000003-0000-0057-0000-00680000003c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "1tv5og06r1a2al4kc"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000047-0000-006c-0000-003200000031"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000047-0000-006c-0000-003200000031"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -807,11 +809,11 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000074-0000-0059-0000-006800000037"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000074-0000-0059-0000-006800000037"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "uvsqtx_7v0_odhu95uke30sh454iruq9"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000050-0000-0053-0000-006f0000005d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000050-0000-0053-0000-006f0000005d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -820,11 +822,11 @@ testObject_SimpleMembers_user_7 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000037-0000-004d-0000-003e00000004"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000037-0000-004d-0000-003e00000004"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "ccqqr3w57f9exl7xuhqnr305fqteeziw7hr374is9pkpjtt_z"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000039-0000-0024-0000-003500000002"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000039-0000-0024-0000-003500000002"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -840,18 +842,18 @@ testObject_SimpleMembers_user_8 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000067-0000-003f-0000-003300000052"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000067-0000-003f-0000-003300000052"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "bmgvnfheg7304j1af2ha8kzlrdsd94sla01p8e32cfuchc4n4d4j_1"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000066-0000-001c-0000-005900000006"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000066-0000-001c-0000-005900000006"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "3z44kbvkfmhwt3cxvztk91xwigzfsqgmwx43rsi2ew7_663q5kd04afdhwes23ea8_7nn4j6hol2k1o")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000013-0000-0072-0000-005000000019"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000013-0000-0072-0000-005000000019"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -860,20 +862,20 @@ testObject_SimpleMembers_user_8 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006d-0000-003f-0000-007f00000025"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006d-0000-003f-0000-007f00000025"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "qann8z5wp43fncbnzkxuqeskdrnxclmj1qoiri6zb4ro8jzbsewewgi27xi6pnc"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000019-0000-003a-0000-006500000036"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000019-0000-003a-0000-006500000036"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "552en9ubk7gjrv"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005d-0000-0008-0000-006000000011"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005d-0000-0008-0000-006000000011"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "4fq8ylocoheanwuq9kg6amnrks"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007b-0000-0072-0000-00690000000e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007b-0000-0072-0000-00690000000e"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -882,15 +884,15 @@ testObject_SimpleMembers_user_8 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000032-0000-0039-0000-007700000022"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000032-0000-0039-0000-007700000022"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "tq"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001a-0000-003b-0000-001e00000080"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001a-0000-003b-0000-001e00000080"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "as91oohpdy"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000056-0000-005b-0000-007c00000078"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000056-0000-005b-0000-007c00000078"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "0jr8eycubw7cut6ukuegnxp5b2obst6ry8y76fe2qjro3xpp3bjvxg4c707rs1jlf"))
             }
@@ -902,11 +904,11 @@ testObject_SimpleMembers_user_9 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001a-0000-0051-0000-001100000064"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001a-0000-0051-0000-001100000064"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "85wkc4m6uzi3t_s5sb488cxhjl7i_av_erwfdtgya58oc"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000053-0000-007f-0000-00140000007a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000053-0000-007f-0000-00140000007a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -915,12 +917,12 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001b-0000-0042-0000-003800000032"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001b-0000-0042-0000-003800000032"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "pc12u7vhdqloizph96i1elxofyps02qanrr2z6_kdvl3zakyappxu7nksvj6oe6yz_ygrgii0v"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000032-0000-0032-0000-002000000005"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000032-0000-0032-0000-002000000005"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -929,12 +931,12 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000001-0000-0021-0000-007000000010"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0021-0000-007000000010"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "jcr0d3sv5pm89mkbhinm7aw5njyj0oft6vh8ste7xfn6feqkmx176x93ie9lc58kcik7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001b-0000-004b-0000-00480000000a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001b-0000-004b-0000-00480000000a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -943,7 +945,7 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000012-0000-0000-0000-00690000005d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000012-0000-0000-0000-00690000005d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -952,12 +954,12 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000024-0000-002c-0000-000a0000002b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000024-0000-002c-0000-000a0000002b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "40d1mp1rlpq_toli_xsrzzp6azj7abwn9kwyyexu8mzqanezqlkwgzs_maqszagustta7197hluh"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000e-0000-002f-0000-006c0000007e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000e-0000-002f-0000-006c0000007e"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -966,15 +968,15 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001d-0000-000c-0000-001200000072"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001d-0000-000c-0000-001200000072"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "8qz3xbrnjl34e24fvc96wl34jw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000065-0000-0005-0000-00160000007a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000065-0000-0005-0000-00160000007a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "3mcna2fo1fuhmz50gevjyc5iacna3hon9fylu4o9u48"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002e-0000-0028-0000-00240000001f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002e-0000-0028-0000-00240000001f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -983,12 +985,12 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000061-0000-0035-0000-005100000068"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000061-0000-0035-0000-005100000068"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "cxx03t4219b0e3b7u5lwxb4ua_3qif069vharpluygxmxq5vd1hcx4_3yjmtgw99yz"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000003-0000-0034-0000-00520000005a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000003-0000-0034-0000-00520000005a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -997,11 +999,11 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000007-0000-0049-0000-004c00000028"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000007-0000-0049-0000-004c00000028"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "op23mrkoau967yyy74znf7smfsr1j46m"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006c-0000-0074-0000-004100000005"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006c-0000-0074-0000-004100000005"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1010,7 +1012,7 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000000-0000-004d-0000-002a00000020"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-004d-0000-002a00000020"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1019,11 +1021,11 @@ testObject_SimpleMembers_user_9 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000058-0000-005d-0000-00100000000a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000058-0000-005d-0000-00100000000a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "uw5x_u9rn2zu0nc6f7eb_v40"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000045-0000-0044-0000-00070000005c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000045-0000-0044-0000-00070000005c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1039,7 +1041,7 @@ testObject_SimpleMembers_user_10 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000047-0000-0044-0000-005c0000003c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000047-0000-0044-0000-005c0000003c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1048,7 +1050,7 @@ testObject_SimpleMembers_user_10 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000068-0000-006a-0000-002c00000071"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000068-0000-006a-0000-002c00000071"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1057,7 +1059,7 @@ testObject_SimpleMembers_user_10 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000040-0000-0068-0000-001300000019"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000040-0000-0068-0000-001300000019"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1073,12 +1075,12 @@ testObject_SimpleMembers_user_11 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000069-0000-0074-0000-006800000058"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000069-0000-0074-0000-006800000058"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "yprw788nm_1n_l3i6g1xn1xjokilmavqko9otxa26hobs7e7s1fgruka4iom01i00aoyui37so"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001c-0000-007e-0000-003300000074"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001c-0000-007e-0000-003300000074"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1087,7 +1089,7 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000025-0000-0064-0000-007000000046"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000025-0000-0064-0000-007000000046"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1096,7 +1098,7 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000037-0000-000a-0000-00140000001a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000037-0000-000a-0000-00140000001a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1105,12 +1107,12 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004b-0000-004b-0000-005000000005"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004b-0000-004b-0000-005000000005"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "tddu3qs3p60da19ibmx92unwy8mu9goocijbeamqw4bn3d5kt6_zkm2x1j2mawr_ygt"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005b-0000-004a-0000-000f00000029"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005b-0000-004a-0000-000f00000029"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1119,7 +1121,7 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000069-0000-003e-0000-002300000076"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000069-0000-003e-0000-002300000076"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1128,44 +1130,44 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003e-0000-0047-0000-005e0000006a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003e-0000-0047-0000-005e0000006a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "ku38a6jk6fswgsgegqka_b33d6gqkwcy7egbx2rpr4pyravsymugig8l6flqxjyyl"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003d-0000-0034-0000-001100000003"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003d-0000-0034-0000-001100000003"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "x3th543fq4asgv"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000042-0000-0018-0000-006f00000063"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000042-0000-0018-0000-006f00000063"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "qc679x0r4twf5feu87fjf1dukbgbjil0otcoyim397"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000066-0000-0065-0000-00640000006c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000066-0000-0065-0000-00640000006c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "neniwbge16i_igh4jj_02qflp698pz5xy6hv435ma6q2qlxn3dyz2oao0b43gg93m"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005b-0000-0068-0000-006300000031"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005b-0000-0068-0000-006300000031"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "mbsnb3cb9i2dxlbz6h0l9_ocpa6zdmtt6708g6bi6b5o59v3s"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000025-0000-000d-0000-000000000008"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000025-0000-000d-0000-000000000008"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "bv8e7m3xfc3bt639goa1tied4"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000010-0000-0007-0000-005700000011"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000010-0000-0007-0000-005700000011"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "oejuw0rpkxojd7lwdvvmypnw5jga0w0i7kf84ryviznjgm_3nd1ls5ykcij2b_xqx9dc36hafa1lvk4x_vo_")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000059-0000-0001-0000-005e00000073"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000059-0000-0001-0000-005e00000073"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "nzqm5_qyv5uj1f47xveo_2hlkqt5n6jrb5o14invzlhe2ddo66"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000063-0000-0061-0000-005f00000045"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000063-0000-0061-0000-005f00000045"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1174,7 +1176,7 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002e-0000-001e-0000-00350000001a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002e-0000-001e-0000-00350000001a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1183,7 +1185,7 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000013-0000-005c-0000-006100000023"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000013-0000-005c-0000-006100000023"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1192,11 +1194,11 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000e-0000-0031-0000-00300000000c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000e-0000-0031-0000-00300000000c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "c3ydrescfgmvsgks6xy866xluancois0b4vl6ypsl6810rlnu"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007e-0000-002a-0000-007c0000004f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007e-0000-002a-0000-007c0000004f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1205,11 +1207,11 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000011-0000-001e-0000-001e00000054"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000011-0000-001e-0000-001e00000054"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "bhpymrq9y__8p"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005f-0000-000d-0000-004e00000016"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005f-0000-000d-0000-004e00000016"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1218,11 +1220,11 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001f-0000-005c-0000-00570000002a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-005c-0000-00570000002a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "xyep0gej_kghofx50j3bbolxbm2i58wwp0t_l0pscq4"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000003-0000-0050-0000-00110000004d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000003-0000-0050-0000-00110000004d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1231,18 +1233,18 @@ testObject_SimpleMembers_user_11 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000055-0000-006f-0000-002f0000007a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000055-0000-006f-0000-002f0000007a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "04n6"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005a-0000-0067-0000-00600000006b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005a-0000-0067-0000-00600000006b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "m1vbstno19orwr77zwq8q8ak1xxdhotqyn30kdv9fq44n2zr0rn46gqfrw8lxp7mt7eywgku3gudup")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000048-0000-007b-0000-001500000034"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000048-0000-007b-0000-001500000034"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "v_ahoalwm78dh_ggai7wusblsnlwhibegsuxe5w1ibm2cnj79a64r_s72hwigx1cw"))
             }
@@ -1254,7 +1256,7 @@ testObject_SimpleMembers_user_12 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003b-0000-0016-0000-003600000008"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003b-0000-0016-0000-003600000008"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1263,25 +1265,25 @@ testObject_SimpleMembers_user_12 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000056-0000-0050-0000-00040000006d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000056-0000-0050-0000-00040000006d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "xf6x34y4hcbgklhrr9a7jkjiclu5dv89m59b5sn40ui8iof88mse47t57ti7zch5cf866tzqua171us")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006e-0000-004e-0000-005200000050"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006e-0000-004e-0000-005200000050"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "07bbbbgwl0gkv1pfj719wn3z0n8nehby_fk3h6gs39csow68u4_3pbly54fqkng37jqxwr6ym6injx")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000069-0000-001a-0000-005c0000007b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000069-0000-001a-0000-005c0000007b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "bj5m"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004d-0000-0002-0000-005700000067"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004d-0000-0002-0000-005700000067"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1290,14 +1292,14 @@ testObject_SimpleMembers_user_12 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001b-0000-0076-0000-002800000008"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001b-0000-0076-0000-002800000008"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "z3dbyprvipeu8kl4fabnh24fo77t7gqcs0chxw34ovuru0mxeu6e_jl3s744uggcnwqcyhuzkn1ueko_k0")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000032-0000-0007-0000-000400000047"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000032-0000-0007-0000-000400000047"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1306,15 +1308,15 @@ testObject_SimpleMembers_user_12 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000054-0000-0055-0000-002800000002"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000054-0000-0055-0000-002800000002"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "dnrdny"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001c-0000-004b-0000-002c00000037"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001c-0000-004b-0000-002c00000037"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "gf52"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000034-0000-007e-0000-006100000061"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000034-0000-007e-0000-006100000061"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1323,7 +1325,7 @@ testObject_SimpleMembers_user_12 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000030-0000-000b-0000-00790000002a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000030-0000-000b-0000-00790000002a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1332,24 +1334,24 @@ testObject_SimpleMembers_user_12 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004f-0000-0043-0000-004c0000002b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004f-0000-0043-0000-004c0000002b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "gnpcz5crw82yyqtlvvvfdps3b5uxqr0a"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000079-0000-004b-0000-005e00000033"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000079-0000-004b-0000-005e00000033"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "h84nu68fxxen4b8d5i8br4gixwyntx3o597v_ds147th29_vkuxblstg9af6x3p7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003b-0000-006c-0000-000f00000059"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003b-0000-006c-0000-000f00000059"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "uboc5sab9w92"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000080-0000-001e-0000-002100000043"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000080-0000-001e-0000-002100000043"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "1mcw_zxelu_doxdkqrc5tf660toco4vdv99oecl106z1ygzfnqo6buoysg_s"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000069-0000-0047-0000-00000000004e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000069-0000-0047-0000-00000000004e"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1358,7 +1360,7 @@ testObject_SimpleMembers_user_12 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001d-0000-007e-0000-004300000036"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001d-0000-007e-0000-004300000036"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1367,7 +1369,7 @@ testObject_SimpleMembers_user_12 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000061-0000-005f-0000-00280000002d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000061-0000-005f-0000-00280000002d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "xyb65ic8vzt9x9k1i_a81f6cngzuoii"))
             }
         ]
@@ -1378,7 +1380,7 @@ testObject_SimpleMembers_user_13 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000050-0000-0074-0000-00260000002b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000050-0000-0074-0000-00260000002b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1387,7 +1389,7 @@ testObject_SimpleMembers_user_13 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000000-0000-001d-0000-005f00000055"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-001d-0000-005f00000055"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1396,12 +1398,12 @@ testObject_SimpleMembers_user_13 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000005-0000-0010-0000-003b00000043"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000005-0000-0010-0000-003b00000043"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "4kkuwyima3ztybzpf3ccy2_mrgcz2sv0nvb29bxjm90dgk6ft_14r7p0qyy12crv_z"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000040-0000-0065-0000-007000000049"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000040-0000-0065-0000-007000000049"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1410,20 +1412,20 @@ testObject_SimpleMembers_user_13 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000015-0000-007f-0000-006c0000004d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000015-0000-007f-0000-006c0000004d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "qylzcwu0dvtjvra93ocg8fyuyzzowac5yo5410wh4sveczmfq0t2y2e6cae4fux96q"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000e-0000-007b-0000-003400000043"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000e-0000-007b-0000-003400000043"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "z3id3idffe8rl53wpyrd3f2l0y56qxz"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005d-0000-000d-0000-004500000021"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005d-0000-000d-0000-004500000021"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "2voj8d_5ydou6phiassv9tzhnw185814n90y8rbx5i"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002d-0000-003c-0000-003e0000000f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002d-0000-003c-0000-003e0000000f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1432,7 +1434,7 @@ testObject_SimpleMembers_user_13 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000b-0000-0042-0000-00740000003b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000b-0000-0042-0000-00740000003b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1441,7 +1443,7 @@ testObject_SimpleMembers_user_13 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000048-0000-0039-0000-008000000004"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000048-0000-0039-0000-008000000004"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "nmhc57h6qa7lzv0d0scl8_53iwuitrlmmujkwf_vgjgn4s027b5i9hbt2nxhm1d"))
             }
@@ -1453,27 +1455,27 @@ testObject_SimpleMembers_user_14 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000049-0000-0018-0000-002200000071"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000049-0000-0018-0000-002200000071"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "5qxti74lbqe_tgvvnq7ub2xxn0e2w0"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003f-0000-004e-0000-005800000030"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003f-0000-004e-0000-005800000030"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "mwzccu_p4zazafbgnvf"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000017-0000-007e-0000-006f00000027"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000017-0000-007e-0000-006f00000027"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "rmr13bsn9lo1dil9j12jj31qdod3izckzpsrflf653suq328bmnd_kirumpr"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000005-0000-003f-0000-00280000005e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000005-0000-003f-0000-00280000005e"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "_tae"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002b-0000-0003-0000-004a0000002d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002b-0000-0003-0000-004a0000002d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "kaa5_qbk5nvvgx4jowierx"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005d-0000-0054-0000-002500000028"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005d-0000-0054-0000-002500000028"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1482,28 +1484,28 @@ testObject_SimpleMembers_user_14 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005e-0000-0002-0000-004b00000045"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005e-0000-0002-0000-004b00000045"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "o1bfk_p6xvxp7t1i6f3d57jv2_yl4nq5or1zy4vd2dh22ue895yoduwjo3wc5qzostuhbw369j"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005e-0000-0027-0000-003d00000065"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005e-0000-0027-0000-003d00000065"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "vf6s6yc5eavaytm7_6"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000035-0000-0035-0000-00010000001f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000035-0000-0035-0000-00010000001f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "n7r9vlgda6kn7ehvrz_hrl6t1p07xr42_rgp"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000054-0000-0069-0000-002e0000007c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000054-0000-0069-0000-002e0000007c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "qtfn187ab22rzoan9jy9ug2qyjisshxdeo184e8cjm"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000056-0000-005a-0000-006a0000004c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000056-0000-005a-0000-006a0000004c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "lxynbdsl575ahtb1fzz_0ucdcsmeiu4baq0ziei5"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000041-0000-0013-0000-007700000017"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000041-0000-0013-0000-007700000017"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1512,7 +1514,7 @@ testObject_SimpleMembers_user_14 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000022-0000-0071-0000-000f00000072"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000022-0000-0071-0000-000f00000072"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1521,28 +1523,28 @@ testObject_SimpleMembers_user_14 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003b-0000-003c-0000-003500000028"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003b-0000-003c-0000-003500000028"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "vitd82h50v"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000047-0000-0005-0000-001a0000007b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000047-0000-0005-0000-001a0000007b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "io1uuzbdi7sfvy93f6kgdq31xskuwc8mxphwwrpv9rxc4o8ycdu4l4_0_26hm1g03g2"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000a-0000-0039-0000-00530000006f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000a-0000-0039-0000-00530000006f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "cksijt3o36xuu324i61apsuwdi32k3l1x_oalfaqqtk"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000047-0000-0062-0000-007700000025"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000047-0000-0062-0000-007700000025"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "ru1kksg2ef5_yo7i5uwq"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000049-0000-000c-0000-002400000060"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000049-0000-000c-0000-002400000060"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "lyspep_wcyu0fegqwpmns9lzjpy49i_6ufmhkft3bbmf_yi76hzdacj7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000028-0000-001d-0000-005000000045"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000028-0000-001d-0000-005000000045"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1551,7 +1553,7 @@ testObject_SimpleMembers_user_14 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000071-0000-0014-0000-002000000080"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000071-0000-0014-0000-002000000080"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1560,7 +1562,7 @@ testObject_SimpleMembers_user_14 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000037-0000-004c-0000-006800000015"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000037-0000-004c-0000-006800000015"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1569,22 +1571,22 @@ testObject_SimpleMembers_user_14 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005a-0000-0014-0000-005c0000000b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005a-0000-0014-0000-005c0000000b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "r7xed76rtgltedolcrxbq67tyo5u5arm9ip49bo5szs24skzui_3h65_2j0md66gjlz850waloiuiqsd")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000c-0000-0059-0000-004600000053"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000c-0000-0059-0000-004600000053"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "80_0tuom0zml0hz7q8ioxscxusk7ghx63wp5o83lax5"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000050-0000-0080-0000-00350000007c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000050-0000-0080-0000-00350000007c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "ae3h61opsksj5x5if1tt3a74ehzw02ds6dqisz_5l"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000014-0000-0046-0000-008000000048"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000014-0000-0046-0000-008000000048"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1600,32 +1602,32 @@ testObject_SimpleMembers_user_15 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006a-0000-0032-0000-004f0000001e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006a-0000-0032-0000-004f0000001e"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "da1vnxfznxggp6c2qcjdx4sbo4usg7jb58hmd_ylzyr_97m9rpyg6gmw9ikw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001f-0000-005a-0000-001a00000078"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-005a-0000-001a00000078"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "asfpn3xoxsvsz8ubdt6b3b"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001a-0000-0017-0000-007e0000000c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001a-0000-0017-0000-007e0000000c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "ftkjnuoy9i1h0yyf1x87m97flhx21n2475_rsnn76nkpl9toieae7wk0y_f83ji"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001e-0000-0019-0000-00180000004c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001e-0000-0019-0000-00180000004c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "g22_kcj2fae4nspxpz30n5f6ib5bhrb"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006d-0000-001b-0000-00050000003f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006d-0000-001b-0000-00050000003f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "qzkowgmbm3t4ck1lzb96ero0d6yw79kzdf2q"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000037-0000-001c-0000-000c0000002f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000037-0000-001c-0000-000c0000002f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "cyiw0yfayzt_ynv0h94pdv0hl5u46adyyyb6n"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000047-0000-0014-0000-007e00000049"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000047-0000-0014-0000-007e00000049"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1634,16 +1636,16 @@ testObject_SimpleMembers_user_15 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000028-0000-002f-0000-004a00000063"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000028-0000-002f-0000-004a00000063"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "s1cu0tibrwjvgpa49x9sk9kuzyd4hco7pj3gnbcc8ie519vmobd70ln2im2dx_yg_qoh4rc8"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000027-0000-0075-0000-003f00000016"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000027-0000-0075-0000-003f00000016"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "e6t98s2m_0jqjwibfan257dq0tbxl452q0dcs5mkl4kn"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000045-0000-007a-0000-003900000015"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000045-0000-007a-0000-003900000015"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1652,7 +1654,7 @@ testObject_SimpleMembers_user_15 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000000-0000-0040-0000-002e0000007c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0040-0000-002e0000007c"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1661,11 +1663,11 @@ testObject_SimpleMembers_user_15 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000057-0000-0060-0000-006e0000001d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000057-0000-0060-0000-006e0000001d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "hq3mg17cd7p27q00dhyjrdu7pr4kdplicp4ipm"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000037-0000-0007-0000-006600000055"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000037-0000-0007-0000-006600000055"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1674,7 +1676,7 @@ testObject_SimpleMembers_user_15 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000032-0000-0078-0000-005100000021"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000032-0000-0078-0000-005100000021"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "8_lth324f81q1zr6nhz1jw5oeu4ovjqnl8lobb9t3azlu7hj3s62_xm30b3fie4s"))
             }
@@ -1686,7 +1688,7 @@ testObject_SimpleMembers_user_16 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001c-0000-0079-0000-006800000001"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001c-0000-0079-0000-006800000001"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1695,26 +1697,26 @@ testObject_SimpleMembers_user_16 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005c-0000-0056-0000-00780000001a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005c-0000-0056-0000-00780000001a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "5roj3c12kqt7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000032-0000-007f-0000-00270000002a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000032-0000-007f-0000-00270000002a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "r_ivn3ruci8x4pl6bl1g_jex4"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002b-0000-000e-0000-003400000009"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002b-0000-000e-0000-003400000009"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "x__i5068zhcdautdjavpic3zi7u950hdw_iy63gdd0h6zbs1pfviyyui2zl"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007a-0000-0017-0000-005800000050"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007a-0000-0017-0000-005800000050"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "g5ignr39a41zundyudm1rovkz6a3rjy3dodkwk0ht3jnsqp1maz2ulc7yx93z7uy_dyqso9ofxblm2xqs")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000061-0000-0036-0000-006700000071"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000061-0000-0036-0000-006700000071"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1723,11 +1725,11 @@ testObject_SimpleMembers_user_16 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000060-0000-007e-0000-004f0000005a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000060-0000-007e-0000-004f0000005a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "ox94nzepea1423z47_yd1txi"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002e-0000-0016-0000-001e0000001a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002e-0000-0016-0000-001e0000001a"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1736,15 +1738,15 @@ testObject_SimpleMembers_user_16 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006b-0000-0038-0000-006a0000004d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006b-0000-0038-0000-006a0000004d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "307w5bmxkox9r8klphxtmjge_8jgawjnotx_r0krsadx_n7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000043-0000-003e-0000-005a0000007d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000043-0000-003e-0000-005a0000007d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "j6_h0zam0_k8x6coroh4ixk9m3pk5acmwx_cg1q7mpnmn1zha_i"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002d-0000-0010-0000-00010000000f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002d-0000-0010-0000-00010000000f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1753,15 +1755,15 @@ testObject_SimpleMembers_user_16 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000043-0000-0070-0000-006400000045"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000043-0000-0070-0000-006400000045"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "ds4scvwxorxgxtlskf27hu"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000026-0000-002a-0000-00150000005d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000026-0000-002a-0000-00150000005d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "1j2p5d49kfu8omp83fr67o4qpdb07"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000079-0000-0040-0000-006100000033"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000079-0000-0040-0000-006100000033"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1770,14 +1772,14 @@ testObject_SimpleMembers_user_16 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007b-0000-0033-0000-005a00000007"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007b-0000-0033-0000-005a00000007"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "u0lw_wyfzjmmu17s65cau3i295l_0c4hu823csp473bry2cn2zr24vsay4w2m2936y9ja0mvapjxafww89o")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000078-0000-0058-0000-006300000019"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000078-0000-0058-0000-006300000019"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1786,15 +1788,15 @@ testObject_SimpleMembers_user_16 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000068-0000-0042-0000-007b0000002b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000068-0000-0042-0000-007b0000002b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "cgx4sx81so7w8wyohtqvr53bzf_8od3j77"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004b-0000-002a-0000-007000000043"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004b-0000-002a-0000-007000000043"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "p35w8lh2_arnf44pbqrk3g4ln0881ml0b4t"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006d-0000-007b-0000-006b00000005"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006d-0000-007b-0000-006b00000005"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "0z7pdm65ezdilg_qqnzz34l5e1zi8gsw78qbwitnu2ng"))
             }
         ]
@@ -1805,7 +1807,7 @@ testObject_SimpleMembers_user_17 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000071-0000-0050-0000-006200000041"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000071-0000-0050-0000-006200000041"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1814,25 +1816,25 @@ testObject_SimpleMembers_user_17 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000003-0000-0074-0000-004e0000003c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000003-0000-0074-0000-004e0000003c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "qsowevndt0gqwh1yvpqxd_4u3junr66dhuerv38qrhzv5kf9i38fkd"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000b-0000-003a-0000-003900000026"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000b-0000-003a-0000-003900000026"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "dq1mag9bzqoenu3chbc2mn91ivbh"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001b-0000-0058-0000-000500000057"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001b-0000-0058-0000-000500000057"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "9ij9p1jla54lbtk66mhbakd7m7p502p6tz1ryyaep94rz7upsquixaaf6eoewz_oziw_ok7xbo49"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007a-0000-001d-0000-005800000052"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007a-0000-001d-0000-005800000052"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "13tjs8e20xxqd296duhver4er47dj47v2yyspcpfz5pdhbmnmlxyzar0w2recatb6r4_20zcd"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001a-0000-001e-0000-00360000007b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001a-0000-001e-0000-00360000007b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "gy3s_2c0r9lzi08hjnkbc9pbhdu3yvg409ipjztpmthie_j834nn12zjq_m56w1dqqi8mpde"))
             }
@@ -1844,14 +1846,14 @@ testObject_SimpleMembers_user_18 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000013-0000-003e-0000-006000000058"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000013-0000-003e-0000-006000000058"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "3me5rxn2utoa25v5xxht8ulguq6yxi7tp38dwoyvs_4o40u1to2j5nrtykcbqmxuefqoulfptt90s")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000002-0000-0026-0000-005d00000007"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0026-0000-005d00000007"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1860,7 +1862,7 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000078-0000-005b-0000-00580000004f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000078-0000-005b-0000-00580000004f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1869,11 +1871,11 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000054-0000-0053-0000-00340000006e"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000054-0000-0053-0000-00340000006e"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "tg_h0qkv4aijetsz83m1kgblaem7q"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000023-0000-002f-0000-002000000063"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000023-0000-002f-0000-002000000063"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1882,7 +1884,7 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000022-0000-0057-0000-006f00000014"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000022-0000-0057-0000-006f00000014"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1891,28 +1893,28 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000003-0000-0013-0000-003b0000002d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000003-0000-0013-0000-003b0000002d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "b72qpthui23k7cbxz8m3226h"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000052-0000-0046-0000-002e0000003a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000052-0000-0046-0000-002e0000003a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "4ndtltebfabogp8i9skodvx86xbu_"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000048-0000-0028-0000-001b00000006"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000048-0000-0028-0000-001b00000006"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "r9jg4"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007b-0000-004d-0000-005500000006"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007b-0000-004d-0000-005500000006"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "1_r3da_nqzfzbs_6j8sztfleq4ov3zk7e6lhjg04"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000000f-0000-0056-0000-002a00000066"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000000f-0000-0056-0000-002a00000066"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "_v361ue5c23jdmlu43s7eckol6hzqgdvd49z_ga87_gtfu6s6j49c2g12tfsv"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000014-0000-006d-0000-00600000005f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000014-0000-006d-0000-00600000005f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1921,7 +1923,7 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005c-0000-0022-0000-007c00000001"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005c-0000-0022-0000-007c00000001"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1930,15 +1932,15 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000008-0000-0042-0000-00250000007a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000008-0000-0042-0000-00250000007a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "0_lettu8qvkqk6krt4_nez4e95b7y"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001f-0000-0022-0000-007c00000028"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001f-0000-0022-0000-007c00000028"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "z3o8c78vi1ynsrc_s6ebpnz96960dez7lnlijjz843un77jtnj9a5pah"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000022-0000-0045-0000-007d00000007"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000022-0000-0045-0000-007d00000007"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1947,11 +1949,11 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000007f-0000-006c-0000-006f0000005a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000007f-0000-006c-0000-006f0000005a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "fnxibm1l1089wzrxa"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000022-0000-0020-0000-006900000033"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000022-0000-0020-0000-006900000033"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -1960,19 +1962,19 @@ testObject_SimpleMembers_user_18 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000000-0000-002f-0000-007000000064"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-002f-0000-007000000064"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "b6fsp76pbub9rakkxrs7lk8gsh005ajo5m8ap4apvxjxoak95s"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000002-0000-0042-0000-000000000058"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0042-0000-000000000058"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "hinbqrmh843xzsvpu_a6ifnc6lc164f58gkhv"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005f-0000-0052-0000-005400000002"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005f-0000-0052-0000-005400000002"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "18os8cjhuuv8ng"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004b-0000-0046-0000-006e00000024"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004b-0000-0046-0000-006e00000024"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "4k62w0mz4j2hsstjelh8zx0gpg927v3ggod9z17i"))
             }
         ]
@@ -1983,16 +1985,16 @@ testObject_SimpleMembers_user_19 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000036-0000-0080-0000-004600000006"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000036-0000-0080-0000-004600000006"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "4fex2pu__ri6dlr68us285w6yv4alufdibfd_b8zt7ckdo7ej590lkosvd4be8cg4acr7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000078-0000-007c-0000-004d0000001c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000078-0000-007c-0000-004d0000001c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "6lab82iykqaweibdnw89206lrz9vs16h6ae31uruwd0dat90ms"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002b-0000-0013-0000-006900000050"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002b-0000-0013-0000-006900000050"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2001,11 +2003,11 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000037-0000-0053-0000-00300000001c"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000037-0000-0053-0000-00300000001c"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "u9dnn4lg0fkq7wjm352pnvivghndsyu5dc1v7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000001a-0000-0014-0000-004100000073"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000001a-0000-0014-0000-004100000073"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2014,7 +2016,7 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000001-0000-003c-0000-007f00000051"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-003c-0000-007f00000051"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2023,11 +2025,11 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000023-0000-001f-0000-001b0000007f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000023-0000-001f-0000-001b0000007f"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "b3pojvx2wmrpy7q6adcuo5szs"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000055-0000-004d-0000-006900000053"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000055-0000-004d-0000-006900000053"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2036,15 +2038,15 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000047-0000-0003-0000-000500000001"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000047-0000-0003-0000-000500000001"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "xbu28z6zird3kd4iqv0j2r7_e0b2qdxzpdeuzvxb__idnrzhib1rud5o98b4"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004b-0000-003b-0000-007f0000005a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004b-0000-003b-0000-007f0000005a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "rl_mm"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000006-0000-0034-0000-007e00000030"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000006-0000-0034-0000-007e00000030"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2053,7 +2055,7 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006d-0000-007e-0000-000f00000060"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006d-0000-007e-0000-000f00000060"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2062,11 +2064,11 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000075-0000-0022-0000-001100000044"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000075-0000-0022-0000-001100000044"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "vcan3ha2ahaaaxbs_rks5vygwuny8zp6st17fv9pk04f_2onxvw_guw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000069-0000-0024-0000-00790000005f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000069-0000-0024-0000-00790000005f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2075,7 +2077,7 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000068-0000-0040-0000-003100000045"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000068-0000-0040-0000-003100000045"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2084,7 +2086,7 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004a-0000-0007-0000-005f0000003d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004a-0000-0007-0000-005f0000003d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2093,19 +2095,19 @@ testObject_SimpleMembers_user_19 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000068-0000-0008-0000-006f00000067"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000068-0000-0008-0000-006f00000067"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "qq2hd0"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000002-0000-000d-0000-00320000006b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-000d-0000-00320000006b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "8hsl7yd_1raa4a"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000001-0000-000f-0000-001800000008"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-000f-0000-001800000008"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "ftgvbfyalwkdozipte"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000004e-0000-001f-0000-001e0000007d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000004e-0000-001f-0000-001e0000007d"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2121,14 +2123,14 @@ testObject_SimpleMembers_user_20 =
   SimpleMembers
     { mMembers =
         [ SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000001-0000-0026-0000-00580000001f"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0026-0000-00580000001f"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     (parseRoleName "wmx8molqscfxab9_imrcssdgf0_4m2ik51npx6i23vig82mer1rji1xwvddqxasyw6jqmy0xzykd2ums")
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002b-0000-003b-0000-007600000012"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002b-0000-003b-0000-007600000012"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2137,11 +2139,11 @@ testObject_SimpleMembers_user_20 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005b-0000-005f-0000-006500000034"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005b-0000-005f-0000-006500000034"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "lvczhtpd0dgdsvzxtzyelmrbh6dkl17j3drta713mm4i"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002b-0000-0003-0000-001700000060"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002b-0000-0003-0000-001700000060"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2150,15 +2152,15 @@ testObject_SimpleMembers_user_20 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000072-0000-0012-0000-000500000052"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000072-0000-0012-0000-000500000052"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "sjkd77e2wg_ddyj59wpadnncaup_41e7m8ayhs936zwkfy5"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000003a-0000-002b-0000-00050000002d"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000003a-0000-002b-0000-00050000002d"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "3bvwtadqp5w2ode0z"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000047-0000-006c-0000-00500000003b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000047-0000-006c-0000-00500000003b"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2167,24 +2169,24 @@ testObject_SimpleMembers_user_20 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000000-0000-0075-0000-000b0000000b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0075-0000-000b0000000b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "rspqdh94do5jxbxub9t7"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000006d-0000-002b-0000-003800000003"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000006d-0000-002b-0000-003800000003"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 (fromJust (parseRoleName "fqkwb05s1i7aww45jcx5hptvdzd856n2y_8uy5v35zcxhu07jp6v19ax1juyczkgtiiw"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000005c-0000-003c-0000-003d00000059"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000005c-0000-003c-0000-003d00000059"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "fq7zom614_e"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000015-0000-0050-0000-002200000061"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000015-0000-0050-0000-002200000061"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "j3kukcuzzfid3ecr70nzd"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "0000002e-0000-002e-0000-006100000030"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "0000002e-0000-002e-0000-006100000030"))) (Domain "faraway.example.com"),
               smConvRoleName =
                 ( fromJust
                     ( parseRoleName
@@ -2193,11 +2195,11 @@ testObject_SimpleMembers_user_20 =
                 )
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000010-0000-0030-0000-006c0000006b"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000010-0000-0030-0000-006c0000006b"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "5v8e6cih_ueu_a2wd28uj8boqxv3gmfx15u1chfrbf_1fupa7fo_yqd"))
             },
           SimpleMember
-            { smId = (Id (fromJust (UUID.fromString "00000037-0000-0048-0000-00460000006a"))),
+            { smQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000037-0000-0048-0000-00460000006a"))) (Domain "faraway.example.com"),
               smConvRoleName = (fromJust (parseRoleName "dxwk4qalr3oi4jh6v8e3r4agor5vce0b_5w_b3fwmdwfhc3_mqsk94ngdw"))
             }
         ]

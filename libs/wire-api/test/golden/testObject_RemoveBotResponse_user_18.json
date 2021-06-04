@@ -1,5 +1,9 @@
 {
     "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "000005bf-0000-3fdd-0000-089a0000544e"
+        },
         "conversation": "000005bf-0000-3fdd-0000-089a0000544e",
         "time": "1864-05-05T05:34:43.386Z",
         "data": {
@@ -9,6 +13,10 @@
             "recipient": "00000007-0000-0005-0000-000400000002"
         },
         "from": "00003c0a-0000-3d64-0000-7f74000011e9",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00003c0a-0000-3d64-0000-7f74000011e9"
+        },
         "type": "conversation.connect-request"
     }
 }

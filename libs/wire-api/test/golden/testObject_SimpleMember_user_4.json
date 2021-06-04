@@ -1,4 +1,8 @@
 {
     "conversation_role": "4vr9oed4nvhs625ri_cz1cv5kodntk3edmkpu",
+    "qualified_id": {
+        "domain": "faraway.example.com",
+        "id": "0000007c-0000-0075-0000-005b00000049"
+    },
     "id": "0000007c-0000-0075-0000-005b00000049"
 }

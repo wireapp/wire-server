@@ -46,6 +46,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.Domain
 import Data.Handle (Handle (Handle))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id hiding (client)
@@ -86,8 +87,8 @@ import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
 
-tests :: Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
-tests conf p db b c g = do
+tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
+tests dom conf p db b c g = do
   return $
     testGroup
       "provider"
@@ -123,7 +124,7 @@ tests conf p db b c g = do
             test p "search honors enabling and whitelisting" $
               testSearchWhitelistHonorUpdates conf db b,
             test p "de-whitelisted bots are removed" $
-              testWhitelistKickout conf db b g c,
+              testWhitelistKickout dom conf db b g c,
             test p "de-whitelisting works with deleted conversations" $
               testDeWhitelistDeletedConv conf db b g c
           ],
@@ -488,17 +489,22 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   u1 <- createUser "Ernie" brig
   u2 <- createUser "Bert" brig
   let uid1 = userId u1
-  let uid2 = userId u2
+      quid1 = userQualifiedId u1
+      localDomain = qDomain quid1
+      uid2 = userId u2
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   cnv <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
   let cid = cnvId cnv
+      qcid = Qualified cid localDomain
   -- Add two bots there
-  bid1 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
-  bid2 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+  bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
+  bid2 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   liftIO $ assertBool "bot ids should be different" (bid1 /= bid2)
   let buid1 = botUserId bid1
       buid2 = botUserId bid2
+      qbuid1 = Qualified buid1 localDomain
+      qbuid2 = Qualified buid2 localDomain
   -- Delete the service; the bots should be removed from the conversation
   WS.bracketR cannon uid1 $ \ws -> do
     deleteService brig pid sid defProviderPassword
@@ -507,8 +513,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
     _ <- waitFor (5 # Second) not (isMember galley buid2 cid)
     getBotConv galley bid1 cid !!! const 404 === statusCode
     getBotConv galley bid2 cid !!! const 404 === statusCode
-    wsAssertMemberLeave ws cid buid1 [buid1]
-    wsAssertMemberLeave ws cid buid2 [buid2]
+    wsAssertMemberLeave ws qcid qbuid1 [buid1]
+    wsAssertMemberLeave ws qcid qbuid2 [buid2]
   -- The service should not be available
   getService brig pid sid
     !!! const 404 === statusCode
@@ -523,7 +529,9 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
   u1 <- createUser "Ernie" brig
   u2 <- createUser "Bert" brig
   let uid1 = userId u1
-  let uid2 = userId u2
+      quid1 = userQualifiedId u1
+      localDomain = qDomain quid1
+      uid2 = userId u2
   h <- randomHandle
   putHandle brig uid1 h !!! const 200 === statusCode
   postConnection brig uid1 uid2 !!! const 201 === statusCode
@@ -532,7 +540,7 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
   _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
   let Just cnv = responseJsonMaybe _rs
   let cid = cnvId cnv
-  testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
+  testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
 testMessageBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -577,17 +585,22 @@ testAddRemoveBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> 
 testAddRemoveBotTeam config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   (u1, u2, h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   let (uid1, uid2) = (userId u1, userId u2)
+      quid1 = userQualifiedId u1
+      localDomain = qDomain quid1
   -- Ensure cannot add bots to managed conversations
   cidFail <- Team.createManagedConv galley tid uid1 [uid2] Nothing
   addBot brig uid1 pid sid cidFail !!! do
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
-  testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
+  testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
 testBotTeamOnlyConv :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testBotTeamOnlyConv config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
   (u1, u2, _h, _tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   let (uid1, uid2) = (userId u1, userId u2)
+      quid1 = userQualifiedId u1
+      localDomain = qDomain quid1
+      qcid = Qualified cid localDomain
   -- Make the conversation team-only and check that the bot can't be added
   -- to the conversation
   setAccessRole uid1 cid TeamAccessRole
@@ -596,8 +609,9 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
   -- Make the conversation allowed for guests and add the bot successfully
   setAccessRole uid1 cid NonActivatedAccessRole
-  bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+  bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   let buid = botUserId bid
+      qbuid = Qualified buid localDomain
   -- Make the conversation team-only again and check that the bot has been removed
   WS.bracketR cannon uid1 $ \ws -> do
     setAccessRole uid1 cid TeamAccessRole
@@ -606,11 +620,11 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       !!! const 404 === statusCode
     svcAssertConvAccessUpdate
       buf
-      uid1
+      quid1
       (ConversationAccessUpdate [InviteAccess] TeamAccessRole)
-      cid
-    svcAssertMemberLeave buf buid [buid] cid
-    wsAssertMemberLeave ws cid buid [buid]
+      qcid
+    svcAssertMemberLeave buf qbuid [buid] qcid
+    wsAssertMemberLeave ws qcid qbuid [buid]
   where
     setAccessRole uid cid role =
       updateConversationAccess galley uid cid [InviteAccess] role
@@ -637,16 +651,19 @@ testDeleteConvBotTeam config db brig galley cannon = withTestService config db b
   -- Prepare users and the bot
   (u1, u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   let (uid1, uid2) = (userId u1, userId u2)
-  bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+      quid2 = userQualifiedId u2
+      localDomain = qDomain quid2
+      qcid = Qualified cid localDomain
+  bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   -- Delete the conversation and check that everyone is notified
   -- via an event, including the bot itself.
   WS.bracketR2 cannon uid1 uid2 $ \wss -> do
     -- 200 response on success
     Team.deleteTeamConv galley tid cid uid2
     -- Events for the users
-    forM_ wss $ \ws -> wsAssertConvDelete ws cid uid2
+    forM_ wss $ \ws -> wsAssertConvDelete ws qcid quid2
     -- Event for the bot
-    svcAssertConvDelete buf uid2 cid
+    svcAssertConvDelete buf quid2 qcid
   -- Check that the conversation no longer exists
   forM_ [uid1, uid2] $ \uid ->
     getConversation galley uid cid !!! const 404 === statusCode
@@ -657,7 +674,10 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   -- Prepare users and the bot
   (u1, u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   let (uid1, uid2) = (userId u1, userId u2)
-  bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+      quid1 = userQualifiedId u1
+      localDomain = qDomain quid1
+      qcid = Qualified cid localDomain
+  bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   -- Delete the team, and check that the bot (eventually)
   -- receives a notification via event
   Team.deleteTeam galley tid uid1
@@ -665,7 +685,7 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   -- events may or may not be sent (for instance, team members)
   -- leaving a conversation. Thus, we check _only_ for the relevant
   -- ones for the bot, which are the ConvDelete event
-  svcAssertEventuallyConvDelete buf uid1 cid
+  svcAssertEventuallyConvDelete buf quid1 qcid
   -- Wait until all users have been deleted (can take a while)
   forM_ [uid1, uid2] $ \uid -> do
     void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
@@ -850,11 +870,13 @@ testWhitelistBasic config db brig galley =
     disableService brig pid sid
     whitelistService brig owner tid pid sid
 
-testWhitelistKickout :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testWhitelistKickout config db brig galley cannon = do
+testWhitelistKickout :: Domain -> Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testWhitelistKickout localDomain config db brig galley cannon = do
   -- Create a team and a conversation
   (owner, tid) <- Team.createUserWithTeam brig
+  let qowner = Qualified owner localDomain
   cid <- Team.createTeamConv galley tid owner [] Nothing
+  let qcid = Qualified cid localDomain
   -- Create a service
   withTestService config db brig defServiceApp $ \sref buf -> do
     -- Add it to the conversation
@@ -866,16 +888,17 @@ testWhitelistKickout config db brig galley cannon = do
         =<< (addBot brig owner pid sid cid <!! const 201 === statusCode)
     let bid = rsAddBotId bot
         buid = botUserId bid
+        qbuid = Qualified buid localDomain
     _ <- svcAssertBotCreated buf bid cid
-    svcAssertMemberJoin buf owner [buid] cid
+    svcAssertMemberJoin buf qowner [qbuid] qcid
     -- De-whitelist the service; both bots should be kicked out
     WS.bracketR cannon owner $ \ws -> do
       dewhitelistService brig owner tid pid sid
       _ <- waitFor (2 # Second) not (isMember galley buid cid)
       getBotConv galley bid cid
         !!! const 404 === statusCode
-      wsAssertMemberLeave ws cid owner [buid]
-      svcAssertMemberLeave buf owner [buid] cid
+      wsAssertMemberLeave ws qcid qowner [buid]
+      svcAssertMemberLeave buf qowner [buid] qcid
     -- The bot should not get any further events
     liftIO $
       timeout (2 # Second) (readChan buf) >>= \case
@@ -891,8 +914,10 @@ testDeWhitelistDeletedConv config db brig galley cannon = do
     (u1, u2, _h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
     let uid1 = userId u1
         uid2 = userId u2
+        quid1 = userQualifiedId u1
+        localDomain = qDomain quid1
     -- Add a bot there
-    _bid1 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+    _bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
     -- Delete conversation (to ensure deleteService can be called even with a deleted conversation)
     Team.deleteTeamConv galley tid cid uid1
     -- De-whitelist the service
@@ -1647,7 +1672,7 @@ defServiceApp buf =
           writeChan buf (TestBotMessage ev)
           k $ responseLBS status200 [] "success"
 
-wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
+wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberJoin ws conv usr new = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1659,7 +1684,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
-wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
+wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1671,7 +1696,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersLeave (UserIdList old)
 
-wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
+wsAssertConvDelete :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
 wsAssertConvDelete ws conv from = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1683,7 +1708,7 @@ wsAssertConvDelete ws conv from = void $
         evtFrom e @?= from
         evtData e @?= EdConvDelete
 
-wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
+wsAssertMessage :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1695,7 +1720,7 @@ wsAssertMessage ws conv fromu fromc to txt = void $
         evtFrom e @?= fromu
         evtData e @?= EdOtrMessage (OtrMessage fromc to txt (Just "data"))
 
-svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
+svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
 svcAssertMemberJoin buf usr new cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1707,7 +1732,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
       assertEqual "event data" (EdMembersJoin msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
-svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
+svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [UserId] -> Qualified ConvId -> m ()
 svcAssertMemberLeave buf usr gone cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1719,7 +1744,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event data" (EdMembersLeave msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
-svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> UserId -> ConversationAccessUpdate -> ConvId -> m ()
+svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> ConversationAccessUpdate -> Qualified ConvId -> m ()
 svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1730,7 +1755,7 @@ svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
       assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
 
-svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
+svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
 svcAssertConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1753,7 +1778,7 @@ svcAssertBotCreated buf bid cid = liftIO $ do
       return b
     _ -> throwM $ HUnitFailure Nothing "Event timeout (TestBotCreated)"
 
-svcAssertMessage :: MonadIO m => Chan TestBotEvent -> UserId -> OtrMessage -> ConvId -> m ()
+svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
 svcAssertMessage buf from msg cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1764,7 +1789,7 @@ svcAssertMessage buf from msg cnv = liftIO $ do
       assertEqual "event data" (EdOtrMessage msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
-svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
+svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
 svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1824,6 +1849,7 @@ taggedServiceNames prefix =
     mkName n = Name (prefix <> "|" <> n)
 
 testAddRemoveBotUtil ::
+  Domain ->
   ProviderId ->
   ServiceId ->
   ConvId ->
@@ -1836,27 +1862,31 @@ testAddRemoveBotUtil ::
   Galley ->
   WS.Cannon ->
   Http ()
-testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
-  let uid1 = userId u1
-  let uid2 = userId u2
+testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon = do
+  let qcid = Qualified cid localDomain
+      uid1 = userId u1
+      uid2 = userId u2
+      quid1 = Qualified uid1 localDomain
+      quid2 = Qualified uid2 localDomain
   -- Add the bot and check that everyone is notified via an event,
   -- including the bot itself.
   (rs, bot) <- WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
     _rs <- addBot brig uid1 pid sid cid <!! const 201 === statusCode
     let Just rs = responseJsonMaybe _rs
-    let bid = rsAddBotId rs
+        bid = rsAddBotId rs
+        qbuid = Qualified (botUserId bid) localDomain
     bot <- svcAssertBotCreated buf bid cid
     liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
     liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
     -- Member join event for both users
-    forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws cid uid1 [botUserId bid]
+    forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws qcid quid1 [qbuid]
     -- Member join event for the bot
-    svcAssertMemberJoin buf uid1 [botUserId bid] cid
+    svcAssertMemberJoin buf quid1 [qbuid] qcid
     return (rs, bot)
   let bid = rsAddBotId rs
-  let buid = botUserId bid
-  -- Check that the bot token grants access to the right user and conversation
-  let Just tok = fromByteString (Text.encodeUtf8 (testBotToken bot))
+      buid = botUserId bid
+      -- Check that the bot token grants access to the right user and conversation
+      Just tok = fromByteString (Text.encodeUtf8 (testBotToken bot))
   liftIO $ do
     assertEqual "principal" bid (BotId (Id (tok ^. ZAuth.body . ZAuth.bot)))
     assertEqual "conversation" cid (Id (tok ^. ZAuth.body . ZAuth.conv))
@@ -1889,9 +1919,9 @@ testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon = do
     let Just ev = rsRemoveBotEvent <$> responseJsonMaybe _rs
     liftIO $ assertEqual "bot event" MemberLeave (evtType ev)
     -- Events for both users
-    forM_ [ws1, ws2] $ \ws -> wsAssertMemberLeave ws cid uid2 [buid]
+    forM_ [ws1, ws2] $ \ws -> wsAssertMemberLeave ws qcid quid2 [buid]
     -- Event for the bot
-    svcAssertMemberLeave buf uid2 [buid] cid
+    svcAssertMemberLeave buf quid2 [buid] qcid
     -- Empty 204 response if the bot is not in the conversation
     removeBot brig uid2 cid bid !!! const 204 === statusCode
   -- Check that the bot no longer has access to the conversation
@@ -1911,21 +1941,23 @@ testMessageBotUtil ::
   Http ()
 testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   let uid = qUnqualified quid
-  let localDomain = qDomain quid
+      localDomain = qDomain quid
+      qcid = Qualified cid localDomain
   -- Add bot to conversation
   _rs <- addBot brig uid pid sid cid <!! const 201 === statusCode
   let Just ars = responseJsonMaybe _rs
   let bid = rsAddBotId ars
   let buid = botUserId bid
+      qbuid = Qualified buid localDomain
   let bc = rsAddBotClient ars
   _ <- svcAssertBotCreated buf bid cid
-  svcAssertMemberJoin buf uid [buid] cid
+  svcAssertMemberJoin buf quid [qbuid] qcid
   -- The bot can now fetch the conversation
   _rs <- getBotConv galley bid cid <!! const 200 === statusCode
   let Just bcnv = responseJsonMaybe _rs
   liftIO $ do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
-    assertEqual "members" [OtherMember (Qualified uid localDomain) Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
+    assertEqual "members" [OtherMember quid Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
   mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
   let other = listToMaybe (cmOthers mems)
@@ -1936,12 +1968,12 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   WS.bracketR cannon uid $ \ws -> do
     postBotMessage galley bid bc cid [(uid, uc, "Hi User!")]
       !!! const 201 === statusCode
-    wsAssertMessage ws cid buid bc uc "Hi User!"
+    wsAssertMessage ws qcid qbuid bc uc "Hi User!"
   -- The user replies
   postMessage galley uid uc cid [(buid, bc, "Hi Bot")]
     !!! const 201 === statusCode
   let msg = OtrMessage uc bc "Hi Bot" (Just "data")
-  svcAssertMessage buf uid msg cid
+  svcAssertMessage buf quid msg qcid
   -- Remove the entire service; the bot should be removed from the conversation
   WS.bracketR cannon uid $ \ws -> do
     deleteService brig pid sid defProviderPassword
@@ -1949,7 +1981,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     _ <- waitFor (5 # Second) not (isMember galley buid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
-    wsAssertMemberLeave ws cid buid [buid]
+    wsAssertMemberLeave ws qcid qbuid [buid]
 
 prepareBotUsersTeam ::
   HasCallStack =>
@@ -1975,6 +2007,7 @@ prepareBotUsersTeam brig galley sref = do
 
 addBotConv ::
   HasCallStack =>
+  Domain ->
   Brig ->
   WS.Cannon ->
   UserId ->
@@ -1984,7 +2017,9 @@ addBotConv ::
   ServiceId ->
   Chan TestBotEvent ->
   Http BotId
-addBotConv brig cannon uid1 uid2 cid pid sid buf =
+addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf = do
+  let quid1 = Qualified uid1 localDomain
+      qcid = Qualified cid localDomain
   -- Add the bot and check that everyone is notified via an event,
   -- including the bot itself.
   WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
@@ -1994,10 +2029,11 @@ addBotConv brig cannon uid1 uid2 cid pid sid buf =
     bot <- svcAssertBotCreated buf bid cid
     liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
     liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
+    let qbotId = Qualified (botUserId bid) localDomain
     -- Member join event for both users
-    forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws cid uid1 [botUserId bid]
+    forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws qcid quid1 [qbotId]
     -- Member join event for the bot
-    svcAssertMemberJoin buf uid1 [botUserId bid] cid
+    svcAssertMemberJoin buf quid1 [qbotId] qcid
     return (rsAddBotId rs)
 
 ----------------------------------------------------------------------------

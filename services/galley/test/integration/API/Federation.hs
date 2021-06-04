@@ -140,7 +140,7 @@ addLocalUser = do
     FedGalley.updateConversationMemberships fedGalleyClient cmu
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
-        wsAssertMemberJoinWithRole conv bob [alice] roleNameWireMember
+        wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
   cassState <- view tsCass
   convs <-
     Cql.runClient cassState
@@ -175,4 +175,4 @@ notifyLocalUser = do
     FedGalley.updateConversationMemberships fedGalleyClient cmu
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
-        wsAssertMemberJoinWithRole conv bob [charlie] roleNameWireMember
+        wsAssertMemberJoinWithRole qconv qbob [qcharlie] roleNameWireMember

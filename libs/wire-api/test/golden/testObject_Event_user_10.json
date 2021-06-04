@@ -1,4 +1,8 @@
 {
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "000019e1-0000-1dc6-0000-68de0000246d"
+    },
     "conversation": "000019e1-0000-1dc6-0000-68de0000246d",
     "time": "1864-05-29T19:31:31.226Z",
     "data": {
@@ -93,5 +97,9 @@
         "last_event": "0.0"
     },
     "from": "00000457-0000-0689-0000-77a00000021c",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "00000457-0000-0689-0000-77a00000021c"
+    },
     "type": "conversation.create"
 }
