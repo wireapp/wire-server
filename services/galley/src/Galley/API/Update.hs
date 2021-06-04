@@ -72,7 +72,7 @@ import Data.Code
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
-import Data.List.Extra (nubOrdOn)
+import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (FutureWork (..))
@@ -892,16 +892,16 @@ addToConversation (bots, lothers) rothers (usr, usrRole) conn locals remotes c =
   now <- liftIO getCurrentTime
   localDomain <- viewFederationDomain
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
-  let others = catMembers localDomain lothers rothers
-      mm = catMembers localDomain lmm rmm
+  let mm = catMembers localDomain lmm rmm
       qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
   traverse_ (uncurry (updateRemoteConversations now mm qusr qcnv))
     . Map.assocs
     . partitionQualified
-    . map fst
-    $ others
+    . nubOrd
+    . map (unTagged . rmId)
+    $ rmm <> rothers
   let allMembers = nubOrdOn memId (lmm <> lothers)
   for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
     push1 $ p & pushConn ?~ conn

@@ -41,7 +41,7 @@ import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
-import Data.Domain (Domain (Domain))
+import Data.Domain (Domain (Domain), domainText)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
@@ -1015,12 +1015,19 @@ testAddRemoteMember = do
   let qconvId = Qualified convId localDomain
   opts <- view tsGConf
   g <- view tsGalley
-  (resp, _) <-
+  (resp, reqs) <-
     withTempMockFederator
       opts
       remoteDomain
       (respond remoteBob)
       (postQualifiedMembers' g alice (remoteBob :| []) convId)
+  liftIO $ do
+    map F.domain reqs @?= replicate 2 (domainText remoteDomain)
+    map (fmap F.path . F.request) reqs
+      @?= [ Just "/federation/get-users-by-ids",
+            Just "/federation/update-conversation-memberships"
+          ]
+
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
     evtConv e @?= qconvId
