@@ -61,7 +61,7 @@ sitemap = do
       .&. contentType "multipart" "mixed"
       .&. request
   document "POST" "uploadAsset" $ do
-    Doc.summary "Upload an asset. In the multipart/mixed body, the first section's content type should be application/json. The second section's content type should be always application/octet-stream. Other content types will be ignored by the server."
+    Doc.summary "Upload an asset"
     Doc.consumes "multipart/mixed"
     Doc.errorResponse Error.assetTooLarge
     Doc.errorResponse Error.invalidLength
