@@ -114,6 +114,7 @@ import Control.Arrow (first, second)
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Extra (ifM)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -133,6 +134,7 @@ import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
 import Galley.App
 import Galley.Data.Instances ()
+import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
 import Galley.Types hiding (Conversation)
@@ -1018,14 +1020,16 @@ eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)
 --
 -- Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
 -- other is 'Just', which can only be caused by inconsistent database content.
-newTeamMember' :: (MonadIO m, MonadThrow m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
+newTeamMember' :: (MonadIO m, MonadThrow m, MonadClient m, MonadReader Env m) => TeamId -> (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
 newTeamMember' tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = do
-  mbWhitelist <- readIORef =<< view legalholdWhitelist
-  maybeGrant mbWhitelist <$> mk minvu minvt
+  mk minvu minvt >>= maybeGrant
   where
-    maybeGrant :: Maybe [TeamId] -> TeamMember -> TeamMember
-    maybeGrant Nothing = id
-    maybeGrant (Just whitelist) = if tid `elem` whitelist then grantImplicitConsent else id
+    maybeGrant :: (MonadClient m, MonadReader Env m) => TeamMember -> m TeamMember
+    maybeGrant m =
+      ifM
+        (isTeamLegalholdWhitelisted tid)
+        (pure (grantImplicitConsent m))
+        (pure m)
 
     grantImplicitConsent :: TeamMember -> TeamMember
     grantImplicitConsent =

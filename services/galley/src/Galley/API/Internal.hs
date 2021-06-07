@@ -38,7 +38,7 @@ import Data.String.Conversions (cs)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.LegalHold (getLegalholdWhitelistedTeamsH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
+import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
@@ -274,13 +274,13 @@ sitemap = do
     jsonRequest @GuardLegalholdPolicyConflicts
       .&. accept "application" "json"
 
-  get "/i/legalhold/whitelisted-teams" (continue getLegalholdWhitelistedTeamsH) $
-    accept "application" "json"
-
   put "/i/legalhold/whitelisted-teams/:tid" (continue setTeamLegalholdWhitelistedH) $
     capture "tid"
 
   delete "/i/legalhold/whitelisted-teams/:tid" (continue unsetTeamLegalholdWhitelistedH) $
+    capture "tid"
+
+  get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
     capture "tid"
 
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response
