@@ -49,6 +49,7 @@ import Galley.API.Error
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
@@ -82,7 +83,7 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
-      isLegalHoldEnabledForTeam tid
+      isTeamLegalholdWhitelisted tid
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
