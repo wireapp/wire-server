@@ -92,7 +92,7 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
-import Wire.API.Routes.Public (EmptyResult (..))
+import Wire.API.Routes.Public (Empty200 (..), Empty404 (..), EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -185,6 +185,7 @@ servantSitemap =
         BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
         BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
         BrigAPI.addClient = addClient,
+        BrigAPI.updateClient = updateClient,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -480,20 +481,6 @@ sitemap o = do
 
   -- User Client API ----------------------------------------------------
   -- TODO: another one?
-
-  put "/clients/:client" (continue updateClientH) $
-    jsonRequest @Public.UpdateClient
-      .&. zauthUserId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "PUT" "updateClient" $ do
-    Doc.summary "Update a registered client."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.body (Doc.ref Public.modelUpdateClient) $
-      Doc.description "JSON body"
-    Doc.response 200 "Client updated." Doc.end
-    Doc.errorResponse malformedPrekeys
 
   -- This endpoint can lead to the following events being sent:
   -- - ClientRemoved event to self
@@ -869,14 +856,10 @@ rmClient :: Public.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
 rmClient body usr con clt =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
-updateClientH :: JsonRequest Public.UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
-updateClientH (req ::: usr ::: clt ::: _) = do
-  body <- parseJsonBody req
-  empty <$ updateClient body usr clt
-
-updateClient :: Public.UpdateClient -> UserId -> ClientId -> Handler ()
-updateClient body usr clt =
-  API.updateClient usr clt body !>> clientError
+updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler (EmptyResult 200)
+updateClient usr clt upd = do
+  API.updateClient usr clt upd !>> clientError
+  pure EmptyResult
 
 listClientsH :: UserId ::: JSON -> Handler Response
 listClientsH (zusr ::: _) =

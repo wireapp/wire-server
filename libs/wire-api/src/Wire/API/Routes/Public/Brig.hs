@@ -285,6 +285,14 @@ data Api routes = Api
         :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
         :> Verb 'POST 201 '[JSON] ClientResponse,
+    --   Doc.errorResponse malformedPrekeys
+    updateClient ::
+      routes :- Summary "Update a registered client"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> ReqBody '[JSON] UpdateClient
+        :> Put '[] (EmptyResult 200),
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
