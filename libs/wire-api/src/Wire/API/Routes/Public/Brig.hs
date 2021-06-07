@@ -293,6 +293,16 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> ReqBody '[JSON] UpdateClient
         :> Put '[] (EmptyResult 200),
+    -- This endpoint can lead to the following events being sent:
+    -- - ClientRemoved event to self
+    deleteClient ::
+      routes :- Summary "Delete an existing client"
+        :> ZUser
+        :> ZConn
+        :> "clients"
+        :> CaptureClientId "client"
+        :> ReqBody '[JSON] RmClient
+        :> Delete '[] (EmptyResult 200),
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser

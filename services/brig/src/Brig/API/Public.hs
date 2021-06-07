@@ -186,6 +186,7 @@ servantSitemap =
         BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
         BrigAPI.addClient = addClient,
         BrigAPI.updateClient = updateClient,
+        BrigAPI.deleteClient = deleteClient,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -481,22 +482,6 @@ sitemap o = do
 
   -- User Client API ----------------------------------------------------
   -- TODO: another one?
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientRemoved event to self
-  delete "/clients/:client" (continue rmClientH) $
-    jsonRequest @Public.RmClient
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "DELETE" "deleteClient" $ do
-    Doc.summary "Delete an existing client."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.body (Doc.ref Public.modelDeleteClient) $
-      Doc.description "JSON body"
-    Doc.response 200 "Client deleted." Doc.end
 
   get "/clients" (continue listClientsH) $
     zauthUserId
@@ -847,14 +832,10 @@ addClient usr con ip new = do
     clientResponse :: Public.Client -> BrigAPI.ClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
-rmClientH :: JsonRequest Public.RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
-rmClientH (req ::: usr ::: con ::: clt ::: _) = do
-  body <- parseJsonBody req
-  empty <$ rmClient body usr con clt
-
-rmClient :: Public.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
-rmClient body usr con clt =
+deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler (EmptyResult 200)
+deleteClient usr con clt body = do
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
+  pure EmptyResult
 
 updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler (EmptyResult 200)
 updateClient usr clt upd = do
