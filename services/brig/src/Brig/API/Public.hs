@@ -184,6 +184,7 @@ servantSitemap =
         BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
         BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
         BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
+        BrigAPI.addClient = addClient,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -479,25 +480,6 @@ sitemap o = do
 
   -- User Client API ----------------------------------------------------
   -- TODO: another one?
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientAdded event to self
-  -- - ClientRemoved event to self, if removing old clients due to max number
-  post "/clients" (continue addClientH) $
-    jsonRequest @Public.NewClient
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. opt (header "X-Forwarded-For")
-      .&. accept "application" "json"
-  document "POST" "registerClient" $ do
-    Doc.summary "Register a new client."
-    Doc.body (Doc.ref Public.modelNewClient) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelClient)
-    Doc.response 200 "Client" Doc.end
-    Doc.errorResponse tooManyClients
-    Doc.errorResponse missingAuthError
-    Doc.errorResponse malformedPrekeys
 
   put "/clients/:client" (continue updateClientH) $
     jsonRequest @Public.UpdateClient
@@ -868,19 +850,15 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwStd tooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClientH :: JsonRequest Public.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
-addClientH (req ::: usr ::: con ::: ip ::: _) = do
-  new <- parseJsonBody req
-  clt <- addClient new usr con ip
-  let loc = toByteString' $ Public.clientId clt
-  pure . setStatus status201 . addHeader "Location" loc . json $ clt
-
-addClient :: Public.NewClient -> UserId -> ConnId -> Maybe IpAddr -> Handler Public.Client
-addClient new usr con ip = do
+addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.ClientResponse
+addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
+  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
+  where
+    clientResponse :: Public.Client -> BrigAPI.ClientResponse
+    clientResponse client = Servant.addHeader (Public.clientId client) client
 
 rmClientH :: JsonRequest Public.RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClientH (req ::: usr ::: con ::: clt ::: _) = do

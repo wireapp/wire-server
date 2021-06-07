@@ -80,6 +80,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
+import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
 import qualified Test.QuickCheck as QC
 import Text.Read (Read (..))
@@ -91,6 +92,12 @@ import qualified URI.ByteString.QQ as URI.QQ
 
 newtype IpAddr = IpAddr {ipAddr :: IP}
   deriving stock (Eq, Ord, Show, Generic)
+
+instance S.ToParamSchema IpAddr where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
+instance FromHttpApiData IpAddr where
+  parseQueryParam p = first Text.pack (runParser parser (encodeUtf8 p))
 
 instance FromByteString IpAddr where
   parser = do
