@@ -468,8 +468,8 @@ unsetTeamLegalholdWhitelistedH tid = do
 
 getTeamLegalholdWhitelistedH :: TeamId -> Galley Response
 getTeamLegalholdWhitelistedH tid = do
-  lhEnabled <- isLegalHoldEnabledForTeam tid
+  lhEnabled <- isTeamLegalholdWhitelisted tid
   pure $
     if lhEnabled
-      then setStatus status204 empty
+      then setStatus status200 empty
       else setStatus status404 empty
