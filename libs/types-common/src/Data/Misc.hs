@@ -64,7 +64,6 @@ import Cassandra
 import Control.Lens (makeLenses, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64 as B64
@@ -338,15 +337,15 @@ instance Arbitrary (Fingerprint Rsa) where
 newtype PlainTextPassword = PlainTextPassword
   {fromPlainTextPassword :: Text}
   deriving stock (Eq, Generic)
-  deriving newtype (ToJSON)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PlainTextPassword
 
 instance Show PlainTextPassword where
   show _ = "PlainTextPassword <hidden>"
 
-instance FromJSON PlainTextPassword where
-  parseJSON x =
-    PlainTextPassword . fromRange
-      <$> (parseJSON x :: A.Parser (Range 6 1024 Text))
+instance ToSchema PlainTextPassword where
+  schema =
+    PlainTextPassword
+      <$> fromPlainTextPassword .= untypedRangedSchema 6 1024 schema
 
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars

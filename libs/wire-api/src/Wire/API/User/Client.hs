@@ -92,15 +92,10 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
-  ( CamelToSnake,
-    ConstructorTagModifier,
-    CustomSwagger,
+  ( CustomSwagger,
     FieldLabelModifier,
-    LabelMapping ((:->)),
-    LabelMappings,
     LowerCase,
     StripPrefix,
-    StripSuffix,
   )
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
@@ -506,25 +501,20 @@ instance FromJSON PubClient where
 -- interaction, and on an ongoing basis see a visual indication in all
 -- conversations where such a device is active.
 
--- | Strategy to translate enums in this module to schema.
-type EnumToSchemaStrategy suffix ty =
-  ( CustomSwagger
-      '[ ConstructorTagModifier
-           ( StripSuffix suffix,
-             CamelToSnake,
-             LabelMappings '["legal_hold" ':-> "legalhold"]
-           )
-       ]
-      ty
-  )
-
 data ClientType
   = TemporaryClientType
   | PermanentClientType
   | LegalHoldClientType -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientType)
-  deriving (Swagger.ToSchema) via EnumToSchemaStrategy "ClientType" ClientType
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema ClientType
+
+instance ToSchema ClientType where
+  schema =
+    enum @Text "ClientType" $
+      element "temporary" TemporaryClientType
+        <> element "permanent" PermanentClientType
+        <> element "legalhold" LegalHoldClientType
 
 typeClientType :: Doc.DataType
 typeClientType =
@@ -535,18 +525,6 @@ typeClientType =
         "legalhold"
       ]
 
-instance ToJSON ClientType where
-  toJSON TemporaryClientType = A.String "temporary"
-  toJSON PermanentClientType = A.String "permanent"
-  toJSON LegalHoldClientType = A.String "legalhold"
-
-instance FromJSON ClientType where
-  parseJSON = A.withText "ClientType" $ \txt -> case txt of
-    "temporary" -> return TemporaryClientType
-    "permanent" -> return PermanentClientType
-    "legalhold" -> return LegalHoldClientType
-    _ -> fail "Must be one of {'temporary', 'permanent', 'legalhold'}."
-
 data ClientClass
   = PhoneClient
   | TabletClient
@@ -554,7 +532,15 @@ data ClientClass
   | LegalHoldClient -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientClass)
-  deriving (Swagger.ToSchema) via EnumToSchemaStrategy "Client" ClientClass
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema ClientClass
+
+instance ToSchema ClientClass where
+  schema =
+    enum @Text "ClientClass" $
+      element "phone" PhoneClient
+        <> element "tablet" TabletClient
+        <> element "desktop" DesktopClient
+        <> element "legalhold" LegalHoldClient
 
 typeClientClass :: Doc.DataType
 typeClientClass =
@@ -565,20 +551,6 @@ typeClientClass =
         "desktop",
         "legalhold"
       ]
-
-instance ToJSON ClientClass where
-  toJSON PhoneClient = A.String "phone"
-  toJSON TabletClient = A.String "tablet"
-  toJSON DesktopClient = A.String "desktop"
-  toJSON LegalHoldClient = A.String "legalhold"
-
-instance FromJSON ClientClass where
-  parseJSON = A.withText "ClientClass" $ \txt -> case txt of
-    "phone" -> return PhoneClient
-    "tablet" -> return TabletClient
-    "desktop" -> return DesktopClient
-    "legalhold" -> return LegalHoldClient
-    _ -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
 --------------------------------------------------------------------------------
 -- NewClient
@@ -596,6 +568,7 @@ data NewClient = NewClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema NewClient
 
 modelNewClient :: Doc.Model
 modelNewClient = Doc.defineModel "NewClient" $ do
@@ -636,6 +609,73 @@ modelNewClient = Doc.defineModel "NewClient" $ do
     Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
     Doc.optional
 
+instance ToSchema NewClient where
+  schema =
+    object "NewClient" $
+      NewClient
+        <$> newClientPrekeys
+          .= fieldWithDocModifier
+            "prekeys"
+            (description ?~ "Prekeys for other clients to establish OTR sessions.")
+            (array schema)
+        <*> newClientLastKey
+          .= fieldWithDocModifier
+            "lastkey"
+            ( description
+                ?~ "The last resort prekey for other clients to establish OTR sessions. \
+                   \This key must have the ID 0xFFFF and is never deleted."
+            )
+            schema
+        <*> newClientType
+          .= fieldWithDocModifier
+            "type"
+            ( description
+                ?~ "The type of client to register. A user may have no more than \
+                   \7 (seven) permanent clients and 1 (one) temporary client. When the \
+                   \limit of permanent clients is reached, an error is returned. \
+                   \When a temporary client already exists, it is replaced."
+            )
+            schema
+        <*> newClientLabel .= opt (field "label" schema)
+        <*> newClientClass
+          .= opt
+            ( fieldWithDocModifier
+                "class"
+                ( description
+                    ?~ "The device class this client belongs to. \
+                       \Either 'phone', 'tablet', or 'desktop'."
+                )
+                schema
+            )
+        <*> newClientCookie
+          .= opt
+            ( fieldWithDocModifier
+                "cookie"
+                (description ?~ "The cookie label, i.e. the label used when logging in.")
+                schema
+            )
+        <*> newClientPassword
+          .= opt
+            ( fieldWithDocModifier
+                "password"
+                ( description
+                    ?~ "The password of the authenticated user for verification. \
+                       \Note: Required for registration of the 2nd, 3rd, ... client."
+                )
+                schema
+            )
+        <*> newClientModel .= opt (field "model" schema)
+        <*> (fmap Set.toList . newClientCapabilities)
+          .= opt
+            ( fieldWithDocModifier
+                "capabilities"
+                ( description
+                    ?~ "Hints for the backend so it can behave in a \
+                       \backwards-compatible way."
+                )
+                (Set.fromList <$> array schema)
+            )
+
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
   NewClient
@@ -649,33 +689,6 @@ newClient t k =
       newClientModel = Nothing,
       newClientCapabilities = Nothing
     }
-
-instance ToJSON NewClient where
-  toJSON c =
-    A.object $
-      "type" A..= newClientType c
-        # "prekeys" A..= newClientPrekeys c
-        # "lastkey" A..= newClientLastKey c
-        # "label" A..= newClientLabel c
-        # "class" A..= newClientClass c
-        # "cookie" A..= newClientCookie c
-        # "password" A..= newClientPassword c
-        # "model" A..= newClientModel c
-        # "capabilities" A..= newClientCapabilities c
-        # []
-
-instance FromJSON NewClient where
-  parseJSON = A.withObject "NewClient" $ \o ->
-    NewClient
-      <$> o A..: "prekeys"
-      <*> o A..: "lastkey"
-      <*> o A..: "type"
-      <*> o A..:? "label"
-      <*> o A..:? "class"
-      <*> o A..:? "cookie"
-      <*> o A..:? "password"
-      <*> o A..:? "model"
-      <*> o A..:? "capabilities"
 
 --------------------------------------------------------------------------------
 -- UpdateClient
