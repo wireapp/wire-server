@@ -32,7 +32,7 @@ instance (KnownNat statusCode, KnownSymbol desc) => ToSchema (ErrorDescription s
         <*> message .= field "message" schema
         <* const (natVal (Proxy @statusCode)) .= field "code" schema
 
--- | This insance works with 'UVerb' only becaue of the following overlapping
+-- | This instance works with 'UVerb' only becaue of the following overlapping
 -- instance for 'UVerb method cs (ErrorDescription status desc ': rest))'
 instance (KnownNat statusCode, KnownSymbol desc, AllAccept cs, SwaggerMethod method) => HasSwagger (Verb method statusCode cs (ErrorDescription statusCode desc)) where
   toSwagger _ = overrrideResponseDesc $ mkEndpoint "/" (Proxy @(Verb method statusCode cs (Headers '[] (ErrorDescription statusCode desc))))
