@@ -19,6 +19,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
+import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
@@ -52,8 +53,9 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import qualified Wire.API.Federation.Client as Federation
+import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
 import Wire.API.Federation.Error (federationErrorToWai)
+import Wire.API.Federation.GRPC.Types (Component (..))
 import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
@@ -320,12 +322,22 @@ checkRemoteUsersExist =
 checkRemotesFor :: Domain -> [UserId] -> Galley ()
 checkRemotesFor domain uids = do
   let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
-  users <-
-    runExceptT (Federation.executeFederated domain rpc)
-      >>= either (throwM . federationErrorToWai) pure
+  users <- runFederatedBrig domain rpc
   let uids' =
         map
           (qUnqualified . User.profileQualifiedId)
           (filter (not . User.profileDeleted) users)
   unless (Set.fromList uids == Set.fromList uids') $
     throwM unknownRemoteUser
+
+type FederatedGalleyRPC c a = FederatorClient c (ExceptT FederationClientFailure Galley) a
+
+runFederatedGalley :: Domain -> FederatedGalleyRPC 'Galley a -> Galley a
+runFederatedGalley remoteDomain rpc = do
+  runExceptT (executeFederated remoteDomain rpc)
+    >>= either (throwM . federationErrorToWai) pure
+
+runFederatedBrig :: Domain -> FederatedGalleyRPC 'Brig a -> Galley a
+runFederatedBrig remoteDomain rpc = do
+  runExceptT (executeFederated remoteDomain rpc)
+    >>= either (throwM . federationErrorToWai) pure
