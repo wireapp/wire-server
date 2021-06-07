@@ -69,9 +69,8 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Conversation (ConversationCoverView (ConversationCoverView))
-import Wire.API.Conversation.Member (Member (..))
-import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
+import Wire.API.Conversation
+import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
 import Wire.API.User.Client (QualifiedUserClients (..), UserClientPrekeyMap, getUserClientPrekeyMap)
@@ -98,8 +97,10 @@ tests s =
           test s "metrics" metrics,
           test s "create conversation" postConvOk,
           test s "get empty conversations" getConvsOk,
+          test s "list-conversations empty" listConvsOk,
           test s "get conversations by ids" getConvsOk2,
-          test s "fail to get >100 conversations" getConvsFailMaxSize,
+          test s "list-conversations by ids" listConvsOk2,
+          test s "fail to get >500 conversations" getConvsFailMaxSize,
           test s "get conversation ids" getConvIdsOk,
           test s "paginate through conversation ids" paginateConvIds,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
@@ -871,6 +872,14 @@ getConvsOk = do
     const 200 === statusCode
     const [toUUID usr] === map (toUUID . cnvId) . decodeConvList
 
+-- same test than getConvsOk, but using the listConversations endpoint
+listConvsOk :: TestM ()
+listConvsOk = do
+  usr <- randomUser
+  listAllConvs usr !!! do
+    const 200 === statusCode
+    const [toUUID usr] === map (toUUID . cnvId) . decodeConvList
+
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
   [alice, bob] <- randomUsers 2
@@ -889,6 +898,45 @@ getConvsOk2 = do
     const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
   -- get both
   rs <- getConvs alice Nothing Nothing <!! const 200 === statusCode
+  let cs = convList <$> responseJsonUnsafe rs
+  let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
+  let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
+  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
+    assertEqual
+      "name mismatch"
+      (Just $ cnvName expected)
+      (cnvName <$> actual)
+    assertEqual
+      "self member mismatch"
+      (Just . cmSelf $ cnvMembers expected)
+      (cmSelf . cnvMembers <$> actual)
+    assertEqual
+      "other members mismatch"
+      (Just [])
+      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+
+-- same test than getConvsOk2, but using the listConversations endpoint
+listConvsOk2 :: TestM ()
+listConvsOk2 = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  connectUsers alice (singleton bob)
+  -- create & get one2one conv
+  cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
+  let req1 = ListConversations (Just (Qualified (cnvId cnv1) localDomain :| [])) Nothing Nothing
+  listConvs alice req1 !!! do
+    const 200 === statusCode
+    const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
+  -- create & get group conv
+  carl <- randomUser
+  connectUsers alice (singleton carl)
+  cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+  let req2 = ListConversations (Just (Qualified (cnvId cnv2) localDomain :| [])) Nothing Nothing
+  listConvs alice req2 !!! do
+    const 200 === statusCode
+    const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
+  -- get both
+  rs <- listAllConvs alice <!! const 200 === statusCode
   let cs = convList <$> responseJsonUnsafe rs
   let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
   let c2 = cs >>= find ((== cnvId cnv2) . cnvId)

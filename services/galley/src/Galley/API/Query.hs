@@ -22,6 +22,7 @@ module Galley.API.Query
     getConversationRoles,
     getConversationIds,
     getConversations,
+    listConversations,
     getSelfH,
     internalGetMemberH,
     getConversationMetaH,
@@ -35,7 +36,7 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Proxy
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -102,6 +103,22 @@ getRemoteConversation zusr (Qualified convId remoteDomain) = do
     [conv] -> pure conv
     _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
+getRemoteConversations :: UserId -> [Qualified ConvId] -> Galley [Public.Conversation]
+getRemoteConversations zusr _remoteConvs = do
+  localDomain <- viewFederationDomain
+  let _qualifiedZUser = Qualified zusr localDomain
+  return []
+
+-- let req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
+--     rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+-- -- we expect the remote galley to make adequate checks on conversation
+-- -- membership and here we just pass through the reponse
+-- conversations <- runFederatedGalley remoteDomain rpc
+-- case gcresConvs conversations of
+--   [] -> throwM convNotFound
+--   [conv] -> pure conv
+--   _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
+
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do
   void $ getConversationAndCheckMembership zusr cnv
@@ -142,6 +159,54 @@ getConversations user mids mstart msize = do
       let hasMore = Data.resultSetType r == Data.ResultSetTruncated
       pure (hasMore, Data.resultSetResult r)
 
+    removeDeleted c
+      | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
+      | otherwise = pure True
+
+-- TODO: test for pagination using local conversation Ids
+-- FUTUREWORK: pagination support for remote conversations, or should *all* of them be returned always?
+listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
+listConversations user (Public.ListConversations mIds qstart msize) = do
+  localDomain <- viewFederationDomain
+  when (isJust mIds && isJust qstart) $
+    throwM (invalidPayload "'start' and 'qualified_ids' are mutually exclusive")
+  (localMore, localConvIds, remoteConvIds) <- case mIds of
+    Just xs -> do
+      let (remoteConvIds, localIds) = partitionRemoteOrLocalIds localDomain (toList xs)
+      (localMore, localConvIds) <- getIdsAndMore localIds
+      pure (localMore, localConvIds, remoteConvIds)
+    Nothing -> do
+      (localMore, localConvIds) <- getAll (localstart localDomain)
+      remoteConvIds <- Data.conversationsRemote user
+      pure (localMore, localConvIds, remoteConvIds)
+
+  localInternalConversations <-
+    Data.conversations localConvIds
+      >>= filterM removeDeleted
+      >>= filterM (pure . isMember user . Data.convLocalMembers)
+  localConversations <- mapM (Mapping.conversationView user) localInternalConversations
+
+  remoteConversations <- getRemoteConversations user remoteConvIds
+  let allConvs = localConversations <> remoteConversations
+  pure $ Public.ConversationList allConvs localMore
+  where
+    localstart localDomain = case qstart of
+      Just start | qDomain start == localDomain -> Just (qUnqualified start)
+      _ -> Nothing
+
+    size = fromMaybe (toRange (Proxy @32)) msize
+
+    -- TODO ensure max amount is 32 conversations
+    getIdsAndMore :: [ConvId] -> Galley (Bool, [ConvId])
+    getIdsAndMore ids = (False,) <$> Data.conversationIdsOf user ids
+
+    getAll :: Maybe ConvId -> Galley (Bool, [ConvId])
+    getAll mstart = do
+      r <- Data.conversationIdsFrom user mstart (rcast size)
+      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
+      pure (hasMore, Data.resultSetResult r)
+
+    removeDeleted :: Data.Conversation -> Galley Bool
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True

@@ -119,7 +119,8 @@ data Api routes = Api
         :> Get '[Servant.JSON] (Public.ConversationList ConvId),
     getConversations ::
       routes
-        :- Summary "Get all conversations"
+        :- Summary "Get all *local* conversations."
+        :> Description "Will not return remote conversations (will eventually be deprecated in favour of list-conversations)"
         :> ZUser
         :> "conversations"
         :> QueryParam'
@@ -144,6 +145,14 @@ data Api routes = Api
              "size"
              (Range 1 500 Int32)
         :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
+    listConversations ::
+      routes
+        :- Summary "Get all conversations (also returns remote conversations)"
+        :> Description "Like GET /conversations, but allows specifying a list of remote conversations in its request body. Will return all or the requested qualified conversations, including remote ones. WIP: Size parameter is not yet honoured for remote conversations."
+        :> ZUser
+        :> "list-conversations"
+        :> ReqBody '[Servant.JSON] Public.ListConversations
+        :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- FUTUREWORK: errorResponse Error.notConnected

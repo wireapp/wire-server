@@ -33,6 +33,7 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
+import Data.Aeson.Types (emptyObject)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
@@ -95,8 +96,8 @@ import TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
+import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
-import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
@@ -807,6 +808,33 @@ getConvs u r s = do
       . zConn "conn"
       . zType "access"
       . convRange r s
+
+-- (should be) equivalent to
+-- listConvs u (ListConversations [] Nothing Nothing)
+listAllConvs :: UserId -> TestM ResponseLBS
+listAllConvs u = do
+  g <- view tsGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json emptyObject
+
+listConvs :: UserId -> ListConversations -> TestM ResponseLBS
+listConvs u req = do
+  -- when using servant-client (pending #1605), this would become:
+  -- galleyClient <- view tsGalleyClient
+  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
+  g <- view tsGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json req
 
 getConv :: UserId -> ConvId -> TestM ResponseLBS
 getConv u c = do
