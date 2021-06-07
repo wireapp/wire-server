@@ -25,8 +25,9 @@ import Bilge.RPC (rpc')
 import Control.Lens (view)
 import Data.Domain
 import Data.String.Conversions (cs)
+import qualified Data.Text.Lazy as LText
 import Federator.App (Federator, liftAppIOToFederator)
-import Federator.Env (brig)
+import Federator.Env (service)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
@@ -52,9 +53,9 @@ interpretService ::
   Sem r a
 interpretService = interpret $ \case
   ServiceCall component path body domain -> embed @Federator . liftAppIOToFederator $ do
-    brigReq <- view brig <$> ask
+    serviceReq <- view service <$> ask
     res <-
-      rpc' "brig" (brigReq component) $
+      rpc' (LText.pack (show component)) (serviceReq component) $
         RPC.method HTTP.POST
           . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
           . RPC.body (RPC.RequestBodyBS body)

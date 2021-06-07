@@ -36,7 +36,7 @@ data Env = Env
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
-    _brig :: Component -> RPC.Request,
+    _service :: Component -> RPC.Request,
     _httpManager :: HTTP.Manager
   }
 
