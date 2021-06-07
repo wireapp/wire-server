@@ -77,6 +77,8 @@ data Opts = Opts
     federatorExternal :: Endpoint,
     -- | Host and port of brig
     brig :: Endpoint,
+    -- | Host and port of galley
+    galley :: Endpoint,
     -- | Log level (Debug, Info, etc)
     logLevel :: Level,
     -- | Use netstrings encoding (see <http://cr.yp.to/proto/netstrings.txt>)
