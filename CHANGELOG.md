@@ -14,21 +14,53 @@
 
 -->
 
-[upcoming]
+# [2021-06-08]
 
 ## Release Notes
 
 Deploy brig before galley (#1526, #1549)
 
 ## Features
-
-- Legalhold: Ensure device handshake is blocked in case of policy conflict (#1526)
+* Update versions of webapp, team-settings, account-pages (#1559)
+* Add missing /list-users route (#1572)
+* [Legalhold] Block device handshake in case of LH policy conflict (#1526)
+* [Legalhold] Fix: Connection type when unblocking after LH (#1549)
+* [Legalhold] Allow Legalhold for large teams (>2000) if enabled via whitelist (#1546)
+* [Legalhold] Add ClientCapabilities to NewClient. (#1552)
+* [Legalhold] Dynamic whitelisted teams & whitelist-teams-and-implicit-consent feature in tests (#1557, #1574)
+* [Federation] Use Servant.respond instead of explicit SOP (#1535)
+* [Federation] Add remote members to conversations (#1529)
+* [Federation] Add end2end test for adding remote users to a conversation (#1538)
+* [Federation] Add required fields to Swagger for SchemaP (#1536)
+* [Federation] Add Galley component to federator API (#1555)
+* [Federation] Generalises the mock federator to work with any MonadIO m monad (#1564)
+* [Federation] Federation: new endpoint: GET /conversations/{domain}/{cnv} (#1566)
+* [Federation] Parametric mock federator (#1558)
+* [Federation] Add more information to federation errors (#1560)
+* [Federation] Introduces the HasGalley class (#1568)
+* [Federation] Add remote users when creating a conversation (#1569)
+* [Federation] Servantify JSON endpoint to send messages (#1532)
+* [Federation] federator: rename Brig -> Service and add galley (#1570)
+* [Federation] Update conversation membership (#1540)
+* [Federation] expose /conversations/{cnv}/members/v2 for federation backends (#1543)
 
 ## Bug fixes and other updates
+* Fix MIME-type of asset artifacts 
+* Add some missing charts (#1533)
+
+# Internal changes
+* Qualify users and conversations in Event (#1547)
+* Make botsAndUsers pure (#1562)
+* Set swagger type of text schema (#1561)
+* More examples in schema-profunctor documentation (#1539)
+* Refactoring-friendly FutureWork data type (#1550)
+* nginz/Dockerfile: Run 'apk add' verbosely for debugging (#1565)
+* Introduce a generalized version of wai-extra Session type constructor (#1563)
+* Avoid wrapping error in rethrow middleware (#1567)
+* wire-api: Introduce ErrorDescription (#1573)
 
 ## Documentation
-
-## Internal changes
+* Update Rich Info docs (#1544)
 
 # [2021-05-26]
 
