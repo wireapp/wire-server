@@ -42,7 +42,8 @@ tests :: TestTree
 tests =
   testGroup "ExternalServer" $
     [ requestBrigSuccess,
-      requestBrigFailure
+      requestBrigFailure,
+      requestGalleySuccess
     ]
 
 requestBrigSuccess :: TestTree
@@ -71,6 +72,19 @@ requestBrigFailure =
       let expectedCall = (Brig, "/users", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseErr "Invalid HTTP status from component: 404 Not Found") res
+
+requestGalleySuccess :: TestTree
+requestGalleySuccess =
+  testCase "should translate response from galley to 'InwardResponseBody' when response has status 200" $
+    runM . evalMock @Service @IO $ do
+      mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
+      let request = Request Galley "/users" "\"foo\"" exampleDomain
+
+      res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
+      actualCalls <- mockServiceCallCalls @IO
+      let expectedCall = (Galley, "/users", "\"foo\"", aValidDomain)
+      embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
+      embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
 allowAllSettings :: RunSettings
 allowAllSettings = RunSettings AllowAll
