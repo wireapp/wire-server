@@ -177,16 +177,22 @@ newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList ::
 
 instance ToSchema ClientCapabilityList where
   schema =
-    objectWithDocModifier "ClientCapabilityList" mods $
-      ClientCapabilityList
-        <$> (Set.toList . fromClientCapabilityList)
-          .= field "capabilities" (Set.fromList <$> array schema)
-    where
-      mods = description ?~ ("Hints provided by the client for the backend so it can behavior in a backwards-compatible way." :: Text)
+    object "ClientCapabilityList" $
+      ClientCapabilityList <$> fromClientCapabilityList .= capabilitiesFieldSchema
+
+capabilitiesFieldSchema :: ObjectSchema SwaggerDoc (Set ClientCapability)
+capabilitiesFieldSchema =
+  Set.toList
+    .= fieldWithDocModifier "capabilities" mods (Set.fromList <$> array schema)
+  where
+    mods =
+      description
+        ?~ "Hints provided by the client for the backend so it can \
+           \behave in a backwards-compatible way."
 
 modelClientCapabilityList :: Doc.Model
 modelClientCapabilityList = Doc.defineModel "ClientCapabilityList" $ do
-  Doc.description "Hints provided by the client for the backend so it can behavior in a backwards-compatible way."
+  Doc.description "Hints provided by the client for the backend so it can behave in a backwards-compatible way."
   Doc.property "capabilities" (Doc.array typeClientCapability) $ do
     Doc.description "Array containing all capabilities supported by a client."
 
@@ -680,16 +686,7 @@ instance ToSchema NewClient where
                 schema
             )
         <*> newClientModel .= opt (field "model" schema)
-        <*> (fmap Set.toList . newClientCapabilities)
-          .= opt
-            ( fieldWithDocModifier
-                "capabilities"
-                ( description
-                    ?~ "Hints for the backend so it can behave in a \
-                       \backwards-compatible way."
-                )
-                (Set.fromList <$> array schema)
-            )
+        <*> newClientCapabilities .= opt capabilitiesFieldSchema
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -717,6 +714,36 @@ data UpdateClient = UpdateClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateClient)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpdateClient
+
+instance ToSchema UpdateClient where
+  schema =
+    object "UpdateClient" $
+      UpdateClient
+        <$> (Just . updateClientPrekeys)
+          .= ( fromMaybe []
+                 <$> opt
+                   ( fieldWithDocModifier
+                       "prekeys"
+                       (description ?~ "New prekeys for other clients to establish OTR sessions.")
+                       (array schema)
+                   )
+             )
+        <*> updateClientLastKey
+          .= opt
+            ( fieldWithDocModifier
+                "lastkey"
+                (description ?~ "New last-resort prekey.")
+                schema
+            )
+        <*> updateClientLabel
+          .= opt
+            ( fieldWithDocModifier
+                "label"
+                (description ?~ "A new name for this client.")
+                schema
+            )
+        <*> updateClientCapabilities .= opt capabilitiesFieldSchema
 
 modelUpdateClient :: Doc.Model
 modelUpdateClient = Doc.defineModel "UpdateClient" $ do
@@ -739,23 +766,6 @@ modelUpdateClient = Doc.defineModel "UpdateClient" $ do
   Doc.property "capabilities" typeClientCapability $ do
     Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
     Doc.optional
-
-instance ToJSON UpdateClient where
-  toJSON c =
-    A.object $
-      "prekeys" A..= updateClientPrekeys c
-        # "lastkey" A..= updateClientLastKey c
-        # "label" A..= updateClientLabel c
-        # "capabilities" A..= updateClientCapabilities c
-        # []
-
-instance FromJSON UpdateClient where
-  parseJSON = A.withObject "RefreshClient" $ \o ->
-    UpdateClient
-      <$> o A..:? "prekeys" A..!= []
-      <*> o A..:? "lastkey"
-      <*> o A..:? "label"
-      <*> o A..:? "capabilities"
 
 --------------------------------------------------------------------------------
 -- RmClient
