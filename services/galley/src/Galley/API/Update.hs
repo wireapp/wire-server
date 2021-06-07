@@ -66,9 +66,11 @@ import qualified Brig.Types.User as User
 import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad.Catch
+import Control.Monad.Except (runExceptT)
 import Control.Monad.State
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
+import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
@@ -79,6 +81,7 @@ import Data.Misc (FutureWork (..))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Tagged (unTagged)
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
@@ -116,7 +119,6 @@ import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Event.Conversation as Public
-import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.Client as Federation
 import Wire.API.Federation.Error
