@@ -169,8 +169,9 @@ instance Cql.Cql ClientCapability where
   fromCql _ = Left "ClientCapability value: int expected"
 
 -- FUTUREWORK: add golden tests for this?
-data ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
+newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
   deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Semigroup, Monoid)
   deriving (Arbitrary) via (GenericUniform ClientCapabilityList)
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema ClientCapabilityList)
 
@@ -403,6 +404,20 @@ data Client = Client
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
   deriving (Swagger.ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "client", LowerCase)] Client)
+
+instance ToSchema Client where
+  schema =
+    object "Client" $
+      Client
+        <$> clientId .= field "id" schema
+        <*> clientType .= field "id" schema
+        <*> clientTime .= field "id" schema
+        <*> clientClass .= opt (field "id" schema)
+        <*> clientLabel .= opt (field "id" schema)
+        <*> clientCookie .= opt (field "id" schema)
+        <*> clientLocation .= opt (field "id" schema)
+        <*> clientModel .= opt (field "id" schema)
+        <*> clientCapabilities .= (field "id" schema <|> pure mempty)
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do

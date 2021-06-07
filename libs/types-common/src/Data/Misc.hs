@@ -146,6 +146,14 @@ data Location = Location
     _longitude :: !Double
   }
   deriving stock (Eq, Ord, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Location
+
+instance ToSchema Location where
+  schema =
+    object "Location" $
+      Location
+        <$> _latitude .= field "lat" genericToSchema
+        <*> _longitude .= field "lon" genericToSchema
 
 instance Show Location where
   show p =
@@ -175,28 +183,6 @@ modelLocation = Doc.defineModel "Location" $ do
     Doc.description "Latitude"
   Doc.property "lon" Doc.double' $
     Doc.description "Longitude"
-
-instance ToJSON Location where
-  toJSON p = A.object ["lat" A..= (p ^. latitude), "lon" A..= (p ^. longitude)]
-
-instance FromJSON Location where
-  parseJSON = A.withObject "Location" $ \o ->
-    location
-      <$> (Latitude <$> o A..: "lat")
-      <*> (Longitude <$> o A..: "lon")
-
-instance S.ToSchema Location where
-  declareNamedSchema _ = do
-    doubleSchema <- S.declareSchemaRef (Proxy @Double)
-    return $
-      S.NamedSchema (Just "Location") $
-        mempty
-          & S.type_ ?~ S.SwaggerObject
-          & S.properties
-            .~ [ ("lat", doubleSchema),
-                 ("lon", doubleSchema)
-               ]
-          & S.required .~ ["lat", "lon"]
 
 instance Arbitrary Location where
   arbitrary = Location <$> arbitrary <*> arbitrary
