@@ -775,6 +775,20 @@ newtype RmClient = RmClient
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema RmClient
+
+instance ToSchema RmClient where
+  schema =
+    object "DeleteClient" $
+      RmClient
+        <$> rmPassword
+          .= fieldWithDocModifier
+            "password"
+            ( description
+                ?~ "The password of the authenticated user for verification. \
+                   \The password is not required for deleting temporary clients."
+            )
+            (optWithDefault A.Null schema)
 
 modelDeleteClient :: Doc.Model
 modelDeleteClient = Doc.defineModel "DeleteClient" $ do
@@ -784,13 +798,6 @@ modelDeleteClient = Doc.defineModel "DeleteClient" $ do
       "The password of the authenticated user for verification. \
       \The password is not required for deleting temporary clients."
     Doc.optional
-
-instance ToJSON RmClient where
-  toJSON (RmClient pw) = A.object ["password" A..= pw]
-
-instance FromJSON RmClient where
-  parseJSON = A.withObject "RmClient" $ \o ->
-    RmClient <$> o A..:? "password"
 
 --------------------------------------------------------------------------------
 -- other models
