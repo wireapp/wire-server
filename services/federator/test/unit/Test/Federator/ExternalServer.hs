@@ -51,11 +51,11 @@ requestBrigSuccess =
   testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Service @IO $ do
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
-      let request = Request Brig "/users" "\"foo\"" exampleDomain
+      let request = Request Brig "/get-user-by-handle" "\"foo\"" exampleDomain
 
       res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/users", "\"foo\"", aValidDomain)
+      let expectedCall = (Brig, "/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
@@ -64,12 +64,12 @@ requestBrigFailure =
   testCase "should translate response from brig to 'InwardResponseBody' when response has status 404" $
     runM . evalMock @Service @IO $ do
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.notFound404, Just "response body"))
-      let request = Request Brig "/users" "\"foo\"" exampleDomain
+      let request = Request Brig "/get-user-by-handle" "\"foo\"" exampleDomain
 
       res <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
 
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/users", "\"foo\"", aValidDomain)
+      let expectedCall = (Brig, "/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseErr "Invalid HTTP status from component: 404 Not Found") res
 
@@ -78,11 +78,11 @@ requestGalleySuccess =
   testCase "should translate response from galley to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Service @IO $ do
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
-      let request = Request Galley "/users" "\"foo\"" exampleDomain
+      let request = Request Galley "/get-conversations" "{}" exampleDomain
 
       res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Galley, "/users", "\"foo\"", aValidDomain)
+      let expectedCall = (Galley, "/get-conversations", "{}", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
