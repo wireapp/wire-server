@@ -74,14 +74,14 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,
     cmuOrigUserId :: Qualified UserId,
     cmuConvId :: Qualified ConvId,
-    -- | This field notifies a remote backend about which users need to be sent
+    -- | A list of users from a remote backend that need to be sent
     -- notifications about this change. This is required as we do not expect a
-    -- non-conversation owning backend to have a indexed mapping of conversation
-    -- to users.
+    -- non-conversation owning backend to have an indexed mapping of
+    -- conversation to users.
     cmuAlreadyPresentUsers :: [UserId],
-    -- | Users which got added to the conversation.
+    -- | Users that got added to the conversation.
     cmuUsersAdd :: [(Qualified UserId, RoleName)],
-    -- | Users which got removed from the conversation. This should probably be
+    -- | Users that got removed from the conversation. This should probably be
     -- Qualified, but as of now this is a stub.
     --
     -- FUTUREWORK: Implement this when supporting removal of remote conversation
