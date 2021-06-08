@@ -15,5 +15,6 @@
         "managed": true,
         "teamid": "00000000-0000-0000-0000-000000000001"
     },
-    "message_timer": 6614365418177275
+    "message_timer": 6614365418177275,
+    "qualified_users": []
 }

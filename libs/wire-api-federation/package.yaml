@@ -21,6 +21,7 @@ dependencies:
 - bytestring
 - either
 - errors
+- exceptions
 - http-types
 - http2-client-grpc
 - imports
@@ -39,6 +40,7 @@ dependencies:
 - time >=1.8
 - types-common
 - warp
+- wai-utilities
 - wire-api
 library:
   source-dirs: src

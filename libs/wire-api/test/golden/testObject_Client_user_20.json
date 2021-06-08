@@ -8,5 +8,10 @@
     "id": "1",
     "type": "legalhold",
     "class": "phone",
+    "capabilities": {
+        "capabilities": [
+            "legalhold-implicit-consent"
+        ]
+    },
     "label": "-󼊣v"
 }

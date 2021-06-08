@@ -79,6 +79,7 @@ library:
   - time >=1.4
   - tinylog >=0.10
   - tls >=1.3.10
+  - transformers >=0.3
   - types-common >=0.16
   - types-common-journal >=0.1
   - unliftio >=0.2
@@ -111,9 +112,11 @@ tests:
     - tasty
     - tasty-hunit
     - tasty-quickcheck
+    - tasty-hspec
     - types-common
     - QuickCheck
     - wai
+    - servant-swagger
     - wai-predicates
 
 executables:
@@ -150,6 +153,7 @@ executables:
     - brig-types
     - bytestring
     - bytestring-conversion
+    - case-insensitive
     - cassandra-util
     - cassava
     - cereal

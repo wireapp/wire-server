@@ -99,6 +99,7 @@ import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
+import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
@@ -830,34 +831,34 @@ listPropertyKeysAndValuesH (u ::: _) = do
   keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
   pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
-getPrekeyUnqualifiedH :: UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyUnqualifiedH user client = do
+getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
-  getPrekeyH domain user client
+  getPrekeyH zusr domain user client
 
-getPrekeyH :: Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyH domain user client = do
-  mPrekey <- API.claimPrekey user domain client !>> clientError
+getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH zusr domain user client = do
+  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleUnqualifiedH uid = do
+getPrekeyBundleUnqualifiedH :: UserId -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
-  API.claimPrekeyBundle domain uid !>> clientError
+  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: Domain -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleH domain uid =
-  API.claimPrekeyBundle domain uid !>> clientError
+getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH zusr domain uid =
+  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getMultiUserPrekeyBundleUnqualifiedH :: Public.UserClients -> Handler Public.UserClientPrekeyMap
-getMultiUserPrekeyBundleUnqualifiedH userClients = do
+getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler Public.UserClientPrekeyMap
+getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
-  lift $ API.claimLocalMultiPrekeyBundles userClients
+  API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
-getMultiUserPrekeyBundleH :: Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
-getMultiUserPrekeyBundleH qualUserClients = do
+getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
+getMultiUserPrekeyBundleH zusr qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
         Map.foldMapWithKey
@@ -865,7 +866,7 @@ getMultiUserPrekeyBundleH qualUserClients = do
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
     throwStd tooManyClients
-  API.claimMultiPrekeyBundles qualUserClients !>> clientError
+  API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClientH :: JsonRequest Public.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
@@ -950,7 +951,12 @@ getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientCapabilitiesH (uid ::: cid ::: _) = json <$> getClientCapabilities uid cid
 
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
-getClientCapabilities uid cid = lift $ API.lookupLocalClientCapabilities uid cid
+getClientCapabilities uid cid = do
+  localdomain <- viewFederationDomain
+  ( API.lookupClient (Qualified uid localdomain) cid
+      >>= maybe (throwE ClientNotFound) (pure . Public.clientCapabilities)
+    )
+    !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =

@@ -51,6 +51,7 @@ import qualified System.Logger.Extended as LogExt
 import UnliftIO (bracket)
 import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
+import Wire.API.Federation.GRPC.Types
 import qualified Wire.Network.DNS.Helper as DNS
 
 ------------------------------------------------------------------------------
@@ -86,12 +87,12 @@ newEnv o _dnsResolver = do
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = Opt.optSettings o
-  let _brig = mkEndpoint (Opt.brig o)
-  let _brigEndpoint = Opt.brig o
+  let _service Brig = mkEndpoint (Opt.brig o)
+      _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
   return Env {..}
   where
-    mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
+    mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

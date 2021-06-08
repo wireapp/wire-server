@@ -36,6 +36,7 @@ module Network.Wire.Client.API.Push
     OtrMessage (..),
     SimpleMembers (..),
     SimpleMember (..),
+    smId,
     UserIdList (..),
     UserInfo (..),
 

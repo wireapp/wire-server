@@ -23,6 +23,7 @@ module Galley.Types.Teams.Intra
     TeamData (..),
     TeamStatusUpdate (..),
     TeamName (..),
+    GuardLegalholdPolicyConflicts (..),
   )
 where
 
@@ -33,6 +34,10 @@ import Data.Json.Util
 import Data.Time (UTCTime)
 import Galley.Types.Teams (Team)
 import Imports
+import Test.QuickCheck.Arbitrary (Arbitrary)
+import Wire.API.Arbitrary (GenericUniform (..))
+import Wire.API.Message (UserClients)
+import Wire.API.Team.LegalHold (LegalholdProtectee)
 
 data TeamStatus
   = Active
@@ -102,3 +107,14 @@ newtype TeamName = TeamName
   deriving (Eq, Show, Generic)
 
 deriveJSON toJSONFieldName ''TeamName
+
+data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
+  { glhProtectee :: LegalholdProtectee,
+    glhUserClients :: UserClients
+  }
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform GuardLegalholdPolicyConflicts)
+
+instance ToJSON GuardLegalholdPolicyConflicts
+
+instance FromJSON GuardLegalholdPolicyConflicts

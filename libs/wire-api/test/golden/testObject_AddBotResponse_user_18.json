@@ -1,11 +1,19 @@
 {
     "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000000-0000-0001-0000-000100000001"
+        },
         "conversation": "00000000-0000-0001-0000-000100000001",
         "time": "1864-05-13T04:14:10.186Z",
         "data": {
             "name": "+S󲱱x1"
         },
         "from": "00000001-0000-0002-0000-000000000003",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00000001-0000-0002-0000-000000000003"
+        },
         "type": "conversation.rename"
     },
     "accent_id": 1,

@@ -1,12 +1,1 @@
-{
-    "cookie": "",
-    "time": "1864-05-07T09:07:14.559Z",
-    "location": {
-        "lat": -1.505966289957799,
-        "lon": -2.516893825541776
-    },
-    "model": "⌷o",
-    "id": "0",
-    "type": "temporary",
-    "class": "desktop"
-}
+{"cookie":"","time":"1864-05-07T09:07:14.559Z","location":{"lat":-1.505966289957799,"lon":-2.516893825541776},"model":"⌷o","id":"0","type":"temporary","class":"desktop","capabilities":{"capabilities":[]}}

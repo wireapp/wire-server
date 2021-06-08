@@ -1,4 +1,8 @@
 {
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "000031c2-0000-108c-0000-10a500000882"
+    },
     "conversation": "000031c2-0000-108c-0000-10a500000882",
     "time": "1864-05-03T06:49:41.178Z",
     "data": {
@@ -12,5 +16,9 @@
         "target": "00000001-0000-0002-0000-000100000000"
     },
     "from": "00005335-0000-2983-0000-46460000082f",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "00005335-0000-2983-0000-46460000082f"
+    },
     "type": "conversation.member-update"
 }

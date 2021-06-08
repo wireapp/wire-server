@@ -55,7 +55,7 @@ data UserIds = UserIds
 -- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
 data ConnectionsStatusRequest = ConnectionsStatusRequest
   { csrFrom :: ![UserId],
-    csrTo :: ![UserId]
+    csrTo :: !(Maybe [UserId])
   }
   deriving (Eq, Show, Generic)
 

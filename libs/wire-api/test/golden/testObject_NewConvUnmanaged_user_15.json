@@ -14,5 +14,6 @@
         "teamid": "00000001-0000-0001-0000-000200000002"
     },
     "receipt_mode": 1,
-    "message_timer": 4005602882980532
+    "message_timer": 4005602882980532,
+    "qualified_users": []
 }

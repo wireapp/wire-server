@@ -25,23 +25,23 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
 assetTooLarge :: Error
-assetTooLarge = Error status413 "client-error" "Asset too large."
+assetTooLarge = mkError status413 "client-error" "Asset too large."
 
 unauthorised :: Error
-unauthorised = Error status403 "unauthorised" "Unauthorised operation."
+unauthorised = mkError status403 "unauthorised" "Unauthorised operation."
 
 invalidLength :: Error
-invalidLength = Error status400 "invalid-length" "Invalid content length."
+invalidLength = mkError status400 "invalid-length" "Invalid content length."
 
 assetNotFound :: Error
-assetNotFound = Error status404 "not-found" "Asset not found."
+assetNotFound = mkError status404 "not-found" "Asset not found."
 
 invalidMD5 :: Error
-invalidMD5 = Error status400 "client-error" "Invalid MD5."
+invalidMD5 = mkError status400 "client-error" "Invalid MD5."
 
 requestTimeout :: Error
 requestTimeout =
-  Error
+  mkError
     status408
     "request-timeout"
     "The request timed out. The server was still expecting more data \
@@ -50,7 +50,7 @@ requestTimeout =
 
 invalidOffset :: Offset -> Offset -> Error
 invalidOffset expected given =
-  Error status409 "invalid-offset" $
+  mkError status409 "invalid-offset" $
     toLazyText $
       "Invalid offset: "
         <> "expected: "
@@ -62,7 +62,7 @@ invalidOffset expected given =
 
 uploadTooSmall :: Error
 uploadTooSmall =
-  Error
+  mkError
     status403
     "client-error"
     "The current chunk size is \
@@ -70,7 +70,7 @@ uploadTooSmall =
 
 uploadTooLarge :: Error
 uploadTooLarge =
-  Error
+  mkError
     status413
     "client-error"
     "The current chunk size + offset \
@@ -78,7 +78,7 @@ uploadTooLarge =
 
 uploadIncomplete :: TotalSize -> TotalSize -> Error
 uploadIncomplete expected actual =
-  Error status403 "client-error" $
+  mkError status403 "client-error" $
     toLazyText $
       "The upload is incomplete: "
         <> "expected size: "
@@ -89,7 +89,7 @@ uploadIncomplete expected actual =
         <> "."
 
 clientError :: LText -> Error
-clientError = Error status400 "client-error"
+clientError = mkError status400 "client-error"
 
 serverError :: Error
-serverError = Error status500 "server-error" "Server Error."
+serverError = mkError status500 "server-error" "Server Error."

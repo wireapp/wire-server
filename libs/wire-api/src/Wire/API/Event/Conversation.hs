@@ -26,6 +26,7 @@ module Wire.API.Event.Conversation
 
     -- * Event data helpers
     SimpleMember (..),
+    smId,
     SimpleMembers (..),
     Connect (..),
     MemberUpdateData (..),
@@ -70,6 +71,7 @@ import qualified Data.Aeson as A
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -89,8 +91,8 @@ import Wire.API.User (UserIdList (..))
 
 data Event = Event
   { evtType :: EventType,
-    evtConv :: ConvId,
-    evtFrom :: UserId,
+    evtConv :: Qualified ConvId,
+    evtFrom :: Qualified UserId,
     evtTime :: UTCTime,
     evtData :: EventData
   }
@@ -157,7 +159,7 @@ data EventType
 instance ToSchema EventType where
   schema =
     enum @Text "EventType" $
-      asum
+      mconcat
         [ element "conversation.member-join" MemberJoin,
           element "conversation.member-leave" MemberLeave,
           element "conversation.member-update" MemberStateUpdate,
@@ -294,26 +296,17 @@ newtype SimpleMembers = SimpleMembers
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema SimpleMembers
 
 instance ToSchema SimpleMembers where
-  schema = object "Members" simpleMembersObjectSchema
-
-simpleMembersObjectSchema :: ObjectSchema SwaggerDoc SimpleMembers
-simpleMembersObjectSchema =
-  (`withParser` either fail pure) $
-    mk
-      <$> mMembers .= optional (field "users" (array schema))
-      <*> (fmap smId . mMembers)
-        .= optional
-          ( fieldWithDocModifier
-              "user_ids"
-              (description ?~ "deprecated")
-              (array schema)
-          )
-  where
-    -- This is to make migration easier and not dependent on deployment ordering
-    mk :: Maybe [SimpleMember] -> Maybe [UserId] -> Either String SimpleMembers
-    mk Nothing Nothing = Left "Either users or user_ids required"
-    mk Nothing (Just ids) = pure (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) ids))
-    mk (Just membs) _ = pure (SimpleMembers membs)
+  schema =
+    object "Members" $
+      SimpleMembers
+        <$> mMembers .= field "users" (array schema)
+        <* (fmap smId . mMembers)
+          .= optional
+            ( fieldWithDocModifier
+                "user_ids"
+                (description ?~ "deprecated")
+                (array schema)
+            )
 
 -- | Used both for 'SimpleMembers' and 'UserIdList'.
 modelMembers :: Doc.Model
@@ -323,32 +316,24 @@ modelMembers =
       Doc.description "List of user IDs"
 
 data SimpleMember = SimpleMember
-  { smId :: UserId,
+  { smQualifiedId :: Qualified UserId,
     smConvRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SimpleMember)
+  deriving (FromJSON, ToJSON) via Schema SimpleMember
+
+smId :: SimpleMember -> UserId
+smId = qUnqualified . smQualifiedId
 
 instance ToSchema SimpleMember where
   schema =
     object "SimpleMember" $
       SimpleMember
-        <$> smId .= field "id" schema
+        <$> smQualifiedId .= field "qualified_id" schema
+        <* smId .= optional (field "id" schema)
         <*> smConvRoleName
-          .= field "conversation_role" schema
-
-instance ToJSON SimpleMember where
-  toJSON m =
-    A.object
-      [ "id" A..= smId m,
-        "conversation_role" A..= smConvRoleName m
-      ]
-
-instance FromJSON SimpleMember where
-  parseJSON = A.withObject "simple member object" $ \o ->
-    SimpleMember
-      <$> o A..: "id"
-      <*> o A..:? "conversation_role" A..!= roleNameWireAdmin
+          .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
 
 data Connect = Connect
   { cRecipient :: UserId,
@@ -545,8 +530,10 @@ eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
   mk
     <$> (evtType &&& evtData) .= taggedEventDataSchema
-    <*> evtConv .= field "conversation" schema
-    <*> evtFrom .= field "from" schema
+    <* (qUnqualified . evtConv) .= optional (field "conversation" schema)
+    <*> evtConv .= field "qualified_conversation" schema
+    <* (qUnqualified . evtFrom) .= optional (field "from" schema)
+    <*> evtFrom .= field "qualified_from" schema
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
   where
     mk (ty, d) cid uid tm = Event ty cid uid tm d

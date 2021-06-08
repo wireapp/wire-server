@@ -26,11 +26,15 @@ module Galley.API.LegalHold
     approveDeviceH,
     disableForUserH,
     isLegalHoldEnabledForTeam,
+    setTeamLegalholdWhitelistedH,
+    unsetTeamLegalholdWhitelistedH,
+    getTeamLegalholdWhitelistedH,
   )
 where
 
 import Brig.Types.Client.Prekey
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
+import Brig.Types.Intra (ConnectionStatus (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
 import Control.Lens (view, (^.))
@@ -41,30 +45,26 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc
-import Data.Proxy
-import Data.Qualified (Qualified, partitionRemoteOrLocalIds)
-import Data.Range (toRange)
 import Galley.API.Error
-import Galley.API.Query (iterateConversations)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
-import Galley.Intra.User (putConnectionInternal)
+import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types (status200, status404)
 import Network.HTTP.Types.Status (status201, status204)
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..), cnvType)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 
@@ -82,11 +82,8 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureEnabled -> True
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      view (options . Opts.optSettings . Opts.setLegalHoldTeamsWhitelist)
-        <&> maybe
-          False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
-          (tid `elem`)
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+      isTeamLegalholdWhitelisted tid
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
@@ -133,6 +130,7 @@ removeSettingsH (zusr ::: tid ::: req ::: _) = do
 
 removeSettings :: UserId -> TeamId -> Public.RemoveLegalHoldSettingsRequest -> Galley ()
 removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
+  assertNotWhitelisting
   assertLegalHoldEnabledForTeam tid
   zusrMembership <- Data.teamMember tid zusr
   -- let zothers = map (view userId) membs
@@ -142,6 +140,14 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
   removeSettings' tid
+  where
+    assertNotWhitelisting :: Galley ()
+    assertNotWhitelisting = do
+      view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+        FeatureLegalHoldDisabledPermanently -> pure ()
+        FeatureLegalHoldDisabledByDefault -> pure ()
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+          throwM legalHoldDisableUnimplemented
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
@@ -406,22 +412,19 @@ changeLegalholdStatus tid uid old new = do
 -- FUTUREWORK: make this async?
 blockConnectionsFrom1on1s :: UserId -> Galley ()
 blockConnectionsFrom1on1s uid = do
-  errmsgs <-
-    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
-      conflicts <- mconcat <$> findConflicts (filter ((== One2OneConv) . cnvType) convs)
-      blockConflicts uid conflicts
+  conns <- getConnections [uid] Nothing Nothing
+  errmsgs <- do
+    conflicts <- mconcat <$> findConflicts conns
+    blockConflicts uid conflicts
   case mconcat errmsgs of
     [] -> pure ()
     msgs@(_ : _) -> do
-      Log.warn $ Log.msg @String (intercalate ", " msgs)
+      Log.warn $ Log.msg @String msgs
       throwM legalHoldCouldNotBlockConnections
   where
-    findConflicts :: [Conversation] -> Galley [[UserId]]
-    findConflicts convs = do
-      let otherUids :: [Qualified UserId] =
-            concatMap (fmap omQualifiedId . cmOthers . cnvMembers) convs
-      ownDomain <- viewFederationDomain
-      let (_remoteUsers, localUids) = partitionRemoteOrLocalIds ownDomain otherUids
+    findConflicts :: [ConnectionStatus] -> Galley [[UserId]]
+    findConflicts conns = do
+      let (FutureWork @'Public.LegalholdPlusFederationNotImplemented -> _remoteUids, localUids) = (undefined, csTo <$> conns)
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- Data.usersTeams others
@@ -441,3 +444,32 @@ blockConnectionsFrom1on1s uid = do
           Just team -> do
             mMember <- Data.teamMember team other
             pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+
+setTeamLegalholdWhitelisted :: TeamId -> Galley ()
+setTeamLegalholdWhitelisted tid = do
+  LegalHoldData.setTeamLegalholdWhitelisted tid
+
+setTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+setTeamLegalholdWhitelistedH tid = do
+  empty <$ setTeamLegalholdWhitelisted tid
+
+unsetTeamLegalholdWhitelisted :: TeamId -> Galley ()
+unsetTeamLegalholdWhitelisted tid = do
+  LegalHoldData.unsetTeamLegalholdWhitelisted tid
+
+unsetTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+unsetTeamLegalholdWhitelistedH tid = do
+  () <-
+    error
+      "FUTUREWORK: if we remove entries from the list, that means removing an unknown \
+      \number of LH devices as well, and possibly other things.  think this through \
+      \before you enable the end-point."
+  setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
+
+getTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+getTeamLegalholdWhitelistedH tid = do
+  lhEnabled <- isTeamLegalholdWhitelisted tid
+  pure $
+    if lhEnabled
+      then setStatus status200 empty
+      else setStatus status404 empty

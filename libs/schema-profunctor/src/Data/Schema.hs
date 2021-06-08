@@ -47,6 +47,7 @@ module Data.Schema
     fieldWithDocModifier,
     fieldOver,
     array,
+    set,
     nonEmptyArray,
     map_,
     enum,
@@ -72,7 +73,8 @@ where
 
 import Control.Applicative
 import Control.Comonad
-import Control.Lens hiding (element, enum, (.=))
+import Control.Lens hiding (element, enum, set, (.=))
+import qualified Control.Lens as Lens
 import Control.Monad.Trans.Cont
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor.Joker
@@ -81,6 +83,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid hiding (Product)
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
+import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as T
@@ -125,18 +128,22 @@ instance Semigroup (SchemaOut v a b) where
 instance Monoid (SchemaOut v a b) where
   mempty = SchemaOut (pure empty)
 
+-- | A near-semiring (aka seminearring).
+--
+-- This is used for schema documentation types, to support different behaviours
+-- for composing schemas sequentially vs alternatively.
+class Monoid m => NearSemiRing m where
+  zero :: m
+  add :: m -> m -> m
+
 newtype SchemaDoc doc a b = SchemaDoc {getDoc :: doc}
-  deriving (Functor, Semigroup, Monoid)
+  deriving (Functor, Semigroup, Monoid, NearSemiRing)
   deriving (Applicative) via (Const doc)
   deriving (Profunctor, Choice) via Joker (Const doc)
 
--- This instance is not exactly correct, distributivity does not hold
--- in general.
--- FUTUREWORK: introduce a NearSemiRing type class and replace the
--- `Monoid doc` constraint with `NearSemiRing doc`.
-instance Monoid doc => Alternative (SchemaDoc doc a) where
-  empty = mempty
-  (<|>) = (<>)
+instance NearSemiRing doc => Alternative (SchemaDoc doc a) where
+  empty = zero
+  (<|>) = add
 
 class HasDoc a a' doc doc' | a a' -> doc doc' where
   doc :: Lens a a' doc doc'
@@ -205,7 +212,7 @@ instance (Monoid doc, Monoid v') => Applicative (SchemaP doc v v' a) where
   SchemaP d1 i1 o1 <*> SchemaP d2 i2 o2 =
     SchemaP (d1 <*> d2) (i1 <*> i2) (o1 <*> o2)
 
-instance (Monoid doc, Monoid v') => Alternative (SchemaP doc v v' a) where
+instance (NearSemiRing doc, Monoid v') => Alternative (SchemaP doc v v' a) where
   empty = SchemaP empty empty empty
   SchemaP d1 i1 o1 <|> SchemaP d2 i2 o2 =
     SchemaP (d1 <|> d2) (i1 <|> i2) (o1 <|> o2)
@@ -228,7 +235,7 @@ instance Choice (SchemaP doc v v') where
   right' (SchemaP d i o) = SchemaP (right' d) (right' i) (right' o)
 
 instance HasDoc (SchemaP doc v v' a b) (SchemaP doc' v v' a b) doc doc' where
-  doc = lens schemaDoc $ \(SchemaP d i o) d' -> SchemaP (set doc d' d) i o
+  doc = lens schemaDoc $ \(SchemaP d i o) d' -> SchemaP (Lens.set doc d' d) i o
 
 withParser :: SchemaP doc v w a b -> (b -> A.Parser b') -> SchemaP doc v w a b'
 withParser (SchemaP (SchemaDoc d) (SchemaIn p) (SchemaOut o)) q =
@@ -363,6 +370,18 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     s = mkArray (schemaDoc sch)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
 
+set ::
+  (HasArray ndoc doc, HasName ndoc, Ord a) =>
+  ValueSchema ndoc a ->
+  ValueSchema doc (Set a)
+set sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+  where
+    name = maybe "set" ("set of " <>) (getName (schemaDoc sch))
+    r = A.withArray (T.unpack name) $ \arr ->
+      fmap Set.fromList . mapM (schemaIn sch) $ V.toList arr
+    s = mkArray (schemaDoc sch)
+    w x = A.Array . V.fromList <$> mapM (schemaOut sch) (Set.toList x)
+
 nonEmptyArray ::
   (HasArray ndoc doc, HasName ndoc, HasMinItems doc (Maybe Integer)) =>
   ValueSchema ndoc a ->
@@ -434,17 +453,17 @@ enum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- This is most commonly used for optional fields. The parser will
 -- return 'Nothing' if the field is missing, and conversely the
 -- serialiser will simply omit the field when its value is 'Nothing'.
-opt :: Monoid w => SchemaP d v w a b -> SchemaP d v w (Maybe a) (Maybe b)
+opt :: HasOpt d => Monoid w => SchemaP d v w a b -> SchemaP d v w (Maybe a) (Maybe b)
 opt = optWithDefault mempty
 
 -- | An optional schema with a specified failure value
 --
 -- This is a more general version of 'opt' that allows a custom
 -- serialisation 'Nothing' value.
-optWithDefault :: w -> SchemaP d v w a b -> SchemaP d v w (Maybe a) (Maybe b)
+optWithDefault :: HasOpt d => w -> SchemaP d v w a b -> SchemaP d v w (Maybe a) (Maybe b)
 optWithDefault w0 sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
   where
-    d = schemaDoc sch
+    d = mkOpt (schemaDoc sch)
     i = optional . schemaIn sch
     o = maybe (pure w0) (schemaOut sch)
 
@@ -454,7 +473,7 @@ optWithDefault w0 sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- @lax sch@ is just like the one for @sch@, except that it returns
 -- 'Nothing' in case of failure.
 lax :: Alternative f => f (Maybe a) -> f (Maybe a)
-lax = fmap join . optional
+lax = (<|> pure Nothing)
 
 -- | A schema depending on a parsed value.
 --
@@ -499,9 +518,11 @@ text :: Text -> ValueSchema NamedSwaggerDoc Text
 text name =
   named name $
     mkSchema
-      (pure mempty)
+      (pure d)
       (A.withText (T.unpack name) pure)
       (pure . A.String)
+  where
+    d = mempty & S.type_ ?~ S.SwaggerString
 
 -- | A schema for a textual value with possible failure.
 parsedText ::
@@ -539,6 +560,11 @@ instance Semigroup s => Semigroup (WithDeclare s) where
 instance Monoid s => Monoid (WithDeclare s) where
   mempty = WithDeclare (pure ()) mempty
 
+instance NearSemiRing s => NearSemiRing (WithDeclare s) where
+  zero = WithDeclare (pure ()) zero
+  add (WithDeclare d1 s1) (WithDeclare d2 s2) =
+    WithDeclare (d1 >> d2) (add s1 s2)
+
 runDeclare :: WithDeclare s -> Declare s
 runDeclare (WithDeclare m s) = s <$ m
 
@@ -550,6 +576,13 @@ unrunDeclare decl = case S.runDeclare decl mempty of
 type SwaggerDoc = WithDeclare S.Schema
 
 type NamedSwaggerDoc = WithDeclare S.NamedSchema
+
+-- addition of schemas is used by the alternative instance, and it works like
+-- multiplication (i.e. the Monoid instance), except that it intersects required
+-- fields instead of concatenating them
+instance NearSemiRing S.Schema where
+  zero = mempty
+  add x y = (x <> y) & S.required .~ intersect (x ^. S.required) (y ^. S.required)
 
 -- This class abstracts over SwaggerDoc and NamedSwaggerDoc
 class HasSchemaRef doc where
@@ -591,6 +624,9 @@ class Monoid doc => HasArray ndoc doc | ndoc -> doc where
 class Monoid doc => HasMap ndoc doc | ndoc -> doc where
   mkMap :: ndoc -> doc
 
+class HasOpt doc where
+  mkOpt :: doc -> doc
+
 class HasEnum doc where
   mkEnum :: Text -> [A.Value] -> doc
 
@@ -601,6 +637,7 @@ instance HasSchemaRef doc => HasField doc SwaggerDoc where
         mempty
           & S.type_ ?~ S.SwaggerObject
           & S.properties . at name ?~ ref
+          & S.required .~ [name]
 
 instance HasObject SwaggerDoc NamedSwaggerDoc where
   mkObject name decl = S.NamedSchema (Just name) <$> decl
@@ -636,6 +673,12 @@ instance HasEnum NamedSwaggerDoc where
       mempty
         & S.type_ ?~ S.SwaggerString
         & S.enum_ ?~ labels
+
+instance HasOpt SwaggerDoc where
+  mkOpt = (S.schema . S.required) .~ []
+
+instance HasOpt NamedSwaggerDoc where
+  mkOpt = (S.schema . S.required) .~ []
 
 -- | A type with a canonical typed schema definition.
 --
@@ -677,6 +720,8 @@ instance ToSchema Int where schema = genericToSchema
 instance ToSchema Int32 where schema = genericToSchema
 
 instance ToSchema Int64 where schema = genericToSchema
+
+instance ToSchema Integer where schema = genericToSchema
 
 instance ToSchema Word where schema = genericToSchema
 

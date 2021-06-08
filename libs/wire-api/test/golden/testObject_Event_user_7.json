@@ -1,9 +1,17 @@
 {
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00006ac1-0000-543e-0000-7c8f00000be7"
+    },
     "conversation": "00006ac1-0000-543e-0000-7c8f00000be7",
     "time": "1864-04-18T05:01:13.761Z",
     "data": {
         "status": "stopped"
     },
     "from": "0000355a-0000-2979-0000-083000002d5e",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "0000355a-0000-2979-0000-083000002d5e"
+    },
     "type": "conversation.typing"
 }

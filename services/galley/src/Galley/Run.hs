@@ -36,7 +36,7 @@ import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
 import qualified Galley.Data as Data
-import Galley.Options (Opts, optGalley, validateOpts)
+import Galley.Options (Opts, optGalley)
 import qualified Galley.Queue as Q
 import Imports
 import Network.Wai (Application)
@@ -48,7 +48,7 @@ import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.API as Servant
 import Servant.API.Generic (ToServantApi, genericApi)
 import qualified Servant.Server as Servant
-import qualified System.Logger.Class as Log
+import qualified System.Logger as Log
 import Util.Options
 import qualified Wire.API.Federation.API.Galley as FederationGalley
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -77,13 +77,18 @@ mkApp o = do
   m <- M.metrics
   e <- App.createEnv m o
   let l = e ^. App.applog
-  validateOpts l o
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
   let finalizer = do
+        Log.info l $ Log.msg @Text "Galley application finished."
         Log.flush l
         Log.close l
-  return (middlewares l m $ servantApp e, e, finalizer)
+      middlewares =
+        servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
+          . catchErrors l [Right m]
+          . GZip.gunzip
+          . GZip.gzip GZip.def
+  return (middlewares $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap
     app e r k = runGalley e r (route rtree r k)
@@ -97,12 +102,6 @@ mkApp o = do
             :<|> Servant.Tagged (app e)
         )
         r
-
-    middlewares l m =
-      servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
-        . catchErrors l [Right m]
-        . GZip.gunzip
-        . GZip.gzip GZip.def
 
 type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 

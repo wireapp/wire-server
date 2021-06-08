@@ -14,5 +14,6 @@
     "team": {
         "managed": true,
         "teamid": "00000001-0000-0001-0000-000100000002"
-    }
+    },
+    "qualified_users": []
 }

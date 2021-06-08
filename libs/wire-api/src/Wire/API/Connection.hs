@@ -28,6 +28,8 @@ module Wire.API.Connection
     UserConnectionList (..),
     Message (..),
     Relation (..),
+    RelationWithHistory (..),
+    relationDropHistory,
 
     -- * Requests
     ConnectionRequest (..),
@@ -164,6 +166,41 @@ data Relation
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Relation)
   deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToKebab] Relation)
+
+-- | 'updateConnectionInternal', requires knowledge of the previous state (before
+-- 'MissingLegalholdConsent'), but the clients don't need that information.  To avoid having
+-- to change the API, we introduce an internal variant of 'Relation' with surjective mapping
+-- 'relationDropHistory'.
+data RelationWithHistory
+  = AcceptedWithHistory
+  | BlockedWithHistory
+  | PendingWithHistory
+  | IgnoredWithHistory
+  | SentWithHistory
+  | CancelledWithHistory
+  | MissingLegalholdConsentFromAccepted
+  | MissingLegalholdConsentFromBlocked
+  | MissingLegalholdConsentFromPending
+  | MissingLegalholdConsentFromIgnored
+  | MissingLegalholdConsentFromSent
+  | MissingLegalholdConsentFromCancelled
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RelationWithHistory)
+
+relationDropHistory :: RelationWithHistory -> Relation
+relationDropHistory = \case
+  AcceptedWithHistory -> Accepted
+  BlockedWithHistory -> Blocked
+  PendingWithHistory -> Pending
+  IgnoredWithHistory -> Ignored
+  SentWithHistory -> Sent
+  CancelledWithHistory -> Cancelled
+  MissingLegalholdConsentFromAccepted -> MissingLegalholdConsent
+  MissingLegalholdConsentFromBlocked -> MissingLegalholdConsent
+  MissingLegalholdConsentFromPending -> MissingLegalholdConsent
+  MissingLegalholdConsentFromIgnored -> MissingLegalholdConsent
+  MissingLegalholdConsentFromSent -> MissingLegalholdConsent
+  MissingLegalholdConsentFromCancelled -> MissingLegalholdConsent
 
 typeRelation :: Doc.DataType
 typeRelation =

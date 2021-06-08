@@ -80,6 +80,9 @@ nginx_conf:
       envs:
       - all
       doc: true
+    - path: /list-users
+      envs:
+      - all
     - path: ~* ^/api/swagger.json$
       disable_zauth: true
       envs:
@@ -208,6 +211,11 @@ nginx_conf:
     - path: /i/provider/activation-code
       envs:
       - staging
+      disable_zauth: true
+      basic_auth: true
+    - path: ~* ^/i/legalhold/whitelisted-teams(.*)
+      envs:
+        - staging
       disable_zauth: true
       basic_auth: true
     - path: /cookies

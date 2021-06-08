@@ -88,4 +88,4 @@ mkNotificationId = do
   where
     x10 = limitRetries 10 <> exponentialBackoff 10
     fun = const (return . isNothing)
-    err = Error status500 "internal-error" "unable to generate notification ID"
+    err = mkError status500 "internal-error" "unable to generate notification ID"

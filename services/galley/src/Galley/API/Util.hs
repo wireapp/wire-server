@@ -21,12 +21,15 @@ import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
+import Control.Monad.Except (runExceptT)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
+import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Remote)
+import Data.Qualified (Qualified (qUnqualified), Remote, partitionQualified)
 import qualified Data.Set as Set
+import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
@@ -34,20 +37,24 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
+import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options (optSettings, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
+import Galley.Types.Teams hiding (Event)
 import Imports
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
-import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
+import qualified Wire.API.Federation.API.Brig as FederatedBrig
+import qualified Wire.API.Federation.Client as Federation
+import Wire.API.Federation.Error (federationErrorToWai)
+import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
 
@@ -94,8 +101,8 @@ ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
 ensureConnectedToLocals _ [] = pure ()
 ensureConnectedToLocals u uids = do
   (connsFrom, connsTo) <-
-    getConnections [u] uids (Just Accepted)
-      `concurrently` getConnections uids [u] (Just Accepted)
+    getConnections [u] (Just uids) (Just Accepted)
+      `concurrently` getConnections uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
     throwM notConnected
 
@@ -131,9 +138,9 @@ ensureConvRoleNotElevated origMember targetRole = do
     (_, _) ->
       throwM (badRequest "Custom roles not supported")
 
--- | If a team memeber is not given throw 'notATeamMember'; if the given team
+-- | If a team member is not given throw 'notATeamMember'; if the given team
 -- member does not have the given permission, throw 'operationDenied'.
--- Otherwise, return unit.
+-- Otherwise, return the team member.
 permissionCheck :: (IsPerm perm, Show perm) => perm -> Maybe TeamMember -> Galley TeamMember
 permissionCheck p = \case
   Just m -> do
@@ -167,28 +174,30 @@ permissionCheckTeamConv zusr cnv perm =
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
-acceptOne2One usr conv conn = case Data.convType conv of
-  One2OneConv ->
-    if usr `isMember` mems
-      then return conv
-      else do
+acceptOne2One usr conv conn = do
+  localDomain <- viewFederationDomain
+  case Data.convType conv of
+    One2OneConv ->
+      if usr `isMember` mems
+        then return conv
+        else do
+          now <- liftIO getCurrentTime
+          mm <- snd <$> Data.addMember localDomain now cid usr
+          return $ conv {Data.convMembers = mems <> toList mm}
+    ConnectConv -> case mems of
+      [_, _] | usr `isMember` mems -> promote
+      [_, _] -> throwM convNotFound
+      _ -> do
+        when (length mems > 2) $
+          throwM badConvState
         now <- liftIO getCurrentTime
-        mm <- snd <$> Data.addMember now cid usr
-        return $ conv {Data.convMembers = mems <> toList mm}
-  ConnectConv -> case mems of
-    [_, _] | usr `isMember` mems -> promote
-    [_, _] -> throwM convNotFound
-    _ -> do
-      when (length mems > 2) $
-        throwM badConvState
-      now <- liftIO getCurrentTime
-      (e, mm) <- Data.addMember now cid usr
-      conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
-      let mems' = mems <> toList mm
-      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
-        push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
-      return $ conv' {Data.convMembers = mems'}
-  _ -> throwM $ invalidOp "accept: invalid conversation type"
+        (e, mm) <- Data.addMember localDomain now cid usr
+        conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
+        let mems' = mems <> toList mm
+        for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> mems')) $ \p ->
+          push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+        return $ conv' {Data.convMembers = mems'}
+    _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
     cid = Data.convId conv
     mems = Data.convMembers conv
@@ -196,7 +205,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
       Data.acceptConnect cid
       return $ conv {Data.convType = One2OneConv}
     badConvState =
-      Error status500 "bad-state" $
+      mkError status500 "bad-state" $
         "Connect conversation with more than 2 members: "
           <> LT.pack (show cid)
 
@@ -212,18 +221,13 @@ isRemoteMember u = isJust . find ((u ==) . rmId)
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
 
-botsAndUsers :: (Log.MonadLogger m, Traversable t) => t LocalMember -> m ([BotMember], [LocalMember])
-botsAndUsers = fmap fold . traverse botOrUser
+botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
+botsAndUsers = foldMap botOrUser
   where
     botOrUser m = case memService m of
-      Just _ -> do
-        -- we drop invalid bots here, which shouldn't happen
-        bot <- mkBotMember m
-        pure (toList bot, [])
-      Nothing ->
-        pure ([], [m])
-    mkBotMember :: Log.MonadLogger m => LocalMember -> m (Maybe BotMember)
-    mkBotMember m = pure $ newBotMember m
+      -- we drop invalid bots here, which shouldn't happen
+      Just _ -> (toList (newBotMember m), [])
+      Nothing -> ([], [m])
 
 location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
@@ -293,8 +297,35 @@ canDeleteMember deleter deletee
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
+pushConversationEvent :: Event -> [UserId] -> [BotMember] -> Galley ()
+pushConversationEvent e users bots = do
+  for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (map userRecipient users)) $ \p ->
+    push1 $ p & pushConn .~ Nothing
+  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
+
 --------------------------------------------------------------------------------
 -- Federation
 
 viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
+
+checkRemoteUsersExist :: [Remote UserId] -> Galley ()
+checkRemoteUsersExist =
+  -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
+  traverse_ (uncurry checkRemotesFor)
+    . Map.assocs
+    . partitionQualified
+    . map unTagged
+
+checkRemotesFor :: Domain -> [UserId] -> Galley ()
+checkRemotesFor domain uids = do
+  let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
+  users <-
+    runExceptT (Federation.executeFederated domain rpc)
+      >>= either (throwM . federationErrorToWai) pure
+  let uids' =
+        map
+          (qUnqualified . User.profileQualifiedId)
+          (filter (not . User.profileDeleted) users)
+  unless (Set.fromList uids == Set.fromList uids') $
+    throwM unknownRemoteUser

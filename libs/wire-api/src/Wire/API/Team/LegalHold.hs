@@ -27,6 +27,7 @@ module Wire.API.Team.LegalHold
     RemoveLegalHoldSettingsRequest (..),
     DisableLegalHoldForUserRequest (..),
     ApproveLegalHoldForUserRequest (..),
+    LegalholdProtectee (..),
   )
 where
 
@@ -340,3 +341,24 @@ camelToUnderscore :: String -> String
 camelToUnderscore = concatMap go . (ix 0 %~ toLower)
   where
     go x = if isUpper x then "_" <> [toLower x] else [x]
+
+-----------------------------------------------------------------------
+
+-- | Bots are not protected to be potentially recorded by legalhold devices.
+data LegalholdProtectee
+  = ProtectedUser UserId
+  | -- | add UserId here if you want to protect bots as well (or just remove and use
+    -- 'ProtectedUser', but then you'll loose the user type information).
+    UnprotectedBot
+  | -- | FUTUREWORK: protection against legalhold when looking up prekeys accross federated
+    -- instances.
+    LegalholdPlusFederationNotImplemented
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalholdProtectee)
+
+instance ToJSON LegalholdProtectee
+
+-- {"tag":"ProtectedUser","contents":"110a187a-be5b-11eb-8f47-370bc8e40f35"}
+-- {"tag":"UnprotectedBot"}
+-- {"tag":"LegalholdPlusFederationNotImplemented"}
+instance FromJSON LegalholdProtectee

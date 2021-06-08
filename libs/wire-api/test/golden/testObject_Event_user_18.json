@@ -1,4 +1,8 @@
 {
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "0000303b-0000-23a9-0000-25de00002f80"
+    },
     "conversation": "0000303b-0000-23a9-0000-25de00002f80",
     "time": "1864-04-12T01:28:25.705Z",
     "data": {
@@ -31,5 +35,9 @@
         ]
     },
     "from": "000043a6-0000-1627-0000-490300002017",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "000043a6-0000-1627-0000-490300002017"
+    },
     "type": "conversation.member-leave"
 }

@@ -504,11 +504,12 @@ defNewClient ty pks lpk =
       newClientModel = Just "Test Model"
     }
 
-getPreKey :: Brig -> UserId -> ClientId -> Http ResponseLBS
-getPreKey brig u c =
+getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
+getPreKey brig zusr u c =
   get $
     brig
       . paths ["users", toByteString' u, "prekeys", toByteString' c]
+      . zUser zusr
 
 getTeamMember ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>

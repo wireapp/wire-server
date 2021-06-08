@@ -19,6 +19,7 @@
 module Test.Wire.API.Golden.Generated.ClientMismatch_user where
 
 import Data.Id (ClientId (ClientId, client), Id (Id))
+import Data.Json.Util (toUTCTimeMillis)
 import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (fromJust, read)
@@ -27,7 +28,7 @@ import Wire.API.Message (ClientMismatch (ClientMismatch), UserClients (UserClien
 testObject_ClientMismatch_user_1 :: ClientMismatch
 testObject_ClientMismatch_user_1 =
   ( ClientMismatch
-      (read "1864-04-12 12:22:43.673 UTC")
+      (toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -88,7 +89,7 @@ testObject_ClientMismatch_user_1 =
 testObject_ClientMismatch_user_2 :: ClientMismatch
 testObject_ClientMismatch_user_2 =
   ( ClientMismatch
-      (read "1864-04-19 08:06:54.492 UTC")
+      (toUTCTimeMillis (read "1864-04-19 08:06:54.492 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -151,7 +152,7 @@ testObject_ClientMismatch_user_2 =
 testObject_ClientMismatch_user_3 :: ClientMismatch
 testObject_ClientMismatch_user_3 =
   ( ClientMismatch
-      (read "1864-05-18 16:25:29.722 UTC")
+      (toUTCTimeMillis (read "1864-05-18 16:25:29.722 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -211,7 +212,7 @@ testObject_ClientMismatch_user_3 =
 testObject_ClientMismatch_user_4 :: ClientMismatch
 testObject_ClientMismatch_user_4 =
   ( ClientMismatch
-      (read "1864-04-20 07:47:05.133 UTC")
+      (toUTCTimeMillis (read "1864-04-20 07:47:05.133 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -249,7 +250,7 @@ testObject_ClientMismatch_user_4 =
 testObject_ClientMismatch_user_5 :: ClientMismatch
 testObject_ClientMismatch_user_5 =
   ( ClientMismatch
-      (read "1864-04-26 19:31:21.478 UTC")
+      (toUTCTimeMillis (read "1864-04-26 19:31:21.478 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -339,7 +340,7 @@ testObject_ClientMismatch_user_5 =
 testObject_ClientMismatch_user_6 :: ClientMismatch
 testObject_ClientMismatch_user_6 =
   ( ClientMismatch
-      (read "1864-05-28 18:24:35.996 UTC")
+      (toUTCTimeMillis (read "1864-05-28 18:24:35.996 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -363,7 +364,7 @@ testObject_ClientMismatch_user_6 =
 testObject_ClientMismatch_user_7 :: ClientMismatch
 testObject_ClientMismatch_user_7 =
   ( ClientMismatch
-      (read "1864-05-26 02:38:01.741 UTC")
+      (toUTCTimeMillis (read "1864-05-26 02:38:01.741 UTC"))
       (UserClients {userClients = fromList []})
       ( UserClients
           { userClients =
@@ -427,7 +428,7 @@ testObject_ClientMismatch_user_7 =
 testObject_ClientMismatch_user_8 :: ClientMismatch
 testObject_ClientMismatch_user_8 =
   ( ClientMismatch
-      (read "1864-04-11 13:11:44.951 UTC")
+      (toUTCTimeMillis (read "1864-04-11 13:11:44.951 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -475,7 +476,7 @@ testObject_ClientMismatch_user_8 =
 testObject_ClientMismatch_user_9 :: ClientMismatch
 testObject_ClientMismatch_user_9 =
   ( ClientMismatch
-      (read "1864-04-20 09:37:09.767 UTC")
+      (toUTCTimeMillis (read "1864-04-20 09:37:09.767 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -512,7 +513,7 @@ testObject_ClientMismatch_user_9 =
 testObject_ClientMismatch_user_10 :: ClientMismatch
 testObject_ClientMismatch_user_10 =
   ( ClientMismatch
-      (read "1864-06-08 05:23:30.672 UTC")
+      (toUTCTimeMillis (read "1864-06-08 05:23:30.672 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -555,7 +556,7 @@ testObject_ClientMismatch_user_10 =
 testObject_ClientMismatch_user_11 :: ClientMismatch
 testObject_ClientMismatch_user_11 =
   ( ClientMismatch
-      (read "1864-04-14 22:55:33.894 UTC")
+      (toUTCTimeMillis (read "1864-04-14 22:55:33.894 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -615,7 +616,7 @@ testObject_ClientMismatch_user_11 =
 testObject_ClientMismatch_user_12 :: ClientMismatch
 testObject_ClientMismatch_user_12 =
   ( ClientMismatch
-      (read "1864-05-08 01:07:14.883 UTC")
+      (toUTCTimeMillis (read "1864-05-08 01:07:14.883 UTC"))
       (UserClients {userClients = fromList []})
       ( UserClients
           { userClients =
@@ -669,7 +670,7 @@ testObject_ClientMismatch_user_12 =
 testObject_ClientMismatch_user_13 :: ClientMismatch
 testObject_ClientMismatch_user_13 =
   ( ClientMismatch
-      (read "1864-05-09 16:28:56.647 UTC")
+      (toUTCTimeMillis (read "1864-05-09 16:28:56.647 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -747,7 +748,7 @@ testObject_ClientMismatch_user_13 =
 testObject_ClientMismatch_user_14 :: ClientMismatch
 testObject_ClientMismatch_user_14 =
   ( ClientMismatch
-      (read "1864-05-08 01:02:42.968 UTC")
+      (toUTCTimeMillis (read "1864-05-08 01:02:42.968 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -799,7 +800,7 @@ testObject_ClientMismatch_user_14 =
 testObject_ClientMismatch_user_15 :: ClientMismatch
 testObject_ClientMismatch_user_15 =
   ( ClientMismatch
-      (read "1864-06-02 22:04:34.496 UTC")
+      (toUTCTimeMillis (read "1864-06-02 22:04:34.496 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -850,7 +851,7 @@ testObject_ClientMismatch_user_15 =
 testObject_ClientMismatch_user_16 :: ClientMismatch
 testObject_ClientMismatch_user_16 =
   ( ClientMismatch
-      (read "1864-06-01 16:55:21.151 UTC")
+      (toUTCTimeMillis (read "1864-06-01 16:55:21.151 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -910,7 +911,7 @@ testObject_ClientMismatch_user_16 =
 testObject_ClientMismatch_user_17 :: ClientMismatch
 testObject_ClientMismatch_user_17 =
   ( ClientMismatch
-      (read "1864-04-23 21:23:53.493 UTC")
+      (toUTCTimeMillis (read "1864-04-23 21:23:53.493 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -965,7 +966,7 @@ testObject_ClientMismatch_user_17 =
 testObject_ClientMismatch_user_18 :: ClientMismatch
 testObject_ClientMismatch_user_18 =
   ( ClientMismatch
-      (read "1864-05-14 18:56:29.815 UTC")
+      (toUTCTimeMillis (read "1864-05-14 18:56:29.815 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -1039,7 +1040,7 @@ testObject_ClientMismatch_user_18 =
 testObject_ClientMismatch_user_19 :: ClientMismatch
 testObject_ClientMismatch_user_19 =
   ( ClientMismatch
-      (read "1864-06-06 11:59:12.981 UTC")
+      (toUTCTimeMillis (read "1864-06-06 11:59:12.981 UTC"))
       ( UserClients
           { userClients =
               fromList
@@ -1119,7 +1120,7 @@ testObject_ClientMismatch_user_19 =
 testObject_ClientMismatch_user_20 :: ClientMismatch
 testObject_ClientMismatch_user_20 =
   ( ClientMismatch
-      (read "1864-05-20 02:14:30.091 UTC")
+      (toUTCTimeMillis (read "1864-05-20 02:14:30.091 UTC"))
       ( UserClients
           { userClients =
               fromList

@@ -13,6 +13,7 @@ package wire.federator;
 
 enum Component {
   Brig = 0;
+  Galley = 1;
 }
 
 message InwardResponse {

@@ -29,8 +29,8 @@ import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds')
 import Data.Range
-import Data.SOP (I (..), NS (..))
 import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
@@ -56,11 +56,11 @@ import Wire.API.Routes.Public.Galley (ConversationResponses)
 
 -- Servant helpers ------------------------------------------------------
 
-conversationResponse :: ConversationResponse -> Union ConversationResponses
+conversationResponse :: ConversationResponse -> Galley (Union ConversationResponses)
 conversationResponse (ConversationExisted c) =
-  Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (cnvId c) $ c
 conversationResponse (ConversationCreated c) =
-  S . Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (cnvId c) $ c
 
 -------------------------------------------------------------------------
 
@@ -76,10 +76,9 @@ createGroupConversation ::
   Public.NewConvUnmanaged ->
   Galley (Union ConversationResponses)
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
-  conversationResponse
-    <$> case newConvTeam body of
-      Nothing -> createRegularGroupConv user conn wrapped
-      Just tinfo -> createTeamGroupConv user conn tinfo body
+  conversationResponse =<< case newConvTeam body of
+    Nothing -> createRegularGroupConv user conn wrapped
+    Just tinfo -> createTeamGroupConv user conn tinfo body
 
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
@@ -97,18 +96,25 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
+  localDomain <- viewFederationDomain
   name <- rangeCheckedMaybe (newConvName body)
-  _uids <- checkedConvSize (newConvUsers body) -- currently not needed, as we only consider local IDs
-  let localUserIds = newConvUsers body
-  ensureConnected zusr localUserIds
-  localCheckedUsers <- checkedConvSize localUserIds
+  let unqualifiedUserIds = newConvUsers body
+      qualifiedUserIds = newConvQualifiedUsers body
+  let allUsers = map (`Qualified` localDomain) unqualifiedUserIds <> qualifiedUserIds
+  checkedUsers <- checkedConvSize allUsers
+  let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
+  let (remotes, locals) = fromConvSize checkedPartitionedUsers
+  ensureConnected zusr locals
+  checkRemoteUsersExist remotes
+  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
+      localDomain
       zusr
       name
       (access body)
       (accessRole body)
-      localCheckedUsers
+      checkedPartitionedUsers
       (newConvTeam body)
       (newConvMessageTimer body)
       (newConvReceiptMode body)
@@ -120,22 +126,30 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 -- handlers above. Allows both unmanaged and managed conversations.
 createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
-  let localUserIds = newConvUsers body
+  localDomain <- viewFederationDomain
   name <- rangeCheckedMaybe (newConvName body)
+  let unqualifiedUserIds = newConvUsers body
+      qualifiedUserIds = newConvQualifiedUsers body
+      allUserIds = map (`Qualified` localDomain) unqualifiedUserIds <> qualifiedUserIds
   let convTeam = cnvTeamId tinfo
   zusrMembership <- Data.teamMember convTeam zusr
+  void $ permissionCheck CreateConversation zusrMembership
+  checkedUsers <- checkedConvSize allUserIds
+  let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
+      (remotes, localUserIds) = fromConvSize checkedPartitionedUsers
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
   ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
-  void $ permissionCheck CreateConversation zusrMembership
-  otherConvMems <-
+  checkedPartitionedUsersManaged <-
     if cnvManaged tinfo
       then do
         -- ConvMaxSize MUST be < than hardlimit so the conv size check is enough
         maybeAllMembers <- Data.teamMembersForFanout convTeam
         let otherConvMems = filter (/= zusr) $ map (view userId) $ (maybeAllMembers ^. teamMembers)
-        checkedConvSize otherConvMems
+        checkedLocalUsers <- checkedConvSize otherConvMems
+        -- NOTE: Team members are local, therefore there are no remote users in
+        -- this case
+        pure (fmap ([],) checkedLocalUsers)
       else do
-        otherConvMems <- checkedConvSize localUserIds
         -- In teams we don't have 1:1 conversations, only regular conversations. We want
         -- users without the 'AddRemoveConvMember' permission to still be able to create
         -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
@@ -146,13 +160,26 @@ createTeamGroupConv zusr zcon tinfo body = do
         -- Not sure at the moment how to best solve this but it is unlikely
         -- we can ever get rid of the team permission model anyway - the only thing I can
         -- think of is that 'partners' can create convs but not be admins...
-        when (length (fromConvSize otherConvMems) > 1) $ do
+        when (length allUserIds > 1) $ do
           void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnectedToLocals zusr (notTeamMember (fromConvSize otherConvMems) (catMaybes convMemberships))
-        pure otherConvMems
-  conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body) (newConvUsersRole body)
+        ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convMemberships))
+        pure checkedPartitionedUsers
+  checkRemoteUsersExist remotes
+  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
+  conv <-
+    Data.createConversation
+      localDomain
+      zusr
+      name
+      (access body)
+      (accessRole body)
+      checkedPartitionedUsersManaged
+      (newConvTeam body)
+      (newConvMessageTimer body)
+      (newConvReceiptMode body)
+      (newConvUsersRole body)
   now <- liftIO getCurrentTime
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) zusr (Just zcon) conv
@@ -162,13 +189,14 @@ createTeamGroupConv zusr zcon tinfo body = do
 -- Other kinds of conversations
 
 createSelfConversation :: UserId -> Galley (Union ConversationResponses)
-createSelfConversation zusr =
-  conversationResponse <$> do
-    c <- Data.conversation (Id . toUUID $ zusr)
-    maybe create (conversationExisted zusr) c
+createSelfConversation zusr = do
+  c <- Data.conversation (Id . toUUID $ zusr)
+  conversationResponse
+    =<< maybe create (conversationExisted zusr) c
   where
     create = do
-      c <- Data.createSelfConversation zusr Nothing
+      localDomain <- viewFederationDomain
+      c <- Data.createSelfConversation localDomain zusr Nothing
       conversationCreated zusr c
 
 createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley (Union ConversationResponses)
@@ -188,7 +216,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
   resp <- maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
-  pure (conversationResponse resp)
+  conversationResponse resp
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u
@@ -204,7 +232,8 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
         Just _ -> throwM nonBindingTeam
         Nothing -> throwM teamNotFound
     create x y n tinfo = do
-      c <- Data.createOne2OneConversation x y n (cnvTeamId <$> tinfo)
+      localDomain <- viewFederationDomain
+      c <- Data.createOne2OneConversation localDomain x y n (cnvTeamId <$> tinfo)
       notifyCreatedConversation Nothing zusr (Just zcon) c
       conversationCreated zusr c
 
@@ -221,15 +250,17 @@ createConnectConversation usr conn j = do
   maybe (create x y n) (update n) conv
   where
     create x y n = do
-      (c, e) <- Data.createConnectConversation x y n j
+      localDomain <- viewFederationDomain
+      (c, e) <- Data.createConnectConversation localDomain x y n j
       notifyCreatedConversation Nothing usr conn c
-      for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
+      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
             & pushConn .~ conn
       conversationCreated usr c
-    update n conv =
+    update n conv = do
+      localDomain <- viewFederationDomain
       let mems = Data.convMembers conv
        in conversationExisted usr
             =<< if
@@ -238,7 +269,7 @@ createConnectConversation usr conn j = do
                   connect n conv
                 | otherwise -> do
                   now <- liftIO getCurrentTime
-                  mm <- snd <$> Data.addMember now (Data.convId conv) usr
+                  mm <- snd <$> Data.addMember localDomain now (Data.convId conv) usr
                   let conv' =
                         conv
                           { Data.convMembers = Data.convMembers conv <> toList mm
@@ -255,14 +286,17 @@ createConnectConversation usr conn j = do
                         else return conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
+        localDomain <- viewFederationDomain
+        let qconv = Qualified (Data.convId conv) localDomain
+            qusr = Qualified usr localDomain
         n' <- case n of
           Just x -> do
             Data.updateConversation (Data.convId conv) x
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
-        let e = Event ConvConnect (Data.convId conv) usr t (EdConnect j)
-        for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
+        let e = Event ConvConnect qconv qusr t (EdConnect j)
+        for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
@@ -290,17 +324,20 @@ handleConversationResponse = \case
 
 notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
 notifyCreatedConversation dtime usr conn c = do
+  localDomain <- viewFederationDomain
   now <- maybe (liftIO getCurrentTime) pure dtime
-  pushSome =<< mapM (toPush now) (Data.convMembers c)
+  pushSome =<< mapM (toPush localDomain now) (Data.convMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny
       | otherwise = RouteDirect
-    toPush t m = do
+    toPush dom t m = do
+      let qconv = Qualified (Data.convId c) dom
+          qusr = Qualified usr dom
       c' <- conversationView (memId m) c
-      let e = Event ConvCreate (Data.convId c) usr t (EdConversation c')
+      let e = Event ConvCreate qconv qusr t (EdConversation c')
       return $
-        newPush1 ListComplete (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
+        newPush1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 

@@ -35,22 +35,20 @@ module Galley.API.Teams.Features
   )
 where
 
-import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
-import Data.Range as Range
 import Data.String.Conversions (cs)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
+import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
-import qualified Galley.Intra.Team as BrigTeam
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
@@ -194,6 +192,9 @@ getLegalholdStatusInternal tid = do
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   do
+    -- this extra do is to encapsulate the assertions running before the actual operation.
+    -- enabeling LH for teams is only allowed in normal operation; disabled-permanently and
+    -- whitelist-teams have no or their own way to do that, resp.
     featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
     case featureLegalHold of
       FeatureLegalHoldDisabledByDefault -> do
@@ -202,17 +203,13 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
         throwM legalHoldFeatureFlagNotEnabled
       FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
         throwM legalHoldWhitelistedOnly
+
+  -- we're good to update the status now.
   case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
-    -- FUTUREWORK: We cannot enable legalhold on large teams right now
-    Public.TeamFeatureEnabled -> checkTeamSize
+    Public.TeamFeatureEnabled -> do
+      ensureNotTooLargeToActivateLegalHold tid
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
-  where
-    checkTeamSize = do
-      (TeamSize size) <- BrigTeam.getSize tid
-      limit <- fromIntegral . fromRange <$> fanoutLimit
-      when (size > limit) $ do
-        throwM cannotEnableLegalHoldServiceLargeTeam
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do

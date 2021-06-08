@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1b0ad324729b16c2eabcf924d9771984cf8dc4a62ae497b8b94f63708e7c50c9
+-- hash: cfa04ed47037ada887f549b3346d2d8d4feadc654f375227c86559b0a5e2ea0f
 
 name:           wire-api-federation
 version:        0.1.0
@@ -25,6 +25,7 @@ library
       Wire.API.Federation.API.Brig
       Wire.API.Federation.API.Galley
       Wire.API.Federation.Client
+      Wire.API.Federation.Error
       Wire.API.Federation.Event
       Wire.API.Federation.GRPC.Client
       Wire.API.Federation.GRPC.Helper
@@ -46,6 +47,7 @@ library
     , bytestring-conversion
     , either
     , errors
+    , exceptions
     , http-types
     , http2-client-grpc
     , imports
@@ -63,6 +65,7 @@ library
     , text >=0.11
     , time >=1.8
     , types-common
+    , wai-utilities
     , warp
     , wire-api
   default-language: Haskell2010
@@ -90,6 +93,7 @@ test-suite spec
     , bytestring-conversion
     , either
     , errors
+    , exceptions
     , hspec
     , http-types
     , http2-client-grpc
@@ -111,6 +115,7 @@ test-suite spec
     , text >=0.11
     , time >=1.8
     , types-common
+    , wai-utilities
     , warp
     , wire-api
     , wire-api-federation

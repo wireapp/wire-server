@@ -1,6 +1,7 @@
 module Test.Brig.API.Error where
 
 import Brig.API.Error
+import Data.Domain
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai.Utilities as Wai
@@ -8,6 +9,7 @@ import qualified Servant.Client.Core as Servant
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 tests :: TestTree
@@ -24,24 +26,24 @@ testFedError =
       testCase "when federation is not configured" $
         assertFedErrorStatus FederationNotConfigured 400,
       testCase "when federation call fails due to RPC error" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientRPCError "some failure")) 500,
+        assertFedErrorStatus (mkFailure (FederationClientRPCError "some failure")) 500,
       testCase "when federation call fails due wrong method" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientInvalidMethod "GET")) 500,
+        assertFedErrorStatus (mkFailure (FederationClientInvalidMethod "GET")) 500,
       testCase "when federation call fails due to requesting streaming" $
-        assertFedErrorStatus (FederationCallFailure FederationClientStreamingUnsupported) 500,
+        assertFedErrorStatus (mkFailure FederationClientStreamingUnsupported) 500,
       testCase "when federation call fails due to discovery failure" $ do
         let outwardErr = FederationClientOutwardError (Proto.OutwardError Proto.DiscoveryFailed Nothing)
-        assertFedErrorStatus (FederationCallFailure outwardErr) 500,
+        assertFedErrorStatus (mkFailure outwardErr) 500,
       testCase "when federation call fails due to decode failure" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.DecodeFailure "some failure" emptyRes))) 533,
+        assertFedErrorStatus (mkFailure (FederationClientServantError (Servant.DecodeFailure "some failure" emptyRes))) 533,
       testCase "when federation call fails due to Servant.FailureResponse" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.FailureResponse emptyReq emptyRes))) 533,
+        assertFedErrorStatus (mkFailure (FederationClientServantError (Servant.FailureResponse emptyReq emptyRes))) 533,
       testCase "when federation call fails due to invalid content type" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.InvalidContentTypeHeader emptyRes))) 533,
+        assertFedErrorStatus (mkFailure (FederationClientServantError (Servant.InvalidContentTypeHeader emptyRes))) 533,
       testCase "when federation call fails due to unsupported content type" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.UnsupportedContentType "application/xml" emptyRes))) 533,
+        assertFedErrorStatus (mkFailure (FederationClientServantError (Servant.UnsupportedContentType "application/xml" emptyRes))) 533,
       testCase "when federation call fails due to connection error" $
-        assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.ConnectionError (SomeException TestException)))) 500
+        assertFedErrorStatus (mkFailure (FederationClientServantError (Servant.ConnectionError (SomeException TestException)))) 500
     ]
 
 testOutwardError :: TestTree
@@ -82,6 +84,11 @@ testOutwardError =
             assertEqual "message should be set as unknown" (Wai.message waiErr) "Unknown federation error"
         ]
     ]
+
+mkFailure :: FederationClientError -> FederationError
+mkFailure =
+  FederationCallFailure
+    . FederationClientFailure (Domain "far-away.example.com") "/federation/test"
 
 assertFedErrorStatus :: HasCallStack => FederationError -> Int -> IO ()
 assertFedErrorStatus err sts = assertEqual ("http status should be " <> show sts) (statusFor err) sts

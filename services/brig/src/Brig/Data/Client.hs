@@ -26,9 +26,9 @@ module Brig.Data.Client
     rmClient,
     hasClient,
     lookupClient,
-    lookupClientCapabilities,
     lookupClients,
     lookupPubClientsBulk,
+    lookupClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
     Brig.Data.Client.updateClientLabel,
@@ -78,7 +78,7 @@ import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (pooledMapConcurrentlyN)
-import Wire.API.User.Client (ClientCapability)
+import Wire.API.User.Client (ClientCapability, ClientCapabilityList (ClientCapabilityList))
 import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
@@ -93,8 +93,9 @@ addClient ::
   NewClient ->
   Int ->
   Maybe Location ->
+  Maybe (Imports.Set ClientCapability) ->
   ExceptT ClientDataError AppIO (Client, [Client], Word)
-addClient u newId c maxPermClients loc = do
+addClient u newId c maxPermClients loc cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
@@ -110,11 +111,16 @@ addClient u newId c maxPermClients loc = do
   let old = maybe (filter (not . exists) typed) (const []) limit
   return (new, old, total)
   where
+    limit :: Maybe Int
     limit = case newClientType c of
       PermanentClientType -> Just maxPermClients
       TemporaryClientType -> Nothing
       LegalHoldClientType -> Nothing
+
+    exists :: Client -> Bool
     exists = (==) newId . clientId
+
+    insert :: ExceptT ClientDataError AppIO Client
     insert = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
@@ -123,19 +129,25 @@ addClient u newId c maxPermClients loc = do
       let lat = Latitude . view latitude <$> loc
           lon = Longitude . view longitude <$> loc
           mdl = newClientModel c
-          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
+          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params Quorum prm)
-      return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
+      return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl (ClientCapabilityList $ fromMaybe mempty cps)
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupClientCapabilities :: MonadClient m => UserId -> ClientId -> m (Maybe (Imports.Set ClientCapability))
-lookupClientCapabilities u c =
-  fmap (Set.fromList . C.fromSet . runIdentity)
-    <$> retry x1 (query1 selectClientCapabilities (params Quorum (u, c)))
+lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
+lookupClientsBulk uids = liftClient $ do
+  userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
+  pure $ Map.fromList userClientTuples
+  where
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client)
+    getClientSetWithUser u = (u,) . Set.fromList <$> executeQuery u
+
+    executeQuery :: MonadClient m => UserId -> m [Client]
+    executeQuery u = toClient <$$> retry x1 (query selectClients (params Quorum (Identity u)))
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
 lookupPubClientsBulk uids = liftClient $ do
@@ -238,8 +250,8 @@ claimPrekey u c =
 -------------------------------------------------------------------------------
 -- Queries
 
-insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
-insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) ()
+insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
 updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
@@ -250,17 +262,14 @@ updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
+selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ?"
 
 selectPubClients :: PrepQuery R (Identity UserId) (ClientId, Maybe ClientClass)
 selectPubClients = "SELECT client, class from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
-
-selectClientCapabilities :: PrepQuery R (UserId, ClientId) (Identity (C.Set ClientCapability))
-selectClientCapabilities = "SELECT capabilities from clients where user = ? and client = ?"
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
+selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
@@ -289,8 +298,8 @@ checkClient = "SELECT client from clients where user = ? and client = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
-toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) =
+toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) -> Client
+toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
   Client
     { clientId = cid,
       clientType = cty,
@@ -299,7 +308,8 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) =
       clientLabel = lbl,
       clientCookie = cok,
       clientLocation = location <$> lat <*> lon,
-      clientModel = mdl
+      clientModel = mdl,
+      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps
     }
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient

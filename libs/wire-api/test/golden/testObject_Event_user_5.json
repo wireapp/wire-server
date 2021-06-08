@@ -1,4 +1,8 @@
 {
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00003c8c-0000-6394-0000-294b0000098b"
+    },
     "conversation": "00003c8c-0000-6394-0000-294b0000098b",
     "time": "1864-04-12T03:04:00.298Z",
     "data": {
@@ -10,5 +14,9 @@
         "otr_archived_ref": "\u0001J"
     },
     "from": "00002a12-0000-73e1-0000-71f700002ec9",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "00002a12-0000-73e1-0000-71f700002ec9"
+    },
     "type": "conversation.member-update"
 }
