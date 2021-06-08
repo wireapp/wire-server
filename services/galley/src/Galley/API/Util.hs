@@ -333,12 +333,12 @@ checkRemotesFor domain uids = do
 type FederatedGalleyRPC c a = FederatorClient c (ExceptT FederationClientFailure Galley) a
 
 runFederatedGalley :: Domain -> FederatedGalleyRPC 'Galley a -> Galley a
-runFederatedGalley = runFederated
+runFederatedGalley = runFederated @'Galley
 
 runFederatedBrig :: Domain -> FederatedGalleyRPC 'Brig a -> Galley a
-runFederatedBrig = runFederated
+runFederatedBrig = runFederated @'Brig
 
-runFederated :: forall a (c :: Component). Domain -> FederatorClient c (ExceptT FederationClientFailure Galley) a -> Galley a
+runFederated :: forall (c :: Component) a. Domain -> FederatorClient c (ExceptT FederationClientFailure Galley) a -> Galley a
 runFederated remoteDomain rpc = do
   runExceptT (executeFederated remoteDomain rpc)
     >>= either (throwM . federationErrorToWai) pure
