@@ -144,7 +144,7 @@ blockConv zusr cnv = do
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwM $
       invalidOp "block: invalid conversation type"
-  let mems = Data.convMembers conv
+  let mems = Data.convLocalMembers conv
   when (zusr `isMember` mems) $ Data.removeMember zusr cnv
 
 unblockConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
@@ -366,9 +366,9 @@ addCode usr zcon cnv = do
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain
   conv <- Data.conversation cnv >>= ifNothing convNotFound
-  ensureConvMember (Data.convMembers conv) usr
+  ensureConvMember (Data.convLocalMembers conv) usr
   ensureAccess conv CodeAccess
-  let (bots, users) = botsAndUsers $ Data.convMembers conv
+  let (bots, users) = botsAndUsers $ Data.convLocalMembers conv
   key <- mkKey cnv
   mCode <- Data.lookupCode key ReusableCode
   case mCode of
@@ -399,9 +399,9 @@ rmCode usr zcon cnv = do
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain
   conv <- Data.conversation cnv >>= ifNothing convNotFound
-  ensureConvMember (Data.convMembers conv) usr
+  ensureConvMember (Data.convLocalMembers conv) usr
   ensureAccess conv CodeAccess
-  let (bots, users) = botsAndUsers $ Data.convMembers conv
+  let (bots, users) = botsAndUsers $ Data.convLocalMembers conv
   key <- mkKey cnv
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
@@ -417,7 +417,7 @@ getCode :: UserId -> ConvId -> Galley Public.ConversationCode
 getCode usr cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureAccess conv CodeAccess
-  ensureConvMember (Data.convMembers conv) usr
+  ensureConvMember (Data.convLocalMembers conv) usr
   key <- mkKey cnv
   c <- Data.lookupCode key ReusableCode >>= ifNothing codeNotFound
   returnCode c
@@ -470,11 +470,11 @@ joinConversation zusr zcon cnv access = do
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   let newUsers = filter (notIsMember conv) [zusr]
   -- FUTUREWORK: remote users?
-  ensureMemberLimit (toList $ Data.convMembers conv) newUsers []
+  ensureMemberLimit (toList $ Data.convLocalMembers conv) newUsers []
   -- NOTE: When joining conversations, all users become members
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
-  let mems = botsAndUsers (Data.convMembers conv)
+  let mems = botsAndUsers (Data.convLocalMembers conv)
   addToConversation mems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) [] conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
@@ -507,7 +507,7 @@ mapUpdateToServant Unchanged = Servant.respond NoContent
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing convNotFound
-  let mems = botsAndUsers (Data.convMembers conv)
+  let mems = botsAndUsers (Data.convLocalMembers conv)
   self <- getSelfMember zusr (snd mems)
   ensureActionAllowed AddConversationMember self
   let invitedUsers = toList $ Public.invQUsers invite
@@ -515,7 +515,7 @@ addMembers zusr zcon convId invite = do
   let (invitedRemotes, invitedLocals) = partitionRemoteOrLocalIds' domain invitedUsers
   let newLocals = filter (notIsMember conv) invitedLocals
   let newRemotes = filter (notIsMember' conv) invitedRemotes
-  ensureMemberLimit (toList $ Data.convMembers conv) newLocals newRemotes
+  ensureMemberLimit (toList $ Data.convLocalMembers conv) newLocals newRemotes
   ensureAccess conv InviteAccess
   ensureConvRoleNotElevated self (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
@@ -546,7 +546,7 @@ updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
 updateSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
 updateSelfMember zusr zcon cid update = do
   conv <- getConversationAndCheckMembership zusr cid
-  m <- getSelfMember zusr (Data.convMembers conv)
+  m <- getSelfMember zusr (Data.convLocalMembers conv)
   -- Ensure no self role upgrades
   for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
   void $ processUpdateMemberEvent zusr zcon cid [m] m update
@@ -562,7 +562,7 @@ updateOtherMember zusr zcon cid victim update = do
   when (zusr == victim) $
     throwM invalidTargetUserOp
   conv <- getConversationAndCheckMembership zusr cid
-  let (bots, users) = botsAndUsers (Data.convMembers conv)
+  let (bots, users) = botsAndUsers (Data.convLocalMembers conv)
   ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
   memTarget <- getOtherMember victim users
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
@@ -577,7 +577,7 @@ removeMember zusr zcon convId victim = do
   localDomain <- viewFederationDomain
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
   conv <- Data.conversation convId >>= ifNothing convNotFound
-  let (bots, users) = botsAndUsers (Data.convMembers conv)
+  let (bots, users) = botsAndUsers (Data.convLocalMembers conv)
   genConvChecks conv users
   case Data.convTeam conv of
     Nothing -> pure ()
@@ -840,13 +840,13 @@ addBot zusr zcon b = do
   pure e
   where
     regularConvChecks c = do
-      let (bots, users) = botsAndUsers (Data.convMembers c)
+      let (bots, users) = botsAndUsers (Data.convLocalMembers c)
       unless (zusr `isMember` users) $
         throwM convNotFound
       ensureGroupConv c
       ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
-        ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b ^. addBotId)] []
+        ensureMemberLimit (toList $ Data.convLocalMembers c) [botUserId (b ^. addBotId)] []
       return (bots, users)
     teamConvChecks cid tid = do
       tcv <- Data.teamConversation tid cid
@@ -864,9 +864,9 @@ rmBot zusr zcon b = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified zusr localDomain
-  unless (zusr `isMember` Data.convMembers c) $
+  unless (zusr `isMember` Data.convLocalMembers c) $
     throwM convNotFound
-  let (bots, users) = botsAndUsers (Data.convMembers c)
+  let (bots, users) = botsAndUsers (Data.convLocalMembers c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
     then pure Unchanged
     else do
@@ -913,7 +913,7 @@ ensureMemberLimit old newLocals newRemotes = do
     throwM tooManyMembers
 
 notIsMember :: Data.Conversation -> UserId -> Bool
-notIsMember cc u = not $ isMember u (Data.convMembers cc)
+notIsMember cc u = not $ isMember u (Data.convLocalMembers cc)
 
 notIsMember' :: Data.Conversation -> Remote UserId -> Bool
 notIsMember' cc u = not $ isRemoteMember u (Data.convRemoteMembers cc)

@@ -65,7 +65,7 @@ getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
 getBotConversation zbot zcnv = do
   c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) zcnv
   domain <- viewFederationDomain
-  let cmems = mapMaybe (mkMember domain) (toList (Data.convMembers c))
+  let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
   where
     mkMember :: Domain -> LocalMember -> Maybe OtherMember
@@ -127,7 +127,7 @@ getConversations user mids mstart msize = do
   cs <-
     Data.conversations localConvIds
       >>= filterM removeDeleted
-      >>= filterM (pure . isMember user . Data.convMembers)
+      >>= filterM (pure . isMember user . Data.convLocalMembers)
   flip Public.ConversationList more <$> mapM (Mapping.conversationView user) cs
   where
     size = fromMaybe (toRange (Proxy @32)) msize
