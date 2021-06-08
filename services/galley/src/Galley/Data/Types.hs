@@ -56,7 +56,7 @@ data Conversation = Conversation
     convName :: Maybe Text,
     convAccess :: [Access],
     convAccessRole :: AccessRole,
-    convMembers :: [LocalMember],
+    convLocalMembers :: [LocalMember],
     convRemoteMembers :: [RemoteMember],
     convTeam :: Maybe TeamId,
     convDeleted :: Maybe Bool,

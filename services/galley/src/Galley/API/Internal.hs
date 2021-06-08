@@ -310,11 +310,11 @@ rmUser user conn = do
         One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
-          | user `isMember` Data.convMembers c -> do
+          | user `isMember` Data.convLocalMembers c -> do
             -- FUTUREWORK: deal with remote members, too, see removeMembers
             e <- Data.removeLocalMembers localDomain c user u
             return $
-              (Intra.newPush ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPush ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c))
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

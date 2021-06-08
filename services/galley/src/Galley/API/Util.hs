@@ -183,7 +183,7 @@ acceptOne2One usr conv conn = do
         else do
           now <- liftIO getCurrentTime
           mm <- snd <$> Data.addMember localDomain now cid usr
-          return $ conv {Data.convMembers = mems <> toList mm}
+          return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> promote
       [_, _] -> throwM convNotFound
@@ -196,11 +196,11 @@ acceptOne2One usr conv conn = do
         let mems' = mems <> toList mm
         for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
-        return $ conv' {Data.convMembers = mems'}
+        return $ conv' {Data.convLocalMembers = mems'}
     _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
     cid = Data.convId conv
-    mems = Data.convMembers conv
+    mems = Data.convLocalMembers conv
     promote = do
       Data.acceptConnect cid
       return $ conv {Data.convType = One2OneConv}
@@ -219,7 +219,7 @@ isRemoteMember :: (Foldable m) => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
-findMember c u = find ((u ==) . memId) (Data.convMembers c)
+findMember c u = find ((u ==) . memId) (Data.convLocalMembers c)
 
 botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
 botsAndUsers = foldMap botOrUser
@@ -276,7 +276,7 @@ getConversationAndCheckMembershipWithError ex zusr convId = do
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
     throwM convNotFound
-  unless (zusr `isMember` Data.convMembers c) $
+  unless (zusr `isMember` Data.convLocalMembers c) $
     throwM ex
   return c
 
