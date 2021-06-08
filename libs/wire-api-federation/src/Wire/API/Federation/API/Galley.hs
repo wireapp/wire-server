@@ -74,8 +74,18 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,
     cmuOrigUserId :: Qualified UserId,
     cmuConvId :: Qualified ConvId,
-    cmuAlreadyPresentUsers :: [UserId], -- pre-existing users in the conversation from the receiving domain
+    -- | A list of users from a remote backend that need to be sent
+    -- notifications about this change. This is required as we do not expect a
+    -- non-conversation owning backend to have an indexed mapping of
+    -- conversation to users.
+    cmuAlreadyPresentUsers :: [UserId],
+    -- | Users that got added to the conversation.
     cmuUsersAdd :: [(Qualified UserId, RoleName)],
+    -- | Users that got removed from the conversation. This should probably be
+    -- Qualified, but as of now this is a stub.
+    --
+    -- FUTUREWORK: Implement this when supporting removal of remote conversation
+    -- members.
     cmuUsersRemove :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
