@@ -18,6 +18,10 @@
 
 ## Release Notes
 
+This release doesn't require any extra considerations to deploy.
+
+## Release Notes for Wire.com Cloud operators
+
 Deploy brig before galley (#1526, #1549)
 
 ## Features
