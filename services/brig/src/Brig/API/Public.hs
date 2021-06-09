@@ -190,6 +190,7 @@ servantSitemap =
         BrigAPI.listClients = listClients,
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
+        BrigAPI.getClientPrekeys = getClientPrekeys,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -482,20 +483,6 @@ sitemap o = do
       Doc.description "User ID"
     Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "Connection" Doc.end
-
-  -- User Client API ----------------------------------------------------
-  -- TODO: another one?
-
-  get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
-    zauthUserId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "listPrekeyIds" $ do
-    Doc.summary "List the remaining prekey IDs of a client."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of remaining prekey IDs." Doc.end
 
   -- Properties API -----------------------------------------------------
 
@@ -875,10 +862,8 @@ getRichInfo self user = do
   -- Query rich info
   fromMaybe Public.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
-listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
-listPrekeyIdsH (usr ::: clt ::: _) = do
-  prekeyIds <- lift (API.lookupPrekeyIds usr clt)
-  pure $ json (prekeyIds :: [Public.PrekeyId])
+getClientPrekeys :: UserId -> ClientId -> Handler [Public.PrekeyId]
+getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> Handler Response

@@ -273,6 +273,9 @@ data Api routes = Api
         :> "list-prekeys"
         :> ReqBody '[JSON] QualifiedUserClients
         :> Post '[JSON] QualifiedUserClientPrekeyMap,
+    -- User Client API ----------------------------------------------------
+    -- TODO: another one?
+
     -- This endpoint can lead to the following events being sent:
     -- - ClientAdded event to self
     -- - ClientRemoved event to self, if removing old clients due to max number
@@ -323,6 +326,13 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> "capabilities"
         :> Get '[JSON] ClientCapabilityList,
+    getClientPrekeys ::
+      routes :- Summary "List the remaining prekey IDs of a client"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> "prekeys"
+        :> Get '[JSON] [PrekeyId],
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
