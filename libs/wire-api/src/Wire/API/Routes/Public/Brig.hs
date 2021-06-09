@@ -316,6 +316,13 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> UVerb 'GET '[JSON] GetClientResponse,
+    getClientCapabilities ::
+      routes :- Summary "Read back what the client has been posting about itself"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> "capabilities"
+        :> Get '[JSON] ClientCapabilityList,
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
