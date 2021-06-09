@@ -25,8 +25,8 @@ module Galley.Data.LegalHold
     Galley.Data.LegalHold.selectPendingPrekeys,
     Galley.Data.LegalHold.dropPendingPrekeys,
     setUserLegalHoldStatus,
-    getLegalholdWhitelistedTeams,
     setTeamLegalholdWhitelisted,
+    isTeamLegalholdWhitelisted,
     unsetTeamLegalholdWhitelisted,
   )
 where
@@ -35,11 +35,14 @@ import Brig.Types.Client.Prekey
 import Brig.Types.Instances ()
 import Brig.Types.Team.LegalHold
 import Cassandra
-import Control.Lens (unsnoc)
+import Control.Lens (unsnoc, view)
 import Data.Id
 import Data.LegalHold
+import Galley.App (Env, options)
 import Galley.Data.Instances ()
 import Galley.Data.Queries as Q
+import qualified Galley.Options as Opts
+import Galley.Types.Teams (FeatureLegalHold (..), flagLegalHold)
 import Imports
 
 -- | Returns 'False' if legal hold is not enabled for this team
@@ -86,12 +89,6 @@ setUserLegalHoldStatus :: MonadClient m => TeamId -> UserId -> UserLegalHoldStat
 setUserLegalHoldStatus tid uid status =
   retry x5 (write Q.updateUserLegalHoldStatus (params Quorum (status, tid, uid)))
 
--- | This is cached for every request in 'Galley.App.Env', so you probably don't want to call
--- it anywhere else.
-getLegalholdWhitelistedTeams :: MonadClient m => m [TeamId]
-getLegalholdWhitelistedTeams =
-  runIdentity <$$> retry x1 (query Q.selectLegalHoldWhitelistedTeams (params Quorum ()))
-
 setTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
 setTeamLegalholdWhitelisted tid =
   retry x5 (write Q.insertLegalHoldWhitelistedTeam (params Quorum (Identity tid)))
@@ -99,3 +96,11 @@ setTeamLegalholdWhitelisted tid =
 unsetTeamLegalholdWhitelisted :: MonadClient m => TeamId -> m ()
 unsetTeamLegalholdWhitelisted tid =
   retry x5 (write Q.removeLegalHoldWhitelistedTeam (params Quorum (Identity tid)))
+
+isTeamLegalholdWhitelisted :: (MonadReader Env m, MonadClient m) => TeamId -> m Bool
+isTeamLegalholdWhitelisted tid = do
+  view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> pure False
+    FeatureLegalHoldDisabledByDefault -> pure False
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+      isJust <$> (runIdentity <$$> retry x5 (query1 Q.selectLegalHoldWhitelistedTeam (params Quorum (Identity tid))))

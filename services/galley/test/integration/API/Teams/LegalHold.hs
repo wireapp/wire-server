@@ -169,8 +169,8 @@ testWhitelistingTeams :: TestM ()
 testWhitelistingTeams = do
   let testTeamWhitelisted :: HasCallStack => TeamId -> TestM Bool
       testTeamWhitelisted tid = do
-        whitelist :: [TeamId] <- responseJsonError =<< (getLHWhitelistedTeams <!! const 200 === statusCode)
-        pure $ tid `elem` whitelist
+        res <- getLHWhitelistedTeam tid
+        pure (Bilge.responseStatus res == status200)
 
   let expectWhitelisted :: HasCallStack => Bool -> TeamId -> TestM ()
       expectWhitelisted yes tid = do
@@ -182,6 +182,7 @@ testWhitelistingTeams = do
     putLHWhitelistTeam tid !!! const 200 === statusCode
     expectWhitelisted True tid
     pure tid
+
   expectWhitelisted False tid
   ensureQueueEmpty
 
@@ -1577,16 +1578,16 @@ assertMatchChan c match = go []
           refill buf
           error "Timeout"
 
-getLHWhitelistedTeams :: HasCallStack => TestM ResponseLBS
-getLHWhitelistedTeams = do
+getLHWhitelistedTeam :: HasCallStack => TeamId -> TestM ResponseLBS
+getLHWhitelistedTeam tid = do
   galley <- view tsGalley
-  getLHWhitelistedTeams' galley
+  getLHWhitelistedTeam' galley tid
 
-getLHWhitelistedTeams' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> m ResponseLBS
-getLHWhitelistedTeams' g = do
+getLHWhitelistedTeam' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
+getLHWhitelistedTeam' g tid = do
   get
     ( g
-        . paths ["i", "legalhold", "whitelisted-teams"]
+        . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
     )
 
 putLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS

@@ -399,12 +399,6 @@ updateUserLegalHoldStatus =
           where team = ? and user = ?
     |]
 
-selectLegalHoldWhitelistedTeams :: PrepQuery R () (Identity TeamId)
-selectLegalHoldWhitelistedTeams =
-  [r|
-        select team from legalhold_whitelisted
-    |]
-
 selectLegalHoldWhitelistedTeam :: PrepQuery R (Identity TeamId) (Identity TeamId)
 selectLegalHoldWhitelistedTeam =
   [r|

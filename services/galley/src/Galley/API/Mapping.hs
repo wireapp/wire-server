@@ -58,7 +58,7 @@ conversationView uid conv = do
 conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
 conversationViewMaybe u Data.Conversation {..} = do
   domain <- viewFederationDomain
-  let (me, localThem) = List.partition ((u ==) . Internal.memId) convMembers
+  let (me, localThem) = List.partition ((u ==) . Internal.memId) convLocalMembers
   let localMembers = localToOther domain <$> localThem
   let remoteMembers = remoteToOther <$> convRemoteMembers
   for (listToMaybe me) $ \m -> do

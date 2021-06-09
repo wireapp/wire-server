@@ -19,6 +19,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
+import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
@@ -52,8 +53,9 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import qualified Wire.API.Federation.Client as Federation
+import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
 import Wire.API.Federation.Error (federationErrorToWai)
+import Wire.API.Federation.GRPC.Types (Component (..))
 import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
@@ -183,7 +185,7 @@ acceptOne2One usr conv conn = do
         else do
           now <- liftIO getCurrentTime
           mm <- snd <$> Data.addMember localDomain now cid usr
-          return $ conv {Data.convMembers = mems <> toList mm}
+          return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> promote
       [_, _] -> throwM convNotFound
@@ -196,11 +198,11 @@ acceptOne2One usr conv conn = do
         let mems' = mems <> toList mm
         for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
-        return $ conv' {Data.convMembers = mems'}
+        return $ conv' {Data.convLocalMembers = mems'}
     _ -> throwM $ invalidOp "accept: invalid conversation type"
   where
     cid = Data.convId conv
-    mems = Data.convMembers conv
+    mems = Data.convLocalMembers conv
     promote = do
       Data.acceptConnect cid
       return $ conv {Data.convType = One2OneConv}
@@ -219,7 +221,7 @@ isRemoteMember :: (Foldable m) => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
-findMember c u = find ((u ==) . memId) (Data.convMembers c)
+findMember c u = find ((u ==) . memId) (Data.convLocalMembers c)
 
 botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
 botsAndUsers = foldMap botOrUser
@@ -276,7 +278,7 @@ getConversationAndCheckMembershipWithError ex zusr convId = do
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
     throwM convNotFound
-  unless (zusr `isMember` Data.convMembers c) $
+  unless (zusr `isMember` Data.convLocalMembers c) $
     throwM ex
   return c
 
@@ -320,12 +322,23 @@ checkRemoteUsersExist =
 checkRemotesFor :: Domain -> [UserId] -> Galley ()
 checkRemotesFor domain uids = do
   let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
-  users <-
-    runExceptT (Federation.executeFederated domain rpc)
-      >>= either (throwM . federationErrorToWai) pure
+  users <- runFederatedBrig domain rpc
   let uids' =
         map
           (qUnqualified . User.profileQualifiedId)
           (filter (not . User.profileDeleted) users)
   unless (Set.fromList uids == Set.fromList uids') $
     throwM unknownRemoteUser
+
+type FederatedGalleyRPC c a = FederatorClient c (ExceptT FederationClientFailure Galley) a
+
+runFederatedGalley :: Domain -> FederatedGalleyRPC 'Galley a -> Galley a
+runFederatedGalley = runFederated @'Galley
+
+runFederatedBrig :: Domain -> FederatedGalleyRPC 'Brig a -> Galley a
+runFederatedBrig = runFederated @'Brig
+
+runFederated :: forall (c :: Component) a. Domain -> FederatorClient c (ExceptT FederationClientFailure Galley) a -> Galley a
+runFederated remoteDomain rpc = do
+  runExceptT (executeFederated remoteDomain rpc)
+    >>= either (throwM . federationErrorToWai) pure

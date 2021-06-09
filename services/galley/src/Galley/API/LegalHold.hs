@@ -26,9 +26,9 @@ module Galley.API.LegalHold
     approveDeviceH,
     disableForUserH,
     isLegalHoldEnabledForTeam,
-    getLegalholdWhitelistedTeamsH,
     setTeamLegalholdWhitelistedH,
     unsetTeamLegalholdWhitelistedH,
+    getTeamLegalholdWhitelistedH,
   )
 where
 
@@ -49,6 +49,7 @@ import Galley.API.Error
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
@@ -57,7 +58,7 @@ import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
 import Galley.Types.Teams as Team
 import Imports
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types (status200, status404)
 import Network.HTTP.Types.Status (status201, status204)
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus, _3)
@@ -81,11 +82,8 @@ isLegalHoldEnabledForTeam tid = do
         Just Public.TeamFeatureEnabled -> True
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      (readIORef =<< view legalholdWhitelist)
-        <&> maybe
-          False {- reasonable default, even though this is impossible due to "Galley.Options.validateOpts" -}
-          (tid `elem`)
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+      isTeamLegalholdWhitelisted tid
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
@@ -447,14 +445,6 @@ blockConnectionsFrom1on1s uid = do
             mMember <- Data.teamMember team other
             pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
-getLegalholdWhitelistedTeams :: Galley [TeamId]
-getLegalholdWhitelistedTeams = do
-  fromMaybe [] <$> (readIORef =<< view legalholdWhitelist)
-
-getLegalholdWhitelistedTeamsH :: JSON -> Galley Response
-getLegalholdWhitelistedTeamsH _ = do
-  json <$> getLegalholdWhitelistedTeams
-
 setTeamLegalholdWhitelisted :: TeamId -> Galley ()
 setTeamLegalholdWhitelisted tid = do
   LegalHoldData.setTeamLegalholdWhitelisted tid
@@ -475,3 +465,11 @@ unsetTeamLegalholdWhitelistedH tid = do
       \number of LH devices as well, and possibly other things.  think this through \
       \before you enable the end-point."
   setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
+
+getTeamLegalholdWhitelistedH :: TeamId -> Galley Response
+getTeamLegalholdWhitelistedH tid = do
+  lhEnabled <- isTeamLegalholdWhitelisted tid
+  pure $
+    if lhEnabled
+      then setStatus status200 empty
+      else setStatus status404 empty
