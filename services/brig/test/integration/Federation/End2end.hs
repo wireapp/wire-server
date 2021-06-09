@@ -41,7 +41,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
-import Wire.API.Conversation (InviteQualified (..), NewConv (..), NewConvUnmanaged (..), cnvId)
+import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Message (UserClients (UserClients))
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
@@ -215,7 +215,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
 
-  let conv = NewConvUnmanaged $ NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let newConv = NewConvUnmanaged $ NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   convId <-
     cnvId . responseJsonUnsafe
       <$> post
@@ -224,9 +224,10 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
             . zUser (userId alice)
             . zConn "conn"
             . header "Z-Type" "access"
-            . json conv
+            . json newConv
         )
 
+  -- test adding a remote user to local conversation
   let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
   post
     ( galley1
@@ -237,6 +238,23 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
         . json invite
     )
     !!! (const 200 === statusCode)
+
+  -- test GET /conversations/:remoteDomain/:cnv
+  let remoteDomain = qDomain (userQualifiedId bob)
+      -- FUTUREWORK add qualified conversation Id to Conversation data type, then use that from the conversation creation response
+      qualifiedConvId = Qualified convId remoteDomain
+  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified galley1 (userId alice) qualifiedConvId
+  liftIO $ do
+    let actual = cmOthers $ cnvMembers conv
+    let expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
+    assertEqual "other members should include remoteBob" expected actual
+  where
+    getConvQualified g u (Qualified conv domain) =
+      get $
+        g
+          . paths ["conversations", toByteString' domain, toByteString' conv]
+          . zUser u
+          . zConn "conn"
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
