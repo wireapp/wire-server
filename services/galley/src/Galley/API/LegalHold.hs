@@ -393,7 +393,11 @@ changeLegalholdStatus tid uid old new = do
     --
     UserLegalHoldDisabled -> case new of
       UserLegalHoldEnabled -> illegal
-      UserLegalHoldPending -> addblocks >> update
+      UserLegalHoldPending -> do
+        update
+        -- outcome of addblocks logic might depend on the update. we'd like to
+        -- fail the transition in case addblocks fails neverless
+        addblocks `onException` revert
       UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeblocks
       UserLegalHoldNoConsent -> {- withdrawing consent is not (yet?) implemented -} illegal
     --
@@ -404,6 +408,7 @@ changeLegalholdStatus tid uid old new = do
       UserLegalHoldNoConsent -> noop
   where
     update = LegalHoldData.setUserLegalHoldStatus tid uid new
+    revert = LegalHoldData.setUserLegalHoldStatus tid uid old
     removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
     addblocks = do
       blockNonConsentingConnections uid
