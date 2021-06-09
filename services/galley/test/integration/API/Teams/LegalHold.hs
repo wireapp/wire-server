@@ -998,13 +998,13 @@ testNoConsentCannotBeInvited = do
     !!! const 200 === statusCode
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    ensureQueueEmpty
 
-    API.Util.postMembers userOnLHTeam (List1.list1 peer2 []) convId
-      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+  API.Util.postMembers userOnLHTeam (List1.list1 peer2 []) convId
+    >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
--- TODO: as peer create conversation with peer2 and userOnLHteam
+  -- next case: invite users with conflicting policies
+  createTeamConvAccessRaw peer teamPeer [peer2, userOnLHTeam] (Just "bla") Nothing Nothing Nothing (Just roleNameWireMember)
+    >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
 data TestClaimKeys
   = TCKConsentMissing
