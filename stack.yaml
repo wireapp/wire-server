@@ -229,6 +229,11 @@ extra-deps:
   subdirs:
     - http2-client-grpc
 
+# Fix in branch header-encoding-0-size-table-backport for issue #27
+# Note: the patch for #27 is based on version 2.0.6 of http2
+- git: https://github.com/wireapp/http2
+  commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
+
 ############################################################
 # Development tools
 ############################################################
