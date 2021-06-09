@@ -149,7 +149,7 @@ testsPublic s =
                   \args@(a, b, c, d) ->
                     test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
               testGroup "XXXXXX If LH is activated for other user in group conv, this user gets removed with helpful message" $
-                [a | a <- [minBound ..]] <&> \whoIsAdmin -> test s ("test case " <> show whoIsAdmin) (testNoConsentRemoveFromGroupConv whoIsAdmin),
+                [a | a <- [minBound ..]] <&> \whoIsAdmin -> test s ("test case " <> show whoIsAdmin) (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv whoIsAdmin)),
               test s "bench hack" testBenchHack,
               test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
               test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
@@ -931,15 +931,15 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
 
   let enableLHForLegalholder :: HasCallStack => TestM ()
       enableLHForLegalholder = do
-        -- register & (possibly) approve LH device for legalholder
-        withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
-        withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
-        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
+        requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
+        approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
+        UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
 
   cannon <- view tsCannon
 
-  WS.bracketR2 cannon legalholder peer $ \(_legalholderWs, _peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+  WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     ensureQueueEmpty
 
     postConnection legalholder peer !!! const 201 === statusCode
@@ -957,9 +957,8 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
       mapM_ (assertConvMemberWithRole roleNameWireMember convId) [invitee | whoIsAdmin /= BothAreAdmins]
       pure convId
 
-    -- TODO
-    -- checkConvCreateEvent convId legalholderWs
-    -- checkConvCreateEvent convId peerWs
+    checkConvCreateEvent convId legalholderWs
+    checkConvCreateEvent convId peerWs
 
     assertConvMember legalholder convId
     assertConvMember peer convId
@@ -974,8 +973,8 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
         assertConvMember peer convId
         assertNotConvMember legalholder convId
       BothAreAdmins -> do
-        assertConvMember peer convId
-        assertNotConvMember legalholder convId
+        assertConvMember legalholder convId
+        assertNotConvMember peer convId
 
 data TestClaimKeys
   = TCKConsentMissing
