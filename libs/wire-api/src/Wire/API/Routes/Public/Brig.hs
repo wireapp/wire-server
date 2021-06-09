@@ -49,7 +49,9 @@ type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
-type ClientResponse = Headers '[Header "Location" ClientId] Client
+type NewClientResponse = Headers '[Header "Location" ClientId] Client
+
+type GetClientResponse = [WithStatus 200 Client, Empty404]
 
 data Api routes = Api
   { -- Note [document responses]
@@ -284,7 +286,7 @@ data Api routes = Api
         :> "clients"
         :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
-        :> Verb 'POST 201 '[JSON] ClientResponse,
+        :> Verb 'POST 201 '[JSON] NewClientResponse,
     --   Doc.errorResponse malformedPrekeys
     updateClient ::
       routes :- Summary "Update a registered client"
@@ -308,6 +310,12 @@ data Api routes = Api
         :> ZUser
         :> "clients"
         :> Get '[JSON] [Client],
+    getClient ::
+      routes :- Summary "Get a register client by ID"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> UVerb 'GET '[JSON] GetClientResponse,
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser

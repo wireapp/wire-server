@@ -188,6 +188,7 @@ servantSitemap =
         BrigAPI.updateClient = updateClient,
         BrigAPI.deleteClient = deleteClient,
         BrigAPI.listClients = listClients,
+        BrigAPI.getClient = getClient,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -483,17 +484,6 @@ sitemap o = do
 
   -- User Client API ----------------------------------------------------
   -- TODO: another one?
-
-  get "/clients/:client" (continue getClientH) $
-    zauthUserId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "getClients" $ do
-    Doc.summary "Get a registered client by ID."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.modelClient)
-    Doc.response 200 "Client" Doc.end
 
   get "/clients/:client/capabilities" (continue getClientCapabilitiesH) $
     zauthUserId
@@ -815,14 +805,14 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwStd tooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.ClientResponse
+addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
 addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
   clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
   where
-    clientResponse :: Public.Client -> BrigAPI.ClientResponse
+    clientResponse :: Public.Client -> BrigAPI.NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
 deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler (EmptyResult 200)
@@ -839,11 +829,13 @@ listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
-getClientH (zusr ::: clt ::: _) =
-  getClient zusr clt <&> \case
-    Just c -> json c
-    Nothing -> setStatus status404 empty
+getClient :: UserId -> ClientId -> Handler (Union BrigAPI.GetClientResponse)
+getClient zusr clientId = do
+  localdomain <- viewFederationDomain
+  mc <- API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
+  case mc of
+    Nothing -> Servant.respond Empty404
+    Just c -> Servant.respond (WithStatus @200 c)
 
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
 getUserClientsUnqualified uid = do
@@ -871,10 +863,6 @@ getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClie
 getUserClientQualified domain uid cid = do
   x <- API.lookupPubClient (Qualified uid domain) cid !>> clientError
   ifNothing (notFound "client not found") x
-
-getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
-getClient zusr clientId = do
-  lift $ API.lookupLocalClient zusr clientId
 
 getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientCapabilitiesH (uid ::: cid ::: _) = json <$> getClientCapabilities uid cid
