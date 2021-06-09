@@ -18,8 +18,10 @@
 module Federation.End2end where
 
 import API.Search.Util
+import API.User.Util (getUserClientsQualified)
 import Bilge
 import Bilge.Assert ((!!!), (===))
+import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types
 import Control.Arrow ((&&&))
@@ -68,6 +70,7 @@ spec _brigOpts mg brig galley _federator brigTwo =
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
+        test mg "list user clients" $ testListUserClients brig brigTwo,
         test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo
       ]
 
@@ -234,6 +237,19 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
         . json invite
     )
     !!! (const 200 === statusCode)
+
+testListUserClients :: Brig -> Brig -> Http ()
+testListUserClients brig1 brig2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+  let prekeys = take 3 (zip somePrekeys someLastPrekeys)
+  let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
+      nclients = map mkClient prekeys
+  clients <- traverse (responseJsonError <=< addClient brig2 (userId bob)) nclients
+  resp <- getUserClientsQualified brig1 (userId alice) (qDomain (userQualifiedId bob)) (userId bob)
+  let expected = map pubClient clients
+      actual = responseJsonUnsafe resp
+  liftIO $ Set.fromList actual @?= Set.fromList expected
 
 -- FUTUREWORK: check the happy path case as implementation of these things progresses:
 --  - conversation can be queried and shows members (galley1)

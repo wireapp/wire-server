@@ -29,11 +29,13 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client (UserClientPrekeyMap)
+import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
+import Wire.API.UserMap (UserMap)
 
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)
@@ -82,9 +84,21 @@ data Api routes = Api
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
         :> ReqBody '[JSON] SearchRequest
-        :> Post '[JSON] (SearchResult Contact)
+        :> Post '[JSON] (SearchResult Contact),
+    getUserClients ::
+      routes
+        :- "federation"
+        :> "get-user-clients"
+        :> ReqBody '[JSON] GetUserClients
+        :> Post '[JSON] (UserMap (Set PubClient))
   }
   deriving (Generic)
+
+newtype GetUserClients = GetUserClients
+  { gucUsers :: [UserId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Brig m))
 clientRoutes = genericClient

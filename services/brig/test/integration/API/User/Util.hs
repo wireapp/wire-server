@@ -203,12 +203,12 @@ getUserClientsUnqualified brig uid =
       . paths ["users", toByteString' uid, "clients"]
       . zUser uid
 
-getUserClientsQualified :: Brig -> Domain -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
-getUserClientsQualified brig domain uid =
+getUserClientsQualified :: Brig -> UserId -> Domain -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getUserClientsQualified brig zusr domain uid =
   get $
     brig
       . paths ["users", toByteString' domain, toByteString' uid, "clients"]
-      . zUser uid
+      . zUser zusr
 
 deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> (MonadIO m, MonadHttp m) => m ResponseLBS
 deleteClient brig u c pw =
