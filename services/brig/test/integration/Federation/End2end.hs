@@ -18,8 +18,10 @@
 module Federation.End2end where
 
 import API.Search.Util
+import API.User.Util (getUserClientsQualified)
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
+import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types
 import Control.Arrow ((&&&))
@@ -240,27 +242,12 @@ testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
-
   let prekeys = take 3 (zip somePrekeys someLastPrekeys)
   let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
       nclients = map mkClient prekeys
   clients <- traverse (responseJsonError <=< addClient brig2 (userId bob)) nclients
-  resp <-
-    get
-      ( brig1
-          . zUser (userId alice)
-          . paths
-            [ "users",
-              toByteString' (qDomain (userQualifiedId bob)),
-              toByteString' (userId bob),
-              "clients"
-            ]
-          . contentJson
-          . acceptJson
-      )
-      <!! const 200 === statusCode
-
-  let expected = map (\c -> PubClient (clientId c) (clientClass c)) clients
+  resp <- getUserClientsQualified brig1 (userId alice) (qDomain (userQualifiedId bob)) (userId bob)
+  let expected = map pubClient clients
       actual = responseJsonUnsafe resp
   liftIO $ Set.fromList actual @?= Set.fromList expected
 

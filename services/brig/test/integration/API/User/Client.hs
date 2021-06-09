@@ -119,9 +119,9 @@ testAddGetClient hasPwd brig cannon = do
 testGetUserClientsUnqualified :: Opt.Opts -> Brig -> Http ()
 testGetUserClientsUnqualified _opts brig = do
   uid1 <- userId <$> randomUser brig
-  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
-  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
   _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
@@ -134,14 +134,15 @@ testGetUserClientsUnqualified _opts brig = do
 testGetUserClientsQualified :: Opt.Opts -> Brig -> Http ()
 testGetUserClientsQualified opts brig = do
   uid1 <- userId <$> randomUser brig
-  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
-  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  uid2 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
   _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
   let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
-  getUserClientsQualified brig localdomain uid1 !!! do
+  getUserClientsQualified brig uid2 localdomain uid1 !!! do
     const 200 === statusCode
     assertTrue_ $ \res -> do
       let clients :: [PubClient] = responseJsonUnsafe res
