@@ -45,7 +45,11 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc
+import Data.Proxy (Proxy (Proxy))
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import Data.Range (toRange)
 import Galley.API.Error
+import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMember)
 import Galley.API.Util
 import Galley.App
@@ -66,7 +70,10 @@ import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), Member (memConvRoleName, memId), OtherMember (..), cmOthers)
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import qualified Wire.API.Team.LegalHold as Public
 
 assertLegalHoldEnabledForTeam :: TeamId -> Galley ()
@@ -406,13 +413,15 @@ changeLegalholdStatus tid uid old new = do
   where
     update = LegalHoldData.setUserLegalHoldStatus tid uid new
     removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
-    addblocks = blockConnectionsFrom1on1s uid
+    addblocks = do
+      blockNonConsentingConnections uid
+      handleGroupConvPolicyConflicts uid
     noop = pure ()
     illegal = throwM userLegalHoldIllegalOperation
 
 -- FUTUREWORK: make this async?
-blockConnectionsFrom1on1s :: UserId -> Galley ()
-blockConnectionsFrom1on1s uid = do
+blockNonConsentingConnections :: UserId -> Galley ()
+blockNonConsentingConnections uid = do
   conns <- getConnections [uid] Nothing Nothing
   errmsgs <- do
     conflicts <- mconcat <$> findConflicts conns
@@ -429,22 +438,13 @@ blockConnectionsFrom1on1s uid = do
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- Data.usersTeams others
-        filterM (shouldBlock teamsOfUsers) others
+        filterM (fmap (== ConsentNotGiven) . checkConsent teamsOfUsers) others
 
     blockConflicts :: UserId -> [UserId] -> Galley [String]
     blockConflicts _ [] = pure []
     blockConflicts userLegalhold othersToBlock@(_ : _) = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
-
-    shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
-    shouldBlock teamsOfUsers other =
-      (== UserLegalHoldNoConsent)
-        <$> case Map.lookup other teamsOfUsers of
-          Nothing -> pure defUserLegalHoldStatus
-          Just team -> do
-            mMember <- Data.teamMember team other
-            pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 setTeamLegalholdWhitelisted :: TeamId -> Galley ()
 setTeamLegalholdWhitelisted tid = do
@@ -474,3 +474,64 @@ getTeamLegalholdWhitelistedH tid = do
     if lhEnabled
       then setStatus status200 empty
       else setStatus status404 empty
+
+checkConsent :: Map UserId TeamId -> UserId -> Galley ConsentGiven
+checkConsent teamsOfUsers other = do
+  consentGiven <$> getLHStatus teamsOfUsers other
+
+consentGiven :: UserLegalHoldStatus -> ConsentGiven
+consentGiven = \case
+  UserLegalHoldDisabled -> ConsentGiven
+  UserLegalHoldPending -> ConsentGiven
+  UserLegalHoldEnabled -> ConsentGiven
+  UserLegalHoldNoConsent -> ConsentNotGiven
+
+getLHStatus :: Map UserId TeamId -> UserId -> Galley UserLegalHoldStatus
+getLHStatus teamsOfUsers other = do
+  case Map.lookup other teamsOfUsers of
+    Nothing -> pure defUserLegalHoldStatus
+    Just team -> do
+      mMember <- Data.teamMember team other
+      pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+
+data ConsentGiven = ConsentGiven | ConsentNotGiven
+  deriving (Eq, Ord, Show)
+
+handleGroupConvPolicyConflicts :: UserId -> Galley ()
+handleGroupConvPolicyConflicts uid =
+  -- Assumption: uid has given consent
+  void $
+    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+      for_ (filter ((== RegularConv) . cnvType) convs) $ \conv -> do
+        let qualifiedMembers :: [Qualified OtherMember] = concatMap (fmap qualifyMember . cmOthers . cnvMembers) convs
+        ownDomain <- viewFederationDomain
+        let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localOtherMembers) =
+              partitionRemoteOrLocalIds ownDomain qualifiedMembers
+        membersAndLHStatus <-
+          mconcat
+            <$> ( for (chunksOf 32 localOtherMembers) $ \oMems -> do
+                    teamsOfUsers <- Data.usersTeams (memberUnqualId <$> oMems)
+                    for oMems $ \mem -> do
+                      (mem,) <$> getLHStatus teamsOfUsers (memberUnqualId mem)
+                )
+
+        let admins = getAdmins (cmSelf . cnvMembers $ conv) membersAndLHStatus
+        if all ((== ConsentGiven) . snd) admins
+          then do
+            for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
+              removeMember (memberUnqualId memberNoConsent) Nothing (cnvId conv) (memberUnqualId memberNoConsent)
+          else do
+            for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) ->
+              removeMember (memberUnqualId legalholder) Nothing (cnvId conv) (memberUnqualId legalholder)
+            void $ removeMember uid Nothing (cnvId conv) uid
+  where
+    qualifyMember :: OtherMember -> Qualified OtherMember
+    qualifyMember mem = Qualified mem (qDomain . omQualifiedId $ mem)
+
+    getAdmins :: Member -> [(OtherMember, UserLegalHoldStatus)] -> [(UserId, ConsentGiven)]
+    getAdmins mem oths =
+      [(memId mem, ConsentGiven) | memConvRoleName mem == roleNameWireAdmin]
+        <> fmap (bimap memberUnqualId consentGiven) oths
+
+    memberUnqualId :: OtherMember -> UserId
+    memberUnqualId = qUnqualified . omQualifiedId
