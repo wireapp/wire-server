@@ -44,7 +44,6 @@ module Galley.API.Update
 
     -- * Talking
     postOtrMessage,
-    postProtoOtrMessageH,
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
     isTypingH,
@@ -639,12 +638,6 @@ legalholdProtectee'2UserId (UnprotectedBot' uid) = uid
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
   postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
-
-postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
-postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
-  message <- Public.protoToNewOtrMessage <$> fromProtoBody req
-  let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val' message
 
 postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
