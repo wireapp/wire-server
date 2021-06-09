@@ -21,12 +21,14 @@
 module Wire.API.Message
   ( -- * Message
     NewOtrMessage (..),
+    protoToNewOtrMessage,
 
     -- * Priority
     Priority (..),
 
     -- * Recipients
     OtrRecipients (..),
+    protoFromOtrRecipients,
     UserClientMap (..),
 
     -- * Filter
@@ -44,18 +46,25 @@ module Wire.API.Message
   )
 where
 
-import Control.Lens ((?~))
+import Control.Lens (view, (?~))
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Base64 as B64
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Id
 import Data.Json.Util
+import qualified Data.Map.Strict as Map
+import qualified Data.ProtocolBuffers as Protobuf
 import Data.Schema
+import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
+import qualified Wire.API.Message.Proto as Proto
+import Wire.API.ServantProto (FromProto (..))
 import Wire.API.User.Client (UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
 
 --------------------------------------------------------------------------------
@@ -115,6 +124,25 @@ instance ToSchema NewOtrMessage where
         <*> newOtrData .= opt (field "data" schema)
         <*> newOtrReportMissing .= opt (field "report_missing" (array schema))
 
+instance FromProto NewOtrMessage where
+  fromProto bs = protoToNewOtrMessage <$> runGetLazy Protobuf.decodeMessage bs
+
+protoToNewOtrMessage :: Proto.NewOtrMessage -> NewOtrMessage
+protoToNewOtrMessage msg =
+  NewOtrMessage
+    { newOtrSender = Proto.toClientId (view Proto.newOtrMessageSender msg),
+      newOtrRecipients = protoToOtrRecipients (view Proto.newOtrMessageRecipients msg),
+      newOtrNativePush = view Proto.newOtrMessageNativePush msg,
+      newOtrTransient = view Proto.newOtrMessageTransient msg,
+      newOtrData = toBase64Text <$> view Proto.newOtrMessageData msg,
+      newOtrNativePriority = protoToPriority <$> view Proto.newOtrMessageNativePriority msg,
+      newOtrReportMissing = protoToReportMissing $ view Proto.newOtrMessageReportMissing msg
+    }
+
+protoToReportMissing :: [Proto.UserId] -> Maybe [UserId]
+protoToReportMissing [] = Nothing
+protoToReportMissing us = Just $ view Proto.userId <$> us
+
 --------------------------------------------------------------------------------
 -- Priority
 
@@ -149,6 +177,10 @@ instance ToSchema Priority where
           element "high" HighPriority
         ]
 
+protoToPriority :: Proto.Priority -> Priority
+protoToPriority Proto.LowPriority = LowPriority
+protoToPriority Proto.HighPriority = HighPriority
+
 --------------------------------------------------------------------------------
 -- Recipients
 
@@ -165,6 +197,32 @@ modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
   Doc.description "Recipients of OTR content."
   Doc.property "" (Doc.ref modelOtrClientMap) $
     Doc.description "Mapping of user IDs to 'OtrClientMap's."
+
+protoToOtrRecipients :: [Proto.UserEntry] -> OtrRecipients
+protoToOtrRecipients =
+  OtrRecipients . UserClientMap
+    . foldl' userEntries mempty
+  where
+    userEntries :: Map UserId (Map ClientId Text) -> Proto.UserEntry -> Map UserId (Map ClientId Text)
+    userEntries acc x =
+      let u = view Proto.userEntryId x
+          c = view Proto.userEntryClients x
+          m = foldl' clientEntries mempty c
+       in Map.insert (view Proto.userId u) m acc
+    clientEntries acc x =
+      let c = Proto.toClientId $ view Proto.clientEntryId x
+          t = toBase64Text $ view Proto.clientEntryMessage x
+       in Map.insert c t acc
+
+protoFromOtrRecipients :: OtrRecipients -> [Proto.UserEntry]
+protoFromOtrRecipients rcps =
+  let m = userClientMap (otrRecipientsMap rcps)
+   in map mkProtoRecipient (Map.toList m)
+  where
+    mkProtoRecipient (usr, clts) =
+      let xs = map mkClientEntry (Map.toList clts)
+       in Proto.userEntry (Proto.fromUserId usr) xs
+    mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64Text t)
 
 --------------------------------------------------------------------------------
 -- Filter
@@ -250,3 +308,12 @@ instance FromHttpApiData ReportMissing where
     "true" -> Right ReportMissingAll
     "false" -> Right $ ReportMissingList mempty
     list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
+
+--------------------------------------------------------------------------------
+-- Utilities
+
+fromBase64Text :: Text -> ByteString
+fromBase64Text = B64.decodeLenient . encodeUtf8
+
+toBase64Text :: ByteString -> Text
+toBase64Text = decodeUtf8 . B64.encode

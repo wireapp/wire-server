@@ -37,6 +37,7 @@ import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.ServantProto (Proto)
 import qualified Wire.API.Team.Conversation as Public
 
 type ConversationResponses =
@@ -224,7 +225,7 @@ data Api routes = Api
         :> Delete '[] (EmptyResult 200),
     postOtrMessage ::
       routes
-        :- Summary "Post an encrypted message to a conversation (accepts JSON)"
+        :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
         :> Description PostOtrDescription
         :> ZUser
         :> ZConn
@@ -234,7 +235,7 @@ data Api routes = Api
         :> QueryParam "report_missing" Public.ReportMissing
         :> "otr"
         :> "messages"
-        :> ReqBody '[Servant.JSON] Public.NewOtrMessage
+        :> ReqBody '[Servant.JSON, Proto] Public.NewOtrMessage
         :> UVerb 'POST '[Servant.JSON] PostOtrResponses
   }
   deriving (Generic)
@@ -260,7 +261,9 @@ type PostOtrDescription =
   \- `ignore_missing` in the query param is the next.\n\
   \- `report_missing` in the query param has the lowest precedence.\n\
   \\n\
-  \This endpoint can lead to OtrMessageAdd event being sent to the recipients."
+  \This endpoint can lead to OtrMessageAdd event being sent to the recipients.\n\
+  \\n\
+  \**NOTE:** The protobuf definitions of the request body can be found at https://github.com/wireapp/generic-message-proto/blob/master/proto/otr.proto."
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)
