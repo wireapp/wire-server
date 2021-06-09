@@ -91,6 +91,7 @@ import Galley.API.Util
 import Galley.App
 import Galley.Data (teamMember)
 import qualified Galley.Data as Data
+import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
@@ -531,7 +532,7 @@ addMembers zusr zcon convId invite = do
   ensureConvRoleNotElevated self (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
   checkRemoteUsersExist newRemotes
-  checkLHPolicyConflicts conv newLocals
+  checkLHPolicyConflictsLocal conv newLocals
   checkLHPolicyConflictsRemote (FutureWork newRemotes)
   addToConversation mems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
@@ -550,19 +551,11 @@ addMembers zusr zcon convId invite = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
       ensureConnectedOrSameTeam zusr newUsers
 
-    checkLHPolicyConflicts :: Data.Conversation -> [UserId] -> Galley ()
-    checkLHPolicyConflicts conv newUsers =
+    checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
+    checkLHPolicyConflictsLocal conv newUsers =
       whenM (anyLHActivatedLocalUsers (fmap memId . Data.convLocalMembers $ conv)) $ do
         whenM (anyLHConsentMissing newUsers) $ do
           throwM missingLegalholdConsent
-
-    anyLHConsentMissing :: [UserId] -> Galley Bool
-    anyLHConsentMissing _uids = do
-      let go = undefined
-      view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
-        FeatureLegalHoldDisabledPermanently -> go
-        FeatureLegalHoldDisabledByDefault -> go
-        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> go
 
     anyLHActivatedLocalUsers :: [UserId] -> Galley Bool
     anyLHActivatedLocalUsers uids =
@@ -572,22 +565,32 @@ addMembers zusr zcon convId invite = do
           flip anyM (chunksOf 32 uids) $ \uidsPage -> do
             teamsOfUsers <- Data.usersTeams uidsPage
             anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
-        -- For this feature the implementation is more efficient We assume that
+        -- For this feature the implementation is more efficient. We assume that
         -- being part of a whitelisted team is enough to be considered under
         -- legalhold.
         FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-          -- mbTeamIds <- view (options . optSettings . setLegalHoldTeamsWhitelist)
-          -- case mbTeamIds of
-          --   Nothing -> pure False -- impossible (see options validation)
-          --   Just whitelistedTeams ->
           flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-            _teamsPage <- Map.elems <$> Data.usersTeams uidsPage
-            -- TODO: logic
-            pure False
-    -- pure $ any (`elem` teamsPage) whitelistedTeams
+            teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
+            anyM isTeamLegalholdWhitelisted teamsPage
 
-    checkLHPolicyConflictsRemote :: futurework 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
-    checkLHPolicyConflictsRemote = error "TODO"
+    anyLHConsentMissing :: [UserId] -> Galley Bool
+    anyLHConsentMissing uids = do
+      view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+        FeatureLegalHoldDisabledPermanently -> pure True
+        FeatureLegalHoldDisabledByDefault -> do
+          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+            teamsOfUsers <- Data.usersTeams uidsPage
+            anyM (\uid -> (== ConsentNotGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
+        -- For this feature the implementation is more efficient. Being part of
+        -- a whitelisted team is equivalent to have given consent to be in a
+        -- conversation with LH user.
+        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+            teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
+            anyM (fmap not . isTeamLegalholdWhitelisted) teamsPage
+
+    checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
+    checkLHPolicyConflictsRemote _remotes = pure ()
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
