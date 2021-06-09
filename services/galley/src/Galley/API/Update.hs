@@ -44,7 +44,6 @@ module Galley.API.Update
 
     -- * Talking
     postOtrMessage,
-    postProtoOtrMessageH,
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
     isTypingH,
@@ -124,7 +123,6 @@ import Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.Client as Federation
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
-import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -651,12 +649,6 @@ postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMes
 postBotMessage zbot zcnv val message = do
   postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
 
-postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
-postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
-  message <- Proto.toNewOtrMessage <$> fromProtoBody req
-  let val' = allowOtrFilterMissingInBody val message
-  handleOtrResult =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv val' message
-
 postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
   let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
@@ -678,7 +670,7 @@ postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
-  message <- Proto.toNewOtrMessage <$> fromProtoBody req
+  message <- Public.protoToNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 

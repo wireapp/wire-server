@@ -95,6 +95,7 @@ import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
+import qualified Wire.API.Message as Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
@@ -684,7 +685,7 @@ postProtoOtrBroadcast' reportMissing modif u d rec = do
 
 mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [UserId] -> Proto.NewOtrMessage
 mkOtrProtoMessage sender rec reportMissing =
-  let rcps = Proto.fromOtrRecipients rec
+  let rcps = Message.protoFromOtrRecipients rec
       sndr = Proto.fromClientId sender
       rmis = Proto.fromUserId <$> fromMaybe [] reportMissing
    in Proto.newOtrMessage sndr rcps

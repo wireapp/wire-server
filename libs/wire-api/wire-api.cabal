@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9404af483be016a508ad4a9919330394d673e725945662da3786fe94eb0785e1
+-- hash: c86173e7b15d84b4e33d4f6faa9f1445031dc2d669e52f7f49ccf9f74571beaf
 
 name:           wire-api
 version:        0.1.0
@@ -52,6 +52,7 @@ library
       Wire.API.Routes.Public.Galley
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
+      Wire.API.ServantProto
       Wire.API.Swagger
       Wire.API.Team
       Wire.API.Team.Conversation
@@ -100,6 +101,7 @@ library
     , case-insensitive
     , cassandra-util
     , cassava >=0.5
+    , cereal
     , containers >=0.5
     , cookie
     , cryptonite
