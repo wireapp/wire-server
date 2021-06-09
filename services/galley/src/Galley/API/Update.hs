@@ -64,7 +64,7 @@ where
 
 import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
-import Control.Arrow ((&&&), (>>>))
+import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
@@ -553,12 +553,12 @@ addMembers zusr zcon convId invite = do
 
     checkLHPolicyConflicts :: Data.Conversation -> [UserId] -> Galley ()
     checkLHPolicyConflicts conv newUsers =
-      whenM (anyLHActivatedLocalUsers (fmap memId . Data.convMembers $ conv)) $ do
+      whenM (anyLHActivatedLocalUsers (fmap memId . Data.convLocalMembers $ conv)) $ do
         whenM (anyLHConsentMissing newUsers) $ do
           throwM missingLegalholdConsent
 
     anyLHConsentMissing :: [UserId] -> Galley Bool
-    anyLHConsentMissing uids = do
+    anyLHConsentMissing _uids = do
       let go = undefined
       view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
         FeatureLegalHoldDisabledPermanently -> go
@@ -577,13 +577,15 @@ addMembers zusr zcon convId invite = do
         -- being part of a whitelisted team is enough to be considered under
         -- legalhold.
         FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-          mbTeamIds <- view (options . optSettings . setLegalHoldTeamsWhitelist)
-          case mbTeamIds of
-            Nothing -> pure False -- impossible (see options validation)
-            Just whitelistedTeams ->
-              flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-                teamsPage <- Map.elems <$> Data.usersTeams uidsPage
-                pure $ any (`elem` teamsPage) whitelistedTeams
+          -- mbTeamIds <- view (options . optSettings . setLegalHoldTeamsWhitelist)
+          -- case mbTeamIds of
+          --   Nothing -> pure False -- impossible (see options validation)
+          --   Just whitelistedTeams ->
+          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+            _teamsPage <- Map.elems <$> Data.usersTeams uidsPage
+            -- TODO: logic
+            pure False
+    -- pure $ any (`elem` teamsPage) whitelistedTeams
 
     checkLHPolicyConflictsRemote :: futurework 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote = error "TODO"
@@ -594,19 +596,6 @@ addMembers zusr zcon convId invite = do
         . Map.assocs
         . partitionQualified
         . map unTagged
-
-    checkRemotesFor :: Domain -> [UserId] -> Galley ()
-    checkRemotesFor domain uids = do
-      let rpc = FederatedBrig.getUsersByIds FederatedBrig.clientRoutes uids
-      users <-
-        runExceptT (executeFederated domain rpc)
-          >>= either (throwM . federationErrorToWai) pure
-      let uids' =
-            map
-              (qUnqualified . User.profileQualifiedId)
-              (filter (not . User.profileDeleted) users)
-      unless (Set.fromList uids == Set.fromList uids') $
-        throwM unknownRemoteUser
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
