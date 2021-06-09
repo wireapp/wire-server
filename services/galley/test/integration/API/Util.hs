@@ -95,8 +95,8 @@ import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
-import qualified Wire.API.Message.Proto as Proto
 import qualified Wire.API.Message as Message
+import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
 

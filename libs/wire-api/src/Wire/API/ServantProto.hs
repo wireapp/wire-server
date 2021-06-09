@@ -1,9 +1,9 @@
 module Wire.API.ServantProto where
 
-import Servant
+import Data.List.NonEmpty (NonEmpty (..))
 import Imports
 import Network.HTTP.Media ((//))
-import Data.List.NonEmpty (NonEmpty(..))
+import Servant
 
 -- | Type to tell servant that it should unrender request body or render
 -- response body with Protobuf
