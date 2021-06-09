@@ -1,1 +1,33 @@
-{"event":{"conversation":"00000003-0000-0000-0000-000200000000","time":"1864-05-05T01:06:47.245Z","data":{"email":"\u0003","name":null,"message":"","recipient":"00000000-0000-0000-0000-000000000000"},"from":"00000001-0000-0001-0000-000100000002","type":"conversation.connect-request"},"accent_id":-4,"name":"羈Q2\r.+𣏌\u0000'Wm)U|X.𬶒\u0019m\u0002u\u0015𩁀4G3>k","id":"00000000-0000-0004-0000-000200000003","assets":[{"size":"complete","key":"\u0011","type":"image"}],"client":"5"}
+{
+    "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000003-0000-0000-0000-000200000000"
+        },
+        "conversation": "00000003-0000-0000-0000-000200000000",
+        "time": "1864-05-05T01:06:47.245Z",
+        "data": {
+            "email": "\u0003",
+            "name": null,
+            "message": "",
+            "recipient": "00000000-0000-0000-0000-000000000000"
+        },
+        "from": "00000001-0000-0001-0000-000100000002",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "00000001-0000-0001-0000-000100000002"
+        },
+        "type": "conversation.connect-request"
+    },
+    "accent_id": -4,
+    "name": "羈Q2\r.+𣏌\u0000'Wm)U|X.𬶒\u0019m\u0002u\u0015𩁀4G3>k",
+    "id": "00000000-0000-0004-0000-000200000003",
+    "assets": [
+        {
+            "size": "complete",
+            "key": "\u0011",
+            "type": "image"
+        }
+    ],
+    "client": "5"
+}

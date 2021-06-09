@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.Relation_user where
 
 import Wire.API.Connection (Relation (..))
@@ -79,4 +78,4 @@ testObject_Relation_user_19 :: Relation
 testObject_Relation_user_19 = Cancelled
 
 testObject_Relation_user_20 :: Relation
-testObject_Relation_user_20 = Ignored
+testObject_Relation_user_20 = MissingLegalholdConsent

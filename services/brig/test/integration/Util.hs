@@ -504,11 +504,12 @@ defNewClient ty pks lpk =
       newClientModel = Just "Test Model"
     }
 
-getPreKey :: Brig -> UserId -> ClientId -> Http ResponseLBS
-getPreKey brig u c =
+getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
+getPreKey brig zusr u c =
   get $
     brig
       . paths ["users", toByteString' u, "prekeys", toByteString' c]
+      . zUser zusr
 
 getTeamMember ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
@@ -764,7 +765,8 @@ retryWhileN n f m =
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other
 --   services will fail.
 --
---   Beware: Not all async parts of brig are running in this.
+--   Beware: (1) Not all async parts of brig are running in this.  (2) other services will
+--   see the old, unaltered brig.
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts

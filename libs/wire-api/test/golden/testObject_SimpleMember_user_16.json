@@ -1,1 +1,8 @@
-{"conversation_role":"pknq1f2x","id":"00000042-0000-006a-0000-000800000052"}
+{
+    "conversation_role": "pknq1f2x",
+    "qualified_id": {
+        "domain": "faraway.example.com",
+        "id": "00000042-0000-006a-0000-000800000052"
+    },
+    "id": "00000042-0000-006a-0000-000800000052"
+}

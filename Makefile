@@ -14,10 +14,22 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
+CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
+
+# This ensures that focused unit tests written in hspec fail. This is supposed
+# to help us avoid merging PRs with focused tests. This will not catch focused
+# integration tests as they are run in kubernetes where this Makefile doesn't
+# get executed. This is set here as the CI uses this Makefile, this could live
+# in several Makefiles we have in this repository, but there is little point of
+# doing so.
+#
+# Additionally, if stack is being used with nix, environment variables do not
+# make it into the shell where hspec is run, to tackle that this variable is
+# also exported in stack-deps.nix.
+export HSPEC_OPTIONS = --fail-on-focused
 
 default: fast
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -33,9 +32,10 @@ module Wire.API.Team.LegalHold.External
   )
 where
 
-import Data.Aeson
+import Data.Aeson hiding (fieldLabelModifier)
 import Data.Id
 import Data.Json.Util ((#))
+import Data.Swagger
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Client.Prekey
@@ -50,6 +50,17 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
   }
   deriving stock (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
+
+instance ToSchema RequestNewLegalHoldClient where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts =
+        defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "userId" -> "user_id"
+              "teamId" -> "team_id"
+              _ -> ""
+          }
 
 instance ToJSON RequestNewLegalHoldClient where
   toJSON (RequestNewLegalHoldClient userId teamId) =
@@ -71,6 +82,17 @@ data NewLegalHoldClient = NewLegalHoldClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewLegalHoldClient)
+
+instance ToSchema NewLegalHoldClient where
+  declareNamedSchema = genericDeclareNamedSchema opts
+    where
+      opts =
+        defaultSchemaOptions
+          { fieldLabelModifier = \case
+              "newLegalHoldClientPrekeys" -> "prekeys"
+              "newLegalHoldClientLastKey" -> "last_prekey"
+              _ -> ""
+          }
 
 instance ToJSON NewLegalHoldClient where
   toJSON c =

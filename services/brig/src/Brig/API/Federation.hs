@@ -18,37 +18,41 @@
 module Brig.API.Federation (federationSitemap) where
 
 import qualified Brig.API.Client as API
+import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import qualified Brig.Data.Client as Data
-import Brig.Types (Prekey, PrekeyBundle)
+import Brig.Types (PrekeyBundle)
 import Brig.User.API.Handle
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
 import Imports
+import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Federation.API.Brig hiding (Api (..))
+import qualified Wire.API.Federation.API.Brig as Federated
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
-import Wire.API.Message (UserClientMap, UserClients)
+import Wire.API.Message (UserClients)
+import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client (PubClient)
+import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 
-federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
+federationSitemap :: ServerT (ToServantApi Federated.Api) Handler
 federationSitemap =
   genericServerT $
     FederationAPIBrig.Api
-      getUserByHandle
-      getUsersByIds
-      claimPrekey
-      getPrekeyBundle
-      getMultiPrekeyBundle
-      searchUsers
-      getUserClients
+      { Federated.getUserByHandle = getUserByHandle,
+        Federated.getUsersByIds = getUsersByIds,
+        Federated.claimPrekey = claimPrekey,
+        Federated.claimPrekeyBundle = claimPrekeyBundle,
+        Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
+        Federated.searchUsers = searchUsers,
+        Federated.getUserClients = getUserClients
+      }
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
 getUserByHandle handle = lift $ do
@@ -64,13 +68,15 @@ getUsersByIds uids =
   lift (API.lookupLocalProfiles Nothing uids)
 
 claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
-claimPrekey (user, client) = lift (Data.claimPrekey user client)
+claimPrekey (user, client) = do
+  API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
-getPrekeyBundle :: UserId -> Handler PrekeyBundle
-getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)
+claimPrekeyBundle :: UserId -> Handler PrekeyBundle
+claimPrekeyBundle user =
+  API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
-getMultiPrekeyBundle :: UserClients -> Handler (UserClientMap (Maybe Prekey))
-getMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles uc)
+claimMultiPrekeyBundle :: UserClients -> Handler UserClientPrekeyMap
+claimMultiPrekeyBundle uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
@@ -93,8 +99,7 @@ searchUsers (SearchRequest searchTerm) = do
       }
 
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
-getUserClients (GetUserClients uids) = do
-  Data.lookupPubClientsBulk uids
+getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
 -- FUTUREWORK(federation): currently these API types make use of the same types in the
 -- federation server-server API than the client-server API does. E.g.

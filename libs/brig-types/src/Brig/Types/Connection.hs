@@ -26,6 +26,7 @@ module Brig.Types.Connection
   ( module C,
     UserIds (..),
     ConnectionsStatusRequest (..),
+    UpdateConnectionsInternal (..),
 
     -- * re-exports
     Message (..),
@@ -41,6 +42,7 @@ import Brig.Types.Common as C
 import Data.Aeson
 import Data.Id (UserId)
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.Connection
 
 -- | Response type for endpoints returning lists of users with a specific connection state.
@@ -53,9 +55,20 @@ data UserIds = UserIds
 -- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
 data ConnectionsStatusRequest = ConnectionsStatusRequest
   { csrFrom :: ![UserId],
-    csrTo :: ![UserId]
+    csrTo :: !(Maybe [UserId])
   }
   deriving (Eq, Show, Generic)
+
+data UpdateConnectionsInternal
+  = BlockForMissingLHConsent UserId [UserId]
+  | RemoveLHBlocksInvolving UserId
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateConnectionsInternal)
+
+instance FromJSON UpdateConnectionsInternal
+
+-- | `{"tag":"BlockForMissingLHConsent","contents":["3ae7f23a-bd47-11eb-932d-5fccbbcde454",["3ae7f23a-bd47-11eb-932d-5fccbbcde454"]]}`
+instance ToJSON UpdateConnectionsInternal
 
 ----------------------------------------------------------------------------
 -- JSON instances

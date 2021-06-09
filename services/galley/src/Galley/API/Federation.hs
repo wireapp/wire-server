@@ -16,15 +16,17 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
-import Data.Qualified (Qualified (Qualified))
+import Data.Containers.ListUtils (nubOrd)
+import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
-import Galley.API.Util (viewFederationDomain)
+import Galley.API.Util (pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 
@@ -32,8 +34,9 @@ federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      getConversations
-      updateConversationMembership
+      { FederationAPIGalley.getConversations = getConversations,
+        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
+      }
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = do
@@ -43,5 +46,25 @@ getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = d
     then GetConversationsResponse . catMaybes <$> for convs (Mapping.conversationViewMaybe uid)
     else error "FUTUREWORK: implement & exstend integration test when schema ready"
 
-updateConversationMembership :: ConversationMemberUpdate -> Galley ()
-updateConversationMembership = error "FUTUREWORK: implement after schema change"
+-- FUTUREWORK: also remove users from conversation
+updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
+updateConversationMemberships cmu = do
+  localDomain <- viewFederationDomain
+  let localUsers = filter ((== localDomain) . qDomain . fst) (cmuUsersAdd cmu)
+      localUserIds = map (qUnqualified . fst) localUsers
+  when (not (null localUsers)) $ do
+    Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
+  -- FUTUREWORK: the resulting event should have qualified users and conversations
+  let mems = SimpleMembers (map (uncurry SimpleMember) (cmuUsersAdd cmu))
+  let event =
+        Event
+          MemberJoin
+          (cmuConvId cmu)
+          (cmuOrigUserId cmu)
+          (cmuTime cmu)
+          (EdMembersJoin mems)
+
+  -- send notifications
+  let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
+  -- FUTUREWORK: support bots?
+  pushConversationEvent event targets []

@@ -1,1 +1,26 @@
-{"conversation":"00004847-0000-1eb9-0000-2973000039ca","time":"1864-05-21T16:22:14.886Z","data":{"access":["private","private","private","link","invite","link","code"],"access_role":"non_activated"},"from":"000044e3-0000-1c36-0000-42fd00006e01","type":"conversation.access-update"}
+{
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00004847-0000-1eb9-0000-2973000039ca"
+    },
+    "conversation": "00004847-0000-1eb9-0000-2973000039ca",
+    "time": "1864-05-21T16:22:14.886Z",
+    "data": {
+        "access": [
+            "private",
+            "private",
+            "private",
+            "link",
+            "invite",
+            "link",
+            "code"
+        ],
+        "access_role": "non_activated"
+    },
+    "from": "000044e3-0000-1c36-0000-42fd00006e01",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "000044e3-0000-1c36-0000-42fd00006e01"
+    },
+    "type": "conversation.access-update"
+}

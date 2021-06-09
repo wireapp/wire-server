@@ -1,1 +1,13 @@
-{"status":0,"service":{"id":"00000000-0000-0003-0000-000400000002","provider":"00000003-0000-0001-0000-000400000001"},"conversation_role":"lm96_nocxpxllzob9onqrzfawv5eru442jrri387wol1o4affst6zfga9mmxdr3_s_ote0np2dfc4w4otqls3nozgne6frclb","id":"00000003-0000-0000-0000-00060000000f"}
+{
+    "status": 0,
+    "service": {
+        "id": "00000000-0000-0003-0000-000400000002",
+        "provider": "00000003-0000-0001-0000-000400000001"
+    },
+    "conversation_role": "lm96_nocxpxllzob9onqrzfawv5eru442jrri387wol1o4affst6zfga9mmxdr3_s_ote0np2dfc4w4otqls3nozgne6frclb",
+    "qualified_id": {
+        "domain": "golden.example.com",
+        "id": "00000003-0000-0000-0000-00060000000f"
+    },
+    "id": "00000003-0000-0000-0000-00060000000f"
+}

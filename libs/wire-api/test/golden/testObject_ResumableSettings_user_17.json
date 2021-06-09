@@ -1,1 +1,5 @@
-{"retention":"volatile","type":"image/png","public":true}
+{
+    "retention": "volatile",
+    "type": "image/png",
+    "public": true
+}

@@ -41,6 +41,7 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Text.Ascii as Ascii
 import Galley.Types (Access, AccessRole, ConvType (..), LocalMember, ReceiptMode)
+import Galley.Types.Conversations.Members (RemoteMember)
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
@@ -55,7 +56,8 @@ data Conversation = Conversation
     convName :: Maybe Text,
     convAccess :: [Access],
     convAccessRole :: AccessRole,
-    convMembers :: [LocalMember],
+    convLocalMembers :: [LocalMember],
+    convRemoteMembers :: [RemoteMember],
     convTeam :: Maybe TeamId,
     convDeleted :: Maybe Bool,
     -- | Global message timer

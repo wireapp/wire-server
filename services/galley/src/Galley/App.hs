@@ -199,10 +199,11 @@ instance HasRequestId Galley where
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  cass <- initCassandra o l
   mgr <- initHttpManager o
   validateOptions l o
-  Env def m o l mgr (o ^. optFederator) <$> initCassandra o l
-    <*> Q.new 16000
+  Env def m o l mgr (o ^. optFederator) cass
+    <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
 

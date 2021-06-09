@@ -1,5 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -19,14 +17,20 @@
 
 module Wire.API.Federation.API.Galley where
 
+import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
 import Data.Qualified (Qualified)
+import Data.Time.Clock (UTCTime)
 import Imports
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
+import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Conversation)
+import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
+import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -37,8 +41,7 @@ data Api routes = Api
   { getConversations ::
       routes
         :- "federation"
-        :> "conversations"
-        :> "get-by-ids"
+        :> "get-conversations"
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
     -- used by backend that owns the conversation to inform the backend about
@@ -46,8 +49,7 @@ data Api routes = Api
     updateConversationMemberships ::
       routes
         :- "federation"
-        :> "conversations"
-        :> "update-membership"
+        :> "update-conversation-memberships"
         :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] ()
   }
@@ -69,10 +71,26 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
-  { cmuConvId :: Qualified ConvId,
-    cmuUsersAdd :: [UserId],
+  { cmuTime :: UTCTime,
+    cmuOrigUserId :: Qualified UserId,
+    cmuConvId :: Qualified ConvId,
+    -- | A list of users from a remote backend that need to be sent
+    -- notifications about this change. This is required as we do not expect a
+    -- non-conversation owning backend to have an indexed mapping of
+    -- conversation to users.
+    cmuAlreadyPresentUsers :: [UserId],
+    -- | Users that got added to the conversation.
+    cmuUsersAdd :: [(Qualified UserId, RoleName)],
+    -- | Users that got removed from the conversation. This should probably be
+    -- Qualified, but as of now this is a stub.
+    --
+    -- FUTUREWORK: Implement this when supporting removal of remote conversation
+    -- members.
     cmuUsersRemove :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+
+clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
+clientRoutes = genericClient

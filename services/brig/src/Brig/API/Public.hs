@@ -1,6 +1,4 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -63,34 +61,19 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain
 import Data.Handle (Handle, parseHandle)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import Data.Swagger
-  ( HasInfo (info),
-    HasProperties (properties),
-    HasRequired (required),
-    HasSchema (..),
-    HasTitle (title),
-    NamedSchema (..),
-    Swagger,
-    SwaggerType (SwaggerObject),
-    ToSchema (..),
-    declareSchemaRef,
-    description,
-    type_,
-  )
+import Data.String.Interpolate as QQ
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
-import GHC.TypeLits (KnownNat, KnownSymbol, Nat, Symbol, symbolVal)
-import GHC.TypeNats (natVal)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -102,15 +85,21 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
-import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.Server.Generic (genericServerT)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
+import Wire.API.Routes.Public (Empty200 (..), Empty404 (..))
+import qualified Wire.API.Routes.Public.Brig as BrigAPI
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
+import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
+import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
@@ -122,344 +111,81 @@ import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 
----------------------------------------------------------------------------
--- Sitemap
-
-type CaptureUserId name = Capture' '[Description "User Id"] name UserId
-
-type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
-
 -- User API -----------------------------------------------------------
-
-data Empty200 = Empty200
-  deriving (Generic)
-  deriving (HasStatus) via (WithStatus 200 Empty200)
-
-instance ToSchema Empty200 where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
-
-instance ToJSON Empty200 where
-  toJSON _ = toJSON ("" :: Text)
-
-data Empty404 = Empty404
-  deriving (Generic)
-  deriving (HasStatus) via (WithStatus 404 Empty404)
-
-instance ToJSON Empty404 where
-  toJSON _ = toJSON ("" :: Text)
-
-instance ToSchema Empty404 where
-  declareNamedSchema _ =
-    declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
-
-type CheckUserExistsResponse = [Empty200, Empty404]
-
-data RestError (status :: Nat) (label :: Symbol) (message :: Symbol) = RestError
-  deriving (Generic)
-  deriving (HasStatus) via (WithStatus status (RestError status "" ""))
-
-instance (KnownNat status, KnownSymbol label, KnownSymbol message) => ToJSON (RestError status label message) where
-  toJSON _ =
-    object
-      [ "code" .= natVal (Proxy @status),
-        "label" .= symbolVal (Proxy @label),
-        "message" .= symbolVal (Proxy @message)
-      ]
-
-instance ToSchema (RestError status label message) where
-  declareNamedSchema _ = do
-    natSchema <- declareSchemaRef (Proxy @Integer)
-    textSchema <- declareSchemaRef (Proxy @Text)
-    pure $
-      NamedSchema (Just "Error") $
-        mempty
-          & type_ ?~ SwaggerObject
-          & properties
-            .~ InsOrdHashMap.fromList
-              [ ("code", natSchema),
-                ("label", textSchema),
-                ("message", textSchema)
-              ]
-          & required .~ ["code", "label", "message"]
-
--- Note [document responses]
---
--- Ideally we want to document responses with UVerb and swagger, but this is
--- currently not possible due to this issue:
--- https://github.com/haskell-servant/servant/issues/1369
-
--- See Note [ephemeral user sideeffect]
---
--- See Note [document responses]
--- The responses looked like this:
---   Doc.response 200 "User exists" Doc.end
---   Doc.errorResponse userNotFound
-type CheckUserExistsUnqualified =
-  Summary "Check if a user ID exists (deprecated)"
-    :> ZAuthServant
-    :> "users"
-    :> CaptureUserId "uid"
-    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
-
--- See Note [ephemeral user sideeffect]
---
--- See Note [document responses]
--- The responses looked like this:
---   Doc.response 200 "User exists" Doc.end
---   Doc.errorResponse userNotFound
-type CheckUserExistsQualified =
-  Summary "Check if a user ID exists"
-    :> ZAuthServant
-    :> "users"
-    :> Capture "domain" Domain
-    :> CaptureUserId "uid"
-    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
-
--- See Note [ephemeral user sideeffect]
---
--- See Note [document responses]
--- The responses looked like this:
---   Doc.response 200 "User" Doc.end
---   Doc.errorResponse userNotFound
-type GetUserUnqualified =
-  Summary "Get a user by UserId (deprecated)"
-    :> ZAuthServant
-    :> "users"
-    :> CaptureUserId "uid"
-    :> Get '[Servant.JSON] Public.UserProfile
-
--- See Note [ephemeral user sideeffect]
---
--- See Note [document responses]
--- The responses looked like this:
---   Doc.response 200 "User" Doc.end
---   Doc.errorResponse userNotFound
-type GetUserQualified =
-  Summary "Get a user by Domain and UserId"
-    :> ZAuthServant
-    :> "users"
-    :> Capture "domain" Domain
-    :> CaptureUserId "uid"
-    :> Get '[Servant.JSON] Public.UserProfile
-
-type GetSelf =
-  Summary "Get your own profile"
-    :> ZAuthServant
-    :> "self"
-    :> Get '[Servant.JSON] Public.SelfProfile
-
--- See Note [document responses]
--- The responses looked like this:
---   Doc.returns (Doc.ref Public.modelUserHandleInfo)
---   Doc.response 200 "Handle info" Doc.end
---   Doc.errorResponse handleNotFound
-type GetHandleInfoUnqualified =
-  Summary "(deprecated, use /search/contacts) Get information on a user handle"
-    :> ZAuthServant
-    :> "users"
-    :> "handles"
-    :> Capture' '[Description "The user handle"] "handle" Handle
-    :> Get '[Servant.JSON] Public.UserHandleInfo
-
--- See Note [document responses]
--- The responses looked like this:
---   Doc.returns (Doc.ref Public.modelUserHandleInfo)
---   Doc.response 200 "Handle info" Doc.end
---   Doc.errorResponse handleNotFound
-type GetUserByHandleQualfied =
-  Summary "(deprecated, use /search/contacts) Get information on a user handle"
-    :> ZAuthServant
-    :> "users"
-    :> "by-handle"
-    :> Capture "domain" Domain
-    :> Capture' '[Description "The user handle"] "handle" Handle
-    :> Get '[Servant.JSON] Public.UserProfile
-
--- See Note [ephemeral user sideeffect]
-type ListUsersByUnqualifiedIdsOrHandles =
-  Summary "List users (deprecated)"
-    :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-    :> ZAuthServant
-    :> "users"
-    :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
-    :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
-    :> Get '[Servant.JSON] [Public.UserProfile]
-
--- See Note [ephemeral user sideeffect]
-type ListUsersByIdsOrHandles =
-  Summary "List users"
-    :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-    :> ZAuthServant
-    :> "list-users"
-    :> Servant.ReqBody '[Servant.JSON] Public.ListUsersQuery
-    :> Post '[Servant.JSON] [Public.UserProfile]
-
-type MaxUsersForListClientsBulk = 500
-
-type GetUserClientsUnqualified =
-  Summary "Get all of a user's clients (deprecated)."
-    :> "users"
-    :> CaptureUserId "uid"
-    :> "clients"
-    :> Get '[Servant.JSON] [Public.PubClient]
-
-type GetUserClientsQualified =
-  Summary "Get all of a user's clients."
-    :> "users"
-    :> Capture "domain" Domain
-    :> CaptureUserId "uid"
-    :> "clients"
-    :> Get '[Servant.JSON] [Public.PubClient]
-
-type GetUserClientUnqualified =
-  Summary "Get a specific client of a user (deprecated)."
-    :> "users"
-    :> CaptureUserId "uid"
-    :> "clients"
-    :> CaptureClientId "client"
-    :> Get '[Servant.JSON] Public.PubClient
-
-type GetUserClientQualified =
-  Summary "Get a specific client of a user."
-    :> "users"
-    :> Capture "domain" Domain
-    :> CaptureUserId "uid"
-    :> "clients"
-    :> CaptureClientId "client"
-    :> Get '[Servant.JSON] Public.PubClient
-
-type ListClientsBulk =
-  Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
-    :> ZAuthServant
-    :> "users"
-    :> "list-clients"
-    :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
-    :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.PubClient))
-
-type ListClientsBulkV2 =
-  Summary "List all clients for a set of user ids"
-    :> ZAuthServant
-    :> "users"
-    :> "list-clients"
-    :> "v2"
-    :> Servant.ReqBody '[Servant.JSON] (Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
-    :> Post '[Servant.JSON] (Public.WrappedQualifiedUserMap (Set Public.PubClient))
-
-type GetUsersPrekeysClientUnqualified =
-  Summary "(deprecated) Get a prekey for a specific client of a user."
-    :> "users"
-    :> CaptureUserId "uid"
-    :> "prekeys"
-    :> CaptureClientId "client"
-    :> Get '[Servant.JSON] Public.ClientPrekey
-
-type GetUsersPrekeysClientQualified =
-  Summary "Get a prekey for a specific client of a user."
-    :> "users"
-    :> Capture "domain" Domain
-    :> CaptureUserId "uid"
-    :> "prekeys"
-    :> CaptureClientId "client"
-    :> Get '[Servant.JSON] Public.ClientPrekey
-
-type GetUsersPrekeyBundleUnqualified =
-  Summary "(deprecated) Get a prekey for each client of a user."
-    :> "users"
-    :> CaptureUserId "uid"
-    :> "prekeys"
-    :> Get '[Servant.JSON] Public.PrekeyBundle
-
-type GetUsersPrekeyBundleQualified =
-  Summary "Get a prekey for each client of a user."
-    :> "users"
-    :> Capture "domain" Domain
-    :> CaptureUserId "uid"
-    :> "prekeys"
-    :> Get '[Servant.JSON] Public.PrekeyBundle
-
-type GetMultiUserPrekeyBundleUnqualified =
-  Summary
-    "(deprecated)  Given a map of user IDs to client IDs return a \
-    \prekey for each one. You can't request information for more users than \
-    \maximum conversation size."
-    :> "users"
-    :> "prekeys"
-    :> Servant.ReqBody '[Servant.JSON] Public.UserClients
-    :> Post '[Servant.JSON] (Public.UserClientMap (Maybe Public.Prekey))
-
-type GetMultiUserPrekeyBundleQualified =
-  Summary
-    "Given a map of domain to (map of user IDs to client IDs) return a \
-    \prekey for each one. You can't request information for more users than \
-    \maximum conversation size."
-    :> "users"
-    :> "list-prekeys"
-    :> Servant.ReqBody '[Servant.JSON] Public.QualifiedUserClients
-    :> Post '[Servant.JSON] (Public.QualifiedUserClientMap (Maybe Public.Prekey))
-
-type OutsideWorldAPI =
-  CheckUserExistsUnqualified
-    :<|> CheckUserExistsQualified
-    :<|> GetUserUnqualified
-    :<|> GetUserQualified
-    :<|> GetSelf
-    :<|> GetHandleInfoUnqualified
-    :<|> GetUserByHandleQualfied
-    :<|> ListUsersByUnqualifiedIdsOrHandles
-    :<|> ListUsersByIdsOrHandles
-    :<|> GetUserClientsUnqualified
-    :<|> GetUserClientsQualified
-    :<|> GetUserClientUnqualified
-    :<|> GetUserClientQualified
-    :<|> ListClientsBulk
-    :<|> ListClientsBulkV2
-    :<|> GetUsersPrekeysClientUnqualified
-    :<|> GetUsersPrekeysClientQualified
-    :<|> GetUsersPrekeyBundleUnqualified
-    :<|> GetUsersPrekeyBundleQualified
-    :<|> GetMultiUserPrekeyBundleUnqualified
-    :<|> GetMultiUserPrekeyBundleQualified
-    :<|> Search.API
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type ServantAPI = OutsideWorldAPI
-
--- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
--- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
-swaggerDoc :: Swagger
-swaggerDoc =
-  toSwagger (Proxy @OutsideWorldAPI)
-    & info . title .~ "Wire-Server API as Swagger 2.0 "
-    & info . description ?~ "NOTE: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints."
+type ServantAPI = BrigAPI.ServantAPI
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
+swaggerDocsAPI =
+  swaggerSchemaUIServer $
+    (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> LegalHoldAPI.swaggerDoc <> SparAPI.swaggerDoc)
+      & S.info . S.title .~ "Wire-Server API"
+      & S.info . S.description ?~ desc
+  where
+    desc =
+      Text.pack
+        [QQ.i|
+## General
+
+**NOTE**: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints.
+
+## SSO Endpoints
+
+### Overview
+
+`/sso/metadata` will be requested by the IdPs to learn how to talk to wire.
+
+`/sso/initiate-login`, `/sso/finalize-login` are for the SAML authentication handshake performed by a user in order to log into wire.  They are not exactly standard in their details: they may return HTML or XML; redirect to error URLs instead of throwing errors, etc.
+
+`/identity-providers` end-points are for use in the team settings page when IdPs are registered.  They talk json.
+
+
+### Configuring IdPs
+
+IdPs usually allow you to copy the metadata into your clipboard.  That should contain all the details you need to post the idp in your team under `/identity-providers`.  (Team id is derived from the authorization credentials of the request.)
+
+#### okta.com
+
+Okta will ask you to provide two URLs when you set it up for talking to wireapp:
+
+1. The `Single sign on URL`.  This is the end-point that accepts the user's credentials after successful authentication against the IdP.  Choose `/sso/finalize-login` with schema and hostname of the wire server you are configuring.
+
+2. The `Audience URI`.  You can find this in the metadata returned by the `/sso/metadata` end-point.  It is the contents of the `md:OrganizationURL` element.
+
+#### centrify.com
+
+Centrify allows you to upload the metadata xml document that you get from the `/sso/metadata` end-point.  You can also enter the metadata url and have centrify retrieve the xml, but to guarantee integrity of the setup, the metadata should be copied from the team settings page and pasted into the centrify setup page without any URL indirections.
+|]
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
-  checkUserExistsUnqualifiedH
-    :<|> checkUserExistsH
-    :<|> getUserUnqualifiedH
-    :<|> getUserH
-    :<|> getSelf
-    :<|> getHandleInfoUnqualifiedH
-    :<|> getUserByHandleH
-    :<|> listUsersByUnqualifiedIdsOrHandles
-    :<|> listUsersByIdsOrHandles
-    :<|> getUserClientsUnqualified
-    :<|> getUserClientsQualified
-    :<|> getUserClientUnqualified
-    :<|> getUserClientQualified
-    :<|> listClientsBulk
-    :<|> listClientsBulkV2
-    :<|> getPrekeyUnqualifiedH
-    :<|> getPrekeyH
-    :<|> getPrekeyBundleUnqualifiedH
-    :<|> getPrekeyBundleH
-    :<|> getMultiUserPrekeyBundleUnqualifiedH
-    :<|> getMultiUserPrekeyBundleH
-    :<|> Search.servantSitemap
+  genericServerT $
+    BrigAPI.Api
+      { BrigAPI.checkUserExistsUnqualified = checkUserExistsUnqualifiedH,
+        BrigAPI.checkUserExistsQualified = checkUserExistsH,
+        BrigAPI.getUserUnqualified = getUserUnqualifiedH,
+        BrigAPI.getUserQualified = getUserH,
+        BrigAPI.getSelf = getSelf,
+        BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
+        BrigAPI.getUserByHandleQualfied = getUserByHandleH,
+        BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
+        BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
+        BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
+        BrigAPI.getUserClientsQualified = getUserClientsQualified,
+        BrigAPI.getUserClientUnqualified = getUserClientUnqualified,
+        BrigAPI.getUserClientQualified = getUserClientQualified,
+        BrigAPI.listClientsBulk = listClientsBulk,
+        BrigAPI.listClientsBulkV2 = listClientsBulkV2,
+        BrigAPI.getUsersPrekeysClientUnqualified = getPrekeyUnqualifiedH,
+        BrigAPI.getUsersPrekeysClientQualified = getPrekeyH,
+        BrigAPI.getUsersPrekeyBundleUnqualified = getPrekeyBundleUnqualifiedH,
+        BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
+        BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
+        BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
+        BrigAPI.searchContacts = Search.search
+      }
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -557,7 +283,9 @@ sitemap o = do
     Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
     Doc.errorResponse userKeyExists
 
-  head "/self/password" (continue checkPasswordExistsH) $
+  head
+    "/self/password"
+    (continue checkPasswordExistsH)
     zauthUserId
   document "HEAD" "checkPassword" $ do
     Doc.summary "Check that your password is set"
@@ -688,6 +416,7 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "The connection exists." Doc.end
     Doc.response 201 "The connection was created." Doc.end
+    Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
     Doc.errorResponse connectionLimitReached
     Doc.errorResponse invalidUser
     Doc.errorResponse (noIdentity 5)
@@ -817,6 +546,17 @@ sitemap o = do
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
     Doc.returns (Doc.ref Public.modelClient)
+    Doc.response 200 "Client" Doc.end
+
+  get "/clients/:client/capabilities" (continue getClientCapabilitiesH) $
+    zauthUserId
+      .&. capture "client"
+      .&. accept "application" "json"
+  document "GET" "getClientCapabilities" $ do
+    Doc.summary "Read back what the client has been posting about itself."
+    Doc.parameter Doc.Path "client" Doc.bytes' $
+      Doc.description "Client ID"
+    Doc.returns (Doc.ref Public.modelClientCapabilityList)
     Doc.response 200 "Client" Doc.end
 
   get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
@@ -1026,7 +766,7 @@ sitemap o = do
   Calling.routesPublic
 
 apiDocs :: Opts -> Routes Doc.ApiBuilder Handler ()
-apiDocs o = do
+apiDocs o =
   get
     "/users/api-docs"
     ( \(_ ::: url) k ->
@@ -1046,7 +786,7 @@ setPropertyH (u ::: c ::: k ::: req) = do
   empty <$ setProperty u c propkey propval
 
 setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> Handler ()
-setProperty u c propkey propval = do
+setProperty u c propkey propval =
   API.setProperty u c propkey propval !>> propDataError
 
 safeParsePropertyKey :: Public.PropertyKey -> Handler Public.PropertyKey
@@ -1091,34 +831,34 @@ listPropertyKeysAndValuesH (u ::: _) = do
   keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
   pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
-getPrekeyUnqualifiedH :: UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyUnqualifiedH user client = do
+getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
-  getPrekeyH domain user client
+  getPrekeyH zusr domain user client
 
-getPrekeyH :: Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyH domain user client = do
-  mPrekey <- API.claimPrekey user domain client !>> clientError
+getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH zusr domain user client = do
+  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleUnqualifiedH uid = do
+getPrekeyBundleUnqualifiedH :: UserId -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
-  API.claimPrekeyBundle domain uid !>> clientError
+  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: Domain -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleH domain uid =
-  API.claimPrekeyBundle domain uid !>> clientError
+getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH zusr domain uid =
+  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getMultiUserPrekeyBundleUnqualifiedH :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
-getMultiUserPrekeyBundleUnqualifiedH userClients = do
+getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler Public.UserClientPrekeyMap
+getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
-  lift $ API.claimLocalMultiPrekeyBundles userClients
+  API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
-getMultiUserPrekeyBundleH :: Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
-getMultiUserPrekeyBundleH qualUserClients = do
+getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
+getMultiUserPrekeyBundleH zusr qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
         Map.foldMapWithKey
@@ -1126,7 +866,7 @@ getMultiUserPrekeyBundleH qualUserClients = do
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
     throwStd tooManyClients
-  API.claimMultiPrekeyBundles qualUserClients !>> clientError
+  API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClientH :: JsonRequest Public.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
@@ -1148,7 +888,7 @@ rmClientH (req ::: usr ::: con ::: clt ::: _) = do
   empty <$ rmClient body usr con clt
 
 rmClient :: Public.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
-rmClient body usr con clt = do
+rmClient body usr con clt =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
 updateClientH :: JsonRequest Public.UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
@@ -1157,7 +897,7 @@ updateClientH (req ::: usr ::: clt ::: _) = do
   empty <$ updateClient body usr clt
 
 updateClient :: Public.UpdateClient -> UserId -> ClientId -> Handler ()
-updateClient body usr clt = do
+updateClient body usr clt =
   API.updateClient usr clt body !>> clientError
 
 listClientsH :: UserId ::: JSON -> Handler Response
@@ -1189,11 +929,11 @@ getUserClientUnqualified uid cid = do
   x <- API.lookupPubClient (Qualified uid localdomain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
-listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
-listClientsBulk _zusr limitedUids = do
+listClientsBulk :: UserId -> Range 1 BrigAPI.MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk _zusr limitedUids =
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
-listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
 getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
@@ -1205,8 +945,16 @@ getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
   lift $ API.lookupLocalClient zusr clientId
 
+getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
+getClientCapabilitiesH (uid ::: cid ::: _) = json <$> getClientCapabilities uid cid
+
+getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
+getClientCapabilities uid cid = do
+  mclient <- lift (API.lookupLocalClient uid cid)
+  maybe (throwStd clientNotFound) (pure . Public.clientCapabilities) mclient
+
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
-getRichInfoH (self ::: user ::: _) = do
+getRichInfoH (self ::: user ::: _) =
   json <$> getRichInfo self user
 
 getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
@@ -1301,12 +1049,12 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
 checkUserExistsUnqualifiedH self uid = do
   domain <- viewFederationDomain
   checkUserExistsH self domain uid
 
-checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
 checkUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists
@@ -1318,7 +1066,7 @@ checkUserExists self qualifiedUserId =
   isJust <$> getUser self qualifiedUserId
 
 getSelf :: UserId -> Handler Public.SelfProfile
-getSelf self = do
+getSelf self =
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
 getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
@@ -1393,7 +1141,7 @@ updateUserH (uid ::: conn ::: req) = do
   return empty
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
-changePhoneH (u ::: c ::: req) = do
+changePhoneH (u ::: c ::: req) =
   setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
 
 changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler ()
@@ -1433,7 +1181,7 @@ changeLocaleH (u ::: conn ::: req) = do
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
 checkHandleH :: UserId ::: Text -> Handler Response
-checkHandleH (_uid ::: hndl) = do
+checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
     API.CheckHandleInvalid -> throwE (StdError invalidHandle)
     API.CheckHandleFound -> pure $ setStatus status200 empty
@@ -1462,7 +1210,7 @@ getUserByHandleH self domain handle = do
     Just u -> pure u
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
-changeHandleH (u ::: conn ::: req) = do
+changeHandleH (u ::: conn ::: req) =
   empty <$ (changeHandle u conn =<< parseJsonBody req)
 
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
@@ -1472,7 +1220,7 @@ changeHandle u conn (Public.HandleUpdate h) = do
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
-beginPasswordResetH (_ ::: req) = do
+beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset :: Public.NewPasswordReset -> Handler ()
@@ -1491,7 +1239,7 @@ completePasswordResetH (_ ::: req) = do
   return empty
 
 sendActivationCodeH :: JsonRequest Public.SendActivationCode -> Handler Response
-sendActivationCodeH req = do
+sendActivationCodeH req =
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -1514,7 +1262,7 @@ customerExtensionCheckBlockedDomains email = do
       Left _ ->
         pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
       Right domain ->
-        when (domain `elem` blockedDomains) $ do
+        when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
@@ -1596,7 +1344,7 @@ activate :: Public.Activate -> Handler ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
     API.preverify tgt code !>> actError
-    return $ ActivationRespDryRun
+    return ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
     return $ case result of

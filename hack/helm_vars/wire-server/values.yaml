@@ -6,7 +6,7 @@ tags:
   cannon: true
   cargohold: true
   spar: true
-  federator: true
+  federator: true # also see galley.config.enableFederator and brig.config.enableFederator
   proxy: false
   webapp: false
   team-settings: false
@@ -31,9 +31,7 @@ brig:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 128Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 512Mi
       cpu: 500m
@@ -53,6 +51,7 @@ brig:
       sessionTokenTimeout: 20
       accessTokenTimeout: 30
       providerTokenTimeout: 60
+    enableFederator: true # keep in sync with galley.config.enableFederator and tags.federator!
     optSettings:
       setActivationTimeout: 5
       # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
@@ -109,9 +108,7 @@ cannon:
   replicaCount: 2
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 512Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 512Mi
       cpu: 500m
@@ -120,9 +117,7 @@ cargohold:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 128Mi
-      cpu: 100m
+    requests: {}
     limits:
       memory: 512Mi
       cpu: 500m
@@ -140,6 +135,7 @@ galley:
     cassandra:
       host: cassandra-ephemeral
       replicaCount: 1
+    enableFederator: true # keep in sync with brig.config.enableFederator and tags.federator!
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -150,7 +146,7 @@ galley:
       federationDomain: integration.example.com
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
-        legalhold: disabled-by-default
+        legalhold: whitelist-teams-and-implicit-consent
         teamSearchVisibility: disabled-by-default
     journal:
       endpoint: http://fake-aws-sqs:4568
@@ -162,9 +158,7 @@ gundeck:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 512Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 1024Mi
       cpu: 1000m
@@ -215,9 +209,7 @@ spar:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 512Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 1024Mi
       cpu: 1000m

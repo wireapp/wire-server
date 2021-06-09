@@ -1,1 +1,22 @@
-{"event":{"conversation":"000022d4-0000-6167-0000-519f0000134c","time":"1864-05-29T09:46:28.943Z","data":{"email":"1\\X","name":"$􋇇􅱬","message":"2𥉼Q\u00194\u0013","recipient":"00000004-0000-0002-0000-000300000006"},"from":"0000200d-0000-386f-0000-0de000003b71","type":"conversation.connect-request"}}
+{
+    "event": {
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "000022d4-0000-6167-0000-519f0000134c"
+        },
+        "conversation": "000022d4-0000-6167-0000-519f0000134c",
+        "time": "1864-05-29T09:46:28.943Z",
+        "data": {
+            "email": "1\\X",
+            "name": "$􋇇􅱬",
+            "message": "2𥉼Q\u00194\u0013",
+            "recipient": "00000004-0000-0002-0000-000300000006"
+        },
+        "from": "0000200d-0000-386f-0000-0de000003b71",
+        "qualified_from": {
+            "domain": "faraway.example.com",
+            "id": "0000200d-0000-386f-0000-0de000003b71"
+        },
+        "type": "conversation.connect-request"
+    }
+}

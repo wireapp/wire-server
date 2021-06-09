@@ -1,1 +1,40 @@
-{"conversations":[{"conversation":"0000007c-0000-007f-0000-00730000000d","managed":false},{"conversation":"00000028-0000-0037-0000-000b00000016","managed":true},{"conversation":"00000021-0000-0064-0000-003900000002","managed":true},{"conversation":"00000064-0000-001f-0000-00350000001b","managed":true},{"conversation":"0000002d-0000-007b-0000-00770000003e","managed":true},{"conversation":"00000064-0000-0068-0000-007700000068","managed":true},{"conversation":"00000061-0000-000b-0000-00170000005c","managed":false},{"conversation":"0000005c-0000-0001-0000-004e00000003","managed":true},{"conversation":"00000008-0000-002b-0000-002d00000022","managed":false}]}
+{
+    "conversations": [
+        {
+            "conversation": "0000007c-0000-007f-0000-00730000000d",
+            "managed": false
+        },
+        {
+            "conversation": "00000028-0000-0037-0000-000b00000016",
+            "managed": true
+        },
+        {
+            "conversation": "00000021-0000-0064-0000-003900000002",
+            "managed": true
+        },
+        {
+            "conversation": "00000064-0000-001f-0000-00350000001b",
+            "managed": true
+        },
+        {
+            "conversation": "0000002d-0000-007b-0000-00770000003e",
+            "managed": true
+        },
+        {
+            "conversation": "00000064-0000-0068-0000-007700000068",
+            "managed": true
+        },
+        {
+            "conversation": "00000061-0000-000b-0000-00170000005c",
+            "managed": false
+        },
+        {
+            "conversation": "0000005c-0000-0001-0000-004e00000003",
+            "managed": true
+        },
+        {
+            "conversation": "00000008-0000-002b-0000-002d00000022",
+            "managed": false
+        }
+    ]
+}

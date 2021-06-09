@@ -1,1 +1,25 @@
-{"members":[{"user":"00000000-0000-0000-0000-000000000001","created_by":"00000000-0000-0001-0000-000000000001","legalhold_status":"enabled","created_at":"1864-05-08T22:16:59.050Z","permissions":{"copy":0,"self":4}},{"user":"00000001-0000-0000-0000-000000000001","created_by":"00000001-0000-0001-0000-000100000001","legalhold_status":"enabled","created_at":"1864-05-08T21:43:37.550Z","permissions":{"copy":0,"self":1}}],"hasMore":true}
+{
+    "members": [
+        {
+            "user": "00000000-0000-0000-0000-000000000001",
+            "created_by": "00000000-0000-0001-0000-000000000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-08T22:16:59.050Z",
+            "permissions": {
+                "copy": 0,
+                "self": 4
+            }
+        },
+        {
+            "user": "00000001-0000-0000-0000-000000000001",
+            "created_by": "00000001-0000-0001-0000-000100000001",
+            "legalhold_status": "enabled",
+            "created_at": "1864-05-08T21:43:37.550Z",
+            "permissions": {
+                "copy": 0,
+                "self": 1
+            }
+        }
+    ],
+    "hasMore": true
+}

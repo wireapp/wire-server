@@ -37,6 +37,7 @@ import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
 import Imports
+import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.User.RichInfo
 
 deriving instance Cql Name
@@ -83,25 +84,37 @@ instance Cql UserSSOId where
 
   toCql = toCql . cs @LBS @ST . encode
 
-instance Cql Relation where
+instance Cql RelationWithHistory where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt i) = case i of
-    0 -> return Accepted
-    1 -> return Blocked
-    2 -> return Pending
-    3 -> return Ignored
-    4 -> return Sent
-    5 -> return Cancelled
-    n -> Left $ "unexpected relation: " ++ show n
-  fromCql _ = Left "relation: int expected"
+    0 -> pure AcceptedWithHistory
+    1 -> pure BlockedWithHistory
+    2 -> pure PendingWithHistory
+    3 -> pure IgnoredWithHistory
+    4 -> pure SentWithHistory
+    5 -> pure CancelledWithHistory
+    6 -> pure MissingLegalholdConsentFromAccepted
+    7 -> pure MissingLegalholdConsentFromBlocked
+    8 -> pure MissingLegalholdConsentFromPending
+    9 -> pure MissingLegalholdConsentFromIgnored
+    10 -> pure MissingLegalholdConsentFromSent
+    11 -> pure MissingLegalholdConsentFromCancelled
+    n -> Left $ "unexpected RelationWithHistory: " ++ show n
+  fromCql _ = Left "RelationWithHistory: int expected"
 
-  toCql Accepted = CqlInt 0
-  toCql Blocked = CqlInt 1
-  toCql Pending = CqlInt 2
-  toCql Ignored = CqlInt 3
-  toCql Sent = CqlInt 4
-  toCql Cancelled = CqlInt 5
+  toCql AcceptedWithHistory = CqlInt 0
+  toCql BlockedWithHistory = CqlInt 1
+  toCql PendingWithHistory = CqlInt 2
+  toCql IgnoredWithHistory = CqlInt 3
+  toCql SentWithHistory = CqlInt 4
+  toCql CancelledWithHistory = CqlInt 5
+  toCql MissingLegalholdConsentFromAccepted = CqlInt 6
+  toCql MissingLegalholdConsentFromBlocked = CqlInt 7
+  toCql MissingLegalholdConsentFromPending = CqlInt 8
+  toCql MissingLegalholdConsentFromIgnored = CqlInt 9
+  toCql MissingLegalholdConsentFromSent = CqlInt 10
+  toCql MissingLegalholdConsentFromCancelled = CqlInt 11
 
 -- DEPRECATED
 instance Cql Pict where

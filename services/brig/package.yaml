@@ -61,6 +61,7 @@ library:
   - http-types >=0.8
   - imports
   - insert-ordered-containers
+  - interpolate
   - iproute >=1.5
   - iso639 >=0.1
   - lens >=3.8
@@ -239,6 +240,7 @@ executables:
     - text
     - time >=1.5
     - tinylog
+    - transformers
     - types-common >=0.3
     - types-common-aws >=0.1
     - types-common-journal

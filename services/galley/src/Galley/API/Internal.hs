@@ -17,6 +17,9 @@
 
 module Galley.API.Internal
   ( sitemap,
+    servantSitemap,
+    InternalApi,
+    ServantAPI,
     deleteLoop,
     safeForever,
   )
@@ -35,13 +38,14 @@ import Data.String.Conversions (cs)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember)
+import Galley.API.Util (JSON, isMember, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -57,17 +61,43 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Predicate hiding (err)
 import qualified Network.Wai.Predicate as P
-import Network.Wai.Routing hiding (route)
+import Network.Wai.Routing hiding (route, toList)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
+import Servant.API hiding (JSON)
+import qualified Servant.API as Servant
+import Servant.API.Generic
+import Servant.Server
+import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
 import qualified Wire.API.Team.Feature as Public
 
+data InternalApi routes = InternalApi
+  { iStatusGet ::
+      routes
+        :- "i"
+        :> "status"
+        :> Get '[Servant.JSON] NoContent,
+    iStatusHead ::
+      routes
+        :- "i"
+        :> "status"
+        :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+  }
+  deriving (Generic)
+
+type ServantAPI = ToServantApi InternalApi
+
+servantSitemap :: ServerT ServantAPI Galley
+servantSitemap =
+  genericServerT $
+    InternalApi
+      { iStatusGet = pure NoContent,
+        iStatusHead = pure NoContent
+      }
+
 sitemap :: Routes a Galley ()
 sitemap = do
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true
-
   -- Conversation API (internal) ----------------------------------------
 
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
@@ -240,6 +270,19 @@ sitemap = do
       .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
+  put "/i/guard-legalhold-policy-conflicts" (continue guardLegalholdPolicyConflictsH) $
+    jsonRequest @GuardLegalholdPolicyConflicts
+      .&. accept "application" "json"
+
+  put "/i/legalhold/whitelisted-teams/:tid" (continue setTeamLegalholdWhitelistedH) $
+    capture "tid"
+
+  delete "/i/legalhold/whitelisted-teams/:tid" (continue unsetTeamLegalholdWhitelistedH) $
+    capture "tid"
+
+  get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
+    capture "tid"
+
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response
 rmUserH (user ::: conn) = do
   empty <$ rmUser user conn
@@ -260,16 +303,18 @@ rmUser user conn = do
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
     leaveConversations :: List1 UserId -> Cql.Page ConvId -> Galley ()
     leaveConversations u ids = do
+      localDomain <- viewFederationDomain
       cc <- Data.conversations (Cql.result ids)
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
-          | user `isMember` Data.convMembers c -> do
-            e <- Data.removeMembers c user u
+          | user `isMember` Data.convLocalMembers c -> do
+            -- FUTUREWORK: deal with remote members, too, see removeMembers
+            e <- Data.removeLocalMembers localDomain c user u
             return $
-              (Intra.newPush ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
+              (Intra.newPush ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c))
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
@@ -338,3 +383,9 @@ mkFeatureGetAndPutRoute getter setter = do
 
   mkPutRoute (toByteString' featureName)
   mkPutRoute `mapM_` Public.deprecatedFeatureName featureName
+
+guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) -> Galley Response
+guardLegalholdPolicyConflictsH (req ::: _) = do
+  glh <- fromJsonBody req
+  Update.guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+  pure $ Network.Wai.Utilities.setStatus status200 empty

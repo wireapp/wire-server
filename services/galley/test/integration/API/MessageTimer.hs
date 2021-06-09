@@ -24,8 +24,10 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
+import qualified Data.LegalHold as LH
 import Data.List1
 import Data.Misc
+import Data.Qualified
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
@@ -36,6 +38,7 @@ import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import TestHelpers
 import TestSetup
+import qualified Wire.API.Team.Member as Member
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -101,7 +104,7 @@ messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
   [owner, member, guest] <- randomUsers 3
   connectUsers owner (list1 member [guest])
-  tid <- createNonBindingTeam "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
+  tid <- createNonBindingTeam "team" owner [Member.TeamMember member Teams.fullPermissions Nothing LH.defUserLegalHoldStatus]
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
   -- Try to change the timer (as a non admin, guest user) and observe failure
@@ -138,6 +141,7 @@ messageTimerChangeO2O = do
 
 messageTimerEvent :: TestM ()
 messageTimerEvent = do
+  localDomain <- viewFederationDomain
   ca <- view tsCannon
   -- Create a conversation
   [alice, bob] <- randomUsers 2
@@ -149,11 +153,13 @@ messageTimerEvent = do
   -- Set timer to 1 second and check that all participants got the event
   WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do
     let update = ConversationMessageTimerUpdate timer1sec
+        qcid = Qualified cid localDomain
+        qalice = Qualified alice localDomain
     putMessageTimerUpdate alice cid update
       !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        wsAssertConvMessageTimerUpdate cid alice update
+        wsAssertConvMessageTimerUpdate qcid qalice update
 
 ----------------------------------------------------------------------------
 -- Utilities

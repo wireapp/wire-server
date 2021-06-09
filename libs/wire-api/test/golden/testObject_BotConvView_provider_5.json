@@ -1,1 +1,19 @@
-{"members":[{"status":0,"service":{"id":"00000000-0000-0001-0000-000100000000","provider":"00000000-0000-0000-0000-000100000000"},"conversation_role":"fann_bweu4i1u_wa_n5ucx6xn8s3_ozc0ynq5exwdiucsrd9k2_kmpshmvekk","id":"00000002-0000-0002-0000-000000000001"}],"name":"􆠝󶠼#nzj𪕏","id":"0000001d-0000-000b-0000-002000000000"}
+{
+    "members": [
+        {
+            "status": 0,
+            "service": {
+                "id": "00000000-0000-0001-0000-000100000000",
+                "provider": "00000000-0000-0000-0000-000100000000"
+            },
+            "conversation_role": "fann_bweu4i1u_wa_n5ucx6xn8s3_ozc0ynq5exwdiucsrd9k2_kmpshmvekk",
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000002-0000-0002-0000-000000000001"
+            },
+            "id": "00000002-0000-0002-0000-000000000001"
+        }
+    ],
+    "name": "􆠝󶠼#nzj𪕏",
+    "id": "0000001d-0000-000b-0000-002000000000"
+}

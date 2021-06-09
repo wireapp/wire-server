@@ -1,1 +1,16 @@
-{"access":["private","invite","link"],"access_role":"activated","users":["00000001-0000-0000-0000-000100000001","00000001-0000-0000-0000-000100000000"],"conversation_role":"n8cjajmyhnw3hqv8sohb8674nwnpsv7g57i2hjhexg9tww","name":"L","message_timer":7179840365742041}
+{
+    "access": [
+        "private",
+        "invite",
+        "link"
+    ],
+    "access_role": "activated",
+    "users": [
+        "00000001-0000-0000-0000-000100000001",
+        "00000001-0000-0000-0000-000100000000"
+    ],
+    "conversation_role": "n8cjajmyhnw3hqv8sohb8674nwnpsv7g57i2hjhexg9tww",
+    "name": "L",
+    "message_timer": 7179840365742041,
+    "qualified_users": []
+}

@@ -1,5 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -20,12 +18,16 @@
 module Test.Data.Schema where
 
 import Control.Applicative
-import Control.Lens (Prism', at, prism', (?~), (^.))
+import Control.Arrow ((&&&))
+import Control.Lens (Prism', at, ix, makePrisms, nullOf, prism', (?~), (^.), _1)
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, decode, encode, fromJSON)
 import Data.Aeson.QQ
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
-import Data.Schema
+import Data.Schema hiding (getName)
 import qualified Data.Swagger as S
+import qualified Data.Swagger.Declare as S
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -47,7 +49,18 @@ tests =
       testUser1ToJSON,
       testUser1FromJSON,
       testUser2ToJSON,
-      testUser2FromJSON
+      testUser2FromJSON,
+      testUserSchema,
+      testTaggedObjectToJSON,
+      testTaggedObjectFromJSON,
+      testTaggedObject2ToJSON,
+      testTaggedObject2FromJSON,
+      testTaggedObject3FromJSON,
+      testNonEmptyParseFailure,
+      testNonEmptyParseSuccess,
+      testNonEmptyToJSON,
+      testNonEmptySchema,
+      testRefField
     ]
 
 testFooToJSON :: TestTree
@@ -84,6 +97,10 @@ testFooSchema =
       "Description should match"
       (Just "A Foo object")
       (s ^. description)
+    assertEqual
+      "a, b and str should be required"
+      ["a", "b", "str"]
+      (s ^. S.required)
     assertEqual
       "Schema for \"a\" should be referenced"
       (Just (S.Ref (S.Reference "A")))
@@ -173,6 +190,107 @@ testUser2FromJSON =
       "fromJSON should match example"
       (Just exampleUser2)
       (decode exampleUser2JSON)
+
+testUserSchema :: TestTree
+testUserSchema =
+  testCase "User schema" $ do
+    let s = S.toSchema (Proxy @User)
+    assertEqual
+      "only name should be required"
+      ["name"]
+      (s ^. S.required)
+
+testTaggedObjectToJSON :: TestTree
+testTaggedObjectToJSON =
+  testCase "toJSON TaggedObject" $
+    assertEqual
+      "toJSON should match handwritten JSON"
+      exampleTaggedObjectJSON
+      (toJSON exampleTaggedObject)
+
+testTaggedObjectFromJSON :: TestTree
+testTaggedObjectFromJSON =
+  testCase "fromJSON TaggedObject" $
+    assertEqual
+      "fromJSON should match example"
+      (Success exampleTaggedObject)
+      (fromJSON exampleTaggedObjectJSON)
+
+testTaggedObject2ToJSON :: TestTree
+testTaggedObject2ToJSON =
+  testCase "toJSON TaggedObject 2" $
+    assertEqual
+      "toJSON should match handwritten JSON"
+      exampleTaggedObject2JSON
+      (toJSON exampleTaggedObject2)
+
+testTaggedObject2FromJSON :: TestTree
+testTaggedObject2FromJSON =
+  testCase "fromJSON TaggedObject 2" $
+    assertEqual
+      "fromJSON should match example"
+      (Success exampleTaggedObject2)
+      (fromJSON exampleTaggedObject2JSON)
+
+testTaggedObject3FromJSON :: TestTree
+testTaggedObject3FromJSON =
+  testCase "fromJSON TaggedObject failure" $
+    case fromJSON @TaggedObject exampleTaggedObject3JSON of
+      Success _ -> assertFailure "fromJSON should fail"
+      Error err -> do
+        assertBool
+          "fromJSON error should mention missing key"
+          ("\"tag1_data\"" `isInfixOf` err)
+
+testNonEmptyParseFailure :: TestTree
+testNonEmptyParseFailure =
+  testCase "NonEmpty parse failure" $ do
+    let invalidJSON = [aesonQQ|{"nl": []}|]
+    case fromJSON @NonEmptyTest invalidJSON of
+      Success _ -> assertFailure "fromJSON should fail"
+      Error err -> do
+        assertEqual
+          "fromJSON error should mention that list is not empty"
+          "Unexpected empty array found while parsing a NonEmpty"
+          err
+
+testNonEmptyParseSuccess :: TestTree
+testNonEmptyParseSuccess =
+  testCase "NonEmpty parse success" $ do
+    let json = [aesonQQ|{"nl": ["something", "other thing"]}|]
+        expected = NonEmptyTest ("something" :| ["other thing"])
+    assertEqual
+      "fromJSON should mention that list is not empty"
+      (Success expected)
+      (fromJSON json)
+
+testNonEmptyToJSON :: TestTree
+testNonEmptyToJSON =
+  testCase "NonEmpty ToJSON" $ do
+    let expected = [aesonQQ|{"nl": ["something", "other thing"]}|]
+        testVal = NonEmptyTest ("something" :| ["other thing"])
+    assertEqual
+      "fromJSON should mention that list is not empty"
+      expected
+      (toJSON testVal)
+
+testNonEmptySchema :: TestTree
+testNonEmptySchema =
+  testCase "NonEmpty Schema" $ do
+    let sch = S.toSchema (Proxy @NonEmptyTest)
+    case InsOrdHashMap.lookup "nl" $ sch ^. S.properties of
+      Nothing -> assertFailure "expected schema to have a property called 'nl'"
+      Just (S.Ref _) -> assertFailure "expected property 'nl' to have inline schema"
+      Just (S.Inline nlSch) -> do
+        assertEqual "type should be Array" (Just S.SwaggerArray) (nlSch ^. S.type_)
+        assertEqual "minItems should be 1" (Just 1) (nlSch ^. S.minItems)
+
+testRefField :: TestTree
+testRefField =
+  testCase "Reference in a field" $ do
+    let (defs, _) = S.runDeclare (S.declareSchemaRef (Proxy @Named)) mempty
+    assertBool "Referenced schema should be declared" $
+      not . nullOf (ix "Name") $ defs
 
 ---
 
@@ -274,15 +392,15 @@ data User = User
     userExpire :: Maybe Int
   }
   deriving (Eq, Show)
-  deriving (ToJSON, FromJSON) via Schema User
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema User
 
 instance ToSchema User where
   schema =
     object "User" $
       User
-        <$> userName .= field "name" (unnamed schema)
-        <*> userHandle .= opt (field "handle" (unnamed schema))
-        <*> userExpire .= opt (field "expire" (unnamed schema))
+        <$> userName .= field "name" schema
+        <*> userHandle .= opt (field "handle" schema)
+        <*> userExpire .= opt (field "expire" schema)
 
 exampleUser1 :: User
 exampleUser1 = User "Alice" (Just "alice") Nothing
@@ -295,3 +413,132 @@ exampleUser2 = User "Bob" Nothing (Just 100)
 
 exampleUser2JSON :: LByteString
 exampleUser2JSON = "{\"expire\":100,\"name\":\"Bob\"}"
+
+-- bind schemas
+
+data TaggedObject = TO
+  { toTag :: Tag,
+    toObj :: UntaggedObject
+  }
+  deriving (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema TaggedObject
+
+data UntaggedObject = Obj1 String | Obj2 Int
+  deriving (Eq, Show)
+
+data Tag = Tag1 | Tag2
+  deriving (Eq, Show, Enum, Bounded)
+
+_Obj1 :: Prism' UntaggedObject String
+_Obj1 = prism' Obj1 $ \case
+  Obj1 a -> Just a
+  _ -> Nothing
+
+_Obj2 :: Prism' UntaggedObject Int
+_Obj2 = prism' Obj2 $ \case
+  Obj2 b -> Just b
+  _ -> Nothing
+
+instance ToSchema Tag where
+  schema = enum @Text "Tag" (element "tag1" Tag1 <> element "tag2" Tag2)
+
+instance ToSchema TaggedObject where
+  schema =
+    object "TaggedObject" $
+      uncurry TO <$> (toTag &&& toObj)
+        .= bind
+          (fst .= field "tag" schema)
+          (snd .= fieldOver _1 "obj" (objectOver _1 "UntaggedObject" untaggedSchema))
+    where
+      untaggedSchema = dispatch $ \case
+        Tag1 -> tag _Obj1 (field "tag1_data" schema)
+        Tag2 -> tag _Obj2 (field "tag2_data" schema)
+
+exampleTaggedObject :: TaggedObject
+exampleTaggedObject = TO Tag1 (Obj1 "foo")
+
+exampleTaggedObjectJSON :: Value
+exampleTaggedObjectJSON = [aesonQQ| {"tag": "tag1", "obj": { "tag1_data": "foo" } } |]
+
+exampleTaggedObject2 :: TaggedObject
+exampleTaggedObject2 = TO Tag2 (Obj2 44)
+
+exampleTaggedObject2JSON :: Value
+exampleTaggedObject2JSON = [aesonQQ| {"tag": "tag2", "obj": { "tag2_data": 44 } } |]
+
+exampleTaggedObject3JSON :: Value
+exampleTaggedObject3JSON = [aesonQQ| {"tag": "tag1", "obj": { "tag2_data": 44 } } |]
+
+-- non empty
+
+newtype NonEmptyTest = NonEmptyTest {nl :: NonEmpty Text}
+  deriving stock (Eq, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema NonEmptyTest
+
+instance ToSchema NonEmptyTest where
+  schema = object "NonEmptyTest" $ NonEmptyTest <$> nl .= field "nl" (nonEmptyArray schema)
+
+-- references
+
+newtype Named = Named {getName :: Text}
+
+instance ToSchema Named where
+  schema = Named <$> getName .= object "Named" (field "name" (text "Name"))
+
+instance S.ToSchema Named where
+  declareNamedSchema = schemaToSwagger
+
+-- examples from documentation (only type-checked)
+
+data Detail
+  = Name Text
+  | Age Int
+
+makePrisms ''Detail
+
+data DetailTag = NameTag | AgeTag
+  deriving (Eq, Enum, Bounded)
+
+tagSchema :: ValueSchema NamedSwaggerDoc DetailTag
+tagSchema =
+  enum @Text "Detail Tag" $
+    mconcat [element "name" NameTag, element "age" AgeTag]
+
+detailSchema :: ValueSchema NamedSwaggerDoc Detail
+detailSchema =
+  object "Detail" $
+    fromTagged <$> toTagged
+      .= bind
+        (fst .= field "tag" tagSchema)
+        (snd .= fieldOver _1 "value" untaggedSchema)
+  where
+    toTagged :: Detail -> (DetailTag, Detail)
+    toTagged d@(Name _) = (NameTag, d)
+    toTagged d@(Age _) = (AgeTag, d)
+
+    fromTagged :: (DetailTag, Detail) -> Detail
+    fromTagged = snd
+
+    untaggedSchema = dispatch $ \case
+      NameTag -> tag _Name (unnamed schema)
+      AgeTag -> tag _Age (unnamed schema)
+
+userSchemaWithDefaultName' :: ValueSchema NamedSwaggerDoc User
+userSchemaWithDefaultName' =
+  object "User" $
+    User
+      <$> (getOptText . userName) .= (fromMaybe "" <$> opt (field "name" schema))
+      <*> userHandle .= opt (field "handle" schema)
+      <*> userExpire .= opt (field "expire" schema)
+  where
+    getOptText :: Text -> Maybe Text
+    getOptText "" = Nothing
+    getOptText t = Just t
+
+userSchemaWithDefaultName :: ValueSchema NamedSwaggerDoc User
+userSchemaWithDefaultName =
+  object "User" $
+    User
+      <$> userName .= (field "name" schema <|> pure "")
+      <*> userHandle .= opt (field "handle" schema)
+      <*> userExpire .= opt (field "expire" schema)

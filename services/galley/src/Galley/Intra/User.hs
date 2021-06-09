@@ -17,6 +17,7 @@
 
 module Galley.Intra.User
   ( getConnections,
+    putConnectionInternal,
     deleteBot,
     reAuthUser,
     lookupActivatedUsers,
@@ -31,7 +32,7 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
+import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UpdateConnectionsInternal (..), UserIds (..))
 import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
@@ -55,7 +56,7 @@ import Wire.API.User.RichInfo (RichInfo)
 --
 -- When a connection does not exist, it is skipped.
 -- Calls 'Brig.API.getConnectionsStatusH'.
-getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnections :: [UserId] -> Maybe [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
 getConnections uFrom uTo rlt = do
   (h, p) <- brigReq
   r <-
@@ -65,9 +66,19 @@ getConnections uFrom uTo rlt = do
         . maybe id rfilter rlt
         . json ConnectionsStatusRequest {csrFrom = uFrom, csrTo = uTo}
         . expect2xx
-  parseResponse (Error status502 "server-error") r
+  parseResponse (mkError status502 "server-error") r
   where
     rfilter = queryItem "filter" . (pack . map toLower . show)
+
+putConnectionInternal :: UpdateConnectionsInternal -> Galley Status
+putConnectionInternal updateConn = do
+  (h, p) <- brigReq
+  response <-
+    call "brig" $
+      method PUT . host h . port p
+        . paths ["/i/connections/connection-update"]
+        . json updateConn
+  pure $ responseStatus response
 
 -- | Calls 'Brig.Provider.API.botGetSelfH'.
 deleteBot :: ConvId -> BotId -> Galley ()
@@ -113,7 +124,7 @@ lookupActivatedUsers = chunkify $ \uids -> do
         . path "/i/users"
         . queryItem "ids" users
         . expect2xx
-  parseResponse (Error status502 "server-error") r
+  parseResponse (mkError status502 "server-error") r
 
 -- | URLs with more than ~160 uids produce 400 responses, because HAProxy has a
 --   URL length limit of ~6500 (determined experimentally). 100 is a
@@ -164,7 +175,7 @@ getContactList uid = do
       method GET . host h . port p
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
-  cUsers <$> parseResponse (Error status502 "server-error") r
+  cUsers <$> parseResponse (mkError status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
 getRichInfoMultiUser :: [UserId] -> Galley [(UserId, RichInfo)]
@@ -176,4 +187,4 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . paths ["/i/users/rich-info"]
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
-  parseResponse (Error status502 "server-error") resp
+  parseResponse (mkError status502 "server-error") resp

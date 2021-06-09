@@ -108,6 +108,7 @@ runTests iConf brigOpts otherArgs = do
 
   let turnFile = Opts.servers . Opts.turn $ brigOpts
       turnFileV2 = (Opts.serversV2 . Opts.turn) brigOpts
+      localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
       casHost = (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) brigOpts
       casPort = (\v -> (Opts.cassandra v) ^. casEndpoint . epPort) brigOpts
       casKey = (\v -> (Opts.cassandra v) ^. casKeyspace) brigOpts
@@ -119,7 +120,7 @@ runTests iConf brigOpts otherArgs = do
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   userApi <- User.tests brigOpts mg b c ch g n awsEnv
-  providerApi <- Provider.tests (provider iConf) mg db b c g
+  providerApi <- Provider.tests localDomain (provider iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
@@ -128,7 +129,7 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationEnd2End <- Federation.End2end.spec brigOpts mg b f brigTwo
+  federationEnd2End <- Federation.End2end.spec brigOpts mg b g f brigTwo
   federationEndpoints <- API.Federation.tests mg b fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg b (brig iConf) gd

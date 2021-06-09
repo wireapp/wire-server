@@ -1,1 +1,19 @@
-{"access":[],"access_role":"private","users":[],"conversation_role":"vmao7psxph3fenvbpsu1u57fns5pfo53d67k98om378rnxr0crcpak_mpspn8q_3m1b02n2n133s1d7q5w3qgmt_5e_dgtvzon8an7dtauiecd32","name":"😏􃉷","team":{"managed":false,"teamid":"00000000-0000-0001-0000-000000000001"},"receipt_mode":-1,"message_timer":2406292360203739}
+{
+    "access": [],
+    "access_role": "private",
+    "users": [],
+    "conversation_role": "vmao7psxph3fenvbpsu1u57fns5pfo53d67k98om378rnxr0crcpak_mpspn8q_3m1b02n2n133s1d7q5w3qgmt_5e_dgtvzon8an7dtauiecd32",
+    "name": "😏􃉷",
+    "team": {
+        "managed": false,
+        "teamid": "00000000-0000-0001-0000-000000000001"
+    },
+    "receipt_mode": -1,
+    "message_timer": 2406292360203739,
+    "qualified_users": [
+        {
+            "domain": "testdomain.example.com",
+            "id": "00000000-0000-0000-0000-000100000001"
+        }
+    ]
+}

@@ -21,7 +21,9 @@ library:
     - profunctors
     - swagger2 >=2 && < 2.7
     - text
+    - transformers
     - vector
+    - containers
 tests:
   schemas-tests:
     main: Main.hs
@@ -31,6 +33,7 @@ tests:
       - aeson
       - aeson-qq
       - imports
+      - insert-ordered-containers
       - lens
       - schema-profunctor
       - swagger2

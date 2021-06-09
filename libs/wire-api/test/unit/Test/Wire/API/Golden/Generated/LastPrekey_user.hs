@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.LastPrekey_user where
 
 import Wire.API.User.Client.Prekey (LastPrekey, lastPrekey)
@@ -28,7 +27,10 @@ testObject_LastPrekey_user_2 :: LastPrekey
 testObject_LastPrekey_user_2 = (lastPrekey ("\983748\156032\1056219\n\1099804?\1113787DMV\53179!K\DC1"))
 
 testObject_LastPrekey_user_3 :: LastPrekey
-testObject_LastPrekey_user_3 = (lastPrekey ("\ESC\992738\DC4\EM\1003033\1062557\f\n\RS\1091795\GS@#C\78461^3d\SUBa\167528\v]l\FS\tU\1047107\&4\42576"))
+testObject_LastPrekey_user_3 =
+  ( lastPrekey
+      ("\ESC\992738\DC4\EM\1003033\1062557\f\n\RS\1091795\GS@#C\78461^3d\SUBa\167528\v]l\FS\tU\1047107\&4\42576")
+  )
 
 testObject_LastPrekey_user_4 :: LastPrekey
 testObject_LastPrekey_user_4 = (lastPrekey (""))
@@ -49,13 +51,15 @@ testObject_LastPrekey_user_9 :: LastPrekey
 testObject_LastPrekey_user_9 = (lastPrekey ("x\985793-Z\FS\59773\n:~\EM\194685\DC3KZ\EOTRy(%z\32612/|.EB\97452"))
 
 testObject_LastPrekey_user_10 :: LastPrekey
-testObject_LastPrekey_user_10 = (lastPrekey ("\23674\10593Twq\DC4#a\1096829\1042971]\ENQ#;\\\1015365\4354W\RS\1028854\1086970\151594\SYN\163022"))
+testObject_LastPrekey_user_10 =
+  (lastPrekey ("\23674\10593Twq\DC4#a\1096829\1042971]\ENQ#;\\\1015365\4354W\RS\1028854\1086970\151594\SYN\163022"))
 
 testObject_LastPrekey_user_11 :: LastPrekey
 testObject_LastPrekey_user_11 = (lastPrekey ("\42198\1113531"))
 
 testObject_LastPrekey_user_12 :: LastPrekey
-testObject_LastPrekey_user_12 = (lastPrekey ("\\\4777^X+rU\1064275\&0\1040705u{\137372%rr\1099418ek\f\US\100121\190066mm\ETXpP\187768"))
+testObject_LastPrekey_user_12 =
+  (lastPrekey ("\\\4777^X+rU\1064275\&0\1040705u{\137372%rr\1099418ek\f\US\100121\190066mm\ETXpP\187768"))
 
 testObject_LastPrekey_user_13 :: LastPrekey
 testObject_LastPrekey_user_13 = (lastPrekey ("\fi\RS\a\NAKih<]\SIv0\190430\&3\39984(3\RS\16776"))

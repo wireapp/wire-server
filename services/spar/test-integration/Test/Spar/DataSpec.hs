@@ -33,8 +33,6 @@ import Imports
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
-import Spar.Scim.Types
-import Spar.Types
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -42,6 +40,10 @@ import Util.Scim
 import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
+import Wire.API.Cookie
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Saml
+import Wire.API.User.Scim
 
 spec :: SpecWith TestEnv
 spec = do
@@ -132,12 +134,12 @@ spec = do
             muid <- runSparCass (Data.getSAMLUser uref)
             liftIO $ muid `shouldBe` Just uid
           do
-            () <- runSparCass $ Data.deleteSAMLUser uref
+            () <- runSparCass $ Data.deleteSAMLUser uid uref
             muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isNothing
             liftIO $ muid `shouldBe` Nothing
     describe "BindCookie" $ do
       let mkcky :: TestSpar SetBindCookie
-          mkcky = runSimpleSP . SAML.toggleCookie "/" . Just . (,1) . UUID.toText =<< liftIO UUID.nextRandom
+          mkcky = fmap SetBindCookie . runSimpleSP . SAML.toggleCookie "/" . Just . (,1) . UUID.toText =<< liftIO UUID.nextRandom
       it "insert and get are \"inverses\"" $ do
         uid <- nextWireId
         cky <- mkcky

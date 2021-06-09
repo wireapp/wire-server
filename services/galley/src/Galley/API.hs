@@ -17,10 +17,7 @@
 
 module Galley.API
   ( sitemap,
-    Public.ServantAPI,
     Public.servantSitemap,
-    Public.SwaggerDocsAPI,
-    Public.swaggerDocsAPI,
   )
 where
 
@@ -34,5 +31,4 @@ sitemap :: Routes Doc.ApiBuilder Galley ()
 sitemap = do
   Public.sitemap
   Public.apiDocs
-  Public.apiDocsTeamsLegalhold
   Internal.sitemap

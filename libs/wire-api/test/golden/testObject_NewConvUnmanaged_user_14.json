@@ -1,1 +1,15 @@
-{"access":["code"],"access_role":"non_activated","users":["00000001-0000-0001-0000-000100000001","00000000-0000-0001-0000-000000000000"],"conversation_role":"fga_hfm9uzn_5z883y6r_kumb","name":"","receipt_mode":-2,"message_timer":854777662274030}
+{
+    "access": [
+        "code"
+    ],
+    "access_role": "non_activated",
+    "users": [
+        "00000001-0000-0001-0000-000100000001",
+        "00000000-0000-0001-0000-000000000000"
+    ],
+    "conversation_role": "fga_hfm9uzn_5z883y6r_kumb",
+    "name": "",
+    "receipt_mode": -2,
+    "message_timer": 854777662274030,
+    "qualified_users": []
+}

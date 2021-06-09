@@ -16,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Wire.API.Golden.Generated.LoginCode_user where
 
 import Wire.API.User.Auth (LoginCode (..))
@@ -52,7 +51,8 @@ testObject_LoginCode_user_10 :: LoginCode
 testObject_LoginCode_user_10 = LoginCode {fromLoginCode = "W\ESC\DC4u"}
 
 testObject_LoginCode_user_11 :: LoginCode
-testObject_LoginCode_user_11 = LoginCode {fromLoginCode = ".Z\f\1038820Ux\145788\STX\16118\NUL\SYNS\1092765\DC3\DELP\1003786\ETX|h\987631"}
+testObject_LoginCode_user_11 =
+  LoginCode {fromLoginCode = ".Z\f\1038820Ux\145788\STX\16118\NUL\SYNS\1092765\DC3\DELP\1003786\ETX|h\987631"}
 
 testObject_LoginCode_user_12 :: LoginCode
 testObject_LoginCode_user_12 = LoginCode {fromLoginCode = "S!i5\SUB{\1042102!]\CAN\41836\1079056l"}

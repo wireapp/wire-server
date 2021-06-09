@@ -26,9 +26,9 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
-import Federator.Brig (Brig, brigCall, interpretBrig)
 import Federator.Env (Env, applog, runSettings)
 import Federator.Options (RunSettings)
+import Federator.Service (Service, interpretService, serviceCall)
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Federator.Validation
 import Imports
@@ -52,13 +52,13 @@ import Wire.API.Federation.GRPC.Types
 -- FUTUREWORK(federation): How do we make sure that only legitimate endpoints can be
 -- reached, some discussion here:
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
--- Also, see comment in 'Federator.Brig.interpretBrig'
+-- Also, see comment in 'Federator.Service.interpretService'
 --
 -- FUTUREWORK(federation): implement server2server authentication!
 -- (current validation only checks parsing and compares to allowList)
 --
 -- FUTUREWORK: consider using Polysemy.Error also in callLocal to reduce nesting and improve readability.
-callLocal :: (Members '[Brig, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Request -> Sem r InwardResponse
+callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Request -> Sem r InwardResponse
 callLocal req@Request {..} = do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
@@ -68,7 +68,7 @@ callLocal req@Request {..} = do
   case validation of
     Left err -> pure $ InwardResponseErr err
     Right domain -> do
-      (resStatus, resBody) <- brigCall path body domain
+      (resStatus, resBody) <- serviceCall component path body domain
       pure $ case HTTP.statusCode resStatus of
         200 -> InwardResponseBody $ maybe mempty LBS.toStrict resBody
         -- TODO: There is a unit test for this, but Akshay has seen the integration
@@ -78,19 +78,19 @@ callLocal req@Request {..} = do
         -- our integration test, let's verify this.
         code -> InwardResponseErr $ "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus)
 
-routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) => SingleServerT info Inward (Sem r) _
+routeToInternal :: (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) => SingleServerT info Inward (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)
 
 serveInward :: Env -> Int -> IO ()
 serveInward env port = do
   runGRpcAppTrans msgProtoBuf port transformer routeToInternal
   where
-    transformer :: Sem '[TinyLog, Embed IO, Polysemy.Error ServerError, Brig, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
+    transformer :: Sem '[TinyLog, Embed IO, Polysemy.Error ServerError, Service, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
     transformer action =
       runAppT env
         . runM @Federator
         . Polysemy.runReader (view runSettings env)
-        . interpretBrig
+        . interpretService
         . absorbServerError
         . embedToMonadIO @Federator
         . Log.runTinyLog (view applog env)

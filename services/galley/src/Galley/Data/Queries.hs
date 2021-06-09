@@ -283,6 +283,34 @@ updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = 
 updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
 updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
 
+-- Federated conversations -----------------------------------------------------
+--
+-- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations for a user.
+-- FUTUREWORK(federation): support other conversation attributes such as muted, archived, etc
+
+-- local conversation with remote members
+
+insertRemoteMember :: PrepQuery W (ConvId, Domain, UserId, RoleName) ()
+insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, user_remote_id, conversation_role) values (?, ?, ?, ?)"
+
+removeRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
+removeRemoteMember = "delete from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+
+selectRemoteMembers :: PrepQuery R (Identity [ConvId]) (ConvId, Domain, UserId, RoleName)
+selectRemoteMembers = "select conv, user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv in ?"
+
+-- local user with remote conversations
+
+insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
+insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
+
+selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
+selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain"
+
+-- FUTUREWORK: actually make use of these cql statements.
+deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
+deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+
 -- Clients ------------------------------------------------------------------
 
 selectClients :: PrepQuery R (Identity [UserId]) (UserId, C.Set ClientId)
@@ -369,6 +397,24 @@ updateUserLegalHoldStatus =
         update team_member
           set legalhold_status = ?
           where team = ? and user = ?
+    |]
+
+selectLegalHoldWhitelistedTeam :: PrepQuery R (Identity TeamId) (Identity TeamId)
+selectLegalHoldWhitelistedTeam =
+  [r|
+        select team from legalhold_whitelisted where team = ?
+    |]
+
+insertLegalHoldWhitelistedTeam :: PrepQuery W (Identity TeamId) ()
+insertLegalHoldWhitelistedTeam =
+  [r|
+        insert into legalhold_whitelisted (team) values (?)
+    |]
+
+removeLegalHoldWhitelistedTeam :: PrepQuery W (Identity TeamId) ()
+removeLegalHoldWhitelistedTeam =
+  [r|
+        delete from legalhold_whitelisted where team = ?
     |]
 
 -- Search Visibility --------------------------------------------------------

@@ -20,9 +20,10 @@ module Test.Wire.API.Roundtrip.Aeson (tests) where
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import Data.Id (ConvId)
+import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
 import qualified Test.Tasty as T
-import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
@@ -204,7 +205,6 @@ tests =
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,
-      testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldServiceInfo,
       testRoundTrip @Team.LegalHold.NewLegalHoldService,
       testRoundTrip @Team.LegalHold.ViewLegalHoldService,
@@ -216,6 +216,7 @@ tests =
       testRoundTrip @Team.LegalHold.External.NewLegalHoldClient,
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceConfirm,
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceRemove,
+      testRoundTrip @Team.LegalHold.LegalholdProtectee,
       testRoundTrip @Team.Member.TeamMember,
       testRoundTrip @Team.Member.ListType,
       testRoundTrip @Team.Member.NewListType,
@@ -272,12 +273,15 @@ tests =
       testRoundTrip @User.Auth.AccessToken,
       testRoundTrip @(User.Client.UserClientMap Int),
       testRoundTrip @User.Client.UserClients,
+      testRoundTrip @User.Client.UserClientsFull,
       testRoundTrip @User.Client.ClientType,
       testRoundTrip @User.Client.ClientClass,
       testRoundTrip @User.Client.PubClient,
       testRoundTrip @User.Client.Client,
       testRoundTrip @User.Client.NewClient,
       testRoundTrip @User.Client.UpdateClient,
+      testRoundTripWithSwagger @User.Client.ClientCapability,
+      testRoundTripWithSwagger @User.Client.ClientCapabilityList,
       testRoundTrip @User.Client.RmClient,
       testRoundTrip @User.Client.Prekey.LastPrekey,
       testRoundTrip @User.Client.Prekey.PrekeyId,
@@ -325,3 +329,22 @@ testRoundTrip = testProperty msg trip
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v
+
+testRoundTripWithSwagger ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a) =>
+  T.TestTree
+testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
+  where
+    msg = show (typeRep @a)
+
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (parseEither parseJSON . toJSON) v
+
+    scm (v :: a) =
+      counterexample
+        ( fromMaybe "Schema validation failed, but there were no errors. This looks like a bug in swagger2!" $
+            validatePrettyToJSON v
+        )
+        $ isNothing (validatePrettyToJSON v)

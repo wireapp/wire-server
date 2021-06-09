@@ -53,6 +53,8 @@ module Galley.API.Teams
     canUserJoinTeamH,
     internalDeleteBindingTeamWithOneMemberH,
     internalDeleteBindingTeamWithOneMember,
+    ensureNotTooLargeForLegalHold,
+    ensureNotTooLargeToActivateLegalHold,
   )
 where
 
@@ -65,10 +67,12 @@ import Data.ByteString.Lazy.Builder (lazyByteString)
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import qualified Data.Handle as Handle
 import Data.Id
+import qualified Data.LegalHold as LH
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import qualified Data.Map.Strict as M
 import Data.Misc (HttpsUrl)
+import Data.Qualified
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
@@ -82,6 +86,7 @@ import qualified Galley.API.Teams.Notifications as APITeamQueue
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.LegalHold as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.TeamFeatures as TeamFeatures
@@ -93,6 +98,7 @@ import qualified Galley.Intra.Spar as Spar
 import qualified Galley.Intra.Team as BrigTeam
 import Galley.Intra.User
 import Galley.Options
+import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
 import Galley.Types (UserIdList (UserIdList))
 import qualified Galley.Types as Conv
@@ -110,6 +116,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Notification as Public
+import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
@@ -170,7 +177,7 @@ createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
 
 createNonBindingTeam :: UserId -> ConnId -> Public.NonBindingNewTeam -> Galley TeamId
 createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
-  let owner = newTeamMember zusr fullPermissions Nothing
+  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
           . maybe [] fromRange
@@ -193,7 +200,7 @@ createBindingTeamH (zusr ::: tid ::: req ::: _) = do
 
 createBindingTeam :: UserId -> TeamId -> BindingNewTeam -> Galley TeamId
 createBindingTeam zusr tid (BindingNewTeam body) = do
-  let owner = newTeamMember zusr fullPermissions Nothing
+  let owner = Public.TeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
   pure tid
@@ -315,6 +322,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
       mapM_ (deleteUser . view userId) membs
       Journal.teamDelete tid
+    Data.unsetTeamLegalholdWhitelisted tid
     Data.deleteTeam tid
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley ()
@@ -342,12 +350,15 @@ uncheckedDeleteTeam zusr zcon tid = do
       ([Push], [(BotMember, Conv.Event)]) ->
       Galley ([Push], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
-      (bots, convMembs) <- botsAndUsers =<< Data.members (c ^. conversationId)
+      localDomain <- viewFederationDomain
+      let qconvId = Qualified (c ^. conversationId) localDomain
+          qorig = Qualified zusr localDomain
+      (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
+      let e = Conv.Event Conv.ConvDelete qconvId qorig now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPush ListComplete zusr (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
@@ -570,9 +581,9 @@ addTeamMember zusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
+  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- Data.teamMembersForFanout tid
-  -- FUTUREWORK: We cannot enable legalhold on large teams right now
-  ensureNotTooLargeForLegalHold tid memList
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -585,8 +596,8 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
   mems <- Data.teamMembersForFanout tid
-  -- FUTUREWORK: We cannot enable legalhold on large teams right now
-  ensureNotTooLargeForLegalHold tid mems
+  (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
@@ -732,16 +743,19 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
         Data.conversation (c ^. conversationId) >>= \conv ->
-          for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
+          for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
             Data.removeMember remove (c ^. conversationId)
             -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
             unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
               pushEvent tmids edata now dc
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
-      (bots, users) <- botsAndUsers (Data.convMembers dc)
+      localDomain <- viewFederationDomain
+      let qconvId = Qualified (Data.convId dc) localDomain
+          qusr = Qualified zusr localDomain
+      let (bots, users) = botsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
-      let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
+      let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPush (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
@@ -762,11 +776,14 @@ getTeamConversation zusr tid cid = do
 
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley (EmptyResult 200)
 deleteTeamConversation zusr zcon tid cid = do
-  (bots, cmems) <- botsAndUsers =<< Data.members cid
+  localDomain <- viewFederationDomain
+  let qconvId = Qualified cid localDomain
+      qusr = Qualified zusr localDomain
+  (bots, cmems) <- botsAndUsers <$> Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
-  let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
+  let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete
   let recps = fmap recipient cmems
   let convPush = newPush ListComplete zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
   pushSome $ maybeToList convPush
@@ -854,19 +871,40 @@ ensureNotTooLarge tid = do
     throwM tooManyTeamMembers
   return $ TeamSize size
 
--- FUTUREWORK: Large teams cannot have legalhold enabled, needs rethinking
---             due to the expensive operation of removing settings
-ensureNotTooLargeForLegalHold :: TeamId -> TeamMemberList -> Galley ()
-ensureNotTooLargeForLegalHold tid mems = do
-  limit <- fromIntegral . fromRange <$> fanoutLimit
-  when (length (mems ^. teamMembers) >= limit) $ do
-    lhEnabled <- isLegalHoldEnabled tid
-    when lhEnabled $
+-- | Ensure that a team doesn't exceed the member count limit for the LegalHold
+-- feature. A team with more members than the fanout limit is too large, because
+-- the fanout limit would prevent turning LegalHold feature _off_ again (for
+-- details see 'Galley.API.LegalHold.removeSettings').
+--
+-- If LegalHold is configured for whitelisted teams only we consider the team
+-- size unlimited, because we make the assumption that these teams won't turn
+-- LegalHold off after activation.
+-- FUTUREWORK: Find a way around the fanout limit.
+ensureNotTooLargeForLegalHold :: TeamId -> Int -> Galley ()
+ensureNotTooLargeForLegalHold tid teamSize = do
+  whenM (isLegalHoldEnabledForTeam tid) $ do
+    unlessM (teamSizeBelowLimit teamSize) $ do
       throwM tooManyTeamMembersOnTeamWithLegalhold
 
+ensureNotTooLargeToActivateLegalHold :: TeamId -> Galley ()
+ensureNotTooLargeToActivateLegalHold tid = do
+  (TeamSize teamSize) <- BrigTeam.getSize tid
+  unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $ do
+    throwM cannotEnableLegalHoldServiceLargeTeam
+
+teamSizeBelowLimit :: Int -> Galley Bool
+teamSizeBelowLimit teamSize = do
+  limit <- fromIntegral . fromRange <$> fanoutLimit
+  let withinLimit = teamSize <= limit
+  view (options . Opts.optSettings . Opts.setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> pure withinLimit
+    FeatureLegalHoldDisabledByDefault -> pure withinLimit
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
+      -- unlimited, see docs of 'ensureNotTooLargeForLegalHold'
+      pure True
+
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
-addTeamMemberInternal tid origin originConn newMem memList = do
-  let new = newMem ^. ntmNewTeamMember
+addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memList = do
   Log.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
@@ -874,8 +912,9 @@ addTeamMemberInternal tid origin originConn newMem memList = do
   Data.addTeamMember tid new
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
   now <- liftIO getCurrentTime
+  localDomain <- viewFederationDomain
   for_ cc $ \c ->
-    Data.addMember now (c ^. conversationId) (new ^. userId)
+    Data.addMember localDomain now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPush1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
@@ -954,16 +993,10 @@ canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 -- This could be extended for more checks, for now we test only legalhold
 canUserJoinTeam :: TeamId -> Galley ()
 canUserJoinTeam tid = do
-  lhEnabled <- isLegalHoldEnabled tid
-  when (lhEnabled) $
-    checkTeamSize
-  where
-    checkTeamSize = do
-      (TeamSize size) <- BrigTeam.getSize tid
-      limit <- fromIntegral . fromRange <$> fanoutLimit
-      -- Teams larger than fanout limit cannot use legalhold
-      when (size >= limit) $ do
-        throwM tooManyTeamMembersOnTeamWithLegalhold
+  lhEnabled <- isLegalHoldEnabledForTeam tid
+  when lhEnabled $ do
+    (TeamSize sizeBeforeJoin) <- BrigTeam.getSize tid
+    ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
 
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do

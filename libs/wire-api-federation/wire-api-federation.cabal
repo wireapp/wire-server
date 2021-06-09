@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3790baee5069274fe9bfc65d84fda950c25ec4559bc416ffa6ca2af4246396fe
+-- hash: cfa04ed47037ada887f549b3346d2d8d4feadc654f375227c86559b0a5e2ea0f
 
 name:           wire-api-federation
 version:        0.1.0
@@ -25,30 +25,38 @@ library
       Wire.API.Federation.API.Brig
       Wire.API.Federation.API.Galley
       Wire.API.Federation.Client
+      Wire.API.Federation.Error
       Wire.API.Federation.Event
       Wire.API.Federation.GRPC.Client
       Wire.API.Federation.GRPC.Helper
       Wire.API.Federation.GRPC.Types
+      Wire.API.Federation.Mock
       Wire.API.Federation.Util.Aeson
   other-modules:
       Paths_wire_api_federation
   hs-source-dirs:
       src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       QuickCheck >=2.13
     , aeson >=1.4
+    , async
     , base >=4.6 && <5.0
     , bytestring
     , bytestring-conversion
     , either
+    , errors
+    , exceptions
     , http-types
     , http2-client-grpc
     , imports
+    , lifted-base
     , mtl
     , mu-grpc-client
+    , mu-grpc-server
     , mu-protobuf
+    , mu-rpc
     , mu-schema
     , servant >=0.16
     , servant-client
@@ -57,6 +65,8 @@ library
     , text >=0.11
     , time >=1.8
     , types-common
+    , wai-utilities
+    , warp
     , wire-api
   default-language: Haskell2010
 
@@ -70,7 +80,7 @@ test-suite spec
       Paths_wire_api_federation
   hs-source-dirs:
       test
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
@@ -82,10 +92,13 @@ test-suite spec
     , bytestring
     , bytestring-conversion
     , either
+    , errors
+    , exceptions
     , hspec
     , http-types
     , http2-client-grpc
     , imports
+    , lifted-base
     , metrics-wai
     , mtl
     , mu-grpc-client
@@ -102,6 +115,8 @@ test-suite spec
     , text >=0.11
     , time >=1.8
     , types-common
+    , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
   default-language: Haskell2010

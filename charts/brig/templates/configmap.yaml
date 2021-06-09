@@ -46,6 +46,7 @@ data:
       host: gundeck
       port: 8080
 
+    {{- if .enableFederator }}
     # TODO remove this
     federator:
       host: federator
@@ -54,6 +55,7 @@ data:
     federatorInternal:
       host: federator
       port: 8080
+    {{- end }}
 
     {{- with .aws }}
     aws:

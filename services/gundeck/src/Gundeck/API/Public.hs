@@ -167,22 +167,22 @@ success t =
 
 invalidToken :: Response
 invalidToken =
-  json (Error status400 "invalid-token" "Invalid push token")
+  json (mkError status400 "invalid-token" "Invalid push token")
     & setStatus status404
 
 snsThreadBudgetReached :: Response
 snsThreadBudgetReached =
-  json (Error status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
+  json (mkError status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
     & setStatus status413
 
 tokenTooLong :: Response
 tokenTooLong =
-  json (Error status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
+  json (mkError status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
     & setStatus status413
 
 metadataTooLong :: Response
 metadataTooLong =
-  json (Error status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
+  json (mkError status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
     & setStatus status413
 
 notFound :: Response

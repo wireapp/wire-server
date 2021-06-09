@@ -1,1 +1,75 @@
-{"user":"0000006f-0000-0036-0000-00560000002d","clients":[{"prekey":{"key":"","id":1},"client":"1"},{"prekey":{"key":"","id":0},"client":"0"},{"prekey":{"key":"","id":0},"client":"0"},{"prekey":{"key":"","id":1},"client":"1"},{"prekey":{"key":"","id":0},"client":"0"},{"prekey":{"key":"","id":0},"client":"0"},{"prekey":{"key":"","id":0},"client":"1"},{"prekey":{"key":"","id":1},"client":"1"},{"prekey":{"key":"","id":1},"client":"0"},{"prekey":{"key":"","id":1},"client":"1"}]}
+{
+    "user": "0000006f-0000-0036-0000-00560000002d",
+    "clients": [
+        {
+            "prekey": {
+                "key": "",
+                "id": 1
+            },
+            "client": "1"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 0
+            },
+            "client": "0"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 0
+            },
+            "client": "0"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 1
+            },
+            "client": "1"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 0
+            },
+            "client": "0"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 0
+            },
+            "client": "0"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 0
+            },
+            "client": "1"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 1
+            },
+            "client": "1"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 1
+            },
+            "client": "0"
+        },
+        {
+            "prekey": {
+                "key": "",
+                "id": 1
+            },
+            "client": "1"
+        }
+    ]
+}

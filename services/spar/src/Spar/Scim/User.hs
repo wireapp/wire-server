@@ -69,7 +69,6 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
-import Spar.Types (IdP, ScimTokenInfo (..), derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
@@ -86,7 +85,11 @@ import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
 import Wire.API.User (Email)
+import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
+import Wire.API.User.Saml (derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
+import Wire.API.User.Scim (ScimTokenInfo (..))
+import qualified Wire.API.User.Scim as ST
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -505,7 +508,7 @@ updateVsuUref team uid old new = do
     _ -> pure ()
 
   wrapMonadClient $ do
-    old & ST.runValidExternalId Data.deleteSAMLUser (Data.deleteScimExternalId team)
+    old & ST.runValidExternalId (Data.deleteSAMLUser uid) (Data.deleteScimExternalId team)
     new & ST.runValidExternalId (`Data.insertSAMLUser` uid) (\email -> Data.insertScimExternalId team email uid)
 
   Brig.setBrigUserVeid uid new
@@ -593,7 +596,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             Right veid ->
               lift . wrapMonadClient $
                 ST.runValidExternalId
-                  Data.deleteSAMLUser
+                  (Data.deleteSAMLUser uid)
                   (Data.deleteScimExternalId stiTeam)
                   veid
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
@@ -29,6 +28,8 @@ module Wire.API.Connection
     UserConnectionList (..),
     Message (..),
     Relation (..),
+    RelationWithHistory (..),
+    relationDropHistory,
 
     -- * Requests
     ConnectionRequest (..),
@@ -52,7 +53,7 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Schema
 import Data.Text as Text
-import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger)
+import Deriving.Swagger (CamelToKebab, ConstructorTagModifier, CustomSwagger)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -160,9 +161,46 @@ data Relation
   | Ignored
   | Sent
   | Cancelled
+  | -- | behaves like blocked, the extra constructor is just to inform why.
+    MissingLegalholdConsent
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Relation)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToSnake] Relation)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToKebab] Relation)
+
+-- | 'updateConnectionInternal', requires knowledge of the previous state (before
+-- 'MissingLegalholdConsent'), but the clients don't need that information.  To avoid having
+-- to change the API, we introduce an internal variant of 'Relation' with surjective mapping
+-- 'relationDropHistory'.
+data RelationWithHistory
+  = AcceptedWithHistory
+  | BlockedWithHistory
+  | PendingWithHistory
+  | IgnoredWithHistory
+  | SentWithHistory
+  | CancelledWithHistory
+  | MissingLegalholdConsentFromAccepted
+  | MissingLegalholdConsentFromBlocked
+  | MissingLegalholdConsentFromPending
+  | MissingLegalholdConsentFromIgnored
+  | MissingLegalholdConsentFromSent
+  | MissingLegalholdConsentFromCancelled
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RelationWithHistory)
+
+relationDropHistory :: RelationWithHistory -> Relation
+relationDropHistory = \case
+  AcceptedWithHistory -> Accepted
+  BlockedWithHistory -> Blocked
+  PendingWithHistory -> Pending
+  IgnoredWithHistory -> Ignored
+  SentWithHistory -> Sent
+  CancelledWithHistory -> Cancelled
+  MissingLegalholdConsentFromAccepted -> MissingLegalholdConsent
+  MissingLegalholdConsentFromBlocked -> MissingLegalholdConsent
+  MissingLegalholdConsentFromPending -> MissingLegalholdConsent
+  MissingLegalholdConsentFromIgnored -> MissingLegalholdConsent
+  MissingLegalholdConsentFromSent -> MissingLegalholdConsent
+  MissingLegalholdConsentFromCancelled -> MissingLegalholdConsent
 
 typeRelation :: Doc.DataType
 typeRelation =
@@ -173,11 +211,19 @@ typeRelation =
         "pending",
         "ignored",
         "sent",
-        "cancelled"
+        "cancelled",
+        "missing-legalhold-consent"
       ]
 
 instance ToJSON Relation where
-  toJSON = String . Text.toLower . pack . show
+  toJSON = \case
+    Accepted -> "accepted"
+    Blocked -> "blocked"
+    Pending -> "pending"
+    Ignored -> "ignored"
+    Sent -> "sent"
+    Cancelled -> "cancelled"
+    MissingLegalholdConsent -> "missing-legalhold-consent"
 
 instance FromJSON Relation where
   parseJSON (String "accepted") = return Accepted
@@ -186,6 +232,7 @@ instance FromJSON Relation where
   parseJSON (String "ignored") = return Ignored
   parseJSON (String "sent") = return Sent
   parseJSON (String "cancelled") = return Cancelled
+  parseJSON (String "missing-legalhold-consent") = return MissingLegalholdConsent
   parseJSON _ = mzero
 
 instance FromByteString Relation where
@@ -197,7 +244,18 @@ instance FromByteString Relation where
       "ignored" -> return Ignored
       "sent" -> return Sent
       "cancelled" -> return Cancelled
+      "missing-legalhold-consent" -> return MissingLegalholdConsent
       x -> fail $ "Invalid relation-type " <> show x
+
+instance ToByteString Relation where
+  builder = \case
+    Accepted -> "accepted"
+    Blocked -> "blocked"
+    Pending -> "pending"
+    Ignored -> "ignored"
+    Sent -> "sent"
+    Cancelled -> "cancelled"
+    MissingLegalholdConsent -> "missing-legalhold-consent"
 
 --------------------------------------------------------------------------------
 -- Message

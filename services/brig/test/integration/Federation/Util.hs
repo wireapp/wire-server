@@ -30,6 +30,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally, throwIO)
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, bracket, try)
+import Control.Monad.Trans.Except
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode, (.=))
 import qualified Data.Aeson as Aeson
@@ -61,39 +62,35 @@ import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.GRPC.Types (FederatedRequest, Outward, OutwardResponse (..))
+import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 -- | Starts a grpc server which will return the 'OutwardResponse' passed to this
 -- function, and makes the action passed to this function run in a modified brig
 -- which will contact this mocked federator instead of a real federator.
-withMockFederator :: forall (m :: * -> *) a. MonadIO m => Opt.Opts -> Port -> OutwardResponse -> Session a -> m a
-withMockFederator opts p res action = do
-  federatorThread <- liftIO . Async.async $ runGRpcApp msgProtoBuf p (outwardService res)
-  void $ retryWhileN 5 id isPortOpen
-  liftIO $
-    (withSettingsOverrides newOpts action)
-      `finally` (Async.cancel federatorThread)
+withMockFederator :: Opt.Opts -> IORef Mock.MockState -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
+withMockFederator opts ref resp action = assertRightT
+  . Mock.withMockFederator ref (const (pure resp))
+  $ \st -> lift $ do
+    let opts' =
+          opts
+            { Opt.federatorInternal =
+                Just (Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st)))
+            }
+    withSettingsOverrides opts' action
+
+withTempMockFederator :: Opt.Opts -> Domain -> OutwardResponse -> Session a -> IO (a, Mock.ReceivedRequests)
+withTempMockFederator opts targetDomain resp action = assertRightT
+  . Mock.withTempMockFederator st0 (const (pure resp))
+  $ \st -> lift $ do
+    let opts' =
+          opts
+            { Opt.federatorInternal =
+                Just (Endpoint "127.0.0.1" (fromIntegral (Mock.serverPort st)))
+            }
+    withSettingsOverrides opts' action
   where
-    newOpts :: Opt.Opts
-    newOpts = opts {Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral p))}
-
-    isPortOpen :: m Bool
-    isPortOpen = liftIO $ do
-      let sockAddr = SockAddrInet (fromIntegral p) (tupleToHostAddress (127, 0, 0, 1))
-      bracket (socket AF_INET Stream 6 {- TCP -}) close' $ \sock -> do
-        portRes <- try $ connect sock sockAddr
-        case portRes of
-          Right () -> return True
-          Left e ->
-            if (Errno <$> ioe_errno e) == Just eCONNREFUSED
-              then return False
-              else throwIO e
-
-outwardService :: OutwardResponse -> SingleServerT info Outward ServerErrorIO _
-outwardService response = Mu.singleService (Mu.method @"call" (callOutward response))
-
-callOutward :: OutwardResponse -> FederatedRequest -> ServerErrorIO OutwardResponse
-callOutward res _ = pure res
+    st0 = Mock.initState targetDomain (Domain "example.com")
 
 generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
 generateClientPrekeys brig prekeys = do
@@ -103,3 +100,11 @@ generateClientPrekeys brig prekeys = do
       mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
   clients <- traverse (responseJsonError <=< addClient brig (qUnqualified quser)) nclients
   pure (quser, zipWith mkClientPrekey prekeys clients)
+
+assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
+assertRight = \case
+  Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
+  Right x -> pure x
+
+assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
+assertRightT = assertRight <=< runExceptT

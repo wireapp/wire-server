@@ -1,1 +1,20 @@
-{"access":["invite","code"],"access_role":"private","users":["00000001-0000-0001-0000-000000000001","00000000-0000-0000-0000-000000000000","00000001-0000-0000-0000-000000000001"],"conversation_role":"gf5j3kqv7_6g55q6clu47jn2iq5yy_zvnm2753m2llu04bhb5ct_v53u7kmwdesgs832yylb_v5eddllgbostkjj7qwv7","name":"P􌑹\r","team":{"managed":true,"teamid":"00000000-0000-0000-0000-000000000001"},"message_timer":6614365418177275}
+{
+    "access": [
+        "invite",
+        "code"
+    ],
+    "access_role": "private",
+    "users": [
+        "00000001-0000-0001-0000-000000000001",
+        "00000000-0000-0000-0000-000000000000",
+        "00000001-0000-0000-0000-000000000001"
+    ],
+    "conversation_role": "gf5j3kqv7_6g55q6clu47jn2iq5yy_zvnm2753m2llu04bhb5ct_v53u7kmwdesgs832yylb_v5eddllgbostkjj7qwv7",
+    "name": "P􌑹\r",
+    "team": {
+        "managed": true,
+        "teamid": "00000000-0000-0000-0000-000000000001"
+    },
+    "message_timer": 6614365418177275,
+    "qualified_users": []
+}

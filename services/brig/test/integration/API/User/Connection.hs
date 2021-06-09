@@ -62,6 +62,7 @@ tests cl _at _conf p b _c g =
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
       test p "get /connections - 200 (paging)" $ testConnectionPaging b,
       test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl,
+      -- FUTUREWORK: auto-connect may be out of use, check and if possible remove!
       test p "post /i/users/auto-connect" $ testAutoConnectionOK b g,
       test p "post /i/users/auto-connect - existing conn" $ testAutoConnectionNoChanges b,
       test p "post /i/users/auto-connect - 400 (bad range)" $ testAutoConnectionBadRequest b
@@ -232,6 +233,16 @@ testBlockConnection brig = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
   assertEmailVisibility brig u1 u2 False
+  -- A blocks B
+  putConnection brig uid1 uid2 Blocked !!! const 200 === statusCode
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Blocked]
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  assertEmailVisibility brig u2 u1 False
+  -- A accepts B again
+  putConnection brig uid1 uid2 Accepted !!! const 200 === statusCode
+  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
+  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
+  assertEmailVisibility brig u2 u1 False
 
 testBlockAndResendConnection :: Brig -> Galley -> Http ()
 testBlockAndResendConnection brig galley = do

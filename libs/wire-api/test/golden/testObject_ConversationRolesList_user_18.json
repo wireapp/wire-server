@@ -1,1 +1,26 @@
-{"conversation_roles":[{"actions":[],"conversation_role":"s2cl6cisn_jaw94"},{"actions":["leave_conversation"],"conversation_role":"wire_member"},{"actions":["leave_conversation"],"conversation_role":"wire_member"},{"actions":["modify_conversation_name"],"conversation_role":"5st295e8exhw_ozq5_fbzyztszh1thu16g3rwx4but8f3m"}]}
+{
+    "conversation_roles": [
+        {
+            "actions": [],
+            "conversation_role": "s2cl6cisn_jaw94"
+        },
+        {
+            "actions": [
+                "leave_conversation"
+            ],
+            "conversation_role": "wire_member"
+        },
+        {
+            "actions": [
+                "leave_conversation"
+            ],
+            "conversation_role": "wire_member"
+        },
+        {
+            "actions": [
+                "modify_conversation_name"
+            ],
+            "conversation_role": "5st295e8exhw_ozq5_fbzyztszh1thu16g3rwx4but8f3m"
+        }
+    ]
+}

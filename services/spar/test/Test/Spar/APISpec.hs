@@ -31,14 +31,15 @@ import Data.Proxy (Proxy (Proxy))
 import Imports
 import Servant.Swagger (validateEveryToJSON)
 import Spar.API as API
-import Spar.Types (IdPMetadataInfo (IdPMetadataValue), SsoSettings)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Test.QuickCheck (property)
+import Wire.API.User.IdentityProvider (IdPMetadataInfo (IdPMetadataValue))
+import Wire.API.User.Saml (SsoSettings)
 
 spec :: Spec
 spec = do
   -- Note: SCIM types are not validated because their content-type is 'SCIM'.
-  validateEveryToJSON (Proxy @API.OutsideWorldAPI)
+  validateEveryToJSON (Proxy @API.API)
   it "api consistency" $ do
     pathsConsistencyCheck (routesToPaths @API.API) `shouldBe` mempty
   it "roundtrip: IdPMetadataInfo" . property $ \(val :: IdPMetadataInfo) -> do

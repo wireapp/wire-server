@@ -48,13 +48,14 @@ import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.API as Servant
 import Servant.API.Generic (ToServantApi, genericApi)
 import qualified Servant.Server as Servant
-import qualified System.Logger.Class as Log
+import qualified System.Logger as Log
 import Util.Options
 import qualified Wire.API.Federation.API.Galley as FederationGalley
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 run :: Opts -> IO ()
 run o = do
-  (app, e) <- mkApp o
+  (app, e, appFinalizer) <- mkApp o
   let l = e ^. App.applog
   s <-
     newSettings $
@@ -69,17 +70,25 @@ run o = do
     Async.cancel deleteQueueThread
     Async.cancel refreshMetricsThread
     shutdown (e ^. cstate)
-    Log.flush l
-    Log.close l
+    appFinalizer
 
-mkApp :: Opts -> IO (Application, Env)
+mkApp :: Opts -> IO (Application, Env, IO ())
 mkApp o = do
   m <- M.metrics
   e <- App.createEnv m o
   let l = e ^. App.applog
   runClient (e ^. cstate) $
     versionCheck Data.schemaVersion
-  return (middlewares l m $ servantApp e, e)
+  let finalizer = do
+        Log.info l $ Log.msg @Text "Galley application finished."
+        Log.flush l
+        Log.close l
+      middlewares =
+        servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
+          . catchErrors l [Right m]
+          . GZip.gunzip
+          . GZip.gzip GZip.def
+  return (middlewares $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap
     app e r k = runGalley e r (route rtree r k)
@@ -87,20 +96,14 @@ mkApp o = do
     servantApp e r =
       Servant.serve
         (Proxy @CombinedAPI)
-        ( API.swaggerDocsAPI
-            :<|> Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
+        ( Servant.hoistServer (Proxy @GalleyAPI.ServantAPI) (toServantHandler e) API.servantSitemap
+            :<|> Servant.hoistServer (Proxy @Internal.ServantAPI) (toServantHandler e) Internal.servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
         r
 
-    middlewares l m =
-      servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
-        . catchErrors l [Right m]
-        . GZip.gunzip
-        . GZip.gzip GZip.def
-
-type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
+type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do

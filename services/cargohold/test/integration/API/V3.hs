@@ -106,7 +106,7 @@ testSimpleRoundtrip c = do
       r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
       liftIO $ do
         assertEqual "status" status200 (responseStatus r3)
-        assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
+        assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r3)
         assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
         assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
@@ -159,7 +159,7 @@ testSimpleTokens c = do
   r4 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r3))
   liftIO $ do
     assertEqual "status" status200 (responseStatus r4)
-    assertEqual "content-type mismatch" (Just applicationText) (getContentType r4)
+    assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r4)
     assertEqual "token mismatch" tok' (decodeHeader "x-amz-meta-token" r4)
     assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r4)
     assertEqual "data mismatch" (Just "Hello World") (responseBody r4)
@@ -291,7 +291,7 @@ assertRandomResumable c totalSize chunkSize typ = do
   r <- downloadAsset c uid key Nothing
   liftIO $ do
     assertEqual "status" status200 (responseStatus r)
-    assertEqual "content-type mismatch" (Just textPlain) (getContentType r)
+    assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r)
     assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r)
     assertEqual "data mismatch" (Just $ Lazy.fromStrict dat) (responseBody r)
 

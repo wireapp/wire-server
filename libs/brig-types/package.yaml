@@ -12,12 +12,14 @@ dependencies:
 - aeson >=0.11
 - attoparsec >=0.10
 - base ==4.*
+- bytestring-conversion >=0.3.1
 - containers >=0.5
 - imports
 - QuickCheck >=2.9
 - swagger2 >=2.5
 - text >=0.11
 - time >=1.1
+- tinylog
 - types-common >=0.16
 - unordered-containers >=0.2
 - wire-api

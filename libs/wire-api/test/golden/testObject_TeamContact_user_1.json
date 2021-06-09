@@ -1,1 +1,12 @@
-{"email":"({@q","handle":null,"managed_by":null,"role":"admin","accent_id":null,"name":"","created_at":"1864-05-11T12:52:22.086Z","team":null,"id":"00000000-0000-0001-0000-000200000001","saml_idp":"r"}
+{
+    "email": "({@q",
+    "handle": null,
+    "managed_by": null,
+    "role": "admin",
+    "accent_id": null,
+    "name": "",
+    "created_at": "1864-05-11T12:52:22.086Z",
+    "team": null,
+    "id": "00000000-0000-0001-0000-000200000001",
+    "saml_idp": "r"
+}

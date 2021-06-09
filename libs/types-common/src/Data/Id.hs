@@ -25,9 +25,10 @@
 module Data.Id where
 
 import Cassandra hiding (S)
-import Data.Aeson hiding ((<?>))
-import Data.Aeson.Encoding (text)
-import Data.Aeson.Types (Parser)
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Encoding as A
+import qualified Data.Aeson.Types as A
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.ByteString.Builder (byteString)
@@ -37,8 +38,9 @@ import qualified Data.Char as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
+import Data.Schema
 import Data.String.Conversions (cs)
-import Data.Swagger (ToSchema (..))
+import qualified Data.Swagger as S
 import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -69,8 +71,6 @@ data T
 
 data STo
 
-data Remote a
-
 type AssetId = Id A
 
 type InvitationId = Id I
@@ -99,7 +99,23 @@ newtype Id a = Id
   { toUUID :: UUID
   }
   deriving stock (Eq, Ord, Generic)
-  deriving newtype (Hashable, NFData, ToParamSchema, ToSchema)
+  deriving newtype (Hashable, NFData, ToParamSchema)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (Id a)
+
+instance ToSchema (Id a) where
+  schema = Id <$> toUUID .= uuid
+    where
+      uuid :: ValueSchema NamedSwaggerDoc UUID
+      uuid =
+        mkSchema
+          (swaggerDoc @UUID)
+          ( A.withText
+              "UUID"
+              ( maybe (fail "Invalid UUID") pure
+                  . UUID.fromText
+              )
+          )
+          (pure . A.toJSON . UUID.toText)
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
@@ -137,22 +153,16 @@ instance FromHttpApiData (Id a) where
 instance ToHttpApiData (Id a) where
   toUrlPiece = toUrlPiece . show
 
-instance ToJSON (Id a) where
-  toJSON (Id uuid) = toJSON $ UUID.toText uuid
+instance A.ToJSONKey (Id a) where
+  toJSONKey = A.ToJSONKeyText idToText (A.text . idToText)
 
-instance FromJSON (Id a) where
-  parseJSON = withText "Id a" idFromText
-
-instance ToJSONKey (Id a) where
-  toJSONKey = ToJSONKeyText idToText (text . idToText)
-
-instance FromJSONKey (Id a) where
-  fromJSONKey = FromJSONKeyTextParser idFromText
+instance A.FromJSONKey (Id a) where
+  fromJSONKey = A.FromJSONKeyTextParser idFromText
 
 randomId :: (Functor m, MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom
 
-idFromText :: Text -> Parser (Id a)
+idFromText :: Text -> A.Parser (Id a)
 idFromText = maybe (fail "UUID.fromText failed") (pure . Id) . UUID.fromText
 
 idToText :: Id a -> Text
@@ -203,10 +213,10 @@ newtype ConnId = ConnId
     )
 
 instance ToJSON ConnId where
-  toJSON (ConnId c) = String (decodeUtf8 c)
+  toJSON (ConnId c) = A.String (decodeUtf8 c)
 
 instance FromJSON ConnId where
-  parseJSON x = ConnId . encodeUtf8 <$> withText "ConnId" pure x
+  parseJSON x = ConnId . encodeUtf8 <$> A.withText "ConnId" pure x
 
 instance FromHttpApiData ConnId where
   parseUrlPiece = Right . ConnId . encodeUtf8
@@ -219,8 +229,12 @@ instance FromHttpApiData ConnId where
 newtype ClientId = ClientId
   { client :: Text
   }
-  deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey, Generic)
-  deriving newtype (ToSchema, ToParamSchema, FromHttpApiData, ToHttpApiData)
+  deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, A.ToJSONKey, Generic)
+  deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
+
+instance ToSchema ClientId where
+  schema = client .= parsedText "ClientId" clientIdFromByteString
 
 newClientId :: Word64 -> ClientId
 newClientId = ClientId . toStrict . toLazyText . hexadecimal
@@ -236,11 +250,8 @@ instance FromByteString ClientId where
     bs <- Atto.takeByteString
     either fail pure $ clientIdFromByteString (cs bs)
 
-instance FromJSON ClientId where
-  parseJSON = withText "ClientId" $ either fail pure . clientIdFromByteString
-
-instance FromJSONKey ClientId where
-  fromJSONKey = FromJSONKeyTextParser $ either fail pure . clientIdFromByteString
+instance A.FromJSONKey ClientId where
+  fromJSONKey = A.FromJSONKeyTextParser $ either fail pure . clientIdFromByteString
 
 deriving instance Cql ClientId
 
@@ -297,15 +308,20 @@ newtype RequestId = RequestId
       Generic
     )
 
+instance ToSchema RequestId where
+  schema =
+    RequestId . encodeUtf8
+      <$> (decodeUtf8 . unRequestId) .= text "RequestId"
+
 -- | Returns "N/A"
 instance Default RequestId where
   def = RequestId "N/A"
 
 instance ToJSON RequestId where
-  toJSON (RequestId r) = String (decodeUtf8 r)
+  toJSON (RequestId r) = A.String (decodeUtf8 r)
 
 instance FromJSON RequestId where
-  parseJSON = withText "RequestId" (pure . RequestId . encodeUtf8)
+  parseJSON = A.withText "RequestId" (pure . RequestId . encodeUtf8)
 
 instance EncodeWire RequestId where
   encodeWire t = encodeWire t . unRequestId
@@ -317,9 +333,10 @@ instance DecodeWire RequestId where
 
 newtype IdObject a = IdObject {fromIdObject :: a}
   deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (IdObject a)
 
-instance FromJSON a => FromJSON (IdObject a) where
-  parseJSON = withObject "Id" $ \o -> IdObject <$> (o .: "id")
-
-instance ToJSON a => ToJSON (IdObject a) where
-  toJSON (IdObject a) = object ["id" .= a]
+instance ToSchema a => ToSchema (IdObject a) where
+  schema =
+    object "Id" $
+      IdObject
+        <$> fromIdObject .= field "id" schema

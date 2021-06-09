@@ -1,4 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -23,7 +22,6 @@
 module Wire.API.Team.Member
   ( -- * TeamMember
     TeamMember (..),
-    newTeamMember,
     userId,
     permissions,
     invitation,
@@ -63,9 +61,10 @@ where
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types (Parser)
+import qualified Data.HashMap.Strict as HM
 import Data.Id (UserId)
 import Data.Json.Util
-import Data.LegalHold (UserLegalHoldStatus (..), typeUserLegalHoldStatus)
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus, typeUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.String.Conversions (cs)
@@ -74,7 +73,7 @@ import Data.Swagger.Schema (ToSchema)
 import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, StripPrefix)
 import GHC.TypeLits
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..), arbitrary, shrink)
 import Wire.API.Team.Permission (Permissions, modelPermissions)
 
 --------------------------------------------------------------------------------
@@ -88,13 +87,6 @@ data TeamMember = TeamMember
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamMember)
-
-newTeamMember ::
-  UserId ->
-  Permissions ->
-  Maybe (UserId, UTCTimeMillis) ->
-  TeamMember
-newTeamMember uid perm invitation = TeamMember uid perm invitation UserLegalHoldDisabled
 
 modelTeamMember :: Doc.Model
 modelTeamMember = Doc.defineModel "TeamMember" $ do
@@ -147,7 +139,7 @@ parseTeamMember = withObject "team-member" $ \o ->
     <*> o .: "permissions"
     <*> parseInvited o
     -- Default to disabled if missing
-    <*> o .:? "legalhold_status" .!= UserLegalHoldDisabled
+    <*> o .:? "legalhold_status" .!= defUserLegalHoldStatus
   where
     parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
     parseInvited o = do
@@ -242,27 +234,44 @@ instance FromJSON ListType where
 --------------------------------------------------------------------------------
 -- NewTeamMember
 
+-- | Like 'TeamMember', but we can receive this from the clients.  Clients are not allowed to
+-- set 'UserLegalHoldStatus', so both 'newNewTeamMember and {To,From}JSON make sure that is
+-- always the default.  I decided to keep the 'TeamMember' inside (rather than making an
+-- entirely new type because (1) it's a smaller change and I'm in a hurry; (2) it encodes the
+-- identity relationship between the fields that *do* occur in both more explicit.
 newtype NewTeamMember = NewTeamMember
   { _ntmNewTeamMember :: TeamMember
   }
   deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
 
-newNewTeamMember :: TeamMember -> NewTeamMember
-newNewTeamMember = NewTeamMember
+instance Arbitrary NewTeamMember where
+  arbitrary = newNewTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
+  shrink (NewTeamMember (TeamMember uid perms _mbinv _)) = [newNewTeamMember uid perms Nothing]
+
+newNewTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> NewTeamMember
+newNewTeamMember uid perms mbinv = NewTeamMember $ TeamMember uid perms mbinv defUserLegalHoldStatus
 
 modelNewTeamMember :: Doc.Model
 modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
   Doc.description "Required data when creating new team members"
   Doc.property "member" (Doc.ref modelTeamMember) $
-    Doc.description "the team member to add"
+    Doc.description "the team member to add (the legalhold_status field must be null or missing!)"
 
 instance ToJSON NewTeamMember where
-  toJSON t = object ["member" .= _ntmNewTeamMember t]
+  toJSON t = object ["member" .= mem]
+    where
+      mem = Object . HM.fromList . fltr . HM.toList $ o
+      o = case toJSON (_ntmNewTeamMember t) of
+        Object o_ -> o_
+        _ -> error "impossible"
+      fltr = filter ((`elem` ["user", "permissions", "created_by", "created_at"]) . fst)
 
 instance FromJSON NewTeamMember where
-  parseJSON = withObject "add team member" $ \o ->
-    NewTeamMember <$> o .: "member"
+  parseJSON = withObject "add team member" $ \o -> do
+    mem <- o .: "member"
+    if (_legalHoldStatus mem == defUserLegalHoldStatus)
+      then pure $ NewTeamMember mem
+      else fail "legalhold_status field cannot be set in NewTeamMember"
 
 --------------------------------------------------------------------------------
 -- TeamMemberDeleteData

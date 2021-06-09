@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -34,6 +32,7 @@ import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.API.Util (validateHandle)
 import Brig.App
+import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -44,10 +43,10 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.Types.User.EJPD as EJPD
+import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
-import Brig.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import Control.Error hiding (bool)
 import Control.Lens (view, (.~))
 import Data.Aeson hiding (json)
@@ -74,6 +73,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.User
+import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -165,6 +165,10 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @ConnectionsStatusRequest
       .&. opt (query "filter")
+
+  put "/i/connections/connection-update" (continue updateConnectionInternalH) $
+    accept "application" "json"
+      .&. jsonRequest @UpdateConnectionsInternal
 
   -- NOTE: this is only *activated* accounts, ie. accounts with @isJust . userIdentity@!!
   -- FUTUREWORK: this should be much more obvious in the UI.  or behavior should just be
@@ -267,6 +271,10 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @UserSet
 
+  post "/i/clients/full" (continue internalListFullClientsH) $
+    accept "application" "json"
+      .&. jsonRequest @UserSet
+
   -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to the user
   -- - ClientRemoved event to the user, if removing old clients due to max number of clients
@@ -328,6 +336,14 @@ internalListClients :: UserSet -> AppIO UserClients
 internalListClients (UserSet usrs) = do
   UserClients . Map.fromList
     <$> API.lookupUsersClientIds (Set.toList usrs)
+
+internalListFullClientsH :: JSON ::: JsonRequest UserSet -> Handler Response
+internalListFullClientsH (_ ::: req) =
+  json <$> (lift . internalListFullClients =<< parseJsonBody req)
+
+internalListFullClients :: UserSet -> AppIO UserClientsFull
+internalListFullClients (UserSet usrs) =
+  UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
 
 autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
 autoConnectH (_ ::: uid ::: conn ::: req) = do
@@ -483,7 +499,7 @@ getConnectionsStatusH (_ ::: req ::: flt) = do
 
 getConnectionsStatus :: ConnectionsStatusRequest -> Maybe Relation -> AppIO [ConnectionStatus]
 getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = do
-  r <- API.lookupConnectionStatus csrFrom csrTo
+  r <- maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
@@ -491,6 +507,12 @@ getConnectionsStatus ConnectionsStatusRequest {csrFrom, csrTo} flt = do
 revokeIdentityH :: Either Email Phone -> Handler Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
+  return $ setStatus status200 empty
+
+updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> Handler Response
+updateConnectionInternalH (_ ::: req) = do
+  updateConn <- parseJsonBody req
+  API.updateConnectionInternal updateConn !>> connError
   return $ setStatus status200 empty
 
 checkBlacklistH :: Either Email Phone -> Handler Response

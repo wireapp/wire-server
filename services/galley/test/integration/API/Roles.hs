@@ -21,8 +21,10 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.List1
+import Data.Qualified
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Imports
@@ -38,17 +40,40 @@ tests s =
   testGroup
     "Conversation roles"
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
-      test s "conversation roles member (and upgrade)" handleConversationRoleMember
+      test s "conversation roles member (and upgrade)" handleConversationRoleMember,
+      test s "get all conversation roles" testAllConversationRoles
     ]
+
+testAllConversationRoles :: TestM ()
+testAllConversationRoles = do
+  alice <- randomUser
+  bob <- randomUser
+  chuck <- randomUser
+  connectUsers alice (list1 bob [chuck])
+  let role = roleNameWireAdmin
+  c <- decodeConvId <$> postConvWithRole alice [bob] (Just "gossip") [] Nothing Nothing role
+  g <- view tsGalley
+  get
+    ( g
+        . paths ["conversations", toByteString' c, "roles"]
+        . zUser alice
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right (ConversationRolesList [convRoleWireAdmin, convRoleWireMember])) === responseJsonEither
 
 handleConversationRoleAdmin :: TestM ()
 handleConversationRoleAdmin = do
+  localDomain <- viewFederationDomain
   c <- view tsCannon
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
   eve <- randomUser
   jack <- randomUser
+  let qalice = Qualified alice localDomain
+      qeve = Qualified eve localDomain
+      qjack = Qualified jack localDomain
   connectUsers alice (list1 bob [chuck, eve, jack])
   connectUsers eve (singleton bob)
   connectUsers bob (singleton jack)
@@ -57,34 +82,39 @@ handleConversationRoleAdmin = do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
     void $ assertConvWithRole rsp RegularConv alice alice [bob, chuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
+        qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
     postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMemberJoinWithRole cid alice [eve] role
+        wsAssertMemberJoinWithRole qcid qalice [qeve] role
     -- Add a member to help out with testing
     postMembersWithRole alice (singleton jack) cid roleNameWireMember !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMemberJoinWithRole cid alice [jack] roleNameWireMember
+        wsAssertMemberJoinWithRole qcid qalice [qjack] roleNameWireMember
     return cid
   -- Added bob as a wire_admin and do the checks
   wireAdminChecks cid alice bob jack
   -- Demote bob and run the member checks
   WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     let updateDown = OtherMemberUpdate (Just roleNameWireMember)
+        qcid = Qualified cid localDomain
     putOtherMember alice bob updateDown cid !!! assertActionSucceeded
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
-      wsAssertMemberUpdateWithRole cid alice bob roleNameWireMember
+      wsAssertMemberUpdateWithRole qcid qalice bob roleNameWireMember
   wireMemberChecks cid bob alice jack
 
 handleConversationRoleMember :: TestM ()
 handleConversationRoleMember = do
+  localDomain <- viewFederationDomain
   c <- view tsCannon
   alice <- randomUser
+  let qalice = Qualified alice localDomain
   bob <- randomUser
   chuck <- randomUser
   eve <- randomUser
+  let qeve = Qualified eve localDomain
   jack <- randomUser
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers bob (singleton chuck)
@@ -94,22 +124,24 @@ handleConversationRoleMember = do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
     void $ assertConvWithRole rsp RegularConv alice alice [bob, chuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
+        qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
     postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMemberJoinWithRole cid alice [eve] role
+        wsAssertMemberJoinWithRole qcid qalice [qeve] role
     return cid
   -- Added bob as a wire_member and do the checks
   wireMemberChecks cid bob alice chuck
   -- Let's promote bob
   WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
+    let qcid = Qualified cid localDomain
     let updateUp = OtherMemberUpdate (Just roleNameWireAdmin)
     -- Chuck cannot update, member only
     putOtherMember chuck bob updateUp cid !!! assertActionDenied
     putOtherMember alice bob updateUp cid !!! assertActionSucceeded
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
-      wsAssertMemberUpdateWithRole cid alice bob roleNameWireAdmin
+      wsAssertMemberUpdateWithRole qcid qalice bob roleNameWireAdmin
   wireAdminChecks cid bob alice chuck
 
 -- | Given an admin, another admin and a member run all

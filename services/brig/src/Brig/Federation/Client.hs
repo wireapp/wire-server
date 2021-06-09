@@ -21,7 +21,7 @@
 module Brig.Federation.Client where
 
 import Brig.App (AppIO)
-import Brig.Types (Prekey, PrekeyBundle)
+import Brig.Types (PrekeyBundle)
 import Brig.Types.Client (PubClient)
 import qualified Brig.Types.Search as Public
 import Brig.Types.User
@@ -35,7 +35,8 @@ import Imports
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client (FederationError (..), executeFederated)
-import Wire.API.Message (UserClientMap, UserClients)
+import Wire.API.Message (UserClients)
+import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.UserMap (UserMap)
 
@@ -63,15 +64,15 @@ claimPrekey (Qualified user domain) client = do
 claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
-  executeFederated domain $ FederatedBrig.getPrekeyBundle clientRoutes user
+  executeFederated domain $ FederatedBrig.claimPrekeyBundle clientRoutes user
 
 claimMultiPrekeyBundle ::
   Domain ->
   UserClients ->
-  FederationAppIO (UserClientMap (Maybe Prekey))
+  FederationAppIO UserClientPrekeyMap
 claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
-  executeFederated domain $ FederatedBrig.getMultiPrekeyBundle clientRoutes uc
+  executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc
 
 -- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:
 --       decoding error should not throw a 404 most likely

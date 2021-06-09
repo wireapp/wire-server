@@ -28,6 +28,8 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
+import Data.Id (ClientId)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
@@ -37,9 +39,11 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
+import Wire.API.Conversation (InviteQualified (..), NewConv (..), NewConvUnmanaged (..), cnvId)
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Message (UserClients (UserClients))
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (UserClientMap))
+import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -53,8 +57,8 @@ import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (
 -- - Remote discovery succeeds but server doesn't exist
 -- - Remote federator fails to respond in many ways (protocol error, timeout, etc.)
 -- - SRV record has two servers but higher priority one always fails
-spec :: BrigOpts.Opts -> Manager -> Brig -> Endpoint -> Brig -> IO TestTree
-spec _brigOpts mg brig _federator brigTwo =
+spec :: BrigOpts.Opts -> Manager -> Brig -> Galley -> Endpoint -> Brig -> IO TestTree
+spec _brigOpts mg brig galley _federator brigTwo =
   pure $
     testGroup
       "federation-end2end-user"
@@ -63,7 +67,8 @@ spec _brigOpts mg brig _federator brigTwo =
         test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
-        test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo
+        test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
+        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo
       ]
 
 -- | Path covered by this test:
@@ -177,7 +182,8 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
       (prekeys1, prekeys') = splitAt 5 prekeys
       prekeys2 = take 4 prekeys'
       mkClients = Set.fromList . map prekeyClient
-      mkClientMap = Map.fromList . map (prekeyClient &&& prekeyData)
+      mkClientMap :: [ClientPrekey] -> Map ClientId (Maybe Prekey)
+      mkClientMap = Map.fromList . map (prekeyClient &&& Just . prekeyData)
       qmap :: Ord a => [(Qualified a, b)] -> Map Domain (Map a b)
       qmap = fmap Map.fromList . partitionQualified . map (sequenceAOf _1)
   c1 <- generateClientPrekeys brig1 prekeys1
@@ -186,7 +192,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
         QualifiedUserClients . fmap UserClients . qmap $
           [mkClients <$> c1, mkClients <$> c2]
       ucm =
-        QualifiedUserClientMap . fmap UserClientMap . qmap $
+        mkQualifiedUserClientPrekeyMap . fmap mkUserClientPrekeyMap . qmap $
           [mkClientMap <$> c1, mkClientMap <$> c2]
   post
     ( brig1
@@ -200,3 +206,36 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
     !!! do
       const 200 === statusCode
       const (Just ucm) === responseJsonMaybe
+
+testAddRemoteUsersToLocalConv :: Brig -> Galley -> Brig -> Http ()
+testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+
+  let conv = NewConvUnmanaged $ NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  convId <-
+    cnvId . responseJsonUnsafe
+      <$> post
+        ( galley1
+            . path "/conversations"
+            . zUser (userId alice)
+            . zConn "conn"
+            . header "Z-Type" "access"
+            . json conv
+        )
+
+  let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
+  post
+    ( galley1
+        . paths ["conversations", toByteString' convId, "members", "v2"]
+        . zUser (userId alice)
+        . zConn "conn"
+        . header "Z-Type" "access"
+        . json invite
+    )
+    !!! (const 200 === statusCode)
+
+-- FUTUREWORK: check the happy path case as implementation of these things progresses:
+--  - conversation can be queried and shows members (galley1)
+--  - conversation can be queried and shows members (galley2 via qualified get conversation endpoint)
+--  - this (qualified) convId pops up for both alice (on galley1) and bob (on galley2) when they request their own conversations ( GET /conversations )
