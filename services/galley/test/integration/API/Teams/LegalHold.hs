@@ -149,8 +149,9 @@ testsPublic s =
                 flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
                   \args@(a, b, c, d) ->
                     test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
-              testGroup "XXXXXX If LH is activated for other user in group conv, this user gets removed with helpful message" $
+              testGroup "If LH is activated for other user in group conv, this user gets removed with helpful message" $
                 [a | a <- [minBound ..]] <&> \whoIsAdmin -> test s ("test case " <> show whoIsAdmin) (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv whoIsAdmin)),
+              test s "XXXXXX non-consenting users cannot be invited to conversation if LH is present" testNoConsentCannotBeInvited,
               test s "bench hack" testBenchHack,
               test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
               test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
@@ -773,16 +774,6 @@ testOldClientsBlockDeviceHandshake = do
                 -- legalholder2 LH device missing
               ]
 
-        errWith :: (HasCallStack, Typeable a, FromJSON a) => Int -> (a -> Bool) -> ResponseLBS -> TestM ()
-        errWith wantStatus wantBody rsp = liftIO $ do
-          assertEqual "" wantStatus (statusCode rsp)
-          assertBool
-            (show $ responseBody rsp)
-            ( case responseJsonMaybe rsp of
-                Nothing -> False
-                Just bdy -> wantBody bdy
-            )
-
     -- LH devices are treated as clients that have the ClientSupportsLegalholdImplicitConsent
     -- capability (so LH doesn't break for users who have LH devices; it sounds silly, but
     -- it's good to test this, since it did require adding a few lines of production code in
@@ -984,6 +975,36 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
         assertNotConvMember peer convId
         checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
         checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
+
+testNoConsentCannotBeInvited :: HasCallStack => TestM ()
+testNoConsentCannotBeInvited = do
+  (legalholder :: UserId, tid) <- createBindingTeam
+  userOnLHTeam <- (^. userId) <$> addUserToTeam legalholder tid
+  ensureQueueEmpty
+
+  (peer :: UserId, teamPeer) <- createBindingTeam
+  peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
+
+  ensureQueueEmpty
+
+  do
+    for_ [legalholder, userOnLHTeam] $ \inviter -> do
+      for_ [peer, peer2] $ \invitee -> do
+        postConnection inviter invitee !!! const 201 === statusCode
+        void $ putConnection invitee inviter Conn.Accepted <!! const 200 === statusCode
+
+  convId <- createTeamConvWithRole legalholder tid [userOnLHTeam] (Just "blaa") Nothing Nothing roleNameWireAdmin
+  API.Util.postMembers userOnLHTeam (List1.list1 peer []) convId
+    !!! const 200 === statusCode
+
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    ensureQueueEmpty
+
+    API.Util.postMembers userOnLHTeam (List1.list1 peer2 []) convId
+      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+
+-- TODO: as peer create conversation with peer2 and userOnLHteam
 
 data TestClaimKeys
   = TCKConsentMissing
@@ -1674,4 +1695,14 @@ deleteLHWhitelistTeam' g tid = do
   delete
     ( g
         . paths ["i", "legalhold", "whitelisted-teams", toByteString' tid]
+    )
+
+errWith :: (HasCallStack, Typeable a, FromJSON a) => Int -> (a -> Bool) -> ResponseLBS -> TestM ()
+errWith wantStatus wantBody rsp = liftIO $ do
+  assertEqual "" wantStatus (statusCode rsp)
+  assertBool
+    (show $ responseBody rsp)
+    ( case responseJsonMaybe rsp of
+        Nothing -> False
+        Just bdy -> wantBody bdy
     )
