@@ -885,14 +885,18 @@ rmBot zusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-addToConversation :: ([BotMember], [LocalMember]) -> [RemoteMember] -> (UserId, RoleName) -> ConnId -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> Data.Conversation -> Galley UpdateResult
-addToConversation _ _ _ _ [] [] _ = pure Unchanged
-addToConversation (bots, lothers) rothers (usr, usrRole) conn locals remotes c = do
-  ensureGroupConv c
-  mems <- checkedMemberAddSize locals remotes
-  now <- liftIO getCurrentTime
+-- | Notify local users and bots of being added to a conversation
+notifyLocals :: [InternalMember UserId] -> [BotMember] -> Event -> UserId -> ConnId -> [InternalMember UserId] -> Galley ()
+notifyLocals existingLocals bots e usr conn newLocals = do
+  let allMembers = nubOrdOn memId (newLocals <> existingLocals)
+  for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
+    push1 $ p & pushConn ?~ conn
+  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
+
+-- | Notify remote users of being added to a conversation
+notifyRemotes :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
+notifyRemotes existingRemotes usr now c lmm rmm = do
   localDomain <- viewFederationDomain
-  (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
   let mm = catMembers localDomain lmm rmm
       qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified usr localDomain
@@ -902,12 +906,7 @@ addToConversation (bots, lothers) rothers (usr, usrRole) conn locals remotes c =
     . partitionQualified
     . nubOrd
     . map (unTagged . rmId)
-    $ rmm <> rothers
-  let allMembers = nubOrdOn memId (lmm <> lothers)
-  for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
-    push1 $ p & pushConn ?~ conn
-  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-  pure $ Updated e
+    $ rmm <> existingRemotes
   where
     catMembers ::
       Domain ->
@@ -917,6 +916,33 @@ addToConversation (bots, lothers) rothers (usr, usrRole) conn locals remotes c =
     catMembers localDomain ls rs =
       map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
         <> map ((unTagged . rmId) &&& rmConvRoleName) rs
+
+addToConversation ::
+  -- | The existing bots and local users in the conversation
+  ([BotMember], [LocalMember]) ->
+  -- | The existing remote users
+  [RemoteMember] ->
+  -- | The originating user and their role
+  (UserId, RoleName) ->
+  -- | The connection ID of the originating user
+  ConnId ->
+  -- | New local users to be added and their roles
+  [(UserId, RoleName)] ->
+  -- | New remote users to be added and their roles
+  [(Remote UserId, RoleName)] ->
+  -- | The conversation to modify
+  Data.Conversation ->
+  Galley UpdateResult
+addToConversation _ _ _ _ [] [] _ = pure Unchanged
+addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn newLocals newRemotes c = do
+  ensureGroupConv c
+  mems <- checkedMemberAddSize newLocals newRemotes
+  now <- liftIO getCurrentTime
+  localDomain <- viewFederationDomain
+  (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
+  notifyRemotes existingRemotes usr now c lmm rmm
+  notifyLocals existingLocals bots e usr conn lmm
+  pure $ Updated e
 
 updateRemoteConversations ::
   UTCTime ->
