@@ -20,7 +20,7 @@ module Federation.End2end where
 import API.Search.Util
 import API.User.Util (getUserClientsQualified)
 import Bilge
-import Bilge.Assert ((!!!), (<!!), (===))
+import Bilge.Assert ((!!!), (===))
 import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types
