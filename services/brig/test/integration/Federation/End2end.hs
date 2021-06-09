@@ -68,6 +68,7 @@ spec _brigOpts mg brig galley _federator brigTwo =
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
+        test mg "list user clients" $ testListUserClients brig brigTwo,
         test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo
       ]
 
@@ -234,6 +235,35 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
         . json invite
     )
     !!! (const 200 === statusCode)
+
+testListUserClients :: Brig -> Brig -> Http ()
+testListUserClients brig1 brig2 = do
+  alice <- userQualifiedId <$> randomUser brig1
+  bob <- userQualifiedId <$> randomUser brig2
+
+  let newClients = map (newClient PermanentClientType) (take 2 someLastPrekeys)
+  clients <-
+    traverse
+      (fmap responseJsonUnsafe . addClient brig2 (qUnqualified bob))
+      newClients
+  let toPubClient c = PubClient (clientId c) (clientClass c)
+      expected = map toPubClient clients
+
+  get
+    ( brig1
+        . zUser (qUnqualified alice)
+        . paths
+          [ "users",
+            toByteString' (qDomain bob),
+            toByteString' (qUnqualified bob),
+            "clients"
+          ]
+        . contentJson
+        . acceptJson
+    )
+    !!! do
+      const 200 === statusCode
+      const expected === responseJsonUnsafe
 
 -- FUTUREWORK: check the happy path case as implementation of these things progresses:
 --  - conversation can be queried and shows members (galley1)
