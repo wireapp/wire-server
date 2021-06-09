@@ -532,7 +532,6 @@ addMembers zusr zcon convId invite = do
   checkLocals conv (Data.convTeam conv) newLocals
   checkRemoteUsersExist newRemotes
   checkLHPolicyConflicts conv newLocals
-  checkRemotes newRemotes
   checkLHPolicyConflictsRemote (FutureWork newRemotes)
   addToConversation mems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
@@ -589,13 +588,6 @@ addMembers zusr zcon convId invite = do
 
     checkLHPolicyConflictsRemote :: futurework 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote = error "TODO"
-
-    checkRemotes :: [Remote UserId] -> Galley ()
-    checkRemotes =
-      traverse_ (uncurry checkRemotesFor)
-        . Map.assocs
-        . partitionQualified
-        . map unTagged
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do

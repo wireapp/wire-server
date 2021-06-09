@@ -46,7 +46,6 @@ import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range (toRange)
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
@@ -61,6 +60,7 @@ import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
 import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
+import Galley.Types (LocalMember, memConvRoleName, memId)
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types (status200, status404)
@@ -70,7 +70,7 @@ import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Wire.API.Conversation (ConvMembers (..), ConvType (..), Conversation (..), Member (memConvRoleName, memId), OtherMember (..), cmOthers)
+import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -473,39 +473,25 @@ checkConsent teamsOfUsers other = do
 
 handleGroupConvPolicyConflicts :: UserId -> Galley ()
 handleGroupConvPolicyConflicts uid =
-  -- Assumption: uid has given consent
   void $
     iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
-      for_ (filter ((== RegularConv) . cnvType) convs) $ \conv -> do
-        let qualifiedMembers :: [Qualified OtherMember] = concatMap (fmap qualifyMember . cmOthers . cnvMembers) convs
-        ownDomain <- viewFederationDomain
-        let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localOtherMembers) =
-              partitionRemoteOrLocalIds ownDomain qualifiedMembers
-        membersAndLHStatus <-
+      for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
+        let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
+
+        membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <-
           mconcat
-            <$> ( for (chunksOf 32 localOtherMembers) $ \oMems -> do
-                    teamsOfUsers <- Data.usersTeams (memberUnqualId <$> oMems)
-                    for oMems $ \mem -> do
-                      (mem,) <$> getLHStatus (Map.lookup (memberUnqualId mem) teamsOfUsers) (memberUnqualId mem)
+            <$> ( for (chunksOf 32 (Data.convLocalMembers conv)) $ \membersChunk -> do
+                    teamsOfUsers <- Data.usersTeams (memId <$> membersChunk)
+                    for membersChunk $ \mem -> do
+                      (mem,) <$> getLHStatus (Map.lookup (memId mem) teamsOfUsers) (memId mem)
                 )
 
-        let admins = getAdmins (cmSelf . cnvMembers $ conv) membersAndLHStatus
-        if all ((== ConsentGiven) . snd) admins
+        if any
+          ((== ConsentGiven) . consentGiven . snd)
+          (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (memberUnqualId memberNoConsent) Nothing (cnvId conv) (memberUnqualId memberNoConsent)
+              removeMember (memId memberNoConsent) Nothing (Data.convId conv) (memId memberNoConsent)
           else do
-            for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) ->
-              removeMember (memberUnqualId legalholder) Nothing (cnvId conv) (memberUnqualId legalholder)
-            void $ removeMember uid Nothing (cnvId conv) uid
-  where
-    qualifyMember :: OtherMember -> Qualified OtherMember
-    qualifyMember mem = Qualified mem (qDomain . omQualifiedId $ mem)
-
-    getAdmins :: Member -> [(OtherMember, UserLegalHoldStatus)] -> [(UserId, ConsentGiven)]
-    getAdmins mem oths =
-      [(memId mem, ConsentGiven) | memConvRoleName mem == roleNameWireAdmin]
-        <> fmap (bimap memberUnqualId consentGiven) (filter ((== roleNameWireAdmin) . omConvRoleName . fst) oths)
-
-    memberUnqualId :: OtherMember -> UserId
-    memberUnqualId = qUnqualified . omQualifiedId
+            for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
+              removeMember (memId legalholder) Nothing (Data.convId conv) (memId legalholder)
