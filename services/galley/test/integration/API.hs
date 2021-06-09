@@ -41,7 +41,7 @@ import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
-import Data.Domain (Domain (Domain))
+import Data.Domain (Domain (Domain), domainText)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
@@ -68,6 +68,7 @@ import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
+import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
 
 tests :: IO TestSetup -> TestTree
@@ -1014,12 +1015,19 @@ testAddRemoteMember = do
   let qconvId = Qualified convId localDomain
   opts <- view tsGConf
   g <- view tsGalley
-  (resp, _) <-
+  (resp, reqs) <-
     withTempMockFederator
       opts
       remoteDomain
-      (const [mkProfile remoteBob (Name "bob")])
+      (respond remoteBob)
       (postQualifiedMembers' g alice (remoteBob :| []) convId)
+  liftIO $ do
+    map F.domain reqs @?= replicate 2 (domainText remoteDomain)
+    map (fmap F.path . F.request) reqs
+      @?= [ Just "/federation/get-users-by-ids",
+            Just "/federation/update-conversation-memberships"
+          ]
+
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
     evtConv e @?= qconvId
@@ -1032,6 +1040,12 @@ testAddRemoteMember = do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
     assertEqual "other members should include remoteBob" expected actual
+  where
+    respond :: Qualified UserId -> F.FederatedRequest -> Value
+    respond bob req
+      | fmap F.component (F.request req) == Just F.Brig =
+        toJSON [mkProfile bob (Name "bob")]
+      | otherwise = toJSON ()
 
 testGetRemoteConversation :: TestM ()
 testGetRemoteConversation = do
