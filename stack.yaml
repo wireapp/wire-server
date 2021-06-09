@@ -230,7 +230,8 @@ extra-deps:
     - http2-client-grpc
 
 # Fix in for issue #27: https://github.com/kazu-yamamoto/http2/issues/27
-# Note: the patch is based on version 2.0.6 of http2
+# PR here: https://github.com/kazu-yamamoto/http2/pull/28
+# Note: the commit used here is based on version 2.0.6 of http2
 - git: https://github.com/wireapp/http2 # (2021-06-09) branch: header-encoding-0-size-table-backport
   commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
 
