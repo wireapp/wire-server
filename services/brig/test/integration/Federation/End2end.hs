@@ -19,7 +19,7 @@ module Federation.End2end where
 
 import API.Search.Util
 import Bilge
-import Bilge.Assert ((!!!), (===))
+import Bilge.Assert ((!!!), (<!!), (===))
 import qualified Brig.Options as BrigOpts
 import Brig.Types
 import Control.Arrow ((&&&))
@@ -238,32 +238,31 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
-  alice <- userQualifiedId <$> randomUser brig1
-  bob <- userQualifiedId <$> randomUser brig2
+  alice <- randomUser brig1
+  bob <- randomUser brig2
 
-  let newClients = map (newClient PermanentClientType) (take 2 someLastPrekeys)
-  clients <-
-    traverse
-      (fmap responseJsonUnsafe . addClient brig2 (qUnqualified bob))
-      newClients
-  let toPubClient c = PubClient (clientId c) (clientClass c)
-      expected = map toPubClient clients
+  let prekeys = take 3 (zip somePrekeys someLastPrekeys)
+  let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
+      nclients = map mkClient prekeys
+  clients <- traverse (responseJsonError <=< addClient brig2 (userId bob)) nclients
+  resp <-
+    get
+      ( brig1
+          . zUser (userId alice)
+          . paths
+            [ "users",
+              toByteString' (qDomain (userQualifiedId bob)),
+              toByteString' (userId bob),
+              "clients"
+            ]
+          . contentJson
+          . acceptJson
+      )
+      <!! const 200 === statusCode
 
-  get
-    ( brig1
-        . zUser (qUnqualified alice)
-        . paths
-          [ "users",
-            toByteString' (qDomain bob),
-            toByteString' (qUnqualified bob),
-            "clients"
-          ]
-        . contentJson
-        . acceptJson
-    )
-    !!! do
-      const 200 === statusCode
-      const expected === responseJsonUnsafe
+  let expected = map (\c -> PubClient (clientId c) (clientClass c)) clients
+      actual = responseJsonUnsafe resp
+  liftIO $ Set.fromList actual @?= Set.fromList expected
 
 -- FUTUREWORK: check the happy path case as implementation of these things progresses:
 --  - conversation can be queried and shows members (galley1)
