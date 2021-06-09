@@ -58,8 +58,8 @@ tests m brig fedBrigClient =
         test m "GET /federation/claim-prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
         test m "GET /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
-        test m "POST /federation/users/clients : 200" (testGetUserClients brig fedBrigClient),
-        test m "POST /federation/users/clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
+        test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
+        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()

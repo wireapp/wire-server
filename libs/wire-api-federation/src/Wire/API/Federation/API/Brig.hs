@@ -88,8 +88,7 @@ data Api routes = Api
     getUserClients ::
       routes
         :- "federation"
-        :> "users"
-        :> "clients"
+        :> "get-user-clients"
         :> ReqBody '[JSON] GetUserClients
         :> Post '[JSON] (UserMap (Set PubClient))
   }
