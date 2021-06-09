@@ -396,7 +396,7 @@ changeLegalholdStatus tid uid old new = do
       UserLegalHoldPending -> do
         update
         -- outcome of addblocks logic might depend on the update. we'd like to
-        -- fail the transition in case addblocks fails neverless
+        -- fail the transition in case addblocks fails nevertheless
         addblocks `onException` revert
       UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeblocks
       UserLegalHoldNoConsent -> {- withdrawing consent is not (yet?) implemented -} illegal
