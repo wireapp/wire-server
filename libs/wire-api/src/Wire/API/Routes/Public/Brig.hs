@@ -303,6 +303,11 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> ReqBody '[JSON] RmClient
         :> Delete '[] (EmptyResult 200),
+    listClients ::
+      routes :- Summary "List the registered clients"
+        :> ZUser
+        :> "clients"
+        :> Get '[JSON] [Client],
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser

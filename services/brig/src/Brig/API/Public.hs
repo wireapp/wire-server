@@ -187,6 +187,7 @@ servantSitemap =
         BrigAPI.addClient = addClient,
         BrigAPI.updateClient = updateClient,
         BrigAPI.deleteClient = deleteClient,
+        BrigAPI.listClients = listClients,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -482,14 +483,6 @@ sitemap o = do
 
   -- User Client API ----------------------------------------------------
   -- TODO: another one?
-
-  get "/clients" (continue listClientsH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listClients" $ do
-    Doc.summary "List the registered clients."
-    Doc.returns (Doc.array (Doc.ref Public.modelClient))
-    Doc.response 200 "List of clients" Doc.end
 
   get "/clients/:client" (continue getClientH) $
     zauthUserId
@@ -841,10 +834,6 @@ updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler (EmptyResul
 updateClient usr clt upd = do
   API.updateClient usr clt upd !>> clientError
   pure EmptyResult
-
-listClientsH :: UserId ::: JSON -> Handler Response
-listClientsH (zusr ::: _) =
-  json <$> listClients zusr
 
 listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
