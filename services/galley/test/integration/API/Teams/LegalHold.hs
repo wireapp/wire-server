@@ -57,6 +57,7 @@ import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword)
 import Data.PEM
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
@@ -965,16 +966,24 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
 
     void enableLHForLegalholder
 
+    localdomain <- viewFederationDomain
+
     case whoIsAdmin of
       LegalholderIsAdmin -> do
         assertConvMember legalholder convId
         assertNotConvMember peer convId
+        checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
       PeerIsAdmin -> do
         assertConvMember peer convId
         assertNotConvMember legalholder convId
+        checkConvMemberLeaveEvent (Qualified convId localdomain) legalholder legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) legalholder peerWs
       BothAreAdmins -> do
         assertConvMember legalholder convId
         assertNotConvMember peer convId
+        checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
 
 data TestClaimKeys
   = TCKConsentMissing
