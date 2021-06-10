@@ -20,6 +20,7 @@
 
 module Wire.API.Routes.Public.Galley where
 
+import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Domain
 import Data.Id (ConvId, TeamId)
@@ -141,6 +142,16 @@ data Api routes = Api
     -- FUTUREWORK: errorResponse Error.notConnected
     --             errorResponse Error.notATeamMember
     --             errorResponse (Error.operationDenied Public.CreateConversation)
+    getConversationByReusableCode ::
+      routes
+        :- Summary "Get limited conversation information by key/code pair"
+        :> ZUser
+        :> "conversations"
+        :> "join"
+        :> QueryParam' [Required, Strict] "code" Code.Key
+        :> QueryParam' [Required, Strict] "value" Code.Value
+        :> Get '[Servant.JSON] Public.ConversationCoverView,
+    -- FUTUREWORK: potential errors: codeNotFound, convNotFound, notATeamMember, convAccessDenied
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
