@@ -57,7 +57,6 @@ import UnliftIO (concurrently)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
-import qualified Wire.API.Federation.Client as Federation
 import Wire.API.Federation.Error (federationErrorToWai)
 import Wire.API.Federation.GRPC.Types (Component (..))
 import qualified Wire.API.User as User
@@ -398,5 +397,4 @@ updateRemoteConversations now uids orig cnv domain others = do
             cmuUsersRemove = []
           }
   let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
-  runExceptT (Federation.executeFederated domain rpc)
-    >>= either (throwM . federationErrorToWai) pure
+  runFederated domain rpc
