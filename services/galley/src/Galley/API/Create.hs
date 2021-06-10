@@ -29,7 +29,8 @@ import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
-import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds')
+import Data.Misc (FutureWork (FutureWork))
+import Data.Qualified (Qualified (..), Remote, partitionRemoteOrLocalIds')
 import Data.Range
 import qualified Data.Set as Set
 import Data.Time
@@ -53,6 +54,7 @@ import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Routes.Public.Galley (ConversationResponses)
+import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 
 -- Servant helpers ------------------------------------------------------
 
@@ -93,6 +95,13 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
     Nothing -> throwM internalError
     Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
+ensureNoLegalholdConflicts :: [Remote UserId] -> [UserId] -> Galley ()
+ensureNoLegalholdConflicts remotes locals = do
+  let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
+  whenM (anyLHActivatedLocalUsers locals) $
+    whenM (anyLHConsentMissing locals) $
+      throwM missingLegalholdConsent
+
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
@@ -106,6 +115,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let (remotes, locals) = fromConvSize checkedPartitionedUsers
   ensureConnected zusr locals
   checkRemoteUsersExist remotes
+  ensureNoLegalholdConflicts remotes locals
   -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
@@ -167,6 +177,7 @@ createTeamGroupConv zusr zcon tinfo body = do
         ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convLocalMemberships))
         pure checkedPartitionedUsers
   checkRemoteUsersExist remotes
+  ensureNoLegalholdConflicts remotes localUserIds
   -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
   conv <-
     Data.createConversation

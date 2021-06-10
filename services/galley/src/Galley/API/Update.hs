@@ -72,11 +72,10 @@ import Control.Monad.State
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
-import Data.Foldable.Extra (anyM)
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import Data.List.Extra (chunksOf, nubOrd, nubOrdOn)
+import Data.List.Extra (nubOrd, nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (FutureWork (FutureWork))
@@ -91,7 +90,6 @@ import Galley.API.Util
 import Galley.App
 import Galley.Data (teamMember)
 import qualified Galley.Data as Data
-import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
@@ -556,38 +554,6 @@ addMembers zusr zcon convId invite = do
       whenM (anyLHActivatedLocalUsers (fmap memId . Data.convLocalMembers $ conv)) $ do
         whenM (anyLHConsentMissing newUsers) $ do
           throwM missingLegalholdConsent
-
-    anyLHActivatedLocalUsers :: [UserId] -> Galley Bool
-    anyLHActivatedLocalUsers uids =
-      view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
-        FeatureLegalHoldDisabledPermanently -> pure False
-        FeatureLegalHoldDisabledByDefault -> do
-          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-            teamsOfUsers <- Data.usersTeams uidsPage
-            anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
-        -- For this feature the implementation is more efficient. We assume that
-        -- being part of a whitelisted team is enough to be considered under
-        -- legalhold.
-        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-            teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
-            anyM isTeamLegalholdWhitelisted teamsPage
-
-    anyLHConsentMissing :: [UserId] -> Galley Bool
-    anyLHConsentMissing uids = do
-      view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
-        FeatureLegalHoldDisabledPermanently -> pure True
-        FeatureLegalHoldDisabledByDefault -> do
-          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-            teamsOfUsers <- Data.usersTeams uidsPage
-            anyM (\uid -> (== ConsentNotGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
-        -- For this feature the implementation is more efficient. Being part of
-        -- a whitelisted team is equivalent to have given consent to be in a
-        -- conversation with LH user.
-        FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-          flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-            teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
-            anyM (fmap not . isTeamLegalholdWhitelisted) teamsPage
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
