@@ -305,6 +305,26 @@ pushConversationEvent e users bots = do
     push1 $ p & pushConn .~ Nothing
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
+verifyReusableCode :: ConversationCode -> Galley DataTypes.Code
+verifyReusableCode convCode = do
+  c <- Data.lookupCode (conversationKey convCode) DataTypes.ReusableCode >>= ifNothing codeNotFound
+  unless (DataTypes.codeValue c == conversationCode convCode) $
+    throwM codeNotFound
+  return c
+
+ensureConversationAccess :: UserId -> ConvId -> Access -> Galley Data.Conversation
+ensureConversationAccess zusr cnv access = do
+  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  ensureAccess conv access
+  zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
+  ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
+  pure conv
+
+ensureAccess :: Data.Conversation -> Access -> Galley ()
+ensureAccess conv access =
+  unless (access `elem` Data.convAccess conv) $
+    throwM convAccessDenied
+
 --------------------------------------------------------------------------------
 -- Federation
 
