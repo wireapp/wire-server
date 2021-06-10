@@ -21,7 +21,7 @@ import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Arrow ((&&&))
 import Control.Error (ExceptT)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.), set)
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
 import Data.ByteString.Conversion
@@ -308,6 +308,14 @@ pushConversationEvent e users bots = do
     push1 $ p & pushConn .~ Nothing
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
+-- | Notify local users and bots of being added to a conversation
+pushJoinEvents :: [InternalMember UserId] -> [BotMember] -> Event -> UserId -> Maybe ConnId -> Galley ()
+pushJoinEvents users bots e usr conn = do
+  let allMembers = nubOrdOn memId users
+  for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
+    push1 $ p & set pushConn conn
+  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
+
 --------------------------------------------------------------------------------
 -- Federation
 
@@ -346,17 +354,9 @@ runFederated remoteDomain rpc = do
   runExceptT (executeFederated remoteDomain rpc)
     >>= either (throwM . federationErrorToWai) pure
 
--- | Notify local users and bots of being added to a conversation
-notifyLocals :: [InternalMember UserId] -> [BotMember] -> Event -> UserId -> ConnId -> [InternalMember UserId] -> Galley ()
-notifyLocals existingLocals bots e usr conn newLocals = do
-  let allMembers = nubOrdOn memId (newLocals <> existingLocals)
-  for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
-    push1 $ p & pushConn ?~ conn
-  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-
 -- | Notify remote users of being added to a conversation
-notifyRemotes :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
-notifyRemotes existingRemotes usr now c lmm rmm = do
+updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
+updateRemoteConversationMemberships existingRemotes usr now c lmm rmm = do
   localDomain <- viewFederationDomain
   let mm = catMembers localDomain lmm rmm
       qcnv = Qualified (Data.convId c) localDomain

@@ -899,8 +899,8 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
   now <- liftIO getCurrentTime
   localDomain <- viewFederationDomain
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
-  notifyRemotes existingRemotes usr now c lmm rmm
-  notifyLocals existingLocals bots e usr conn lmm
+  updateRemoteConversationMemberships existingRemotes usr now c lmm rmm
+  pushJoinEvents (existingLocals <> lmm) bots e usr (Just conn)
   pure $ Updated e
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
