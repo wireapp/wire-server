@@ -70,6 +70,7 @@ import Data.Code
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
+import Data.List.Extra (nubOrd)
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (FutureWork (..))
@@ -900,7 +901,8 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
   localDomain <- viewFederationDomain
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
   updateRemoteConversationMemberships existingRemotes usr now c lmm rmm
-  pushJoinEvents (existingLocals <> lmm) bots e usr (Just conn)
+  let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
+  pushJoinEvents usr (Just conn) e localsToNotify bots
   pure $ Updated e
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()

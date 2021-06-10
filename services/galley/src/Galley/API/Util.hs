@@ -21,13 +21,13 @@ import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Arrow ((&&&))
 import Control.Error (ExceptT)
-import Control.Lens (view, (.~), (?~), (^.), set)
+import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
-import Data.List.Extra (nubOrd, nubOrdOn)
+import Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), Remote, partitionQualified)
@@ -303,16 +303,12 @@ canDeleteMember deleter deletee
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
 pushConversationEvent :: Event -> [UserId] -> [BotMember] -> Galley ()
-pushConversationEvent e users bots = do
-  for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (map userRecipient users)) $ \p ->
-    push1 $ p & pushConn .~ Nothing
-  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
+pushConversationEvent e = pushJoinEvents (qUnqualified (evtFrom e)) Nothing e
 
 -- | Notify local users and bots of being added to a conversation
-pushJoinEvents :: [InternalMember UserId] -> [BotMember] -> Event -> UserId -> Maybe ConnId -> Galley ()
-pushJoinEvents users bots e usr conn = do
-  let allMembers = nubOrdOn memId users
-  for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
+pushJoinEvents :: UserId -> Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
+pushJoinEvents usr conn e users bots = do
+  for_ (newPush ListComplete usr (ConvEvent e) (userRecipient <$> users)) $ \p ->
     push1 $ p & set pushConn conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
