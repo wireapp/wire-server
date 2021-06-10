@@ -44,6 +44,7 @@ module Galley.API.Update
 
     -- * Talking
     postOtrMessage,
+    postOtrMessageUnqualified,
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
     isTypingH,
@@ -641,13 +642,17 @@ postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMes
 postBotMessage zbot zcnv val message = do
   postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
 
-postOtrMessage :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postOtrMessage zusr zcon cnv ignoreMissing reportMissing message = do
+-- FUTUREWORK: Send message to remote users
+postOtrMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage  -> Galley (Union GalleyAPI.PostOtrResponses)
+postOtrMessage zusr zcon domain cnv msg = undefined
+
+postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
+postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
   let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
       overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
   translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv overallResovedMissingOptions message
   where
-    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
+    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
     translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
     translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
     translateToServant (OtrUnknownClient e) = Servant.respond e

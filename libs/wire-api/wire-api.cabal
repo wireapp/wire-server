@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c86173e7b15d84b4e33d4f6faa9f1445031dc2d669e52f7f49ccf9f74571beaf
+-- hash: 6a577136bd948e0ccb11005f4d980a95258aabe8bf7f7dad7d44a5fc487eba5a
 
 name:           wire-api
 version:        0.1.0
@@ -129,6 +129,7 @@ library
     , mime >=0.4
     , mtl
     , pem >=0.2
+    , proto-lens
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
     , saml2-web-sso
@@ -147,6 +148,7 @@ library
     , uri-bytestring >=0.2
     , uuid >=1.3
     , vector >=0.12
+    , wire-message-proto-lens
     , x509
   default-language: Haskell2010
 

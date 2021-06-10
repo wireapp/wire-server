@@ -28,6 +28,7 @@ packages:
 - libs/wai-utilities
 - libs/wire-api
 - libs/wire-api-federation
+- libs/wire-message-proto-lens
 - libs/zauth
 - services/brig
 - services/cannon

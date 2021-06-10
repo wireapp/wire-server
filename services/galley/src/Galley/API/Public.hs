@@ -89,6 +89,7 @@ servantSitemap =
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
         GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
+        GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
         GalleyAPI.postOtrMessage = Update.postOtrMessage
       }
 

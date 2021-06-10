@@ -52,6 +52,7 @@ library:
   - mtl
   - pem >=0.2
   - protobuf >=0.2
+  - proto-lens
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
   - saml2-web-sso
@@ -69,6 +70,7 @@ library:
   - uri-bytestring >=0.2
   - uuid >=1.3
   - vector >= 0.12
+  - wire-message-proto-lens
   - x509
 tests:
   wire-api-tests:

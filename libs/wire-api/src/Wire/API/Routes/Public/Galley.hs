@@ -50,9 +50,16 @@ type UpdateResponses =
      NoContent
    ]
 
-type PostOtrResponses =
+type PostOtrResponsesUnqualified =
   '[ WithStatus 201 Public.ClientMismatch,
      WithStatus 412 Public.ClientMismatch,
+     ConversationNotFound,
+     UnknownClient
+   ]
+
+type PostOtrResponses =
+  '[ WithStatus 201 Public.QualifiedClientMismatch,
+     WithStatus 412 Public.QualifiedClientMismatch,
      ConversationNotFound,
      UnknownClient
    ]
@@ -223,7 +230,7 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cid" ConvId
         :> Delete '[] (EmptyResult 200),
-    postOtrMessage ::
+    postOtrMessageUnqualified ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
         :> Description PostOtrDescription
@@ -236,6 +243,19 @@ data Api routes = Api
         :> "otr"
         :> "messages"
         :> ReqBody '[Servant.JSON, Proto] Public.NewOtrMessage
+        :> UVerb 'POST '[Servant.JSON] PostOtrResponsesUnqualified,
+    postOtrMessage ::
+      routes
+        :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
+        :> Description PostOtrDescription
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture "domain" Domain
+        :> Capture "cnv" ConvId
+        :> "otr"
+        :> "messages"
+        :> ReqBody '[Proto] Public.QualifiedNewOtrMessage
         :> UVerb 'POST '[Servant.JSON] PostOtrResponses
   }
   deriving (Generic)
