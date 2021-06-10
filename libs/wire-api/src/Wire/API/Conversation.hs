@@ -23,6 +23,7 @@
 module Wire.API.Conversation
   ( -- * Conversation
     Conversation (..),
+    ConversationCoverView (..),
     ConversationList (..),
 
     -- * Conversation properties
@@ -178,6 +179,27 @@ modelConversations = Doc.defineModel "Conversations" $ do
   Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelConversation)) Doc.end
   Doc.property "has_more" Doc.bool' $
     Doc.description "Indicator that the server has more conversations than returned"
+
+-- | Limited view of a 'Conversation'. Is used to inform users with an invite
+-- link about the conversation.
+data ConversationCoverView = ConversationCoverView
+  { cnvCoverConvId :: ConvId,
+    cnvCoverName :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationCoverView)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationCoverView
+
+-- | Schema is compatible to a subset of 'Conversation' schema, in case we
+-- decide to substitute 'ConversationCoverView' with it in the future.
+instance ToSchema ConversationCoverView where
+  schema =
+    objectWithDocModifier
+      "ConversationCoverView"
+      (description ?~ "Limited view of Conversation.")
+      $ ConversationCoverView
+        <$> cnvCoverConvId .= field "id" schema
+        <*> cnvCoverName .= lax (field "name" (optWithDefault A.Null schema))
 
 data ConversationList a = ConversationList
   { convList :: [a],
