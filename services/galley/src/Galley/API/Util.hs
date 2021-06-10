@@ -19,16 +19,18 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
+import Control.Arrow ((&&&))
 import Control.Error (ExceptT)
-import Control.Lens (view, (.~), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
+import Data.List.Extra (nubOrd, nubOrdOn)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (qUnqualified), Remote, partitionQualified)
+import Data.Qualified (Qualified (..), Remote, partitionQualified)
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -43,7 +45,7 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options (optSettings, setFederationDomain)
 import Galley.Types
-import Galley.Types.Conversations.Members (RemoteMember (rmId))
+import Galley.Types.Conversations.Members (RemoteMember (..))
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event)
 import Imports
@@ -53,7 +55,9 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
+import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
+import qualified Wire.API.Federation.Client as Federation
 import Wire.API.Federation.Error (federationErrorToWai)
 import Wire.API.Federation.GRPC.Types (Component (..))
 import qualified Wire.API.User as User
@@ -341,4 +345,58 @@ runFederatedBrig = runFederated @'Brig
 runFederated :: forall (c :: Component) a. Domain -> FederatorClient c (ExceptT FederationClientFailure Galley) a -> Galley a
 runFederated remoteDomain rpc = do
   runExceptT (executeFederated remoteDomain rpc)
+    >>= either (throwM . federationErrorToWai) pure
+
+-- | Notify local users and bots of being added to a conversation
+notifyLocals :: [InternalMember UserId] -> [BotMember] -> Event -> UserId -> ConnId -> [InternalMember UserId] -> Galley ()
+notifyLocals existingLocals bots e usr conn newLocals = do
+  let allMembers = nubOrdOn memId (newLocals <> existingLocals)
+  for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> allMembers)) $ \p ->
+    push1 $ p & pushConn ?~ conn
+  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
+
+-- | Notify remote users of being added to a conversation
+notifyRemotes :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
+notifyRemotes existingRemotes usr now c lmm rmm = do
+  localDomain <- viewFederationDomain
+  let mm = catMembers localDomain lmm rmm
+      qcnv = Qualified (Data.convId c) localDomain
+      qusr = Qualified usr localDomain
+  -- FUTUREWORK: parallelise federated requests
+  traverse_ (uncurry (updateRemoteConversations now mm qusr qcnv))
+    . Map.assocs
+    . partitionQualified
+    . nubOrd
+    . map (unTagged . rmId)
+    $ rmm <> existingRemotes
+  where
+    catMembers ::
+      Domain ->
+      [LocalMember] ->
+      [RemoteMember] ->
+      [(Qualified UserId, RoleName)]
+    catMembers localDomain ls rs =
+      map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
+        <> map ((unTagged . rmId) &&& rmConvRoleName) rs
+
+updateRemoteConversations ::
+  UTCTime ->
+  [(Qualified UserId, RoleName)] ->
+  Qualified UserId ->
+  Qualified ConvId ->
+  Domain ->
+  [UserId] ->
+  Galley ()
+updateRemoteConversations now uids orig cnv domain others = do
+  let cmu =
+        ConversationMemberUpdate
+          { cmuTime = now,
+            cmuOrigUserId = orig,
+            cmuConvId = cnv,
+            cmuAlreadyPresentUsers = others,
+            cmuUsersAdd = uids,
+            cmuUsersRemove = []
+          }
+  let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
+  runExceptT (Federation.executeFederated domain rpc)
     >>= either (throwM . federationErrorToWai) pure
