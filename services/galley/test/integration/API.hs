@@ -149,6 +149,7 @@ tests s =
           test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
           test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
           test s "join conversation" postJoinConvOk,
+          test s "XXXXXX get code-access conversation information" testJoinCodeConv,
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
@@ -433,6 +434,19 @@ postJoinConvOk = do
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
+
+testJoinCodeConv :: TestM ()
+testJoinCodeConv = do
+  alice <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  -- eve <- ephemeralUser
+  -- dave <- ephemeralUser
+  let convName = "gossip"
+  conv <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode alice conv
+  getJoinCodeConv bob (conversationKey cCode) (conversationCode cCode)
+    !!! const 200 === statusCode
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
