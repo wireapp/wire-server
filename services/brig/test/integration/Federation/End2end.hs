@@ -20,7 +20,7 @@ module Federation.End2end where
 import API.Search.Util
 import API.User.Util (getUserClientsQualified)
 import Bilge
-import Bilge.Assert ((!!!), (===))
+import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types
@@ -30,7 +30,7 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
-import Data.Id (ClientId)
+import Data.Id (ClientId, ConvId, UserId)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Map as Map
 import Data.Qualified
@@ -59,8 +59,8 @@ import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPre
 -- - Remote discovery succeeds but server doesn't exist
 -- - Remote federator fails to respond in many ways (protocol error, timeout, etc.)
 -- - SRV record has two servers but higher priority one always fails
-spec :: BrigOpts.Opts -> Manager -> Brig -> Galley -> Endpoint -> Brig -> IO TestTree
-spec _brigOpts mg brig galley _federator brigTwo =
+spec :: BrigOpts.Opts -> Manager -> Brig -> Galley -> Endpoint -> Brig -> Galley -> IO TestTree
+spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
   pure $
     testGroup
       "federation-end2end-user"
@@ -71,7 +71,7 @@ spec _brigOpts mg brig galley _federator brigTwo =
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
-        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo
+        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo
       ]
 
 -- | Path covered by this test:
@@ -210,8 +210,8 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
       const 200 === statusCode
       const (Just ucm) === responseJsonMaybe
 
-testAddRemoteUsersToLocalConv :: Brig -> Galley -> Brig -> Http ()
-testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
+testAddRemoteUsersToLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
+testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
 
@@ -239,22 +239,28 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 = do
     )
     !!! (const 200 === statusCode)
 
-  -- test GET /conversations/:remoteDomain/:cnv
-  let remoteDomain = qDomain (userQualifiedId bob)
-      -- FUTUREWORK add qualified conversation Id to Conversation data type, then use that from the conversation creation response
-      qualifiedConvId = Qualified convId remoteDomain
-  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified galley1 (userId alice) qualifiedConvId
-  liftIO $ do
-    let actual = cmOthers $ cnvMembers conv
-    let expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
-    assertEqual "other members should include remoteBob" expected actual
+  -- test GET /conversations/:backend1Domain/:cnv
+  testQualifiedGetConversation galley1 "galley1" alice bob convId
+  testQualifiedGetConversation galley2 "galley2" alice bob convId
   where
-    getConvQualified g u (Qualified conv domain) =
+    testQualifiedGetConversation galley backend alice bob convId = do
+      let backend1Domain = qDomain (userQualifiedId alice)
+          -- FUTUREWORK add qualified conversation Id to Conversation data type, then use that from the conversation creation response
+          qualifiedConvId = Qualified convId backend1Domain
+      res' <- getConvQualified galley (userId bob) qualifiedConvId <!! (const 200 === statusCode)
+      let conv' = responseJsonUnsafeWithMsg (backend <> "- get /conversations/domain/cnvId") res'
+          actual' = cmOthers $ cnvMembers conv'
+          expected' = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
+      liftIO $ actual' @?= expected'
+
+    getConvQualified :: Galley -> UserId -> Qualified ConvId -> Http ResponseLBS
+    getConvQualified g u (Qualified cnvId domain) =
       get $
         g
-          . paths ["conversations", toByteString' domain, toByteString' conv]
+          . paths ["conversations", toByteString' domain, toByteString' cnvId]
           . zUser u
           . zConn "conn"
+          . header "Z-Type" "access"
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
