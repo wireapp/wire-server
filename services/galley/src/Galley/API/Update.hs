@@ -1296,7 +1296,7 @@ guardLegalholdPolicyConflictsUid self otherClients = do
           Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
           throwM missingLegalholdConsent
 
--- Duplicate from 'Galley.API.Team' to break import cycles
+-- Copied from 'Galley.API.Team' to break import cycles
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
 withBindingTeam zusr callback = do
   tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
