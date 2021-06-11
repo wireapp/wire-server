@@ -52,6 +52,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
@@ -1020,8 +1021,9 @@ testNoConsentCannotBeInvited = do
     API.Util.postMembers userLHNotActivated (List1.list1 peer2 []) convId
       >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
-    -- TODO: v2 endpoint
-    pure ()
+    localdomain <- viewFederationDomain
+    API.Util.postQualifiedMembers userLHNotActivated ((Qualified peer2 localdomain) :| []) convId
+      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
 testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
 testCannotCreateGroupWithUsersInConflict = do
