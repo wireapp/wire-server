@@ -279,7 +279,7 @@ testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
 
   -- test GET /conversations/:backend1Domain/:cnv
   testQualifiedGetConversation galley1 "galley1" alice bob convId
-  testQualifiedGetConversation galley2 "galley2" alice bob convId
+  testQualifiedGetConversation galley2 "galley2" bob alice convId
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
