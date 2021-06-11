@@ -551,8 +551,8 @@ addMembers zusr zcon convId invite = do
 
     checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
     checkLHPolicyConflictsLocal conv newUsers =
-      whenM (anyLHActivatedLocalUsers (fmap memId . Data.convLocalMembers $ conv)) $ do
-        whenM (anyLHConsentMissing newUsers) $ do
+      whenM (anyLegalholdActivated (fmap memId . Data.convLocalMembers $ conv)) $ do
+        whenM (anyLegalholdConsentMissing newUsers) $ do
           throwM missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()

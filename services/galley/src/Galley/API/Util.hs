@@ -377,8 +377,8 @@ getLHStatus teamOfUser other = do
       mMember <- Data.teamMember team other
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
-anyLHActivatedLocalUsers :: [UserId] -> Galley Bool
-anyLHActivatedLocalUsers uids =
+anyLegalholdActivated :: [UserId] -> Galley Bool
+anyLegalholdActivated uids =
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
@@ -393,8 +393,8 @@ anyLHActivatedLocalUsers uids =
         teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
         anyM isTeamLegalholdWhitelisted teamsPage
 
-anyLHConsentMissing :: [UserId] -> Galley Bool
-anyLHConsentMissing uids = do
+anyLegalholdConsentMissing :: [UserId] -> Galley Bool
+anyLegalholdConsentMissing uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure True
     FeatureLegalHoldDisabledByDefault -> do

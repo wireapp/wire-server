@@ -98,8 +98,8 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
 ensureNoLegalholdConflicts :: [Remote UserId] -> [UserId] -> Galley ()
 ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
-  whenM (anyLHActivatedLocalUsers locals) $
-    whenM (anyLHConsentMissing locals) $
+  whenM (anyLegalholdActivated locals) $
+    whenM (anyLegalholdConsentMissing locals) $
       throwM missingLegalholdConsent
 
 -- | A helper for creating a regular (non-team) group conversation.
