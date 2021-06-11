@@ -20,7 +20,7 @@ module Federation.End2end where
 import API.Search.Util
 import API.User.Util (getUserClientsQualified)
 import Bilge
-import Bilge.Assert ((!!!), (<!!), (===))
+import Bilge.Assert ((!!!), (===))
 import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types
@@ -30,7 +30,7 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
-import Data.Id (ClientId, ConvId, UserId)
+import Data.Id (ClientId)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Map as Map
 import Data.Qualified
