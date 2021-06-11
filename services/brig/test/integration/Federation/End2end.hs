@@ -71,7 +71,8 @@ spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
-        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo
+        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
+        test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo
       ]
 
 -- | Path covered by this test:
@@ -256,6 +257,29 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
       actual' = cmOthers $ cnvMembers conv'
       expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
   liftIO $ actual' @?= expected'
+
+-- | This creates a new conversation with a remote user. The test checks that
+-- Galleys on both ends of the federation see the same conversation members.
+testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
+testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+
+  let conv = NewConvUnmanaged $ NewConv [] [userQualifiedId bob] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  convId <-
+    cnvId . responseJsonUnsafe
+      <$> post
+        ( galley1
+            . path "/conversations"
+            . zUser (userId alice)
+            . zConn "conn"
+            . header "Z-Type" "access"
+            . json conv
+        )
+
+  -- test GET /conversations/:backend1Domain/:cnv
+  testQualifiedGetConversation galley1 "galley1" alice bob convId
+  testQualifiedGetConversation galley2 "galley2" alice bob convId
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
