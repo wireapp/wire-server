@@ -979,31 +979,53 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
   (legalholder :: UserId, tid) <- createBindingTeam
-  userOnLHTeam <- (^. userId) <$> addUserToTeam legalholder tid
+  userLHNotActivated <- (^. userId) <$> addUserToTeam legalholder tid
+  ensureQueueEmpty
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+
+  (peer :: UserId, teamPeer) <- createBindingTeam
+  peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
+  ensureQueueEmpty
+
+  do
+    postConnection userLHNotActivated peer !!! const 201 === statusCode
+    void $ putConnection peer userLHNotActivated Conn.Accepted <!! const 200 === statusCode
+
+    postConnection userLHNotActivated peer2 !!! const 201 === statusCode
+    void $ putConnection peer2 userLHNotActivated Conn.Accepted <!! const 200 === statusCode
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    convId <- createTeamConvWithRole userLHNotActivated tid [legalholder] (Just "corp + us") Nothing Nothing roleNameWireAdmin
+
+    API.Util.postMembers userLHNotActivated (List1.list1 peer []) convId
+      !!! const 200 === statusCode
+
+    do
+      galley <- view tsGalley
+      requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
+      approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
+      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
+      liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+
+    API.Util.postMembers userLHNotActivated (List1.list1 peer2 []) convId
+      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+
+testCannotCreateGroupWithConflictingConsent :: HasCallStack => TestM ()
+testCannotCreateGroupWithConflictingConsent = do
+  (legalholder :: UserId, tid) <- createBindingTeam
+  putLHWhitelistTeam tid !!! const 200 === statusCode
   ensureQueueEmpty
 
   (peer :: UserId, teamPeer) <- createBindingTeam
   peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
-
   ensureQueueEmpty
 
-  do
-    for_ [legalholder, userOnLHTeam] $ \inviter -> do
-      for_ [peer, peer2] $ \invitee -> do
-        postConnection inviter invitee !!! const 201 === statusCode
-        void $ putConnection invitee inviter Conn.Accepted <!! const 200 === statusCode
+  for_ [legalholder] $ \inviter -> do
+    for_ [peer, peer2] $ \invitee -> do
+      postConnection inviter invitee !!! const 201 === statusCode
+      void $ putConnection invitee inviter Conn.Accepted <!! const 200 === statusCode
 
-  convId <- createTeamConvWithRole legalholder tid [userOnLHTeam] (Just "blaa") Nothing Nothing roleNameWireAdmin
-  API.Util.postMembers userOnLHTeam (List1.list1 peer []) convId
-    !!! const 200 === statusCode
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  API.Util.postMembers userOnLHTeam (List1.list1 peer2 []) convId
-    >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
-
-  -- next case: invite users with conflicting policies
-  createTeamConvAccessRaw peer teamPeer [peer2, userOnLHTeam] (Just "bla") Nothing Nothing Nothing (Just roleNameWireMember)
+  createTeamConvAccessRaw peer teamPeer [peer2, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
     >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
 data TestClaimKeys
