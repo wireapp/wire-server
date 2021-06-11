@@ -140,8 +140,8 @@ testsPublic s =
 
       -}
       testGroup
-        "settings.legalholdEnabledTeams"
-        [ testGroup
+        "settings.legalholdEnabledTeams" -- FUTUREWORK: ungroup this level
+        [ testGroup -- FUTUREWORK: ungroup this level
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
