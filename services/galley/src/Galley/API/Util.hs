@@ -378,20 +378,16 @@ getLHStatus teamOfUser other = do
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 anyLegalholdActivated :: [UserId] -> Galley Bool
-anyLegalholdActivated uids =
+anyLegalholdActivated uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
-    FeatureLegalHoldDisabledByDefault -> do
+    FeatureLegalHoldDisabledByDefault -> check
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
+  where
+    check = do
       flip anyM (chunksOf 32 uids) $ \uidsPage -> do
         teamsOfUsers <- Data.usersTeams uidsPage
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
-    -- For this feature the implementation is more efficient. We assume that
-    -- being part of a whitelisted team is enough to be considered under
-    -- legalhold.
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      flip anyM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
-        anyM isTeamLegalholdWhitelisted teamsPage
 
 anyLegalholdConsentMissing :: [UserId] -> Galley Bool
 anyLegalholdConsentMissing uids = do
