@@ -550,10 +550,15 @@ addMembers zusr zcon convId invite = do
       ensureConnectedOrSameTeam zusr newUsers
 
     checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
-    checkLHPolicyConflictsLocal conv newUsers =
-      whenM (anyLegalholdActivated (fmap memId . Data.convLocalMembers $ conv)) $ do
-        whenM (anyLegalholdConsentMissing newUsers) $ do
-          throwM missingLegalholdConsent
+    checkLHPolicyConflictsLocal conv newUsers = do
+      guardConflicts (fmap memId . Data.convLocalMembers $ conv) newUsers
+      -- This is theoreticla impossible to occur, but we leave it as an additional safeguard
+      guardConflicts newUsers (fmap memId . Data.convLocalMembers $ conv)
+      where
+        guardConflicts users1 users2 =
+          whenM (anyLegalholdActivated users1) $
+            whenM (anyLegalholdConsentMissing users2) $
+              throwM missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
