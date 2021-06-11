@@ -20,7 +20,7 @@ module Wire.API.Federation.API.Galley where
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
-import Data.Id (ConvId, UserId)
+import Data.Id (ClientId, ConvId, UserId)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -35,6 +35,7 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
+import Wire.API.User.Client (QualifiedUserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -62,6 +63,14 @@ data Api routes = Api
         :- "federation"
         :> "update-conversation-memberships"
         :> ReqBody '[JSON] ConversationMemberUpdate
+        :> Post '[JSON] (),
+    -- used to notify this backend that a new message has been posted to a
+    -- remote conversation
+    receiveMessage ::
+      routes
+        :- "federation"
+        :> "receive-message"
+        :> ReqBody '[JSON] RemoteMessage
         :> Post '[JSON] ()
   }
   deriving (Generic)
@@ -127,6 +136,20 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+
+data RemoteMessage = RemoteMessage
+  { rmTime :: UTCTime,
+    rmData :: Maybe Text,
+    rmSender :: Qualified UserId,
+    rmSenderClient :: ClientId,
+    -- FUTUREWORK: ensure that the conversation domain is the same as the
+    -- originDomain of the federated request
+    rmConversation :: Qualified ConvId,
+    rmRecipients :: QualifiedUserClientMap Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteMessage)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMessage)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

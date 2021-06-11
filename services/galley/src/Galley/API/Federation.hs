@@ -16,12 +16,15 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
+import Control.Lens
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
-import Data.Id (UserId)
+import Data.Id (ClientId, UserId)
 import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
+import Data.Tagged
 import qualified Galley.API.Mapping as Mapping
+import Galley.API.Update as API
 import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
@@ -31,8 +34,15 @@ import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Conversation.Member (Member, memId)
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
+import Wire.API.Federation.API.Galley
+  ( ConversationMemberUpdate (..),
+    GetConversationsRequest (..),
+    GetConversationsResponse (..),
+    RegisterConversation (..),
+    RemoteMessage (..),
+  )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.User.Client (QualifiedUserClientMap (..), UserClientMap (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
@@ -40,7 +50,8 @@ federationSitemap =
     FederationAPIGalley.Api
       { FederationAPIGalley.registerConversation = registerConversation,
         FederationAPIGalley.getConversations = getConversations,
-        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
+        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
+        FederationAPIGalley.receiveMessage = receiveMessage
       }
 
 registerConversation :: RegisterConversation -> Galley ()
@@ -94,3 +105,30 @@ updateConversationMemberships cmu = do
   let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
   -- FUTUREWORK: support bots?
   pushConversationEvent event targets []
+
+-- FUTUREWORK: report errors to the originating backend
+receiveMessage :: RemoteMessage -> Galley ()
+receiveMessage rm =
+  API.postRemoteToLocal
+    (rmTime rm)
+    (Tagged (rmConversation rm))
+    (fmap (,(rmSenderClient rm)) (rmSender rm))
+    (rmData rm)
+    (expandQUCMap (rmRecipients rm))
+  where
+    -- TODO: is there an easier way to do this conversion?
+    expandQUCMap :: QualifiedUserClientMap a -> [(Qualified (UserId, ClientId), a)]
+    expandQUCMap =
+      map (\(d, (x, a)) -> (Qualified x d, a))
+        . (>>= sequenceAOf _2)
+        . map (fmap expandUCMap)
+        . Map.assocs
+        . qualifiedUserClientMap
+
+    expandUCMap :: UserClientMap a -> [((UserId, ClientId), a)]
+    expandUCMap =
+      map (\(u, (c, a)) -> ((u, c), a))
+        . (>>= sequenceAOf _2)
+        . map (fmap Map.assocs)
+        . Map.assocs
+        . userClientMap

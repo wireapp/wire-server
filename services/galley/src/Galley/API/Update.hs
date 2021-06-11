@@ -49,6 +49,7 @@ module Galley.API.Update
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
     isTypingH,
+    postRemoteToLocal,
 
     -- * External Services
     addServiceH,
@@ -81,6 +82,7 @@ import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Tagged
 import qualified Data.Text.Encoding as Text
 import Data.Time
 import Galley.API.Error
@@ -813,6 +815,54 @@ postNewOtrMessage protectee con cnv val msg = do
     void . forkIO $ do
       gone <- External.deliver toBots
       mapM_ (deleteBot cnv . botMemId) gone
+
+-- | Locally post a message originating from a remote conversation
+-- FUTUREWORK: error handling for missing / mismatched clients
+postRemoteToLocal ::
+  UTCTime ->
+  Remote ConvId ->
+  Qualified (UserId, ClientId) ->
+  Maybe Text ->
+  [(Qualified (UserId, ClientId), Text)] ->
+  Galley ()
+postRemoteToLocal now conv sender extra =
+  pushSome . map (uncurry mkPush)
+  where
+    mkPush :: Qualified (UserId, ClientId) -> Text -> Push
+    mkPush = remoteToLocalPush now conv sender extra
+
+remoteToLocalPush ::
+  UTCTime ->
+  Remote ConvId ->
+  Qualified (UserId, ClientId) ->
+  Maybe Text ->
+  Qualified (UserId, ClientId) ->
+  Text ->
+  Push
+remoteToLocalPush now (Tagged conv) sender extra rcpt ciphertext =
+  -- FUTUREWORK: use qualified sender id in message notification
+  newPush1
+    ListComplete
+    (fst (qUnqualified sender))
+    (ConvEvent event)
+    (singleton (userRecipient (fst (qUnqualified rcpt))))
+  where
+    msg =
+      OtrMessage
+        { -- FUTUREWORK: use sender domain after merging #1593
+          otrSender = snd (qUnqualified sender),
+          -- FUTUREWORK: use recipient domain after merging #1593
+          otrRecipient = snd (qUnqualified rcpt),
+          otrCiphertext = ciphertext,
+          otrData = extra
+        }
+    event = Event OtrMessageAdd conv (fmap fst sender) now (EdOtrMessage msg)
+
+-- TODO
+-- <&> set pushConn con
+--   . set pushNativePriority (newOtrNativePriority msg)
+--   . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
+--   . set pushTransient (newOtrTransient msg)
 
 newMessage ::
   Qualified UserId ->
