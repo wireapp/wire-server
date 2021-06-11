@@ -1,3 +1,5 @@
+.. _federation-roadmap:
+
 Implementation Roadmap
 =======================
 
@@ -37,5 +39,3 @@ M(N) | N >1
 * support more platforms (android and iOS)
 * support for wire-server installations to federate with wire.com
 * support for better encryption primitives (MLS)
-
-

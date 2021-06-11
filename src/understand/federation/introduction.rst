@@ -1,14 +1,33 @@
 Introduction
 ============
 
-TODO.
+Federation is a feature that allows a collection of Wire backends to facilitate
+connections between their respective users.
 
 Goals
-------
+-----
 
-TODO.
+If two Wire backends A and B are *federated*, the goal is for users of backend A
+to be able to communicate with users of backend B and vice-versa in the same way
+as if they were both part of the same backend.
 
-Non-goals
-----------
+Federated backends should be able to identify, discover and authenticate
+one-another using the domain names under which they are reachable via the
+network.
 
-TODO.
+To enable federation, administrators of a Wire backend can decide to either
+specifically list the backends that they want to federate with, or to allow federation with all Wire backends reachable from the network.
+
+Federation is facilitated by a backend component called the *federator*, which
+acts as the ingress and egress point for federated communication.
+
+Non-Goals
+---------
+
+We aim to integrate federation into the Wire backend following a step-by-step
+process as described in :ref:`federation roadmap<federation-roadmap>`. Early
+versions are not meant to enable a completely open federation, but rather a
+closed network of federated backends with a restricted set of features.
+
+The aim of federation is not to replace the existing organizational structures
+for Wire users such as teams and groups, but rather to complement them.
