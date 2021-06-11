@@ -916,7 +916,6 @@ data GroupConvAdmin
 
 testNoConsentRemoveFromGroupConv :: GroupConvAdmin -> HasCallStack => TestM ()
 testNoConsentRemoveFromGroupConv whoIsAdmin = do
-  -- FUTUREWORK: maybe regular user for legalholder?
   (legalholder :: UserId, tid) <- createBindingTeam
   (peer :: UserId, teamPeer) <- createBindingTeam
   galley <- view tsGalley
@@ -978,11 +977,13 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
+  -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
   userLHNotActivated <- (^. userId) <$> addUserToTeam legalholder tid
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
+  -- team without legelhold
   (peer :: UserId, teamPeer) <- createBindingTeam
   peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
   ensureQueueEmpty
@@ -1000,6 +1001,7 @@ testNoConsentCannotBeInvited = do
     API.Util.postMembers userLHNotActivated (List1.list1 peer []) convId
       !!! const 200 === statusCode
 
+    -- activate legalhold for legalholder
     do
       galley <- view tsGalley
       requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
