@@ -149,9 +149,10 @@ testsPublic s =
                 flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
                   \args@(a, b, c, d) ->
                     test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
-              testGroup "If LH is activated for other user in group conv, this user gets removed with helpful message" $
+              testGroup "If LH is activated for user in group conv, non-consenting users get removed. If all admins are non-consenting then user gets removed." $
                 [a | a <- [minBound ..]] <&> \whoIsAdmin -> test s ("test case " <> show whoIsAdmin) (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv whoIsAdmin)),
-              test s "XXXXXX non-consenting users cannot be invited to conversation if LH is present" testNoConsentCannotBeInvited,
+              test s "non-consenting users cannot be invited to conversation if LH is present" (onlyIfLhWhitelisted testNoConsentCannotBeInvited),
+              test s "cannot create conversation with both LH activated and non-consenting users" (onlyIfLhWhitelisted testCannotCreateGroupWithUsersInConflict),
               test s "bench hack" testBenchHack,
               test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
               test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
