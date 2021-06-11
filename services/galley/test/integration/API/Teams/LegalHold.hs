@@ -1010,23 +1010,43 @@ testNoConsentCannotBeInvited = do
     API.Util.postMembers userLHNotActivated (List1.list1 peer2 []) convId
       >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
-testCannotCreateGroupWithConflictingConsent :: HasCallStack => TestM ()
-testCannotCreateGroupWithConflictingConsent = do
-  (legalholder :: UserId, tid) <- createBindingTeam
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-  ensureQueueEmpty
+    -- TODO: v2 endpoint
+    pure ()
 
+testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
+testCannotCreateGroupWithUsersInConflict = do
+  -- team that is legalhold whitelisted
+  (legalholder :: UserId, tid) <- createBindingTeam
+  userLHNotActivated <- (^. userId) <$> addUserToTeam legalholder tid
+  ensureQueueEmpty
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+
+  -- team without legelhold
   (peer :: UserId, teamPeer) <- createBindingTeam
   peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
   ensureQueueEmpty
 
-  for_ [legalholder] $ \inviter -> do
-    for_ [peer, peer2] $ \invitee -> do
-      postConnection inviter invitee !!! const 201 === statusCode
-      void $ putConnection invitee inviter Conn.Accepted <!! const 200 === statusCode
+  do
+    postConnection userLHNotActivated peer !!! const 201 === statusCode
+    void $ putConnection peer userLHNotActivated Conn.Accepted <!! const 200 === statusCode
 
-  createTeamConvAccessRaw peer teamPeer [peer2, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
-    >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+    postConnection userLHNotActivated peer2 !!! const 201 === statusCode
+    void $ putConnection peer2 userLHNotActivated Conn.Accepted <!! const 200 === statusCode
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    createTeamConvAccessRaw userLHNotActivated tid [peer, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
+      !!! const 201 === statusCode
+
+    -- activate legalhold for legalholder
+    do
+      galley <- view tsGalley
+      requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
+      approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
+      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
+      liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+
+    createTeamConvAccessRaw userLHNotActivated tid [peer2, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
+      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
 data TestClaimKeys
   = TCKConsentMissing
