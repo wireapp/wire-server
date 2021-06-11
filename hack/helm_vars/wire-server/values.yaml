@@ -31,9 +31,7 @@ brig:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 128Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 512Mi
       cpu: 500m
@@ -110,9 +108,7 @@ cannon:
   replicaCount: 2
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 512Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 512Mi
       cpu: 500m
@@ -121,9 +117,7 @@ cargohold:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 128Mi
-      cpu: 100m
+    requests: {}
     limits:
       memory: 512Mi
       cpu: 500m
@@ -164,9 +158,7 @@ gundeck:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 512Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 1024Mi
       cpu: 1000m
@@ -217,9 +209,7 @@ spar:
   replicaCount: 1
   imagePullPolicy: Always
   resources:
-    requests:
-      memory: 512Mi
-      cpu: 500m
+    requests: {}
     limits:
       memory: 1024Mi
       cpu: 1000m

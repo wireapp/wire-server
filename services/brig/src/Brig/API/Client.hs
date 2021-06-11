@@ -24,9 +24,12 @@ module Brig.API.Client
     pubClient,
     legalHoldClientRequested,
     removeLegalHoldClient,
-    lookupClient,
-    lookupClients,
+    lookupLocalClient,
+    lookupLocalClients,
+    lookupPubClient,
+    lookupPubClients,
     lookupPubClientsBulk,
+    lookupLocalPubClientsBulk,
     Data.lookupPrekeyIds,
     Data.lookupUsersClientIds,
 
@@ -45,6 +48,7 @@ import Brig.API.Types
 import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
+import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
@@ -62,9 +66,10 @@ import Data.Domain (Domain)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
+import Data.Map.Strict (traverseWithKey)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import Data.Qualified (Qualified (..), partitionQualified, partitionRemoteOrLocalIds)
 import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports
@@ -72,41 +77,47 @@ import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
-import Wire.API.Federation.Client (FederationError (..))
+import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client (ClientCapabilityList (..), QualifiedUserClientPrekeyMap (..), QualifiedUserClients (..), UserClientPrekeyMap, mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
 import qualified Wire.API.User.Client as Client
-import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
-
-lookupClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
-lookupClient (Qualified uid domain) clientId = do
-  localdomain <- viewFederationDomain
-  if domain == localdomain
-    then lift $ lookupLocalClient uid clientId
-    else -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE (ClientFederationError FederationNotImplemented)
+import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
 
-lookupClients :: Qualified UserId -> ExceptT ClientError AppIO [Client]
-lookupClients (Qualified uid domain) = do
-  localdomain <- viewFederationDomain
-  if domain == localdomain
-    then lift $ lookupLocalClients uid
-    else -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE (ClientFederationError FederationNotImplemented)
-
 lookupLocalClients :: UserId -> AppIO [Client]
 lookupLocalClients = Data.lookupClients
+
+lookupPubClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe PubClient)
+lookupPubClient qid cid = do
+  clients <- lookupPubClients qid
+  pure $ find ((== cid) . pubClientId) clients
+
+lookupPubClients :: Qualified UserId -> ExceptT ClientError AppIO [PubClient]
+lookupPubClients qid@(Qualified uid domain) = do
+  getForUser <$> lookupPubClientsBulk [qid]
+  where
+    getForUser :: QualifiedUserMap (Set PubClient) -> [PubClient]
+    getForUser qmap = fromMaybe [] $ do
+      um <- userMap <$> Map.lookup domain (qualifiedUserMap qmap)
+      Set.toList <$> Map.lookup uid um
 
 lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError AppIO (QualifiedUserMap (Set PubClient))
 lookupPubClientsBulk qualifiedUids = do
   domain <- viewFederationDomain
-  let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain qualifiedUids
-  -- FUTUREWORK: Implement federation
-  QualifiedUserMap . Map.singleton domain <$> Data.lookupPubClientsBulk localUsers
+  let (remoteUsers, localUsers) = partitionRemoteOrLocalIds domain qualifiedUids
+  remoteUserClientMap <-
+    traverseWithKey
+      (\domain' uids -> getUserClients domain' (GetUserClients uids))
+      (partitionQualified remoteUsers)
+      !>> ClientFederationError
+  localUserClientMap <- Map.singleton domain <$> lookupLocalPubClientsBulk localUsers
+  pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
+
+lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError AppIO (UserMap (Set PubClient))
+lookupLocalPubClientsBulk = Data.lookupPubClientsBulk
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

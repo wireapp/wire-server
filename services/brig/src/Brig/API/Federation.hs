@@ -30,25 +30,28 @@ import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
-import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
+import Wire.API.Federation.API.Brig hiding (Api (..))
 import qualified Wire.API.Federation.API.Brig as Federated
+import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.Message (UserClients)
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client (UserClientPrekeyMap)
+import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
+import Wire.API.UserMap (UserMap)
 
 federationSitemap :: ServerT (ToServantApi Federated.Api) Handler
 federationSitemap =
   genericServerT $
-    Federated.Api
+    FederationAPIBrig.Api
       { Federated.getUserByHandle = getUserByHandle,
         Federated.getUsersByIds = getUsersByIds,
         Federated.claimPrekey = claimPrekey,
         Federated.claimPrekeyBundle = claimPrekeyBundle,
         Federated.claimMultiPrekeyBundle = claimMultiPrekeyBundle,
-        Federated.searchUsers = searchUsers
+        Federated.searchUsers = searchUsers,
+        Federated.getUserClients = getUserClients
       }
 
 getUserByHandle :: Handle -> Handler (Maybe UserProfile)
@@ -94,6 +97,9 @@ searchUsers (SearchRequest searchTerm) = do
         searchReturned = exactHandleMatchCount,
         searchTook = 0
       }
+
+getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
+getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
 -- FUTUREWORK(federation): currently these API types make use of the same types in the
 -- federation server-server API than the client-server API does. E.g.

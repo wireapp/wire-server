@@ -54,7 +54,6 @@ updateConversationMemberships cmu = do
       localUserIds = map (qUnqualified . fst) localUsers
   when (not (null localUsers)) $ do
     Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
-  -- FUTUREWORK: the resulting event should have qualified users and conversations
   let mems = SimpleMembers (map (uncurry SimpleMember) (cmuUsersAdd cmu))
   let event =
         Event

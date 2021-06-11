@@ -25,6 +25,7 @@ library:
   - case-insensitive
   - cassandra-util
   - cassava >= 0.5
+  - cereal
   - cookie
   - cryptonite
   - currency-codes >=2.0
