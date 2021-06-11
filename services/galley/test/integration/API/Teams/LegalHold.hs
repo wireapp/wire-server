@@ -149,10 +149,17 @@ testsPublic s =
                 flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
                   \args@(a, b, c, d) ->
                     test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
-              testGroup "If LH is activated for user in group conv, non-consenting users get removed. If all admins are non-consenting then user gets removed." $
-                [a | a <- [minBound ..]] <&> \whoIsAdmin -> test s ("test case " <> show whoIsAdmin) (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv whoIsAdmin)),
-              test s "non-consenting users cannot be invited to conversation if LH is present" (onlyIfLhWhitelisted testNoConsentCannotBeInvited),
-              test s "cannot create conversation with both LH activated and non-consenting users" (onlyIfLhWhitelisted testCannotCreateGroupWithUsersInConflict),
+              testGroup
+                "Legalhold is activated for user A in a group conversation"
+                [ test s "All admins are consenting: all non-consenters get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv LegalholderIsAdmin)),
+                  test s "Some admins are consenting: all non-consenters get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv BothAreAdmins)),
+                  test s "No admins are consenting: all LH activated/pending users get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv PeerIsAdmin))
+                ],
+              testGroup
+                "Creating group conversation with LH activated users"
+                [ test s "Non-consenting users cannot be invited to conversation if LH activated users are in conversation" (onlyIfLhWhitelisted testNoConsentCannotBeInvited),
+                  test s "Cannot create conversation with both LH activated and non-consenting users" (onlyIfLhWhitelisted testCannotCreateGroupWithUsersInConflict)
+                ],
               test s "bench hack" testBenchHack,
               test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
               test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
