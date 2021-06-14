@@ -20,7 +20,7 @@ module Federation.End2end where
 import API.Search.Util
 import API.User.Util (getUserClientsQualified)
 import Bilge
-import Bilge.Assert ((!!!), (===))
+import Bilge.Assert ((!!!), (===), (<!!))
 import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types
@@ -71,8 +71,8 @@ spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
-        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
-        test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo
+        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo
+        -- test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo
       ]
 
 -- | Path covered by this test:
