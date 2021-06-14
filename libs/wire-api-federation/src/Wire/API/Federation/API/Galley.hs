@@ -35,6 +35,7 @@ import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
+import Wire.API.Message (Priority)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -144,6 +145,8 @@ data RemoteMessage = RemoteMessage
     rmSender :: Qualified UserId,
     rmSenderClient :: ClientId,
     rmConversation :: ConvId,
+    rmPriority :: Maybe Priority,
+    rmTransient :: Bool,
     rmRecipients :: UserClientMap Text
   }
   deriving stock (Eq, Show, Generic)

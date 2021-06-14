@@ -110,4 +110,6 @@ receiveMessage domain rm =
     (Tagged (Qualified (rmConversation rm) domain))
     (fmap (,(rmSenderClient rm)) (rmSender rm))
     (rmData rm)
+    (rmPriority rm)
+    (rmTransient rm)
     (rmRecipients rm)

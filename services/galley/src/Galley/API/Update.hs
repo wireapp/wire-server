@@ -823,9 +823,11 @@ postRemoteToLocal ::
   Remote ConvId ->
   Qualified (UserId, ClientId) ->
   Maybe Text ->
+  Maybe Priority ->
+  Bool ->
   UserClientMap Text ->
   Galley ()
-postRemoteToLocal now conv sender extra (UserClientMap rcpts) = do
+postRemoteToLocal now conv sender extra priority transient (UserClientMap rcpts) = do
   members <- Data.filterRemoteConvMembers (Map.keys rcpts) (unTagged conv)
   let rcpts' = do
         m <- members
@@ -834,22 +836,26 @@ postRemoteToLocal now conv sender extra (UserClientMap rcpts) = do
   pushSome (map mkPush rcpts')
   where
     mkPush :: (UserId, ClientId, Text) -> Push
-    mkPush = remoteToLocalPush now conv sender extra
+    mkPush = remoteToLocalPush now conv sender extra priority transient
 
 remoteToLocalPush ::
   UTCTime ->
   Remote ConvId ->
   Qualified (UserId, ClientId) ->
   Maybe Text ->
+  Maybe Priority ->
+  Bool ->
   (UserId, ClientId, Text) ->
   Push
-remoteToLocalPush now (Tagged conv) sender extra (rcpt, rcptc, ciphertext) =
+remoteToLocalPush now (Tagged conv) sender extra priority transient (rcpt, rcptc, ciphertext) =
   -- FUTUREWORK: use qualified sender id in message notification
   newPush1
     ListComplete
     (fst (qUnqualified sender))
     (ConvEvent event)
     (singleton (userRecipient rcpt))
+    & pushNativePriority .~ priority
+    & pushTransient .~ transient
   where
     msg =
       OtrMessage
@@ -862,9 +868,7 @@ remoteToLocalPush now (Tagged conv) sender extra (rcpt, rcptc, ciphertext) =
     event = Event OtrMessageAdd conv (fmap fst sender) now (EdOtrMessage msg)
 
 -- TODO
--- <&> set pushConn con
 --   . set pushNativePriority (newOtrNativePriority msg)
---   . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
 --   . set pushTransient (newOtrTransient msg)
 
 newMessage ::

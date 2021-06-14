@@ -223,6 +223,8 @@ receiveMessage = do
             FedGalley.rmSender = qbob,
             FedGalley.rmSenderClient = fromc,
             FedGalley.rmConversation = conv,
+            FedGalley.rmPriority = Nothing,
+            FedGalley.rmTransient = False,
             FedGalley.rmRecipients = rcpts
           }
 
