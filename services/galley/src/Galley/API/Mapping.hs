@@ -23,7 +23,7 @@ import Control.Monad.Catch
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import qualified Data.List as List
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import Data.Tagged (unTagged)
 import Galley.API.Util (viewFederationDomain)
 import Galley.App
@@ -53,16 +53,29 @@ conversationView uid conv = do
       throwM badState
     badState = mkError status500 "bad-state" "Bad internal member state."
 
+conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
+conversationViewMaybe u conv = do
+  domain <- viewFederationDomain
+  conversationViewMaybe' (Qualified u domain) conv
+
 -- | View for a given user of a stored conversation.
 -- Returns 'Nothing' when the user is not part of the conversation.
-conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
-conversationViewMaybe u Data.Conversation {..} = do
+conversationViewMaybe' :: Qualified UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
+conversationViewMaybe' qUid Data.Conversation {..} = do
   domain <- viewFederationDomain
-  let (me, localThem) = List.partition ((u ==) . Internal.memId) convLocalMembers
-  let localMembers = localToOther domain <$> localThem
+  let localMembers = localToOther domain <$> convLocalMembers
   let remoteMembers = remoteToOther <$> convRemoteMembers
-  for (listToMaybe me) $ \m -> do
-    let mems = Public.ConvMembers (toMember m) (localMembers <> remoteMembers)
+  let (me, otherMembers) = List.partition ((qUid ==) . Public.omQualifiedId) (localMembers <> remoteMembers)
+  let userAndConvOnSameBackend = find ((qUnqualified qUid ==) . Internal.memId) convLocalMembers
+  let selfMember =
+        -- if the user and the conversation are on the same backend, we can create a real self member
+        -- otherwise, we need to fall back to a default self member (see futurework)
+        -- (Note: the extra domain check is done to catch the edge case where two users in a conversation have the same unqualified UUID)
+        if isJust userAndConvOnSameBackend && domain == qDomain qUid
+          then toMember <$> userAndConvOnSameBackend
+          else incompleteSelfMember me
+  for selfMember $ \m -> do
+    let mems = Public.ConvMembers m otherMembers
     return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
   where
     localToOther :: Domain -> Internal.LocalMember -> Public.OtherMember
@@ -80,6 +93,25 @@ conversationViewMaybe u Data.Conversation {..} = do
           Public.omService = Nothing,
           Public.omConvRoleName = Internal.rmConvRoleName x
         }
+
+    -- FUTUREWORK(federation): we currently don't store muted, archived etc status for users who are on a different backend than a conversation
+    -- but we should. Once this information is available, the code should be changed to use the stored information, rather than these defaults.
+    incompleteSelfMember :: [Public.OtherMember] -> Maybe Public.Member
+    incompleteSelfMember [] = Nothing
+    incompleteSelfMember [m] =
+      Just $
+        Public.Member
+          (qUnqualified (Public.omQualifiedId m))
+          Nothing
+          False
+          Nothing
+          Nothing
+          False
+          Nothing
+          False
+          Nothing
+          (Public.omConvRoleName m)
+    incompleteSelfMember _ = Nothing -- FUTUREWORK: throw an error here, shouldn't happen
 
 toMember :: Internal.LocalMember -> Public.Member
 toMember x@Internal.InternalMember {..} =
