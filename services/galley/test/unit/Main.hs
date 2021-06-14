@@ -23,6 +23,7 @@ where
 import Imports
 import qualified Test.Galley.API
 import qualified Test.Galley.Intra.User
+import qualified Test.Galley.Mapping
 import qualified Test.Galley.Roundtrip
 import Test.Tasty
 
@@ -32,5 +33,6 @@ main =
     =<< sequence
       [ pure Test.Galley.API.tests,
         pure Test.Galley.Intra.User.tests,
+        pure Test.Galley.Mapping.tests,
         Test.Galley.Roundtrip.tests
       ]

@@ -23,7 +23,7 @@ import Control.Monad.Catch
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import qualified Data.List as List
-import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
+import Data.Qualified (Qualified (..))
 import Data.Tagged (unTagged)
 import Galley.API.Util (viewFederationDomain)
 import Galley.App
