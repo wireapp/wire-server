@@ -40,8 +40,10 @@ federationSitemap =
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
+  domain <- viewFederationDomain
   convs <- Data.conversations gcrConvIds
-  GetConversationsResponse . catMaybes <$> for convs (Mapping.conversationViewMaybeQualified qUid)
+  let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
+  pure $ GetConversationsResponse . catMaybes $ convViews
 
 -- FUTUREWORK: also remove users from conversation
 updateConversationMemberships :: ConversationMemberUpdate -> Galley ()

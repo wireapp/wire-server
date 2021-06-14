@@ -55,15 +55,14 @@ conversationView uid conv = do
 
 conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
 conversationViewMaybe u conv = do
-  domain <- viewFederationDomain
-  conversationViewMaybeQualified (Qualified u domain) conv
+  localDomain <- viewFederationDomain
+  pure $ conversationViewMaybeQualified localDomain (Qualified u localDomain) conv
 
 -- | View for a given user of a stored conversation.
 -- Returns 'Nothing' when the user is not part of the conversation.
-conversationViewMaybeQualified :: Qualified UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
-conversationViewMaybeQualified qUid Data.Conversation {..} = do
-  domain <- viewFederationDomain
-  let localMembers = localToOther domain <$> convLocalMembers
+conversationViewMaybeQualified :: Domain -> Qualified UserId -> Data.Conversation -> Maybe Public.Conversation
+conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
+  let localMembers = localToOther localDomain <$> convLocalMembers
   let remoteMembers = remoteToOther <$> convRemoteMembers
   let (me, otherMembers) = List.partition ((qUid ==) . Public.omQualifiedId) (localMembers <> remoteMembers)
   let userAndConvOnSameBackend = find ((qUnqualified qUid ==) . Internal.memId) convLocalMembers
@@ -71,12 +70,12 @@ conversationViewMaybeQualified qUid Data.Conversation {..} = do
         -- if the user and the conversation are on the same backend, we can create a real self member
         -- otherwise, we need to fall back to a default self member (see futurework)
         -- (Note: the extra domain check is done to catch the edge case where two users in a conversation have the same unqualified UUID)
-        if isJust userAndConvOnSameBackend && domain == qDomain qUid
+        if isJust userAndConvOnSameBackend && localDomain == qDomain qUid
           then toMember <$> userAndConvOnSameBackend
           else incompleteSelfMember me
-  for selfMember $ \m -> do
+  selfMember <&> \m -> do
     let mems = Public.ConvMembers m otherMembers
-    return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
+    Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
   where
     localToOther :: Domain -> Internal.LocalMember -> Public.OtherMember
     localToOther domain x =
