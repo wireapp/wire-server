@@ -1608,7 +1608,7 @@ eqMismatchQualified ::
   Bool
 eqMismatchQualified _ _ _ Nothing = False
 eqMismatchQualified missing redundant deleted (Just other) = do
-   missing == Message.qualifiedMissingClients other
+  missing == Message.qualifiedMissingClients other
     && redundant == Message.qualifiedRedundantClients other
     && deleted == Message.qualifiedDeletedClients other
 

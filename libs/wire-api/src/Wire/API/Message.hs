@@ -31,7 +31,7 @@ module Wire.API.Message
 
     -- * Recipients
     OtrRecipients (..),
-    QualifiedOtrRecipients(..),
+    QualifiedOtrRecipients (..),
     protoFromOtrRecipients,
     UserClientMap (..),
 

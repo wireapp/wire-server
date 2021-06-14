@@ -69,8 +69,8 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
 import qualified Wire.API.Federation.GRPC.Types as F
-import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
 import qualified Wire.API.Message as Message
+import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
 
 tests :: IO TestSetup -> TestTree
 tests s =
