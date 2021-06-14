@@ -43,7 +43,6 @@ import TestSetup
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
-import Wire.API.User.Client (QualifiedUserClientMap (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -190,20 +189,16 @@ receiveMessage = do
   conv <- randomId
   let fromc = newClientId 0
       toc = newClientId 0
-  localDomain <- viewFederationDomain
-  let bdom = Domain "bob.example.com"
+      bdom = Domain "bob.example.com"
       qconv = Qualified conv bdom
       qbob = Qualified bob bdom
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
   let txt = "Hello from another backend"
-  let msg = Map.fromList [(toc, txt)]
-      localRcpts =
+      msg = Map.fromList [(toc, txt)]
+      rcpts =
         UserClientMap $
           Map.fromList [(alice, msg)]
-      rcpts =
-        QualifiedUserClientMap $
-          Map.fromList [(localDomain, localRcpts)]
       rm =
         FedGalley.RemoteMessage
           { FedGalley.rmTime = now,

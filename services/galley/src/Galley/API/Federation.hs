@@ -41,7 +41,7 @@ import Wire.API.Federation.API.Galley
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
-import Wire.API.User.Client (QualifiedUserClientMap (..), UserClientMap (..))
+import Wire.API.User.Client (UserClientMap (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
@@ -113,20 +113,11 @@ receiveMessage domain rm =
     (Tagged (Qualified (rmConversation rm) domain))
     (fmap (,(rmSenderClient rm)) (rmSender rm))
     (rmData rm)
-    (expandQUCMap (rmRecipients rm))
+    (expandUCMap (rmRecipients rm))
   where
-    -- TODO: is there an easier way to do this conversion?
-    expandQUCMap :: QualifiedUserClientMap a -> [(Qualified (UserId, ClientId), a)]
-    expandQUCMap =
-      map (\(d, (x, a)) -> (Qualified x d, a))
-        . (>>= sequenceA)
-        . map (fmap expandUCMap)
-        . Map.assocs
-        . qualifiedUserClientMap
-
-    expandUCMap :: UserClientMap a -> [((UserId, ClientId), a)]
+    expandUCMap :: UserClientMap a -> [(UserId, ClientId, a)]
     expandUCMap =
-      map (\(u, (c, a)) -> ((u, c), a))
+      map (\(u, (c, a)) -> (u, c, a))
         . (>>= sequenceA)
         . map (fmap Map.assocs)
         . Map.assocs

@@ -35,7 +35,7 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
-import Wire.API.User.Client (QualifiedUserClientMap)
+import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -144,7 +144,7 @@ data RemoteMessage = RemoteMessage
     rmSender :: Qualified UserId,
     rmSenderClient :: ClientId,
     rmConversation :: ConvId,
-    rmRecipients :: QualifiedUserClientMap Text
+    rmRecipients :: UserClientMap Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteMessage)

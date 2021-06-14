@@ -823,12 +823,12 @@ postRemoteToLocal ::
   Remote ConvId ->
   Qualified (UserId, ClientId) ->
   Maybe Text ->
-  [(Qualified (UserId, ClientId), Text)] ->
+  [(UserId, ClientId, Text)] ->
   Galley ()
 postRemoteToLocal now conv sender extra =
-  pushSome . map (uncurry mkPush)
+  pushSome . map mkPush
   where
-    mkPush :: Qualified (UserId, ClientId) -> Text -> Push
+    mkPush :: (UserId, ClientId, Text) -> Push
     mkPush = remoteToLocalPush now conv sender extra
 
 remoteToLocalPush ::
@@ -836,23 +836,21 @@ remoteToLocalPush ::
   Remote ConvId ->
   Qualified (UserId, ClientId) ->
   Maybe Text ->
-  Qualified (UserId, ClientId) ->
-  Text ->
+  (UserId, ClientId, Text) ->
   Push
-remoteToLocalPush now (Tagged conv) sender extra rcpt ciphertext =
+remoteToLocalPush now (Tagged conv) sender extra (rcpt, rcptc, ciphertext) =
   -- FUTUREWORK: use qualified sender id in message notification
   newPush1
     ListComplete
     (fst (qUnqualified sender))
     (ConvEvent event)
-    (singleton (userRecipient (fst (qUnqualified rcpt))))
+    (singleton (userRecipient rcpt))
   where
     msg =
       OtrMessage
-        { -- FUTUREWORK: use sender domain after merging #1593
+        { -- FUTUREWORK: use sender domain
           otrSender = snd (qUnqualified sender),
-          -- FUTUREWORK: use recipient domain after merging #1593
-          otrRecipient = snd (qUnqualified rcpt),
+          otrRecipient = rcptc,
           otrCiphertext = ciphertext,
           otrData = extra
         }
