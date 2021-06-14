@@ -260,26 +260,27 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
 
 -- | This creates a new conversation with a remote user. The test checks that
 -- Galleys on both ends of the federation see the same conversation members.
-testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
-testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
-  alice <- randomUser brig1
-  bob <- randomUser brig2
+-- testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
+-- testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
+--   alice <- randomUser brig1
+--   bob <- randomUser brig2
 
-  let conv = NewConvUnmanaged $ NewConv [] [userQualifiedId bob] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
-  convId <-
-    cnvId . responseJsonUnsafe
-      <$> post
-        ( galley1
-            . path "/conversations"
-            . zUser (userId alice)
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . json conv
-        )
+--   let conv = NewConvUnmanaged $ NewConv [] [userQualifiedId bob] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+--   convId <-
+--     cnvId . responseJsonUnsafe
+--       <$> post
+--         ( galley1
+--             . path "/conversations"
+--             . zUser (userId alice)
+--             . zConn "conn"
+--             . header "Z-Type" "access"
+--             . json conv
+--         )
 
+--   undefined
   -- test GET /conversations/:backend1Domain/:cnv
-  testQualifiedGetConversation galley1 "galley1" alice bob convId
-  testQualifiedGetConversation galley2 "galley2" bob alice convId
+  -- testQualifiedGetConversation galley1 "galley1" alice bob convId
+  -- testQualifiedGetConversation galley2 "galley2" bob alice convId
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
