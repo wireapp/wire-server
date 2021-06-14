@@ -823,10 +823,15 @@ postRemoteToLocal ::
   Remote ConvId ->
   Qualified (UserId, ClientId) ->
   Maybe Text ->
-  [(UserId, ClientId, Text)] ->
+  UserClientMap Text ->
   Galley ()
-postRemoteToLocal now conv sender extra =
-  pushSome . map mkPush
+postRemoteToLocal now conv sender extra (UserClientMap rcpts) = do
+  members <- Data.filterRemoteConvMembers (Map.keys rcpts) (unTagged conv)
+  let rcpts' = do
+        m <- members
+        (c, t) <- maybe [] Map.assocs (rcpts ^? ix m)
+        pure (m, c, t)
+  pushSome (map mkPush rcpts')
   where
     mkPush :: (UserId, ClientId, Text) -> Push
     mkPush = remoteToLocalPush now conv sender extra

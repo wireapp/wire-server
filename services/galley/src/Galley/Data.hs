@@ -86,6 +86,7 @@ module Galley.Data
     removeMembers,
     removeLocalMembers,
     updateMember,
+    filterRemoteConvMembers,
 
     -- * Conversation Codes
     lookupCode,
@@ -898,6 +899,11 @@ updateMember cid uid mup = do
         misHiddenRef = mupHiddenRef mup,
         misConvRoleName = mupConvRoleName mup
       }
+
+filterRemoteConvMembers :: MonadClient m => [UserId] -> Qualified ConvId -> m [UserId]
+filterRemoteConvMembers users (Qualified conv dom) =
+  fmap (map runIdentity) . retry x5 $
+    query Cql.selectRemoteConvMembership (params One (users, dom, conv))
 
 removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> m Event
 removeLocalMembers localDomain conv orig localVictims = removeMembers localDomain conv orig localVictims []

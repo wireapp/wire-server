@@ -18,8 +18,6 @@ module Galley.API.Federation where
 
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
-import Data.Id (ClientId, UserId)
-import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import Data.Tagged
 import qualified Galley.API.Mapping as Mapping
@@ -41,7 +39,6 @@ import Wire.API.Federation.API.Galley
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
-import Wire.API.User.Client (UserClientMap (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
@@ -113,12 +110,4 @@ receiveMessage domain rm =
     (Tagged (Qualified (rmConversation rm) domain))
     (fmap (,(rmSenderClient rm)) (rmSender rm))
     (rmData rm)
-    (expandUCMap (rmRecipients rm))
-  where
-    expandUCMap :: UserClientMap a -> [(UserId, ClientId, a)]
-    expandUCMap =
-      map (\(u, (c, a)) -> (u, c, a))
-        . (>>= sequenceA)
-        . map (fmap Map.assocs)
-        . Map.assocs
-        . userClientMap
+    (rmRecipients rm)

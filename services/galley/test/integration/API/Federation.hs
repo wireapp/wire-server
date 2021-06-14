@@ -183,22 +183,39 @@ notifyLocalUser = do
 
 receiveMessage :: TestM ()
 receiveMessage = do
+  localDomain <- viewFederationDomain
   c <- view tsCannon
   alice <- randomUser
+  eve <- randomUser
   bob <- randomId
   conv <- randomId
   let fromc = newClientId 0
-      toc = newClientId 0
+      alicec = newClientId 0
+      evec = newClientId 0
       bdom = Domain "bob.example.com"
       qconv = Qualified conv bdom
       qbob = Qualified bob bdom
+      qalice = Qualified alice localDomain
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
+
+  -- only add alice to the remote conversation
+  let cmu =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qbob,
+            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuAlreadyPresentUsers = [],
+            FedGalley.cmuUsersAdd = [(qalice, roleNameWireMember)],
+            FedGalley.cmuUsersRemove = []
+          }
+  FedGalley.updateConversationMemberships fedGalleyClient cmu
+
   let txt = "Hello from another backend"
-      msg = Map.fromList [(toc, txt)]
+      msg client = Map.fromList [(client, txt)]
       rcpts =
         UserClientMap $
-          Map.fromList [(alice, msg)]
+          Map.fromList [(alice, msg alicec), (eve, msg evec)]
       rm =
         FedGalley.RemoteMessage
           { FedGalley.rmTime = now,
@@ -208,14 +225,19 @@ receiveMessage = do
             FedGalley.rmConversation = conv,
             FedGalley.rmRecipients = rcpts
           }
-  WS.bracketR c alice $ \ws -> do
+
+  -- send message to alice and check reception
+  WS.bracketR2 c alice eve $ \(wsA, wsE) -> do
     FedGalley.receiveMessage fedGalleyClient bdom rm
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $ \n ->
+    liftIO $ do
+      -- alice should receive the message
+      WS.assertMatch_ (5 # Second) wsA $ \n ->
         do
           let e = List1.head (WS.unpackPayload n)
           ntfTransient n @?= False
           evtConv e @?= qconv
           evtType e @?= OtrMessageAdd
           evtFrom e @?= qbob
-          evtData e @?= EdOtrMessage (OtrMessage fromc toc txt Nothing)
+          evtData e @?= EdOtrMessage (OtrMessage fromc alicec txt Nothing)
+      -- eve should not receive the message
+      WS.assertNoEvent (1 # Second) [wsE]
