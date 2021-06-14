@@ -210,11 +210,11 @@ receiveMessage = do
             FedGalley.rmData = Nothing,
             FedGalley.rmSender = qbob,
             FedGalley.rmSenderClient = fromc,
-            FedGalley.rmConversation = qconv,
+            FedGalley.rmConversation = conv,
             FedGalley.rmRecipients = rcpts
           }
   WS.bracketR c alice $ \ws -> do
-    FedGalley.receiveMessage fedGalleyClient rm
+    FedGalley.receiveMessage fedGalleyClient bdom rm
     void . liftIO $
       WS.assertMatch (5 # Second) ws $ \n ->
         do

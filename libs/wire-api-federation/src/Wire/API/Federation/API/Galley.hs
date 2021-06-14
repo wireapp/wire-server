@@ -19,13 +19,13 @@ module Wire.API.Federation.API.Galley where
 
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Domain (Domain)
+import Data.Domain
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, Summary, (:>))
+import Servant.API (Header', JSON, Post, ReqBody, Required, Strict, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -70,6 +70,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "receive-message"
+        :> Header' '[Strict, Required] "Wire-Origin-Domain" Domain
         :> ReqBody '[JSON] RemoteMessage
         :> Post '[JSON] ()
   }
@@ -142,9 +143,7 @@ data RemoteMessage = RemoteMessage
     rmData :: Maybe Text,
     rmSender :: Qualified UserId,
     rmSenderClient :: ClientId,
-    -- FUTUREWORK: ensure that the conversation domain is the same as the
-    -- originDomain of the federated request
-    rmConversation :: Qualified ConvId,
+    rmConversation :: ConvId,
     rmRecipients :: QualifiedUserClientMap Text
   }
   deriving stock (Eq, Show, Generic)
