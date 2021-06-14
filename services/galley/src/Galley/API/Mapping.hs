@@ -56,12 +56,12 @@ conversationView uid conv = do
 conversationViewMaybe :: UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
 conversationViewMaybe u conv = do
   domain <- viewFederationDomain
-  conversationViewMaybe' (Qualified u domain) conv
+  conversationViewMaybeQualified (Qualified u domain) conv
 
 -- | View for a given user of a stored conversation.
 -- Returns 'Nothing' when the user is not part of the conversation.
-conversationViewMaybe' :: Qualified UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
-conversationViewMaybe' qUid Data.Conversation {..} = do
+conversationViewMaybeQualified :: Qualified UserId -> Data.Conversation -> Galley (Maybe Public.Conversation)
+conversationViewMaybeQualified qUid Data.Conversation {..} = do
   domain <- viewFederationDomain
   let localMembers = localToOther domain <$> convLocalMembers
   let remoteMembers = remoteToOther <$> convRemoteMembers
