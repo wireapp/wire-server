@@ -92,7 +92,7 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
-import Wire.API.Routes.Public (Empty200 (..), Empty404 (..))
+import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -1058,8 +1058,8 @@ checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUs
 checkUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists
-    then Servant.respond Empty200
-    else Servant.respond Empty404
+    then Servant.respond (EmptyResult @200)
+    else Servant.respond (EmptyResult @404)
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =

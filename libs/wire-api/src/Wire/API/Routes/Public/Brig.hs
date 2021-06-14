@@ -32,7 +32,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Routes.Public (Empty200, Empty404, ZUser)
+import Wire.API.Routes.Public (EmptyResult, ZUser)
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -42,7 +42,7 @@ import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
 
-type CheckUserExistsResponse = [Empty200, Empty404]
+type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -67,7 +67,7 @@ data Api routes = Api
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> UVerb 'HEAD '[JSON] CheckUserExistsResponse,
+        :> UVerb 'HEAD '[] CheckUserExistsResponse,
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -81,7 +81,7 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> UVerb 'HEAD '[JSON] CheckUserExistsResponse,
+        :> UVerb 'HEAD '[] CheckUserExistsResponse,
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
