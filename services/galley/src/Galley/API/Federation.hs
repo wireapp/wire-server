@@ -16,7 +16,6 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
-import Control.Lens
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
 import Data.Id (ClientId, UserId)
@@ -120,7 +119,7 @@ receiveMessage rm =
     expandQUCMap :: QualifiedUserClientMap a -> [(Qualified (UserId, ClientId), a)]
     expandQUCMap =
       map (\(d, (x, a)) -> (Qualified x d, a))
-        . (>>= sequenceAOf _2)
+        . (>>= sequenceA)
         . map (fmap expandUCMap)
         . Map.assocs
         . qualifiedUserClientMap
@@ -128,7 +127,7 @@ receiveMessage rm =
     expandUCMap :: UserClientMap a -> [((UserId, ClientId), a)]
     expandUCMap =
       map (\(u, (c, a)) -> ((u, c), a))
-        . (>>= sequenceAOf _2)
+        . (>>= sequenceA)
         . map (fmap Map.assocs)
         . Map.assocs
         . userClientMap
