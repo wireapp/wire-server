@@ -106,7 +106,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let (remotes, locals) = fromConvSize checkedPartitionedUsers
   ensureConnected zusr locals
   checkRemoteUsersExist remotes
-  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers. (also for createTeamGroupConv)
+  -- FUTUREWORK: Implement (3) per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
       localDomain
@@ -167,7 +167,7 @@ createTeamGroupConv zusr zcon tinfo body = do
         ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convLocalMemberships))
         pure checkedPartitionedUsers
   checkRemoteUsersExist remotes
-  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
+  -- FUTUREWORK: Implement (3) per comments for Update.addMembers.
   conv <-
     Data.createConversation
       localDomain
