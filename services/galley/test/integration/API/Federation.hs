@@ -23,14 +23,17 @@ import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Lens hiding ((#))
 import Data.Domain
-import Data.Id (Id (..), randomId)
+import Data.Id (Id (..), newClientId, randomId)
 import Data.List1
+import qualified Data.List1 as List1
+import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Data.Queries as Cql
 import Galley.Types
+import Gundeck.Types.Notification
 import Imports
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -40,6 +43,7 @@ import TestSetup
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
+import Wire.API.User.Client (QualifiedUserClientMap (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -54,7 +58,8 @@ tests s =
       test
         s
         "POST /federation/update-conversation-memberships : Notify local user about other members joining"
-        notifyLocalUser
+        notifyLocalUser,
+      test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage
     ]
 
 getConversationsAllFound :: TestM ()
@@ -176,3 +181,46 @@ notifyLocalUser = do
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertMemberJoinWithRole qconv qbob [qcharlie] roleNameWireMember
+
+receiveMessage :: TestM ()
+receiveMessage = do
+  c <- view tsCannon
+  alice <- randomUser
+  bob <- randomId
+  conv <- randomId
+  let fromc = newClientId 0
+      toc = newClientId 0
+  localDomain <- viewFederationDomain
+  let bdom = Domain "bob.example.com"
+      qconv = Qualified conv bdom
+      qbob = Qualified bob bdom
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+  let txt = "Hello from another backend"
+  let msg = Map.fromList [(toc, txt)]
+      localRcpts =
+        UserClientMap $
+          Map.fromList [(alice, msg)]
+      rcpts =
+        QualifiedUserClientMap $
+          Map.fromList [(localDomain, localRcpts)]
+      rm =
+        FedGalley.RemoteMessage
+          { FedGalley.rmTime = now,
+            FedGalley.rmData = Nothing,
+            FedGalley.rmSender = qbob,
+            FedGalley.rmSenderClient = fromc,
+            FedGalley.rmConversation = qconv,
+            FedGalley.rmRecipients = rcpts
+          }
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.receiveMessage fedGalleyClient rm
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $ \n ->
+        do
+          let e = List1.head (WS.unpackPayload n)
+          ntfTransient n @?= False
+          evtConv e @?= qconv
+          evtType e @?= OtrMessageAdd
+          evtFrom e @?= qbob
+          evtData e @?= EdOtrMessage (OtrMessage fromc toc txt Nothing)
