@@ -84,3 +84,8 @@ type UnknownClient = ErrorDescription 403 "Unknown Client"
 
 unknownClient :: UnknownClient
 unknownClient = ErrorDescription "unknown-client" "Sending client not known"
+
+type ClientNotFound = ErrorDescription 404 "Client not found"
+
+clientNotFound :: ClientNotFound
+clientNotFound = ErrorDescription "client-not-found" "client not found"

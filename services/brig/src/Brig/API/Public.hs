@@ -91,8 +91,9 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
+import qualified Wire.API.ErrorDescription as ErrorDescription
 import qualified Wire.API.Properties as Public
-import Wire.API.Routes.Public (Empty200 (..), Empty404 (..), EmptyResult (..))
+import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -808,10 +809,9 @@ listClients zusr =
 
 getClient :: UserId -> ClientId -> Handler (Union BrigAPI.GetClientResponse)
 getClient zusr clientId = do
-  localdomain <- viewFederationDomain
-  mc <- API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
+  mc <- lift $ API.lookupLocalClient zusr clientId
   case mc of
-    Nothing -> Servant.respond Empty404
+    Nothing -> Servant.respond ErrorDescription.clientNotFound
     Just c -> Servant.respond (WithStatus @200 c)
 
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]

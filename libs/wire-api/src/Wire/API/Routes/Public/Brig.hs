@@ -33,7 +33,8 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Routes.Public (Empty200, Empty404, EmptyResult, ZConn, ZUser)
+import Wire.API.ErrorDescription (ClientNotFound)
+import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -51,7 +52,7 @@ type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
-type GetClientResponse = [WithStatus 200 Client, Empty404]
+type GetClientResponse = [WithStatus 200 Client, ClientNotFound]
 
 data Api routes = Api
   { -- Note [document responses]
