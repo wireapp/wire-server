@@ -50,6 +50,7 @@ import Data.List1 as List1
 import qualified Data.Map as LMap
 import qualified Data.Map.Strict as Map
 import Data.Misc
+import qualified Data.ProtoLens as Protolens
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Qualified
 import Data.Range
@@ -58,6 +59,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Read as Reader
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Galley.Intra.User (chunkify)
@@ -80,6 +82,8 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
+import qualified Proto.Otr
+import qualified Proto.Otr_Fields as Proto.Otr
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -616,6 +620,24 @@ postOtrMessage' reportMissing f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissing)
 
+postOtrMessageQualified ::
+  UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  [(Qualified UserId, ClientId, ByteString)] ->
+  Message.ClientMismatchStrategy ->
+  TestM ResponseLBS
+postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipients strat = do
+  g <- view tsGalley
+  post $
+    g
+      . paths ["conversations", toByteString' domain, toByteString' conv, "otr", "messages"]
+      . zUser senderUser
+      . zConn "conn"
+      . zType "access"
+      . contentProtobuf
+      . bytes (Protolens.encodeMessage (mkQualifiedOtrPayload senderClient recipients strat))
+
 -- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
 postOtrBroadcastMessage req usrs clt rcps = do
@@ -642,6 +664,75 @@ mkOtrPayload sender rec reportMissingBody =
       "data" .= Just ("data" :: Text),
       "report_missing" .= reportMissingBody
     ]
+
+mkQualifiedOtrPayload :: ClientId -> [(Qualified UserId, ClientId, ByteString)] -> Message.ClientMismatchStrategy -> Proto.Otr.QualifiedNewOtrMessage
+mkQualifiedOtrPayload sender recipients strat =
+  Protolens.defMessage
+    & Proto.Otr.sender .~ clientIdToProto sender
+    & Proto.Otr.recipients .~ mkQualifiedUserEntries recipients
+    & ( case strat of
+          Message.MismatchIgnoreAll -> Proto.Otr.ignoreAll .~ Protolens.defMessage
+          Message.MismatchReportAll -> Proto.Otr.reportAll .~ Protolens.defMessage
+          Message.MismatchIgnoreOnly quids ->
+            Proto.Otr.ignoreOnly
+              .~ ( Protolens.defMessage
+                     & Proto.Otr.userIds .~ map qualifiedUserIdToProto (Set.toList quids)
+                 )
+          Message.MismatchReportOnly quids ->
+            Proto.Otr.reportOnly
+              .~ ( Protolens.defMessage
+                     & Proto.Otr.userIds .~ map qualifiedUserIdToProto (Set.toList quids)
+                 )
+      )
+
+clientIdToProto :: ClientId -> Proto.Otr.ClientId
+clientIdToProto cid =
+  Protolens.defMessage
+    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ client cid)
+
+userIdToProto :: UserId -> Proto.Otr.UserId
+userIdToProto uid =
+  Protolens.defMessage
+    & Proto.Otr.uuid .~ Lazy.toStrict (UUID.toByteString (toUUID uid))
+
+qualifiedUserIdToProto :: Qualified UserId -> Proto.Otr.QualifiedUserId
+qualifiedUserIdToProto (Qualified uid domain) =
+  Protolens.defMessage
+    & Proto.Otr.id .~ idToText uid
+    & Proto.Otr.domain .~ domainText domain
+
+mkQualifiedUserEntries :: [(Qualified UserId, ClientId, ByteString)] -> [Proto.Otr.QualifiedUserEntry]
+mkQualifiedUserEntries xs =
+  let domainMap =
+        foldr
+          (\(quid, client, msg) -> Map.insertWith nestedMerge (qDomain quid) [mkUserEntry (qUnqualified quid, client, msg)])
+          Map.empty
+          xs
+   in flip Map.foldMapWithKey domainMap $ \domain entries ->
+        [ Protolens.defMessage
+            & Proto.Otr.domain .~ domainText domain
+            & Proto.Otr.entries .~ entries
+        ]
+  where
+    nestedMerge :: [Proto.Otr.UserEntry] -> [Proto.Otr.UserEntry] -> [Proto.Otr.UserEntry]
+    nestedMerge existingEntries [newEntry] =
+      let matchingEntry = find (\e -> view Proto.Otr.user e == view Proto.Otr.user newEntry) existingEntries
+          mergeInto = Proto.Otr.clients <>~ view Proto.Otr.clients newEntry
+       in case matchingEntry of
+            Nothing -> newEntry : existingEntries
+            Just x -> mergeInto x : filter (== x) existingEntries
+    nestedMerge _existingEntries newEntries =
+      error $ "newEntries should always be exactly 1, got: " <> show newEntries
+
+mkUserEntry :: (UserId, ClientId, ByteString) -> Proto.Otr.UserEntry
+mkUserEntry (uid, cid, txt) =
+  Protolens.defMessage
+    & Proto.Otr.user .~ userIdToProto uid
+    & Proto.Otr.clients
+      .~ [ Protolens.defMessage
+             & Proto.Otr.client .~ clientIdToProto cid
+             & Proto.Otr.text .~ txt
+         ]
 
 mkOtrMessage :: (UserId, ClientId, Text) -> (Text, HashMap.HashMap Text Text)
 mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
@@ -1174,6 +1265,9 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = cnvId . responseJsonUnsafe
 
+decodeQualifiedConvId :: Response (Maybe Lazy.ByteString) -> Qualified ConvId
+decodeQualifiedConvId = undefined
+
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
 
@@ -1461,8 +1555,13 @@ isMember usr cnv = do
 
 randomUserWithClient :: LastPrekey -> TestM (UserId, ClientId)
 randomUserWithClient lk = do
-  u <- randomUser
-  c <- randomClient u lk
+  (u, c) <- randomUserWithClientQualified lk
+  return (qUnqualified u, c)
+
+randomUserWithClientQualified :: LastPrekey -> TestM (Qualified UserId, ClientId)
+randomUserWithClientQualified lk = do
+  u <- randomQualifiedUser
+  c <- randomClient (qUnqualified u) lk
   return (u, c)
 
 newNonce :: TestM (Id ())
@@ -1499,6 +1598,19 @@ eqMismatch mssd rdnt dltd (Just other) =
   where
     userClients :: [(UserId, Set ClientId)] -> UserClients
     userClients = UserClients . Map.fromList
+
+eqMismatchQualified ::
+  HasCallStack =>
+  Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
+  Maybe Message.QualifiedClientMismatch ->
+  Bool
+eqMismatchQualified _ _ _ Nothing = False
+eqMismatchQualified missing redundant deleted (Just other) = do
+   missing == Message.qualifiedMissingClients other
+    && redundant == Message.qualifiedRedundantClients other
+    && deleted == Message.qualifiedDeletedClients other
 
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap

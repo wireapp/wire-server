@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 63f50e23b5853d8dd4b8b87b8588dc8499783ec5e7e72a181b0ccb399089a6ed
+-- hash: a4ea032f769eb8077cf7211ad7e424f8c2ddbc471d5de5f4d4397ce81d58c195
 
 name:           galley
 version:        0.83.0
@@ -276,6 +276,7 @@ executable galley-integration
     , warp-tls >=3.2
     , wire-api
     , wire-api-federation
+    , wire-message-proto-lens
     , yaml
   default-language: Haskell2010
 

@@ -18,6 +18,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- TODO: Write a long comment about why this module interfaces with two
+-- different Protobuf libraries and which functions mean what.
 module Wire.API.Message
   ( -- * Message
     NewOtrMessage (..),
@@ -29,12 +31,14 @@ module Wire.API.Message
 
     -- * Recipients
     OtrRecipients (..),
+    QualifiedOtrRecipients(..),
     protoFromOtrRecipients,
     UserClientMap (..),
 
     -- * Mismatch
     OtrFilterMissing (..),
     ClientMismatch (..),
+    ClientMismatchStrategy (..),
     QualifiedClientMismatch (..),
     UserClients (..),
     ReportMissing (..),
@@ -58,8 +62,9 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import qualified Data.ProtoLens as ProtoLens
+import qualified Data.ProtoLens.Field as ProtoLens
 import qualified Data.ProtocolBuffers as Protobuf
-import Data.Qualified (Qualified)
+import Data.Qualified (Qualified (..))
 import Data.Schema
 import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
@@ -158,7 +163,7 @@ data QualifiedNewOtrMessage = QualifiedNewOtrMessage
     qualifiedNewOtrNativePush :: Bool,
     qualifiedNewOtrTransient :: Bool,
     qualifiedNewOtrNativePriority :: Maybe Priority,
-    qualifiedNewOtrData :: Maybe Text,
+    qualifiedNewOtrData :: ByteString,
     qualifiedNewOtrClientMismatchStrategy :: ClientMismatchStrategy
   }
   deriving stock (Eq, Show, Generic)
@@ -175,24 +180,25 @@ instance S.ToSchema QualifiedNewOtrMessage where
                \https://github.com/wireapp/generic-message-proto/blob/master/proto/otr.proto."
 
 instance FromProto QualifiedNewOtrMessage where
-  fromProto bs = foo =<< ProtoLens.decodeMessage (LBS.toStrict bs)
+  fromProto bs = protolensToQualifiedNewOtrMessage =<< ProtoLens.decodeMessage (LBS.toStrict bs)
 
-foo :: Proto.Otr.QualifiedNewOtrMessage -> Either String QualifiedNewOtrMessage
-foo protoMsg = do
+protolensToQualifiedNewOtrMessage :: Proto.Otr.QualifiedNewOtrMessage -> Either String QualifiedNewOtrMessage
+protolensToQualifiedNewOtrMessage protoMsg = do
   recipients <- protolensOtrRecipientsToOtrRecipients $ view Proto.Otr.recipients protoMsg
+  strat <- protolensToClientMismatchStrategy $ view Proto.Otr.maybe'clientMismatchStrategy protoMsg
   pure $
     QualifiedNewOtrMessage
-      { qualifiedNewOtrSender = protolensClientIdToClientId $ view Proto.Otr.sender protoMsg,
+      { qualifiedNewOtrSender = protolensToClientId $ view Proto.Otr.sender protoMsg,
         qualifiedNewOtrRecipients = recipients,
-        qualifiedNewOtrNativePush = undefined,
-        qualifiedNewOtrTransient = undefined,
-        qualifiedNewOtrNativePriority = undefined,
-        qualifiedNewOtrData = undefined,
-        qualifiedNewOtrClientMismatchStrategy = undefined
+        qualifiedNewOtrNativePush = view Proto.Otr.nativePush protoMsg,
+        qualifiedNewOtrTransient = view Proto.Otr.transient protoMsg,
+        qualifiedNewOtrNativePriority = protolensToPriority <$> view Proto.Otr.maybe'nativePriority protoMsg,
+        qualifiedNewOtrData = view Proto.Otr.blob protoMsg,
+        qualifiedNewOtrClientMismatchStrategy = strat
       }
 
-protolensClientIdToClientId :: Proto.Otr.ClientId -> ClientId
-protolensClientIdToClientId = newClientId . view Proto.Otr.client
+protolensToClientId :: Proto.Otr.ClientId -> ClientId
+protolensToClientId = newClientId . view Proto.Otr.client
 
 --------------------------------------------------------------------------------
 -- Priority
@@ -231,6 +237,11 @@ instance ToSchema Priority where
 protoToPriority :: Proto.Priority -> Priority
 protoToPriority Proto.LowPriority = LowPriority
 protoToPriority Proto.HighPriority = HighPriority
+
+protolensToPriority :: Proto.Otr.Priority -> Priority
+protolensToPriority = \case
+  Proto.Otr.LOW_PRIORITY -> LowPriority
+  Proto.Otr.HIGH_PRIORITY -> HighPriority
 
 --------------------------------------------------------------------------------
 -- Recipients
@@ -277,7 +288,7 @@ protoFromOtrRecipients rcps =
 
 -- TODO: The message type should be ByteString
 newtype QualifiedOtrRecipients = QualifiedOtrRecipients
-  { qualifiedOtrRecipientsMap :: QualifiedUserClientMap Text
+  { qualifiedOtrRecipientsMap :: QualifiedUserClientMap ByteString
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
@@ -286,10 +297,10 @@ protolensOtrRecipientsToOtrRecipients :: [Proto.Otr.QualifiedUserEntry] -> Eithe
 protolensOtrRecipientsToOtrRecipients entries =
   QualifiedOtrRecipients . QualifiedUserClientMap <$> protolensToQualifiedUCMap entries
   where
-    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (UserClientMap Text))
+    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (UserClientMap ByteString))
     protolensToQualifiedUCMap qualifiedEntries = parseMap (mkDomain . view Proto.Otr.domain) (protolensToUCMap . view Proto.Otr.entries) qualifiedEntries
 
-    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (UserClientMap Text)
+    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (UserClientMap ByteString)
     protolensToUCMap es = UserClientMap <$> parseMap parseUserId parseClientMap es
 
     parseUserId :: Proto.Otr.UserEntry -> Either String UserId
@@ -300,14 +311,14 @@ protolensOtrRecipientsToOtrRecipients entries =
         . view Proto.Otr.uuid
         . view Proto.Otr.user
 
-    parseClientMap :: Proto.Otr.UserEntry -> Either String (Map ClientId Text)
+    parseClientMap :: Proto.Otr.UserEntry -> Either String (Map ClientId ByteString)
     parseClientMap entry = parseMap parseClientId parseText $ view Proto.Otr.clients entry
 
     parseClientId :: Proto.Otr.ClientEntry -> Either String ClientId
-    parseClientId = pure . protolensClientIdToClientId . view Proto.Otr.client
+    parseClientId = pure . protolensToClientId . view Proto.Otr.client
 
-    parseText :: Proto.Otr.ClientEntry -> Either String Text
-    parseText = pure . toBase64Text . view Proto.Otr.text
+    parseText :: Proto.Otr.ClientEntry -> Either String ByteString
+    parseText = pure . view Proto.Otr.text
 
 parseMap :: (Applicative f, Ord k) => (a -> f k) -> (a -> f v) -> [a] -> f (Map k v)
 parseMap keyParser valueParser xs = Map.fromList <$> traverse (\x -> (,) <$> keyParser x <*> valueParser x) xs
@@ -338,6 +349,27 @@ data ClientMismatchStrategy
   | MismatchIgnoreOnly (Set (Qualified UserId))
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientMismatchStrategy)
+
+protolensToClientMismatchStrategy :: Maybe Proto.Otr.QualifiedNewOtrMessage'ClientMismatchStrategy -> Either String ClientMismatchStrategy
+protolensToClientMismatchStrategy = \case
+  Nothing -> Right MismatchReportAll
+  Just (Proto.Otr.QualifiedNewOtrMessage'IgnoreAll _) -> Right MismatchIgnoreAll
+  Just (Proto.Otr.QualifiedNewOtrMessage'ReportAll _) -> Right MismatchReportAll
+  Just (Proto.Otr.QualifiedNewOtrMessage'IgnoreOnly ignoreOnly) -> MismatchIgnoreOnly <$> protolensToSetQualifiedUserIds ignoreOnly
+  Just (Proto.Otr.QualifiedNewOtrMessage'ReportOnly reportOnly) -> MismatchReportOnly <$> protolensToSetQualifiedUserIds reportOnly
+
+protolensToSetQualifiedUserIds :: ProtoLens.HasField s "userIds" [Proto.Otr.QualifiedUserId] => s -> Either String (Set (Qualified UserId))
+protolensToSetQualifiedUserIds = fmap Set.fromList . mapM protolensToQualifiedUserId . view Proto.Otr.userIds
+
+protolensToQualifiedUserId :: Proto.Otr.QualifiedUserId -> Either String (Qualified UserId)
+protolensToQualifiedUserId protoQuid =
+  Qualified
+    <$> parseIdFromText (view Proto.Otr.id protoQuid)
+    <*> mkDomain (view Proto.Otr.domain protoQuid)
+
+-- TODO: Move this to Data.Id
+parseIdFromText :: Text -> Either String (Id a)
+parseIdFromText = maybe (Left "Failed to parseUUID") (Right . Id) . UUID.fromText
 
 data ClientMismatch = ClientMismatch
   { cmismatchTime :: UTCTimeMillis,

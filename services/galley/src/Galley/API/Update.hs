@@ -66,8 +66,10 @@ import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
+import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
+import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
@@ -78,6 +80,7 @@ import Data.Misc (FutureWork (..))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import qualified Data.Text.Encoding as Text
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
@@ -643,8 +646,50 @@ postBotMessage zbot zcnv val message = do
   postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
 
 -- FUTUREWORK: Send message to remote users
-postOtrMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage  -> Galley (Union GalleyAPI.PostOtrResponses)
-postOtrMessage zusr zcon domain cnv msg = undefined
+-- TODO: Fail if conversation is remote
+postOtrMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postOtrMessage zusr zcon _domain cnv msg =
+  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv Public.OtrReportAllMissing =<< toUnqualifiedMessage msg
+  where
+    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
+    translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch)
+    translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch)
+    translateToServant (OtrUnknownClient e) = Servant.respond e
+    translateToServant (OtrConversationNotFound e) = Servant.respond e
+
+    -- Temporary function, it should go away when we implement federated messaging
+    qualifyMismatch :: Public.ClientMismatch -> Galley Public.QualifiedClientMismatch
+    qualifyMismatch cm = do
+      domain <- viewFederationDomain
+      pure
+        Public.QualifiedClientMismatch
+          { Public.qualifiedMismatchTime = Public.cmismatchTime cm,
+            Public.qualifiedDeletedClients = qualifyUserClients domain $ Public.deletedClients cm,
+            Public.qualifiedMissingClients = qualifyUserClients domain $ Public.missingClients cm,
+            Public.qualifiedRedundantClients = qualifyUserClients domain $ Public.redundantClients cm
+          }
+    qualifyUserClients :: Domain -> Client.UserClients -> Client.QualifiedUserClients
+    qualifyUserClients domain userClients =
+      if userClients == mempty
+        then mempty
+        else Client.QualifiedUserClients . Map.singleton domain $ userClients
+
+    -- Temporary function, it should go away when we implement federated messaging
+    toUnqualifiedMessage :: Public.QualifiedNewOtrMessage -> Galley Public.NewOtrMessage
+    toUnqualifiedMessage qmsg = do
+      domain <- viewFederationDomain
+      pure
+        Public.NewOtrMessage
+          { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
+            newOtrRecipients = Public.OtrRecipients . fmap toBase64Text . Map.findWithDefault mempty domain . Client.qualifiedUserClientMap . Public.qualifiedOtrRecipientsMap . Public.qualifiedNewOtrRecipients $ qmsg,
+            newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
+            newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
+            newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
+            newOtrData = Just . toBase64Text $ Public.qualifiedNewOtrData qmsg,
+            newOtrReportMissing = Nothing
+          }
+    toBase64Text :: ByteString -> Text
+    toBase64Text = Text.decodeUtf8 . B64.encode
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do

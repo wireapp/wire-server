@@ -70,6 +70,7 @@ import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
+import qualified Wire.API.Message as Message
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -148,6 +149,7 @@ tests s =
           test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessage3,
           test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
           test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
+          test s "post message qualified - local owning backend - success" postMessageQualifiedLocalOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
@@ -418,6 +420,41 @@ postCryptoMessage5 = do
   liftIO $ assertBool "client mismatch" (eqMismatch [(bob, Set.singleton bc)] [] [] (Just ignoreEveAndChadButNotBobMismatch))
   where
     listToByteString = BS.intercalate "," . map toByteString'
+
+-- | Sets up a conversation on Backend A -> "owning backend". One of the users
+-- from Backend A will send the message, it is expected that message will be
+-- sent successfully.
+--
+-- TODO: Add remote users into this conversation
+postMessageQualifiedLocalOwningBackendSuccess :: TestM ()
+postMessageQualifiedLocalOwningBackendSuccess = do
+  -- WS receive timeout
+  let t = 5 # Second
+  -- Domain which owns the converstaion
+  owningDomain <- viewFederationDomain
+  cannon <- view tsCannon
+
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 2)
+  let aliceUnqualified = qUnqualified aliceOwningDomain
+      bobUnqualified = qUnqualified bobOwningDomain
+      chadUnqualified = qUnqualified chadOwningDomain
+
+  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+  convId <- (`Qualified` owningDomain) . decodeConvId <$> postConvQualified aliceUnqualified [] (Just "federated gossip") [] Nothing Nothing
+
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    let message =
+          [ (bobOwningDomain, bobClient, "text-for-bob"),
+            (chadOwningDomain, chadClient, "text-for-chad")
+          ]
+    postOtrMessageQualified aliceUnqualified aliceClient convId message Message.MismatchReportAll !!! do
+      const 201 === statusCode
+      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+    liftIO $ do
+      WS.assertMatch_ t wsBob (wsAssertOtr convId aliceOwningDomain aliceClient bobClient "text-for-bob")
+      WS.assertMatch_ t wsChad (wsAssertOtr convId aliceOwningDomain aliceClient chadClient "text-for-chad")
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do
