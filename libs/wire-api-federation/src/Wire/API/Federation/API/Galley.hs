@@ -19,7 +19,6 @@ module Wire.API.Federation.API.Galley where
 
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Domain
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
@@ -33,6 +32,7 @@ import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, Receip
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
+import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 import Wire.API.User.Client (UserClientMap)
@@ -70,7 +70,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "receive-message"
-        :> Header' '[Strict, Required] "Wire-Origin-Domain" Domain
+        :> DomainHeader
         :> ReqBody '[JSON] RemoteMessage
         :> Post '[JSON] ()
   }
