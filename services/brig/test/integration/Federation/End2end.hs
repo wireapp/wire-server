@@ -30,12 +30,12 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
-import Data.Id (ClientId, ConvId, UserId)
+import Data.Id (ClientId)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import Federation.Util (generateClientPrekeys)
+import Federation.Util (generateClientPrekeys, getConvQualified)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -227,7 +227,10 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
             . json newConv
         )
 
-  -- test adding a remote user to local conversation
+  let backend1Domain = qDomain (userQualifiedId alice)
+      -- FUTUREWORK add qualified conversation Id to Conversation data type, then use that from the conversation creation response
+      qualifiedConvId = Qualified convId backend1Domain
+
   let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
   post
     ( galley1
@@ -240,27 +243,19 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
     !!! (const 200 === statusCode)
 
   -- test GET /conversations/:backend1Domain/:cnv
-  testQualifiedGetConversation galley1 "galley1" alice bob convId
-  testQualifiedGetConversation galley2 "galley2" alice bob convId
-  where
-    testQualifiedGetConversation galley backend alice bob convId = do
-      let backend1Domain = qDomain (userQualifiedId alice)
-          -- FUTUREWORK add qualified conversation Id to Conversation data type, then use that from the conversation creation response
-          qualifiedConvId = Qualified convId backend1Domain
-      res' <- getConvQualified galley (userId bob) qualifiedConvId <!! (const 200 === statusCode)
-      let conv' = responseJsonUnsafeWithMsg (backend <> "- get /conversations/domain/cnvId") res'
-          actual' = cmOthers $ cnvMembers conv'
-          expected' = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
-      liftIO $ actual' @?= expected'
+  liftIO $ putStrLn "search for conversation on backend 1..."
+  res <- getConvQualified galley1 (userId alice) qualifiedConvId <!! (const 200 === statusCode)
+  let conv = responseJsonUnsafeWithMsg ("backend 1 - get /conversations/domain/cnvId") res
+      actual = cmOthers $ cnvMembers conv
+      expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
+  liftIO $ actual @?= expected
 
-    getConvQualified :: Galley -> UserId -> Qualified ConvId -> Http ResponseLBS
-    getConvQualified g u (Qualified cnvId domain) =
-      get $
-        g
-          . paths ["conversations", toByteString' domain, toByteString' cnvId]
-          . zUser u
-          . zConn "conn"
-          . header "Z-Type" "access"
+  liftIO $ putStrLn "search for conversation on backend 2..."
+  res' <- getConvQualified galley2 (userId bob) qualifiedConvId <!! (const 200 === statusCode)
+  let conv' = responseJsonUnsafeWithMsg ("backend 2 - get /conversations/domain/cnvId") res'
+      actual' = cmOthers $ cnvMembers conv'
+      expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
+  liftIO $ actual' @?= expected'
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
