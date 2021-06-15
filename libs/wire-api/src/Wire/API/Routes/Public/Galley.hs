@@ -233,7 +233,7 @@ data Api routes = Api
     postOtrMessageUnqualified ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
-        :> Description PostOtrDescription
+        :> Description PostOtrDescriptionUnqualified
         :> ZUser
         :> ZConn
         :> "conversations"
@@ -262,7 +262,7 @@ data Api routes = Api
 
 type ServantAPI = ToServantApi Api
 
-type PostOtrDescription =
+type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
   \To override this, the endpoint accepts two query params:\n\
   \- `ignore_missing`: Can be 'true' 'false' or a comma separated list of user IDs.\n\
@@ -281,6 +281,17 @@ type PostOtrDescription =
   \- `ignore_missing` in the query param is the next.\n\
   \- `report_missing` in the query param has the lowest precedence.\n\
   \\n\
+  \This endpoint can lead to OtrMessageAdd event being sent to the recipients.\n\
+  \\n\
+  \**NOTE:** The protobuf definitions of the request body can be found at https://github.com/wireapp/generic-message-proto/blob/master/proto/otr.proto."
+
+type PostOtrDescription =
+  "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
+  \To override this, the endpoint accepts `client_mismatch_strategy` in the body. It can have these values:\n\
+  \- `report_all`: When set, the message is not sent if any clients are missing. The missing clients are reported in the response.\n\
+  \- `ignore_all`: When set, no checks about missing clients are carried out.\n\
+  \- `report_only`: Takes a list of qualified UserIDs. If any clients of the listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
+  \- `ignore_only`: Takes a list of qualified UserIDs. If any clients of the non-listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
   \This endpoint can lead to OtrMessageAdd event being sent to the recipients.\n\
   \\n\
   \**NOTE:** The protobuf definitions of the request body can be found at https://github.com/wireapp/generic-message-proto/blob/master/proto/otr.proto."
