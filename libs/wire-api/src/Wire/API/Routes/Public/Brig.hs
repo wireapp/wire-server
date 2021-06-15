@@ -275,7 +275,6 @@ data Api routes = Api
         :> ReqBody '[JSON] QualifiedUserClients
         :> Post '[JSON] QualifiedUserClientPrekeyMap,
     -- User Client API ----------------------------------------------------
-    -- TODO: another one?
 
     -- This endpoint can lead to the following events being sent:
     -- - ClientAdded event to self
