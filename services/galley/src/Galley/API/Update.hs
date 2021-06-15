@@ -645,19 +645,49 @@ postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMes
 postBotMessage zbot zcnv val message = do
   postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
 
--- FUTUREWORK: Send message to remote users
+-- | FUTUREWORK: Send message to remote users, as of now this function fails if
+-- the conversation is not hosted on current backend. If the converastion is
+-- hosted on current backend, it completely ignores remote users.
+--
 -- TODO: Fail if conversation is remote
 postOtrMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postOtrMessage zusr zcon _domain cnv msg =
-  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv Public.OtrReportAllMissing =<< toUnqualifiedMessage msg
+postOtrMessage zusr zcon _domain cnv msg = do
+  domain <- viewFederationDomain
+  let missingFilter = mkFilter domain $ Public.qualifiedNewOtrClientMismatchStrategy msg
+      unqualifiedMsg = toUnqualifiedMessage domain msg
+  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv missingFilter unqualifiedMsg
   where
+    -- Unnecessary glue code, it should go away when we implement federated messaging
+    mkFilter :: Domain -> Public.ClientMismatchStrategy -> Public.OtrFilterMissing
+    mkFilter domain = \case
+      Public.MismatchIgnoreOnly quids -> Public.OtrIgnoreMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == domain) $ quids
+      Public.MismatchIgnoreAll -> Public.OtrIgnoreAllMissing
+      Public.MismatchReportOnly quids -> Public.OtrReportMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == domain) $ quids
+      Public.MismatchReportAll -> Public.OtrReportAllMissing
+
+    -- Unnecessary glue code, it should go away when we implement federated messaging
+    toUnqualifiedMessage :: Domain -> Public.QualifiedNewOtrMessage -> Public.NewOtrMessage
+    toUnqualifiedMessage domain qmsg = do
+      Public.NewOtrMessage
+        { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
+          newOtrRecipients = Public.OtrRecipients . fmap toBase64Text . Map.findWithDefault mempty domain . Client.qualifiedUserClientMap . Public.qualifiedOtrRecipientsMap . Public.qualifiedNewOtrRecipients $ qmsg,
+          newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
+          newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
+          newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
+          newOtrData = Just . toBase64Text $ Public.qualifiedNewOtrData qmsg,
+          newOtrReportMissing = Nothing
+        }
+
+    toBase64Text :: ByteString -> Text
+    toBase64Text = Text.decodeUtf8 . B64.encode
+
     translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
     translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch)
     translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch)
     translateToServant (OtrUnknownClient e) = Servant.respond e
     translateToServant (OtrConversationNotFound e) = Servant.respond e
 
-    -- Temporary function, it should go away when we implement federated messaging
+    -- Unnecessary glue code, it should go away when we implement federated messaging
     qualifyMismatch :: Public.ClientMismatch -> Galley Public.QualifiedClientMismatch
     qualifyMismatch cm = do
       domain <- viewFederationDomain
@@ -673,23 +703,6 @@ postOtrMessage zusr zcon _domain cnv msg =
       if userClients == mempty
         then mempty
         else Client.QualifiedUserClients . Map.singleton domain $ userClients
-
-    -- Temporary function, it should go away when we implement federated messaging
-    toUnqualifiedMessage :: Public.QualifiedNewOtrMessage -> Galley Public.NewOtrMessage
-    toUnqualifiedMessage qmsg = do
-      domain <- viewFederationDomain
-      pure
-        Public.NewOtrMessage
-          { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
-            newOtrRecipients = Public.OtrRecipients . fmap toBase64Text . Map.findWithDefault mempty domain . Client.qualifiedUserClientMap . Public.qualifiedOtrRecipientsMap . Public.qualifiedNewOtrRecipients $ qmsg,
-            newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
-            newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
-            newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
-            newOtrData = Just . toBase64Text $ Public.qualifiedNewOtrData qmsg,
-            newOtrReportMissing = Nothing
-          }
-    toBase64Text :: ByteString -> Text
-    toBase64Text = Text.decodeUtf8 . B64.encode
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
