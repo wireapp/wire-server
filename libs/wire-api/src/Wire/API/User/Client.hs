@@ -409,21 +409,21 @@ data Client = Client
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
-  deriving (Swagger.ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "client", LowerCase)] Client)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
 
 instance ToSchema Client where
   schema =
     object "Client" $
       Client
         <$> clientId .= field "id" schema
-        <*> clientType .= field "id" schema
-        <*> clientTime .= field "id" schema
-        <*> clientClass .= opt (field "id" schema)
-        <*> clientLabel .= opt (field "id" schema)
-        <*> clientCookie .= opt (field "id" schema)
-        <*> clientLocation .= opt (field "id" schema)
-        <*> clientModel .= opt (field "id" schema)
-        <*> clientCapabilities .= (field "id" schema <|> pure mempty)
+        <*> clientType .= field "type" schema
+        <*> clientTime .= field "time" schema
+        <*> clientClass .= opt (field "class" schema)
+        <*> clientLabel .= opt (field "label" schema)
+        <*> clientCookie .= opt (field "cookie" schema)
+        <*> clientLocation .= opt (field "location" schema)
+        <*> clientModel .= opt (field "model" schema)
+        <*> clientCapabilities .= (field "capabilities" schema <|> pure mempty)
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -450,33 +450,6 @@ modelClient = Doc.defineModel "Client" $ do
   Doc.property "model" Doc.string' $ do
     Doc.description "Optional model information of this client"
     Doc.optional
-
-instance ToJSON Client where
-  toJSON c =
-    A.object $
-      "id" A..= clientId c
-        # "type" A..= clientType c
-        # "label" A..= clientLabel c
-        # "class" A..= clientClass c
-        # "time" A..= clientTime c
-        # "cookie" A..= clientCookie c
-        # "location" A..= clientLocation c
-        # "model" A..= clientModel c
-        # "capabilities" A..= clientCapabilities c
-        # []
-
-instance FromJSON Client where
-  parseJSON = A.withObject "Client" $ \o ->
-    Client
-      <$> o A..: "id"
-      <*> o A..: "type"
-      <*> o A..: "time"
-      <*> o A..:? "class"
-      <*> o A..:? "label"
-      <*> o A..:? "cookie"
-      <*> o A..:? "location"
-      <*> o A..:? "model"
-      <*> (o A..:? "capabilities" A..!= ClientCapabilityList mempty)
 
 --------------------------------------------------------------------------------
 -- PubClient
