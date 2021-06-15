@@ -42,6 +42,7 @@ library:
   - hscim
   - http-api-data
   - http-media
+  - http-types
   - insert-ordered-containers
   - iproute >=1.5
   - iso3166-country-codes >=0.2
@@ -61,6 +62,7 @@ library:
   - servant-server
   - servant-swagger
   - schema-profunctor
+  - sop-core
   - string-conversions
   - swagger >=0.1
   - swagger2
@@ -72,6 +74,7 @@ library:
   - vector >= 0.12
   - wire-message-proto-lens
   - x509
+  - wai
 tests:
   wire-api-tests:
     main: Main.hs

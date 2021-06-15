@@ -31,6 +31,7 @@ import Federator.Env (service)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
+import Wire.API.Federation.Domain (domainHeaderName)
 import Wire.API.Federation.GRPC.Types
 
 newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
@@ -60,5 +61,5 @@ interpretService = interpret $ \case
           . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
           . RPC.body (RPC.RequestBodyBS body)
           . RPC.contentJson
-          . RPC.header "Wire-Origin-Domain" (cs (domainText domain))
+          . RPC.header domainHeaderName (cs (domainText domain))
     pure (RPC.responseStatus res, RPC.responseBody res)
