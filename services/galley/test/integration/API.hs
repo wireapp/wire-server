@@ -1306,11 +1306,11 @@ testAddRemoteMember = do
           ]
 
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
+  let bobMember = SimpleMember remoteBob roleNameWireAdmin
   liftIO $ do
     evtConv e @?= qconvId
     evtType e @?= MemberJoin
-    -- FUTUREWORK: implement returning remote users in the event.
-    -- evtData e @?= Just (EdMembersJoin (SimpleMembers [remoteBob]))
+    evtData e @?= EdMembersJoin (SimpleMembers [bobMember])
     evtFrom e @?= qalice
   conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
   liftIO $ do

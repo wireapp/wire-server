@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a4ea032f769eb8077cf7211ad7e424f8c2ddbc471d5de5f4d4397ce81d58c195
+-- hash: fe229b8e1df98c7b7057954577fce8fed31692fa13b7f6eabe3082961af0d299
 
 name:           galley
 version:        0.83.0
@@ -378,6 +378,7 @@ test-suite galley-types-tests
   other-modules:
       Test.Galley.API
       Test.Galley.Intra.User
+      Test.Galley.Mapping
       Test.Galley.Roundtrip
       Paths_galley
   hs-source-dirs:
