@@ -625,9 +625,10 @@ postOtrMessageQualified ::
   ClientId ->
   Qualified ConvId ->
   [(Qualified UserId, ClientId, ByteString)] ->
+  ByteString ->
   Message.ClientMismatchStrategy ->
   TestM ResponseLBS
-postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipients strat = do
+postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
   g <- view tsGalley
   post $
     g
@@ -636,7 +637,7 @@ postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipien
       . zConn "conn"
       . zType "access"
       . contentProtobuf
-      . bytes (Protolens.encodeMessage (mkQualifiedOtrPayload senderClient recipients strat))
+      . bytes (Protolens.encodeMessage (mkQualifiedOtrPayload senderClient recipients dat strat))
 
 -- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
@@ -665,11 +666,12 @@ mkOtrPayload sender rec reportMissingBody =
       "report_missing" .= reportMissingBody
     ]
 
-mkQualifiedOtrPayload :: ClientId -> [(Qualified UserId, ClientId, ByteString)] -> Message.ClientMismatchStrategy -> Proto.Otr.QualifiedNewOtrMessage
-mkQualifiedOtrPayload sender recipients strat =
+mkQualifiedOtrPayload :: ClientId -> [(Qualified UserId, ClientId, ByteString)] -> ByteString -> Message.ClientMismatchStrategy -> Proto.Otr.QualifiedNewOtrMessage
+mkQualifiedOtrPayload sender recipients dat strat =
   Protolens.defMessage
     & Proto.Otr.sender .~ clientIdToProto sender
     & Proto.Otr.recipients .~ mkQualifiedUserEntries recipients
+    & Proto.Otr.blob .~ dat
     & ( case strat of
           Message.MismatchIgnoreAll -> Proto.Otr.ignoreAll .~ Protolens.defMessage
           Message.MismatchReportAll -> Proto.Otr.reportAll .~ Protolens.defMessage

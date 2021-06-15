@@ -39,6 +39,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
@@ -52,6 +53,7 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
+import qualified Data.Text.Encoding as Text
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
@@ -432,6 +434,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   let t = 5 # Second
   -- Domain which owns the converstaion
   owningDomain <- viewFederationDomain
+  -- Cannon for local users
   cannon <- view tsCannon
 
   (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
@@ -442,19 +445,22 @@ postMessageQualifiedLocalOwningBackendSuccess = do
       chadUnqualified = qUnqualified chadOwningDomain
 
   connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
-  convId <- (`Qualified` owningDomain) . decodeConvId <$> postConvQualified aliceUnqualified [] (Just "federated gossip") [] Nothing Nothing
+  convId <- (`Qualified` owningDomain) . decodeConvId <$> postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain] (Just "federated gossip") [] Nothing Nothing
 
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     let message =
           [ (bobOwningDomain, bobClient, "text-for-bob"),
             (chadOwningDomain, chadClient, "text-for-chad")
           ]
-    postOtrMessageQualified aliceUnqualified aliceClient convId message Message.MismatchReportAll !!! do
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     liftIO $ do
-      WS.assertMatch_ t wsBob (wsAssertOtr convId aliceOwningDomain aliceClient bobClient "text-for-bob")
-      WS.assertMatch_ t wsChad (wsAssertOtr convId aliceOwningDomain aliceClient chadClient "text-for-chad")
+      let encodedTextForBob = Text.decodeUtf8 (B64.encode "text-for-bob")
+          encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
+          encodedData = Text.decodeUtf8 (B64.encode "data")
+      WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
+      WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do
