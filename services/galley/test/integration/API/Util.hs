@@ -723,12 +723,13 @@ mkQualifiedUserEntries = foldr addQualifiedRecipient []
     addEntry uid cid msg entries =
       let (currentUserEntries, rest) = partition (\e -> userIdToProto uid == view Proto.Otr.user e) entries
           newCurrentUserEntry = case currentUserEntries of
-            [] -> Protolens.defMessage
-                    & Proto.Otr.user .~ userIdToProto uid
-                    & Proto.Otr.clients .~ [newClientEntry cid msg]
+            [] ->
+              Protolens.defMessage
+                & Proto.Otr.user .~ userIdToProto uid
+                & Proto.Otr.clients .~ [newClientEntry cid msg]
             [currentUserEntry] -> currentUserEntry & Proto.Otr.clients <>~ [newClientEntry cid msg]
             xs -> error $ "There should be only one entry per user, found: " <> show xs
-      in newCurrentUserEntry : rest
+       in newCurrentUserEntry : rest
 
     newClientEntry :: ClientId -> ByteString -> Proto.Otr.ClientEntry
     newClientEntry cid msg =
