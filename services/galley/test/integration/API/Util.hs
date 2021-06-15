@@ -1278,9 +1278,6 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = cnvId . responseJsonUnsafe
 
-decodeQualifiedConvId :: Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvId = undefined
-
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
 
