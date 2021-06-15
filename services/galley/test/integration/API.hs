@@ -156,6 +156,7 @@ tests s =
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
+          test s "post message qualified - remote owning backend - not implemented" postMessageQualifiedRemoteOwningBackendNotImplemented,
           test s "join conversation" postJoinConvOk,
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
@@ -683,6 +684,17 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
               [(chadUnqualified, Set.singleton chadClient2)]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+postMessageQualifiedRemoteOwningBackendNotImplemented :: TestM ()
+postMessageQualifiedRemoteOwningBackendNotImplemented = do
+  (aliceLocal, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  let aliceUnqualified = qUnqualified aliceLocal
+  convIdUnqualified <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      convId = Qualified convIdUnqualified remoteDomain
+  postOtrMessageQualified aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll !!! do
+    const 403 === statusCode
+    const (Right (Just (String "federation-not-implemented"))) === fmap (view (at @Object "label")) . responseJsonEither
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do

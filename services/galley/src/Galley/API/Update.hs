@@ -125,6 +125,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (userTeam)
 import Wire.API.User.Client (UserClientsFull)
 import qualified Wire.API.User.Client as Client
+import Wire.API.Federation.Error (federationNotImplemented)
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -651,26 +652,29 @@ postBotMessage zbot zcnv val message = do
 --
 -- TODO: Fail if conversation is remote
 postOtrMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postOtrMessage zusr zcon _domain cnv msg = do
-  domain <- viewFederationDomain
-  let missingFilter = mkFilter domain $ Public.qualifiedNewOtrClientMismatchStrategy msg
-      unqualifiedMsg = toUnqualifiedMessage domain msg
-  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv missingFilter unqualifiedMsg
+postOtrMessage zusr zcon convDomain cnv msg = do
+  localDomain <- viewFederationDomain
+  if localDomain /= convDomain
+    then throwM federationNotImplemented
+    else do
+      let missingFilter = mkFilter localDomain $ Public.qualifiedNewOtrClientMismatchStrategy msg
+          unqualifiedMsg = toUnqualifiedMessage localDomain msg
+      translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv missingFilter unqualifiedMsg
   where
     -- Unnecessary glue code, it should go away when we implement federated messaging
     mkFilter :: Domain -> Public.ClientMismatchStrategy -> Public.OtrFilterMissing
-    mkFilter domain = \case
-      Public.MismatchIgnoreOnly quids -> Public.OtrIgnoreMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == domain) $ quids
+    mkFilter localDomain = \case
+      Public.MismatchIgnoreOnly quids -> Public.OtrIgnoreMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
       Public.MismatchIgnoreAll -> Public.OtrIgnoreAllMissing
-      Public.MismatchReportOnly quids -> Public.OtrReportMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == domain) $ quids
+      Public.MismatchReportOnly quids -> Public.OtrReportMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
       Public.MismatchReportAll -> Public.OtrReportAllMissing
 
     -- Unnecessary glue code, it should go away when we implement federated messaging
     toUnqualifiedMessage :: Domain -> Public.QualifiedNewOtrMessage -> Public.NewOtrMessage
-    toUnqualifiedMessage domain qmsg = do
+    toUnqualifiedMessage localDomain qmsg = do
       Public.NewOtrMessage
         { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
-          newOtrRecipients = Public.OtrRecipients . fmap toBase64Text . Map.findWithDefault mempty domain . Client.qualifiedUserClientMap . Public.qualifiedOtrRecipientsMap . Public.qualifiedNewOtrRecipients $ qmsg,
+          newOtrRecipients = Public.OtrRecipients . fmap toBase64Text . Map.findWithDefault mempty localDomain . Client.qualifiedUserClientMap . Public.qualifiedOtrRecipientsMap . Public.qualifiedNewOtrRecipients $ qmsg,
           newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
           newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
           newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
