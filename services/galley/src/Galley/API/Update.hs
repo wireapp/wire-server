@@ -118,6 +118,7 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -125,7 +126,6 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (userTeam)
 import Wire.API.User.Client (UserClientsFull)
 import qualified Wire.API.User.Client as Client
-import Wire.API.Federation.Error (federationNotImplemented)
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
