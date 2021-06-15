@@ -60,6 +60,9 @@ backendTwo:
   brig:
     host: 127.0.0.1 # in kubernetes, brig.<NAMESPACE>.svc.cluster.local
     port: 9082
+  galley:
+    host: 127.0.0.1 # in kubernetes, galley.<NAMESPACE>.svc.cluster.local
+    port: 9085
   federatorInternal:
     host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
     port: 9097
