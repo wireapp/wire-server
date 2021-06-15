@@ -51,7 +51,13 @@ the ``wire-server-deploy`` directory, the right dependencies will be available.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a Docker container image containing all the dependencies.
-On your machine you need to have the ``docker`` binary available. See `how to install docker <https://docker.com>`__.
+On your machine you need to have the ``docker`` binary available. Run:
+
+::
+
+   sudo apt install docker.io
+
+Or see `how to install docker <https://docker.com>`__.
 
 Then, after downloading your copy of ``wire-server-deploy``, you can run the container when you're in the ``wire-server-deploy``
 directory to have all the dependencies and commands available needed for the deployment.
