@@ -6,10 +6,10 @@
 
 Queries such as `select some_field from some_table;` are full table scans. Cassandra is not optimized at all for such queries, and even with a small amount of data, a single such query can completely mess up your whole cluster performance. We had an example of that which made our staging environment unusable. Luckily, it was caught in time and [fixed](https://github.com/wireapp/wire-server/pull/1574/files) before making its way to production.
 
-Alternative: Design your tables in a way to make use of a primary key, and always make use of a `WHERE` clause: `SELECT some_field FROM some_table WHERE some_key = ?`.
+Suggested alternative: Design your tables in a way to make use of a primary key, and always make use of a `WHERE` clause: `SELECT some_field FROM some_table WHERE some_key = ?`.
 
-In some rare circumstances you might not easily think of a good primary key. In this case, you could for instance use a single integer value that is hardcoded: `SELECT some_field FROM some_table WHERE some_key = 1`. We use this strategy in the `meta` table which stores the cassandra version migration information. And `some_field` might be of type `set`, which allows you to have some guarantees. See the implementation of unique claims and the [note on guarantees of CQL
-sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Unique.hs#L110)
+In some rare circumstances you might not easily think of a good primary key. In this case, you could for instance use a single default value that is hardcoded: `SELECT some_field FROM some_table WHERE some_key = 1`. We use this strategy in the `meta` table which stores the cassandra version migration information, and we use it for a [default idp](https://github.com/wireapp/wire-server/blob/4814afd88b8c832c4bd8c24674886c5d295aff78/services/spar/schema/src/V7.hs). `some_field` might be of type `set`, which allows you to have some guarantees. See the implementation of unique claims and the [note on guarantees of CQL
+sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Unique.hs#L110) for more information on sets.
 
 ### Anti-pattern: Using IN queries on a field in the partition key
 
@@ -36,4 +36,3 @@ Confused about primary key, partition key, and clustering key? See e.g. [this po
 ### optimizing parallel request performance
 
 See the thoughts in https://github.com/wireapp/wire-server/pull/1345#discussion_r567829234 - measuring overall and per-request performance and trying out different settings here might be worthwhile if increasing read or write performance is critical.
-
