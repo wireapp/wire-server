@@ -26,8 +26,6 @@ import Data.Qualified
 import Galley.API ()
 import Galley.API.Mapping
 import qualified Galley.Data as Data
--- import Galley.Types
-
 import Galley.Types (LocalMember, RemoteMember)
 import qualified Galley.Types.Conversations.Members as I
 import Imports
@@ -160,6 +158,7 @@ mkRemoteMember u = I.RemoteMember (toRemote u) roleNameWireAdmin
 
 mkInternalConv :: [LocalMember] -> [RemoteMember] -> IO Data.Conversation
 mkInternalConv locals remotes = do
+  -- for the conversationView unit tests, the creator plays no importance, so for simplicity this is set to a random value.
   creator <- randomId
   cnv <- randomId
   pure $

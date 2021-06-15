@@ -64,7 +64,8 @@ conversationViewMaybeQualified :: Domain -> Qualified UserId -> Data.Conversatio
 conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
   let localMembers = localToOther localDomain <$> convLocalMembers
   let remoteMembers = remoteToOther <$> convRemoteMembers
-  let (me, otherMembers) = List.partition ((qUid ==) . Public.omQualifiedId) (localMembers <> remoteMembers)
+  let me = List.find ((qUid ==) . Public.omQualifiedId) (localMembers <> remoteMembers)
+  let otherMembers = filter ((qUid /=) . Public.omQualifiedId) (localMembers <> remoteMembers)
   let userAndConvOnSameBackend = find ((qUnqualified qUid ==) . Internal.memId) convLocalMembers
   let selfMember =
         -- if the user and the conversation are on the same backend, we can create a real self member
@@ -72,7 +73,7 @@ conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
         -- (Note: the extra domain check is done to catch the edge case where two users in a conversation have the same unqualified UUID)
         if isJust userAndConvOnSameBackend && localDomain == qDomain qUid
           then toMember <$> userAndConvOnSameBackend
-          else incompleteSelfMember me
+          else incompleteSelfMember <$> me
   selfMember <&> \m -> do
     let mems = Public.ConvMembers m otherMembers
     Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
@@ -95,22 +96,20 @@ conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
 
     -- FUTUREWORK(federation): we currently don't store muted, archived etc status for users who are on a different backend than a conversation
     -- but we should. Once this information is available, the code should be changed to use the stored information, rather than these defaults.
-    incompleteSelfMember :: [Public.OtherMember] -> Maybe Public.Member
-    incompleteSelfMember [] = Nothing
-    incompleteSelfMember [m] =
-      Just $
-        Public.Member
-          (qUnqualified (Public.omQualifiedId m))
-          Nothing
-          False
-          Nothing
-          Nothing
-          False
-          Nothing
-          False
-          Nothing
-          (Public.omConvRoleName m)
-    incompleteSelfMember _ = Nothing -- FUTUREWORK: throw an error here, shouldn't happen
+    incompleteSelfMember :: Public.OtherMember -> Public.Member
+    incompleteSelfMember m =
+      Public.Member
+        { memId = qUnqualified (Public.omQualifiedId m),
+          memService = Nothing,
+          memOtrMuted = False,
+          memOtrMutedStatus = Nothing,
+          memOtrMutedRef = Nothing,
+          memOtrArchived = False,
+          memOtrArchivedRef = Nothing,
+          memHidden = False,
+          memHiddenRef = Nothing,
+          memConvRoleName = Public.omConvRoleName m
+        }
 
 toMember :: Internal.LocalMember -> Public.Member
 toMember x@Internal.InternalMember {..} =
