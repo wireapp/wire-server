@@ -91,6 +91,7 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
+import qualified Wire.API.ErrorDescription as ErrorDescription
 import qualified Wire.API.Properties as Public
 import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
@@ -184,6 +185,13 @@ servantSitemap =
         BrigAPI.getUsersPrekeyBundleQualified = getPrekeyBundleH,
         BrigAPI.getMultiUserPrekeyBundleUnqualified = getMultiUserPrekeyBundleUnqualifiedH,
         BrigAPI.getMultiUserPrekeyBundleQualified = getMultiUserPrekeyBundleH,
+        BrigAPI.addClient = addClient,
+        BrigAPI.updateClient = updateClient,
+        BrigAPI.deleteClient = deleteClient,
+        BrigAPI.listClients = listClients,
+        BrigAPI.getClient = getClient,
+        BrigAPI.getClientCapabilities = getClientCapabilities,
+        BrigAPI.getClientPrekeys = getClientPrekeys,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -476,99 +484,6 @@ sitemap o = do
       Doc.description "User ID"
     Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "Connection" Doc.end
-
-  -- User Client API ----------------------------------------------------
-  -- TODO: another one?
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientAdded event to self
-  -- - ClientRemoved event to self, if removing old clients due to max number
-  post "/clients" (continue addClientH) $
-    jsonRequest @Public.NewClient
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. opt (header "X-Forwarded-For")
-      .&. accept "application" "json"
-  document "POST" "registerClient" $ do
-    Doc.summary "Register a new client."
-    Doc.body (Doc.ref Public.modelNewClient) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelClient)
-    Doc.response 200 "Client" Doc.end
-    Doc.errorResponse tooManyClients
-    Doc.errorResponse missingAuthError
-    Doc.errorResponse malformedPrekeys
-
-  put "/clients/:client" (continue updateClientH) $
-    jsonRequest @Public.UpdateClient
-      .&. zauthUserId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "PUT" "updateClient" $ do
-    Doc.summary "Update a registered client."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.body (Doc.ref Public.modelUpdateClient) $
-      Doc.description "JSON body"
-    Doc.response 200 "Client updated." Doc.end
-    Doc.errorResponse malformedPrekeys
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientRemoved event to self
-  delete "/clients/:client" (continue rmClientH) $
-    jsonRequest @Public.RmClient
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "DELETE" "deleteClient" $ do
-    Doc.summary "Delete an existing client."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.body (Doc.ref Public.modelDeleteClient) $
-      Doc.description "JSON body"
-    Doc.response 200 "Client deleted." Doc.end
-
-  get "/clients" (continue listClientsH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listClients" $ do
-    Doc.summary "List the registered clients."
-    Doc.returns (Doc.array (Doc.ref Public.modelClient))
-    Doc.response 200 "List of clients" Doc.end
-
-  get "/clients/:client" (continue getClientH) $
-    zauthUserId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "getClients" $ do
-    Doc.summary "Get a registered client by ID."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.modelClient)
-    Doc.response 200 "Client" Doc.end
-
-  get "/clients/:client/capabilities" (continue getClientCapabilitiesH) $
-    zauthUserId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "getClientCapabilities" $ do
-    Doc.summary "Read back what the client has been posting about itself."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.modelClientCapabilityList)
-    Doc.response 200 "Client" Doc.end
-
-  get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
-    zauthUserId
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "listPrekeyIds" $ do
-    Doc.summary "List the remaining prekey IDs of a client."
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of remaining prekey IDs." Doc.end
 
   -- Properties API -----------------------------------------------------
 
@@ -868,51 +783,36 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwStd tooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClientH :: JsonRequest Public.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
-addClientH (req ::: usr ::: con ::: ip ::: _) = do
-  new <- parseJsonBody req
-  clt <- addClient new usr con ip
-  let loc = toByteString' $ Public.clientId clt
-  pure . setStatus status201 . addHeader "Location" loc . json $ clt
-
-addClient :: Public.NewClient -> UserId -> ConnId -> Maybe IpAddr -> Handler Public.Client
-addClient new usr con ip = do
+addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
+addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
+  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
+  where
+    clientResponse :: Public.Client -> BrigAPI.NewClientResponse
+    clientResponse client = Servant.addHeader (Public.clientId client) client
 
-rmClientH :: JsonRequest Public.RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
-rmClientH (req ::: usr ::: con ::: clt ::: _) = do
-  body <- parseJsonBody req
-  empty <$ rmClient body usr con clt
-
-rmClient :: Public.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
-rmClient body usr con clt =
+deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler (EmptyResult 200)
+deleteClient usr con clt body = do
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
+  pure EmptyResult
 
-updateClientH :: JsonRequest Public.UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
-updateClientH (req ::: usr ::: clt ::: _) = do
-  body <- parseJsonBody req
-  empty <$ updateClient body usr clt
-
-updateClient :: Public.UpdateClient -> UserId -> ClientId -> Handler ()
-updateClient body usr clt =
-  API.updateClient usr clt body !>> clientError
-
-listClientsH :: UserId ::: JSON -> Handler Response
-listClientsH (zusr ::: _) =
-  json <$> listClients zusr
+updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler (EmptyResult 200)
+updateClient usr clt upd = do
+  API.updateClient usr clt upd !>> clientError
+  pure EmptyResult
 
 listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
-getClientH (zusr ::: clt ::: _) =
-  getClient zusr clt <&> \case
-    Just c -> json c
-    Nothing -> setStatus status404 empty
+getClient :: UserId -> ClientId -> Handler (Union BrigAPI.GetClientResponse)
+getClient zusr clientId = do
+  mc <- lift $ API.lookupLocalClient zusr clientId
+  case mc of
+    Nothing -> Servant.respond ErrorDescription.clientNotFound
+    Just c -> Servant.respond (WithStatus @200 c)
 
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
 getUserClientsUnqualified uid = do
@@ -941,13 +841,6 @@ getUserClientQualified domain uid cid = do
   x <- API.lookupPubClient (Qualified uid domain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
-getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
-getClient zusr clientId = do
-  lift $ API.lookupLocalClient zusr clientId
-
-getClientCapabilitiesH :: UserId ::: ClientId ::: JSON -> Handler Response
-getClientCapabilitiesH (uid ::: cid ::: _) = json <$> getClientCapabilities uid cid
-
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
@@ -969,10 +862,8 @@ getRichInfo self user = do
   -- Query rich info
   fromMaybe Public.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
-listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
-listPrekeyIdsH (usr ::: clt ::: _) = do
-  prekeyIds <- lift (API.lookupPrekeyIds usr clt)
-  pure $ json (prekeyIds :: [Public.PrekeyId])
+getClientPrekeys :: UserId -> ClientId -> Handler [Public.PrekeyId]
+getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> Handler Response

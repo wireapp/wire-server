@@ -23,16 +23,18 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
+import Data.Misc (IpAddr)
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger hiding (Contact)
+import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Routes.Public (EmptyResult, ZUser)
+import Wire.API.ErrorDescription (ClientNotFound)
+import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -47,6 +49,10 @@ type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
+
+type NewClientResponse = Headers '[Header "Location" ClientId] Client
+
+type GetClientResponse = [WithStatus 200 Client, ClientNotFound]
 
 data Api routes = Api
   { -- Note [document responses]
@@ -268,6 +274,65 @@ data Api routes = Api
         :> "list-prekeys"
         :> ReqBody '[JSON] QualifiedUserClients
         :> Post '[JSON] QualifiedUserClientPrekeyMap,
+    -- User Client API ----------------------------------------------------
+
+    -- This endpoint can lead to the following events being sent:
+    -- - ClientAdded event to self
+    -- - ClientRemoved event to self, if removing old clients due to max number
+    --   Doc.errorResponse tooManyClients
+    --   Doc.errorResponse missingAuthError
+    --   Doc.errorResponse malformedPrekeys
+    addClient ::
+      routes :- Summary "Register a new client"
+        :> ZUser
+        :> ZConn
+        :> "clients"
+        :> Header "X-Forwarded-For" IpAddr
+        :> ReqBody '[JSON] NewClient
+        :> Verb 'POST 201 '[JSON] NewClientResponse,
+    --   Doc.errorResponse malformedPrekeys
+    updateClient ::
+      routes :- Summary "Update a registered client"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> ReqBody '[JSON] UpdateClient
+        :> Put '[] (EmptyResult 200),
+    -- This endpoint can lead to the following events being sent:
+    -- - ClientRemoved event to self
+    deleteClient ::
+      routes :- Summary "Delete an existing client"
+        :> ZUser
+        :> ZConn
+        :> "clients"
+        :> CaptureClientId "client"
+        :> ReqBody '[JSON] RmClient
+        :> Delete '[] (EmptyResult 200),
+    listClients ::
+      routes :- Summary "List the registered clients"
+        :> ZUser
+        :> "clients"
+        :> Get '[JSON] [Client],
+    getClient ::
+      routes :- Summary "Get a register client by ID"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> UVerb 'GET '[JSON] GetClientResponse,
+    getClientCapabilities ::
+      routes :- Summary "Read back what the client has been posting about itself"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> "capabilities"
+        :> Get '[JSON] ClientCapabilityList,
+    getClientPrekeys ::
+      routes :- Summary "List the remaining prekey IDs of a client"
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> "prekeys"
+        :> Get '[JSON] [PrekeyId],
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
