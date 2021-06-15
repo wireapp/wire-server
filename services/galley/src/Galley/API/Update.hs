@@ -867,10 +867,6 @@ remoteToLocalPush now (Tagged conv) sender extra priority transient (rcpt, rcptc
         }
     event = Event OtrMessageAdd conv (fmap fst sender) now (EdOtrMessage msg)
 
--- TODO
---   . set pushNativePriority (newOtrNativePriority msg)
---   . set pushTransient (newOtrTransient msg)
-
 newMessage ::
   Qualified UserId ->
   Maybe ConnId ->
