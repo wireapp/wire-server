@@ -649,8 +649,6 @@ postBotMessage zbot zcnv val message = do
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
 -- the conversation is not hosted on current backend. If the converastion is
 -- hosted on current backend, it completely ignores remote users.
---
--- TODO: Fail if conversation is remote
 postOtrMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postOtrMessage zusr zcon convDomain cnv msg = do
   localDomain <- viewFederationDomain
