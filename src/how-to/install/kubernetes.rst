@@ -18,9 +18,28 @@ From ``wire-server-deploy/ansible``:
 
 Open hosts.ini and replace `X.X.X.X` with the IP address of your virtual machine that you use for ssh access.  You can try using ``sed -i 's/X.X.X.X/1.2.3.4/g' hosts.ini``.
 
-
-
 .. include:: includes/ansible-authentication-blob.rst
+
+Passwordless authentication
+---------------------------
+
+Presuming a fresh default Ubuntu 18.04 installation, the following steps will enable the Ansible playbook to run without specifying passwords.
+
+This presumes you named your default Ubuntu user "wire", and X.X.X.X is the IP or domain name of the target server Ansible will install Kubernetes on.
+
+On the client (from ``wire-server-deploy/ansible``), run:
+
+.. code:: shell 
+
+    ssh-keygen -f /root/.ssh/id_rsa -t rsa -P
+    ssh-copy-id wire@X.X.X.X
+    sed -i 's/# ansible_user = .../ansible_user = wire/g' inventory/demo/hosts.ini
+
+And on the server (X.X.X.X), run:
+
+.. code:: shell 
+
+    echo 'wire ALL=(ALL) NOPASSWD:ALL' | sudo tee -a /etc/sudoers
 
 How to install kubernetes
 --------------------------
