@@ -18,8 +18,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Write a long comment about why this module interfaces with two
--- different Protobuf libraries and which functions mean what.
+-- | This module interfaces with two protobuf libraries: protobuf and
+-- proto-lens.
+--
+-- The protobuf library was used to manually map types from
+-- github.com/wireapp/generic-message-proto/proto/otr.proto. These types are in
+-- 'Wire.API.Message.Proto'.
+--
+-- The proto-lens library was introduced afterwards to automatically map types
+-- from the above proto definition. The types are in 'Proto.Otr' of
+-- wire-message-proto-lens package.
 module Wire.API.Message
   ( -- * Message
     NewOtrMessage (..),
@@ -286,7 +294,6 @@ protoFromOtrRecipients rcps =
        in Proto.userEntry (Proto.fromUserId usr) xs
     mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64Text t)
 
--- TODO: The message type should be ByteString
 newtype QualifiedOtrRecipients = QualifiedOtrRecipients
   { qualifiedOtrRecipientsMap :: QualifiedUserClientMap ByteString
   }
@@ -366,10 +373,6 @@ protolensToQualifiedUserId protoQuid =
   Qualified
     <$> parseIdFromText (view Proto.Otr.id protoQuid)
     <*> mkDomain (view Proto.Otr.domain protoQuid)
-
--- TODO: Move this to Data.Id
-parseIdFromText :: Text -> Either String (Id a)
-parseIdFromText = maybe (Left "Failed to parseUUID") (Right . Id) . UUID.fromText
 
 data ClientMismatch = ClientMismatch
   { cmismatchTime :: UTCTimeMillis,
