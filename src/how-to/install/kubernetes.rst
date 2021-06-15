@@ -29,6 +29,7 @@ When the playbook finishes correctly (which can take up to 20 minutes), you shou
 
   mkdir -p ~/.kube
   cp artifacts/admin.conf ~/.kube/config
+  KUBECONFIG=~/.kube/config
 
 Make sure you can reach the server::
 
