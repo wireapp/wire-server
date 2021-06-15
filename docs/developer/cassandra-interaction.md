@@ -15,7 +15,8 @@ sets](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig
 
 Larger IN queries lead to performance problems. See https://lostechies.com/ryansvihla/2014/09/22/cassandra-query-patterns-not-using-the-in-query-for-multiple-partitions/
 
-A preferred way to do this lookup here is to use queries operating on single keys, and make concurrent requests. One way to do this is with the [`pooledMapConcurrentlyN`] (https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/e2cc9ab01ac828ffb6fe45a45d38d7ca6e672fb9fe95528498b990da673c5071/8.8.4/doc/unliftio-0.2.13/UnliftIO-Async.html#v:pooledMapConcurrentlyN) function (e.g. with 8 threads).
+A preferred way to do this lookup here is to use queries operating on single keys, and make concurrent requests. One way to do this is with the [`pooledMapConcurrentlyN`] (https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/e2cc9ab01ac828ffb6fe45a45d38d7ca6e672fb9fe95528498b990da673c5071/8.8.4/doc/unliftio-0.2.13/UnliftIO-Async.html#v:pooledMapConcurrentlyN) function. To be conservative, you can use N=8 or N=32, we've done this in other places and not seen problematic performance
+yet. For an optimization of N, see the section further below.
 
 ### Anti-pattern: Designing for a lot of deletes or updates
 
@@ -28,4 +29,11 @@ Read e.g.
 
 ## Understanding more about cassandra
 
+### primary partition clustering keys
+
 Confused about primary key, partition key, and clustering key? See e.g. [this post](https://blog.devgenius.io/cassandra-primary-vs-partitioning-vs-clustering-keys-3b3fa0e317f4) or [this one](https://dzone.com/articles/cassandra-data-modeling-primary-clustering-partiti)
+
+### optimizing parallel request performance
+
+See the thoughts in https://github.com/wireapp/wire-server/pull/1345#discussion_r567829234 - measuring overall and per-request performance and trying out different settings here might be worthwhile if increasing read or write performance is critical.
+
