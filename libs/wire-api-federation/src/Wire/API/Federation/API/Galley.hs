@@ -23,7 +23,7 @@ import Data.Id (ConvId, UserId)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, (:>))
+import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -38,7 +38,15 @@ import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 -- for the current list we need.
 
 data Api routes = Api
-  { getConversations ::
+  { -- | Create a new conversation
+    createConversation ::
+      routes
+        :- "federation"
+        :> Summary "Create a new conversation"
+        :> "create-conversation"
+        :> ReqBody '[JSON] CreateConversation
+        :> Post '[JSON] (),
+    getConversations ::
       routes
         :- "federation"
         :> "get-conversations"
@@ -69,6 +77,20 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
+
+-- | A record type describing a new federated conversation
+data CreateConversation = MkCreateConversation
+  { -- | The time when the conversation was created
+    ccTime :: UTCTime,
+    -- | The user creating the conversation
+    ccOrigUserId :: Qualified UserId,
+    -- | The qualified ID of the conversation created on the owning backend
+    ccConvId :: Qualified ConvId,
+    -- | Users that are added to the conversation
+    ccUsersAdd :: [(Qualified UserId, RoleName)]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded CreateConversation)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,

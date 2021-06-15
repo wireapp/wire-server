@@ -27,16 +27,35 @@ import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), CreateConversation (..), GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      { FederationAPIGalley.getConversations = getConversations,
+      { FederationAPIGalley.createConversation = createConversation,
+        FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
       }
+
+createConversation :: CreateConversation -> Galley ()
+createConversation cc = do
+  localDomain <- viewFederationDomain
+  let localUsers = filter ((== localDomain) . qDomain . fst) (ccUsersAdd cc)
+      localUserIds = map (qUnqualified . fst) localUsers
+  -- TODO(md): This call to addLocalMembersToRemoteConv below makes no sense
+  unless (null localUsers) $ do
+    Data.addLocalMembersToRemoteConv localUserIds (ccConvId cc)
+  -- TODO(md): Implement holes below
+  let _event =
+        Event
+          ConvCreate
+          (ccConvId cc)
+          (ccOrigUserId cc)
+          (ccTime cc)
+          (EdConversation undefined)
+  undefined
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do

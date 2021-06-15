@@ -328,7 +328,7 @@ notifyCreatedConversation dtime usr conn c = do
   now <- maybe (liftIO getCurrentTime) pure dtime
   pushSome =<< mapM (toPush localDomain now) (Data.convLocalMembers c)
   -- Notify remote users of being added to a conversation
-  updateRemoteConversationMemberships [] usr now c [] (Data.convRemoteMembers c)
+  createRemoteConversationMemberships usr now c (Data.convLocalMembers c) (Data.convRemoteMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny

@@ -350,7 +350,39 @@ runFederated remoteDomain rpc = do
   runExceptT (executeFederated remoteDomain rpc)
     >>= either (throwM . federationErrorToWai) pure
 
--- | Notify remote users of being added to a conversation
+-- | Notify remote users of being added to a new conversation
+createRemoteConversationMemberships :: UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
+createRemoteConversationMemberships usr now c lmm rmm = do
+  localDomain <- viewFederationDomain
+  let members = catMembers localDomain lmm rmm
+      qcnv = Qualified (Data.convId c) localDomain
+      qusr = Qualified usr localDomain
+   -- FUTUREWORK: parallelise federated requests
+  traverse_ (createRemoteConversations members qusr qcnv)
+    . Map.keys
+    . partitionQualified
+    . nubOrd
+    . map (unTagged . rmId)
+    $ rmm
+  where
+    createRemoteConversations ::
+      [(Qualified UserId, RoleName)] ->
+      Qualified UserId ->
+      Qualified ConvId ->
+      Domain ->
+      Galley ()
+    createRemoteConversations uids orig cnv domain = do
+      let cc =
+            FederatedGalley.MkCreateConversation
+              { ccTime = now,
+                ccOrigUserId = orig,
+                ccConvId = cnv,
+                ccUsersAdd = uids
+              }
+      let rpc = FederatedGalley.createConversation FederatedGalley.clientRoutes cc
+      runFederated domain rpc
+
+-- | Notify remote users of being added to an existing conversation
 updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
 updateRemoteConversationMemberships existingRemotes usr now c lmm rmm = do
   localDomain <- viewFederationDomain
@@ -364,15 +396,6 @@ updateRemoteConversationMemberships existingRemotes usr now c lmm rmm = do
     . nubOrd
     . map (unTagged . rmId)
     $ rmm <> existingRemotes
-  where
-    catMembers ::
-      Domain ->
-      [LocalMember] ->
-      [RemoteMember] ->
-      [(Qualified UserId, RoleName)]
-    catMembers localDomain ls rs =
-      map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
-        <> map ((unTagged . rmId) &&& rmConvRoleName) rs
 
 updateRemoteConversations ::
   UTCTime ->
@@ -394,3 +417,12 @@ updateRemoteConversations now uids orig cnv domain others = do
           }
   let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
   runFederated domain rpc
+
+catMembers ::
+  Domain ->
+  [LocalMember] ->
+  [RemoteMember] ->
+  [(Qualified UserId, RoleName)]
+catMembers localDomain ls rs =
+  map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
+    <> map ((unTagged . rmId) &&& rmConvRoleName) rs
