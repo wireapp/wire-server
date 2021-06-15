@@ -630,6 +630,7 @@ postOtrMessageQualified ::
   TestM ResponseLBS
 postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
   g <- view tsGalley
+  let protoMsg = mkQualifiedOtrPayload senderClient recipients dat strat
   post $
     g
       . paths ["conversations", toByteString' domain, toByteString' conv, "otr", "messages"]
@@ -637,7 +638,7 @@ postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipien
       . zConn "conn"
       . zType "access"
       . contentProtobuf
-      . bytes (Protolens.encodeMessage (mkQualifiedOtrPayload senderClient recipients dat strat))
+      . bytes (Protolens.encodeMessage protoMsg)
 
 -- | FUTUREWORK: remove first argument, it's 'id' in all calls to this function!
 postOtrBroadcastMessage :: (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> TestM ResponseLBS
@@ -704,27 +705,36 @@ qualifiedUserIdToProto (Qualified uid domain) =
     & Proto.Otr.domain .~ domainText domain
 
 mkQualifiedUserEntries :: [(Qualified UserId, ClientId, ByteString)] -> [Proto.Otr.QualifiedUserEntry]
-mkQualifiedUserEntries xs =
-  let domainMap =
-        foldr
-          (\(quid, client, msg) -> Map.insertWith nestedMerge (qDomain quid) [mkUserEntry (qUnqualified quid, client, msg)])
-          Map.empty
-          xs
-   in flip Map.foldMapWithKey domainMap $ \domain entries ->
-        [ Protolens.defMessage
-            & Proto.Otr.domain .~ domainText domain
-            & Proto.Otr.entries .~ entries
-        ]
+mkQualifiedUserEntries = foldr addQualifiedRecipient []
   where
-    nestedMerge :: [Proto.Otr.UserEntry] -> [Proto.Otr.UserEntry] -> [Proto.Otr.UserEntry]
-    nestedMerge existingEntries [newEntry] =
-      let matchingEntry = find (\e -> view Proto.Otr.user e == view Proto.Otr.user newEntry) existingEntries
-          mergeInto = Proto.Otr.clients <>~ view Proto.Otr.clients newEntry
-       in case matchingEntry of
-            Nothing -> newEntry : existingEntries
-            Just x -> mergeInto x : filter (== x) existingEntries
-    nestedMerge _existingEntries newEntries =
-      error $ "newEntries should always be exactly 1, got: " <> show newEntries
+    addQualifiedRecipient :: (Qualified UserId, ClientId, ByteString) -> [Proto.Otr.QualifiedUserEntry] -> [Proto.Otr.QualifiedUserEntry]
+    addQualifiedRecipient (quid, cid, msg) entries =
+      let (currentDomainEntries, rest) = partition (\e -> domainText (qDomain quid) == view Proto.Otr.domain e) entries
+          newCurrentDomainEntry = case currentDomainEntries of
+            [] ->
+              Protolens.defMessage
+                & Proto.Otr.domain .~ domainText (qDomain quid)
+                & Proto.Otr.entries .~ addEntry (qUnqualified quid) cid msg []
+            [currentDomainEntry] -> currentDomainEntry & over Proto.Otr.entries (addEntry (qUnqualified quid) cid msg)
+            xs -> error $ "There should be only one entry per domain, found: " <> show xs
+       in newCurrentDomainEntry : rest
+
+    addEntry :: UserId -> ClientId -> ByteString -> [Proto.Otr.UserEntry] -> [Proto.Otr.UserEntry]
+    addEntry uid cid msg entries =
+      let (currentUserEntries, rest) = partition (\e -> userIdToProto uid == view Proto.Otr.user e) entries
+          newCurrentUserEntry = case currentUserEntries of
+            [] -> Protolens.defMessage
+                    & Proto.Otr.user .~ userIdToProto uid
+                    & Proto.Otr.clients .~ [newClientEntry cid msg]
+            [currentUserEntry] -> currentUserEntry & Proto.Otr.clients <>~ [newClientEntry cid msg]
+            xs -> error $ "There should be only one entry per user, found: " <> show xs
+      in newCurrentUserEntry : rest
+
+    newClientEntry :: ClientId -> ByteString -> Proto.Otr.ClientEntry
+    newClientEntry cid msg =
+      Protolens.defMessage
+        & Proto.Otr.client .~ clientIdToProto cid
+        & Proto.Otr.text .~ msg
 
 mkUserEntry :: (UserId, ClientId, ByteString) -> Proto.Otr.UserEntry
 mkUserEntry (uid, cid, txt) =
