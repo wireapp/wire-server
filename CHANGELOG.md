@@ -14,6 +14,20 @@
 
 -->
 
+# Unreleased
+
+## API Changes
+
+* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/otr/messages` (#1593).
+
+## Features
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
 # [2021-06-08]
 
 ## Release Notes
