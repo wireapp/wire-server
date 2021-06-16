@@ -672,7 +672,14 @@ postOtrMessage zusr zcon convDomain cnv msg = do
     toUnqualifiedMessage localDomain qmsg = do
       Public.NewOtrMessage
         { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
-          newOtrRecipients = Public.OtrRecipients . fmap toBase64Text . Map.findWithDefault mempty localDomain . Client.qualifiedUserClientMap . Public.qualifiedOtrRecipientsMap . Public.qualifiedNewOtrRecipients $ qmsg,
+          newOtrRecipients =
+            Public.OtrRecipients
+              . fmap toBase64Text
+              . Map.findWithDefault mempty localDomain
+              . Client.qualifiedUserClientMap
+              . Public.qualifiedOtrRecipientsMap
+              . Public.qualifiedNewOtrRecipients
+              $ qmsg,
           newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
           newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
           newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
