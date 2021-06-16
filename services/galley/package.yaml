@@ -48,6 +48,7 @@ library:
   - http-client >=0.4
   - http-client-openssl >=0.2
   - http-client-tls >=0.2.2
+  - http-media
   - http-types >=0.8
   - http2-client-grpc
   - insert-ordered-containers

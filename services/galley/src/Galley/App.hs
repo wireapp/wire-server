@@ -71,6 +71,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import qualified Data.ProtocolBuffers as Proto
+import Data.Proxy (Proxy (..))
 import Data.Range
 import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
@@ -84,6 +85,8 @@ import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Media.RenderHeader (RenderHeader (..))
+import Network.HTTP.Types (hContentType)
 import Network.HTTP.Types.Status (statusCode, statusMessage)
 import Network.Wai
 import Network.Wai.Utilities
@@ -311,7 +314,7 @@ toServantHandler env galley = do
     handleWaiErrors logger reqId' werr = do
       Server.logError' logger (Just reqId') werr
       Servant.throwError $
-        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) []
+        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
 
     mkCode = statusCode . WaiError.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
