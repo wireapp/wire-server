@@ -18,6 +18,8 @@ module Galley.API.Federation where
 
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
+import Data.Id (UserId)
+import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import Data.Tagged
 import qualified Galley.API.Mapping as Mapping
@@ -66,7 +68,7 @@ registerConversation rc = do
             (rcOrigUserId rc)
             (rcTime rc)
             (EdConversation c)
-    pushConversationEvent event [qUnqualified usr] []
+    pushConversationEvent Nothing event [qUnqualified usr] []
   where
     getLocals :: Domain -> [Member]
     getLocals localDomain = fromMaybe [] . Map.lookup localDomain . rcMembers $ rc
@@ -100,7 +102,7 @@ updateConversationMemberships cmu = do
   -- send notifications
   let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
   -- FUTUREWORK: support bots?
-  pushConversationEvent event targets []
+  pushConversationEvent Nothing event targets []
 
 -- FUTUREWORK: report errors to the originating backend
 receiveMessage :: Domain -> RemoteMessage -> Galley ()
@@ -108,7 +110,8 @@ receiveMessage domain rm =
   API.postRemoteToLocal
     (rmTime rm)
     (Tagged (Qualified (rmConversation rm) domain))
-    (fmap (,(rmSenderClient rm)) (rmSender rm))
+    (rmSender rm)
+    (rmSenderClient rm)
     (rmData rm)
     (rmPriority rm)
     (rmTransient rm)

@@ -206,7 +206,7 @@ acceptOne2One usr conv conn = do
         (e, mm) <- Data.addMember localDomain now cid usr
         conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> mems')) $ \p ->
+        for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
         return $ conv' {Data.convLocalMembers = mems'}
     _ -> throwM $ invalidOp "accept: invalid conversation type"
@@ -309,13 +309,12 @@ canDeleteMember deleter deletee
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
-pushConversationEvent :: Event -> [UserId] -> [BotMember] -> Galley ()
-pushConversationEvent e = pushJoinEvents (qUnqualified (evtFrom e)) Nothing e
-
--- | Notify local users and bots of a conversation event
-pushJoinEvents :: UserId -> Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
-pushJoinEvents usr conn e users bots = do
-  for_ (newPush ListComplete usr (ConvEvent e) (userRecipient <$> users)) $ \p ->
+-- | Notify local users and bots of being added to a conversation
+pushConversationEvent :: Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
+pushConversationEvent conn e users bots = do
+  localDomain <- viewFederationDomain
+  let musr = guard (localDomain == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+  for_ (newPush ListComplete musr (ConvEvent e) (userRecipient <$> users)) $ \p ->
     push1 $ p & set pushConn conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 

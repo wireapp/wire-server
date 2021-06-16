@@ -71,7 +71,7 @@ import Control.Monad.State
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
-import Data.Domain (Domain)
+import Data.Domain
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -275,7 +275,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   now <- liftIO getCurrentTime
   let accessEvent = Event ConvAccessUpdate qcnv qusr now (EdConvAccessUpdate body)
   Data.updateConversationAccess cnv targetAccess targetRole
-  pushEvent accessEvent users bots zcon
+  pushConversationEvent (Just zcon) accessEvent (map memId users) bots
   -- Remove users and bots
   let removedUsers = map memId users \\ map memId newUsers
       removedBots = map botMemId bots \\ map botMemId newBots
@@ -287,7 +287,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       e <- Data.removeLocalMembers localDomain conv usr (list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+      for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
@@ -319,7 +319,7 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.Conversatio
       Data.updateConversationReceiptMode cnv target
       now <- liftIO getCurrentTime
       let receiptEvent = Event ConvReceiptModeUpdate qcnv qusr now (EdConvReceiptModeUpdate receiptModeUpdate)
-      pushEvent receiptEvent users bots zcon
+      pushConversationEvent (Just zcon) receiptEvent (map memId users) bots
       pure receiptEvent
 
 updateConversationMessageTimerH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationMessageTimerUpdate -> Galley Response
@@ -347,14 +347,8 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
       now <- liftIO getCurrentTime
       let timerEvent = Event ConvMessageTimerUpdate qcnv qusr now (EdConvMessageTimerUpdate timerUpdate)
       Data.updateConversationMessageTimer cnv target
-      pushEvent timerEvent users bots zcon
+      pushConversationEvent (Just zcon) timerEvent (map memId users) bots
       pure timerEvent
-
-pushEvent :: Event -> [LocalMember] -> [BotMember] -> ConnId -> Galley ()
-pushEvent e users bots zcon = do
-  for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> users)) $ \p ->
-    push1 $ p & pushConn ?~ zcon
-  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
 addCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
 addCodeH (usr ::: zcon ::: cnv) = do
@@ -384,7 +378,7 @@ addCode usr zcon cnv = do
       now <- liftIO getCurrentTime
       conversationCode <- createCode code
       let event = Event ConvCodeUpdate qcnv qusr now (EdConvCodeUpdate conversationCode)
-      pushEvent event users bots zcon
+      pushConversationEvent (Just zcon) event (map memId users) bots
       pure $ CodeAdded event
     Just code -> do
       conversationCode <- createCode code
@@ -412,7 +406,7 @@ rmCode usr zcon cnv = do
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
   let event = Event ConvCodeDelete qcnv qusr now EdConvCodeDelete
-  pushEvent event users bots zcon
+  pushConversationEvent (Just zcon) event (map memId users) bots
   pure event
 
 getCodeH :: UserId ::: ConvId -> Galley Response
@@ -621,8 +615,9 @@ removeMember zusr zcon convId victim = do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
       event <- Data.removeLocalMembers localDomain conv zusr (singleton victim)
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
-      for_ (newPush ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
+      for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
+
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
       pure $ Updated event
     else pure Unchanged
@@ -821,37 +816,37 @@ postNewOtrMessage protectee con cnv val msg = do
 postRemoteToLocal ::
   UTCTime ->
   Remote ConvId ->
-  Qualified (UserId, ClientId) ->
+  Qualified UserId ->
+  ClientId ->
   Maybe Text ->
   Maybe Priority ->
   Bool ->
   UserClientMap Text ->
   Galley ()
-postRemoteToLocal now conv sender extra priority transient (UserClientMap rcpts) = do
+postRemoteToLocal now conv sender senderc extra priority transient (UserClientMap rcpts) = do
+  localDomain <- viewFederationDomain
   members <- Data.filterRemoteConvMembers (Map.keys rcpts) (unTagged conv)
   let rcpts' = do
         m <- members
         (c, t) <- maybe [] Map.assocs (rcpts ^? ix m)
         pure (m, c, t)
-  pushSome (map mkPush rcpts')
-  where
-    mkPush :: (UserId, ClientId, Text) -> Push
-    mkPush = remoteToLocalPush now conv sender extra priority transient
+  pushSome (map (remoteToLocalPush localDomain now conv sender senderc extra priority transient) rcpts')
 
 remoteToLocalPush ::
+  Domain ->
   UTCTime ->
   Remote ConvId ->
-  Qualified (UserId, ClientId) ->
+  Qualified UserId ->
+  ClientId ->
   Maybe Text ->
   Maybe Priority ->
   Bool ->
   (UserId, ClientId, Text) ->
   Push
-remoteToLocalPush now (Tagged conv) sender extra priority transient (rcpt, rcptc, ciphertext) =
-  -- FUTUREWORK: use qualified sender id in message notification
+remoteToLocalPush localDomain now (Tagged conv) sender senderc extra priority transient (rcpt, rcptc, ciphertext) =
   newPush1
     ListComplete
-    (fst (qUnqualified sender))
+    msender
     (ConvEvent event)
     (singleton (userRecipient rcpt))
     & pushNativePriority .~ priority
@@ -859,13 +854,13 @@ remoteToLocalPush now (Tagged conv) sender extra priority transient (rcpt, rcptc
   where
     msg =
       OtrMessage
-        { -- FUTUREWORK: use sender domain
-          otrSender = snd (qUnqualified sender),
+        { otrSender = senderc,
           otrRecipient = rcptc,
           otrCiphertext = ciphertext,
           otrData = extra
         }
-    event = Event OtrMessageAdd conv (fmap fst sender) now (EdOtrMessage msg)
+    event = Event OtrMessageAdd conv sender now (EdOtrMessage msg)
+    msender = guard (localDomain == qDomain sender) $> qUnqualified sender
 
 newMessage ::
   Qualified UserId ->
@@ -895,7 +890,7 @@ newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
           let p =
-                newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) [r]
+                newPushLocal ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) [r]
                   <&> set pushConn con
                     . set pushNativePriority (newOtrNativePriority msg)
                     . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
@@ -927,7 +922,7 @@ updateConversationName zusr zcon cnv convRename = do
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
   let e = Event ConvRename qcnv qusr now (EdConvRename convRename)
-  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
@@ -948,7 +943,7 @@ isTyping zusr zcon cnv typingData = do
     throwM convNotFound
   now <- liftIO getCurrentTime
   let e = Event Typing qcnv qusr now (EdTyping typingData)
-  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -981,7 +976,7 @@ addBot zusr zcon b = do
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember qusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
-  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
   pure e
@@ -1020,7 +1015,7 @@ rmBot zusr zcon b = do
       t <- liftIO getCurrentTime
       let evd = EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)])
       let e = Event MemberLeave qcnv qusr t evd
-      for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+      for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
@@ -1055,7 +1050,7 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
   updateRemoteConversationMemberships existingRemotes usr now c lmm rmm
   let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
-  pushJoinEvents usr (Just conn) e localsToNotify bots
+  pushConversationEvent (Just conn) e localsToNotify bots
   pure $ Updated e
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
@@ -1099,7 +1094,7 @@ processUpdateMemberEvent zusr zcon cid users target update = do
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate qcnv qusr now (EdMemberUpdate up)
   let recipients = fmap recipient (target : filter ((/= memId target) . memId) users)
-  for_ (newPush ListComplete zusr (ConvEvent e) recipients) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) recipients) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon

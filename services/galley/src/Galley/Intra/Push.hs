@@ -21,7 +21,9 @@ module Galley.Intra.Push
   ( -- * Push
     Push,
     newPush,
+    newPushLocal,
     newPush1,
+    newPushLocal1,
     push,
     push1,
     pushSome,
@@ -109,7 +111,7 @@ data PushTo user = Push
     _pushRoute :: Gundeck.Route,
     _pushNativePriority :: Maybe Gundeck.Priority,
     _pushAsync :: Bool,
-    pushOrigin :: UserId,
+    pushOrigin :: Maybe UserId,
     pushRecipients :: List1 (RecipientBy user),
     pushJson :: Object,
     pushRecipientListType :: Teams.ListType
@@ -118,7 +120,7 @@ data PushTo user = Push
 
 makeLenses ''PushTo
 
-newPush1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 :: Teams.ListType -> Maybe UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 recipientListType from e rr =
   Push
     { _pushConn = Nothing,
@@ -132,9 +134,15 @@ newPush1 recipientListType from e rr =
       pushRecipients = rr
     }
 
-newPush :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLocal1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPushLocal1 lt uid e rr = newPush1 lt (Just uid) e rr
+
+newPush :: Teams.ListType -> Maybe UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPush _ _ _ [] = Nothing
 newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
+
+newPushLocal :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLocal lt uid e rr = newPush lt (Just uid) e rr
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
