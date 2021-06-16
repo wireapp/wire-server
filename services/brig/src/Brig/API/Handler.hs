@@ -88,7 +88,7 @@ toServantHandler env action = do
         StdError werr -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) []
+            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [("Content-Type", "application/json")]
         RichError werr body headers -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $

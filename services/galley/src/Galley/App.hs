@@ -311,7 +311,7 @@ toServantHandler env galley = do
     handleWaiErrors logger reqId' werr = do
       Server.logError' logger (Just reqId') werr
       Servant.throwError $
-        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) []
+        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [("Content-Type", "application/json")]
 
     mkCode = statusCode . WaiError.code
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
