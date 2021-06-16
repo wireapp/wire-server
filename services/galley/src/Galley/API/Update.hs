@@ -691,21 +691,22 @@ postOtrMessage zusr zcon convDomain cnv msg = do
     toBase64Text = Text.decodeUtf8 . B64.encode
 
     translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
-    translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch)
-    translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch)
+    translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch mempty)
+    translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch mempty)
     translateToServant (OtrUnknownClient e) = Servant.respond e
     translateToServant (OtrConversationNotFound e) = Servant.respond e
 
     -- Unnecessary glue code, it should go away when we implement federated messaging
-    qualifyMismatch :: Public.ClientMismatch -> Galley Public.QualifiedClientMismatch
-    qualifyMismatch cm = do
+    qualifyMismatch :: Public.ClientMismatch -> Client.QualifiedUserClients -> Galley Public.MessageSendingStatus
+    qualifyMismatch cm failedToSend = do
       domain <- viewFederationDomain
       pure
-        Public.QualifiedClientMismatch
-          { Public.qualifiedMismatchTime = Public.cmismatchTime cm,
-            Public.qualifiedDeletedClients = qualifyUserClients domain $ Public.deletedClients cm,
-            Public.qualifiedMissingClients = qualifyUserClients domain $ Public.missingClients cm,
-            Public.qualifiedRedundantClients = qualifyUserClients domain $ Public.redundantClients cm
+        Public.MessageSendingStatus
+          { Public.mssTime = Public.cmismatchTime cm,
+            Public.mssDeletedClients = qualifyUserClients domain $ Public.deletedClients cm,
+            Public.mssMissingClients = qualifyUserClients domain $ Public.missingClients cm,
+            Public.mssRedundantClients = qualifyUserClients domain $ Public.redundantClients cm,
+            Public.mssFailedToSend = failedToSend
           }
     qualifyUserClients :: Domain -> Client.UserClients -> Client.QualifiedUserClients
     qualifyUserClients domain userClients =

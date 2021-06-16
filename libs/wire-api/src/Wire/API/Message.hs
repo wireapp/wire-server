@@ -47,7 +47,7 @@ module Wire.API.Message
     OtrFilterMissing (..),
     ClientMismatch (..),
     ClientMismatchStrategy (..),
-    QualifiedClientMismatch (..),
+    MessageSendingStatus (..),
     UserClients (..),
     ReportMissing (..),
     IgnoreMissing (..),
@@ -411,25 +411,50 @@ instance ToSchema ClientMismatch where
         <*> redundantClients .= field "redundant" schema
         <*> deletedClients .= field "deleted" schema
 
-data QualifiedClientMismatch = QualifiedClientMismatch
-  { qualifiedMismatchTime :: UTCTimeMillis,
-    -- | Clients that the message /should/ have been encrypted for, but wasn't.
-    qualifiedMissingClients :: QualifiedUserClients,
-    -- | Clients that the message /should not/ have been encrypted for, but was.
-    qualifiedRedundantClients :: QualifiedUserClients,
-    qualifiedDeletedClients :: QualifiedUserClients
+data MessageSendingStatus = MessageSendingStatus
+  { mssTime :: UTCTimeMillis,
+    mssMissingClients :: QualifiedUserClients,
+    mssRedundantClients :: QualifiedUserClients,
+    mssDeletedClients :: QualifiedUserClients,
+    mssFailedToSend :: QualifiedUserClients
   }
   deriving stock (Eq, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema QualifiedClientMismatch
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MessageSendingStatus
 
-instance ToSchema QualifiedClientMismatch where
+instance ToSchema MessageSendingStatus where
   schema =
-    object "QualifiedClientMismatch" $
-      QualifiedClientMismatch
-        <$> qualifiedMismatchTime .= field "time" schema
-        <*> qualifiedMissingClients .= field "missing" schema
-        <*> qualifiedRedundantClients .= field "redundant" schema
-        <*> qualifiedDeletedClients .= field "deleted" schema
+    object "MessageSendingStatus" $
+      MessageSendingStatus
+        <$> mssTime
+          .= fieldWithDocModifier
+            "time"
+            (description ?~ "Time of sending message.")
+            schema
+        <*> mssMissingClients
+          .= fieldWithDocModifier
+            "missing"
+            (description ?~ "Clients that the message /should/ have been encrypted for, but wasn't.")
+            schema
+        <*> mssRedundantClients
+          .= fieldWithDocModifier
+            "redundant"
+            (description ?~ "Clients that the message /should not/ have been encrypted for, but was.")
+            schema
+        <*> mssDeletedClients
+          .= fieldWithDocModifier
+            "deleted"
+            (description ?~ "Clients that were deleted.")
+            schema
+        <*> mssFailedToSend
+          .= fieldWithDocModifier
+            "failed_to_send"
+            ( description
+                ?~ "When message sending fails for some clients but succeeds for others,\
+                   \this field will contain the list of clients for which the message sending \
+                   \failed. This list should be empty when message sending is not even tried, \
+                   \like when some clients are missing."
+            )
+            schema
 
 -- QueryParams
 

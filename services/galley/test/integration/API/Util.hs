@@ -1614,13 +1614,13 @@ eqMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
-  Maybe Message.QualifiedClientMismatch ->
+  Maybe Message.MessageSendingStatus ->
   Bool
 eqMismatchQualified _ _ _ Nothing = False
 eqMismatchQualified missing redundant deleted (Just other) = do
-  missing == Message.qualifiedMissingClients other
-    && redundant == Message.qualifiedRedundantClients other
-    && deleted == Message.qualifiedDeletedClients other
+  missing == Message.mssMissingClients other
+    && redundant == Message.mssRedundantClients other
+    && deleted == Message.mssDeletedClients other
 
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap
