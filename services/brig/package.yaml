@@ -58,6 +58,7 @@ library:
   - html-entities >=1.1
   - http-client >=0.5
   - http-client-openssl >=0.2
+  - http-media
   - http-types >=0.8
   - imports
   - insert-ordered-containers

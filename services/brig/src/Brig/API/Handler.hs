@@ -43,11 +43,13 @@ import qualified Control.Monad.Catch as Catch
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Default (def)
+import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.ZAuth.Validation as ZV
 import Imports
-import Network.HTTP.Types (Status (statusCode, statusMessage))
+import Network.HTTP.Media.RenderHeader (RenderHeader (..))
+import Network.HTTP.Types (Status (statusCode, statusMessage), hContentType)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
@@ -88,7 +90,7 @@ toServantHandler env action = do
         StdError werr -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [("Content-Type", "application/json")]
+            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
         RichError werr body headers -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
