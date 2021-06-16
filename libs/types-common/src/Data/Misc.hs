@@ -64,6 +64,7 @@ import Cassandra
 import Control.Lens (makeLenses, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64 as B64
@@ -80,7 +81,6 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
 import qualified Test.QuickCheck as QC
 import Text.Read (Read (..))
@@ -92,12 +92,6 @@ import qualified URI.ByteString.QQ as URI.QQ
 
 newtype IpAddr = IpAddr {ipAddr :: IP}
   deriving stock (Eq, Ord, Show, Generic)
-
-instance S.ToParamSchema IpAddr where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
-
-instance FromHttpApiData IpAddr where
-  parseQueryParam p = first Text.pack (runParser parser (encodeUtf8 p))
 
 instance FromByteString IpAddr where
   parser = do
@@ -153,14 +147,6 @@ data Location = Location
     _longitude :: !Double
   }
   deriving stock (Eq, Ord, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Location
-
-instance ToSchema Location where
-  schema =
-    object "Location" $
-      Location
-        <$> _latitude .= field "lat" genericToSchema
-        <*> _longitude .= field "lon" genericToSchema
 
 instance Show Location where
   show p =
@@ -190,6 +176,28 @@ modelLocation = Doc.defineModel "Location" $ do
     Doc.description "Latitude"
   Doc.property "lon" Doc.double' $
     Doc.description "Longitude"
+
+instance ToJSON Location where
+  toJSON p = A.object ["lat" A..= (p ^. latitude), "lon" A..= (p ^. longitude)]
+
+instance FromJSON Location where
+  parseJSON = A.withObject "Location" $ \o ->
+    location
+      <$> (Latitude <$> o A..: "lat")
+      <*> (Longitude <$> o A..: "lon")
+
+instance S.ToSchema Location where
+  declareNamedSchema _ = do
+    doubleSchema <- S.declareSchemaRef (Proxy @Double)
+    return $
+      S.NamedSchema (Just "Location") $
+        mempty
+          & S.type_ ?~ S.SwaggerObject
+          & S.properties
+            .~ [ ("lat", doubleSchema),
+                 ("lon", doubleSchema)
+               ]
+          & S.required .~ ["lat", "lon"]
 
 instance Arbitrary Location where
   arbitrary = Location <$> arbitrary <*> arbitrary
@@ -330,15 +338,15 @@ instance Arbitrary (Fingerprint Rsa) where
 newtype PlainTextPassword = PlainTextPassword
   {fromPlainTextPassword :: Text}
   deriving stock (Eq, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PlainTextPassword
+  deriving newtype (ToJSON)
 
 instance Show PlainTextPassword where
   show _ = "PlainTextPassword <hidden>"
 
-instance ToSchema PlainTextPassword where
-  schema =
-    PlainTextPassword
-      <$> fromPlainTextPassword .= untypedRangedSchema 6 1024 schema
+instance FromJSON PlainTextPassword where
+  parseJSON x =
+    PlainTextPassword . fromRange
+      <$> (parseJSON x :: A.Parser (Range 6 1024 Text))
 
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars

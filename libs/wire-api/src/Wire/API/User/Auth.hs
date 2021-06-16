@@ -59,8 +59,7 @@ import qualified Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
-import Data.Schema (ToSchema)
-import qualified Data.Swagger as S
+import Data.Swagger (ToSchema)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
@@ -321,16 +320,7 @@ instance FromJSON (Cookie ()) where
 newtype CookieLabel = CookieLabel
   {cookieLabelText :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype
-    ( FromJSON,
-      ToJSON,
-      FromByteString,
-      ToByteString,
-      IsString,
-      Arbitrary,
-      S.ToSchema,
-      ToSchema
-    )
+  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, IsString, Arbitrary, ToSchema)
 
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
