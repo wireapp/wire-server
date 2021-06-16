@@ -298,7 +298,7 @@ mkPushTarget pre = PushTarget (userId pre) (connId pre)
 push ::
   Notification ->
   List1 NotificationTarget ->
-  UserId -> -- Origin user.
+  Maybe UserId -> -- Origin user.
   Maybe ConnId -> -- Origin device connection.
   Set ConnId -> -- Only target these connections.
   Gundeck [Presence]
@@ -330,7 +330,7 @@ push notif (toList -> tgts) originUser originConn conns = do
         then id
         else filter ((`Set.member` conns) . connId)
     excludeOrigin =
-      let neqUser p = originUser /= userId p
+      let neqUser p = originUser /= Just (userId p)
           neqConn p = originConn /= Just (connId p)
        in filter (\p -> neqUser p || neqConn p)
     onResult (ok, gone) (PushSuccess p) = do

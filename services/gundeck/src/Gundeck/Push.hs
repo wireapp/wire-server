@@ -137,7 +137,7 @@ class (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => MonadPushAny m 
   mpyPush ::
     Notification ->
     List1 NotificationTarget ->
-    UserId ->
+    Maybe UserId ->
     Maybe ConnId ->
     Set ConnId ->
     m [Presence]
@@ -272,7 +272,7 @@ shouldActuallyPush :: Push -> Recipient -> Presence -> Bool
 shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecipientWhitelist
   where
     isOrigin =
-      psh ^. pushOrigin == userId pres
+      psh ^. pushOrigin == Just (userId pres)
         && psh ^. pushOriginConnection == Just (connId pres)
     okByPushWhitelist = if whitelistExists then isWhitelisted else True
       where
@@ -299,7 +299,7 @@ nativeTargetsRecipients psh = filter routeNative (toList (fromRange (psh ^. push
   where
     routeNative u =
       u ^. recipientRoute /= RouteDirect
-        && (u ^. recipientId /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
+        && (Just (u ^. recipientId) /= psh ^. pushOrigin || psh ^. pushNativeIncludeOrigin)
 
 -- | FUTUREWORK: 'nativeTargets' calls cassandra once for each 'Recipient' of the 'Push'.  Instead,
 -- it should be called once with @[Push]@ for every call to 'pushAll', and that call should
@@ -324,7 +324,7 @@ nativeTargets psh rcps' alreadySent =
     eligible :: Recipient -> Address -> Bool
     eligible u a
       -- Never include the origin client.
-      | a ^. addrUser == psh ^. pushOrigin && Just (a ^. addrConn) == psh ^. pushOriginConnection = False
+      | Just (a ^. addrUser) == psh ^. pushOrigin && Just (a ^. addrConn) == psh ^. pushOriginConnection = False
       -- Is the specific client an intended recipient?
       | not (eligibleClient a (u ^. recipientClients)) = False
       -- Is the client not whitelisted?
