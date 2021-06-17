@@ -118,7 +118,7 @@ main = withOpenSSL $ runTests go
       let ck = fromJust gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (mkFedGalleyClient galleyEndpoint)
+      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (mkFedGalleyClient galleyEndpoint) (mkGalleyClient galleyEndpoint)
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
     maxSize = view (optSettings . setMaxConvSize)

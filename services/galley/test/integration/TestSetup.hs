@@ -32,6 +32,8 @@ module TestSetup
     tsCass,
     tsFedGalleyClient,
     mkFedGalleyClient,
+    tsGalleyClient,
+    mkGalleyClient,
     TestM (..),
     TestSetup (..),
     FedGalleyClient,
@@ -56,6 +58,7 @@ import qualified Servant.Client.Generic as Servant
 import Test.Tasty.HUnit
 import Util.Options
 import qualified Wire.API.Federation.API.Galley as FedGalley
+import qualified Wire.API.Routes.Public.Galley as Galley
 
 type GalleyR = Request -> Request
 
@@ -102,6 +105,8 @@ newtype TestM a = TestM {runTestM :: ReaderT TestSetup IO a}
 
 type FedGalleyClient = FedGalley.Api (AsClientT TestM)
 
+type GalleyClient = Galley.Api (AsClientT TestM)
+
 data TestSetup = TestSetup
   { _tsGConf :: Opts,
     _tsIConf :: IntegrationConfig,
@@ -112,7 +117,8 @@ data TestSetup = TestSetup
     _tsAwsEnv :: Maybe Aws.Env,
     _tsMaxConvSize :: Word16,
     _tsCass :: Cql.ClientState,
-    _tsFedGalleyClient :: FedGalleyClient
+    _tsFedGalleyClient :: FedGalleyClient,
+    _tsGalleyClient :: GalleyClient
   }
 
 makeLenses ''TestSetup
@@ -123,16 +129,21 @@ instance MonadHttp TestM where
     liftIO $ withResponse req manager handler
 
 mkFedGalleyClient :: Endpoint -> FedGalleyClient
-mkFedGalleyClient galleyEndpoint = Servant.genericClientHoist servantClienMToHttp
-  where
-    servantClienMToHttp :: Servant.ClientM a -> TestM a
-    servantClienMToHttp act = do
-      let brigHost = Text.unpack $ galleyEndpoint ^. epHost
-          brigPort = fromInteger . toInteger $ galleyEndpoint ^. epPort
-          baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort ""
-      mgr' <- view tsManager
-      let clientEnv = Servant.ClientEnv mgr' baseUrl Nothing Servant.defaultMakeClientRequest
-      eitherRes <- liftIO $ Servant.runClientM act clientEnv
-      case eitherRes of
-        Right res -> pure res
-        Left err -> liftIO $ assertFailure $ "Servant client failed with: " <> show err
+mkFedGalleyClient galleyEndpoint = Servant.genericClientHoist (servantClientMToHttp galleyEndpoint)
+
+servantClientMToHttp :: Endpoint -> Servant.ClientM a -> TestM a
+servantClientMToHttp galleyEndpoint act = do
+  let galleyHost = Text.unpack $ galleyEndpoint ^. epHost
+      galleyPort = fromInteger . toInteger $ galleyEndpoint ^. epPort
+      baseUrl = Servant.BaseUrl Servant.Http galleyHost galleyPort ""
+  mgr' <- view tsManager
+  let clientEnv = Servant.ClientEnv mgr' baseUrl Nothing Servant.defaultMakeClientRequest
+  eitherRes <- liftIO $ Servant.runClientM act clientEnv
+  case eitherRes of
+    Right res -> pure res
+    Left err -> liftIO $ assertFailure $ "Servant client failed with: " <> show err
+
+-- No instance for (Servant.HasClient ...
+-- arising from a use of ‘Servant.genericClientHoist’
+mkGalleyClient :: Endpoint -> GalleyClient
+mkGalleyClient galleyEndpoint = Servant.genericClientHoist (servantClientMToHttp galleyEndpoint)
