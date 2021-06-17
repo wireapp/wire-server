@@ -8,3 +8,4 @@
        explain the change which will be included in the release notes.
  - [ ] If a component uses a new or changed internal endpoint of another
        component, this is mentioned in the CHANGELOG.md.
+- [ ] If this PR creates a new endpoint, or adds a new configuration flag, the endpoint / config-flag checklist (see Wire-employee only backend [wiki page](https://github.com/zinfra/backend-wiki/wiki/Checklists)) has been followed.
