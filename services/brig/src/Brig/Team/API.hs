@@ -308,7 +308,7 @@ logInvitationRequest context action =
     eith <- action'
     case eith of
       Left err' -> do
-        Log.warn $ context . Log.msg @Text ("Failed to create invitation, label: " <> (cs . label . waiError) err')
+        Log.warn $ context . Log.msg @Text ("Failed to create invitation, label: " <> (cs . errorLabel) err')
         pure (Left err')
       Right result@(_, code) -> do
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Succesfully created invitation"
