@@ -43,11 +43,13 @@ import qualified Control.Monad.Catch as Catch
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Default (def)
+import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.ZAuth.Validation as ZV
 import Imports
-import Network.HTTP.Types (Status (statusCode, statusMessage))
+import Network.HTTP.Media.RenderHeader (RenderHeader (..))
+import Network.HTTP.Types (Status (statusCode, statusMessage), hContentType)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
@@ -57,6 +59,7 @@ import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
+import qualified System.Logger as Log
 import System.Logger.Class (Logger)
 
 -------------------------------------------------------------------------------
@@ -81,18 +84,22 @@ toServantHandler env action = do
     Right x -> pure x
   where
     mkCode = statusCode . WaiError.code
-    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code
+    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage
 
     handleWaiErrors logger reqId =
       \case
         StdError werr -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) []
+            Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
         RichError werr body headers -> do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode body) headers
+            Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode body) headers
+        EmptyErrorForLegacyReasons code -> do
+          Log.debug logger $ Log.field "request" reqId . Log.msg ("empty error for legacy reasons" :: ByteString)
+          Servant.throwError $
+            Servant.ServerError (statusCode code) (mkPhrase code) "" [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.PlainText)))]
 
 brigErrorHandlers :: [Catch.Handler IO (Either Error a)]
 brigErrorHandlers =
@@ -123,6 +130,7 @@ onError g r k e = do
     (we, hs) = case e of
       StdError x -> (x, [])
       RichError x _ h -> (x, h)
+      EmptyErrorForLegacyReasons code -> (WaiError.mkError code "" "", [])
 
 -------------------------------------------------------------------------------
 -- Utilities

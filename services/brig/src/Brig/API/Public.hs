@@ -91,7 +91,6 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import qualified Wire.API.ErrorDescription as ErrorDescription
 import qualified Wire.API.Properties as Public
 import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
@@ -811,7 +810,7 @@ getClient :: UserId -> ClientId -> Handler (Union BrigAPI.GetClientResponse)
 getClient zusr clientId = do
   mc <- lift $ API.lookupLocalClient zusr clientId
   case mc of
-    Nothing -> Servant.respond ErrorDescription.clientNotFound
+    Nothing -> throwEmptyForLegacyReasons status404
     Just c -> Servant.respond (WithStatus @200 c)
 
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
