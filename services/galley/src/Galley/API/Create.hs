@@ -326,9 +326,15 @@ notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Con
 notifyCreatedConversation dtime usr conn c = do
   localDomain <- viewFederationDomain
   now <- maybe (liftIO getCurrentTime) pure dtime
+  -- FUTUREWORK: Should these calls that push notifications to local and remote
+  -- users be made in this, or a different order, or in parallel/applicative
+  -- fashion?
+  --
+  -- Ask remote server to store conversation membership and notify remote users
+  -- of being added to a conversation
+  createRemoteConversationMemberships now (Qualified usr localDomain) c
+  -- Notify local users
   pushSome =<< mapM (toPush localDomain now) (Data.convLocalMembers c)
-  -- Notify remote users of being added to a conversation
-  createRemoteConversationMemberships usr now c (Data.convLocalMembers c) (Data.convRemoteMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny

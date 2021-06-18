@@ -20,7 +20,7 @@ module Federation.End2end where
 import API.Search.Util
 import API.User.Util (getUserClientsQualified)
 import Bilge
-import Bilge.Assert ((!!!), (===), (<!!))
+import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
 import qualified Brig.Options as BrigOpts
 import Brig.Types
@@ -278,9 +278,9 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
 --         )
 
 --   undefined
-  -- test GET /conversations/:backend1Domain/:cnv
-  -- testQualifiedGetConversation galley1 "galley1" alice bob convId
-  -- testQualifiedGetConversation galley2 "galley2" bob alice convId
+-- test GET /conversations/:backend1Domain/:cnv
+-- testQualifiedGetConversation galley1 "galley1" alice bob convId
+-- testQualifiedGetConversation galley2 "galley2" bob alice convId
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do

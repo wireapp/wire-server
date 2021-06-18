@@ -14,12 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow ((&&&))
+import Control.Arrow (Arrow (second), (&&&))
 import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
@@ -46,6 +47,7 @@ import Galley.Intra.User
 import Galley.Options (optSettings, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (RemoteMember (..))
+import qualified Galley.Types.Conversations.Members as Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event)
 import Imports
@@ -54,6 +56,8 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
+import qualified Wire.API.Conversation as Public
+import qualified Wire.API.Conversation.Member as Member
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
@@ -305,7 +309,7 @@ canDeleteMember deleter deletee
 pushConversationEvent :: Event -> [UserId] -> [BotMember] -> Galley ()
 pushConversationEvent e = pushJoinEvents (qUnqualified (evtFrom e)) Nothing e
 
--- | Notify local users and bots of being added to a conversation
+-- | Notify local users and bots of a conversation event
 pushJoinEvents :: UserId -> Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
 pushJoinEvents usr conn e users bots = do
   for_ (newPush ListComplete usr (ConvEvent e) (userRecipient <$> users)) $ \p ->
@@ -350,35 +354,137 @@ runFederated remoteDomain rpc = do
   runExceptT (executeFederated remoteDomain rpc)
     >>= either (throwM . federationErrorToWai) pure
 
+-- | Convert an internal conversation representation 'Data.Conversation' to
+-- 'CreateConversation' to be sent over the wire to a remote backend that will
+-- reconstruct this into multiple public-facing
+-- 'Wire.API.Conversation.Convevrsation' values, one per user from that remote
+-- backend.
+--
+-- FUTUREWORK: Include the team ID as well once it becomes qualified.
+toCreateConversation ::
+  -- | The time stamp the conversation was created at
+  UTCTime ->
+  -- | The user that created the conversation
+  Qualified UserId ->
+  -- | The conversation to convert for sending to a remote Galley
+  Data.Conversation ->
+  -- | The resulting information to be sent to a remote Galley
+  CreateConversation
+toCreateConversation now qusr@(Qualified _usr localDomain) Data.Conversation {..} =
+  MkCreateConversation
+    { ccTime = now,
+      ccOrigUserId = qusr,
+      ccCnvId = Qualified convId localDomain,
+      ccCnvType = convType,
+      ccCnvCreator = Qualified convCreator localDomain,
+      ccCnvAccess = convAccess,
+      ccCnvAccessRole = convAccessRole,
+      ccCnvName = convName,
+      ccMembers = toMembers convLocalMembers convRemoteMembers,
+      ccMessageTimer = convMessageTimer,
+      ccReceiptMode = convReceiptMode
+    }
+  where
+    toMembers ::
+      [LocalMember] ->
+      [RemoteMember] ->
+      Map Domain [Member.Member]
+    toMembers ls rs =
+      let locals = Map.singleton localDomain . fmap localToMember $ ls
+          remotesUngrouped = fmap (second pure . remoteToMember) rs
+       in foldl' (flip (uncurry (Map.insertWith (<>)))) locals remotesUngrouped
+    localToMember :: LocalMember -> Member.Member
+    localToMember Members.InternalMember {..} =
+      Member.Member
+        { memId = memId,
+          ..
+        }
+    remoteToMember :: RemoteMember -> (Domain, Member.Member)
+    remoteToMember RemoteMember {..} =
+      ( qDomain . unTagged $ rmId,
+        Member.Member
+          { memId = qUnqualified . unTagged $ rmId,
+            memService = Nothing,
+            memOtrMuted = False,
+            memOtrMutedStatus = Nothing,
+            memOtrMutedRef = Nothing,
+            memOtrArchived = False,
+            memOtrArchivedRef = Nothing,
+            memHidden = False,
+            memHiddenRef = Nothing,
+            memConvRoleName = rmConvRoleName
+          }
+      )
+
+-- | The function converts a 'CreateConversation' value to a
+-- 'Wire.API.Conversation.Conversation' value. The obtained value can be used in
+-- e.g. creating an 'Event' to be sent out to users informing them that a new
+-- conversation has been created.
+fromCreateConversation ::
+  Qualified UserId ->
+  CreateConversation ->
+  Galley Public.Conversation
+fromCreateConversation (Qualified usr localDomain) MkCreateConversation {..} = do
+  this <- me ccMembers
+  pure
+    Public.Conversation
+      { cnvId = qUnqualified ccCnvId,
+        cnvType = ccCnvType,
+        -- FUTUREWORK: a UserId from another instance is communicated here, which
+        -- without domain does not make much sense here.
+        cnvCreator = qUnqualified ccCnvCreator,
+        cnvAccess = ccCnvAccess,
+        cnvAccessRole = ccCnvAccessRole,
+        cnvName = ccCnvName,
+        cnvMembers = ConvMembers this (others ccMembers),
+        -- FUTUREWORK: Once conversation IDs become qualified, this information
+        -- should be sent from the hosting Galley and stored here in 'cnvTeam'.
+        cnvTeam = Nothing,
+        cnvMessageTimer = ccMessageTimer,
+        cnvReceiptMode = ccReceiptMode
+      }
+  where
+    me :: Map Domain [Public.Member] -> Galley Public.Member
+    me m = case Map.lookup localDomain m >>= find ((usr ==) . Member.memId) of
+      Nothing -> throwM convMemberNotFound
+      Just v -> pure v
+    others :: Map Domain [Public.Member] -> [OtherMember]
+    others =
+      Map.foldlWithKey' (\acc d mems -> fmap (memToOther d) mems <> acc) []
+        -- make sure not to include 'usr' in the list of others
+        . Map.adjust (filter ((usr /=) . Public.memId)) localDomain
+    memToOther :: Domain -> Member.Member -> OtherMember
+    memToOther d mem =
+      OtherMember
+        { omQualifiedId = Qualified (Member.memId mem) d,
+          omService = Member.memService mem,
+          omConvRoleName = Member.memConvRoleName mem
+        }
+
 -- | Notify remote users of being added to a new conversation
-createRemoteConversationMemberships :: UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
-createRemoteConversationMemberships usr now c lmm rmm = do
-  localDomain <- viewFederationDomain
-  let members = catMembers localDomain lmm rmm
-      qcnv = Qualified (Data.convId c) localDomain
-      qusr = Qualified usr localDomain
-   -- FUTUREWORK: parallelise federated requests
-  traverse_ (createRemoteConversations members qusr qcnv)
+createRemoteConversationMemberships ::
+  -- | The time stamp when the conversation was created
+  UTCTime ->
+  -- | The user that created the conversation
+  Qualified UserId ->
+  Data.Conversation ->
+  Galley ()
+createRemoteConversationMemberships now qusr c = do
+  let cc = toCreateConversation now qusr c
+  -- FUTUREWORK: parallelise federated requests
+  traverse_ (createRemoteConversations cc)
     . Map.keys
     . partitionQualified
     . nubOrd
     . map (unTagged . rmId)
-    $ rmm
+    . Data.convRemoteMembers
+    $ c
   where
     createRemoteConversations ::
-      [(Qualified UserId, RoleName)] ->
-      Qualified UserId ->
-      Qualified ConvId ->
+      CreateConversation ->
       Domain ->
       Galley ()
-    createRemoteConversations uids orig cnv domain = do
-      let cc =
-            FederatedGalley.MkCreateConversation
-              { ccTime = now,
-                ccOrigUserId = orig,
-                ccConvId = cnv,
-                ccUsersAdd = uids
-              }
+    createRemoteConversations cc domain = do
       let rpc = FederatedGalley.createConversation FederatedGalley.clientRoutes cc
       runFederated domain rpc
 

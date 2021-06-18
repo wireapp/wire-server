@@ -19,7 +19,9 @@ module Wire.API.Federation.API.Galley where
 
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Domain (Domain)
 import Data.Id (ConvId, UserId)
+import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
@@ -27,7 +29,8 @@ import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.Conversation (Conversation)
+import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
+import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
@@ -82,12 +85,22 @@ newtype GetConversationsResponse = GetConversationsResponse
 data CreateConversation = MkCreateConversation
   { -- | The time when the conversation was created
     ccTime :: UTCTime,
-    -- | The user creating the conversation
+    -- | The user that created the conversation
     ccOrigUserId :: Qualified UserId,
-    -- | The qualified ID of the conversation created on the owning backend
-    ccConvId :: Qualified ConvId,
-    -- | Users that are added to the conversation
-    ccUsersAdd :: [(Qualified UserId, RoleName)]
+    -- | The qualified conversation ID
+    ccCnvId :: Qualified ConvId,
+    -- | The conversation type
+    ccCnvType :: ConvType,
+    -- | The user that created the conversation
+    ccCnvCreator :: Qualified UserId,
+    ccCnvAccess :: [Access],
+    ccCnvAccessRole :: AccessRole,
+    -- | The conversation name,
+    ccCnvName :: Maybe Text,
+    -- | Members of the conversation grouped by their domain
+    ccMembers :: Map Domain [Member],
+    ccMessageTimer :: Maybe Milliseconds,
+    ccReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded CreateConversation)

@@ -17,15 +17,19 @@
 module Galley.API.Federation where
 
 import Data.Containers.ListUtils (nubOrd)
+import Data.Domain (Domain)
+import Data.Id (UserId)
+import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
-import Galley.API.Util (pushConversationEvent, viewFederationDomain)
+import Galley.API.Util (fromCreateConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import Wire.API.Conversation.Member (Member, memId)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), CreateConversation (..), GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
@@ -42,20 +46,25 @@ federationSitemap =
 createConversation :: CreateConversation -> Galley ()
 createConversation cc = do
   localDomain <- viewFederationDomain
-  let localUsers = filter ((== localDomain) . qDomain . fst) (ccUsersAdd cc)
-      localUserIds = map (qUnqualified . fst) localUsers
-  -- TODO(md): This call to addLocalMembersToRemoteConv below makes no sense
+  let localUsers = fmap (toQualified localDomain) . getLocals $ localDomain
+      localUserIds = map qUnqualified localUsers
   unless (null localUsers) $ do
-    Data.addLocalMembersToRemoteConv localUserIds (ccConvId cc)
-  -- TODO(md): Implement holes below
-  let _event =
-        Event
-          ConvCreate
-          (ccConvId cc)
-          (ccOrigUserId cc)
-          (ccTime cc)
-          (EdConversation undefined)
-  undefined
+    Data.addLocalMembersToRemoteConv localUserIds (ccCnvId cc)
+  forM_ localUsers $ \usr -> do
+    c <- fromCreateConversation usr cc
+    let event =
+          Event
+            ConvCreate
+            (ccCnvId cc)
+            (ccOrigUserId cc)
+            (ccTime cc)
+            (EdConversation c)
+    pushConversationEvent event [qUnqualified usr] []
+  where
+    getLocals :: Domain -> [Member]
+    getLocals localDomain = fromMaybe [] . Map.lookup localDomain . ccMembers $ cc
+    toQualified :: Domain -> Member -> Qualified UserId
+    toQualified domain mem = Qualified (memId mem) domain
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
