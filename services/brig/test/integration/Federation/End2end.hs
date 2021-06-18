@@ -277,10 +277,25 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
 --             . json conv
 --         )
 
---   undefined
--- test GET /conversations/:backend1Domain/:cnv
--- testQualifiedGetConversation galley1 "galley1" alice bob convId
--- testQualifiedGetConversation galley2 "galley2" bob alice convId
+-- | Test a scenario of a two-user conversation.
+testQualifiedGetConversation ::
+  -- | A Galley to get information from
+  Galley ->
+  -- | A message to display during response parsing
+  String ->
+  -- | The user making the request
+  User ->
+  -- | The other user in the conversation
+  User ->
+  -- | A qualified conversation ID
+  Qualified ConvId ->
+  Http ()
+testQualifiedGetConversation galley msg alice bob qconvId = do
+  res <- getConvQualified galley (userId alice) qconvId <!! (const 200 === statusCode)
+  let conv = responseJsonUnsafeWithMsg (msg <> " - get /conversations/domain/cnvId") res
+      actual = cmOthers $ cnvMembers conv
+      expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
+  liftIO $ actual @?= expected
 
 testListUserClients :: Brig -> Brig -> Http ()
 testListUserClients brig1 brig2 = do
