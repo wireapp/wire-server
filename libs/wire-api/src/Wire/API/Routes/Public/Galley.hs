@@ -148,8 +148,8 @@ data Api routes = Api
         :> ZUser
         :> "conversations"
         :> "join"
-        :> QueryParam' [Required, Strict] "code" Code.Key
-        :> QueryParam' [Required, Strict] "value" Code.Value
+        :> QueryParam' [Required, Strict] "key" Code.Key
+        :> QueryParam' [Required, Strict] "code" Code.Value
         :> Get '[Servant.JSON] Public.ConversationCoverView,
     -- FUTUREWORK: potential errors: codeNotFound, convNotFound, notATeamMember, convAccessDenied
     createGroupConversation ::
