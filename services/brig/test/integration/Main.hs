@@ -63,6 +63,7 @@ import Util.Test
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
+    remoteGalley :: Endpoint,
     remoteFederatorInternal :: Endpoint,
     remoteFederatorExternal :: Endpoint
   }
@@ -72,6 +73,7 @@ instance FromJSON BackendConf where
   parseJSON = withObject "BackendConf" $ \o ->
     BackendConf
       <$> o .: "brig"
+      <*> o .: "galley"
       <*> o .: "federatorInternal"
       <*> o .: "federatorExternal"
 
@@ -105,6 +107,7 @@ runTests iConf brigOpts otherArgs = do
       s = mkRequest $ spar iConf
       f = federatorInternal iConf
       brigTwo = mkRequest $ remoteBrig (backendTwo iConf)
+      galleyTwo = mkRequest $ remoteGalley (backendTwo iConf)
 
   let turnFile = Opts.servers . Opts.turn $ brigOpts
       turnFileV2 = (Opts.serversV2 . Opts.turn) brigOpts
@@ -129,7 +132,7 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationEnd2End <- Federation.End2end.spec brigOpts mg b g f brigTwo
+  federationEnd2End <- Federation.End2end.spec brigOpts mg b g f brigTwo galleyTwo
   federationEndpoints <- API.Federation.tests mg b fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg b (brig iConf) gd

@@ -3,9 +3,8 @@ module Wire.API.ErrorDescription where
 import Control.Lens (at, over, (.~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Schema
-import Data.Swagger (PathItem (..), Swagger (..))
+import Data.Swagger (Swagger)
 import qualified Data.Swagger as Swagger
 import qualified Data.Text as Text
 import GHC.TypeLits (KnownNat, KnownSymbol, Symbol, natVal, symbolVal)
@@ -14,6 +13,7 @@ import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import Servant.API.Status (KnownStatus)
 import Servant.Swagger.Internal
+import Wire.API.ServantSwagger
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
@@ -69,40 +69,6 @@ instance
   toSwagger _ =
     toSwagger (Proxy @(Verb method (StatusOf (ErrorDescription status desc)) cs (ErrorDescription status desc)))
       `combineSwagger` toSwagger (Proxy @(UVerb method cs rest))
-    where
-      -- workaround for https://github.com/GetShopTV/swagger2/issues/218
-      -- We'd like to juse use (<>) but the instances are wrong
-      combinePathItem :: PathItem -> PathItem -> PathItem
-      combinePathItem s t =
-        PathItem
-          { _pathItemGet = _pathItemGet s <> _pathItemGet t,
-            _pathItemPut = _pathItemPut s <> _pathItemPut t,
-            _pathItemPost = _pathItemPost s <> _pathItemPost t,
-            _pathItemDelete = _pathItemDelete s <> _pathItemDelete t,
-            _pathItemOptions = _pathItemOptions s <> _pathItemOptions t,
-            _pathItemHead = _pathItemHead s <> _pathItemHead t,
-            _pathItemPatch = _pathItemPatch s <> _pathItemPatch t,
-            _pathItemParameters = _pathItemParameters s <> _pathItemParameters t
-          }
-
-      combineSwagger :: Swagger -> Swagger -> Swagger
-      combineSwagger s t =
-        Swagger
-          { _swaggerInfo = _swaggerInfo s <> _swaggerInfo t,
-            _swaggerHost = _swaggerHost s <|> _swaggerHost t,
-            _swaggerBasePath = _swaggerBasePath s <|> _swaggerBasePath t,
-            _swaggerSchemes = _swaggerSchemes s <> _swaggerSchemes t,
-            _swaggerConsumes = _swaggerConsumes s <> _swaggerConsumes t,
-            _swaggerProduces = _swaggerProduces s <> _swaggerProduces t,
-            _swaggerPaths = InsOrdHashMap.unionWith combinePathItem (_swaggerPaths s) (_swaggerPaths t),
-            _swaggerDefinitions = _swaggerDefinitions s <> _swaggerDefinitions t,
-            _swaggerParameters = _swaggerParameters s <> _swaggerParameters t,
-            _swaggerResponses = _swaggerResponses s <> _swaggerResponses t,
-            _swaggerSecurityDefinitions = _swaggerSecurityDefinitions s <> _swaggerSecurityDefinitions t,
-            _swaggerSecurity = _swaggerSecurity s <> _swaggerSecurity t,
-            _swaggerTags = _swaggerTags s <> _swaggerTags t,
-            _swaggerExternalDocs = _swaggerExternalDocs s <|> _swaggerExternalDocs t
-          }
 
 instance (KnownNat status, KnownStatus status) => HasStatus (ErrorDescription status desc) where
   type StatusOf (ErrorDescription status desc) = status
@@ -118,3 +84,8 @@ type UnknownClient = ErrorDescription 403 "Unknown Client"
 
 unknownClient :: UnknownClient
 unknownClient = ErrorDescription "unknown-client" "Sending client not known"
+
+type ClientNotFound = ErrorDescription 404 "Client not found"
+
+clientNotFound :: ClientNotFound
+clientNotFound = ErrorDescription "client-not-found" "client not found"

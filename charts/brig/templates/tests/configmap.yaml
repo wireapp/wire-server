@@ -61,6 +61,10 @@ data:
         host: brig.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
+      galley:
+        host: galley.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
       # TODO remove this
       federator:
         host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local

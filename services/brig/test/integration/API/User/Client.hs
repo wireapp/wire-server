@@ -42,6 +42,7 @@ import qualified Data.Vector as Vec
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import qualified Test.Tasty.Cannon as WS
@@ -88,6 +89,7 @@ tests _cl _at opts p b c g =
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
+      test p "get /clients/:client - 404" $ testMissingClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
@@ -432,6 +434,7 @@ testTooManyClients opts brig = do
     addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
       const 403 === statusCode
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
+      const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
@@ -620,6 +623,15 @@ testUpdateClient opts brig = do
     checkClientLabel
     checkClientPrekeys prekey
     checkClientPrekeys (unpackLastPrekey lastprekey)
+
+testMissingClient :: Brig -> Http ()
+testMissingClient brig = do
+  uid <- userId <$> randomUser brig
+  c <- liftIO $ generate arbitrary
+  getClient brig uid c !!! do
+    const 404 === statusCode
+    -- This is unfortunate, but fixing this breaks clients.
+    const Nothing === responseBody
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()

@@ -39,12 +39,11 @@ federationSitemap =
       }
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
-getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = do
-  localDomain <- viewFederationDomain
+getConversations (GetConversationsRequest qUid gcrConvIds) = do
+  domain <- viewFederationDomain
   convs <- Data.conversations gcrConvIds
-  if domain == localDomain
-    then GetConversationsResponse . catMaybes <$> for convs (Mapping.conversationViewMaybe uid)
-    else error "FUTUREWORK: implement & exstend integration test when schema ready"
+  let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
+  pure $ GetConversationsResponse . catMaybes $ convViews
 
 -- FUTUREWORK: also remove users from conversation
 updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
@@ -54,7 +53,6 @@ updateConversationMemberships cmu = do
       localUserIds = map (qUnqualified . fst) localUsers
   when (not (null localUsers)) $ do
     Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
-  -- FUTUREWORK: the resulting event should have qualified users and conversations
   let mems = SimpleMembers (map (uncurry SimpleMember) (cmuUsersAdd cmu))
   let event =
         Event

@@ -98,7 +98,7 @@ assertOutwardErrorStatus errType sts =
   assertEqual ("http status should be " <> show sts) (HTTP.statusCode . Wai.code . federationRemoteError $ Proto.OutwardError errType Nothing) sts
 
 statusFor :: FederationError -> Int
-statusFor = HTTP.statusCode . Wai.code . waiError . fedError
+statusFor = HTTP.statusCode . errorStatus . fedError
 
 emptyReq :: Servant.RequestF () (Servant.BaseUrl, ByteString)
 emptyReq =

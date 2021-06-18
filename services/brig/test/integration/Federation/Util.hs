@@ -24,6 +24,7 @@
 module Federation.Util where
 
 import Bilge
+import Bilge.Assert ((!!!), (<!!), (===))
 import qualified Brig.Options as Opt
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
@@ -34,11 +35,12 @@ import Control.Monad.Trans.Except
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode, (.=))
 import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
 import qualified Data.Map.Strict as Map
-import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Qualified (Qualified (..))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
@@ -61,6 +63,9 @@ import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Conversation (Conversation (cnvMembers))
+import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.GRPC.Types (FederatedRequest, Outward, OutwardResponse (..))
 import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
@@ -108,3 +113,12 @@ assertRight = \case
 
 assertRightT :: (MonadIO m, Show a, HasCallStack) => ExceptT a m b -> m b
 assertRightT = assertRight <=< runExceptT
+
+getConvQualified :: Galley -> UserId -> Qualified ConvId -> Http ResponseLBS
+getConvQualified g u (Qualified cnvId domain) =
+  get $
+    g
+      . paths ["conversations", toByteString' domain, toByteString' cnvId]
+      . zUser u
+      . zConn "conn"
+      . header "Z-Type" "access"
