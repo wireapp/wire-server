@@ -854,8 +854,8 @@ getJoinCodeConv u k v = do
     g
       . paths ["/conversations", "join"]
       . zUser u
-      . queryItem "code" (toByteString' k)
-      . queryItem "value" (toByteString' v)
+      . queryItem "key" (toByteString' k)
+      . queryItem "code" (toByteString' v)
 
 postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
 postJoinConv u c = do
