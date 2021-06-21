@@ -31,7 +31,7 @@ import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Conversation.Member (Member, memId)
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), RegisterConversation (..), GetConversationsRequest (..), GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
