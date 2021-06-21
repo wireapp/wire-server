@@ -49,7 +49,7 @@ where
 import Control.Lens (view, (?~))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Base64 as B64
-import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
+import Data.CommaSeparatedList (CommaSeparatedList (..))
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
@@ -61,7 +61,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.ServantProto (FromProto (..))
@@ -296,6 +296,14 @@ instance FromHttpApiData IgnoreMissing where
     "false" -> Right $ IgnoreMissingList mempty
     list -> IgnoreMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
 
+instance ToHttpApiData IgnoreMissing where
+  toQueryParam = \case
+    IgnoreMissingAll -> "true"
+    IgnoreMissingList uids ->
+      if Set.null uids
+        then "false"
+        else toQueryParam (CommaSeparatedList (Set.toList uids))
+
 data ReportMissing
   = ReportMissingAll
   | ReportMissingList (Set UserId)
@@ -308,6 +316,14 @@ instance FromHttpApiData ReportMissing where
     "true" -> Right ReportMissingAll
     "false" -> Right $ ReportMissingList mempty
     list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
+
+instance ToHttpApiData ReportMissing where
+  toQueryParam = \case
+    ReportMissingAll -> "true"
+    ReportMissingList uids ->
+      if Set.null uids
+        then "false"
+        else toQueryParam (CommaSeparatedList (Set.toList uids))
 
 --------------------------------------------------------------------------------
 -- Utilities

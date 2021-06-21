@@ -57,6 +57,8 @@ library:
   - quickcheck-instances >=0.3.16
   - saml2-web-sso
   - servant
+  - servant-client
+  - servant-client-core
   - servant-multipart
   - servant-server
   - servant-swagger

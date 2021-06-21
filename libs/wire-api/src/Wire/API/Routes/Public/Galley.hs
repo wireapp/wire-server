@@ -29,6 +29,8 @@ import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import qualified Servant
 import Servant.API.Generic (ToServantApi, (:-))
+import Servant.Client (ClientM)
+import Servant.Client.Generic (AsClientT, genericClient)
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
@@ -169,18 +171,18 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
-    addMembersToConversationV2 ::
-      routes
-        :- Summary "Add qualified members to an existing conversation: WIP, events not propagated yet."
-        :> ZUser
-        :> ZConn
-        :> "conversations"
-        :> Capture "cnv" ConvId
-        :> "members"
-        :> "v2"
-        :> ReqBody '[Servant.JSON] Public.InviteQualified
-        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
-    -- Team Conversations
+    -- addMembersToConversationV2 ::
+    --   routes
+    --     :- Summary "Add qualified members to an existing conversation: WIP, events not propagated yet."
+    --     :> ZUser
+    --     :> ZConn
+    --     :> "conversations"
+    --     :> Capture "cnv" ConvId
+    --     :> "members"
+    --     :> "v2"
+    --     :> ReqBody '[Servant.JSON] Public.InviteQualified
+    --     :> UVerb 'POST '[Servant.JSON] UpdateResponses,
+    -- -- Team Conversations
 
     getTeamConversationRoles ::
       -- FUTUREWORK: errorResponse Error.notATeamMember
@@ -192,7 +194,7 @@ data Api routes = Api
         :> "conversations"
         :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
+    -- -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
     getTeamConversations ::
       routes
         :- Summary "Get team conversations"
@@ -201,7 +203,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Get '[Servant.JSON] Public.TeamConversationList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
+    -- -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
     getTeamConversation ::
       routes
         :- Summary "Get one team conversation"
@@ -213,16 +215,16 @@ data Api routes = Api
         :> Get '[Servant.JSON] Public.TeamConversation,
     -- FUTUREWORK: errorResponse (Error.actionDenied Public.DeleteConversation)
     --             errorResponse Error.notATeamMember
-    deleteTeamConversation ::
-      routes
-        :- Summary "Remove a team conversation"
-        :> ZUser
-        :> ZConn
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "conversations"
-        :> Capture "cid" ConvId
-        :> Delete '[] (EmptyResult 200),
+    -- deleteTeamConversation ::
+    --   routes
+    --     :- Summary "Remove a team conversation"
+    --     :> ZUser
+    --     :> ZConn
+    --     :> "teams"
+    --     :> Capture "tid" TeamId
+    --     :> "conversations"
+    --     :> Capture "cid" ConvId
+    --     :> Delete '[] (EmptyResult 200)
     postOtrMessage ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
@@ -267,3 +269,7 @@ type PostOtrDescription =
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)
+
+-- TODO: remove this and
+client :: Api (AsClientT ClientM)
+client = genericClient
