@@ -393,11 +393,7 @@ changeLegalholdStatus tid uid old new = do
     --
     UserLegalHoldDisabled -> case new of
       UserLegalHoldEnabled -> illegal
-      UserLegalHoldPending -> do
-        update
-        -- outcome of addblocks logic might depend on the update. we'd like to
-        -- fail the transition in case addblocks fails nevertheless
-        addblocks `onException` revert
+      UserLegalHoldPending -> addblocks >> update
       UserLegalHoldDisabled -> {- in case the last attempt crashed -} removeblocks
       UserLegalHoldNoConsent -> {- withdrawing consent is not (yet?) implemented -} illegal
     --
@@ -408,11 +404,10 @@ changeLegalholdStatus tid uid old new = do
       UserLegalHoldNoConsent -> noop
   where
     update = LegalHoldData.setUserLegalHoldStatus tid uid new
-    revert = LegalHoldData.setUserLegalHoldStatus tid uid old
     removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
     addblocks = do
       blockNonConsentingConnections uid
-      handleGroupConvPolicyConflicts uid
+      handleGroupConvPolicyConflicts uid new
     noop = pure ()
     illegal = throwM userLegalHoldIllegalOperation
 
@@ -472,15 +467,32 @@ getTeamLegalholdWhitelistedH tid = do
       then setStatus status200 empty
       else setStatus status404 empty
 
-handleGroupConvPolicyConflicts :: UserId -> Galley ()
-handleGroupConvPolicyConflicts uid =
+-- | Make sure that enough people are removed from all conversations that contain user `uid`
+-- that no policy conflict arises.
+--
+-- It is guaranteed that no group will ever end up without a group admin because of a policy
+-- conflict: If at least one group admin has 'ConsentGiven', non-consenting users are removed.
+-- Otherwise, we assume that the group is dominated by people not interested in giving
+-- consent, and users carrying LH devices are removed instead.
+--
+-- The first argument to this function needs explaining: in order to guarantee that this
+-- function terminates before we set the LH of user `uid` on pending, we need to call it
+-- first.  This means that user `uid` has outdated LH status while this function is running,
+-- which may cause wrong behavior.  In order to guarantee correct behavior, the first argument
+-- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
+-- one from the database.
+handleGroupConvPolicyConflicts :: UserId -> UserLegalHoldStatus -> Galley ()
+handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
   void $
     iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
+        let setHypotheticalLHStatus :: (LocalMember, UserLegalHoldStatus) -> (LocalMember, UserLegalHoldStatus)
+            setHypotheticalLHStatus old@(mem, _) = if memId mem == uid then (mem, hypotheticalLHStatus) else old
+
         membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <-
-          mconcat
+          fmap setHypotheticalLHStatus . mconcat
             <$> ( for (chunksOf 32 (Data.convLocalMembers conv)) $ \membersChunk -> do
                     teamsOfUsers <- Data.usersTeams (memId <$> membersChunk)
                     for membersChunk $ \mem -> do
