@@ -384,13 +384,13 @@ runFederated remoteDomain rpc = do
 toRegisterConversation ::
   -- | The time stamp the conversation was created at
   UTCTime ->
-  -- | The user that created the conversation
-  Qualified UserId ->
+  -- | The domain of the user that created the conversation
+  Domain ->
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
   RegisterConversation
-toRegisterConversation now (Qualified _usr localDomain) Data.Conversation {..} =
+toRegisterConversation now localDomain Data.Conversation {..} =
   MkRegisterConversation
     { rcTime = now,
       rcOrigUserId = Qualified convCreator localDomain,
@@ -484,12 +484,12 @@ fromRegisterConversation (Qualified usr localDomain) MkRegisterConversation {..}
 registerRemoteConversationMemberships ::
   -- | The time stamp when the conversation was created
   UTCTime ->
-  -- | The user that created the conversation
-  Qualified UserId ->
+  -- | The domain of the user that created the conversation
+  Domain ->
   Data.Conversation ->
   Galley ()
-registerRemoteConversationMemberships now qusr c = do
-  let rc = toRegisterConversation now qusr c
+registerRemoteConversationMemberships now localDomain c = do
+  let rc = toRegisterConversation now localDomain c
   -- FUTUREWORK: parallelise federated requests
   traverse_ (registerRemoteConversations rc)
     . Map.keys

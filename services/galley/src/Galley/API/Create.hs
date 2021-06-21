@@ -332,7 +332,7 @@ notifyCreatedConversation dtime usr conn c = do
   --
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
-  registerRemoteConversationMemberships now (Qualified usr localDomain) c
+  registerRemoteConversationMemberships now localDomain c
   -- Notify local users
   pushSome =<< mapM (toPush localDomain now) (Data.convLocalMembers c)
   where
