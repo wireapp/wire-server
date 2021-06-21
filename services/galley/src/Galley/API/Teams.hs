@@ -498,12 +498,15 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     ssoIdNameId (UserSSOId _idp nameId) = SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
     ssoIdNameId (UserScimExternalId _) = Nothing
 
+    -- TODO: this is complex enough to be moved next to `U.userIdentity`, maybe as `U.userScimExternalId`.
     scimExtId :: User -> Maybe Text
-    scimExtId = U.userIdentity >=> userSSOId >=> ssoIdExtId
+    scimExtId usr = U.userIdentity >=> userSSOId >=> ssoIdExtId usr $ usr
 
-    ssoIdExtId :: UserSSOId -> Maybe Text
-    ssoIdExtId (UserSSOId _ _) = Nothing
-    ssoIdExtId (UserScimExternalId extId) = pure extId
+    ssoIdExtId :: User -> UserSSOId -> Maybe Text
+    ssoIdExtId usr (UserSSOId _ extId) = case U.userManagedBy usr of
+      U.ManagedByWire -> Nothing
+      U.ManagedByScim -> pure extId
+    ssoIdExtId _ (UserScimExternalId extId) = pure extId
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
