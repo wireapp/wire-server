@@ -292,7 +292,7 @@ singletonPayload = List1.singleton . toJSONObject
 instance FromJSON Push where
   parseJSON = withObject "Push" $ \p ->
     Push <$> p .: "recipients"
-      <*> p .: "origin"
+      <*> p .:? "origin"
       <*> p .:? "connections" .!= Set.empty
       <*> p .:? "origin_connection"
       <*> p .:? "transient" .!= False
