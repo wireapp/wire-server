@@ -362,7 +362,6 @@ logError' g mr (Wai.Error c l m md) = liftIO $ Log.debug g logMsg
         . fromMaybe id (fmap logErrorData md)
         . msg (val "\"" +++ m +++ val "\"")
 
-    -- TODO: actually log error data fields
     logErrorData (Wai.FederationErrorData d p) =
       field "domain" (domainText d)
         . field "path" p
