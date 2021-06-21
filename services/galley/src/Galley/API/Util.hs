@@ -355,13 +355,13 @@ runFederated remoteDomain rpc = do
     >>= either (throwM . federationErrorToWai) pure
 
 -- | Convert an internal conversation representation 'Data.Conversation' to
--- 'CreateConversation' to be sent over the wire to a remote backend that will
+-- 'RegisterConversation' to be sent over the wire to a remote backend that will
 -- reconstruct this into multiple public-facing
 -- 'Wire.API.Conversation.Convevrsation' values, one per user from that remote
 -- backend.
 --
 -- FUTUREWORK: Include the team ID as well once it becomes qualified.
-toCreateConversation ::
+toRegisterConversation ::
   -- | The time stamp the conversation was created at
   UTCTime ->
   -- | The user that created the conversation
@@ -369,20 +369,19 @@ toCreateConversation ::
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
-  CreateConversation
-toCreateConversation now qusr@(Qualified _usr localDomain) Data.Conversation {..} =
-  MkCreateConversation
-    { ccTime = now,
-      ccOrigUserId = qusr,
-      ccCnvId = Qualified convId localDomain,
-      ccCnvType = convType,
-      ccCnvCreator = Qualified convCreator localDomain,
-      ccCnvAccess = convAccess,
-      ccCnvAccessRole = convAccessRole,
-      ccCnvName = convName,
-      ccMembers = toMembers convLocalMembers convRemoteMembers,
-      ccMessageTimer = convMessageTimer,
-      ccReceiptMode = convReceiptMode
+  RegisterConversation
+toRegisterConversation now (Qualified _usr localDomain) Data.Conversation {..} =
+  MkRegisterConversation
+    { rcTime = now,
+      rcOrigUserId = Qualified convCreator localDomain,
+      rcCnvId = Qualified convId localDomain,
+      rcCnvType = convType,
+      rcCnvAccess = convAccess,
+      rcCnvAccessRole = convAccessRole,
+      rcCnvName = convName,
+      rcMembers = toMembers convLocalMembers convRemoteMembers,
+      rcMessageTimer = convMessageTimer,
+      rcReceiptMode = convReceiptMode
     }
   where
     toMembers ::
@@ -416,32 +415,32 @@ toCreateConversation now qusr@(Qualified _usr localDomain) Data.Conversation {..
           }
       )
 
--- | The function converts a 'CreateConversation' value to a
+-- | The function converts a 'RegisterConversation' value to a
 -- 'Wire.API.Conversation.Conversation' value. The obtained value can be used in
 -- e.g. creating an 'Event' to be sent out to users informing them that a new
 -- conversation has been created.
-fromCreateConversation ::
+fromRegisterConversation ::
   Qualified UserId ->
-  CreateConversation ->
+  RegisterConversation ->
   Galley Public.Conversation
-fromCreateConversation (Qualified usr localDomain) MkCreateConversation {..} = do
-  this <- me ccMembers
+fromRegisterConversation (Qualified usr localDomain) MkRegisterConversation {..} = do
+  this <- me rcMembers
   pure
     Public.Conversation
-      { cnvId = qUnqualified ccCnvId,
-        cnvType = ccCnvType,
+      { cnvId = qUnqualified rcCnvId,
+        cnvType = rcCnvType,
         -- FUTUREWORK: a UserId from another instance is communicated here, which
         -- without domain does not make much sense here.
-        cnvCreator = qUnqualified ccCnvCreator,
-        cnvAccess = ccCnvAccess,
-        cnvAccessRole = ccCnvAccessRole,
-        cnvName = ccCnvName,
-        cnvMembers = ConvMembers this (others ccMembers),
+        cnvCreator = qUnqualified rcOrigUserId,
+        cnvAccess = rcCnvAccess,
+        cnvAccessRole = rcCnvAccessRole,
+        cnvName = rcCnvName,
+        cnvMembers = ConvMembers this (others rcMembers),
         -- FUTUREWORK: Once conversation IDs become qualified, this information
         -- should be sent from the hosting Galley and stored here in 'cnvTeam'.
         cnvTeam = Nothing,
-        cnvMessageTimer = ccMessageTimer,
-        cnvReceiptMode = ccReceiptMode
+        cnvMessageTimer = rcMessageTimer,
+        cnvReceiptMode = rcReceiptMode
       }
   where
     me :: Map Domain [Public.Member] -> Galley Public.Member
@@ -462,17 +461,17 @@ fromCreateConversation (Qualified usr localDomain) MkCreateConversation {..} = d
         }
 
 -- | Notify remote users of being added to a new conversation
-createRemoteConversationMemberships ::
+registerRemoteConversationMemberships ::
   -- | The time stamp when the conversation was created
   UTCTime ->
   -- | The user that created the conversation
   Qualified UserId ->
   Data.Conversation ->
   Galley ()
-createRemoteConversationMemberships now qusr c = do
-  let cc = toCreateConversation now qusr c
+registerRemoteConversationMemberships now qusr c = do
+  let rc = toRegisterConversation now qusr c
   -- FUTUREWORK: parallelise federated requests
-  traverse_ (createRemoteConversations cc)
+  traverse_ (registerRemoteConversations rc)
     . Map.keys
     . partitionQualified
     . nubOrd
@@ -480,12 +479,12 @@ createRemoteConversationMemberships now qusr c = do
     . Data.convRemoteMembers
     $ c
   where
-    createRemoteConversations ::
-      CreateConversation ->
+    registerRemoteConversations ::
+      RegisterConversation ->
       Domain ->
       Galley ()
-    createRemoteConversations cc domain = do
-      let rpc = FederatedGalley.createConversation FederatedGalley.clientRoutes cc
+    registerRemoteConversations rc domain = do
+      let rpc = FederatedGalley.createConversation FederatedGalley.clientRoutes rc
       runFederated domain rpc
 
 -- | Notify remote users of being added to an existing conversation

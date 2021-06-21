@@ -99,8 +99,7 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 data Conversation = Conversation
   { cnvId :: ConvId,
     cnvType :: ConvType,
-    -- FUTUREWORK: Make this a qualified user ID. This will break
-    -- backwards-compatibility with clients.
+    -- FUTUREWORK: Make this a qualified user ID.
     cnvCreator :: UserId,
     cnvAccess :: [Access],
     cnvAccessRole :: AccessRole,

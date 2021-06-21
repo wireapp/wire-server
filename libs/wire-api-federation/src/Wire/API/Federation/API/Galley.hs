@@ -47,7 +47,7 @@ data Api routes = Api
         :- "federation"
         :> Summary "Create a new conversation"
         :> "create-conversation"
-        :> ReqBody '[JSON] CreateConversation
+        :> ReqBody '[JSON] RegisterConversation
         :> Post '[JSON] (),
     getConversations ::
       routes
@@ -82,28 +82,29 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
 
 -- | A record type describing a new federated conversation
-data CreateConversation = MkCreateConversation
+--
+-- FUTUREWORK: Think about extracting common conversation metadata into a
+-- separarate data type that can be reused in several data types in this module.
+data RegisterConversation = MkRegisterConversation
   { -- | The time when the conversation was created
-    ccTime :: UTCTime,
+    rcTime :: UTCTime,
     -- | The user that created the conversation
-    ccOrigUserId :: Qualified UserId,
+    rcOrigUserId :: Qualified UserId,
     -- | The qualified conversation ID
-    ccCnvId :: Qualified ConvId,
+    rcCnvId :: Qualified ConvId,
     -- | The conversation type
-    ccCnvType :: ConvType,
-    -- | The user that created the conversation
-    ccCnvCreator :: Qualified UserId,
-    ccCnvAccess :: [Access],
-    ccCnvAccessRole :: AccessRole,
+    rcCnvType :: ConvType,
+    rcCnvAccess :: [Access],
+    rcCnvAccessRole :: AccessRole,
     -- | The conversation name,
-    ccCnvName :: Maybe Text,
+    rcCnvName :: Maybe Text,
     -- | Members of the conversation grouped by their domain
-    ccMembers :: Map Domain [Member],
-    ccMessageTimer :: Maybe Milliseconds,
-    ccReceiptMode :: Maybe ReceiptMode
+    rcMembers :: Map Domain [Member],
+    rcMessageTimer :: Maybe Milliseconds,
+    rcReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded CreateConversation)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,
