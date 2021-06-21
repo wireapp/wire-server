@@ -22,6 +22,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
+import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Runner
@@ -45,6 +46,12 @@ tests =
         testObjects
           [ (testObject_QualifiedUserClientPrekeyMap_1, "testObject_QualifiedUserClientPrekeyMap_1.json"),
             (testObject_QualifiedUserClientPrekeyMap_2, "testObject_QualifiedUserClientPrekeyMap_2.json")
+          ],
+      testCase "ConversationCoverView" $
+        testObjects
+          [ (testObject_ConversationCoverView_1, "testObject_ConversationCoverView_1.json"),
+            (testObject_ConversationCoverView_2, "testObject_ConversationCoverView_2.json"),
+            (testObject_ConversationCoverView_3, "testObject_ConversationCoverView_3.json")
           ],
       testCase ("ClientCapability") $
         testObjects

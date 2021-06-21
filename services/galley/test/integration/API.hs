@@ -66,6 +66,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Conversation (ConversationCoverView (ConversationCoverView))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
 import qualified Wire.API.Federation.GRPC.Types as F
@@ -149,6 +150,7 @@ tests s =
           test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
           test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
           test s "join conversation" postJoinConvOk,
+          test s "get code-access conversation information" testJoinCodeConv,
           test s "join code-access conversation" postJoinCodeConvOk,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
@@ -433,6 +435,24 @@ postJoinConvOk = do
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
+
+testJoinCodeConv :: TestM ()
+testJoinCodeConv = do
+  let convName = "gossip"
+
+  alice <- randomUser
+  convId <- decodeConvId <$> postConv alice [] (Just convName) [CodeAccess] (Just ActivatedAccessRole) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode alice convId
+
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  getJoinCodeConv bob (conversationKey cCode) (conversationCode cCode) !!! do
+    const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
+
+  -- A user that would not be able to join conversation cannot view it either.
+  eve <- ephemeralUser
+  getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
+    const 403 === statusCode
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do

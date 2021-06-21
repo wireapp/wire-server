@@ -25,10 +25,12 @@ module Galley.API.Query
     getSelfH,
     internalGetMemberH,
     getConversationMetaH,
+    getConversationByReusableCode,
   )
 where
 
 import Control.Monad.Catch (throwM)
+import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -48,6 +50,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
+import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Federation.API.Galley (gcresConvs)
@@ -179,3 +182,16 @@ getConversationMeta cnv = do
     else do
       Data.deleteConversation cnv
       pure Nothing
+
+getConversationByReusableCode :: UserId -> Key -> Value -> Galley ConversationCoverView
+getConversationByReusableCode zusr key value = do
+  c <- verifyReusableCode (ConversationCode key value Nothing)
+  conv <- ensureConversationAccess zusr (Data.codeConversation c) CodeAccess
+  pure $ coverView conv
+  where
+    coverView :: Data.Conversation -> ConversationCoverView
+    coverView conv =
+      ConversationCoverView
+        { cnvCoverConvId = Data.convId conv,
+          cnvCoverName = Data.convName conv
+        }

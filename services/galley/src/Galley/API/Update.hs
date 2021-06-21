@@ -435,13 +435,6 @@ checkReusableCode :: Public.ConversationCode -> Galley ()
 checkReusableCode convCode = do
   void $ verifyReusableCode convCode
 
-verifyReusableCode :: ConversationCode -> Galley Code
-verifyReusableCode convCode = do
-  c <- Data.lookupCode (conversationKey convCode) ReusableCode >>= ifNothing codeNotFound
-  unless (codeValue c == conversationCode convCode) $
-    throwM codeNotFound
-  return c
-
 joinConversationByReusableCodeH :: UserId ::: ConnId ::: JsonRequest Public.ConversationCode -> Galley Response
 joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
   convCode <- fromJsonBody req
@@ -462,10 +455,7 @@ joinConversationById zusr zcon cnv =
 
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
-  ensureAccess conv access
-  zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
-  ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
+  conv <- ensureConversationAccess zusr cnv access
   let newUsers = filter (notIsMember conv) [zusr]
   -- FUTUREWORK: remote users?
   ensureMemberLimit (toList $ Data.convLocalMembers conv) newUsers []
@@ -929,11 +919,6 @@ ensureConvMember :: [LocalMember] -> UserId -> Galley ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $
     throwM convNotFound
-
-ensureAccess :: Data.Conversation -> Access -> Galley ()
-ensureAccess conv access =
-  unless (access `elem` Data.convAccess conv) $
-    throwM convAccessDenied
 
 processUpdateMemberEvent ::
   UserId ->
