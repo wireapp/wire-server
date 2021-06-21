@@ -19,15 +19,18 @@ module Wire.API.Federation.API.Galley where
 
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Domain (Domain)
 import Data.Id (ConvId, UserId)
+import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, (:>))
+import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.Conversation (Conversation)
+import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
+import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
@@ -38,7 +41,15 @@ import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 -- for the current list we need.
 
 data Api routes = Api
-  { getConversations ::
+  { -- | Register a new conversation
+    registerConversation ::
+      routes
+        :- "federation"
+        :> Summary "Register users to be in a new remote conversation"
+        :> "register-conversation"
+        :> ReqBody '[JSON] RegisterConversation
+        :> Post '[JSON] (),
+    getConversations ::
       routes
         :- "federation"
         :> "get-conversations"
@@ -69,6 +80,31 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
+
+-- | A record type describing a new federated conversation
+--
+-- FUTUREWORK: Think about extracting common conversation metadata into a
+-- separarate data type that can be reused in several data types in this module.
+data RegisterConversation = MkRegisterConversation
+  { -- | The time when the conversation was created
+    rcTime :: UTCTime,
+    -- | The user that created the conversation
+    rcOrigUserId :: Qualified UserId,
+    -- | The qualified conversation ID
+    rcCnvId :: Qualified ConvId,
+    -- | The conversation type
+    rcCnvType :: ConvType,
+    rcCnvAccess :: [Access],
+    rcCnvAccessRole :: AccessRole,
+    -- | The conversation name,
+    rcCnvName :: Maybe Text,
+    -- | Members of the conversation grouped by their domain
+    rcMembers :: Map Domain [Member],
+    rcMessageTimer :: Maybe Milliseconds,
+    rcReceiptMode :: Maybe ReceiptMode
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,

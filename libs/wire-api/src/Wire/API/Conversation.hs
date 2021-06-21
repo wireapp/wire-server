@@ -100,11 +100,14 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 data Conversation = Conversation
   { cnvId :: ConvId,
     cnvType :: ConvType,
+    -- FUTUREWORK: Make this a qualified user ID.
     cnvCreator :: UserId,
     cnvAccess :: [Access],
     cnvAccessRole :: AccessRole,
     cnvName :: Maybe Text,
     cnvMembers :: ConvMembers,
+    -- FUTUREWORK: Think if it makes sense to make the team ID qualified due to
+    -- federation.
     cnvTeam :: Maybe TeamId,
     cnvMessageTimer :: Maybe Milliseconds,
     cnvReceiptMode :: Maybe ReceiptMode
