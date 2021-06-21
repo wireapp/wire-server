@@ -90,7 +90,7 @@ import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Lazy as TL
 import Imports
 import Numeric.Natural (Natural)
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import System.Random (Random)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
 import qualified Test.QuickCheck as QC
@@ -209,6 +209,9 @@ instance (Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) wher
   parseUrlPiece t = do
     unchecked <- parseUrlPiece t
     Bifunctor.first T.pack $ checkedEither @_ @n @m unchecked
+
+instance (Within a n m, ToHttpApiData a) => ToHttpApiData (Range n m a) where
+  toUrlPiece = toUrlPiece . fromRange
 
 type LTE (n :: Nat) (m :: Nat) = (SingI n, SingI m, (n <= m) ~ 'True)
 

@@ -21,12 +21,14 @@
 module Wire.API.Routes.Public where
 
 import Control.Lens ((<>~))
+import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.SOP.Constraint (All)
-import Data.Swagger
+import Data.String.Conversions (cs)
+import Data.Swagger hiding (HeaderName)
 import GHC.Base (Symbol)
-import GHC.TypeLits (KnownNat, KnownSymbol, natVal)
+import GHC.TypeLits (KnownNat, KnownSymbol, natVal, symbolVal)
 import Imports hiding (All, head)
 import Network.HTTP.Types (Status)
 import Network.Wai (responseLBS)
@@ -34,6 +36,8 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers (FoldLenient, FoldRequired)
 import Servant.API.Status (KnownStatus, statusVal)
 import Servant.API.UVerb.Union (foldMapUnion)
+import Servant.Client (Client, HasClient (..))
+import Servant.Client.Core (addHeader)
 import Servant.Server.Internal
   ( Delayed,
     Handler,
@@ -110,6 +114,24 @@ instance
   route _ = Servant.route (Proxy @(InternalAuth ztype opts :> api))
   hoistServerWithContext _ pc nt s =
     Servant.hoistServerWithContext (Proxy @(InternalAuth ztype opts :> api)) pc nt s
+
+instance
+  forall m api ztype opts.
+  ( HasClient m api,
+    KnownSymbol (ZUserHeader ztype),
+    ToHttpApiData (ZUserParam ztype)
+  ) =>
+  HasClient m (ZAuthServant ztype opts :> api)
+  where
+  type Client m (ZAuthServant ztype opts :> api) = ZUserParam ztype -> Client m api
+
+  clientWithRoute pm Proxy req val =
+    clientWithRoute pm (Proxy :: Proxy api) (addZHeader req)
+    where
+      addZHeader = addHeader (CI.mk . cs $ symbolVal (Proxy @(ZUserHeader 'ZAuthUser))) val
+
+  hoistClientMonad pm _ f cl a =
+    hoistClientMonad pm (Proxy :: Proxy api) f (cl a)
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
