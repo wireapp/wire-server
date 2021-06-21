@@ -613,5 +613,6 @@ allLegalholdConsentGiven uids = do
       -- For this feature the implementation is more efficient. Being part of
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
-      tids <- forM (chunksOf 32 uids) $ \uidsPage -> Map.elems <$> Data.usersTeams uidsPage
-      allM isTeamLegalholdWhitelisted (nub $ mconcat tids)
+      flip allM (chunksOf 32 uids) $ \uidsPage -> do
+        teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
+        allM isTeamLegalholdWhitelisted teamsPage
