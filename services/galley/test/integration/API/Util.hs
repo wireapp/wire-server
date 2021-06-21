@@ -64,7 +64,6 @@ import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types hiding (InternalMember, MemberJoin, MemberLeave, memConvRoleName, memId, memOtrArchived, memOtrArchivedRef, memOtrMuted, memOtrMutedRef)
-import qualified Galley.Types
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
@@ -1093,7 +1092,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
-  evtType e @?= Galley.Types.MemberJoin
+  evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
 
@@ -1105,7 +1104,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtType e @?= MemberStateUpdate
   evtFrom e @?= usr
   case evtData e of
-    Galley.Types.EdMemberUpdate mis -> do
+    Conv.EdMemberUpdate mis -> do
       assertEqual "target" (Just target) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
@@ -1133,7 +1132,7 @@ wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
-  evtType e @?= Galley.Types.MemberLeave
+  evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
   sorted (evtData e) @?= sorted (EdMembersLeave (UserIdList old))
   where
