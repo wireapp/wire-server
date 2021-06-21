@@ -38,6 +38,7 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Domain
 import qualified Data.Handle as Handle
@@ -949,6 +950,16 @@ putReceiptMode u c r = do
         . zType "access"
         . json update
     )
+
+getJoinCodeConv :: UserId -> Code.Key -> Code.Value -> TestM ResponseLBS
+getJoinCodeConv u k v = do
+  g <- view tsGalley
+  get $
+    g
+      . paths ["/conversations", "join"]
+      . zUser u
+      . queryItem "key" (toByteString' k)
+      . queryItem "code" (toByteString' v)
 
 postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
 postJoinConv u c = do

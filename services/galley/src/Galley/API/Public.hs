@@ -81,6 +81,7 @@ servantSitemap =
         GalleyAPI.getConversationRoles = Query.getConversationRoles,
         GalleyAPI.getConversationIds = Query.getConversationIds,
         GalleyAPI.getConversations = Query.getConversations,
+        GalleyAPI.getConversationByReusableCode = Query.getConversationByReusableCode,
         GalleyAPI.createGroupConversation = Create.createGroupConversation,
         GalleyAPI.createSelfConversation = Create.createSelfConversation,
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,

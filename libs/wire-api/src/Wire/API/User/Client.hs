@@ -757,13 +757,15 @@ instance ToSchema RmClient where
     object "DeleteClient" $
       RmClient
         <$> rmPassword
-          .= fieldWithDocModifier
-            "password"
-            ( description
-                ?~ "The password of the authenticated user for verification. \
-                   \The password is not required for deleting temporary clients."
+          .= lax
+            ( fieldWithDocModifier
+                "password"
+                ( description
+                    ?~ "The password of the authenticated user for verification. \
+                       \The password is not required for deleting temporary clients."
+                )
+                (optWithDefault A.Null schema)
             )
-            (optWithDefault A.Null schema)
 
 modelDeleteClient :: Doc.Model
 modelDeleteClient = Doc.defineModel "DeleteClient" $ do
