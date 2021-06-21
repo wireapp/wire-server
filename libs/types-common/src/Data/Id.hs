@@ -221,6 +221,9 @@ instance FromJSON ConnId where
 instance FromHttpApiData ConnId where
   parseUrlPiece = Right . ConnId . encodeUtf8
 
+instance ToHttpApiData ConnId where
+  toUrlPiece = decodeUtf8 . fromConnId
+
 -- ClientId --------------------------------------------------------------------
 
 -- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique

@@ -21,14 +21,15 @@ module Data.CommaSeparatedList where
 
 import Control.Lens ((?~))
 import qualified Data.Bifunctor as Bifunctor
-import Data.ByteString.Conversion (FromByteString, List, fromList, parser, runParser)
+import Data.ByteString.Conversion (FromByteString, List (..), ToByteString (..), fromList, parser, runParser, toByteString')
 import Data.Proxy (Proxy (..))
 import Data.Range (Bounds, Range)
+import Data.String.Conversions (cs)
 import Data.Swagger (CollectionFormat (CollectionCSV), SwaggerItems (SwaggerItemsPrimitive), SwaggerType (SwaggerString), ToParamSchema (..), items, type_)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 
 newtype CommaSeparatedList a = CommaSeparatedList {fromCommaSeparatedList :: [a]}
   deriving stock (Show, Eq)
@@ -37,6 +38,9 @@ newtype CommaSeparatedList a = CommaSeparatedList {fromCommaSeparatedList :: [a]
 instance FromByteString (List a) => FromHttpApiData (CommaSeparatedList a) where
   parseUrlPiece t =
     CommaSeparatedList . fromList <$> Bifunctor.first Text.pack (runParser parser $ encodeUtf8 t)
+
+instance ToByteString (List a) => ToHttpApiData (CommaSeparatedList a) where
+  toUrlPiece = cs . toByteString' . List . fromCommaSeparatedList
 
 instance ToParamSchema (CommaSeparatedList a) where
   toParamSchema _ = mempty & type_ ?~ SwaggerString
