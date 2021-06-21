@@ -403,10 +403,10 @@ allLegalholdConsentGiven uids = do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
         teamsOfUsers <- Data.usersTeams uidsPage
         allM (\uid -> (== ConsentGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
-    -- For this feature the implementation is more efficient. Being part of
-    -- a whitelisted team is equivalent to have given consent to be in a
-    -- conversation with user under legalhold.
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+      -- For this feature the implementation is more efficient. Being part of
+      -- a whitelisted team is equivalent to have given consent to be in a
+      -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
         teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
         allM isTeamLegalholdWhitelisted teamsPage
