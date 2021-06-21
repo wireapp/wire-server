@@ -24,7 +24,7 @@ import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
-import Control.Monad.Extra (anyM)
+import Control.Monad.Extra (allM, anyM)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -395,21 +395,21 @@ anyLegalholdActivated uids = do
         teamsOfUsers <- Data.usersTeams uidsPage
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
-anyLegalholdConsentMissing :: [UserId] -> Galley Bool
-anyLegalholdConsentMissing uids = do
+allLegalholdConsentGiven :: [UserId] -> Galley Bool
+allLegalholdConsentGiven uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
-    FeatureLegalHoldDisabledPermanently -> pure True
+    FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip anyM (chunksOf 32 uids) $ \uidsPage -> do
         teamsOfUsers <- Data.usersTeams uidsPage
-        anyM (\uid -> (== ConsentNotGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
+        allM (\uid -> (== ConsentGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
     -- For this feature the implementation is more efficient. Being part of
     -- a whitelisted team is equivalent to have given consent to be in a
     -- conversation with user under legalhold.
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+      flip allM (chunksOf 32 uids) $ \uidsPage -> do
         teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
-        anyM (fmap not . isTeamLegalholdWhitelisted) teamsPage
+        allM isTeamLegalholdWhitelisted teamsPage
 
 -- | Notify remote users of being added to a conversation
 updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
