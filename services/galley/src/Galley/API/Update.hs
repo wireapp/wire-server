@@ -536,7 +536,7 @@ addMembers zusr zcon convId invite = do
       where
         guardConflicts users1 users2 =
           whenM (anyLegalholdActivated users1) $
-            whenM (allLegalholdConsentGiven users2) $
+            unlessM (allLegalholdConsentGiven users2) $
               throwM missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()

@@ -99,7 +99,7 @@ ensureNoLegalholdConflicts :: [Remote UserId] -> [UserId] -> Galley ()
 ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
-    whenM (allLegalholdConsentGiven locals) $
+    unlessM (allLegalholdConsentGiven locals) $
       throwM missingLegalholdConsent
 
 -- | A helper for creating a regular (non-team) group conversation.
