@@ -58,6 +58,7 @@ import Deriving.Aeson
 import Imports
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Data.Domain (Domain)
 
 ----------------------------------------------------------------------
 -- TeamFeatureName
@@ -91,6 +92,7 @@ data TeamFeatureName
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
   | TeamFeatureAppLock
+  | TeamFeatureClassifiedDomains
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -109,6 +111,8 @@ instance KnownTeamFeatureName 'TeamFeatureDigitalSignatures where knownTeamFeatu
 
 instance KnownTeamFeatureName 'TeamFeatureAppLock where knownTeamFeatureName = TeamFeatureAppLock
 
+instance KnownTeamFeatureName 'TeamFeatureClassifiedDomains where knownTeamFeatureName = TeamFeatureClassifiedDomains
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -123,6 +127,7 @@ instance FromByteString TeamFeatureName where
         Right "digitalSignatures" -> pure TeamFeatureDigitalSignatures
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
         Right "appLock" -> pure TeamFeatureAppLock
+        Right "classifiedDomains" -> pure TeamFeatureClassifiedDomains
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -132,6 +137,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureValidateSAMLEmails = "validateSAMLemails"
   builder TeamFeatureDigitalSignatures = "digitalSignatures"
   builder TeamFeatureAppLock = "appLock"
+  builder TeamFeatureClassifiedDomains = "classifiedDomains"
 
 deprecatedFeatureName :: TeamFeatureName -> Maybe ByteString
 deprecatedFeatureName TeamFeatureSearchVisibility = Just "search-visibility"
@@ -193,6 +199,7 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+  TeamFeatureStatus 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
@@ -204,6 +211,7 @@ modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
+modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -266,6 +274,45 @@ instance FromJSON cfg => FromJSON (TeamFeatureStatusWithConfig cfg) where
 
 instance ToJSON cfg => ToJSON (TeamFeatureStatusWithConfig cfg) where
   toJSON (TeamFeatureStatusWithConfig status config) = object ["status" .= status, "config" .= config]
+
+----------------------------------------------------------------------
+-- TeamFeatureClassifiedDomainsConfig
+
+newtype TeamFeatureClassifiedDomainsConfig = MkTeamFeatureClassifiedDomainsConfig
+  { classifiedDomainsDomains :: [Domain]
+  }
+  deriving stock (Generic)
+
+-- TODO(md): Make sure this is in line with the model at
+-- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/376439791/Use%2Bcase%2BClassified%2Bdomains?focusedCommentId=384861096#How-clients-fetch-the-list-of-classified-domains
+instance ToSchema TeamFeatureClassifiedDomainsConfig where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "TeamFeatureClassifiedDomainsConfig") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties .~ configProperties
+          & required .~ ["domains"]
+    where
+      configProperties :: InsOrdHashMap Text (Referenced Schema)
+      configProperties = fromList
+        [ ("enforceAppLock", Inline (toSchema (Proxy @Domain)))
+        ]
+
+modelTeamFeatureClassifiedDomainsConfig :: Doc.Model
+modelTeamFeatureClassifiedDomainsConfig =
+  Doc.defineModel "TeamFeatureClassifiedDomainsConfig" $ do
+    Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
+
+deriving via
+  (StripCamel "classifiedDomains" TeamFeatureClassifiedDomainsConfig)
+  instance
+    ToJSON TeamFeatureClassifiedDomainsConfig
+
+deriving via
+  (StripCamel "classifiedDomains" TeamFeatureClassifiedDomainsConfig)
+  instance
+    FromJSON TeamFeatureClassifiedDomainsConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig
