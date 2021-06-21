@@ -400,7 +400,7 @@ allLegalholdConsentGiven uids = do
   view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
-      flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+      flip allM (chunksOf 32 uids) $ \uidsPage -> do
         teamsOfUsers <- Data.usersTeams uidsPage
         allM (\uid -> (== ConsentGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
     -- For this feature the implementation is more efficient. Being part of
