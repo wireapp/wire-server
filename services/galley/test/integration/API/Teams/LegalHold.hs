@@ -159,6 +159,8 @@ testsPublic s =
               testGroup
                 "Creating group conversation with LH activated users"
                 [ test s "Non-consenting users cannot be invited to conversation if LH activated users are in conversation" (onlyIfLhWhitelisted testNoConsentCannotBeInvited),
+                  test s "LH activated users cannot be invited to conversation if non-consenting users are in conversation" (error "TODO: unclear requirements, check back with product dept."),
+                  test s "Non-consenting users cannot be invited to conversation if LH activated users are invited at the same time" (error "TODO: is bulk-invite a thing?  i think it is."),
                   test s "Cannot create conversation with both LH activated and non-consenting users" (onlyIfLhWhitelisted testCannotCreateGroupWithUsersInConflict)
                 ],
               test s "bench hack" testBenchHack,
