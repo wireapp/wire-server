@@ -373,6 +373,10 @@ consentGiven = \case
   UserLegalHoldEnabled -> ConsentGiven
   UserLegalHoldNoConsent -> ConsentNotGiven
 
+checkConsent :: Map UserId TeamId -> UserId -> Galley ConsentGiven
+checkConsent teamsOfUsers other = do
+  consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
+
 -- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
 -- doesn't belong to a team.
 getLHStatus :: Maybe TeamId -> UserId -> Galley UserLegalHoldStatus

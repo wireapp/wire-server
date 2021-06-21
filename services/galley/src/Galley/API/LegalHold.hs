@@ -472,10 +472,6 @@ getTeamLegalholdWhitelistedH tid = do
       then setStatus status200 empty
       else setStatus status404 empty
 
-checkConsent :: Map UserId TeamId -> UserId -> Galley ConsentGiven
-checkConsent teamsOfUsers other = do
-  consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
-
 handleGroupConvPolicyConflicts :: UserId -> Galley ()
 handleGroupConvPolicyConflicts uid =
   void $
