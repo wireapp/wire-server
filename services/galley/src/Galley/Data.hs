@@ -900,10 +900,15 @@ updateMember cid uid mup = do
         misConvRoleName = mupConvRoleName mup
       }
 
-filterRemoteConvMembers :: MonadClient m => [UserId] -> Qualified ConvId -> m [UserId]
+filterRemoteConvMembers :: (MonadUnliftIO m, MonadClient m) => [UserId] -> Qualified ConvId -> m [UserId]
 filterRemoteConvMembers users (Qualified conv dom) =
-  fmap (map runIdentity) . retry x5 $
-    query Cql.selectRemoteConvMembership (params One (users, dom, conv))
+  catMaybes
+    <$> pooledMapConcurrentlyN 8 filterMember users
+  where
+    filterMember :: MonadClient m => UserId -> m (Maybe UserId)
+    filterMember user = do
+      let q = query Cql.selectRemoteConvMembership (params One (user, dom, conv))
+      listToMaybe . map runIdentity <$> retry x1 q
 
 removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> m Event
 removeLocalMembers localDomain conv orig localVictims = removeMembers localDomain conv orig localVictims []
