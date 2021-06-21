@@ -46,7 +46,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> Summary "Register users to be in a new remote conversation"
-        :> "create-conversation"
+        :> "register-conversation"
         :> ReqBody '[JSON] RegisterConversation
         :> Post '[JSON] (),
     getConversations ::
