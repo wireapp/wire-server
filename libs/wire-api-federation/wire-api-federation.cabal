@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cfa04ed47037ada887f549b3346d2d8d4feadc654f375227c86559b0a5e2ea0f
+-- hash: daa78b8456ee89c52c754d98427c3e13c99938ce4760461a5e8858173c582d2c
 
 name:           wire-api-federation
 version:        0.1.0
@@ -25,6 +25,7 @@ library
       Wire.API.Federation.API.Brig
       Wire.API.Federation.API.Galley
       Wire.API.Federation.Client
+      Wire.API.Federation.Domain
       Wire.API.Federation.Error
       Wire.API.Federation.Event
       Wire.API.Federation.GRPC.Client

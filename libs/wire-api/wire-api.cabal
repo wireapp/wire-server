@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c86173e7b15d84b4e33d4f6faa9f1445031dc2d669e52f7f49ccf9f74571beaf
+-- hash: c74c2cc2d32bc410fa8c6387a951597e49d56a55d3ab094692e14c83170bb5b6
 
 name:           wire-api
 version:        0.1.0
@@ -53,6 +53,7 @@ library
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
       Wire.API.ServantProto
+      Wire.API.ServantSwagger
       Wire.API.Swagger
       Wire.API.Team
       Wire.API.Team.Conversation
@@ -119,6 +120,7 @@ library
     , hscim
     , http-api-data
     , http-media
+    , http-types
     , imports
     , insert-ordered-containers
     , iproute >=1.5
@@ -137,6 +139,7 @@ library
     , servant-multipart
     , servant-server
     , servant-swagger
+    , sop-core
     , string-conversions
     , swagger >=0.1
     , swagger2
@@ -147,6 +150,7 @@ library
     , uri-bytestring >=0.2
     , uuid >=1.3
     , vector >=0.12
+    , wai
     , x509
   default-language: Haskell2010
 
@@ -383,6 +387,9 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
       Test.Wire.API.Golden.Generator
       Test.Wire.API.Golden.Manual
+      Test.Wire.API.Golden.Manual.ClientCapability
+      Test.Wire.API.Golden.Manual.ClientCapabilityList
+      Test.Wire.API.Golden.Manual.ConversationCoverView
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Runner

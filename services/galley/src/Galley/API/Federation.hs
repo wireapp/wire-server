@@ -17,34 +17,61 @@
 module Galley.API.Federation where
 
 import Data.Containers.ListUtils (nubOrd)
+import Data.Domain (Domain)
+import Data.Id (UserId)
+import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
-import Galley.API.Util (pushConversationEvent, viewFederationDomain)
+import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import Wire.API.Conversation.Member (Member, memId)
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      { FederationAPIGalley.getConversations = getConversations,
+      { FederationAPIGalley.registerConversation = registerConversation,
+        FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
       }
 
-getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
-getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = do
+registerConversation :: RegisterConversation -> Galley ()
+registerConversation rc = do
   localDomain <- viewFederationDomain
+  let localUsers = fmap (toQualified localDomain) . getLocals $ localDomain
+      localUserIds = map qUnqualified localUsers
+  unless (null localUsers) $ do
+    Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
+  forM_ localUsers $ \usr -> do
+    c <- fromRegisterConversation usr rc
+    let event =
+          Event
+            ConvCreate
+            (rcCnvId rc)
+            (rcOrigUserId rc)
+            (rcTime rc)
+            (EdConversation c)
+    pushConversationEvent event [qUnqualified usr] []
+  where
+    getLocals :: Domain -> [Member]
+    getLocals localDomain = fromMaybe [] . Map.lookup localDomain . rcMembers $ rc
+    toQualified :: Domain -> Member -> Qualified UserId
+    toQualified domain mem = Qualified (memId mem) domain
+
+getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
+getConversations (GetConversationsRequest qUid gcrConvIds) = do
+  domain <- viewFederationDomain
   convs <- Data.conversations gcrConvIds
-  if domain == localDomain
-    then GetConversationsResponse . catMaybes <$> for convs (Mapping.conversationViewMaybe uid)
-    else error "FUTUREWORK: implement & exstend integration test when schema ready"
+  let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
+  pure $ GetConversationsResponse . catMaybes $ convViews
 
 -- FUTUREWORK: also remove users from conversation
 updateConversationMemberships :: ConversationMemberUpdate -> Galley ()

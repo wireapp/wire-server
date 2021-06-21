@@ -110,6 +110,7 @@ tests =
       testRoundTrip @Conversation.ConvType,
       testRoundTrip @Conversation.ReceiptMode,
       testRoundTrip @Conversation.ConvTeamInfo,
+      testRoundTrip @Conversation.ConversationCoverView,
       testRoundTrip @Conversation.Invite,
       testRoundTrip @Conversation.ConversationRename,
       testRoundTrip @Conversation.ConversationAccessUpdate,

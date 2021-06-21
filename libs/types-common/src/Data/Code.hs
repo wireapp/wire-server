@@ -28,15 +28,22 @@ module Data.Code where
 import Cassandra hiding (Value)
 import Data.Aeson hiding (Value)
 import Data.Aeson.TH
+import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import Data.Json.Util
+import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
+import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
+import Data.Swagger.ParamSchema
+import Data.Text (pack)
 import Data.Text.Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Imports
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary))
 
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
@@ -52,6 +59,16 @@ newtype Key = Key {asciiKey :: Range 20 20 AsciiBase64Url}
       Arbitrary
     )
 
+instance ToParamSchema Key where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData Key where
+  parseQueryParam s =
+    first pack $ runParser parser (encodeUtf8 s)
+
+instance ToHttpApiData Key where
+  toQueryParam key = cs (toByteString' key)
+
 -- | A secret value bound to a 'Key' and a 'Timeout'.
 newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
   deriving (Eq, Show)
@@ -64,6 +81,16 @@ newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
       ToByteString,
       Arbitrary
     )
+
+instance ToParamSchema Value where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData Value where
+  parseQueryParam s =
+    first pack $ runParser parser (encodeUtf8 s)
+
+instance ToHttpApiData Value where
+  toQueryParam key = cs (toByteString' key)
 
 newtype Timeout = Timeout
   {timeoutDiffTime :: NominalDiffTime}
