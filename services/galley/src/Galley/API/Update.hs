@@ -542,7 +542,6 @@ addMembers zusr zcon convId invite = do
     checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
     checkLHPolicyConflictsLocal conv newUsers = do
       guardConflicts (fmap memId . Data.convLocalMembers $ conv) newUsers
-      -- This is theoreticla impossible to occur, but we leave it as an additional safeguard
       guardConflicts newUsers (fmap memId . Data.convLocalMembers $ conv)
       where
         guardConflicts users1 users2 =
