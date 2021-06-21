@@ -407,9 +407,8 @@ allLegalholdConsentGiven uids = do
       -- For this feature the implementation is more efficient. Being part of
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
-      flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
-        allM isTeamLegalholdWhitelisted teamsPage
+      tids <- forM (chunksOf 32 uids) $ \uidsPage -> Map.elems <$> Data.usersTeams uidsPage
+      allM isTeamLegalholdWhitelisted (nub $ mconcat tids)
 
 -- | Notify remote users of being added to a conversation
 updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
