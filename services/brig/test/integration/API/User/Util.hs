@@ -221,10 +221,8 @@ deleteClient brig u c pw =
       . body payload
   where
     payload =
-      RequestBodyLBS . encode $
-        object
-          [ "password" .= pw
-          ]
+      RequestBodyLBS . encode . object . maybeToList $
+        fmap ("password" .=) pw
 
 listConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 listConnections brig u =
