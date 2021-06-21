@@ -41,11 +41,11 @@ import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 -- for the current list we need.
 
 data Api routes = Api
-  { -- | Create a new conversation
-    createConversation ::
+  { -- | Register a new conversation
+    registerConversation ::
       routes
         :- "federation"
-        :> Summary "Create a new conversation"
+        :> Summary "Register users to be in a new remote conversation"
         :> "create-conversation"
         :> ReqBody '[JSON] RegisterConversation
         :> Post '[JSON] (),

@@ -38,13 +38,13 @@ federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      { FederationAPIGalley.createConversation = createConversation,
+      { FederationAPIGalley.registerConversation = registerConversation,
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
       }
 
-createConversation :: RegisterConversation -> Galley ()
-createConversation rc = do
+registerConversation :: RegisterConversation -> Galley ()
+registerConversation rc = do
   localDomain <- viewFederationDomain
   let localUsers = fmap (toQualified localDomain) . getLocals $ localDomain
       localUserIds = map qUnqualified localUsers

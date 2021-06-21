@@ -504,7 +504,7 @@ registerRemoteConversationMemberships now qusr c = do
       Domain ->
       Galley ()
     registerRemoteConversations rc domain = do
-      let rpc = FederatedGalley.createConversation FederatedGalley.clientRoutes rc
+      let rpc = FederatedGalley.registerConversation FederatedGalley.clientRoutes rc
       runFederated domain rpc
 
 -- | Notify remote users of being added to an existing conversation
