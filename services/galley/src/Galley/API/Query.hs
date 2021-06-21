@@ -150,12 +150,12 @@ getConversationsInternal user mids mstart msize = do
       | otherwise = pure True
 
 iterateConversations :: forall a. UserId -> Range 1 500 Int32 -> ([Data.Conversation] -> Galley a) -> Galley [a]
-iterateConversations uid pageSize handleConvs = catMaybes <$> go Nothing
+iterateConversations uid pageSize handleConvs = go Nothing
   where
-    go :: Maybe ConvId -> Galley [Maybe a]
+    go :: Maybe ConvId -> Galley [a]
     go mbConv = do
       convResult <- getConversationsInternal uid Nothing mbConv (Just pageSize)
-      resultHead <- Just <$> handleConvs (convList convResult)
+      resultHead <- handleConvs (convList convResult)
       resultTail <- case convList convResult of
         (conv : rest) ->
           if convHasMore convResult
