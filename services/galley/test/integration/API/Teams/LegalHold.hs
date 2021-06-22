@@ -999,7 +999,40 @@ data GroupConvInvCase = ConsentingAdmins | NonConsentingAdmins
   deriving (Show, Eq, Ord, Bounded, Enum)
 
 testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase -> TestM ()
-testGroupConvInvitationHandlesLHConflicts = undefined
+testGroupConvInvitationHandlesLHConflicts NonConsentingAdmins = error "impossible because connection required for invite"
+testGroupConvInvitationHandlesLHConflicts ConsentingAdmins = do
+  -- team that is legalhold whitelisted
+  (legalholder :: UserId, tid) <- createBindingTeam
+  userWithConsent <- (^. userId) <$> addUserToTeam legalholder tid
+  ensureQueueEmpty
+  putLHWhitelistTeam tid !!! const 200 === statusCode
+
+  -- team without legalhold
+  (peer :: UserId, _teamPeer) <- createBindingTeam
+  ensureQueueEmpty
+
+  do
+    postConnection userWithConsent peer !!! const 201 === statusCode
+    void $ putConnection peer userWithConsent Conn.Accepted <!! const 200 === statusCode
+
+  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
+    -- team with 1) userWithConsent and 2) peer
+    convId <- createTeamConvWithRole userWithConsent tid [peer] (Just "corp + us") Nothing Nothing roleNameWireAdmin
+
+    -- activate legalhold for legalholder
+    do
+      galley <- view tsGalley
+      requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
+      approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
+      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
+      liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
+
+    -- invite legalholder
+    API.Util.postMembers userWithConsent (List1.list1 legalholder []) convId
+      !!! const 200 === statusCode
+
+    assertConvMember legalholder convId
+    assertNotConvMember peer convId
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
@@ -1009,7 +1042,7 @@ testNoConsentCannotBeInvited = do
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
-  -- team without legelhold
+  -- team without legalhold
   (peer :: UserId, teamPeer) <- createBindingTeam
   peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
   ensureQueueEmpty
@@ -1050,7 +1083,7 @@ testCannotCreateGroupWithUsersInConflict = do
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
-  -- team without legelhold
+  -- team without legalhold
   (peer :: UserId, teamPeer) <- createBindingTeam
   peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
   ensureQueueEmpty
