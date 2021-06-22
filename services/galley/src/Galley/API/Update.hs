@@ -658,14 +658,16 @@ postBotMessage zbot zcnv val message = do
 postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postProteusMessage zusr zcon convDomain cnv msg = do
   localDomain <- viewFederationDomain
+  let sender = Qualified zusr localDomain
   if localDomain /= convDomain
     then throwM federationNotImplemented
-    else postQualifiedOtrMessage User zusr (Just zcon) cnv msg
+    else postQualifiedOtrMessage User sender (Just zcon) cnv msg
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
   localDomain <- viewFederationDomain
-  let qualifiedRecipients =
+  let sender = Qualified zusr localDomain
+      qualifiedRecipients =
         Public.QualifiedOtrRecipients
           . QualifiedUserClientMap
           . Map.singleton localDomain
@@ -674,7 +676,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
           . Public.otrRecipientsMap
           . Public.newOtrRecipients
           $ message
-  let clientMismatchStrategy = legacyClientMismatchStrategy localDomain (newOtrReportMissing message) ignoreMissing reportMissing
+      clientMismatchStrategy = legacyClientMismatchStrategy localDomain (newOtrReportMissing message) ignoreMissing reportMissing
       qualifiedMessage =
         Public.QualifiedNewOtrMessage
           { Public.qualifiedNewOtrSender = newOtrSender message,
@@ -686,7 +688,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
             Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
   unqualify localDomain
-    <$> postQualifiedOtrMessage User zusr (Just zcon) cnv qualifiedMessage
+    <$> postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do

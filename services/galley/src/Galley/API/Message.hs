@@ -52,6 +52,15 @@ userToProtectee :: UserType -> UserId -> LegalholdProtectee
 userToProtectee User user = ProtectedUser user
 userToProtectee Bot _ = UnprotectedBot
 
+qualifiedUserToProtectee ::
+  Domain ->
+  UserType ->
+  Qualified UserId ->
+  LegalholdProtectee
+qualifiedUserToProtectee localDomain ty user
+  | qDomain user == localDomain = userToProtectee ty (qUnqualified user)
+  | otherwise = LegalholdPlusFederationNotImplemented
+
 data QualifiedMismatch = QualifiedMismatch
   { qmMissing :: QualifiedUserClients,
     qmRedundant :: QualifiedUserClients,
@@ -179,14 +188,14 @@ getRemoteClients convId = do
       let rpc = FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap <$> runFederatedBrig domain rpc
 
-postQualifiedOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
+postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
 postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
   now <- liftIO getCurrentTime
   let nowMillis = toUTCTimeMillis now
-  -- TODO: Test this, fix this, make it a parameters
-  senderDomain <- viewFederationDomain
+  let senderDomain = qDomain sender
+      senderUser = qUnqualified sender
   let senderClient = qualifiedNewOtrSender msg
   unless alive $ do
     Data.deleteConversation convId
@@ -210,32 +219,42 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
           $ localClients
 
   -- check if the sender is part of the conversation
-  -- FUTUREWORK: handle remote sender
-  when (not (Map.member sender localMemberMap)) $ do
-    throwUnion ErrorDescription.convNotFound
+  if senderDomain == localDomain
+    then when (not (Map.member senderUser localMemberMap)) $
+      do
+        throwUnion ErrorDescription.convNotFound
+    else pure () -- TODO: handle remote sender
 
   -- check if the sender client exists (as one of the clients in the conversation)
-  -- FUTUREWORK: handle remote sender
-  unless (Set.member senderClient (Map.findWithDefault mempty (senderDomain, sender) qualifiedLocalClients)) $ do
-    throwUnion ErrorDescription.unknownClient
+  -- TODO: handle remote sender
+  unless
+    ( Set.member
+        senderClient
+        (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedLocalClients)
+    )
+    $ do
+      throwUnion ErrorDescription.unknownClient
 
   qualifiedRemoteClients <- lift $ getRemoteClients convId
 
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
-          (senderDomain, sender, qualifiedNewOtrSender msg)
+          (senderDomain, senderUser, qualifiedNewOtrSender msg)
           (qualifiedLocalClients <> qualifiedRemoteClients)
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty
   unless sendMessage $ do
-    lift $ guardQualifiedLegalholdPolicyConflicts (userToProtectee senderType sender) (qmMissing mismatch)
+    lift $
+      guardQualifiedLegalholdPolicyConflicts
+        (qualifiedUserToProtectee localDomain senderType sender)
+        (qmMissing mismatch)
     throwUnion $ WithStatus @412 otrResult
   failedToSend <-
     lift $
       sendMessages
         now
-        (Qualified sender senderDomain)
+        sender
         senderClient
         mconn
         convId

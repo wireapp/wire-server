@@ -20,11 +20,12 @@ module Wire.API.Federation.API.Galley where
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
+import Data.Json.Util (Base64ByteString)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, Summary, (:>))
+import Servant.API (JSON, Post, ReqBody, StdMethod (..), Summary, UVerb, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -36,6 +37,7 @@ import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 import Wire.API.Message (Priority)
+import Wire.API.Routes.Public.Galley (PostOtrResponses)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -73,7 +75,15 @@ data Api routes = Api
         :> "receive-message"
         :> DomainHeader
         :> ReqBody '[JSON] (RemoteMessage ConvId)
-        :> Post '[JSON] ()
+        :> Post '[JSON] (),
+    -- used by a remote backend to send a message to a conversation owned by
+    -- this backend
+    sendMessage ::
+      routes
+        :- "federation"
+        :> "send-message"
+        :> ReqBody '[JSON] MessageSendRequest
+        :> UVerb 'POST '[JSON] PostOtrResponses
   }
   deriving (Generic)
 
@@ -157,6 +167,15 @@ data RemoteMessage conv = RemoteMessage
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
   deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
+
+data MessageSendRequest = MessageSendRequest
+  { msrConvId :: ConvId,
+    msrSender :: Qualified UserId,
+    msrRawMessage :: Base64ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MessageSendRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient
