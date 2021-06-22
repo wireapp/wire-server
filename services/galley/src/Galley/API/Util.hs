@@ -616,3 +616,13 @@ allLegalholdConsentGiven uids = do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
         teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
         allM isTeamLegalholdWhitelisted teamsPage
+
+-- | Add to every uid the legalhold status
+getLHStatusForUsers :: [UserId] -> Galley [(UserId, UserLegalHoldStatus)]
+getLHStatusForUsers uids =
+  mconcat
+    <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do
+            teamsOfUsers <- Data.usersTeams uidsChunk
+            for uidsChunk $ \uid -> do
+              (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
+        )

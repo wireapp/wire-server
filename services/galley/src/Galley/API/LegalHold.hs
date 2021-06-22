@@ -43,7 +43,6 @@ import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
-import qualified Data.Map.Strict as Map
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Range (toRange)
@@ -488,16 +487,18 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
-        let setHypotheticalLHStatus :: (LocalMember, UserLegalHoldStatus) -> (LocalMember, UserLegalHoldStatus)
-            setHypotheticalLHStatus old@(mem, _) = if memId mem == uid then (mem, hypotheticalLHStatus) else old
-
-        membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <-
-          fmap setHypotheticalLHStatus . mconcat
-            <$> ( for (chunksOf 32 (Data.convLocalMembers conv)) $ \membersChunk -> do
-                    teamsOfUsers <- Data.usersTeams (memId <$> membersChunk)
-                    for membersChunk $ \mem -> do
-                      (mem,) <$> getLHStatus (Map.lookup (memId mem) teamsOfUsers) (memId mem)
-                )
+        membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
+          let mems = Data.convLocalMembers conv
+          uidsLHStatus <- getLHStatusForUsers (memId <$> mems)
+          pure $
+            zipWith
+              ( \mem (_, status) ->
+                  if memId mem == uid
+                    then (mem, hypotheticalLHStatus)
+                    else (mem, status)
+              )
+              mems
+              uidsLHStatus
 
         if any
           ((== ConsentGiven) . consentGiven . snd)
