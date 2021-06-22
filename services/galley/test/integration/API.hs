@@ -494,6 +494,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
   chadClient2 <- randomClient (qUnqualified chadOwningDomain) (someLastPrekeys !! 2)
   deeId <- randomId
+  deeClient <- liftIO $ generate arbitrary
   let remoteDomain = Domain "far-away.example.com"
       deeRemote = Qualified deeId remoteDomain
 
@@ -515,10 +516,18 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
     postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 412 === statusCode
       let expectedMissing =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
-              [ (bobUnqualified, Set.singleton bobClient),
-                (chadUnqualified, Set.singleton chadClient2)
-              ]
+            QualifiedUserClients $
+              Map.fromList
+                [ ( owningDomain,
+                    UserClients . Map.fromList $
+                      [ (bobUnqualified, Set.singleton bobClient),
+                        (chadUnqualified, Set.singleton chadClient2)
+                      ]
+                  ),
+                  ( remoteDomain,
+                    UserClients $ Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
+                  )
+                ]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 

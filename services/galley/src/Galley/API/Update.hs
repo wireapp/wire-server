@@ -65,6 +65,7 @@ import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
+import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.State
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString')
@@ -79,6 +80,7 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (FutureWork (..))
 import Data.Qualified
 import Data.Range
+import Data.SOP (I (I))
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import Data.Time
@@ -116,6 +118,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
+import qualified Wire.API.ErrorDescription as ErrorDescription
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.Error (federationNotImplemented)
@@ -761,6 +764,23 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage qusr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
+postQualifiedOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postQualifiedOtrMessage protectee mconn convId msg = do
+  alive <- Data.isConvAlive convId
+  if not alive
+    then do
+      Data.deleteConversation convId
+      Servant.respond ErrorDescription.convNotFound
+    else do
+      localMembers <- Data.members convId
+      let localMemberIds = memId <$> localMembers
+      isInternal <- view $ options . optSettings . setIntraListing
+      clts <-
+        if isInternal
+          then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
+          else Data.lookupClients localMemberIds
+      undefined
+
 postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage protectee con cnv val msg = do
   localDomain <- viewFederationDomain
@@ -1074,6 +1094,29 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       when (mems ^. teamMemberListType == ListTruncated) $
         throwM broadcastLimitExceeded
       pure (mems ^. teamMembers)
+
+validateQualifiedOtrRecipients ::
+  LegalholdProtectee' ->
+  ClientId ->
+  ConvId ->
+  Public.QualifiedOtrRecipients ->
+  Public.ClientMismatchStrategy ->
+  UTCTime ->
+  ExceptT (Union GalleyAPI.PostOtrResponses) Galley [(LocalMember, ClientId, Text)]
+validateQualifiedOtrRecipients protectee senderClient convId recipients missingStrategy msgTime = do
+  alive <- Data.isConvAlive convId
+  unless alive $ do
+    lift $ Data.deleteConversation convId
+    throwError (inject $ I ErrorDescription.convNotFound)
+  localMembers <- lift $ Data.members convId
+  let localMemberIds = memId <$> localMembers
+  isInternal <- view $ options . optSettings . setIntraListing
+  clts <-
+    lift $
+      if isInternal
+        then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
+        else Data.lookupClients localMemberIds
+  undefined
 
 withValidOtrRecipients ::
   LegalholdProtectee' ->

@@ -113,6 +113,7 @@ diff (Clients (UserClients ca)) (Clients (UserClients cb)) =
       let d = a `Set.difference` b
        in if Set.null d then Nothing else Just d
 
+
 rmClient :: UserId -> ClientId -> Clients -> Clients
 rmClient u c (Clients (UserClients m)) =
   Clients . UserClients $ Map.update f u m
