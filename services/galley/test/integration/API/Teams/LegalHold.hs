@@ -157,11 +157,15 @@ testsPublic s =
                   test s "No admins are consenting: all LH activated/pending users get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv PeerIsAdmin))
                 ],
               testGroup
-                "User A with activated legalhold is invited to a group conversation"
+                "Users are invited to group conversation. At least one invited user has activated legalhold."
                 [ test
                     s
-                    "Some admins are consenting: all non-consenters get removed from conversation, new user joins (adding new users without consent in the same request fails)"
-                    (onlyIfLhWhitelisted testGroupConvInvitationHandlesLHConflicts)
+                    "If all all users in the invite have given consent then the invite succeeds and all non-consenters from group get removed"
+                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteOnlyConsenters)),
+                  test
+                    s
+                    "If any user in the invite has not given consent then the invite fails"
+                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteAlsoNonConsenters))
                 ],
               testGroup
                 "Creating group conversation with LH activated users"
@@ -991,24 +995,29 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
         checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
         checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
 
-data GroupConvInvCase = ConsentingAdmins | NonConsentingAdmins
+data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
 
-testGroupConvInvitationHandlesLHConflicts :: HasCallStack => TestM ()
-testGroupConvInvitationHandlesLHConflicts = do
+testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase -> TestM ()
+testGroupConvInvitationHandlesLHConflicts inviteCase = do
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
   userWithConsent <- (^. userId) <$> addUserToTeam legalholder tid
+  userWithConsent2 <- (^. userId) <$> addUserToTeam legalholder tid
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   -- team without legalhold
-  (peer :: UserId, _teamPeer) <- createBindingTeam
+  (peer :: UserId, teamPeer) <- createBindingTeam
+  peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
   ensureQueueEmpty
 
   do
     postConnection userWithConsent peer !!! const 201 === statusCode
     void $ putConnection peer userWithConsent Conn.Accepted <!! const 200 === statusCode
+
+    postConnection userWithConsent peer2 !!! const 201 === statusCode
+    void $ putConnection peer2 userWithConsent Conn.Accepted <!! const 200 === statusCode
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     -- team with 1) userWithConsent and 2) peer
@@ -1022,12 +1031,17 @@ testGroupConvInvitationHandlesLHConflicts = do
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
       liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
 
-    -- invite legalholder
-    API.Util.postMembers userWithConsent (List1.list1 legalholder []) convId
-      !!! const 200 === statusCode
+    case inviteCase of
+      InviteOnlyConsenters -> do
+        API.Util.postMembers userWithConsent (List1.list1 legalholder [userWithConsent2]) convId
+          !!! const 200 === statusCode
 
-    assertConvMember legalholder convId
-    assertNotConvMember peer convId
+        assertConvMember legalholder convId
+        assertConvMember userWithConsent2 convId
+        assertNotConvMember peer convId
+      InviteAlsoNonConsenters -> do
+        API.Util.postMembers userWithConsent (List1.list1 legalholder [peer2]) convId
+          >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
