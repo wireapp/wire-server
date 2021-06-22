@@ -37,6 +37,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Federation.Util (generateClientPrekeys, getConvQualified)
 import Imports
+import qualified System.Logger as Log
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -71,6 +72,7 @@ spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
+        test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
         test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo
       ]
@@ -124,7 +126,7 @@ testGetUsersById brig1 brig2 = do
     ( brig1
         . path "list-users"
         . zUser (userId self)
-        . body (RequestBodyLBS (Aeson.encode q))
+        . json q
         . contentJson
         . acceptJson
         . expect2xx
@@ -246,14 +248,14 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
   -- test GET /conversations/:backend1Domain/:cnv
   liftIO $ putStrLn "search for conversation on backend 1..."
   res <- getConvQualified galley1 (userId alice) qualifiedConvId <!! (const 200 === statusCode)
-  let conv = responseJsonUnsafeWithMsg ("backend 1 - get /conversations/domain/cnvId") res
+  let conv = responseJsonUnsafeWithMsg "backend 1 - get /conversations/domain/cnvId" res
       actual = cmOthers $ cnvMembers conv
       expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
   liftIO $ actual @?= expected
 
   liftIO $ putStrLn "search for conversation on backend 2..."
   res' <- getConvQualified galley2 (userId bob) qualifiedConvId <!! (const 200 === statusCode)
-  let conv' = responseJsonUnsafeWithMsg ("backend 2 - get /conversations/domain/cnvId") res'
+  let conv' = responseJsonUnsafeWithMsg "backend 2 - get /conversations/domain/cnvId" res'
       actual' = cmOthers $ cnvMembers conv'
       expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
   liftIO $ actual' @?= expected'
@@ -264,18 +266,7 @@ testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
 testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
-
-  let conv = NewConvUnmanaged $ NewConv [] [userQualifiedId bob] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
-  convId <-
-    cnvId . responseJsonUnsafe
-      <$> post
-        ( galley1
-            . path "/conversations"
-            . zUser (userId alice)
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . json conv
-        )
+  convId <- cnvId . responseJsonUnsafe <$> createConversation galley1 (userId alice) [userQualifiedId bob]
   let qconvId = Qualified convId (qDomain (userQualifiedId alice))
   -- test GET /conversations/:backend1Domain/:cnv
   testQualifiedGetConversation galley1 "galley1" alice bob qconvId
@@ -317,4 +308,40 @@ testListUserClients brig1 brig2 = do
 -- FUTUREWORK: check the happy path case as implementation of these things progresses:
 --  - conversation can be queried and shows members (galley1)
 --  - conversation can be queried and shows members (galley2 via qualified get conversation endpoint)
---  - this (qualified) convId pops up for both alice (on galley1) and bob (on galley2) when they request their own conversations ( GET /conversations )
+--
+
+testListConversations :: Brig -> Brig -> Galley -> Galley -> Http ()
+testListConversations brig1 brig2 galley1 galley2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+
+  -- create two group conversations with alice & bob, on each of domain1, domain2
+  cnv1 <- responseJsonUnsafe <$> createConversation galley1 (userId alice) [userQualifiedId bob]
+  cnv2 <- responseJsonUnsafe <$> createConversation galley2 (userId bob) [userQualifiedId alice]
+
+  --  Expect both group conversations containing alice and bob
+  --  to pop up for alice (on galley1)
+  --  when she request her own conversations ( GET /conversations )
+  debug "list all convs galley 1..."
+  rs <- listAllConvs galley1 (userId alice) <!! (const 200 === statusCode)
+  let cs = convList <$> responseJsonUnsafe rs
+  let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
+  let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
+  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
+    assertEqual
+      "name mismatch"
+      (Just $ cnvName expected)
+      (cnvName <$> actual)
+    assertEqual
+      "self member mismatch"
+      (Just . cmSelf $ cnvMembers expected)
+      (cmSelf . cnvMembers <$> actual)
+    assertEqual
+      "other members mismatch"
+      (Just [])
+      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+
+debug :: Text -> Http ()
+debug text = do
+  l <- Log.new Log.defSettings
+  liftIO $ Log.warn l (Log.msg text)
