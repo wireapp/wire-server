@@ -99,6 +99,7 @@ import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
+import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
 import qualified Wire.API.Message as Message
 import qualified Wire.API.Message.Proto as Proto
@@ -539,6 +540,23 @@ postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWi
 
 postConvQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => UserId -> [Qualified UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> m ResponseLBS
 postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
+
+postConvWithRemoteUser :: Domain -> UserProfile -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
+postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
+  opts <- view tsGConf
+  fmap fst $
+    withTempMockFederator
+      opts
+      remoteDomain
+      respond
+      $ postConvQualified creatorUnqualified members (Just "federated gossip") [] Nothing Nothing
+        <!! const 201 === statusCode
+  where
+    respond :: F.FederatedRequest -> Value
+    respond req
+      | fmap F.component (F.request req) == Just F.Brig =
+        toJSON [user]
+      | otherwise = toJSON ()
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
