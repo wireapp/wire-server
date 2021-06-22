@@ -257,7 +257,7 @@ data Api routes = Api
         :> UVerb 'POST '[Servant.JSON] PostOtrResponsesUnqualified,
     postOtrMessage ::
       routes
-        :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
+        :- Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
         :> Description PostOtrDescription
         :> ZUser
         :> ZConn
