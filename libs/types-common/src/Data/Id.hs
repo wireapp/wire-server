@@ -163,7 +163,10 @@ randomId :: (Functor m, MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom
 
 idFromText :: Text -> A.Parser (Id a)
-idFromText = maybe (fail "UUID.fromText failed") (pure . Id) . UUID.fromText
+idFromText = either fail pure . parseIdFromText
+
+parseIdFromText :: Text -> Either String (Id a)
+parseIdFromText = maybe (Left "UUID.fromText failed") (Right . Id) . UUID.fromText
 
 idToText :: Id a -> Text
 idToText = UUID.toText . toUUID

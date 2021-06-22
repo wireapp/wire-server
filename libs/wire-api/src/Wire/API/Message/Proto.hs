@@ -17,7 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- FUTUREWORK: generate this file
+-- | This module is deprecated and only used for old endpoints to send messages.
+-- The new protobuf definitions are generated using proto-lens in the wire-message-proto-lens package.
 module Wire.API.Message.Proto
   ( UserId,
     userId,

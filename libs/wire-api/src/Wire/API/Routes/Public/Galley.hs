@@ -51,9 +51,16 @@ type UpdateResponses =
      NoContent
    ]
 
-type PostOtrResponses =
+type PostOtrResponsesUnqualified =
   '[ WithStatus 201 Public.ClientMismatch,
      WithStatus 412 Public.ClientMismatch,
+     ConversationNotFound,
+     UnknownClient
+   ]
+
+type PostOtrResponses =
+  '[ WithStatus 201 Public.MessageSendingStatus,
+     WithStatus 412 Public.MessageSendingStatus,
      ConversationNotFound,
      UnknownClient
    ]
@@ -234,10 +241,10 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cid" ConvId
         :> Delete '[] (EmptyResult 200),
-    postOtrMessage ::
+    postOtrMessageUnqualified ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
-        :> Description PostOtrDescription
+        :> Description PostOtrDescriptionUnqualified
         :> ZUser
         :> ZConn
         :> "conversations"
@@ -247,13 +254,26 @@ data Api routes = Api
         :> "otr"
         :> "messages"
         :> ReqBody '[Servant.JSON, Proto] Public.NewOtrMessage
+        :> UVerb 'POST '[Servant.JSON] PostOtrResponsesUnqualified,
+    postOtrMessage ::
+      routes
+        :- Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
+        :> Description PostOtrDescription
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture "domain" Domain
+        :> Capture "cnv" ConvId
+        :> "otr"
+        :> "messages"
+        :> ReqBody '[Proto] Public.QualifiedNewOtrMessage
         :> UVerb 'POST '[Servant.JSON] PostOtrResponses
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi Api
 
-type PostOtrDescription =
+type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
   \To override this, the endpoint accepts two query params:\n\
   \- `ignore_missing`: Can be 'true' 'false' or a comma separated list of user IDs.\n\
@@ -271,6 +291,24 @@ type PostOtrDescription =
   \- `report_missing` in the request body has highest precedence.\n\
   \- `ignore_missing` in the query param is the next.\n\
   \- `report_missing` in the query param has the lowest precedence.\n\
+  \\n\
+  \This endpoint can lead to OtrMessageAdd event being sent to the recipients.\n\
+  \\n\
+  \**NOTE:** The protobuf definitions of the request body can be found at https://github.com/wireapp/generic-message-proto/blob/master/proto/otr.proto."
+
+type PostOtrDescription =
+  "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
+  \To override this, the endpoint accepts `client_mismatch_strategy` in the body. It can have these values:\n\
+  \- `report_all`: When set, the message is not sent if any clients are missing. The missing clients are reported in the response.\n\
+  \- `ignore_all`: When set, no checks about missing clients are carried out.\n\
+  \- `report_only`: Takes a list of qualified UserIDs. If any clients of the listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
+  \- `ignore_only`: Takes a list of qualified UserIDs. If any clients of the non-listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
+  \\n\
+  \The sending of messages in a federated conversation could theorectically fail partially. \
+  \To make this case unlikely, the backend first gets a list of clients from all the involved backends and then tries to send a message. \
+  \So, if any backend is down, the message is not propagated to anyone. \
+  \But the actual message fan out to multiple backends could still fail partially. This type of failure is reported as a 201, \
+  \the clients for which the message sending failed are part of the response body.\n\
   \\n\
   \This endpoint can lead to OtrMessageAdd event being sent to the recipients.\n\
   \\n\

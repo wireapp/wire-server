@@ -73,7 +73,7 @@ module Wire.API.User.Client
 where
 
 import qualified Cassandra as Cql
-import Control.Lens ((?~), (^.))
+import Control.Lens (view, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Bifunctor (second)
@@ -84,7 +84,6 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
-import Data.Proxy (Proxy (..))
 import Data.Schema
 import qualified Data.Set as Set
 import qualified Data.Swagger as Swagger
@@ -376,22 +375,25 @@ newtype QualifiedUserClients = QualifiedUserClients
   { qualifiedUserClients :: Map Domain UserClients
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Semigroup, Monoid, FromJSON, ToJSON)
+  deriving newtype (Semigroup, Monoid)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via (Schema QualifiedUserClients)
 
 instance Arbitrary QualifiedUserClients where
   arbitrary = QualifiedUserClients <$> mapOf' arbitrary arbitrary
 
-instance Swagger.ToSchema QualifiedUserClients where
-  declareNamedSchema _ = do
-    sch <- Swagger.declareSchema (Proxy @(Map Domain UserClients))
-    userClientsSchema <- Swagger.declareSchema (Proxy @UserClients)
-    return $
-      Swagger.NamedSchema (Just "QualifiedUserClients") $
+instance ToSchema QualifiedUserClients where
+  schema =
+    addDoc . named "QualifiedUserClients" $ QualifiedUserClients <$> qualifiedUserClients .= map_ schema
+    where
+      addDoc sch =
         sch
-          & Swagger.description ?~ "Map of Domain to UserClients"
-          & Swagger.example
+          & Swagger.schema . Swagger.description ?~ "Map of Domain to UserClients"
+          & Swagger.schema . Swagger.example
             ?~ toJSON
-              (Map.singleton ("domain1.example.com" :: Text) (userClientsSchema ^. Swagger.example))
+              ( Map.singleton
+                  ("domain1.example.com" :: Text)
+                  (view (Swagger.schema . Swagger.example) (schema @UserClients))
+              )
 
 --------------------------------------------------------------------------------
 -- Client

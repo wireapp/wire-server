@@ -39,6 +39,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
@@ -52,6 +53,7 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
+import qualified Data.Text.Encoding as Text
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
@@ -59,6 +61,7 @@ import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
 import Imports
 import Network.Wai.Utilities.Error
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -70,7 +73,8 @@ import Wire.API.Conversation (ConversationCoverView (ConversationCoverView))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
 import qualified Wire.API.Federation.GRPC.Types as F
-import Wire.API.User.Client (UserClientPrekeyMap, getUserClientPrekeyMap)
+import qualified Wire.API.Message as Message
+import Wire.API.User.Client (QualifiedUserClients (..), UserClientPrekeyMap, getUserClientPrekeyMap)
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -149,6 +153,11 @@ tests s =
           test s "post conversations/:cnv/otr/message: mismatch with protobuf" postCryptoMessage3,
           test s "post conversations/:cnv/otr/message: unknown sender client" postCryptoMessage4,
           test s "post conversations/:cnv/otr/message: ignore_missing and report_missing" postCryptoMessage5,
+          test s "post message qualified - local owning backend - success" postMessageQualifiedLocalOwningBackendSuccess,
+          test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
+          test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
+          test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
+          test s "post message qualified - remote owning backend - not implemented" postMessageQualifiedRemoteOwningBackendNotImplemented,
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
           test s "join code-access conversation" postJoinCodeConvOk,
@@ -420,6 +429,274 @@ postCryptoMessage5 = do
   liftIO $ assertBool "client mismatch" (eqMismatch [(bob, Set.singleton bc)] [] [] (Just ignoreEveAndChadButNotBobMismatch))
   where
     listToByteString = BS.intercalate "," . map toByteString'
+
+-- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- users from Backend A will send the message, it is expected that message will
+-- be sent successfully.
+postMessageQualifiedLocalOwningBackendSuccess :: TestM ()
+postMessageQualifiedLocalOwningBackendSuccess = do
+  -- WS receive timeout
+  let t = 5 # Second
+  -- Cannon for local users
+  cannon <- view tsCannon
+  -- Domain which owns the converstaion
+  owningDomain <- viewFederationDomain
+
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  bobClient2 <- randomClient (qUnqualified bobOwningDomain) (someLastPrekeys !! 2)
+  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
+  deeId <- randomId
+  deeClient <- liftIO $ generate arbitrary
+  let remoteDomain = Domain "far-away.example.com"
+      deeRemote = Qualified deeId remoteDomain
+
+  let aliceUnqualified = qUnqualified aliceOwningDomain
+      bobUnqualified = qUnqualified bobOwningDomain
+      chadUnqualified = qUnqualified chadOwningDomain
+
+  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+
+  -- FUTUREWORK: Do this test with more than one remote domains
+  opts <- view tsGConf
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [mkProfile deeRemote (Name "Dee")])
+      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
+
+  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    let message =
+          [ (bobOwningDomain, bobClient, "text-for-bob"),
+            (bobOwningDomain, bobClient2, "text-for-bob2"),
+            (chadOwningDomain, chadClient, "text-for-chad"),
+            (deeRemote, deeClient, "text-for-dee")
+          ]
+    -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent.
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+      const 201 === statusCode
+      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+    liftIO $ do
+      let encodedTextForBob = Text.decodeUtf8 (B64.encode "text-for-bob")
+          encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
+          encodedData = Text.decodeUtf8 (B64.encode "data")
+      WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
+      WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+
+-- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- users from Backend A will send the message but have a missing client. It is
+-- expected that the message will not be sent.
+postMessageQualifiedLocalOwningBackendMissingClients :: TestM ()
+postMessageQualifiedLocalOwningBackendMissingClients = do
+  -- Cannon for local users
+  cannon <- view tsCannon
+  -- Domain which owns the converstaion
+  owningDomain <- viewFederationDomain
+
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
+  chadClient2 <- randomClient (qUnqualified chadOwningDomain) (someLastPrekeys !! 2)
+  deeId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      deeRemote = Qualified deeId remoteDomain
+
+  let aliceUnqualified = qUnqualified aliceOwningDomain
+      bobUnqualified = qUnqualified bobOwningDomain
+      chadUnqualified = qUnqualified chadOwningDomain
+
+  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+
+  -- FUTUREWORK: Do this test with more than one remote domains
+  opts <- view tsGConf
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [mkProfile deeRemote (Name "Dee")])
+      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
+
+  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+
+  -- Missing Bob, chadClient2 and Dee
+  let message = [(chadOwningDomain, chadClient, "text-for-chad")]
+  -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
+  -- ensure that message is not propagated to remotes
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+      const 412 === statusCode
+      let expectedMissing =
+            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+              [ (bobUnqualified, Set.singleton bobClient),
+                (chadUnqualified, Set.singleton chadClient2)
+              ]
+      assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
+    WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+-- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- users from Backend A will send the message, it is expected that message will
+-- be sent successfully.
+postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients :: TestM ()
+postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
+  -- WS receive timeout
+  let t = 5 # Second
+  -- Cannon for local users
+  cannon <- view tsCannon
+  -- Domain which owns the converstaion
+  owningDomain <- viewFederationDomain
+  let remoteDomain = Domain "far-away.example.com"
+
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 2)
+  chadClientNonExistent <- liftIO $ generate arbitrary
+  deeRemote <- (`Qualified` remoteDomain) <$> randomId
+  deeClient <- liftIO $ generate arbitrary
+  (nonMemberOwningDomain, nonMemberOwningDomainClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
+  nonMemberRemote <- (`Qualified` remoteDomain) <$> randomId
+  nonMemberRemoteClient <- liftIO $ generate arbitrary
+  let aliceUnqualified = qUnqualified aliceOwningDomain
+      bobUnqualified = qUnqualified bobOwningDomain
+      chadUnqualified = qUnqualified chadOwningDomain
+      nonMemberUnqualified = qUnqualified nonMemberOwningDomain
+
+  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+
+  -- FUTUREWORK: Do this test with more than one remote domains
+  opts <- view tsGConf
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [mkProfile deeRemote (Name "Dee")])
+      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
+
+  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+
+  WS.bracketR3 cannon bobUnqualified chadUnqualified nonMemberUnqualified $ \(wsBob, wsChad, wsNonMember) -> do
+    let message =
+          [ (bobOwningDomain, bobClient, "text-for-bob"),
+            (chadOwningDomain, chadClient, "text-for-chad"),
+            (chadOwningDomain, chadClientNonExistent, "text-for-chad-non-existent"),
+            (deeRemote, deeClient, "text-for-dee"),
+            (nonMemberOwningDomain, nonMemberOwningDomainClient, "text-for-non-member-owning-domain"),
+            (nonMemberRemote, nonMemberRemoteClient, "text-for-non-member-remote")
+          ]
+    -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent and
+    -- nonParticipatingRemote is reported as redundant
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+      const 201 === statusCode
+      let expectedRedundant =
+            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+              [(nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient)]
+          expectedDeleted =
+            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+              [(chadUnqualified, Set.singleton chadClientNonExistent)]
+      assertTrue_ (eqMismatchQualified mempty expectedRedundant expectedDeleted . responseJsonMaybe)
+    liftIO $ do
+      let encodedTextForBob = Text.decodeUtf8 (B64.encode "text-for-bob")
+          encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
+          encodedData = Text.decodeUtf8 (B64.encode "data")
+      WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
+      WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+      -- Wait less for no message
+      WS.assertNoEvent (1 # Second) [wsNonMember]
+
+-- | Sets up a conversation on Backend A known as "owning backend". One of the
+-- users from Backend A will send the message but have a missing client. It is
+-- expected that the message will be sent except when it is specifically
+-- requested to report on missing clients of a user.
+postMessageQualifiedLocalOwningBackendIgnoreMissingClients :: TestM ()
+postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
+  -- WS receive timeout
+  let t = 5 # Second
+  -- Cannon for local users
+  cannon <- view tsCannon
+  -- Domain which owns the converstaion
+  owningDomain <- viewFederationDomain
+
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, _bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
+  chadClient2 <- randomClient (qUnqualified chadOwningDomain) (someLastPrekeys !! 2)
+  deeId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      deeRemote = Qualified deeId remoteDomain
+
+  let aliceUnqualified = qUnqualified aliceOwningDomain
+      bobUnqualified = qUnqualified bobOwningDomain
+      chadUnqualified = qUnqualified chadOwningDomain
+
+  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+
+  -- FUTUREWORK: Do this test with more than one remote domains
+  opts <- view tsGConf
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const [mkProfile deeRemote (Name "Dee")])
+      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
+
+  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+
+  -- Missing Bob, chadClient2 and Dee
+  let message = [(chadOwningDomain, chadClient, "text-for-chad")]
+  -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
+  -- ensure that message is not propagated to remotes
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll !!! do
+      const 201 === statusCode
+      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
+        encodedData = Text.decodeUtf8 (B64.encode "data")
+    WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+    WS.assertNoEvent (1 # Second) [wsBob]
+
+  -- Another way to ignore all is to report nobody
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) !!! do
+      const 201 === statusCode
+      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
+        encodedData = Text.decodeUtf8 (B64.encode "data")
+    WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+    WS.assertNoEvent (1 # Second) [wsBob]
+
+  -- Yet another way to ignore all is to ignore specific users
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote])) !!! do
+      const 201 === statusCode
+      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
+        encodedData = Text.decodeUtf8 (B64.encode "data")
+    WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+    WS.assertNoEvent (1 # Second) [wsBob]
+
+  -- When we ask only chad be reported, but one of their clients is missing, the
+  -- message shouldn't be sent!
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly (Set.fromList [chadOwningDomain])) !!! do
+      const 412 === statusCode
+      let expectedMissing =
+            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+              [(chadUnqualified, Set.singleton chadClient2)]
+      assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
+    WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+postMessageQualifiedRemoteOwningBackendNotImplemented :: TestM ()
+postMessageQualifiedRemoteOwningBackendNotImplemented = do
+  (aliceLocal, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  let aliceUnqualified = qUnqualified aliceLocal
+  convIdUnqualified <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      convId = Qualified convIdUnqualified remoteDomain
+  postOtrMessageQualified aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll !!! do
+    const 403 === statusCode
+    const (Right (Just (String "federation-not-implemented"))) === fmap (view (at @Object "label")) . responseJsonEither
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do
