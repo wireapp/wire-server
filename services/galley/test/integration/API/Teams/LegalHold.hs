@@ -161,11 +161,7 @@ testsPublic s =
                 [ test
                     s
                     "Some admins are consenting: all non-consenters get removed from conversation, new user joins (adding new users without consent in the same request fails)"
-                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts ConsentingAdmins)),
-                  test
-                    s
-                    "No admins are consenting: all LH activated/pending users get removed from conversation (adding new users without consent in the same request succeeds)"
-                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts NonConsentingAdmins))
+                    (onlyIfLhWhitelisted testGroupConvInvitationHandlesLHConflicts)
                 ],
               testGroup
                 "Creating group conversation with LH activated users"
@@ -998,9 +994,8 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
 data GroupConvInvCase = ConsentingAdmins | NonConsentingAdmins
   deriving (Show, Eq, Ord, Bounded, Enum)
 
-testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase -> TestM ()
-testGroupConvInvitationHandlesLHConflicts NonConsentingAdmins = error "impossible because connection required for invite"
-testGroupConvInvitationHandlesLHConflicts ConsentingAdmins = do
+testGroupConvInvitationHandlesLHConflicts :: HasCallStack => TestM ()
+testGroupConvInvitationHandlesLHConflicts = do
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
   userWithConsent <- (^. userId) <$> addUserToTeam legalholder tid
