@@ -277,12 +277,17 @@ nginx_conf:
     - path: ~* ^/conversations/([^/]*)/otr/messages
       envs:
       - all
-      max_body_size: 1m
+      max_body_size: 40m
+      body_buffer_size: 256k
+    - path: ~* ^/conversations/([^/]*)/([^/]*)/otr/messages
+      envs:
+      - all
+      max_body_size: 40m
       body_buffer_size: 256k
     - path: /broadcast/otr/messages
       envs:
       - all
-      max_body_size: 1m
+      max_body_size: 40m
       body_buffer_size: 256k
     - path: /bot/conversation
       envs:
@@ -290,7 +295,7 @@ nginx_conf:
     - path: /bot/messages
       envs:
       - all
-      max_body_size: 1m
+      max_body_size: 40m
       body_buffer_size: 256k
     - path: /conversations
       envs:
