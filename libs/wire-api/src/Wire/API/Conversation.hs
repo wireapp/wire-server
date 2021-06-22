@@ -498,7 +498,7 @@ newConvSchema =
           )
       <*> newConvReceiptMode .= opt (field "receipt_mode" schema)
       <*> newConvUsersRole
-        .= ( field "conversation_role" schema
+        .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                <|> pure roleNameWireAdmin
            )
   where
@@ -508,6 +508,14 @@ newConvSchema =
     qualifiedUsersDesc =
       "List of qualified user IDs (excluding the requestor) \
       \to be part of this conversation"
+    usersRoleDesc :: Text
+    usersRoleDesc =
+      cs $
+        "The conversation permissions the users \
+        \added in this request should have. \
+        \Optional, defaults to '"
+          <> show roleNameWireAdmin
+          <> "' if unset."
 
 newConvIsManaged :: NewConv -> Bool
 newConvIsManaged = maybe False cnvManaged . newConvTeam
