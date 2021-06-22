@@ -157,10 +157,10 @@ testsPublic s =
                   test s "No admins are consenting: all LH activated/pending users get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv PeerIsAdmin))
                 ],
               testGroup
-                "User A with activated legalhold joins a group conversation"
+                "User A with activated legalhold is invited to a group conversation"
                 [ test
                     s
-                    "All admins are consenting: all non-consenters get removed from conversation, new user joins (adding new users without consent in the same request fails)"
+                    "Some admins are consenting: all non-consenters get removed from conversation, new user joins (adding new users without consent in the same request fails)"
                     (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts ConsentingAdmins)),
                   test
                     s
@@ -998,7 +998,7 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
 data GroupConvInvCase = ConsentingAdmins | NonConsentingAdmins
   deriving (Show, Eq, Ord, Bounded, Enum)
 
-testGroupConvInvitationHandlesLHConflicts :: GroupConvInvCase -> HasCallStack => TestM ()
+testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase -> TestM ()
 testGroupConvInvitationHandlesLHConflicts = undefined
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
