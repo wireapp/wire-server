@@ -157,21 +157,24 @@ testsPublic s =
                   test s "No admins are consenting: all LH activated/pending users get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv PeerIsAdmin))
                 ],
               testGroup
-                "Users are invited to group conversation. At least one invited user has activated legalhold."
-                [ test
-                    s
-                    "If all all users in the invite have given consent then the invite succeeds and all non-consenters from group get removed"
-                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteOnlyConsenters)),
-                  test
-                    s
-                    "If any user in the invite has not given consent then the invite fails"
-                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteAlsoNonConsenters))
+                "Users are invited to a group conversation."
+                [ testGroup
+                    "At least one invited user has activated legalhold. At least one admin of the group has given consent."
+                    [ test
+                        s
+                        "If all all users in the invite have given consent then the invite succeeds and all non-consenters from the group get removed"
+                        (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteOnlyConsenters)),
+                      test
+                        s
+                        "If any user in the invite has not given consent then the invite fails"
+                        (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteAlsoNonConsenters))
+                    ],
+                  testGroup
+                    "The group conversation contains legalhold activated users."
+                    [ test s "If any user in the invite has not given consent then the invite fails" (onlyIfLhWhitelisted testNoConsentCannotBeInvited)
+                    ]
                 ],
-              testGroup
-                "Creating group conversation with LH activated users"
-                [ test s "Non-consenting users cannot be invited to conversation if LH activated users are in conversation" (onlyIfLhWhitelisted testNoConsentCannotBeInvited),
-                  test s "Cannot create conversation with both LH activated and non-consenting users" (onlyIfLhWhitelisted testCannotCreateGroupWithUsersInConflict)
-                ],
+              test s "Cannot create conversation with both LH activated and non-consenting users" (onlyIfLhWhitelisted testCannotCreateGroupWithUsersInConflict),
               test s "bench hack" testBenchHack,
               test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
               test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
