@@ -746,8 +746,8 @@ specCRUDIdentityProvider = do
         (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
         (SampleIdP idpmeta2 _ _ _) <- makeSampleIdPMetadata
         _ <- call $ callIdpCreate (env ^. teSpar) (Just owner1) idpmeta2
-        let idpmeta3 = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
-        callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta3) undefined)
+        let idpmeta1' = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
+        callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta1') undefined)
           `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
     describe "issuer changed to one that is new" $ do
       it "updates old idp, updating both issuer and old_issuers" $ do
