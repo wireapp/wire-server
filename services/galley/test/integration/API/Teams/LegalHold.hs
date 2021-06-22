@@ -157,10 +157,19 @@ testsPublic s =
                   test s "No admins are consenting: all LH activated/pending users get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv PeerIsAdmin))
                 ],
               testGroup
+                "User A with activated legalhold joins a group conversation"
+                [ test
+                    s
+                    "All admins are consenting: all non-consenters get removed from conversation, new user joins (adding new users without consent in the same request fails)"
+                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts ConsentingAdmins)),
+                  test
+                    s
+                    "No admins are consenting: all LH activated/pending users get removed from conversation (adding new users without consent in the same request succeeds)"
+                    (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts NonConsentingAdmins)),
+                ],
+              testGroup
                 "Creating group conversation with LH activated users"
                 [ test s "Non-consenting users cannot be invited to conversation if LH activated users are in conversation" (onlyIfLhWhitelisted testNoConsentCannotBeInvited),
-                  test s "LH activated users cannot be invited to conversation if non-consenting users are in conversation" (error "TODO: unclear requirements, check back with product dept."),
-                  test s "Non-consenting users cannot be invited to conversation if LH activated users are invited at the same time" (error "TODO: is bulk-invite a thing?  i think it is."),
                   test s "Cannot create conversation with both LH activated and non-consenting users" (onlyIfLhWhitelisted testCannotCreateGroupWithUsersInConflict)
                 ],
               test s "bench hack" testBenchHack,
@@ -985,6 +994,15 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
         assertNotConvMember peer convId
         checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
         checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
+
+
+data GroupConvInvCase = ConsentingAdmins | NonConsentingAdmins
+  deriving (Show, Eq, Ord, Bounded, Enum)
+
+testGroupConvInvitationHandlesLHConflicts :: GroupConvInvCase -> HasCallStack => TestM ()
+testGroupConvInvitationHandlesLHConflicts = undefined
+
+
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
