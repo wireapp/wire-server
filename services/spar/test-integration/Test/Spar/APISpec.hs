@@ -67,6 +67,7 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
+import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
@@ -749,6 +750,42 @@ specCRUDIdentityProvider = do
         let idpmeta1' = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta1') undefined)
           `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
+    describe "issuer changed to one that already existed in the same team in the past (but has been updated away)" $ do
+      it "changes back to the old one and keeps the new in the `old_issuers` list." $ do
+        env <- ask
+        (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
+        idpmeta1' <- do
+          (SampleIdP idpmeta2 _ _ _) <- makeSampleIdPMetadata
+          pure $ idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
+        idpmeta1'' <- do
+          (SampleIdP idpmeta3 _ _ _) <- makeSampleIdPMetadata
+          pure $ idpmeta1 & edIssuer .~ (idpmeta3 ^. edIssuer)
+
+        do
+          midp <- runSparCass $ Data.getIdPConfig idpid1
+          liftIO $ do
+            (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (idpmeta1 ^. edIssuer)
+            (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just []
+            (midp ^? _Just . idpExtraInfo . wiReplacedBy) `shouldBe` Just Nothing
+
+        let -- change idp metadata (only issuer, to be precise), and look at new issuer and
+            -- old issuers.
+            change :: SAML.IdPMetadata -> [SAML.IdPMetadata] -> TestSpar ()
+            change new olds = do
+              resp <- call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
+              liftIO $ statusCode resp `shouldBe` 200
+
+              midp <- runSparCass $ Data.getIdPConfig idpid1
+              liftIO $ do
+                (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (new ^. edIssuer)
+                sort <$> (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just (sort $ olds <&> (^. edIssuer))
+                (midp ^? _Just . idpExtraInfo . wiReplacedBy) `shouldBe` Just Nothing
+
+        -- update the name a few times, ending up with the original one.
+        change idpmeta1' [idpmeta1]
+        change idpmeta1'' [idpmeta1, idpmeta1']
+        change idpmeta1 [idpmeta1, idpmeta1', idpmeta1'']
+
     describe "issuer changed to one that is new" $ do
       it "updates old idp, updating both issuer and old_issuers" $ do
         env <- ask
