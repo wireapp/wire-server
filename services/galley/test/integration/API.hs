@@ -458,14 +458,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
 
   -- FUTUREWORK: Do this test with more than one remote domains
-  opts <- view tsGConf
-  (resp, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      (const [mkProfile deeRemote (Name "Dee")])
-      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
-
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
@@ -511,14 +504,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
 
   -- FUTUREWORK: Do this test with more than one remote domains
-  opts <- view tsGConf
-  (resp, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      (const [mkProfile deeRemote (Name "Dee")])
-      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
-
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
   -- Missing Bob, chadClient2 and Dee
@@ -566,14 +552,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
   connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
 
   -- FUTUREWORK: Do this test with more than one remote domains
-  opts <- view tsGConf
-  (resp, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      (const [mkProfile deeRemote (Name "Dee")])
-      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
-
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
   WS.bracketR3 cannon bobUnqualified chadUnqualified nonMemberUnqualified $ \(wsBob, wsChad, wsNonMember) -> do
@@ -633,14 +612,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
 
   -- FUTUREWORK: Do this test with more than one remote domains
-  opts <- view tsGConf
-  (resp, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      (const [mkProfile deeRemote (Name "Dee")])
-      (postConvQualified aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote] (Just "federated gossip") [] Nothing Nothing)
-
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
   -- Missing Bob, chadClient2 and Dee
