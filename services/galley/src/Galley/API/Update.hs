@@ -112,6 +112,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
@@ -531,13 +532,34 @@ addMembers zusr zcon convId invite = do
 
     checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
     checkLHPolicyConflictsLocal conv newUsers = do
-      guardConflicts (fmap memId . Data.convLocalMembers $ conv) newUsers
-      guardConflicts newUsers (fmap memId . Data.convLocalMembers $ conv)
-      where
-        guardConflicts users1 users2 =
-          whenM (anyLegalholdActivated users1) $
-            unlessM (allLegalholdConsentGiven users2) $
-              throwM missingLegalholdConsent
+      let convUsers = Data.convLocalMembers conv
+
+      allNewUsersGaveConsent <- allLegalholdConsentGiven newUsers
+
+      whenM (anyLegalholdActivated (memId <$> convUsers)) $
+        unless allNewUsersGaveConsent $
+          throwM missingLegalholdConsent
+
+      whenM (anyLegalholdActivated newUsers) $ do
+        unless allNewUsersGaveConsent $
+          throwM missingLegalholdConsent
+
+        convUsersLHStatus <- do
+          uidsStatus <- getLHStatusForUsers (memId <$> convUsers)
+          pure $ zipWith (\mem (_, status) -> (mem, status)) convUsers uidsStatus
+
+        if any
+          ( \(mem, status) ->
+              memConvRoleName mem == roleNameWireAdmin
+                && consentGiven status == ConsentGiven
+          )
+          convUsersLHStatus
+          then do
+            for_ convUsersLHStatus $ \(mem, status) -> do
+              when (consentGiven status == ConsentNotGiven) $
+                void $ removeMember (memId mem) Nothing (Data.convId conv) (memId mem)
+          else do
+            throwM missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
