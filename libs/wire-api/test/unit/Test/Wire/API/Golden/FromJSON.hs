@@ -38,7 +38,9 @@ tests =
           [(testObject_SimpleMember_user_1, "testObject_SimpleMember_user_1.json")],
       testCase "NewConv" $
         testFromJSONObjects
-          [(testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json")],
+          [ (testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json"),
+            (testObject_NewConvUnmanaged_user_21, "testObject_NewConvUnmanaged_user_21.json")
+          ],
       testCase "RmClient" $
         testFromJSONObjects
           [(testObject_RmClient_user_4, "testObject_RmClient_user_4.json")]

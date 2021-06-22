@@ -460,13 +460,15 @@ newConvSchema :: ValueSchema NamedSwaggerDoc NewConv
 newConvSchema =
   objectWithDocModifier
     "NewConv"
-    (description ?~ "JSON object to create a new conversation")
+    (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
     $ NewConv
       <$> newConvUsers
-        .= fieldWithDocModifier
-          "users"
-          (description ?~ usersDesc)
-          (array schema)
+        .= ( fieldWithDocModifier
+               "users"
+               (description ?~ usersDesc)
+               (array schema)
+               <|> pure []
+           )
       <*> newConvQualifiedUsers
         .= ( fieldWithDocModifier
                "qualified_users"
