@@ -456,18 +456,20 @@ fromRegisterConversation qusr MkRegisterConversation {..} = do
     me s =
       case find ((== qusr) . omQualifiedId) . Set.toList $ s of
         Nothing -> throwM convMemberNotFound
-        Just v -> pure Public.Member
-          { memId = qUnqualified . omQualifiedId $ v,
-            memService = omService v,
-            memOtrMuted = False,
-            memOtrMutedStatus = Nothing,
-            memOtrMutedRef = Nothing,
-            memOtrArchived = False,
-            memOtrArchivedRef = Nothing,
-            memHidden = False,
-            memHiddenRef = Nothing,
-            memConvRoleName = omConvRoleName v
-          }
+        Just v ->
+          pure
+            Public.Member
+              { memId = qUnqualified . omQualifiedId $ v,
+                memService = omService v,
+                memOtrMuted = False,
+                memOtrMutedStatus = Nothing,
+                memOtrMutedRef = Nothing,
+                memOtrArchived = False,
+                memOtrArchivedRef = Nothing,
+                memHidden = False,
+                memHiddenRef = Nothing,
+                memConvRoleName = omConvRoleName v
+              }
     others :: Set OtherMember -> [OtherMember]
     others = foldl' addOthers []
     addOthers :: [OtherMember] -> OtherMember -> [OtherMember]

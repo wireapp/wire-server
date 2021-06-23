@@ -28,7 +28,7 @@ import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
-import Wire.API.Conversation.Member (OtherMember(..))
+import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
@@ -65,7 +65,8 @@ registerConversation rc = do
     addInDomain :: Domain -> [Qualified UserId] -> OtherMember -> [Qualified UserId]
     addInDomain d acc m =
       if ((== d) . qDomain . omQualifiedId) m
-        then omQualifiedId m : acc else acc
+        then omQualifiedId m : acc
+        else acc
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
