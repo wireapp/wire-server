@@ -53,7 +53,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (%~), (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -123,6 +123,7 @@ swaggerDocsAPI =
     (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> LegalHoldAPI.swaggerDoc <> SparAPI.swaggerDoc)
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ desc
+      & S.security %~ nub
   where
     desc =
       Text.pack
