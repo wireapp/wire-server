@@ -639,7 +639,7 @@ postOtrMessage' reportMissing f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissing)
 
-postOtrMessageQualified ::
+postProteusMessageQualified ::
   UserId ->
   ClientId ->
   Qualified ConvId ->
@@ -647,12 +647,12 @@ postOtrMessageQualified ::
   ByteString ->
   Message.ClientMismatchStrategy ->
   TestM ResponseLBS
-postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
+postProteusMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
   g <- view tsGalley
   let protoMsg = mkQualifiedOtrPayload senderClient recipients dat strat
   post $
     g
-      . paths ["conversations", toByteString' domain, toByteString' conv, "otr", "messages"]
+      . paths ["conversations", toByteString' domain, toByteString' conv, "proteus", "messages"]
       . zUser senderUser
       . zConn "conn"
       . zType "access"

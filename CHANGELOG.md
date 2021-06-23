@@ -18,11 +18,13 @@
 
 ## API Changes
 
-* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/otr/messages` (#1593).
+* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616).
 
 ## Features
 
 ## Bug fixes and other updates
+
+* [helm] Allow sending messages upto 40 MB by default (#1614)
 
 ## Documentation
 

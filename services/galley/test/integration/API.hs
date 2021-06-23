@@ -469,7 +469,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             (deeRemote, deeClient, "text-for-dee")
           ]
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent.
-    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     liftIO $ do
@@ -512,7 +512,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 412 === statusCode
       let expectedMissing =
             QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
@@ -566,7 +566,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           ]
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent and
     -- nonParticipatingRemote is reported as redundant
-    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 201 === statusCode
       let expectedRedundant =
             QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
@@ -620,7 +620,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll !!! do
+    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
@@ -630,7 +630,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
 
   -- Another way to ignore all is to report nobody
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) !!! do
+    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
@@ -640,7 +640,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
 
   -- Yet another way to ignore all is to ignore specific users
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote])) !!! do
+    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote])) !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
@@ -651,7 +651,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- When we ask only chad be reported, but one of their clients is missing, the
   -- message shouldn't be sent!
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postOtrMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly (Set.fromList [chadOwningDomain])) !!! do
+    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly (Set.fromList [chadOwningDomain])) !!! do
       const 412 === statusCode
       let expectedMissing =
             QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
@@ -666,7 +666,7 @@ postMessageQualifiedRemoteOwningBackendNotImplemented = do
   convIdUnqualified <- randomId
   let remoteDomain = Domain "far-away.example.com"
       convId = Qualified convIdUnqualified remoteDomain
-  postOtrMessageQualified aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll !!! do
+  postProteusMessageQualified aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll !!! do
     const 403 === statusCode
     const (Right (Just (String "federation-not-implemented"))) === fmap (view (at @Object "label")) . responseJsonEither
 
