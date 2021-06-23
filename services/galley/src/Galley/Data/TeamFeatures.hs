@@ -22,10 +22,12 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
+    getClassifiedDomainsFeatureStatus
   )
 where
 
 import Cassandra
+import Data.Domain (Domain)
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
@@ -118,3 +120,20 @@ setApplockFeatureStatus tid status = do
           <> "app_lock_enforce = ?, "
           <> "app_lock_inactivity_timeout_secs = ? "
           <> "where team_id = ?"
+
+getClassifiedDomainsFeatureStatus ::
+  MonadClient m =>
+  TeamId ->
+  m (Maybe (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains))
+getClassifiedDomainsFeatureStatus tid = do
+  let q = query1 select (params Quorum (Identity tid))
+  mTuple <- retry x1 q
+  pure $
+    mTuple >>= \(mbStatusValue, mbDomains) ->
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.MkTeamFeatureClassifiedDomainsConfig <$> mbDomains)
+  where
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe [Domain])
+    select =
+      fromString $
+        "select " <> toCol Public.TeamFeatureClassifiedDomains <> ", classified_domains_domains "
+          <> "from team_features where team_id = ?"

@@ -22,6 +22,7 @@ module Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus,
     TeamFeatureAppLockConfig (..),
+    TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
     FeatureHasNoConfig,
     EnforceAppLock (..),
@@ -37,6 +38,7 @@ module Wire.API.Team.Feature
     modelTeamFeatureStatusNoConfig,
     modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
+    modelTeamFeatureClassifiedDomainsConfig,
     modelForTeamFeature,
   )
 where
