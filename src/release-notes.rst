@@ -24,6 +24,135 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart version 2.109.0
+=====================
+
+Release notes
+-------------
+
+API Changes
+------------
+
+* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616).
+
+Security fixes
+--------------
+* Fix for https://github.com/wireapp/wire-webapp/security/advisories/GHSA-382j-mmc8-m5rw  (#1613)
+
+Bug fixes
+----------
+* [helm] Allow sending messages upto 40 MB by default (#1614)
+
+
+
+Chart version 2.108.0
+=====================
+
+Release notes
+-------------
+
+This release doesn't require any extra considerations to deploy.
+
+Features
+--------
+* Update versions of webapp, team-settings, account-pages (#1559)
+* Add missing /list-users route (#1572)
+* [Legalhold] Block device handshake in case of LH policy conflict (#1526)
+* [Legalhold] Fix: Connection type when unblocking after LH (#1549)
+* [Legalhold] Allow Legalhold for large teams (>2000) if enabled via whitelist (#1546)
+* [Legalhold] Add ClientCapabilities to NewClient. (#1552)
+* [Legalhold] Dynamic whitelisted teams & whitelist-teams-and-implicit-consent feature in tests (#1557, #1574)
+* [Federation] Add remote members to conversations (#1529)
+* [Federation] Federation: new endpoint: GET /conversations/{domain}/{cnv} (#1566)
+* [Federation] Parametric mock federator (#1558)
+* [Federation] Add more information to federation errors (#1560)
+* [Federation] Add remote users when creating a conversation (#1569)
+* [Federation] Update conversation membership in a remote backend (#1540)
+* [Federation] expose /conversations/{cnv}/members/v2 for federation backends (#1543)
+
+Bug fixes and other updates
+---------------------------
+* Fix MIME-type of asset artifacts 
+* Add some missing charts (#1533)
+
+Internal changes
+----------------
+* Qualify users and conversations in Event (#1547)
+* Make botsAndUsers pure (#1562)
+* Set swagger type of text schema (#1561)
+* More examples in schema-profunctor documentation (#1539)
+* Refactoring-friendly FutureWork data type (#1550)
+* nginz/Dockerfile: Run 'apk add' verbosely for debugging (#1565)
+* Introduce a generalized version of wai-extra Session type constructor (#1563)
+* Avoid wrapping error in rethrow middleware (#1567)
+* wire-api: Introduce ErrorDescription (#1573)
+* [Federation] Use Servant.respond instead of explicit SOP (#1535)
+* [Federation] Add end2end test for adding remote users to a conversation (#1538)
+* [Federation] Add required fields to Swagger for SchemaP (#1536)
+* [Federation] Add Galley component to federator API (#1555)
+* [Federation] Generalises the mock federator to work with any MonadIO m monad (#1564)
+* [Federation] Introduces the HasGalley class (#1568)
+* [Federation] Servantify JSON endpoint to send messages (#1532)
+* [Federation] federator: rename Brig -> Service and add galley (#1570)
+
+
+
+Chart version 2.107.0
+=====================
+
+Release notes
+-------------
+
+
+.. warning::
+
+   This release introduces a notion of "consent" to
+   legalhold (LH).  If you are using LH on your site, follow the
+   instructions in
+   https://github.com/wireapp/wire-server/blob/814f3ebc251965ab4492f5df4d9195f3b2e0256f/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
+   after the upgrade.  **Legalhold will not work as expected until you
+   change `galley.conf` as described!**
+
+.. warning::
+
+   This release introduces changes to the way `NameID` is
+   processed: all identifiers are stored in lower-case and qualifiers are
+   ignored.  No manual upgrade steps are necessary, but consult
+   https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html#theoretical-name-clashes-in-saml-nameids
+   on whether you need to re-calibrate your SAML IdP / SCIM setup.
+   (Reason / technical details: this change is motivated by two facts:
+   (1) email casing is complicated, and industry best practice appears to
+   be to ignore case information even though that is in conflict with the
+   official standard documents; and (2) SCIM user provisioning does not
+   allow to provide SAML NameID qualifiers, and guessing them has proven
+   to be infeasible.  See
+   https://github.com/wireapp/wire-server/pull/1495 for the code
+   changes.)
+
+
+Features
+--------
+ - [SAML/SCIM] More lenient matching of user ids (#1495)
+ - [Legalhold] Block and kick users in case of LH no_consent conflict (1:1 convs). (#1507, #1530)
+ - [Legalhold] Add legalhold status to user profile (#1522)
+ - [Legalhold] Client-supported capabilities end-point (#1503)
+ - [Legalhold] Whitelisting Teams for LH with implicit consent (#1502)
+ - [Federation] Remove OptionallyQualified data type from types-common (#1517)
+ - [Federation] Add RPC getConversations (#1493)
+ - [Federation] Prepare remote conversations: Remove Opaque/Mapped Ids, delete remote identifiers from member/user tables. (#1478)
+ - [Federation] Add schema migration for new tables (#1485)
+ - [SAML/SCIM] Normalize SAML identifiers and fix issues with duplicate account creation (#1495)
+ - Internal end-point for ejpd request processing. (#1484)
+ 
+Bug fixes and other updates
+---------------------------
+ - Fix: NewTeamMember vs. UserLegalHoldStatus (increase robustness against rogue clients) (#1496)
+ 
+Documentation
+-------------
+ - Fixes a typo in the wire-api documentation (#1513)
+
+
 Chart version 2.106.0
 =======================
 
