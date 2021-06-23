@@ -330,10 +330,6 @@ optFieldOver l name def sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
       pure [name A..= v]
     w Nothing = pure (maybeToList (fmap (name A..=) def))
 
-    -- w x = do
-    --   v <- schemaOut sch x
-    --   pure [name A..= v]
-
     s = mkField name (schemaDoc sch)
 
 -- | Like 'field', but apply an arbitrary function to the
