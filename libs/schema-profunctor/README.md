@@ -375,7 +375,10 @@ will return `Nothing` when the field is missing (or is `null`), and
 correspondingly the serialiser will not produce the field at all when its value
 is `Nothing`.
 
-Another possibility is a field that, when missing, is assumed to have a given default value. Most likely, in this case we do not want the field to be omitted when serialising. The schema can then be defined simply by using the `Alternative` instance of `SchemaP` to provide the default value:
+Another possibility is a field that, when missing, is assumed to have a given
+default value. Most likely, in this case we do not want the field to be omitted
+when serialising. The schema can then be defined simply by using the
+`Alternative` instance of `SchemaP` to provide the default value:
 
 ```haskell
 userSchemaWithDefaultName :: ValueSchema NamedSwaggerDoc User
@@ -435,6 +438,38 @@ the parser (and its return type), whereas here we also want to encode the fact
 that the serialiser should output the default when the value of the field is
 `Nothing`. That means we need to also change the input type to a `Maybe`, which
 is what `opt` and `optWithDefault` do.
+
+There is a subtlety here related to error messages, which can sometimes result
+in surprising behaviour when parsing optional fields with default values.
+Namely, given a field of the form
+
+```haskell
+opt (field "name" schema)
+```
+
+the corresponding parser will return `Nothing` not only in the case where the
+`"name"` field is missing, but also if it is fails to parse correctly (for
+example, if it has an unexpected type).  This behaviour is caused by the fact
+that `opt` (and the `optWithDefault` / `lax` combo described above) are
+implemented in terms of the `Alternative` instance for `Aeson.Parser`, which
+cannot distinguish between "recoverable" and "unrecoverable" failures.
+
+There are plans to improve on this behaviour in the future by directly changing
+the `Alternative` instance that `SchemaP` relies on, but for the moment, if
+this behaviour is not desirable, then one can use the ad-hoc `optField`
+combinator to introduce optional fields.
+
+For exapmle, the above schema can be implemented using `optField` as follow:
+
+```haskell
+userSchema'' :: ValueSchema NamedSwaggerDoc User
+userSchema'' = object "User" $ User
+  <$> field "name" schema
+  <*> optField "handle" (Just Aeson.Null) schema
+  <*> optField "expire" Nothing schema
+```
+
+The argument after the field name determines how the `Nothing` case is rendered in the generated JSON. If it is itself `Nothing`, that means that the field is completely omitted in that case.
 
 ### Redundant fields
 
