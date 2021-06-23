@@ -304,11 +304,11 @@ protolensOtrRecipientsToOtrRecipients :: [Proto.Otr.QualifiedUserEntry] -> Eithe
 protolensOtrRecipientsToOtrRecipients entries =
   QualifiedOtrRecipients . QualifiedUserClientMap <$> protolensToQualifiedUCMap entries
   where
-    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (UserClientMap ByteString))
+    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (Map UserId (Map ClientId ByteString)))
     protolensToQualifiedUCMap qualifiedEntries = parseMap (mkDomain . view Proto.Otr.domain) (protolensToUCMap . view Proto.Otr.entries) qualifiedEntries
 
-    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (UserClientMap ByteString)
-    protolensToUCMap es = UserClientMap <$> parseMap parseUserId parseClientMap es
+    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (Map UserId (Map ClientId ByteString))
+    protolensToUCMap es = parseMap parseUserId parseClientMap es
 
     parseUserId :: Proto.Otr.UserEntry -> Either String UserId
     parseUserId =

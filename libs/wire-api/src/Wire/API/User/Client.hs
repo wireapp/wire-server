@@ -19,7 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User.Client
-  ( -- * ClientCapability
+  ( -- * ClientCapabiliton
     ClientCapability (..),
     ClientCapabilityList (..),
 
@@ -254,9 +254,9 @@ instance Arbitrary a => Arbitrary (UserClientMap a) where
   arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
 
 newtype QualifiedUserClientMap a = QualifiedUserClientMap
-  { qualifiedUserClientMap :: Map Domain (UserClientMap a)
+  { qualifiedUserClientMap :: Map Domain (Map UserId (Map ClientId a))
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Functor)
   deriving newtype (Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (QualifiedUserClientMap a)
 
@@ -271,10 +271,10 @@ qualifiedUserClientMapSchema ::
   ValueSchema NamedSwaggerDoc (QualifiedUserClientMap a)
 qualifiedUserClientMapSchema sch =
   addDoc . named nm $
-    QualifiedUserClientMap <$> qualifiedUserClientMap .= map_ innerSchema
+    QualifiedUserClientMap <$> qualifiedUserClientMap .= map_ (map_ (map_ sch))
   where
     innerSchema = userClientMapSchema sch
-    nm = "QualifiedUserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
+    nm = "QualifiedUserClientMap" <> maybe "" ("_" <>) (getName (schemaDoc sch))
     addDoc =
       Swagger.schema . Swagger.example
         ?~ toJSON
@@ -372,7 +372,7 @@ filterClientsFull :: (Set Client -> Bool) -> UserClientsFull -> UserClientsFull
 filterClientsFull p (UserClientsFull c) = UserClientsFull $ Map.filter p c
 
 newtype QualifiedUserClients = QualifiedUserClients
-  { qualifiedUserClients :: Map Domain UserClients
+  { qualifiedUserClients :: Map Domain (Map UserId (Set ClientId))
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
@@ -383,7 +383,7 @@ instance Arbitrary QualifiedUserClients where
 
 instance ToSchema QualifiedUserClients where
   schema =
-    addDoc . named "QualifiedUserClients" $ QualifiedUserClients <$> qualifiedUserClients .= map_ schema
+    addDoc . named "QualifiedUserClients" $ QualifiedUserClients <$> qualifiedUserClients .= map_ (map_ (set schema))
     where
       addDoc sch =
         sch

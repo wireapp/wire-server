@@ -668,6 +668,7 @@ postOtrMessage zusr zcon convDomain cnv msg = do
           newOtrRecipients =
             Public.OtrRecipients
               . fmap toBase64Text
+              . Client.UserClientMap
               . Map.findWithDefault mempty localDomain
               . Client.qualifiedUserClientMap
               . Public.qualifiedOtrRecipientsMap
@@ -702,7 +703,7 @@ postOtrMessage zusr zcon convDomain cnv msg = do
             Public.mssFailedToSend = failedToSend
           }
     qualifyUserClients :: Domain -> Client.UserClients -> Client.QualifiedUserClients
-    qualifyUserClients domain userClients =
+    qualifyUserClients domain (Client.UserClients userClients) =
       if userClients == mempty
         then mempty
         else Client.QualifiedUserClients . Map.singleton domain $ userClients
