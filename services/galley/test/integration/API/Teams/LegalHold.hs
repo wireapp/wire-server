@@ -1023,7 +1023,7 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
     void $ putConnection peer2 userWithConsent Conn.Accepted <!! const 200 === statusCode
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    -- team with 1) userWithConsent and 2) peer
+    -- conversation with 1) userWithConsent and 2) peer
     convId <- createTeamConvWithRole userWithConsent tid [peer] (Just "corp + us") Nothing Nothing roleNameWireAdmin
 
     -- activate legalhold for legalholder
