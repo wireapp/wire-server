@@ -16,6 +16,9 @@
 
 # Unreleased
 
+- [Federation] Let a receiving backend decide membership specifics of its users
+  added to a new conversation via `POST /federation/register-conversation` (#1622)
+
 ## API Changes
 
 * [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616).
