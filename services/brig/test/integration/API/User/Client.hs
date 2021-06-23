@@ -42,6 +42,7 @@ import qualified Data.Vector as Vec
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import qualified Test.Tasty.Cannon as WS
@@ -88,6 +89,7 @@ tests _cl _at opts p b c g =
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
+      test p "get /clients/:client - 404" $ testMissingClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
@@ -119,9 +121,9 @@ testAddGetClient hasPwd brig cannon = do
 testGetUserClientsUnqualified :: Opt.Opts -> Brig -> Http ()
 testGetUserClientsUnqualified _opts brig = do
   uid1 <- userId <$> randomUser brig
-  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
-  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
   _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
@@ -134,14 +136,15 @@ testGetUserClientsUnqualified _opts brig = do
 testGetUserClientsQualified :: Opt.Opts -> Brig -> Http ()
 testGetUserClientsQualified opts brig = do
   uid1 <- userId <$> randomUser brig
-  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
-  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  uid2 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
   _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
   let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
-  getUserClientsQualified brig localdomain uid1 !!! do
+  getUserClientsQualified brig uid2 localdomain uid1 !!! do
     const 200 === statusCode
     assertTrue_ $ \res -> do
       let clients :: [PubClient] = responseJsonUnsafe res
@@ -431,6 +434,7 @@ testTooManyClients opts brig = do
     addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
       const 403 === statusCode
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
+      const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
@@ -619,6 +623,15 @@ testUpdateClient opts brig = do
     checkClientLabel
     checkClientPrekeys prekey
     checkClientPrekeys (unpackLastPrekey lastprekey)
+
+testMissingClient :: Brig -> Http ()
+testMissingClient brig = do
+  uid <- userId <$> randomUser brig
+  c <- liftIO $ generate arbitrary
+  getClient brig uid c !!! do
+    const 404 === statusCode
+    -- This is unfortunate, but fixing this breaks clients.
+    const Nothing === responseBody
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()

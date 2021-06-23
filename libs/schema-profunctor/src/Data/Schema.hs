@@ -258,7 +258,6 @@ schemaOut (SchemaP _ _ (SchemaOut o)) = o
 
 -- | A schema for a one-field JSON object.
 field ::
-  forall doc' doc a b.
   HasField doc' doc =>
   Text ->
   SchemaP doc' A.Value A.Value a b ->
@@ -293,8 +292,8 @@ fieldWithDocModifier ::
   HasField doc' doc =>
   Text ->
   (doc' -> doc') ->
-  ValueSchema doc' a ->
-  ObjectSchema doc a
+  SchemaP doc' A.Value A.Value a b ->
+  SchemaP doc A.Object [A.Pair] a b
 fieldWithDocModifier name modify sch = field name (over doc modify sch)
 
 -- | Change the input type of a schema.

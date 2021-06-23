@@ -743,7 +743,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
         Data.conversation (c ^. conversationId) >>= \conv ->
-          for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
+          for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
             Data.removeMember remove (c ^. conversationId)
             -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
             unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
@@ -753,7 +753,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (Data.convId dc) localDomain
           qusr = Qualified zusr localDomain
-      let (bots, users) = botsAndUsers (Data.convMembers dc)
+      let (bots, users) = botsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPush (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->

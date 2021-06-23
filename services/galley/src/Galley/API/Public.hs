@@ -81,6 +81,7 @@ servantSitemap =
         GalleyAPI.getConversationRoles = Query.getConversationRoles,
         GalleyAPI.getConversationIds = Query.getConversationIds,
         GalleyAPI.getConversations = Query.getConversations,
+        GalleyAPI.getConversationByReusableCode = Query.getConversationByReusableCode,
         GalleyAPI.createGroupConversation = Create.createGroupConversation,
         GalleyAPI.createSelfConversation = Create.createSelfConversation,
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
@@ -89,7 +90,8 @@ servantSitemap =
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
         GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
-        GalleyAPI.postOtrMessage = Update.postOtrMessage
+        GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
+        GalleyAPI.postProteusMessage = Update.postProteusMessage
       }
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -768,42 +770,6 @@ sitemap = do
     response 204 "No change" end
     errorResponse Error.convNotFound
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - OtrMessageAdd event to recipients
-  post "/conversations/:cnv/otr/messages" (continue Update.postProtoOtrMessageH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. def Public.OtrReportAllMissing filterMissing
-      .&. request
-      .&. contentType "application" "x-protobuf"
-  document "POST" "postProtoOtrMessage" $ do
-    summary "Post an encrypted message to a conversation (accepts Protobuf)"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Query "ignore_missing" bool' $ do
-      description
-        "Force message delivery even when clients are missing. \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is allowed to \
-        \have missing clients."
-      optional
-    parameter Query "report_missing" bool' $ do
-      description
-        "Don't allow message delivery when clients are missing \
-        \('ignore_missing' takes precedence when present). \
-        \NOTE: can also be a comma-separated list of user IDs, \
-        \in which case it specifies who exactly is forbidden from \
-        \having missing clients."
-      optional
-    body (ref Public.modelNewOtrMessage) $
-      description "Protobuf body"
-    returns (ref Public.modelClientMismatch)
-    response 201 "Message posted" end
-    response 412 "Missing clients" end
-    errorResponse Error.convNotFound
-    errorResponse Error.unknownClient
 
   -- This endpoint can lead to the following events being sent:
   -- - OtrMessageAdd event to recipients

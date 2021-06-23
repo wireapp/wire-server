@@ -203,12 +203,12 @@ getUserClientsUnqualified brig uid =
       . paths ["users", toByteString' uid, "clients"]
       . zUser uid
 
-getUserClientsQualified :: Brig -> Domain -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
-getUserClientsQualified brig domain uid =
+getUserClientsQualified :: Brig -> UserId -> Domain -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getUserClientsQualified brig zusr domain uid =
   get $
     brig
       . paths ["users", toByteString' domain, toByteString' uid, "clients"]
-      . zUser uid
+      . zUser zusr
 
 deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> (MonadIO m, MonadHttp m) => m ResponseLBS
 deleteClient brig u c pw =
@@ -221,10 +221,8 @@ deleteClient brig u c pw =
       . body payload
   where
     payload =
-      RequestBodyLBS . encode $
-        object
-          [ "password" .= pw
-          ]
+      RequestBodyLBS . encode . object . maybeToList $
+        fmap ("password" .=) pw
 
 listConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 listConnections brig u =

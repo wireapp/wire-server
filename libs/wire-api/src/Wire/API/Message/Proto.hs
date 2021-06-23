@@ -17,7 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- FUTUREWORK: generate this file
+-- | This module is deprecated and only used for old endpoints to send messages.
+-- The new protobuf definitions are generated using proto-lens in the wire-message-proto-lens package.
 module Wire.API.Message.Proto
   ( UserId,
     userId,
@@ -35,11 +36,7 @@ module Wire.API.Message.Proto
     userEntry,
     userEntryId,
     userEntryClients,
-    toOtrRecipients,
-    fromOtrRecipients,
     Priority (..),
-    toPriority,
-    fromPriority,
     NewOtrMessage,
     newOtrMessage,
     newOtrMessageSender,
@@ -49,21 +46,14 @@ module Wire.API.Message.Proto
     newOtrMessageData,
     newOtrMessageTransient,
     newOtrMessageReportMissing,
-    toNewOtrMessage,
   )
 where
 
-import Control.Lens (view)
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.Id as Id
-import qualified Data.Map.Strict as Map
 import Data.ProtocolBuffers
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as Text
 import Data.Text.Lazy.Read (hexadecimal)
 import Imports
-import qualified Wire.API.Message as Msg
-import qualified Wire.API.User.Client as Client
 
 --------------------------------------------------------------------------------
 -- UserId
@@ -163,32 +153,6 @@ userEntryId f c = (\x -> c {_userId = x}) <$> field f (_userId c)
 userEntryClients :: Functor f => ([ClientEntry] -> f [ClientEntry]) -> UserEntry -> f UserEntry
 userEntryClients f c = (\x -> c {_userVal = x}) <$> field f (_userVal c)
 
-toOtrRecipients :: [UserEntry] -> Msg.OtrRecipients
-toOtrRecipients =
-  Msg.OtrRecipients . Client.UserClientMap
-    . foldl' userEntries mempty
-  where
-    userEntries :: Map Id.UserId (Map Id.ClientId Text) -> UserEntry -> Map Id.UserId (Map Id.ClientId Text)
-    userEntries acc x =
-      let u = view userEntryId x
-          c = view userEntryClients x
-          m = foldl' clientEntries mempty c
-       in Map.insert (view userId u) m acc
-    clientEntries acc x =
-      let c = toClientId $ view clientEntryId x
-          t = toBase64Text $ view clientEntryMessage x
-       in Map.insert c t acc
-
-fromOtrRecipients :: Msg.OtrRecipients -> [UserEntry]
-fromOtrRecipients rcps =
-  let m = Client.userClientMap (Msg.otrRecipientsMap rcps)
-   in map mkProtoRecipient (Map.toList m)
-  where
-    mkProtoRecipient (usr, clts) =
-      let xs = map mkClientEntry (Map.toList clts)
-       in UserEntry (putField (fromUserId usr)) (putField xs)
-    mkClientEntry (clt, t) = clientEntry (fromClientId clt) (fromBase64Text t)
-
 --------------------------------------------------------------------------------
 -- Priority
 
@@ -210,14 +174,6 @@ instance Enum Priority where
 instance Bounded Priority where
   minBound = LowPriority
   maxBound = HighPriority
-
-toPriority :: Priority -> Msg.Priority
-toPriority LowPriority = Msg.LowPriority
-toPriority HighPriority = Msg.HighPriority
-
-fromPriority :: Msg.Priority -> Priority
-fromPriority Msg.LowPriority = LowPriority
-fromPriority Msg.HighPriority = HighPriority
 
 --------------------------------------------------------------------------------
 -- NewOtrMessage
@@ -273,28 +229,3 @@ newOtrMessageNativePriority f c = (\x -> c {_newOtrNativePriority = x}) <$> fiel
 
 newOtrMessageReportMissing :: Functor f => ([UserId] -> f [UserId]) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageReportMissing f c = (\x -> c {_newOtrReportMissing = x}) <$> field f (_newOtrReportMissing c)
-
-toNewOtrMessage :: NewOtrMessage -> Msg.NewOtrMessage
-toNewOtrMessage msg =
-  Msg.NewOtrMessage
-    { Msg.newOtrSender = toClientId (view newOtrMessageSender msg),
-      Msg.newOtrRecipients = toOtrRecipients (view newOtrMessageRecipients msg),
-      Msg.newOtrNativePush = view newOtrMessageNativePush msg,
-      Msg.newOtrTransient = view newOtrMessageTransient msg,
-      Msg.newOtrData = toBase64Text <$> view newOtrMessageData msg,
-      Msg.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
-      Msg.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
-    }
-
-toReportMissing :: [UserId] -> Maybe [Id.UserId]
-toReportMissing [] = Nothing
-toReportMissing us = Just $ view userId <$> us
-
---------------------------------------------------------------------------------
--- Utilities
-
-fromBase64Text :: Text -> ByteString
-fromBase64Text = B64.decodeLenient . encodeUtf8
-
-toBase64Text :: ByteString -> Text
-toBase64Text = decodeUtf8 . B64.encode

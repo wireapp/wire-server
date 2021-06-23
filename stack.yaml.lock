@@ -768,6 +768,17 @@ packages:
     git: https://github.com/akshaymankar/http2-grpc-haskell
     commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
 - completed:
+    name: http2
+    version: 2.0.6
+    git: https://github.com/wireapp/http2
+    pantry-tree:
+      size: 51601
+      sha256: 0a048cf85ab9614f2da80e3a8cf72ee7674cecea86b37a5e56011add73e5fa03
+    commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
+  original:
+    git: https://github.com/wireapp/http2
+    commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
+- completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:
       size: 74141

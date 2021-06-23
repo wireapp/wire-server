@@ -4,3 +4,6 @@
 [submodule "services/nginz/third_party/nginx-module-vts"]
 	path = services/nginz/third_party/nginx-module-vts
 	url = https://github.com/vozlt/nginx-module-vts.git
+[submodule "libs/wire-message-proto-lens/generic-message-proto"]
+	path = libs/wire-message-proto-lens/generic-message-proto
+	url = https://github.com/wireapp/generic-message-proto

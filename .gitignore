@@ -21,7 +21,6 @@ target
 .*.sw[a-z]
 .cabal-sandbox
 ID
-Setup.hs
 cabal.sandbox.config
 dist
 dist-newstyle

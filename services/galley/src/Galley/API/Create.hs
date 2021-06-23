@@ -106,7 +106,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let (remotes, locals) = fromConvSize checkedPartitionedUsers
   ensureConnected zusr locals
   checkRemoteUsersExist remotes
-  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers. (also for createTeamGroupConv)
+  -- FUTUREWORK: Implement (3) per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
       localDomain
@@ -137,8 +137,8 @@ createTeamGroupConv zusr zcon tinfo body = do
   checkedUsers <- checkedConvSize allUserIds
   let checkedPartitionedUsers = partitionRemoteOrLocalIds' localDomain <$> checkedUsers
       (remotes, localUserIds) = fromConvSize checkedPartitionedUsers
-  convMemberships <- mapM (Data.teamMember convTeam) localUserIds
-  ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
+  convLocalMemberships <- mapM (Data.teamMember convTeam) localUserIds
+  ensureAccessRole (accessRole body) (zip localUserIds convLocalMemberships)
   checkedPartitionedUsersManaged <-
     if cnvManaged tinfo
       then do
@@ -164,10 +164,10 @@ createTeamGroupConv zusr zcon tinfo body = do
           void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
         -- Team members are always considered to be connected, so we only check
         -- 'ensureConnected' for non-team-members.
-        ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convMemberships))
+        ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convLocalMemberships))
         pure checkedPartitionedUsers
   checkRemoteUsersExist remotes
-  -- FUTUREWORK: Implement (2) and (3) as per comments for Update.addMembers.
+  -- FUTUREWORK: Implement (3) per comments for Update.addMembers.
   conv <-
     Data.createConversation
       localDomain
@@ -253,7 +253,7 @@ createConnectConversation usr conn j = do
       localDomain <- viewFederationDomain
       (c, e) <- Data.createConnectConversation localDomain x y n j
       notifyCreatedConversation Nothing usr conn c
-      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
+      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
@@ -261,7 +261,7 @@ createConnectConversation usr conn j = do
       conversationCreated usr c
     update n conv = do
       localDomain <- viewFederationDomain
-      let mems = Data.convMembers conv
+      let mems = Data.convLocalMembers conv
        in conversationExisted usr
             =<< if
                 | usr `isMember` mems ->
@@ -272,7 +272,7 @@ createConnectConversation usr conn j = do
                   mm <- snd <$> Data.addMember localDomain now (Data.convId conv) usr
                   let conv' =
                         conv
-                          { Data.convMembers = Data.convMembers conv <> toList mm
+                          { Data.convLocalMembers = Data.convLocalMembers conv <> toList mm
                           }
                   if null mems
                     then do
@@ -296,7 +296,7 @@ createConnectConversation usr conn j = do
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
         let e = Event ConvConnect qconv qusr t (EdConnect j)
-        for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
+        for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
@@ -326,7 +326,15 @@ notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Con
 notifyCreatedConversation dtime usr conn c = do
   localDomain <- viewFederationDomain
   now <- maybe (liftIO getCurrentTime) pure dtime
-  pushSome =<< mapM (toPush localDomain now) (Data.convMembers c)
+  -- FUTUREWORK: Should these calls that push notifications to local and remote
+  -- users be made in this, or a different order, or in parallel/applicative
+  -- fashion?
+  --
+  -- Ask remote server to store conversation membership and notify remote users
+  -- of being added to a conversation
+  registerRemoteConversationMemberships now localDomain c
+  -- Notify local users
+  pushSome =<< mapM (toPush localDomain now) (Data.convLocalMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny

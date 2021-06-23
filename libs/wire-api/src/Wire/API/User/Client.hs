@@ -73,7 +73,7 @@ module Wire.API.User.Client
 where
 
 import qualified Cassandra as Cql
-import Control.Lens ((?~), (^.))
+import Control.Lens (view, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Bifunctor (second)
@@ -84,7 +84,6 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
-import Data.Proxy (Proxy (..))
 import Data.Schema
 import qualified Data.Set as Set
 import qualified Data.Swagger as Swagger
@@ -92,15 +91,10 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
-  ( CamelToSnake,
-    ConstructorTagModifier,
-    CustomSwagger,
+  ( CustomSwagger,
     FieldLabelModifier,
-    LabelMapping ((:->)),
-    LabelMappings,
     LowerCase,
     StripPrefix,
-    StripSuffix,
   )
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
@@ -174,23 +168,30 @@ instance Cql.Cql ClientCapability where
   fromCql _ = Left "ClientCapability value: int expected"
 
 -- FUTUREWORK: add golden tests for this?
-data ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
+newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
   deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Semigroup, Monoid)
   deriving (Arbitrary) via (GenericUniform ClientCapabilityList)
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via (Schema ClientCapabilityList)
 
 instance ToSchema ClientCapabilityList where
   schema =
-    objectWithDocModifier "ClientCapabilityList" mods $
-      ClientCapabilityList
-        <$> (Set.toList . fromClientCapabilityList)
-          .= field "capabilities" (Set.fromList <$> array schema)
-    where
-      mods = description ?~ ("Hints provided by the client for the backend so it can behavior in a backwards-compatible way." :: Text)
+    object "ClientCapabilityList" $
+      ClientCapabilityList <$> fromClientCapabilityList .= capabilitiesFieldSchema
+
+capabilitiesFieldSchema :: ObjectSchema SwaggerDoc (Set ClientCapability)
+capabilitiesFieldSchema =
+  Set.toList
+    .= fieldWithDocModifier "capabilities" mods (Set.fromList <$> array schema)
+  where
+    mods =
+      description
+        ?~ "Hints provided by the client for the backend so it can \
+           \behave in a backwards-compatible way."
 
 modelClientCapabilityList :: Doc.Model
 modelClientCapabilityList = Doc.defineModel "ClientCapabilityList" $ do
-  Doc.description "Hints provided by the client for the backend so it can behavior in a backwards-compatible way."
+  Doc.description "Hints provided by the client for the backend so it can behave in a backwards-compatible way."
   Doc.property "capabilities" (Doc.array typeClientCapability) $ do
     Doc.description "Array containing all capabilities supported by a client."
 
@@ -374,22 +375,25 @@ newtype QualifiedUserClients = QualifiedUserClients
   { qualifiedUserClients :: Map Domain UserClients
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Semigroup, Monoid, FromJSON, ToJSON)
+  deriving newtype (Semigroup, Monoid)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via (Schema QualifiedUserClients)
 
 instance Arbitrary QualifiedUserClients where
   arbitrary = QualifiedUserClients <$> mapOf' arbitrary arbitrary
 
-instance Swagger.ToSchema QualifiedUserClients where
-  declareNamedSchema _ = do
-    sch <- Swagger.declareSchema (Proxy @(Map Domain UserClients))
-    userClientsSchema <- Swagger.declareSchema (Proxy @UserClients)
-    return $
-      Swagger.NamedSchema (Just "QualifiedUserClients") $
+instance ToSchema QualifiedUserClients where
+  schema =
+    addDoc . named "QualifiedUserClients" $ QualifiedUserClients <$> qualifiedUserClients .= map_ schema
+    where
+      addDoc sch =
         sch
-          & Swagger.description ?~ "Map of Domain to UserClients"
-          & Swagger.example
+          & Swagger.schema . Swagger.description ?~ "Map of Domain to UserClients"
+          & Swagger.schema . Swagger.example
             ?~ toJSON
-              (Map.singleton ("domain1.example.com" :: Text) (userClientsSchema ^. Swagger.example))
+              ( Map.singleton
+                  ("domain1.example.com" :: Text)
+                  (view (Swagger.schema . Swagger.example) (schema @UserClients))
+              )
 
 --------------------------------------------------------------------------------
 -- Client
@@ -407,7 +411,21 @@ data Client = Client
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
-  deriving (Swagger.ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "client", LowerCase)] Client)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
+
+instance ToSchema Client where
+  schema =
+    object "Client" $
+      Client
+        <$> clientId .= field "id" schema
+        <*> clientType .= field "type" schema
+        <*> clientTime .= field "time" schema
+        <*> clientClass .= opt (field "class" schema)
+        <*> clientLabel .= opt (field "label" schema)
+        <*> clientCookie .= opt (field "cookie" schema)
+        <*> clientLocation .= opt (field "location" schema)
+        <*> clientModel .= opt (field "model" schema)
+        <*> clientCapabilities .= (field "capabilities" schema <|> pure mempty)
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -434,33 +452,6 @@ modelClient = Doc.defineModel "Client" $ do
   Doc.property "model" Doc.string' $ do
     Doc.description "Optional model information of this client"
     Doc.optional
-
-instance ToJSON Client where
-  toJSON c =
-    A.object $
-      "id" A..= clientId c
-        # "type" A..= clientType c
-        # "label" A..= clientLabel c
-        # "class" A..= clientClass c
-        # "time" A..= clientTime c
-        # "cookie" A..= clientCookie c
-        # "location" A..= clientLocation c
-        # "model" A..= clientModel c
-        # "capabilities" A..= clientCapabilities c
-        # []
-
-instance FromJSON Client where
-  parseJSON = A.withObject "Client" $ \o ->
-    Client
-      <$> o A..: "id"
-      <*> o A..: "type"
-      <*> o A..: "time"
-      <*> o A..:? "class"
-      <*> o A..:? "label"
-      <*> o A..:? "cookie"
-      <*> o A..:? "location"
-      <*> o A..:? "model"
-      <*> (o A..:? "capabilities" A..!= ClientCapabilityList mempty)
 
 --------------------------------------------------------------------------------
 -- PubClient
@@ -506,25 +497,20 @@ instance FromJSON PubClient where
 -- interaction, and on an ongoing basis see a visual indication in all
 -- conversations where such a device is active.
 
--- | Strategy to translate enums in this module to schema.
-type EnumToSchemaStrategy suffix ty =
-  ( CustomSwagger
-      '[ ConstructorTagModifier
-           ( StripSuffix suffix,
-             CamelToSnake,
-             LabelMappings '["legal_hold" ':-> "legalhold"]
-           )
-       ]
-      ty
-  )
-
 data ClientType
   = TemporaryClientType
   | PermanentClientType
   | LegalHoldClientType -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientType)
-  deriving (Swagger.ToSchema) via EnumToSchemaStrategy "ClientType" ClientType
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema ClientType
+
+instance ToSchema ClientType where
+  schema =
+    enum @Text "ClientType" $
+      element "temporary" TemporaryClientType
+        <> element "permanent" PermanentClientType
+        <> element "legalhold" LegalHoldClientType
 
 typeClientType :: Doc.DataType
 typeClientType =
@@ -535,18 +521,6 @@ typeClientType =
         "legalhold"
       ]
 
-instance ToJSON ClientType where
-  toJSON TemporaryClientType = A.String "temporary"
-  toJSON PermanentClientType = A.String "permanent"
-  toJSON LegalHoldClientType = A.String "legalhold"
-
-instance FromJSON ClientType where
-  parseJSON = A.withText "ClientType" $ \txt -> case txt of
-    "temporary" -> return TemporaryClientType
-    "permanent" -> return PermanentClientType
-    "legalhold" -> return LegalHoldClientType
-    _ -> fail "Must be one of {'temporary', 'permanent', 'legalhold'}."
-
 data ClientClass
   = PhoneClient
   | TabletClient
@@ -554,7 +528,15 @@ data ClientClass
   | LegalHoldClient -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientClass)
-  deriving (Swagger.ToSchema) via EnumToSchemaStrategy "Client" ClientClass
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema ClientClass
+
+instance ToSchema ClientClass where
+  schema =
+    enum @Text "ClientClass" $
+      element "phone" PhoneClient
+        <> element "tablet" TabletClient
+        <> element "desktop" DesktopClient
+        <> element "legalhold" LegalHoldClient
 
 typeClientClass :: Doc.DataType
 typeClientClass =
@@ -565,20 +547,6 @@ typeClientClass =
         "desktop",
         "legalhold"
       ]
-
-instance ToJSON ClientClass where
-  toJSON PhoneClient = A.String "phone"
-  toJSON TabletClient = A.String "tablet"
-  toJSON DesktopClient = A.String "desktop"
-  toJSON LegalHoldClient = A.String "legalhold"
-
-instance FromJSON ClientClass where
-  parseJSON = A.withText "ClientClass" $ \txt -> case txt of
-    "phone" -> return PhoneClient
-    "tablet" -> return TabletClient
-    "desktop" -> return DesktopClient
-    "legalhold" -> return LegalHoldClient
-    _ -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
 
 --------------------------------------------------------------------------------
 -- NewClient
@@ -596,6 +564,7 @@ data NewClient = NewClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema NewClient
 
 modelNewClient :: Doc.Model
 modelNewClient = Doc.defineModel "NewClient" $ do
@@ -636,6 +605,64 @@ modelNewClient = Doc.defineModel "NewClient" $ do
     Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
     Doc.optional
 
+instance ToSchema NewClient where
+  schema =
+    object "NewClient" $
+      NewClient
+        <$> newClientPrekeys
+          .= fieldWithDocModifier
+            "prekeys"
+            (description ?~ "Prekeys for other clients to establish OTR sessions.")
+            (array schema)
+        <*> newClientLastKey
+          .= fieldWithDocModifier
+            "lastkey"
+            ( description
+                ?~ "The last resort prekey for other clients to establish OTR sessions. \
+                   \This key must have the ID 0xFFFF and is never deleted."
+            )
+            schema
+        <*> newClientType
+          .= fieldWithDocModifier
+            "type"
+            ( description
+                ?~ "The type of client to register. A user may have no more than \
+                   \7 (seven) permanent clients and 1 (one) temporary client. When the \
+                   \limit of permanent clients is reached, an error is returned. \
+                   \When a temporary client already exists, it is replaced."
+            )
+            schema
+        <*> newClientLabel .= opt (field "label" schema)
+        <*> newClientClass
+          .= opt
+            ( fieldWithDocModifier
+                "class"
+                ( description
+                    ?~ "The device class this client belongs to. \
+                       \Either 'phone', 'tablet', or 'desktop'."
+                )
+                schema
+            )
+        <*> newClientCookie
+          .= opt
+            ( fieldWithDocModifier
+                "cookie"
+                (description ?~ "The cookie label, i.e. the label used when logging in.")
+                schema
+            )
+        <*> newClientPassword
+          .= opt
+            ( fieldWithDocModifier
+                "password"
+                ( description
+                    ?~ "The password of the authenticated user for verification. \
+                       \Note: Required for registration of the 2nd, 3rd, ... client."
+                )
+                schema
+            )
+        <*> newClientModel .= opt (field "model" schema)
+        <*> newClientCapabilities .= opt capabilitiesFieldSchema
+
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
   NewClient
@@ -650,33 +677,6 @@ newClient t k =
       newClientCapabilities = Nothing
     }
 
-instance ToJSON NewClient where
-  toJSON c =
-    A.object $
-      "type" A..= newClientType c
-        # "prekeys" A..= newClientPrekeys c
-        # "lastkey" A..= newClientLastKey c
-        # "label" A..= newClientLabel c
-        # "class" A..= newClientClass c
-        # "cookie" A..= newClientCookie c
-        # "password" A..= newClientPassword c
-        # "model" A..= newClientModel c
-        # "capabilities" A..= newClientCapabilities c
-        # []
-
-instance FromJSON NewClient where
-  parseJSON = A.withObject "NewClient" $ \o ->
-    NewClient
-      <$> o A..: "prekeys"
-      <*> o A..: "lastkey"
-      <*> o A..: "type"
-      <*> o A..:? "label"
-      <*> o A..:? "class"
-      <*> o A..:? "cookie"
-      <*> o A..:? "password"
-      <*> o A..:? "model"
-      <*> o A..:? "capabilities"
-
 --------------------------------------------------------------------------------
 -- UpdateClient
 
@@ -689,6 +689,36 @@ data UpdateClient = UpdateClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateClient)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpdateClient
+
+instance ToSchema UpdateClient where
+  schema =
+    object "UpdateClient" $
+      UpdateClient
+        <$> (Just . updateClientPrekeys)
+          .= ( fromMaybe []
+                 <$> opt
+                   ( fieldWithDocModifier
+                       "prekeys"
+                       (description ?~ "New prekeys for other clients to establish OTR sessions.")
+                       (array schema)
+                   )
+             )
+        <*> updateClientLastKey
+          .= opt
+            ( fieldWithDocModifier
+                "lastkey"
+                (description ?~ "New last-resort prekey.")
+                schema
+            )
+        <*> updateClientLabel
+          .= opt
+            ( fieldWithDocModifier
+                "label"
+                (description ?~ "A new name for this client.")
+                schema
+            )
+        <*> updateClientCapabilities .= opt capabilitiesFieldSchema
 
 modelUpdateClient :: Doc.Model
 modelUpdateClient = Doc.defineModel "UpdateClient" $ do
@@ -712,23 +742,6 @@ modelUpdateClient = Doc.defineModel "UpdateClient" $ do
     Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
     Doc.optional
 
-instance ToJSON UpdateClient where
-  toJSON c =
-    A.object $
-      "prekeys" A..= updateClientPrekeys c
-        # "lastkey" A..= updateClientLastKey c
-        # "label" A..= updateClientLabel c
-        # "capabilities" A..= updateClientCapabilities c
-        # []
-
-instance FromJSON UpdateClient where
-  parseJSON = A.withObject "RefreshClient" $ \o ->
-    UpdateClient
-      <$> o A..:? "prekeys" A..!= []
-      <*> o A..:? "lastkey"
-      <*> o A..:? "label"
-      <*> o A..:? "capabilities"
-
 --------------------------------------------------------------------------------
 -- RmClient
 
@@ -737,6 +750,22 @@ newtype RmClient = RmClient
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema RmClient
+
+instance ToSchema RmClient where
+  schema =
+    object "DeleteClient" $
+      RmClient
+        <$> rmPassword
+          .= lax
+            ( fieldWithDocModifier
+                "password"
+                ( description
+                    ?~ "The password of the authenticated user for verification. \
+                       \The password is not required for deleting temporary clients."
+                )
+                (optWithDefault A.Null schema)
+            )
 
 modelDeleteClient :: Doc.Model
 modelDeleteClient = Doc.defineModel "DeleteClient" $ do
@@ -746,13 +775,6 @@ modelDeleteClient = Doc.defineModel "DeleteClient" $ do
       "The password of the authenticated user for verification. \
       \The password is not required for deleting temporary clients."
     Doc.optional
-
-instance ToJSON RmClient where
-  toJSON (RmClient pw) = A.object ["password" A..= pw]
-
-instance FromJSON RmClient where
-  parseJSON = A.withObject "RmClient" $ \o ->
-    RmClient <$> o A..:? "password"
 
 --------------------------------------------------------------------------------
 -- other models

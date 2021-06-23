@@ -2,6 +2,8 @@
 
 This page documents how to install necessary dependencies to work with the wire-server code base.
 
+This repository makes use of git submodules. When cloning or updating, use `git submodule update --init --recursive` to check out the code dependencies.
+
 In addition to the information below, you can also consult the Dockerfiles for Alpine Linux, that could serve as inspiration:
 
 * [alpine setup for Haskell services](../../build/alpine/Dockerfile.builder)

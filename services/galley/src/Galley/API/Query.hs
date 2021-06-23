@@ -25,11 +25,12 @@ module Galley.API.Query
     getSelfH,
     internalGetMemberH,
     getConversationMetaH,
+    getConversationByReusableCode,
   )
 where
 
-import Control.Error (runExceptT)
 import Control.Monad.Catch (throwM)
+import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -49,11 +50,11 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
+import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Client (executeFederated)
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 
@@ -65,7 +66,7 @@ getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
 getBotConversation zbot zcnv = do
   c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) zcnv
   domain <- viewFederationDomain
-  let cmems = mapMaybe (mkMember domain) (toList (Data.convMembers c))
+  let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
   where
     mkMember :: Domain -> LocalMember -> Maybe OtherMember
@@ -94,10 +95,8 @@ getRemoteConversation zusr (Qualified convId remoteDomain) = do
       req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
       rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
   -- we expect the remote galley to make adequate checks on conversation
-  -- membership and just pass through the reponse
-  conversations <-
-    runExceptT (executeFederated remoteDomain rpc)
-      >>= either (throwM . federationErrorToWai) pure
+  -- membership and here we just pass through the reponse
+  conversations <- runFederatedGalley remoteDomain rpc
   case gcresConvs conversations of
     [] -> throwM convNotFound
     [conv] -> pure conv
@@ -127,7 +126,7 @@ getConversations user mids mstart msize = do
   cs <-
     Data.conversations localConvIds
       >>= filterM removeDeleted
-      >>= filterM (pure . isMember user . Data.convMembers)
+      >>= filterM (pure . isMember user . Data.convLocalMembers)
   flip Public.ConversationList more <$> mapM (Mapping.conversationView user) cs
   where
     size = fromMaybe (toRange (Proxy @32)) msize
@@ -183,3 +182,16 @@ getConversationMeta cnv = do
     else do
       Data.deleteConversation cnv
       pure Nothing
+
+getConversationByReusableCode :: UserId -> Key -> Value -> Galley ConversationCoverView
+getConversationByReusableCode zusr key value = do
+  c <- verifyReusableCode (ConversationCode key value Nothing)
+  conv <- ensureConversationAccess zusr (Data.codeConversation c) CodeAccess
+  pure $ coverView conv
+  where
+    coverView :: Data.Conversation -> ConversationCoverView
+    coverView conv =
+      ConversationCoverView
+        { cnvCoverConvId = Data.convId conv,
+          cnvCoverName = Data.convName conv
+        }

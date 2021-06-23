@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9404af483be016a508ad4a9919330394d673e725945662da3786fe94eb0785e1
+-- hash: 5a329c1ce4c3f8abf32c807d1cb047eb19b26c074ed953ac0fbe333e32e74140
 
 name:           wire-api
 version:        0.1.0
@@ -52,6 +52,8 @@ library
       Wire.API.Routes.Public.Galley
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
+      Wire.API.ServantProto
+      Wire.API.ServantSwagger
       Wire.API.Swagger
       Wire.API.Team
       Wire.API.Team.Conversation
@@ -100,6 +102,7 @@ library
     , case-insensitive
     , cassandra-util
     , cassava >=0.5
+    , cereal
     , containers >=0.5
     , cookie
     , cryptonite
@@ -117,6 +120,7 @@ library
     , hscim
     , http-api-data
     , http-media
+    , http-types
     , imports
     , insert-ordered-containers
     , iproute >=1.5
@@ -127,6 +131,7 @@ library
     , mime >=0.4
     , mtl
     , pem >=0.2
+    , proto-lens
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
     , saml2-web-sso
@@ -135,6 +140,7 @@ library
     , servant-multipart
     , servant-server
     , servant-swagger
+    , sop-core
     , string-conversions
     , swagger >=0.1
     , swagger2
@@ -145,6 +151,8 @@ library
     , uri-bytestring >=0.2
     , uuid >=1.3
     , vector >=0.12
+    , wai
+    , wire-message-proto-lens
     , x509
   default-language: Haskell2010
 
@@ -381,6 +389,9 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
       Test.Wire.API.Golden.Generator
       Test.Wire.API.Golden.Manual
+      Test.Wire.API.Golden.Manual.ClientCapability
+      Test.Wire.API.Golden.Manual.ClientCapabilityList
+      Test.Wire.API.Golden.Manual.ConversationCoverView
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Runner

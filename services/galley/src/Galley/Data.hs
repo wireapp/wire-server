@@ -708,7 +708,7 @@ newConv cid ct usr mems rMems acc role name tid mtimer rMode =
       convName = fromRange <$> name,
       convAccess = acc,
       convAccessRole = role,
-      convMembers = mems,
+      convLocalMembers = mems,
       convRemoteMembers = rMems,
       convTeam = tid,
       convDeleted = Nothing,
@@ -856,9 +856,9 @@ addMembersUncheckedWithRole localDomain t conv (orig, _origRole) lusrs rusrs = d
       e = Event MemberJoin qconv qorig t (EdMembersJoin (SimpleMembers (lmems <> rmems)))
   return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
 
--- | Set local users as belonging to a remote conversation. This is invoked by
--- a remote galley (using the RPC updateConversationMembership) when users from
--- the current backend are added to conversations on the remote end.
+-- | Set local users as belonging to a remote conversation. This is invoked by a
+-- remote galley when users from the current backend are added to conversations
+-- on the remote end.
 addLocalMembersToRemoteConv :: MonadClient m => [UserId] -> Qualified ConvId -> m ()
 addLocalMembersToRemoteConv users qconv = do
   -- FUTUREWORK: consider using pooledMapConcurrentlyN

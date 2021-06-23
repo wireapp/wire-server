@@ -14,6 +14,23 @@
 
 -->
 
+# 2021-06-23
+
+## API Changes
+
+* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616).
+
+## Features
+
+## Bug fixes and other updates
+
+* [helm] Allow sending messages upto 40 MB by default (#1614)
+* Fix for https://github.com/wireapp/wire-webapp/security/advisories/GHSA-382j-mmc8-m5rw  (#1613)
+
+## Documentation
+
+## Internal changes
+
 # [2021-06-08]
 
 ## Release Notes
@@ -41,7 +58,7 @@ Deploy brig before galley (#1526, #1549)
 * [Federation] expose /conversations/{cnv}/members/v2 for federation backends (#1543)
 
 ## Bug fixes and other updates
-* Fix MIME-type of asset artifacts 
+* Fix MIME-type of asset artifacts
 * Add some missing charts (#1533)
 
 # Internal changes

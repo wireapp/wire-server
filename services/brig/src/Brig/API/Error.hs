@@ -39,10 +39,19 @@ import Wire.API.Federation.Error
 data Error where
   StdError :: !Wai.Error -> Error
   RichError :: ToJSON a => !Wai.Error -> !a -> [Header] -> Error
+  -- | This is to support clients that rely on the error body to not have the
+  -- usual "code", "message" and "label" fields.
+  EmptyErrorForLegacyReasons :: Status -> Error
 
-waiError :: Error -> Wai.Error
-waiError (StdError e) = e
-waiError (RichError e _ _) = e
+errorLabel :: Error -> LText
+errorLabel (StdError e) = Wai.label e
+errorLabel (RichError e _ _) = Wai.label e
+errorLabel (EmptyErrorForLegacyReasons _) = "empty for legacy reasons"
+
+errorStatus :: Error -> Status
+errorStatus (StdError e) = Wai.code e
+errorStatus (RichError e _ _) = Wai.code e
+errorStatus (EmptyErrorForLegacyReasons st) = st
 
 throwStd :: MonadError Error m => Wai.Error -> m a
 throwStd = throwError . StdError
@@ -50,11 +59,15 @@ throwStd = throwError . StdError
 throwRich :: (MonadError Error m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
 throwRich e x h = throwError (RichError e x h)
 
+throwEmptyForLegacyReasons :: MonadError Error m => Status -> m a
+throwEmptyForLegacyReasons = throwError . EmptyErrorForLegacyReasons
+
 instance ToJSON Error where
   toJSON (StdError e) = toJSON e
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of
     (Object o1, Object o2) -> Object (HashMap.union o1 o2)
     (j, _) -> j
+  toJSON (EmptyErrorForLegacyReasons _) = String ""
 
 -- Error Mapping ----------------------------------------------------------
 
