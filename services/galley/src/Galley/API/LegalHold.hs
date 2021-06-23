@@ -37,6 +37,7 @@ import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Intra (ConnectionStatus (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
+import Control.Exception (assert)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
@@ -492,10 +493,11 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
           uidsLHStatus <- getLHStatusForUsers (memId <$> mems)
           pure $
             zipWith
-              ( \mem (_, status) ->
-                  if memId mem == uid
-                    then (mem, hypotheticalLHStatus)
-                    else (mem, status)
+              ( \mem (mid, status) ->
+                  assert (memId mem == mid) $
+                    if memId mem == uid
+                      then (mem, hypotheticalLHStatus)
+                      else (mem, status)
               )
               mems
               uidsLHStatus
