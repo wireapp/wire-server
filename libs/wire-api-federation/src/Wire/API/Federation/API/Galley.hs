@@ -19,7 +19,6 @@ module Wire.API.Federation.API.Galley where
 
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Domain (Domain)
 import Data.Id (ConvId, UserId)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
@@ -30,7 +29,7 @@ import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
-import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
@@ -98,8 +97,8 @@ data RegisterConversation = MkRegisterConversation
     rcCnvAccessRole :: AccessRole,
     -- | The conversation name,
     rcCnvName :: Maybe Text,
-    -- | Members of the conversation grouped by their domain
-    rcMembers :: Map Domain [Member],
+    -- | Members of the conversation
+    rcMembers :: Set OtherMember,
     rcMessageTimer :: Maybe Milliseconds,
     rcReceiptMode :: Maybe ReceiptMode
   }

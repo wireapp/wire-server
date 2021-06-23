@@ -20,7 +20,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow (Arrow (second), (&&&))
+import Control.Arrow ((&&&))
 import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
@@ -57,7 +57,6 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
-import qualified Wire.API.Conversation.Member as Member
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
@@ -407,33 +406,23 @@ toRegisterConversation now localDomain Data.Conversation {..} =
     toMembers ::
       [LocalMember] ->
       [RemoteMember] ->
-      Map Domain [Member.Member]
+      Set OtherMember
     toMembers ls rs =
-      let locals = Map.singleton localDomain . fmap localToMember $ ls
-          remotesUngrouped = fmap (second pure . remoteToMember) rs
-       in foldl' (flip (uncurry (Map.insertWith (<>)))) locals remotesUngrouped
-    localToMember :: LocalMember -> Member.Member
-    localToMember Members.InternalMember {..} =
-      Member.Member
-        { memId = memId,
-          ..
+      Set.fromList $ fmap localToOther ls <> fmap remoteToOther rs
+    localToOther :: LocalMember -> OtherMember
+    localToOther Members.InternalMember {..} =
+      OtherMember
+        { omQualifiedId = Qualified memId localDomain,
+          omService = Nothing,
+          omConvRoleName = memConvRoleName
         }
-    remoteToMember :: RemoteMember -> (Domain, Member.Member)
-    remoteToMember RemoteMember {..} =
-      ( qDomain . unTagged $ rmId,
-        Member.Member
-          { memId = qUnqualified . unTagged $ rmId,
-            memService = Nothing,
-            memOtrMuted = False,
-            memOtrMutedStatus = Nothing,
-            memOtrMutedRef = Nothing,
-            memOtrArchived = False,
-            memOtrArchivedRef = Nothing,
-            memHidden = False,
-            memHiddenRef = Nothing,
-            memConvRoleName = rmConvRoleName
-          }
-      )
+    remoteToOther :: RemoteMember -> OtherMember
+    remoteToOther RemoteMember {..} =
+      OtherMember
+        { omQualifiedId = unTagged rmId,
+          omService = Nothing,
+          omConvRoleName = rmConvRoleName
+        }
 
 -- | The function converts a 'RegisterConversation' value to a
 -- 'Wire.API.Conversation.Conversation' value. The obtained value can be used in
@@ -443,7 +432,7 @@ fromRegisterConversation ::
   Qualified UserId ->
   RegisterConversation ->
   Galley Public.Conversation
-fromRegisterConversation (Qualified usr localDomain) MkRegisterConversation {..} = do
+fromRegisterConversation qusr MkRegisterConversation {..} = do
   this <- me rcMembers
   pure
     Public.Conversation
@@ -463,22 +452,27 @@ fromRegisterConversation (Qualified usr localDomain) MkRegisterConversation {..}
         cnvReceiptMode = rcReceiptMode
       }
   where
-    me :: Map Domain [Public.Member] -> Galley Public.Member
-    me m = case Map.lookup localDomain m >>= find ((usr ==) . Member.memId) of
-      Nothing -> throwM convMemberNotFound
-      Just v -> pure v
-    others :: Map Domain [Public.Member] -> [OtherMember]
-    others =
-      Map.foldlWithKey' (\acc d mems -> fmap (memToOther d) mems <> acc) []
-        -- make sure not to include 'usr' in the list of others
-        . Map.adjust (filter ((usr /=) . Public.memId)) localDomain
-    memToOther :: Domain -> Member.Member -> OtherMember
-    memToOther d mem =
-      OtherMember
-        { omQualifiedId = Qualified (Member.memId mem) d,
-          omService = Member.memService mem,
-          omConvRoleName = Member.memConvRoleName mem
-        }
+    me :: Set OtherMember -> Galley Public.Member
+    me s =
+      case find ((== qusr) . omQualifiedId) . Set.toList $ s of
+        Nothing -> throwM convMemberNotFound
+        Just v -> pure Public.Member
+          { memId = qUnqualified . omQualifiedId $ v,
+            memService = omService v,
+            memOtrMuted = False,
+            memOtrMutedStatus = Nothing,
+            memOtrMutedRef = Nothing,
+            memOtrArchived = False,
+            memOtrArchivedRef = Nothing,
+            memHidden = False,
+            memHiddenRef = Nothing,
+            memConvRoleName = omConvRoleName v
+          }
+    others :: Set OtherMember -> [OtherMember]
+    others = foldl' addOthers []
+    addOthers :: [OtherMember] -> OtherMember -> [OtherMember]
+    addOthers acc c | omQualifiedId c == qusr = acc
+    addOthers acc c | otherwise = c : acc
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::

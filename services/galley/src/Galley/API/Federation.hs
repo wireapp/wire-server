@@ -19,7 +19,6 @@ module Galley.API.Federation where
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
 import Data.Id (UserId)
-import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
@@ -29,7 +28,7 @@ import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
-import Wire.API.Conversation.Member (Member, memId)
+import Wire.API.Conversation.Member (OtherMember(..))
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
@@ -46,8 +45,8 @@ federationSitemap =
 registerConversation :: RegisterConversation -> Galley ()
 registerConversation rc = do
   localDomain <- viewFederationDomain
-  let localUsers = fmap (toQualified localDomain) . getLocals $ localDomain
-      localUserIds = map qUnqualified localUsers
+  let localUsers = getLocals localDomain (rcMembers rc)
+      localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
     Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
   forM_ localUsers $ \usr -> do
@@ -61,10 +60,12 @@ registerConversation rc = do
             (EdConversation c)
     pushConversationEvent event [qUnqualified usr] []
   where
-    getLocals :: Domain -> [Member]
-    getLocals localDomain = fromMaybe [] . Map.lookup localDomain . rcMembers $ rc
-    toQualified :: Domain -> Member -> Qualified UserId
-    toQualified domain mem = Qualified (memId mem) domain
+    getLocals :: Domain -> Set OtherMember -> [Qualified UserId]
+    getLocals d = foldl' (addInDomain d) []
+    addInDomain :: Domain -> [Qualified UserId] -> OtherMember -> [Qualified UserId]
+    addInDomain d acc m =
+      if ((== d) . qDomain . omQualifiedId) m
+        then omQualifiedId m : acc else acc
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
