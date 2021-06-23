@@ -38,6 +38,7 @@ module Galley.API.Update
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
+    removeMember,
 
     -- * Servant
     UpdateResponses,
@@ -72,11 +73,11 @@ import Data.Code
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
-import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (nubOrd)
 import Data.List1
 import qualified Data.Map.Strict as Map
-import Data.Misc (FutureWork (..))
+import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -84,7 +85,6 @@ import qualified Data.Text.Encoding as Text
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
-import qualified Galley.API.Teams as Teams
 import Galley.API.Util
 import Galley.App
 import Galley.Data (teamMember)
@@ -116,6 +116,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.Error (federationNotImplemented)
@@ -515,6 +516,8 @@ addMembers zusr zcon convId invite = do
   ensureConvRoleNotElevated self (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
   checkRemoteUsersExist newRemotes
+  checkLHPolicyConflictsLocal conv newLocals
+  checkLHPolicyConflictsRemote (FutureWork newRemotes)
   addToConversation mems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
@@ -531,6 +534,40 @@ addMembers zusr zcon convId invite = do
     checkLocals conv Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
       ensureConnectedOrSameTeam zusr newUsers
+
+    checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
+    checkLHPolicyConflictsLocal conv newUsers = do
+      let convUsers = Data.convLocalMembers conv
+
+      allNewUsersGaveConsent <- allLegalholdConsentGiven newUsers
+
+      whenM (anyLegalholdActivated (memId <$> convUsers)) $
+        unless allNewUsersGaveConsent $
+          throwM missingLegalholdConsent
+
+      whenM (anyLegalholdActivated newUsers) $ do
+        unless allNewUsersGaveConsent $
+          throwM missingLegalholdConsent
+
+        convUsersLHStatus <- do
+          uidsStatus <- getLHStatusForUsers (memId <$> convUsers)
+          pure $ zipWith (\mem (_, status) -> (mem, status)) convUsers uidsStatus
+
+        if any
+          ( \(mem, status) ->
+              memConvRoleName mem == roleNameWireAdmin
+                && consentGiven status == ConsentGiven
+          )
+          convUsersLHStatus
+          then do
+            for_ convUsersLHStatus $ \(mem, status) -> do
+              when (consentGiven status == ConsentNotGiven) $
+                void $ removeMember (memId mem) Nothing (Data.convId conv) (memId mem)
+          else do
+            throwM missingLegalholdConsent
+
+    checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
+    checkLHPolicyConflictsRemote _remotes = pure ()
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
@@ -565,9 +602,9 @@ updateOtherMember zusr zcon cid victim update = do
 
 removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
-  handleUpdateResult <$> removeMember zusr zcon cid victim
+  handleUpdateResult <$> removeMember zusr (Just zcon) cid victim
 
-removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
+removeMember :: UserId -> Maybe ConnId -> ConvId -> UserId -> Galley UpdateResult
 removeMember zusr zcon convId victim = do
   localDomain <- viewFederationDomain
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
@@ -583,7 +620,7 @@ removeMember zusr zcon convId victim = do
       event <- Data.removeLocalMembers localDomain conv zusr (singleton victim)
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
       for_ (newPush ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
-        push1 $ p & pushConn ?~ zcon
+        push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
       pure $ Updated event
     else pure Unchanged
@@ -1039,7 +1076,7 @@ withValidOtrBroadcastRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
+withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
@@ -1299,3 +1336,12 @@ guardLegalholdPolicyConflictsUid self otherClients = do
           -- We add this check here as an extra failsafe.
           Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
           throwM missingLegalholdConsent
+
+-- Copied from 'Galley.API.Team' to break import cycles
+withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
+withBindingTeam zusr callback = do
+  tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
+  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+  case binding of
+    Binding -> callback tid
+    NonBinding -> throwM nonBindingTeam
