@@ -39,3 +39,4 @@ tests:
       - swagger2
       - tasty
       - tasty-hunit
+      - text

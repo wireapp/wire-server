@@ -20,14 +20,16 @@ module Test.Data.Schema where
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens (Prism', at, ix, makePrisms, nullOf, prism', (?~), (^.), _1)
-import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value, decode, encode, fromJSON)
+import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), decode, encode, fromJSON)
 import Data.Aeson.QQ
+import qualified Data.Aeson.Types as A
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.Schema hiding (getName)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
+import qualified Data.Text as Text
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -60,7 +62,9 @@ tests =
       testNonEmptyParseSuccess,
       testNonEmptyToJSON,
       testNonEmptySchema,
-      testRefField
+      testRefField,
+      testRmClientWrong,
+      testRmClient
     ]
 
 testFooToJSON :: TestTree
@@ -292,6 +296,28 @@ testRefField =
     assertBool "Referenced schema should be declared" $
       not . nullOf (ix "Name") $ defs
 
+testRmClientWrong :: TestTree
+testRmClientWrong =
+  testCase "Parser succeeds when password is invalid" $ do
+    let json = [aesonQQ|{"password": "a"}|]
+        expected = RmClient Nothing
+    assertEqual
+      "fromJSON should succeed"
+      (Success expected)
+      (A.parse (schemaIn rmClientSchema) json)
+
+testRmClient :: TestTree
+testRmClient =
+  testCase "Parser fails when password is invalid" $ do
+    let json = [aesonQQ|{"password": "a"}|]
+    case fromJSON @RmClient json of
+      Success _ -> assertFailure "fromJSON should fail"
+      Error err -> do
+        assertEqual
+          "fromJSON error should mention password too short"
+          "password too short"
+          err
+
 ---
 
 data A = A {thing :: Text, other :: Int}
@@ -487,6 +513,34 @@ instance ToSchema Named where
 
 instance S.ToSchema Named where
   declareNamedSchema = schemaToSwagger
+
+--- optional fields
+
+data RmClient = RmClient {rmPassword :: Maybe Text}
+  deriving (Eq, Show)
+  deriving (FromJSON) via Schema RmClient
+
+passwordSchema :: ValueSchema NamedSwaggerDoc Text
+passwordSchema = schema `withParser` validate
+  where
+    validate :: Text -> A.Parser Text
+    validate x =
+      if Text.length x < 6
+        then fail "password too short"
+        else pure x
+
+-- this is "wrong", because it succeeds even if password validation fails
+rmClientSchema :: ValueSchema NamedSwaggerDoc RmClient
+rmClientSchema =
+  object "RmClient" $
+    RmClient
+      <$> rmPassword .= lax (field "password" (optWithDefault Null passwordSchema))
+
+instance ToSchema RmClient where
+  schema =
+    object "RmClient" $
+      RmClient
+        <$> rmPassword .= optField "password" Nothing passwordSchema
 
 -- examples from documentation (only type-checked)
 
