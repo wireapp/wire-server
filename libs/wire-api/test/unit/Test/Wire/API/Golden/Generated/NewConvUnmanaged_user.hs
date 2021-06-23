@@ -524,3 +524,19 @@ testObject_NewConvUnmanaged_user_20 =
           newConvUsersRole = (fromJust (parseRoleName "udhi2sbf7tzyshrh"))
         }
     )
+
+testObject_NewConvUnmanaged_user_21 :: NewConvUnmanaged
+testObject_NewConvUnmanaged_user_21 =
+  NewConvUnmanaged
+    ( NewConv
+        { newConvUsers = [],
+          newConvQualifiedUsers = [Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) testDomain],
+          newConvName = Nothing,
+          newConvAccess = Set.fromList [],
+          newConvAccessRole = Nothing,
+          newConvMessageTimer = Nothing,
+          newConvReceiptMode = Nothing,
+          newConvTeam = Nothing,
+          newConvUsersRole = fromJust (parseRoleName "udhi2sbf7tzyshrh")
+        }
+    )
