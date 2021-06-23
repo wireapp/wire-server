@@ -32,13 +32,15 @@ The 'federator' will, for outgoing requests to other backends:
 
 #. If enabled, ensure the target domain is in the :ref:`allow list <allow-list>`
 #. :ref:`discover <discovery>` the other backend
-#. make an :ref:`authenticated call <authentication>` to the other backend
-#. forward the response back to the originating component (and eventually to the originating Wire client)
+#. establish a :ref:`mutually authenticated channel <authentication>` to the other backend
+#. send the request to the other backend and
+#. forward the response back to the originating component (and eventually to the originating Wire client).
 
 The 'federator' will, for incoming requests from other backends (forwarded via the local :ref:`ingress`):
 
-#. If enabled, ensure the originating domain is in the :ref:`allow list <allow-list>`
-#. forward requests to other wire-server components (brig, galley, ...)
+#. Establish a mutually authenticated channel with the other backend,
+#. if enabled, ensure the originating domain is in the :ref:`allow list <allow-list>` and
+#. forward requests to other wire-server components (brig, galley, ...).
 
 .. _ingress:
 
@@ -68,7 +70,7 @@ Discovery
 
 If a backend would like to send a request to a remote backend with a given
 domain, for example because a user would like to send a message to a user on a
-that backend, it first needs to 'discover' that backend. This step is necessary,
+that backend, it first needs to 'discover' that backend. This step is required,
 as backends are not necessarily hosted under the domain they represent.
 
 The domain that a Wire backend represents, i.e. the domain that is present in
@@ -90,7 +92,7 @@ domain `wire.company-a.com` could publish
    _wire-server-federator._tcp.company-a.com. 600  IN  SRV 10 5 443 federator.wire.company-a.com.
 
 A backend can then be discovered, given its domain, by issueing a DNS query for
-the SRV record specifying the `wire` service.
+the SRV record specifying the `wire-server-federator` service.
 
 .. _authentication:
 
@@ -100,11 +102,12 @@ Authentication
 Authentication between Wire backends is achieved using the mutual authentication
 feature of TLS as defined in `RFC 8556 <https://tools.ietf.org/html/rfc8446>`_.
 
-In particular, this means that each backend needs to be provisioned with one or
-more certificates which it trusts to authenticate incoming connections from
+In particular, this means that the ingress of each backend needs to be
+provisioned with one or more certificates which it trusts to authenticate
+certificates provided by other backends when accepting incoming connections from
 other backends.
 
-Conversely, every backend needs to be provisioned with a (client) certificate
+Conversely, every federator needs to be provisioned with a (client) certificate
 which it uses to authenticate itself towards other backends.
 
 Note that the client certificate is expected to be issued with the backend's
@@ -121,19 +124,26 @@ Authorization
 
 After an incoming connection is authenticated, a second step is required to
 ensure that the sending backend is authorized to connect to the receiving
-backend. To make that decision, it first needs to be established which domain
-corresponds to the infra domain the sending backend authenticated as.
+backend. As the backend authenticates using its infra domain, but the allow list
+contains backend domains (which is not necessarily the same) the sending backend
+also needs to provide its backend domain.
 
 To make this possible, requests to remote backends are required to contain a
 `Wire-Domain` header, which contains the remote backend's domain.
 
-The receiving backend then follows the process described in :ref:`discovery` to
-ensure that the infra domain matches the domain of the sending backend. If this
-is not the case, it should reply with a :ref:`discovery error <discovery
-error>`.
+While the receiving backend has authenticated the sending backend as the infra
+domain, it is not clear that the sending backend is indeed authorized by the
+owner of the backend domain to host the Wire backend of that particular domain.
 
-If this is the case, the receiving backend checks if the domain of the sending
-backend is in the :ref:`allow-list` and reply with an :ref:`authorization error <authorization error>` if it is not.
+To perform this extra authorization step, the receiving backend follows the
+process described in :ref:`discovery` and compares the discovered infra domain
+for the backend domain indicated in the `Wire-Domain` header with the one the
+sending backend authenticated as. If there is a mismatch, the receiving backend
+replies with a :ref:`discovery error <discovery error>`.
+
+Finally, the receiving backend checks if the domain of the sending backend is in
+the :ref:`allow-list` and replies with an :ref:`authorization error
+<authorization error>` if it is not.
 
 .. _allow-list:
 

@@ -18,8 +18,9 @@ network.
 To enable federation, administrators of a Wire backend can decide to either
 specifically list the backends that they want to federate with, or to allow federation with all Wire backends reachable from the network.
 
-Federation is facilitated by a backend component called the *federator*, which
-acts as the ingress and egress point for federated communication.
+Federation is facilitated by two backend components: the *ingress*, which, as
+the name suggests, acts as ingress point for federated traffic and the
+*federator*, which acts as egress point and processes all ingress requests from the *ingress* after the authentication step.
 
 Non-Goals
 ---------
