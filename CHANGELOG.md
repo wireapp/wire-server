@@ -14,6 +14,12 @@
 
 -->
 
+# Unreleased
+
+## Internal changes
+
+* schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
+
 # 2021-06-23
 
 ## API Changes
