@@ -21,6 +21,7 @@
 
 module Wire.API.User.Orphans where
 
+import Control.Lens
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Proxy
@@ -68,8 +69,23 @@ instance ToSchema SAML.NameIdPolicy where
 instance ToSchema SAML.NameIDFormat where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
+-- The generic schema breaks on this type, so we define it by hand.
+--
+-- The reason is that genericDeclareNamedSchema tries to define the schema for
+-- this type as a heterogeneous array (i.e. tuple) with Swagger types String
+-- and AuthnRequest. However, Swagger does not support heterogeneous arrays,
+-- and this results in an array whose underlying type which is at the same time
+-- marked as a string, and referring to the schema for AuthnRequest, which is of
+-- course invalid.
 instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+  declareNamedSchema _ = do
+    authnReqSchema <- declareSchemaRef (Proxy @SAML.AuthnRequest)
+    pure $
+      NamedSchema (Just "FormRedirect") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties . at "uri" ?~ Inline (toSchema (Proxy @Text))
+          & properties . at "xml" ?~ authnReqSchema
 
 instance ToSchema (SAML.ID SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
