@@ -25,6 +25,7 @@
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
+* Legalhold specs update (#1627).
 
 ## Bug fixes and other updates
 
