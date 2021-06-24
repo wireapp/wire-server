@@ -217,7 +217,7 @@ claimMultiPrekeyBundles protectee quc = do
   localDomain <- viewFederationDomain
   fmap (mkQualifiedUserClientPrekeyMap . Map.fromList)
     -- FUTUREWORK(federation): parallelise federator requests here
-    . traverse (\(domain, uc) -> (domain,) <$> claim localDomain domain uc)
+    . traverse (\(domain, uc) -> (domain,) <$> claim localDomain domain (UserClients uc))
     . Map.assocs
     . qualifiedUserClients
     $ quc
