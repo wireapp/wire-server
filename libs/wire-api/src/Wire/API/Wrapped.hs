@@ -43,7 +43,7 @@ instance (FromJSON a, KnownSymbol name) => FromJSON (Wrapped name a) where
 -- here.
 instance (ToSchema a, KnownSymbol name) => ToSchema (Wrapped name a) where
   declareNamedSchema _ = do
-    let wrappedSchema = Inline (toSchema (Proxy @a))
+    wrappedSchema <- declareSchemaRef (Proxy @a)
     pure $
       NamedSchema Nothing $
         mempty
