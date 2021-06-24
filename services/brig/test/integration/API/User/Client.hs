@@ -28,7 +28,7 @@ import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Control.Lens (preview, (.~), (^.), (^?), at)
+import Control.Lens (at, preview, (.~), (^.), (^?))
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -476,7 +476,6 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
-
 testRemoveClientShortPwd :: Brig -> Http ()
 testRemoveClientShortPwd brig = do
   u <- randomUser brig
@@ -488,8 +487,9 @@ testRemoveClientShortPwd brig = do
   numCookies <- countCookies brig uid defCookieLabel
   liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
-  resp <- deleteClient brig uid (clientId c) (Just "a") <!!
-    const 400 === statusCode
+  resp <-
+    deleteClient brig uid (clientId c) (Just "a")
+      <!! const 400 === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 400)
