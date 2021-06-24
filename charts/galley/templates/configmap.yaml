@@ -62,5 +62,6 @@ data:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
         teamSearchVisibility: {{ .settings.featureFlags.teamSearchVisibility }}
+        classifiedDomains: {{ .settings.featureFlags.classifiedDomains }}
       {{- end }}
   {{- end }}

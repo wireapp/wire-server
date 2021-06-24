@@ -52,6 +52,10 @@ settings:
         config:
           enforceAppLock: false
           inactivityTimeoutSecs: 60
+    classifiedDomains:
+      status: disabled
+      config:
+        domains: []
 
 logLevel: Info
 logNetStrings: false

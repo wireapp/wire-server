@@ -30,6 +30,7 @@ config:
       sso: disabled-by-default
       legalhold: disabled-by-default
       teamSearchVisibility: disabled-by-default
+      classifiedDomains: disabled-by-default
   aws:
     region: "eu-west-1"
   proxy: {}
