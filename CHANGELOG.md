@@ -16,6 +16,10 @@
 
 # Unreleased
 
+## Features
+
+* [Federation] RPC to propagate messages to other backends (#1596).
+
 ## Internal changes
 
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
