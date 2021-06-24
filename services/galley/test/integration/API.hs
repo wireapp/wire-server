@@ -133,7 +133,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
-          test s "get remote conversation" testGetRemoteConversation,
+          test s "get and list remote conversations" testGetRemoteConversations,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
@@ -1364,8 +1364,10 @@ testAddRemoteMember = do
         toJSON [mkProfile bob (Name "bob")]
       | otherwise = toJSON ()
 
-testGetRemoteConversation :: TestM ()
-testGetRemoteConversation = do
+testGetRemoteConversations :: TestM ()
+testGetRemoteConversations = do
+  -- alice on local domain
+  -- bob and the conversation on the remote domain
   aliceQ <- randomQualifiedUser
   let alice = qUnqualified aliceQ
   bobId <- randomId
@@ -1391,18 +1393,22 @@ testGetRemoteConversation = do
               }
           ]
   opts <- view tsGConf
-  g <- view tsGalley
+  -- test GET /conversations/:domain/:cnv for single conversation
   (resp, _) <-
     withTempMockFederator
       opts
       remoteDomain
       (const remoteConversationResponse)
-      (getConvQualified' g alice remoteConv)
+      (getConvQualified alice remoteConv)
   conv :: Conversation <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
     assertEqual "other members should include remoteBob" expected actual
+
+-- test POST /list-conversations
+
+-- FUTUREWORK: Do this test with more than one remote domains
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do
