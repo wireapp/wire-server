@@ -54,7 +54,7 @@ import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
 import Network.Wai
-import Network.Wai.Predicate hiding (or, result, setStatus)
+import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Team.Feature as Public
 
@@ -106,8 +106,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
         getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
-        getStatus @'Public.TeamFeatureAppLock getAppLockInternal
-        -- TODO(md): Implement a case for classified domains
+        getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
+        getStatus @'Public.TeamFeatureClassifiedDomains (getClassifiedDomainsInternal uid)
       ]
   where
     getStatus ::
@@ -232,3 +232,12 @@ setAppLockInternal tid status = do
   when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
     throwM inactivityTimeoutTooLow
   TeamFeatures.setApplockFeatureStatus tid status
+
+getClassifiedDomainsInternal :: UserId -> TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+getClassifiedDomainsInternal uid tid =
+  getFeatureStatus @'Public.TeamFeatureClassifiedDomains (const getter) (DoAuth uid) tid
+  where
+    getter :: Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+    getter = TeamFeatures.getClassifiedDomainsFeatureStatus tid >>= \case
+      Nothing -> throwM (undefined :: Error) -- TODO(md): there should probably be an HTTP error for the case when there's nothing in the database
+      Just v -> pure v
