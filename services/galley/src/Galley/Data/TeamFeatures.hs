@@ -23,7 +23,7 @@ module Galley.Data.TeamFeatures
     getApplockFeatureStatus,
     setApplockFeatureStatus,
     getClassifiedDomainsFeatureStatus,
-    setClassifiedDomainsFeatureStatus
+    setClassifiedDomainsFeatureStatus,
   )
 where
 

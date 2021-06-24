@@ -47,6 +47,7 @@ import Control.Lens ((.~), (?~))
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.Domain (Domain)
 import Data.HashMap.Strict.InsOrd
 import Data.Kind (Constraint)
 import Data.Proxy
@@ -60,7 +61,6 @@ import Deriving.Aeson
 import Imports
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Data.Domain (Domain)
 
 ----------------------------------------------------------------------
 -- TeamFeatureName
@@ -297,9 +297,10 @@ instance ToSchema TeamFeatureClassifiedDomainsConfig where
           & required .~ ["domains"]
     where
       configProperties :: InsOrdHashMap Text (Referenced Schema)
-      configProperties = fromList
-        [ ("enforceAppLock", Inline (toSchema (Proxy @Domain)))
-        ]
+      configProperties =
+        fromList
+          [ ("classifiedDomains", Inline (toSchema (Proxy @[Domain])))
+          ]
 
 modelTeamFeatureClassifiedDomainsConfig :: Doc.Model
 modelTeamFeatureClassifiedDomainsConfig =
