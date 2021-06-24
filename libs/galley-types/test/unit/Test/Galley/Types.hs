@@ -64,3 +64,4 @@ instance Arbitrary FeatureFlags where
       <*> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
       <*> arbitrary
+      <*> QC.elements [minBound ..]

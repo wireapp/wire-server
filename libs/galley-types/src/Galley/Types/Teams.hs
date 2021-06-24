@@ -28,6 +28,7 @@ module Galley.Types.Teams
     flagLegalHold,
     flagTeamSearchVisibility,
     flagAppLockDefaults,
+    flagClassifiedDomains,
     Defaults (..),
     FeatureSSO (..),
     FeatureLegalHold (..),
@@ -194,7 +195,8 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock))
+    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
+    _flagClassifiedDomains :: !FeatureClassifiedDomains
   }
   deriving (Eq, Show, Generic)
 
@@ -229,6 +231,11 @@ data FeatureTeamSearchVisibility
   | FeatureTeamSearchVisibilityDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+data FeatureClassifiedDomains
+  = FeatureClassifiedDomainsEnabledByDefault
+  | FeatureClassifiedDomainsDisabledByDefault
+  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
 -- NOTE: This is used only in the config and thus YAML... camelcase
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
@@ -237,14 +244,16 @@ instance FromJSON FeatureFlags where
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
+      <*> obj .: "classifiedDomains"
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
         "teamSearchVisibility" .= searchVisibility,
-        "appLock" .= appLock
+        "appLock" .= appLock,
+        "classifiedDomains" .= classifiedDomains
       ]
 
 instance FromJSON FeatureSSO where
@@ -275,6 +284,15 @@ instance FromJSON FeatureTeamSearchVisibility where
 instance ToJSON FeatureTeamSearchVisibility where
   toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
   toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
+
+instance ToJSON FeatureClassifiedDomains where
+  toJSON FeatureClassifiedDomainsEnabledByDefault = String "enabled-by-default"
+  toJSON FeatureClassifiedDomainsDisabledByDefault = String "disabled-by-default"
+
+instance FromJSON FeatureClassifiedDomains where
+  parseJSON (String "enabled-by-default") = pure FeatureClassifiedDomainsEnabledByDefault
+  parseJSON (String "disabled-by-default") = pure FeatureClassifiedDomainsDisabledByDefault
+  parseJSON bad = fail $ "FeatureClassifiedDomains: " <> cs (encode bad)
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags
