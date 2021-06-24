@@ -37,15 +37,19 @@ import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Intra (ConnectionStatus (..))
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
+import Control.Exception (assert)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
-import qualified Data.Map.Strict as Map
 import Data.Misc
+import Data.Proxy (Proxy (Proxy))
+import Data.Range (toRange)
 import Galley.API.Error
+import Galley.API.Query (iterateConversations)
+import Galley.API.Update (removeMember)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -56,6 +60,7 @@ import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
 import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
+import Galley.Types (LocalMember, memConvRoleName, memId)
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types (status200, status404)
@@ -65,7 +70,10 @@ import Network.Wai.Predicate hiding (or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Wire.API.Conversation (ConvType (..))
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import qualified Wire.API.Team.LegalHold as Public
 
 assertLegalHoldEnabledForTeam :: TeamId -> Galley ()
@@ -365,14 +373,6 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
       changeLegalholdStatus tid uid userLHStatus UserLegalHoldDisabled
 
--- | If not enabled nor pending, then it's disabled
-userLHEnabled :: UserLegalHoldStatus -> Bool
-userLHEnabled = \case
-  UserLegalHoldEnabled -> True
-  UserLegalHoldPending -> True
-  UserLegalHoldDisabled -> False
-  UserLegalHoldNoConsent -> False
-
 -- | Allow no-consent => consent without further changes.  If LH device is requested, enabled,
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
@@ -405,13 +405,15 @@ changeLegalholdStatus tid uid old new = do
   where
     update = LegalHoldData.setUserLegalHoldStatus tid uid new
     removeblocks = void $ putConnectionInternal (RemoveLHBlocksInvolving uid)
-    addblocks = blockConnectionsFrom1on1s uid
+    addblocks = do
+      blockNonConsentingConnections uid
+      handleGroupConvPolicyConflicts uid new
     noop = pure ()
     illegal = throwM userLegalHoldIllegalOperation
 
 -- FUTUREWORK: make this async?
-blockConnectionsFrom1on1s :: UserId -> Galley ()
-blockConnectionsFrom1on1s uid = do
+blockNonConsentingConnections :: UserId -> Galley ()
+blockNonConsentingConnections uid = do
   conns <- getConnections [uid] Nothing Nothing
   errmsgs <- do
     conflicts <- mconcat <$> findConflicts conns
@@ -428,22 +430,13 @@ blockConnectionsFrom1on1s uid = do
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- Data.usersTeams others
-        filterM (shouldBlock teamsOfUsers) others
+        filterM (fmap (== ConsentNotGiven) . checkConsent teamsOfUsers) others
 
     blockConflicts :: UserId -> [UserId] -> Galley [String]
     blockConflicts _ [] = pure []
     blockConflicts userLegalhold othersToBlock@(_ : _) = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
-
-    shouldBlock :: Map UserId TeamId -> UserId -> Galley Bool
-    shouldBlock teamsOfUsers other =
-      (== UserLegalHoldNoConsent)
-        <$> case Map.lookup other teamsOfUsers of
-          Nothing -> pure defUserLegalHoldStatus
-          Just team -> do
-            mMember <- Data.teamMember team other
-            pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 setTeamLegalholdWhitelisted :: TeamId -> Galley ()
 setTeamLegalholdWhitelisted tid = do
@@ -473,3 +466,48 @@ getTeamLegalholdWhitelistedH tid = do
     if lhEnabled
       then setStatus status200 empty
       else setStatus status404 empty
+
+-- | Make sure that enough people are removed from all conversations that contain user `uid`
+-- that no policy conflict arises.
+--
+-- It is guaranteed that no group will ever end up without a group admin because of a policy
+-- conflict: If at least one group admin has 'ConsentGiven', non-consenting users are removed.
+-- Otherwise, we assume that the group is dominated by people not interested in giving
+-- consent, and users carrying LH devices are removed instead.
+--
+-- The first argument to this function needs explaining: in order to guarantee that this
+-- function terminates before we set the LH of user `uid` on pending, we need to call it
+-- first.  This means that user `uid` has outdated LH status while this function is running,
+-- which may cause wrong behavior.  In order to guarantee correct behavior, the first argument
+-- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
+-- one from the database.
+handleGroupConvPolicyConflicts :: UserId -> UserLegalHoldStatus -> Galley ()
+handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
+  void $
+    iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
+      for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
+        let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
+
+        membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
+          let mems = Data.convLocalMembers conv
+          uidsLHStatus <- getLHStatusForUsers (memId <$> mems)
+          pure $
+            zipWith
+              ( \mem (mid, status) ->
+                  assert (memId mem == mid) $
+                    if memId mem == uid
+                      then (mem, hypotheticalLHStatus)
+                      else (mem, status)
+              )
+              mems
+              uidsLHStatus
+
+        if any
+          ((== ConsentGiven) . consentGiven . snd)
+          (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
+          then do
+            for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
+              removeMember (memId memberNoConsent) Nothing (Data.convId conv) (memId memberNoConsent)
+          else do
+            for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
+              removeMember (memId legalholder) Nothing (Data.convId conv) (memId legalholder)

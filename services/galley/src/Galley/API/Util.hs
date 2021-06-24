@@ -25,10 +25,12 @@ import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
+import Control.Monad.Extra (allM, anyM)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
-import Data.List.Extra (nubOrd)
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), Remote, partitionQualified)
@@ -39,12 +41,13 @@ import Data.Time
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
+import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import qualified Galley.External as External
 import Galley.Intra.Push
 import Galley.Intra.User
-import Galley.Options (optSettings, setFederationDomain)
+import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (RemoteMember (..))
 import qualified Galley.Types.Conversations.Members as Members
@@ -547,3 +550,75 @@ catMembers ::
 catMembers localDomain ls rs =
   map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
     <> map ((unTagged . rmId) &&& rmConvRoleName) rs
+
+--------------------------------------------------------------------------------
+-- Legalhold
+
+userLHEnabled :: UserLegalHoldStatus -> Bool
+userLHEnabled = \case
+  UserLegalHoldEnabled -> True
+  UserLegalHoldPending -> True
+  UserLegalHoldDisabled -> False
+  UserLegalHoldNoConsent -> False
+
+data ConsentGiven = ConsentGiven | ConsentNotGiven
+  deriving (Eq, Ord, Show)
+
+consentGiven :: UserLegalHoldStatus -> ConsentGiven
+consentGiven = \case
+  UserLegalHoldDisabled -> ConsentGiven
+  UserLegalHoldPending -> ConsentGiven
+  UserLegalHoldEnabled -> ConsentGiven
+  UserLegalHoldNoConsent -> ConsentNotGiven
+
+checkConsent :: Map UserId TeamId -> UserId -> Galley ConsentGiven
+checkConsent teamsOfUsers other = do
+  consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
+
+-- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
+-- doesn't belong to a team.
+getLHStatus :: Maybe TeamId -> UserId -> Galley UserLegalHoldStatus
+getLHStatus teamOfUser other = do
+  case teamOfUser of
+    Nothing -> pure defUserLegalHoldStatus
+    Just team -> do
+      mMember <- Data.teamMember team other
+      pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
+
+anyLegalholdActivated :: [UserId] -> Galley Bool
+anyLegalholdActivated uids = do
+  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> pure False
+    FeatureLegalHoldDisabledByDefault -> check
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
+  where
+    check = do
+      flip anyM (chunksOf 32 uids) $ \uidsPage -> do
+        teamsOfUsers <- Data.usersTeams uidsPage
+        anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
+
+allLegalholdConsentGiven :: [UserId] -> Galley Bool
+allLegalholdConsentGiven uids = do
+  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
+    FeatureLegalHoldDisabledPermanently -> pure False
+    FeatureLegalHoldDisabledByDefault -> do
+      flip allM (chunksOf 32 uids) $ \uidsPage -> do
+        teamsOfUsers <- Data.usersTeams uidsPage
+        allM (\uid -> (== ConsentGiven) . consentGiven <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
+    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+      -- For this feature the implementation is more efficient. Being part of
+      -- a whitelisted team is equivalent to have given consent to be in a
+      -- conversation with user under legalhold.
+      flip allM (chunksOf 32 uids) $ \uidsPage -> do
+        teamsPage <- nub . Map.elems <$> Data.usersTeams uidsPage
+        allM isTeamLegalholdWhitelisted teamsPage
+
+-- | Add to every uid the legalhold status
+getLHStatusForUsers :: [UserId] -> Galley [(UserId, UserLegalHoldStatus)]
+getLHStatusForUsers uids =
+  mconcat
+    <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do
+            teamsOfUsers <- Data.usersTeams uidsChunk
+            for uidsChunk $ \uid -> do
+              (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
+        )

@@ -22,6 +22,7 @@ module Galley.API.Query
     getConversationRoles,
     getConversationIds,
     getConversations,
+    iterateConversations,
     getSelfH,
     internalGetMemberH,
     getConversationMetaH,
@@ -120,6 +121,11 @@ getConversationIds zusr start msize = do
 
 getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
 getConversations user mids mstart msize = do
+  ConversationList cs more <- getConversationsInternal user mids mstart msize
+  flip ConversationList more <$> mapM (Mapping.conversationView user) cs
+
+getConversationsInternal :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Data.Conversation)
+getConversationsInternal user mids mstart msize = do
   (more, ids) <- getIds mids
   let localConvIds = ids
   -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
@@ -127,7 +133,7 @@ getConversations user mids mstart msize = do
     Data.conversations localConvIds
       >>= filterM removeDeleted
       >>= filterM (pure . isMember user . Data.convLocalMembers)
-  flip Public.ConversationList more <$> mapM (Mapping.conversationView user) cs
+  pure $ Public.ConversationList cs more
   where
     size = fromMaybe (toRange (Proxy @32)) msize
 
@@ -145,6 +151,21 @@ getConversations user mids mstart msize = do
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
+
+iterateConversations :: forall a. UserId -> Range 1 500 Int32 -> ([Data.Conversation] -> Galley a) -> Galley [a]
+iterateConversations uid pageSize handleConvs = go Nothing
+  where
+    go :: Maybe ConvId -> Galley [a]
+    go mbConv = do
+      convResult <- getConversationsInternal uid Nothing mbConv (Just pageSize)
+      resultHead <- handleConvs (convList convResult)
+      resultTail <- case convList convResult of
+        (conv : rest) ->
+          if convHasMore convResult
+            then go (Just (maximum (Data.convId <$> (conv : rest))))
+            else pure []
+        _ -> pure []
+      pure $ resultHead : resultTail
 
 getSelfH :: UserId ::: ConvId -> Galley Response
 getSelfH (zusr ::: cnv) = do

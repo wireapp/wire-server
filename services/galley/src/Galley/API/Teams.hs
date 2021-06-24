@@ -48,7 +48,6 @@ module Galley.API.Teams
     uncheckedGetTeamMemberH,
     uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
-    withBindingTeam,
     userIsTeamOwnerH,
     canUserJoinTeamH,
     internalDeleteBindingTeamWithOneMemberH,
