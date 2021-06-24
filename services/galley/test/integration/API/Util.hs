@@ -829,9 +829,10 @@ getConvs u r s = do
 
 -- (should be) equivalent to
 -- listConvs u (ListConversations [] Nothing Nothing)
-listAllConvs :: UserId -> TestM ResponseLBS
+-- (if the schema of ListConversations is correct)
+listAllConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> m ResponseLBS
 listAllConvs u = do
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . path "/list-conversations"
@@ -840,12 +841,12 @@ listAllConvs u = do
       . zType "access"
       . json emptyObject
 
-listConvs :: UserId -> ListConversations -> TestM ResponseLBS
+listConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversations -> m ResponseLBS
 listConvs u req = do
   -- when using servant-client (pending #1605), this would become:
   -- galleyClient <- view tsGalleyClient
   -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . path "/list-conversations"

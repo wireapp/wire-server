@@ -1377,38 +1377,59 @@ testGetRemoteConversations = do
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      remoteConversationResponse =
-        GetConversationsResponse
-          [ Conversation
-              { cnvId = convId,
-                cnvType = RegularConv,
-                cnvCreator = alice,
-                cnvAccess = [],
-                cnvAccessRole = ActivatedAccessRole,
-                cnvName = Just "federated gossip",
-                cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
-                cnvTeam = Nothing,
-                cnvMessageTimer = Nothing,
-                cnvReceiptMode = Nothing
-              }
-          ]
+      mockConversation =
+        Conversation
+          { cnvId = convId,
+            cnvType = RegularConv,
+            cnvCreator = alice,
+            cnvAccess = [],
+            cnvAccessRole = ActivatedAccessRole,
+            cnvName = Just "federated gossip",
+            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
+            cnvTeam = Nothing,
+            cnvMessageTimer = Nothing,
+            cnvReceiptMode = Nothing
+          }
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
   -- test GET /conversations/:domain/:cnv for single conversation
-  (resp, _) <-
+  (respOne, _) <-
     withTempMockFederator
       opts
       remoteDomain
       (const remoteConversationResponse)
       (getConvQualified alice remoteConv)
-  conv :: Conversation <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
+  conv :: Conversation <- responseJsonUnsafe <$> (pure respOne <!! const 200 === statusCode)
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
-    assertEqual "other members should include remoteBob" expected actual
+    assertEqual "getConversation: other members should include remoteBob" expected actual
 
--- test POST /list-conversations
-
--- FUTUREWORK: Do this test with more than one remote domains
+  -- FUTUREWORK: Do this test with more than one remote domains
+  -- test POST /list-conversations
+  (respAll, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const remoteConversationResponse)
+      (listAllConvs alice)
+  convs :: ConversationList Conversation <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
+  liftIO $ do
+    let expected = mockConversation
+    let actual = find ((== convId) . cnvId) (convList convs)
+    assertEqual
+      "name mismatch"
+      (Just $ cnvName expected)
+      (cnvName <$> actual)
+    assertEqual
+      "self member mismatch"
+      (Just . cmSelf $ cnvMembers expected)
+      (cmSelf . cnvMembers <$> actual)
+    assertEqual
+      "other members mismatch"
+      (Just [])
+      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+    assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do
