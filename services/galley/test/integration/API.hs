@@ -519,13 +519,13 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
             QualifiedUserClients $
               Map.fromList
                 [ ( owningDomain,
-                    UserClients . Map.fromList $
+                    Map.fromList $
                       [ (bobUnqualified, Set.singleton bobClient),
                         (chadUnqualified, Set.singleton chadClient2)
                       ]
                   ),
                   ( remoteDomain,
-                    UserClients $ Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
+                    Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
                 ]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
@@ -578,10 +578,10 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
     postOtrMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 201 === statusCode
       let expectedRedundant =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+            QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient)]
           expectedDeleted =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+            QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
       assertTrue_ (eqMismatchQualified mempty expectedRedundant expectedDeleted . responseJsonMaybe)
     liftIO $ do
@@ -663,7 +663,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postOtrMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly (Set.fromList [chadOwningDomain])) !!! do
       const 412 === statusCode
       let expectedMissing =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+            QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
