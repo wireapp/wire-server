@@ -22,7 +22,8 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
-    getClassifiedDomainsFeatureStatus
+    getClassifiedDomainsFeatureStatus,
+    setClassifiedDomainsFeatureStatus
   )
 where
 
@@ -137,3 +138,23 @@ getClassifiedDomainsFeatureStatus tid = do
       fromString $
         "select " <> toCol Public.TeamFeatureClassifiedDomains <> ", classified_domains_domains "
           <> "from team_features where team_id = ?"
+
+setClassifiedDomainsFeatureStatus ::
+  MonadClient m =>
+  TeamId ->
+  TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+  m (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+setClassifiedDomainsFeatureStatus tid status = do
+  let statusValue = Public.tfwcStatus status
+      domains = Public.classifiedDomainsDomains . Public.tfwcConfig $ status
+  retry x5 $ write update (params Quorum (statusValue, domains, tid))
+  pure status
+  where
+    update :: PrepQuery W (TeamFeatureStatusValue, [Domain], TeamId) ()
+    update =
+      fromString $
+        "update team_features set "
+          <> toCol Public.TeamFeatureClassifiedDomains
+          <> " = ?, "
+          <> "classified_domains_domains = ?, "
+          <> "where team_id = ?"
