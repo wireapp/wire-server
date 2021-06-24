@@ -9,6 +9,7 @@ import qualified Data.Set as Set
 import Imports
 import Wire.API.Message
 import Wire.API.User.Client
+import Data.Json.Util (UTCTimeMillis)
 
 data QualifiedMismatch = QualifiedMismatch
   { qmMissing :: QualifiedUserClients,
@@ -16,9 +17,51 @@ data QualifiedMismatch = QualifiedMismatch
     qmDeleted :: QualifiedUserClients
   }
 
-checkMessageClients :: Domain -> UserId -> ClientId -> QualifiedUserClients -> QualifiedNewOtrMessage -> (Bool, QualifiedMismatch)
-checkMessageClients senderDomain senderUser senderClient expectedClients msg =
+mkMessageSendingStatus :: UTCTimeMillis -> QualifiedMismatch -> QualifiedUserClients -> MessageSendingStatus
+mkMessageSendingStatus time mismatch failures =
+  MessageSendingStatus
+    { mssTime = time,
+      mssMissingClients = qmMissing mismatch,
+      mssRedundantClients = qmRedundant mismatch,
+      mssDeletedClients = qmDeleted mismatch,
+      mssFailedToSend = failures
+    }
+
+type RecipientMap a = Map UserId (Map ClientId a)
+
+type QualifiedRecipientMap a = Map Domain (RecipientMap a)
+
+-- A Venn diagram of words in this function:
+--
+--                +-----------------------------------+
+--                |                                   |
+--    +---------->|                 +-----------------+--------------------+
+--    |           |                 |                 |                    | <------+
+--    |           |                 |                 |   Deleted Clients  |        |
+--    |           |                 |                 |                    |        |
+-- Expected       |                 |                 |                    |   Recipients
+-- Clients        |  Missing        | Valid           |       Extra        |
+--                |  Clients        | Clients    +------------Clients------+
+--                |                 |            |    |                    |
+--                |                 |            |    |                    |
+--                |                 |            | Redundant Clients       |
+--                |                 |            |    |                    |
+--                |                 |            |    |                    |
+--                |                 |            |    |                    |
+--                |                 +------------+-------------------------+
+--                |                                   |
+--                +-----------------------------------+
+checkMessageClients ::
+  -- | Sender domain
+  Domain ->
+  -- | Sender User
+  UserId ->
+  QualifiedUserClients ->
+  QualifiedNewOtrMessage ->
+  (Maybe (QualifiedRecipientMap ByteString), QualifiedMismatch)
+checkMessageClients senderDomain senderUser expectedClients msg =
   let recipients = toQualifiedClientMap . qualifiedOtrRecipientsMap . qualifiedNewOtrRecipients $ msg
+      senderClient = qualifiedNewOtrSender msg
       -- Whoever is expected but not in recipients is missing.
       missing = qualifiedDiff expectedClients recipients
       -- Whoever is in recipient but not expected is extra.
@@ -30,13 +73,18 @@ checkMessageClients senderDomain senderUser senderClient expectedClients msg =
       -- wouldn't need a qualifiedDiff.
       deleted = QualifiedUserClients $ qualifiedUserClients extras & nestedKeyFilter (isUserPresent expectedClients)
       -- If sender includes a message for themself, it is considered redandant
-      redandantSender =
+      redundantSender =
         if isUserPresent expectedClients senderDomain senderUser
           then QualifiedUserClients (Map.singleton senderDomain (Map.singleton senderUser (Set.singleton senderClient)))
           else mempty
       -- The clients which are extra but not deleted, must belong to users which
       -- are not in the convesation and hence considered redandant.
-      redandant = qualifiedDiff extras deleted <> redandantSender
+      redundant = qualifiedDiff extras deleted <> redundantSender
+      -- The clients which are recipients but not extra or the sender client are
+      -- considered valid.
+      validClients = qualifiedDiff recipients (extras <> redundantSender)
+      validMessages = selectClients (qualifiedUserClients validClients) (qualifiedUserClientMap . qualifiedOtrRecipientsMap . qualifiedNewOtrRecipients $ msg)
+      -- Resolve whether the message is valid using client mismatch strategy
       usersWithMissingClients = extractUsers missing
       isValidMessage = case qualifiedNewOtrClientMismatchStrategy msg of
         MismatchIgnoreAll -> True
@@ -48,7 +96,7 @@ checkMessageClients senderDomain senderUser senderClient expectedClients msg =
         MismatchReportOnly strictUsers ->
           let strictUsersMisingClients = strictUsers `Set.difference` usersWithMissingClients
            in Set.null strictUsersMisingClients
-   in (isValidMessage, QualifiedMismatch missing redandant deleted)
+   in (if isValidMessage then Just validMessages else Nothing, QualifiedMismatch missing redundant deleted)
   where
     isUserPresent :: QualifiedUserClients -> Domain -> UserId -> Bool
     isUserPresent (QualifiedUserClients cs) d u =
@@ -70,6 +118,10 @@ checkMessageClients senderDomain senderUser senderClient expectedClients msg =
           ^.. (itraversed <.> itraversed)
             . asIndex
             . to (uncurry (flip Qualified))
+
+    -- TODO: I am pretty sure this was different
+    selectClients :: (Ord k1, Ord k2, Ord k3) => Map k1 (Map k2 (Set k3)) -> Map k1 (Map k2 (Map k3 a)) -> Map k1 (Map k2 (Map k3 a))
+    selectClients = Map.intersectionWith (Map.intersectionWith (flip Map.restrictKeys))
 
 qualifiedDiff :: QualifiedUserClients -> QualifiedUserClients -> QualifiedUserClients
 qualifiedDiff (QualifiedUserClients qmapA) (QualifiedUserClients qmapB) =

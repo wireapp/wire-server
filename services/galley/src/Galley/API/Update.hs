@@ -86,6 +86,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
+import qualified Galley.API.Message as MessageAPI
 import qualified Galley.API.Teams as Teams
 import Galley.API.Util
 import Galley.App
@@ -681,9 +682,6 @@ postOtrMessage zusr zcon convDomain cnv msg = do
           newOtrReportMissing = Nothing
         }
 
-    toBase64Text :: ByteString -> Text
-    toBase64Text = Text.decodeUtf8 . B64.encode
-
     translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
     translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch mempty)
     translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch mempty)
@@ -768,6 +766,11 @@ postNewOtrBroadcast usr con val msg = do
 postQualifiedOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postQualifiedOtrMessage protectee mconn convId msg = do
   alive <- Data.isConvAlive convId
+  localDomain <- viewFederationDomain
+  now <- liftIO $ getCurrentTime
+  let nowMillis = toUTCTimeMillis now
+  -- TODO: Test this, fix this, make it a parameters
+  senderDomain <- viewFederationDomain
   if not alive
     then do
       Data.deleteConversation convId
@@ -776,11 +779,29 @@ postQualifiedOtrMessage protectee mconn convId msg = do
       localMembers <- Data.members convId
       let localMemberIds = memId <$> localMembers
       isInternal <- view $ options . optSettings . setIntraListing
-      clts <-
+      localClients <-
         if isInternal
           then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
           else Data.lookupClients localMemberIds
-      undefined
+      let qualifiedLocalClients = Map.singleton localDomain $ Clients.toMap localClients
+      let (mValidMessages, mismatch) =
+            MessageAPI.checkMessageClients
+              senderDomain
+              (legalholdProtectee'2UserId protectee)
+              (Client.QualifiedUserClients qualifiedLocalClients)
+              msg
+      case mValidMessages of
+        Nothing -> Servant.respond $ WithStatus @412 $ MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
+        Just validMessages -> do
+          let qualifiedConv = Qualified convId localDomain
+              qualifiedSender = Qualified (legalholdProtectee'2UserId protectee) senderDomain
+              localValidMessages = Map.findWithDefault mempty localDomain validMessages
+              events =
+                iover
+                  (traverse . itraversed)
+                  (newMessageEvent qualifiedConv qualifiedSender (Public.qualifiedNewOtrSender msg) (Public.qualifiedNewOtrData msg) now)
+                  localValidMessages
+          undefined events
 
 postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage protectee con cnv val msg = do
@@ -797,6 +818,21 @@ postNewOtrMessage protectee con cnv val msg = do
     void . forkIO $ do
       gone <- External.deliver toBots
       mapM_ (deleteBot cnv . botMemId) gone
+
+-- TODO: Implement
+pushMessage ::
+  Bool -> Bool -> Maybe Priority -> UserId -> ClientId -> Galley ()
+pushMessage = undefined
+
+newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> ByteString -> UTCTime -> ClientId -> ByteString -> Event
+newMessageEvent convId sender senderClient dat time recieverClient cipherText =
+  Event OtrMessageAdd convId sender time . EdOtrMessage $
+    OtrMessage
+      { otrSender = senderClient,
+        otrRecipient = recieverClient,
+        otrCiphertext = toBase64Text cipherText,
+        otrData = Just $ toBase64Text dat
+      }
 
 newMessage ::
   Qualified UserId ->
@@ -1343,3 +1379,6 @@ guardLegalholdPolicyConflictsUid self otherClients = do
           -- We add this check here as an extra failsafe.
           Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
           throwM missingLegalholdConsent
+
+toBase64Text :: ByteString -> Text
+toBase64Text = Text.decodeUtf8 . B64.encode
