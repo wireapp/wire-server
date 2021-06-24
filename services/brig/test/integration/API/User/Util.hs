@@ -210,7 +210,7 @@ getUserClientsQualified brig zusr domain uid =
       . paths ["users", toByteString' domain, toByteString' uid, "clients"]
       . zUser zusr
 
-deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> (MonadIO m, MonadHttp m) => m ResponseLBS
+deleteClient :: Brig -> UserId -> ClientId -> Maybe Text -> (MonadIO m, MonadHttp m) => m ResponseLBS
 deleteClient brig u c pw =
   delete $
     brig
