@@ -303,6 +303,9 @@ makeLenses ''FeatureFlags
 -- client apps treat permission bit matrices as opaque role identifiers, so if we add new
 -- permission flags, things will break there.
 --
+-- "Hidden" in "HiddenPerm", therefore, refers to a permission hidden from
+-- clients, thereby making it internal to the backend.
+--
 -- The solution: add new permission bits to 'HiddenPerm', 'HiddenPermissions', and make
 -- 'hasPermission', 'mayGrantPermission' polymorphic.  Now you can check both for the hidden
 -- permission bits and the old ones that we share with the client apps.
@@ -347,6 +350,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           [ ChangeLegalHoldTeamSettings,
             ChangeLegalHoldUserSettings,
             ChangeTeamSearchVisibility,
+            ChangeTeamFeature TeamFeatureClassifiedDomains,
             ChangeTeamFeature TeamFeatureAppLock {- the other features can only be changed in stern -},
             ReadIdp,
             CreateUpdateDeleteIdp,
@@ -364,6 +368,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureValidateSAMLEmails,
           ViewTeamFeature TeamFeatureDigitalSignatures,
           ViewTeamFeature TeamFeatureAppLock,
+          ViewTeamFeature TeamFeatureClassifiedDomains,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

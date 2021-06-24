@@ -299,7 +299,7 @@ instance ToSchema TeamFeatureClassifiedDomainsConfig where
       configProperties :: InsOrdHashMap Text (Referenced Schema)
       configProperties =
         fromList
-          [ ("classifiedDomains", Inline (toSchema (Proxy @[Domain])))
+          [ ("classifiedDomains", Inline . toSchema $ Proxy @[Domain])
           ]
 
 modelTeamFeatureClassifiedDomainsConfig :: Doc.Model
