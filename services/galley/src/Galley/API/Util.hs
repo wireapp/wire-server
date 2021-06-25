@@ -20,7 +20,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow ((&&&))
+import Control.Arrow ((&&&), (***))
 import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
@@ -428,55 +428,52 @@ toRegisterConversation now localDomain Data.Conversation {..} =
         }
 
 -- | The function converts a 'RegisterConversation' value to a
--- 'Wire.API.Conversation.Conversation' value. The obtained value can be used in
--- e.g. creating an 'Event' to be sent out to users informing them that a new
--- conversation has been created.
+-- 'Wire.API.Conversation.Conversation' value for each user. The obtained value
+-- can be used in e.g. creating an 'Event' to be sent out to users informing
+-- them that they were added to a new conversation.
 fromRegisterConversation ::
-  Qualified UserId ->
   RegisterConversation ->
-  Galley Public.Conversation
-fromRegisterConversation qusr MkRegisterConversation {..} = do
-  this <- me rcMembers
-  pure
-    Public.Conversation
-      { cnvId = qUnqualified rcCnvId,
-        cnvType = rcCnvType,
-        -- FUTUREWORK: a UserId from another instance is communicated here, which
-        -- without domain does not make much sense here.
-        cnvCreator = qUnqualified rcOrigUserId,
-        cnvAccess = rcCnvAccess,
-        cnvAccessRole = rcCnvAccessRole,
-        cnvName = rcCnvName,
-        cnvMembers = ConvMembers this (others rcMembers),
-        -- FUTUREWORK: Once conversation IDs become qualified, this information
-        -- should be sent from the hosting Galley and stored here in 'cnvTeam'.
-        cnvTeam = Nothing,
-        cnvMessageTimer = rcMessageTimer,
-        cnvReceiptMode = rcReceiptMode
-      }
+  [(Public.Member, Public.Conversation)]
+fromRegisterConversation MkRegisterConversation {..} =
+  let membersView = fmap (toMember *** Set.toList) . setHoles $ rcMembers
+   in fmap (\(me, others) -> (me, conv me others)) membersView
   where
-    -- Currently this function creates a Member with default conversation attributes
+    setHoles :: Ord a => Set a -> [(a, Set a)]
+    setHoles s = foldMap (\x -> [(x, Set.delete x s)]) s
+   -- Currently this function creates a Member with default conversation attributes
     -- FUTUREWORK(federation): retrieve member's conversation attributes (muted, archived, etc) here once supported by the database schema.
-    me :: Set OtherMember -> Galley Public.Member
-    me s =
-      case find ((== qusr) . omQualifiedId) . Set.toList $ s of
-        Nothing -> throwM convMemberNotFound
-        Just v ->
-          pure
-            Public.Member
-              { memId = qUnqualified . omQualifiedId $ v,
-                memService = omService v,
-                memOtrMuted = False,
-                memOtrMutedStatus = Nothing,
-                memOtrMutedRef = Nothing,
-                memOtrArchived = False,
-                memOtrArchivedRef = Nothing,
-                memHidden = False,
-                memHiddenRef = Nothing,
-                memConvRoleName = omConvRoleName v
-              }
-    others :: Set OtherMember -> [OtherMember]
-    others = foldMap (\om -> guard (omQualifiedId om /= qusr) $> om)
+    toMember :: OtherMember -> Public.Member
+    toMember m =
+      Public.Member
+        { memId = qUnqualified . omQualifiedId $ m,
+          memService = omService m,
+          memOtrMuted = False,
+          memOtrMutedStatus = Nothing,
+          memOtrMutedRef = Nothing,
+          memOtrArchived = False,
+          memOtrArchivedRef = Nothing,
+          memHidden = False,
+          memHiddenRef = Nothing,
+          memConvRoleName = omConvRoleName m
+        }
+    conv :: Public.Member -> [OtherMember] -> Public.Conversation
+    conv this others =
+      Public.Conversation
+        { cnvId = qUnqualified rcCnvId,
+          cnvType = rcCnvType,
+          -- FUTUREWORK: a UserId from another instance is communicated here, which
+          -- without domain does not make much sense here.
+          cnvCreator = qUnqualified rcOrigUserId,
+          cnvAccess = rcCnvAccess,
+          cnvAccessRole = rcCnvAccessRole,
+          cnvName = rcCnvName,
+          cnvMembers = ConvMembers this others,
+          -- FUTUREWORK: Once conversation IDs become qualified, this information
+          -- should be sent from the hosting Galley and stored here in 'cnvTeam'.
+          cnvTeam = Nothing,
+          cnvMessageTimer = rcMessageTimer,
+          cnvReceiptMode = rcReceiptMode
+        }
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::

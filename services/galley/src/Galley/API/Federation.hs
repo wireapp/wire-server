@@ -26,7 +26,7 @@ import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
-import Wire.API.Conversation.Member (OtherMember (..))
+import Wire.API.Conversation.Member (OtherMember (..), memId)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
@@ -50,8 +50,7 @@ registerConversation rc = do
       localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
     Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
-  forM_ localUsers $ \usr -> do
-    c <- fromRegisterConversation usr rc
+  forM_ (fromRegisterConversation rc) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate
@@ -59,7 +58,7 @@ registerConversation rc = do
             (rcOrigUserId rc)
             (rcTime rc)
             (EdConversation c)
-    pushConversationEvent event [qUnqualified usr] []
+    pushConversationEvent event [memId mem] []
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
