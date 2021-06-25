@@ -493,6 +493,7 @@ testRemoveClientShortPwd brig = do
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 400)
+    (err ^. at "label") @?= Just (String "bad-request")
     (err ^. at "message") @?= Just (String "Error in $.password: outside range [6, 1024]")
   where
     client ty lk =
