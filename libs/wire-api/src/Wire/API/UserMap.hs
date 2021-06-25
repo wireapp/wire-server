@@ -61,7 +61,7 @@ instance (Typeable a, ToSchema a, ToJSON a, Arbitrary a) => ToSchema (UserMap (S
     mapSch <- declareSchema (Proxy @(Map UserId (Set a)))
     let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
     return $
-      NamedSchema (Just $ "UserMap (Set " <> valueTypeName <> ")") $
+      NamedSchema (Just $ "UserMap_Set_" <> valueTypeName) $
         mapSch
           & description ?~ "Map of UserId to (Set " <> valueTypeName <> ")"
           & example ?~ toJSON (Map.singleton (generateExample @UserId) (Set.singleton (generateExample @a)))
@@ -70,9 +70,9 @@ instance (Typeable a, ToSchema (UserMap a)) => ToSchema (QualifiedUserMap a) whe
   declareNamedSchema _ = do
     mapSch <- declareSchema (Proxy @(Map Domain (UserMap a)))
     let userMapSchema = toSchema (Proxy @(UserMap a))
-    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
+    let valueTypeName = Text.replace " " "_" . Text.pack $ show $ typeRep $ Proxy @a
     return $
-      NamedSchema (Just $ "QualifiedUserMap (" <> valueTypeName <> ")") $
+      NamedSchema (Just $ "QualifiedUserMap_" <> valueTypeName) $
         mapSch
           & description ?~ "Map of Domain to (UserMap (" <> valueTypeName <> "))."
           & example

@@ -26,9 +26,11 @@ import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (^.))
+import qualified Data.Aeson as Aeson
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
+import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Galley.API as API
 import Galley.API.Federation (federationSitemap)
@@ -39,11 +41,13 @@ import qualified Galley.Data as Data
 import Galley.Options (Opts, optGalley)
 import qualified Galley.Queue as Q
 import Imports
+import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
+import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application)
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
-import Servant (Proxy (Proxy))
+import Servant (Context ((:.)), Proxy (Proxy))
 import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.API as Servant
 import Servant.API.Generic (ToServantApi, genericApi)
@@ -94,14 +98,35 @@ mkApp o = do
     app e r k = runGalley e r (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e r =
-      Servant.serve
+      Servant.serveWithContext
         (Proxy @CombinedAPI)
+        (customFormatters :. Servant.EmptyContext)
         ( Servant.hoistServer (Proxy @GalleyAPI.ServantAPI) (toServantHandler e) API.servantSitemap
             :<|> Servant.hoistServer (Proxy @Internal.ServantAPI) (toServantHandler e) Internal.servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
         r
+
+customFormatters :: Servant.ErrorFormatters
+customFormatters =
+  Servant.defaultErrorFormatters
+    { Servant.bodyParserErrorFormatter = bodyParserErrorFormatter
+    }
+
+bodyParserErrorFormatter :: Servant.ErrorFormatter
+bodyParserErrorFormatter _ _ errMsg =
+  Servant.ServerError
+    { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
+      Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
+      Servant.errBody =
+        Aeson.encode $
+          Aeson.object
+            [ "code" Aeson..= Aeson.Number 400,
+              "message" Aeson..= errMsg
+            ],
+      Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
+    }
 
 type CombinedAPI = GalleyAPI.ServantAPI :<|> Internal.ServantAPI :<|> ToServantApi FederationGalley.Api :<|> Servant.Raw
 
