@@ -92,15 +92,9 @@ getConversation zusr domain cnv = do
     else getRemoteConversation zusr (Qualified cnv domain)
 
 getRemoteConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
-getRemoteConversation zusr (Qualified convId remoteDomain) = do
-  localDomain <- viewFederationDomain
-  let qualifiedZUser = Qualified zusr localDomain
-      req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
-      rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
-  -- we expect the remote galley to make adequate checks on conversation
-  -- membership and here we just pass through the reponse
-  conversations <- runFederatedGalley remoteDomain rpc
-  case gcresConvs conversations of
+getRemoteConversation zusr qConvId = do
+  conversations <- getRemoteConversations zusr [qConvId]
+  case conversations of
     [] -> throwM convNotFound
     [conv] -> pure conv
     _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
