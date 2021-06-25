@@ -35,8 +35,9 @@ import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
+import qualified Data.Map as Map
 import Data.Proxy
-import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import Data.Qualified (Qualified (..), partitionQualified, partitionRemoteOrLocalIds)
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -51,6 +52,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
+import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
@@ -104,20 +106,15 @@ getRemoteConversation zusr (Qualified convId remoteDomain) = do
     _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
 getRemoteConversations :: UserId -> [Qualified ConvId] -> Galley [Public.Conversation]
-getRemoteConversations zusr _remoteConvs = do
+getRemoteConversations zusr remoteConvs = do
   localDomain <- viewFederationDomain
-  let _qualifiedZUser = Qualified zusr localDomain
-  return []
-
--- let req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
---     rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
--- -- we expect the remote galley to make adequate checks on conversation
--- -- membership and here we just pass through the reponse
--- conversations <- runFederatedGalley remoteDomain rpc
--- case gcresConvs conversations of
---   [] -> throwM convNotFound
---   [conv] -> pure conv
---   _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
+  let qualifiedZUser = Qualified zusr localDomain
+  let convsByDomain = Map.assocs $ partitionQualified remoteConvs
+  convs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> do
+    let req = FederatedGalley.GetConversationsRequest qualifiedZUser convIds
+        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+    gcresConvs <$> runFederatedGalley remoteDomain rpc
+  pure $ concat convs
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do
