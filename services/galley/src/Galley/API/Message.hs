@@ -7,6 +7,7 @@ import Data.Json.Util (UTCTimeMillis)
 import qualified Data.Map as Map
 import Data.Qualified (Qualified (Qualified))
 import qualified Data.Set as Set
+import Data.Set.Lens
 import Imports
 import Wire.API.Message
 import Wire.API.User.Client
@@ -37,21 +38,23 @@ mkMessageSendingStatus time mismatch failures =
 
 type QualifiedRecipient = (Domain, Recipient)
 
+qualifiedRecipientToUser :: QualifiedRecipient -> Qualified UserId
+qualifiedRecipientToUser (dom, (uid, _)) = Qualified uid dom
+
 type Recipient = (UserId, ClientId)
 
 type RecipientMap a = Map UserId (Map ClientId a)
 
 type RecipientSet = Map UserId (Set ClientId)
 
-itraverseRecipients :: IndexedTraversal' Recipient (RecipientMap a) a
-itraverseRecipients = itraversed <.> itraversed
-
 type QualifiedRecipientMap a = Map Domain (RecipientMap a)
 
-itraverseQualifiedRecipients :: IndexedTraversal' QualifiedRecipient (QualifiedRecipientMap a) a
-itraverseQualifiedRecipients = itraversed <.> itraverseRecipients
-
 type QualifiedRecipientSet = Map Domain RecipientSet
+
+isUserPresent :: QualifiedRecipientSet -> Domain -> UserId -> Bool
+isUserPresent qrs d u =
+  let memberUsers = Map.keysSet $ Map.findWithDefault mempty d qrs
+   in Set.member u memberUsers
 
 qualifiedRecipientMapToSet :: QualifiedRecipientMap a -> QualifiedRecipientSet
 qualifiedRecipientMapToSet = Map.map (Map.map Map.keysSet)
@@ -137,11 +140,6 @@ checkMessageClients senderDomain senderUser (QualifiedUserClients expected) msg 
         mkQualifiedMismatch missing redundant deleted
       )
   where
-    isUserPresent :: QualifiedRecipientSet -> Domain -> UserId -> Bool
-    isUserPresent qrs d u =
-      let memberUsers = Map.keysSet $ Map.findWithDefault mempty d qrs
-       in Set.member u memberUsers
-
     nestedKeyFilter :: (a -> b -> Bool) -> Map a (Map b c) -> Map a (Map b c)
     nestedKeyFilter predicate =
       Map.filterWithKey
@@ -151,12 +149,10 @@ checkMessageClients senderDomain senderUser (QualifiedUserClients expected) msg 
         )
 
     extractUsers :: QualifiedRecipientSet -> Set (Qualified UserId)
-    extractUsers qmap =
-      Set.fromList $
-        qmap
-          ^.. (itraversed <.> itraversed)
-            . asIndex
-            . to (uncurry (flip Qualified))
+    extractUsers =
+      setOf $
+        reindexed (uncurry (flip Qualified)) (itraversed <.> itraversed)
+          . asIndex
 
     -- TODO: I am pretty sure this was different
     selectClients :: QualifiedRecipientSet -> QualifiedRecipientMap a -> QualifiedRecipientMap a
