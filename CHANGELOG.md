@@ -24,6 +24,10 @@
 
 * Fix validation errors in Swagger documentation (#1625).
 
+## Bug fixes and other updates
+
+* Restore old behaviour for parse errors in request bodies (#1628, #1629).
+
 # 2021-06-23
 
 ## API Changes
