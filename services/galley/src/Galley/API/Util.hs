@@ -20,7 +20,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow ((&&&), (***))
+import Control.Arrow (second, (&&&))
 import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
@@ -437,8 +437,12 @@ fromRegisterConversation ::
   RegisterConversation ->
   [(Public.Member, Public.Conversation)]
 fromRegisterConversation d MkRegisterConversation {..} =
-  let membersView = fmap (toMember *** Set.toList) . setHoles . Set.filter inDomain $ rcMembers
-   in fmap (\(me, others) -> (me, conv me others)) membersView
+  let membersView = fmap (second Set.toList) . setHoles $ rcMembers
+   in foldMap
+        ( \(me, others) ->
+            guard (inDomain me) $> let mem = toMember me in (mem, conv mem others)
+        )
+        membersView
   where
     inDomain :: OtherMember -> Bool
     inDomain = (== d) . qDomain . omQualifiedId
