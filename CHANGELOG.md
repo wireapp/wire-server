@@ -19,7 +19,7 @@
 # Internal changes
 
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
-* [Federation] Let a receiving backend decide membership specifics of its users
+* [Federation] Let a receiving backend decide conversation attribute specifics of its users
   added to a new conversation via `POST /federation/register-conversation` (#1622)
 
 # 2021-06-23
