@@ -821,10 +821,11 @@ postQualifiedOtrMessage protectee mconn convId msg = runUnionT $ do
           (legalholdProtectee'2UserId protectee)
           (Client.QualifiedUserClients qualifiedLocalClients)
           msg
+      otrResult = MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
   validMessages <- case mValidMessages of
     Nothing -> do
       lift $ guardQualifiedLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (MessageAPI.qmMissing mismatch)
-      throwUnion $ WithStatus @412 $ MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
+      throwUnion $ WithStatus @412 otrResult
     Just v -> pure v
   let qualifiedConv = Qualified convId localDomain
       qualifiedSender = Qualified (legalholdProtectee'2UserId protectee) senderDomain
@@ -841,7 +842,8 @@ postQualifiedOtrMessage protectee mconn convId msg = runUnionT $ do
       pushes =
         events & itraversed <.> itraversed
           %@~ newMessagePush localMemberMap mconn metadata
-  undefined pushes
+  lift $ runMessagePush convId (pushes ^. traversed . traversed)
+  throwUnion $ WithStatus @201 otrResult
 
 postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage protectee con cnv val msg = do
@@ -878,7 +880,7 @@ qualifiedNewOtrMetadata msg =
 
 data MessagePush = MessagePush
   { userPushes :: [Push],
-    botPushes :: [BotMember]
+    botPushes :: [(BotMember, Event)]
   }
 
 instance Semigroup MessagePush where
@@ -890,8 +892,15 @@ instance Monoid MessagePush where
 newUserPush :: Push -> MessagePush
 newUserPush p = MessagePush {userPushes = pure p, botPushes = mempty}
 
-newBotPush :: BotMember -> MessagePush
-newBotPush b = MessagePush {userPushes = mempty, botPushes = pure b}
+newBotPush :: BotMember -> Event -> MessagePush
+newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
+
+runMessagePush :: ConvId -> MessagePush -> Galley ()
+runMessagePush cnv mp = do
+  pushSome (userPushes mp)
+  void . forkIO $ do
+    gone <- External.deliver (botPushes mp)
+    mapM_ (deleteBot cnv . botMemId) gone
 
 -- TODO: Implement
 _pushMessage :: MessageMetadata -> UserId -> ClientId -> Galley ()
@@ -920,7 +929,7 @@ newMessagePush members mconn mm (k, client) e = fromMaybe mempty $ do
   newBotMessagePush member <|> newUserMessagePush member
   where
     newBotMessagePush :: LocalMember -> Maybe MessagePush
-    newBotMessagePush = fmap newBotPush . newBotMember
+    newBotMessagePush member = newBotPush <$> newBotMember member <*> pure e
     newUserMessagePush :: LocalMember -> Maybe MessagePush
     newUserMessagePush member =
       fmap newUserPush $
