@@ -35,6 +35,7 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
+import qualified Cassandra as Cql
 import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Data.Aeson hiding (json)
@@ -54,6 +55,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
+import qualified Galley.Data as Cql
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
@@ -1373,7 +1375,7 @@ testGetRemoteConversations = do
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
-      remoteConv = Qualified convId remoteDomain
+      remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
@@ -1398,12 +1400,16 @@ testGetRemoteConversations = do
       opts
       remoteDomain
       (const remoteConversationResponse)
-      (getConvQualified alice remoteConv)
+      (getConvQualified alice remoteConvId)
   conv :: Conversation <- responseJsonUnsafe <$> (pure respOne <!! const 200 === statusCode)
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
     assertEqual "getConversation: other members should include remoteBob" expected actual
+
+  -- insert remote conversationId for alice
+  cassState <- view tsCass
+  Cql.runClient cassState $ Cql.addLocalMembersToRemoteConv [alice] remoteConvId
 
   -- FUTUREWORK: Do this test with more than one remote domains
   -- test POST /list-conversations
