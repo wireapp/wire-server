@@ -50,7 +50,7 @@ registerConversation rc = do
       localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
     Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
-  forM_ (fromRegisterConversation rc) $ \(mem, c) -> do
+  forM_ (fromRegisterConversation localDomain rc) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate

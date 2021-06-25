@@ -428,19 +428,23 @@ toRegisterConversation now localDomain Data.Conversation {..} =
         }
 
 -- | The function converts a 'RegisterConversation' value to a
--- 'Wire.API.Conversation.Conversation' value for each user. The obtained value
--- can be used in e.g. creating an 'Event' to be sent out to users informing
--- them that they were added to a new conversation.
+-- 'Wire.API.Conversation.Conversation' value for each user that is on the given
+-- domain/backend. The obtained value can be used in e.g. creating an 'Event' to
+-- be sent out to users informing them that they were added to a new
+-- conversation.
 fromRegisterConversation ::
+  Domain ->
   RegisterConversation ->
   [(Public.Member, Public.Conversation)]
-fromRegisterConversation MkRegisterConversation {..} =
-  let membersView = fmap (toMember *** Set.toList) . setHoles $ rcMembers
+fromRegisterConversation d MkRegisterConversation {..} =
+  let membersView = fmap (toMember *** Set.toList) . setHoles . Set.filter inDomain $ rcMembers
    in fmap (\(me, others) -> (me, conv me others)) membersView
   where
+    inDomain :: OtherMember -> Bool
+    inDomain = (== d) . qDomain . omQualifiedId
     setHoles :: Ord a => Set a -> [(a, Set a)]
     setHoles s = foldMap (\x -> [(x, Set.delete x s)]) s
-   -- Currently this function creates a Member with default conversation attributes
+    -- Currently this function creates a Member with default conversation attributes
     -- FUTUREWORK(federation): retrieve member's conversation attributes (muted, archived, etc) here once supported by the database schema.
     toMember :: OtherMember -> Public.Member
     toMember m =
