@@ -159,7 +159,8 @@ bodyParserErrorFormatter _ _ errMsg =
         Aeson.encode $
           Aeson.object
             [ "code" Aeson..= Aeson.Number 400,
-              "message" Aeson..= errMsg
+              "message" Aeson..= errMsg,
+              "label" Aeson..= ("bad-request" :: Text)
             ],
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
