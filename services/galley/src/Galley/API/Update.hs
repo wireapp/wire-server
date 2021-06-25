@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -43,6 +45,7 @@ module Galley.API.Update
     UpdateResponses,
 
     -- * Talking
+    postQualifiedOtrMessage,
     postOtrMessage,
     postOtrMessageUnqualified,
     postOtrBroadcastH,
@@ -63,10 +66,11 @@ where
 
 import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
+import Cassandra (MonadClient)
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.State
+import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
@@ -112,7 +116,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import Servant (respond)
+import qualified Servant
 import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
 import qualified System.Logger.Class as Log
@@ -763,45 +767,70 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage qusr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
+-- TODO: move to a separate module
+newtype UnionT as m x = UnionT {unUnionT :: ExceptT (Union as) m x}
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadTrans,
+      MonadThrow,
+      MonadIO,
+      MonadClient
+    )
+
+instance MonadReader a m => MonadReader a (UnionT as m) where
+  ask = UnionT ask
+  local f = UnionT . local f . unUnionT
+
+instance Log.MonadLogger m => Log.MonadLogger (UnionT as m) where
+  log l m = lift $ Log.log l m
+
+throwUnion :: (Monad m, IsMember a as) => a -> UnionT as m x
+throwUnion = UnionT . throwE . inject . I
+
+runUnionT :: Functor m => UnionT as m Void -> m (Union as)
+runUnionT = fmap (either id absurd) . runExceptT . unUnionT
+
 postQualifiedOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postQualifiedOtrMessage protectee mconn convId msg = do
+postQualifiedOtrMessage protectee _mconn convId msg = runUnionT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
   now <- liftIO $ getCurrentTime
   let nowMillis = toUTCTimeMillis now
   -- TODO: Test this, fix this, make it a parameters
   senderDomain <- viewFederationDomain
-  if not alive
-    then do
-      Data.deleteConversation convId
-      Servant.respond ErrorDescription.convNotFound
-    else do
-      localMembers <- Data.members convId
-      let localMemberIds = memId <$> localMembers
-      isInternal <- view $ options . optSettings . setIntraListing
-      localClients <-
-        if isInternal
-          then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-          else Data.lookupClients localMemberIds
-      let qualifiedLocalClients = Map.singleton localDomain $ Clients.toMap localClients
-      let (mValidMessages, mismatch) =
-            MessageAPI.checkMessageClients
-              senderDomain
-              (legalholdProtectee'2UserId protectee)
-              (Client.QualifiedUserClients qualifiedLocalClients)
-              msg
-      case mValidMessages of
-        Nothing -> Servant.respond $ WithStatus @412 $ MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
-        Just validMessages -> do
-          let qualifiedConv = Qualified convId localDomain
-              qualifiedSender = Qualified (legalholdProtectee'2UserId protectee) senderDomain
-              localValidMessages = Map.findWithDefault mempty localDomain validMessages
-              events =
-                iover
-                  (traverse . itraversed)
-                  (newMessageEvent qualifiedConv qualifiedSender (Public.qualifiedNewOtrSender msg) (Public.qualifiedNewOtrData msg) now)
-                  localValidMessages
-          undefined events
+  unless alive $ do
+    Data.deleteConversation convId
+    throwUnion ErrorDescription.convNotFound
+
+  localMembers <- Data.members convId
+  let localMemberIds = memId <$> localMembers
+  isInternal <- view $ options . optSettings . setIntraListing
+  localClients <-
+    lift $
+      if isInternal
+        then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
+        else Data.lookupClients localMemberIds
+  let qualifiedLocalClients = Map.singleton localDomain $ Clients.toMap localClients
+  let (mValidMessages, mismatch) =
+        MessageAPI.checkMessageClients
+          senderDomain
+          (legalholdProtectee'2UserId protectee)
+          (Client.QualifiedUserClients qualifiedLocalClients)
+          msg
+  validMessages <- case mValidMessages of
+    Nothing -> throwUnion $ WithStatus @412 $ MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
+    Just v -> pure v
+  let qualifiedConv = Qualified convId localDomain
+      qualifiedSender = Qualified (legalholdProtectee'2UserId protectee) senderDomain
+      localValidMessages = Map.findWithDefault mempty localDomain validMessages
+      events =
+        iover
+          (traverse . itraversed)
+          (newMessageEvent qualifiedConv qualifiedSender (Public.qualifiedNewOtrSender msg) (Public.qualifiedNewOtrData msg) now)
+          localValidMessages
+  undefined events
 
 postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage protectee con cnv val msg = do
@@ -820,9 +849,9 @@ postNewOtrMessage protectee con cnv val msg = do
       mapM_ (deleteBot cnv . botMemId) gone
 
 -- TODO: Implement
-pushMessage ::
+_pushMessage ::
   Bool -> Bool -> Maybe Priority -> UserId -> ClientId -> Galley ()
-pushMessage = undefined
+_pushMessage = undefined
 
 newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> ByteString -> UTCTime -> ClientId -> ByteString -> Event
 newMessageEvent convId sender senderClient dat time recieverClient cipherText =
@@ -1131,29 +1160,6 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       when (mems ^. teamMemberListType == ListTruncated) $
         throwM broadcastLimitExceeded
       pure (mems ^. teamMembers)
-
-validateQualifiedOtrRecipients ::
-  LegalholdProtectee' ->
-  ClientId ->
-  ConvId ->
-  Public.QualifiedOtrRecipients ->
-  Public.ClientMismatchStrategy ->
-  UTCTime ->
-  ExceptT (Union GalleyAPI.PostOtrResponses) Galley [(LocalMember, ClientId, Text)]
-validateQualifiedOtrRecipients protectee senderClient convId recipients missingStrategy msgTime = do
-  alive <- Data.isConvAlive convId
-  unless alive $ do
-    lift $ Data.deleteConversation convId
-    throwError (inject $ I ErrorDescription.convNotFound)
-  localMembers <- lift $ Data.members convId
-  let localMemberIds = memId <$> localMembers
-  isInternal <- view $ options . optSettings . setIntraListing
-  clts <-
-    lift $
-      if isInternal
-        then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
-        else Data.lookupClients localMemberIds
-  undefined
 
 withValidOtrRecipients ::
   LegalholdProtectee' ->
