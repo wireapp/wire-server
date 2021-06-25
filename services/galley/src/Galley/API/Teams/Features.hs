@@ -238,6 +238,7 @@ getClassifiedDomainsInternal uid tid =
   getFeatureStatus @'Public.TeamFeatureClassifiedDomains (const getter) (DoAuth uid) tid
   where
     getter :: Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-    getter = TeamFeatures.getClassifiedDomainsFeatureStatus tid >>= \case
-      Nothing -> throwM (undefined :: Error) -- TODO(md): there should probably be an HTTP error for the case when there's nothing in the database
-      Just v -> pure v
+    getter =
+      TeamFeatures.getClassifiedDomainsFeatureStatus tid >>= \case
+        Nothing -> throwM (undefined :: Error) -- TODO(md): there should probably be an HTTP error for the case when there's nothing in the database
+        Just v -> pure v
