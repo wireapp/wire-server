@@ -45,6 +45,7 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (Random (randomRIO))
+import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
 import qualified Data.Metrics.Servant as Metrics
@@ -52,6 +53,8 @@ import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import Imports hiding (head)
+import qualified Network.HTTP.Media as HTTPMedia
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
@@ -60,7 +63,7 @@ import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
-import Servant ((:<|>) (..))
+import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import Servant.API.Generic (ToServantApi, genericApi)
 import System.Logger (msg, val, (.=), (~~))
@@ -118,8 +121,9 @@ mkApp o = do
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
     servantApp e =
-      Servant.serve
+      Servant.serveWithContext
         (Proxy @ServantCombinedAPI)
+        (customFormatters :. Servant.EmptyContext)
         ( swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
             :<|> Servant.hoistServer (Proxy @IAPI.ServantAPI) (toServantHandler e) IAPI.servantSitemap
@@ -139,6 +143,26 @@ lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
+
+customFormatters :: Servant.ErrorFormatters
+customFormatters =
+  Servant.defaultErrorFormatters
+    { Servant.bodyParserErrorFormatter = bodyParserErrorFormatter
+    }
+
+bodyParserErrorFormatter :: Servant.ErrorFormatter
+bodyParserErrorFormatter _ _ errMsg =
+  Servant.ServerError
+    { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
+      Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
+      Servant.errBody =
+        Aeson.encode $
+          Aeson.object
+            [ "code" Aeson..= Aeson.Number 400,
+              "message" Aeson..= errMsg
+            ],
+      Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
+    }
 
 pendingActivationCleanup :: AppIO ()
 pendingActivationCleanup = do

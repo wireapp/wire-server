@@ -706,7 +706,10 @@ someLastPrekeys =
   ]
 
 defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword = PlainTextPassword defPasswordText
+
+defPasswordText :: Text
+defPasswordText = "secret"
 
 defWrongPassword :: PlainTextPassword
 defWrongPassword = PlainTextPassword "not secret"
