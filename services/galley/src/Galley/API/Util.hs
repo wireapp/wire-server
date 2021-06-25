@@ -476,7 +476,7 @@ fromRegisterConversation qusr MkRegisterConversation {..} = do
                 memConvRoleName = omConvRoleName v
               }
     others :: Set OtherMember -> [OtherMember]
-    others = foldMap (\om -> guard (omQualifiedId om == qusr) $> om)
+    others = foldMap (\om -> guard (omQualifiedId om /= qusr) $> om)
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::
