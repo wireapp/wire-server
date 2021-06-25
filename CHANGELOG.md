@@ -16,6 +16,10 @@
 
 # Unreleased
 
+## API Changes
+
+* New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
+
 ## Internal changes
 
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
