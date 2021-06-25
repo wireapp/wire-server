@@ -102,7 +102,7 @@ qualifiedSchema ::
   ValueSchema NamedSwaggerDoc a ->
   ValueSchema NamedSwaggerDoc (Qualified a)
 qualifiedSchema name fieldName sch =
-  object ("Qualified " <> name) $
+  object ("Qualified_" <> name) $
     Qualified
       <$> qUnqualified .= field fieldName sch
       <*> qDomain .= field "domain" schema

@@ -269,7 +269,7 @@ field = fieldOver id
 
 -- | A schema for a JSON object with a single optional field.
 optField ::
-  HasField doc' doc =>
+  (HasOpt doc, HasField doc' doc) =>
   Text ->
   -- | The value to use when serialising Nothing.
   Maybe A.Value ->
@@ -311,7 +311,7 @@ fieldOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
 -- See documentation of 'fieldOver' for more details.
 optFieldOver ::
   forall doc' doc v v' a b.
-  HasField doc' doc =>
+  (HasOpt doc, HasField doc' doc) =>
   Lens v v' A.Object A.Value ->
   Text ->
   Maybe A.Value ->
@@ -330,7 +330,7 @@ optFieldOver l name def sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
       pure [name A..= v]
     w Nothing = pure (maybeToList (fmap (name A..=) def))
 
-    s = mkField name (schemaDoc sch)
+    s = mkOpt (mkField name (schemaDoc sch))
 
 -- | Like 'field', but apply an arbitrary function to the
 -- documentation of the field.
@@ -345,7 +345,7 @@ fieldWithDocModifier name modify sch = field name (over doc modify sch)
 -- | Like 'optField', but apply an arbitrary function to the
 -- documentation of the field.
 optFieldWithDocModifier ::
-  HasField doc' doc =>
+  (HasOpt doc, HasField doc' doc) =>
   Text ->
   Maybe A.Value ->
   (doc' -> doc') ->

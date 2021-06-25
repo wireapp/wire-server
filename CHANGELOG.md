@@ -20,6 +20,10 @@
 
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
 
+## Documentation
+
+* Fix validation errors in Swagger documentation (#1625).
+
 # 2021-06-23
 
 ## API Changes
