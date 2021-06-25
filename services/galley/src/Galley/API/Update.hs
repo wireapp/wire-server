@@ -820,7 +820,9 @@ postQualifiedOtrMessage protectee _mconn convId msg = runUnionT $ do
           (Client.QualifiedUserClients qualifiedLocalClients)
           msg
   validMessages <- case mValidMessages of
-    Nothing -> throwUnion $ WithStatus @412 $ MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
+    Nothing -> do
+      lift $ guardQualifiedLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (MessageAPI.qmMissing mismatch)
+      throwUnion $ WithStatus @412 $ MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
     Just v -> pure v
   let qualifiedConv = Qualified convId localDomain
       qualifiedSender = Qualified (legalholdProtectee'2UserId protectee) senderDomain
@@ -1294,6 +1296,15 @@ checkOtrRecipients usr sid prs vms vcs val now
       OtrIgnoreAllMissing -> Clients.nil
       OtrReportMissing us -> Clients.filter (`Set.member` us) miss
       OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
+
+guardQualifiedLegalholdPolicyConflicts :: LegalholdProtectee -> Client.QualifiedUserClients -> Galley ()
+guardQualifiedLegalholdPolicyConflicts protectee qclients = do
+  localDomain <- viewFederationDomain
+  guardLegalholdPolicyConflicts protectee
+    . UserClients
+    . Map.findWithDefault mempty localDomain
+    . Client.qualifiedUserClients
+    $ qclients
 
 -- | If user has legalhold status `no_consent` or has client devices that have no legalhold
 -- capability, and some of the clients she is about to get connected are LH devices, respond
