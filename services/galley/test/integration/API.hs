@@ -846,7 +846,7 @@ getConvsOk = do
     const 200 === statusCode
     const [toUUID usr] === map (toUUID . cnvId) . decodeConvList
 
--- same test than getConvsOk, but using the listConversations endpoint
+-- same test as getConvsOk, but using the listConversations endpoint
 listConvsOk :: TestM ()
 listConvsOk = do
   usr <- randomUser
@@ -889,7 +889,7 @@ getConvsOk2 = do
       (Just [])
       ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
 
--- same test than getConvsOk2, but using the listConversations endpoint
+-- same test as getConvsOk2, but using the listConversations endpoint
 listConvsOk2 :: TestM ()
 listConvsOk2 = do
   localDomain <- viewFederationDomain

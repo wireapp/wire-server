@@ -38,7 +38,7 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import qualified Data.Map as Map
 import Data.Proxy
-import Data.Qualified (Qualified (..), partitionQualified, partitionRemoteOrLocalIds)
+import Data.Qualified (Qualified (..), Remote, partitionQualified, partitionRemote, partitionRemoteOrLocalIds, toRemote)
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -90,21 +90,21 @@ getConversation zusr domain cnv = do
   localDomain <- viewFederationDomain
   if domain == localDomain
     then getUnqualifiedConversation zusr cnv
-    else getRemoteConversation zusr (Qualified cnv domain)
+    else getRemoteConversation zusr (toRemote $ Qualified cnv domain)
 
-getRemoteConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
-getRemoteConversation zusr qConvId = do
-  conversations <- getRemoteConversations zusr [qConvId]
+getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
+getRemoteConversation zusr remoteConvId = do
+  conversations <- getRemoteConversations zusr [remoteConvId]
   case conversations of
     [] -> throwM convNotFound
     [conv] -> pure conv
     _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
-getRemoteConversations :: UserId -> [Qualified ConvId] -> Galley [Public.Conversation]
+getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
 getRemoteConversations zusr remoteConvs = do
   localDomain <- viewFederationDomain
   let qualifiedZUser = Qualified zusr localDomain
-  let convsByDomain = Map.assocs $ partitionQualified remoteConvs
+  let convsByDomain = partitionRemote remoteConvs
   convs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> do
     let req = FederatedGalley.GetConversationsRequest qualifiedZUser convIds
         rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req

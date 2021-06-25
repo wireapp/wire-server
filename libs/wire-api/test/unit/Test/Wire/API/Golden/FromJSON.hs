@@ -24,6 +24,7 @@ import Test.Wire.API.Golden.Generated.NewConvUnmanaged_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
+import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Runner
 import Wire.API.User.Client (RmClient)
 
@@ -31,7 +32,7 @@ tests :: TestTree
 tests =
   testGroup
     "FromJSON golden tests"
-    [ testCase ("NewOtrMessage") $
+    [ testCase "NewOtrMessage" $
         testFromJSONObjects
           [(testObject_NewOtrMessage_user_1, "testObject_NewOtrMessage_user_1.json")],
       testCase "SimpleMember" $
@@ -46,5 +47,8 @@ tests =
         testFromJSONObjects
           [(testObject_RmClient_user_4, "testObject_RmClient_user_4.json")],
       testCase "RmClient failure" $
-        testFromJSONFailure @RmClient "testObject_RmClient_failure.json"
+        testFromJSONFailure @RmClient "testObject_RmClient_failure.json",
+      testCase "ListConversations" $
+        testFromJSONObjects
+          [(testObject_ListConversations_1, "testObject_ListConversations_1.json")]
     ]

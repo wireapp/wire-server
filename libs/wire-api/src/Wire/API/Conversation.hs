@@ -250,7 +250,7 @@ instance FromJSON a => FromJSON (ConversationList a) where
       <*> o A..: "has_more"
 
 -- | Used on the POST /list-conversations endpoint
--- TODO: add to golden tests
+-- FUTUREWORK: add to golden tests (how to generate them?)
 data ListConversations = ListConversations
   { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
     lStartId :: Maybe (Qualified ConvId),
@@ -265,9 +265,9 @@ instance ToSchema ListConversations where
       "ListConversations"
       (description ?~ "A request to list some or all of a user's conversations, including remote ones")
       $ ListConversations
-        <$> lax (lQualifiedIds .= opt (field "qualified_ids" (nonEmptyArray schema)))
-        <*> lax (lStartId .= opt (field "start_id" schema))
-        <*> lax (lSize .= opt (field "size" schema))
+        <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
+        <*> lStartId .= optField "start_id" Nothing schema
+        <*> lSize .= optField "size" Nothing schema
 
 --------------------------------------------------------------------------------
 -- Conversation properties
