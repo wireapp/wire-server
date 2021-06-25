@@ -25,6 +25,7 @@ import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Runner
+import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
 tests =
@@ -38,8 +39,12 @@ tests =
           [(testObject_SimpleMember_user_1, "testObject_SimpleMember_user_1.json")],
       testCase "NewConv" $
         testFromJSONObjects
-          [(testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json")],
+          [ (testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json"),
+            (testObject_NewConvUnmanaged_user_21, "testObject_NewConvUnmanaged_user_21.json")
+          ],
       testCase "RmClient" $
         testFromJSONObjects
-          [(testObject_RmClient_user_4, "testObject_RmClient_user_4.json")]
+          [(testObject_RmClient_user_4, "testObject_RmClient_user_4.json")],
+      testCase "RmClient failure" $
+        testFromJSONFailure @RmClient "testObject_RmClient_failure.json"
     ]

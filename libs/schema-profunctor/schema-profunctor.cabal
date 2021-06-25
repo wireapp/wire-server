@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f1d1bde721143e6e1f8346c434abffcc73f4d5c58eb40d463f337805bbfff766
+-- hash: 0ae8ea501bb947c4d9d743cdd9ea56a104dcc8791c62288e99bff1e8399c8ebb
 
 name:           schema-profunctor
 version:        0.1.0
@@ -62,4 +62,5 @@ test-suite schemas-tests
     , swagger2
     , tasty
     , tasty-hunit
+    , text
   default-language: Haskell2010

@@ -264,7 +264,7 @@ data Api routes = Api
         :> "messages"
         :> ReqBody '[Servant.JSON, Proto] Public.NewOtrMessage
         :> UVerb 'POST '[Servant.JSON] PostOtrResponsesUnqualified,
-    postOtrMessage ::
+    postProteusMessage ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
         :> Description PostOtrDescription
@@ -273,7 +273,7 @@ data Api routes = Api
         :> "conversations"
         :> Capture "domain" Domain
         :> Capture "cnv" ConvId
-        :> "otr"
+        :> "proteus"
         :> "messages"
         :> ReqBody '[Proto] Public.QualifiedNewOtrMessage
         :> UVerb 'POST '[Servant.JSON] PostOtrResponses
