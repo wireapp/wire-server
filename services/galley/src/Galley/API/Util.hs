@@ -455,6 +455,8 @@ fromRegisterConversation qusr MkRegisterConversation {..} = do
         cnvReceiptMode = rcReceiptMode
       }
   where
+    -- Currently this function creates a Member with default conversation attributes
+    -- FUTUREWORK(federation): retrieve member's conversation attributes (muted, archived, etc) here once supported by the database schema. 
     me :: Set OtherMember -> Galley Public.Member
     me s =
       case find ((== qusr) . omQualifiedId) . Set.toList $ s of
