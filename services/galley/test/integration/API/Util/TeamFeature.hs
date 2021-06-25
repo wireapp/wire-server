@@ -78,7 +78,7 @@ getTeamFeatureFlagInternal feature tid = do
   g <- view tsGalley
   getTeamFeatureFlagInternalWithGalley feature g tid
 
-getTeamFeatureFlagInternalWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> HasCallStack => TeamId -> m ResponseLBS
+getTeamFeatureFlagInternalWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> m ResponseLBS
 getTeamFeatureFlagInternalWithGalley feature g tid = do
   get $
     g
