@@ -456,7 +456,7 @@ fromRegisterConversation qusr MkRegisterConversation {..} = do
       }
   where
     -- Currently this function creates a Member with default conversation attributes
-    -- FUTUREWORK(federation): retrieve member's conversation attributes (muted, archived, etc) here once supported by the database schema. 
+    -- FUTUREWORK(federation): retrieve member's conversation attributes (muted, archived, etc) here once supported by the database schema.
     me :: Set OtherMember -> Galley Public.Member
     me s =
       case find ((== qusr) . omQualifiedId) . Set.toList $ s of
@@ -476,10 +476,7 @@ fromRegisterConversation qusr MkRegisterConversation {..} = do
                 memConvRoleName = omConvRoleName v
               }
     others :: Set OtherMember -> [OtherMember]
-    others = foldl' addOthers []
-    addOthers :: [OtherMember] -> OtherMember -> [OtherMember]
-    addOthers acc c | omQualifiedId c == qusr = acc
-    addOthers acc c | otherwise = c : acc
+    others = foldMap (\om -> guard (omQualifiedId om == qusr) $> om)
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::

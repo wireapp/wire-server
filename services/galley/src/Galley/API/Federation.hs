@@ -17,8 +17,6 @@
 module Galley.API.Federation where
 
 import Data.Containers.ListUtils (nubOrd)
-import Data.Domain (Domain)
-import Data.Id (UserId)
 import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
@@ -45,7 +43,10 @@ federationSitemap =
 registerConversation :: RegisterConversation -> Galley ()
 registerConversation rc = do
   localDomain <- viewFederationDomain
-  let localUsers = getLocals localDomain (rcMembers rc)
+  let localUsers =
+        foldMap (\om -> guard (qDomain (omQualifiedId om) == localDomain) $> omQualifiedId om)
+          . rcMembers
+          $ rc
       localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
     Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
@@ -59,14 +60,6 @@ registerConversation rc = do
             (rcTime rc)
             (EdConversation c)
     pushConversationEvent event [qUnqualified usr] []
-  where
-    getLocals :: Domain -> Set OtherMember -> [Qualified UserId]
-    getLocals d = foldl' (addInDomain d) []
-    addInDomain :: Domain -> [Qualified UserId] -> OtherMember -> [Qualified UserId]
-    addInDomain d acc m =
-      if ((== d) . qDomain . omQualifiedId) m
-        then omQualifiedId m : acc
-        else acc
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
