@@ -239,7 +239,7 @@ instance FromJSON FeatureFlags where
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
-      <*> obj .: (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
+      <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
 
 instance ToJSON FeatureFlags where
   toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains) =
@@ -279,17 +279,6 @@ instance FromJSON FeatureTeamSearchVisibility where
 instance ToJSON FeatureTeamSearchVisibility where
   toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
   toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
-
-instance ToJSON FeatureClassifiedDomains where
-  toJSON FeatureClassifiedDomainsDisabled = object
-    [ "status" .= "disabled",
-    ]
-  toJSON FeatureClassifiedDomainsDisabledByDefault = String "disabled-by-default"
-
-instance FromJSON FeatureClassifiedDomains where
-  parseJSON (String "enabled-by-default") = pure FeatureClassifiedDomainsEnabledByDefault
-  parseJSON (String "disabled-by-default") = pure FeatureClassifiedDomainsDisabledByDefault
-  parseJSON bad = fail $ "FeatureClassifiedDomains: " <> cs (encode bad)
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags

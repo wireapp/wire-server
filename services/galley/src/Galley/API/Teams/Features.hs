@@ -30,6 +30,7 @@ module Galley.API.Teams.Features
     setValidateSAMLEmailsInternal,
     getDigitalSignaturesInternal,
     setDigitalSignaturesInternal,
+    getClassifiedDomainsInternal,
     getAppLockInternal,
     setAppLockInternal,
     DoAuth (..),
@@ -107,7 +108,7 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
-        getStatus @'Public.TeamFeatureClassifiedDomains (getClassifiedDomainsInternal uid)
+        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal
       ]
   where
     getStatus ::
@@ -157,6 +158,11 @@ getSSOStatusInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSSO $ do
     FeatureSSOEnabledByDefault -> Public.TeamFeatureEnabled
     FeatureSSODisabledByDefault -> Public.TeamFeatureDisabled
 
+setSSOStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
+setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
+  Public.TeamFeatureDisabled -> const (throwM disableSsoNotImplemented)
+  Public.TeamFeatureEnabled -> const (pure ())
+
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ do
   view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility) <&> \case
@@ -175,12 +181,18 @@ getValidateSAMLEmailsInternal =
   getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $
     pure Public.TeamFeatureDisabled
 
+setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
+setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
+
 getDigitalSignaturesInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
 getDigitalSignaturesInternal =
   -- FUTUREWORK: we may also want to get a default from the server config file here, like for
   -- sso, and team search visibility.
   getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ do
     pure Public.TeamFeatureDisabled
+
+setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
+setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
@@ -223,8 +235,9 @@ setAppLockInternal tid status = do
   TeamFeatures.setApplockFeatureStatus tid status
 
 getClassifiedDomainsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-getClassifiedDomainsInternal tid =
-  --
-  Defaults defaultStatus <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
-  -- get status from config file
-  -- maybe also from bbbbd
+getClassifiedDomainsInternal _tid = undefined
+
+-- --
+-- Defaults defaultStatus <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
+-- -- get status from config file
+-- -- maybe also from bbbbd

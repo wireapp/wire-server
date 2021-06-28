@@ -131,7 +131,7 @@ getClassifiedDomainsFeatureStatus tid = do
   mTuple <- retry x1 q
   pure $
     mTuple >>= \(mbStatusValue, mbDomains) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.MkTeamFeatureClassifiedDomainsConfig <$> mbDomains)
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.TeamFeatureClassifiedDomainsConfig <$> mbDomains)
   where
     select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe [Domain])
     select =

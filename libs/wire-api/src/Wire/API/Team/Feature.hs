@@ -32,6 +32,7 @@ module Wire.API.Team.Feature
     TeamFeatureStatusWithConfig (..),
     deprecatedFeatureName,
     defaultAppLockStatus,
+    defaultClassifiedDomains,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -206,9 +207,10 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
-class FeatureHasConfig (a :: TeamFeatureName) where
+class FeatureHasConfig (a :: TeamFeatureName)
 
 instance FeatureHasConfig 'TeamFeatureAppLock
+
 instance FeatureHasConfig 'TeamFeatureClassifiedDomains
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
@@ -289,7 +291,7 @@ instance ToJSON cfg => ToJSON (TeamFeatureStatusWithConfig cfg) where
 newtype TeamFeatureClassifiedDomainsConfig = TeamFeatureClassifiedDomainsConfig
   { classifiedDomainsDomains :: [Domain]
   }
-  deriving stock (Generic)
+  deriving stock (Show, Eq, Generic)
 
 -- TODO(md): Make sure this is in line with the model at
 -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/376439791/Use%2Bcase%2BClassified%2Bdomains?focusedCommentId=384861096#How-clients-fetch-the-list-of-classified-domains
@@ -323,9 +325,7 @@ deriving via
     FromJSON TeamFeatureClassifiedDomainsConfig
 
 defaultClassifiedDomains :: TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-defaultClassifiedDomains =
-  TeamFeatureClassifiedDomainsConfig []
-
+defaultClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureDisabled (TeamFeatureClassifiedDomainsConfig [])
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig

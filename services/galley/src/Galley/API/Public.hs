@@ -465,7 +465,6 @@ sitemap = do
   mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal (Just Features.setAppLockInternal)
   mkFeatureGetAndPutRoute @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal Nothing
 
-
   -- Custom Backend API -------------------------------------------------
 
   get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
@@ -948,4 +947,5 @@ mkFeatureGetAndPutRoute getter mbSetter = do
 
   for_ mbSetter $ \setter -> do
     mkPutRoute True (toByteString' featureName) setter
-    mkPutRoute False `mapM_` Public.deprecatedFeatureName featureName setter
+
+-- mkPutRoute False `mapM_` Public.deprecatedFeatureName featureName setter
