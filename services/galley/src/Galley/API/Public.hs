@@ -447,16 +447,6 @@ sitemap = do
       description "Team ID"
     response 200 "All feature statuses" end
 
-  -- get "/teams/:tid/features/classifiedDomains" (continue Features.getClassifiedDomainsH) $
-  --   zauthUserId
-  --     .&. capture "tid"
-  --     .&. accept "application" "json"
-  -- document "GET" "getClassifiedDomains" $ do
-  --   summary "Shows a list of classified domains"
-  --   parameter Path "tid" bytes' $
-  --     description "Team ID"
-  --   response 200 "List of classified domains" end
-
   mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Nothing
   mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal (Just Features.setLegalholdStatusInternal)
   mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal (Just Features.setTeamSearchVisibilityAvailableInternal)
