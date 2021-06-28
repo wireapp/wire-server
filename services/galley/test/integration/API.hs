@@ -107,6 +107,7 @@ tests s =
           test s "paginate through conversation ids" paginateConvIds,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
+          test s "page through list-conversations (local conversations only)" listConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
           test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
@@ -985,6 +986,33 @@ getConvsPagingOk = do
       let ids1 = convList <$> responseJsonUnsafe r1
       liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
       r2 <- getConvs u (Right <$> start) (Just step) <!! const 200 === statusCode
+      let ids3 = map cnvId . convList <$> responseJsonUnsafe r2
+      liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
+      liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
+      return $ ids1 >>= listToMaybe . reverse
+
+-- same test as getConvsPagingOk, but using the listConversations endpoint
+-- (only tests pagination behaviour for local conversations)
+-- FUTUREWORK: pagination for remote conversations
+listConvsPagingOk :: TestM ()
+listConvsPagingOk = do
+  [ally, bill, carl] <- randomUsers 3
+  connectUsers ally (list1 bill [carl])
+  replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
+  walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
+  walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  where
+    walk u = foldM_ (next u 3) Nothing
+    next u step start n = do
+      -- FUTUREWORK: support an endpoint to get qualified conversation IDs
+      -- (without all the conversation metadata)
+      r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
+      let ids1 = convList <$> responseJsonUnsafe r1
+      liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
+      localDomain <- viewFederationDomain
+      let requestBody = ListConversations Nothing (flip Qualified localDomain <$> start) (Just (unsafeRange step))
+      r2 <- listConvs u requestBody <!! const 200 === statusCode
       let ids3 = map cnvId . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)

@@ -159,8 +159,8 @@ getConversationsInternal user mids mstart msize = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
--- TODO: test for pagination using local conversation Ids
 -- FUTUREWORK: pagination support for remote conversations, or should *all* of them be returned always?
+-- FUTUREWORK: optimize cassandra requests when retrieving conversations (avoid large IN queries, prefer parallel/chunked requests)
 listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
 listConversations user (Public.ListConversations mIds qstart msize) = do
   localDomain <- viewFederationDomain
@@ -192,7 +192,6 @@ listConversations user (Public.ListConversations mIds qstart msize) = do
 
     size = fromMaybe (toRange (Proxy @32)) msize
 
-    -- TODO ensure max amount is 32 conversations
     getIdsAndMore :: [ConvId] -> Galley (Bool, [ConvId])
     getIdsAndMore ids = (False,) <$> Data.conversationIdsOf user ids
 
