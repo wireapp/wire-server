@@ -286,7 +286,7 @@ instance ToJSON cfg => ToJSON (TeamFeatureStatusWithConfig cfg) where
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig
 
-newtype TeamFeatureClassifiedDomainsConfig = MkTeamFeatureClassifiedDomainsConfig
+newtype TeamFeatureClassifiedDomainsConfig = TeamFeatureClassifiedDomainsConfig
   { classifiedDomainsDomains :: [Domain]
   }
   deriving stock (Generic)
@@ -321,6 +321,11 @@ deriving via
   (StripCamel "classifiedDomains" TeamFeatureClassifiedDomainsConfig)
   instance
     FromJSON TeamFeatureClassifiedDomainsConfig
+
+defaultClassifiedDomains :: TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
+defaultClassifiedDomains =
+  TeamFeatureClassifiedDomainsConfig []
+
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig

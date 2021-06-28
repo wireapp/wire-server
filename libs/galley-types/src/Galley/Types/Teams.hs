@@ -239,7 +239,7 @@ instance FromJSON FeatureFlags where
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
-      <*> obj .: "classifiedDomains"
+      <*> obj .: (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
 
 instance ToJSON FeatureFlags where
   toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains) =
