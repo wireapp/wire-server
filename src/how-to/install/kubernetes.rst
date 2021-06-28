@@ -9,7 +9,13 @@ How to set up your hosts.ini file
 
 Assuming a single virtual machine with a public IP address running Ubuntu 18.04, with at least 5 CPU cores and at least 8 GB of memory.
 
-From ``wire-server-deploy/ansible``:
+Move to ``wire-server-deploy/ansible``:
+
+.. code:: shell
+
+  cd ansible/
+
+Then:
 
 .. code:: shell
 
