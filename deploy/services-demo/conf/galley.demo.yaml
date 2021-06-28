@@ -39,7 +39,10 @@ settings:
         config:
           enforceAppLock: false
           inactivityTimeoutSecs: 60
-    classifiedDomains: disabled-by-default
+    classifiedDomains:
+      status: enabled
+      config:
+        domains: ["wire.com"]
 
   federationDomain: example.com
 
