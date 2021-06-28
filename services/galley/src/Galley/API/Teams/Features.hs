@@ -19,7 +19,6 @@ module Galley.API.Teams.Features
   ( getFeatureStatus,
     setFeatureStatus,
     getAllFeaturesH,
-    getClassifiedDomainsH,
     getSSOStatusInternal,
     setSSOStatusInternal,
     getLegalholdStatusInternal,
@@ -122,14 +121,6 @@ getAllFeatures uid tid = do
       status <- getFeatureStatus @a getter (DoAuth uid) tid
       let feature = Public.knownTeamFeatureName @a
       pure $ (cs (toByteString' feature) Aeson..= status)
-
-getClassifiedDomainsH :: UserId ::: TeamId ::: JSON -> Galley Response
-getClassifiedDomainsH (uid ::: tid ::: _) =
-  json <$> getClassifiedDomains uid tid
-
-getClassifiedDomains :: UserId -> TeamId -> Galley () -- TODO: see what type to return here, but probably something like TeamFeatureClassifiedDomainsConfig + TeamFeatureStatusValue
-getClassifiedDomains _uid _tid = do
-  undefined
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName).
