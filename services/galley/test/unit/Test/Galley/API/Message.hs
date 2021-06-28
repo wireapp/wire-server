@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,26 +15,31 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Test.Galley.API.Message where
 
 import Imports
-import qualified Test.Galley.API
-import qualified Test.Galley.API.Message
-import qualified Test.Galley.Intra.User
-import qualified Test.Galley.Mapping
-import qualified Test.Galley.Roundtrip
 import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
-main :: IO ()
-main =
-  defaultMain . testGroup "Tests"
-    =<< sequence
-      [ pure Test.Galley.API.tests,
-        pure Test.Galley.API.Message.tests,
-        pure Test.Galley.Intra.User.tests,
-        pure Test.Galley.Mapping.tests,
-        Test.Galley.Roundtrip.tests
-      ]
+tests :: TestTree
+tests =
+  testGroup
+    "Galley.API.Message"
+    [ testGroup
+        "checkMessageClients"
+        [checkMessageClientSuccess]
+    ]
+
+-- checkMessageClients ::
+--   -- | Sender domain
+--   Domain ->
+--   -- | Sender User
+--   UserId ->
+--   QualifiedRecipientSet ->
+--   QualifiedNewOtrMessage ->
+--   (Maybe (QualifiedRecipientMap ByteString), QualifiedMismatch)
+
+checkMessageClientSuccess :: TestTree
+checkMessageClientSuccess = testCase "success" $ do
+  let expected = Map.singleton

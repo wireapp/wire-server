@@ -102,14 +102,14 @@ qualifiedRecipientSetSingleton dom uid cid =
 --    |           |                 |                 |                    |        |
 -- Expected       |                 |                 |                    |   Recipients
 -- Clients        |  Missing        | Valid           |       Extra        |
---                |  Clients        | Clients    +------------Clients------+
---                |                 |            |    |                    |
---                |                 |            |    |                    |
---                |                 |            | Redundant Clients       |
---                |                 |            |    |                    |
---                |                 |            |    |                    |
---                |                 |            |    |                    |
---                |                 +------------+-------------------------+
+--                |  Clients        | Clients         +-------Clients------+----------+
+--                |                 |                 |                    |          |
+--                |                 |                 |                    |          |
+--                |                 |                 |       Redundant Clients     <------- Sender Client
+--                |                 |                 |                    |          |
+--                |                 |                 |                    |          |
+--                |                 |                 |                    |          |
+--                |                 +--------------------------------------+----------+
 --                |                                   |
 --                +-----------------------------------+
 checkMessageClients ::
@@ -124,7 +124,11 @@ checkMessageClients senderDomain senderUser expected msg =
   let senderClient = qualifiedNewOtrSender msg
       -- Recipients provided in the message.
       recipientMap =
-        qualifiedUserClientMap
+        -- we temporarely ignore remote users here to make this function behave
+        -- the same as its unqualified counterpart
+        -- TODO: remove this filter after we have implemented remote client discovery
+        Map.filterWithKey (\dom _ -> dom == senderDomain)
+          . qualifiedUserClientMap
           . qualifiedOtrRecipientsMap
           . qualifiedNewOtrRecipients
           $ msg

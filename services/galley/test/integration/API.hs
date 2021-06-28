@@ -494,7 +494,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
   chadClient2 <- randomClient (qUnqualified chadOwningDomain) (someLastPrekeys !! 2)
   deeId <- randomId
-  deeClient <- liftIO $ generate arbitrary
+  -- deeClient <- liftIO $ generate arbitrary
   let remoteDomain = Domain "far-away.example.com"
       deeRemote = Qualified deeId remoteDomain
 
@@ -523,10 +523,10 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                       [ (bobUnqualified, Set.singleton bobClient),
                         (chadUnqualified, Set.singleton chadClient2)
                       ]
-                  ),
-                  ( remoteDomain,
-                    Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
+                  -- ( remoteDomain,
+                  --   Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
+                  -- )
                 ]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
