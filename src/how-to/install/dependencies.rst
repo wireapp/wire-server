@@ -70,3 +70,7 @@ directory to have all the dependencies and commands available needed for the dep
    # Inside the container
    bash-4.4# ansible --version
    ansible 2.9.12
+
+Once you have gone through with either of these options, you can move on to `installing kubernetes </how-to/install/kubernetes.html>`__
+
+
