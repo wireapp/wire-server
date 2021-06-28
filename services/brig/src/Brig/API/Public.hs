@@ -53,12 +53,13 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (%~), (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
+import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
@@ -123,7 +124,11 @@ swaggerDocsAPI =
     (BrigAPI.swagger <> GalleyAPI.swaggerDoc <> LegalHoldAPI.swaggerDoc <> SparAPI.swaggerDoc)
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ desc
+      & S.security %~ nub
+      & S.definitions . traverse %~ sanitise
   where
+    sanitise :: S.Schema -> S.Schema
+    sanitise = (S.properties . traverse . S._Inline %~ sanitise) . (S.required %~ nubOrd)
     desc =
       Text.pack
         [QQ.i|
