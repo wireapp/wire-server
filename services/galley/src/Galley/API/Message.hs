@@ -104,6 +104,7 @@ type QualifiedRecipientSet = Set (Domain, UserId, ClientId)
 --                |                 +--------------------------------------+----------+
 --                |                                   |
 --                +-----------------------------------+
+-- TODO: Refactor expected to be room, derive expected from room and strategy
 checkMessageClients ::
   -- | Sender
   (Domain, UserId, ClientId) ->
