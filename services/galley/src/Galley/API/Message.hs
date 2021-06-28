@@ -117,10 +117,10 @@ checkMessageClients ::
   Domain ->
   -- | Sender User
   UserId ->
-  QualifiedUserClients ->
+  QualifiedRecipientSet ->
   QualifiedNewOtrMessage ->
   (Maybe (QualifiedRecipientMap ByteString), QualifiedMismatch)
-checkMessageClients senderDomain senderUser (QualifiedUserClients expected) msg =
+checkMessageClients senderDomain senderUser expected msg =
   let senderClient = qualifiedNewOtrSender msg
       -- Recipients provided in the message.
       recipientMap =
@@ -220,12 +220,16 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
       if isInternal
         then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
         else Data.lookupClients localMemberIds
-  let qualifiedLocalClients = Map.singleton localDomain $ Clients.toMap localClients
+  let qualifiedLocalClients =
+        Map.singleton localDomain
+          . Map.delete sender
+          . Clients.toMap
+          $ localClients
   let (mValidMessages, mismatch) =
         checkMessageClients
           senderDomain
           sender
-          (QualifiedUserClients qualifiedLocalClients)
+          qualifiedLocalClients
           msg
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty
 
