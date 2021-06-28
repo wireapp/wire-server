@@ -58,6 +58,9 @@ putTeamSearchVisibilityAvailableInternal g tid statusValue =
     tid
     (Public.TeamFeatureStatusNoConfig statusValue)
 
+getClassifiedDomainsAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getClassifiedDomainsAvailable = getTeamFeatureFlagWithGalley Public.TeamFeatureClassifiedDomains
+
 putLegalHoldEnabledInternal' ::
   HasCallStack =>
   (Request -> Request) ->

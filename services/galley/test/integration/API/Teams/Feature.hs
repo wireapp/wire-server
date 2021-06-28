@@ -41,7 +41,8 @@ tests s =
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures,
-      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails
+      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails,
+      test s "Classified Domains" testClassifiedDomains
     ]
 
 testSSO :: TestM ()
@@ -171,6 +172,31 @@ testSearchVisibility = do
     getTeamSearchVisibility tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
 
+testClassifiedDomains :: TestM ()
+testClassifiedDomains = do
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  tid <- Util.createNonBindingTeam "classified domains" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
+  -- let getClassifiedDomains ::
+  --       (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+  --       TeamId ->
+  --       Public.TeamFeatureStatusValue ->
+  --       m ()
+  --     getClassifiedDomains teamid expected =
+  --       Util.getClassifiedDomainsAvailable g owner teamid !!! do
+  --         statusCode === const 200
+  --         responseJsonEither === const (Right . Public.TeamFeatureStatusNoConfig $ expected)
+  let getClassifiedDomains :: HasCallStack => Public.TeamFeatureStatusWithConfig cfg -> TestM ()
+      getClassifiedDomains = assertFlagWithConfig @'Public.TeamFeatureClassifiedDomains $ Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
+
+  getClassifiedDomains $ Public.TeamFeatureStatusWithConfig
+    { Public.tfwcStatus = Public.TeamFeatureDisabled,
+      Public.tfwcConfig = Public.MkTeamFeatureClassifiedDomainsConfig []
+    }
+
 testSimpleFlag ::
   forall (a :: Public.TeamFeatureName).
   ( HasCallStack,
@@ -228,3 +254,22 @@ assertFlagNoConfig res expected = do
         . responseJsonEither @(Public.TeamFeatureStatus a)
       )
       === const (Right expected)
+
+assertFlagWithConfig ::
+  forall (a :: Public.TeamFeatureName) cfg .
+  ( HasCallStack,
+    Typeable a,
+    Public.FeatureHasConfig a,
+    FromJSON (Public.TeamFeatureStatus a),
+    Public.KnownTeamFeatureName a
+  ) =>
+  TestM ResponseLBS ->
+  Public.TeamFeatureStatus a ->
+  TestM ()
+assertFlagWithConfig response expected = do
+  r <- response
+  let rJson = responseJsonEither @(Public.TeamFeatureStatus a)
+  pure r !!! do
+    statusCode === const 200
+    let v = responseJsonEither @(Public.TeamFeatureStatus a) === const (Right expected)
+    fmap Public.tfwcStatus v === const (Right . Public.tfwcStatus $ expected)

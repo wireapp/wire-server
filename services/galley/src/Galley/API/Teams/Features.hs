@@ -157,11 +157,6 @@ getSSOStatusInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSSO $ do
     FeatureSSOEnabledByDefault -> Public.TeamFeatureEnabled
     FeatureSSODisabledByDefault -> Public.TeamFeatureDisabled
 
-setSSOStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
-setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
-  Public.TeamFeatureDisabled -> const (throwM disableSsoNotImplemented)
-  Public.TeamFeatureEnabled -> const (pure ())
-
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ do
   view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility) <&> \case
@@ -180,18 +175,12 @@ getValidateSAMLEmailsInternal =
   getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $
     pure Public.TeamFeatureDisabled
 
-setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
-setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
-
 getDigitalSignaturesInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
 getDigitalSignaturesInternal =
   -- FUTUREWORK: we may also want to get a default from the server config file here, like for
   -- sso, and team search visibility.
   getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ do
     pure Public.TeamFeatureDisabled
-
-setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
-setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
@@ -233,12 +222,9 @@ setAppLockInternal tid status = do
     throwM inactivityTimeoutTooLow
   TeamFeatures.setApplockFeatureStatus tid status
 
-getClassifiedDomainsInternal :: UserId -> TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-getClassifiedDomainsInternal uid tid =
-  getFeatureStatus @'Public.TeamFeatureClassifiedDomains (const getter) (DoAuth uid) tid
-  where
-    getter :: Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-    getter =
-      TeamFeatures.getClassifiedDomainsFeatureStatus tid >>= \case
-        Nothing -> throwM (undefined :: Error) -- TODO(md): there should probably be an HTTP error for the case when there's nothing in the database
-        Just v -> pure v
+getClassifiedDomainsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+getClassifiedDomainsInternal tid =
+  --
+  Defaults defaultStatus <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
+  -- get status from config file
+  -- maybe also from bbbbd

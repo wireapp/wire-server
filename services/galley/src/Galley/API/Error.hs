@@ -274,3 +274,6 @@ federationNotEnabled qualifiedIds =
   where
     idType = cs (show (typeRep @a))
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
+
+classifiedDomainsNotEnabled :: Error
+classifiedDomainsNotEnabled = mkError status403 "classified-domains-not-enabled" "Classified domains are not available for this team"

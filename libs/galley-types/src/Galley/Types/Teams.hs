@@ -196,7 +196,7 @@ data FeatureFlags = FeatureFlags
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
     _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
-    _flagClassifiedDomains :: !FeatureClassifiedDomains
+    _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains)
   }
   deriving (Eq, Show, Generic)
 
@@ -229,11 +229,6 @@ data FeatureLegalHold
 data FeatureTeamSearchVisibility
   = FeatureTeamSearchVisibilityEnabledByDefault
   | FeatureTeamSearchVisibilityDisabledByDefault
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
-data FeatureClassifiedDomains
-  = FeatureClassifiedDomainsEnabledByDefault
-  | FeatureClassifiedDomainsDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 -- NOTE: This is used only in the config and thus YAML... camelcase
@@ -286,7 +281,9 @@ instance ToJSON FeatureTeamSearchVisibility where
   toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
 
 instance ToJSON FeatureClassifiedDomains where
-  toJSON FeatureClassifiedDomainsEnabledByDefault = String "enabled-by-default"
+  toJSON FeatureClassifiedDomainsDisabled = object
+    [ "status" .= "disabled",
+    ]
   toJSON FeatureClassifiedDomainsDisabledByDefault = String "disabled-by-default"
 
 instance FromJSON FeatureClassifiedDomains where
@@ -309,6 +306,7 @@ makeLenses ''FeatureFlags
 -- The solution: add new permission bits to 'HiddenPerm', 'HiddenPermissions', and make
 -- 'hasPermission', 'mayGrantPermission' polymorphic.  Now you can check both for the hidden
 -- permission bits and the old ones that we share with the client apps.
+-- TODO(md): explain why hidden
 
 -- | See Note [hidden team roles]
 data HiddenPerm

@@ -447,22 +447,24 @@ sitemap = do
       description "Team ID"
     response 200 "All feature statuses" end
 
-  get "/teams/:tid/features/classifiedDomains" (continue Features.getClassifiedDomainsH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getClassifiedDomains" $ do
-    summary "Shows a list of classified domains"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    response 200 "List of classified domains" end
+  -- get "/teams/:tid/features/classifiedDomains" (continue Features.getClassifiedDomainsH) $
+  --   zauthUserId
+  --     .&. capture "tid"
+  --     .&. accept "application" "json"
+  -- document "GET" "getClassifiedDomains" $ do
+  --   summary "Shows a list of classified domains"
+  --   parameter Path "tid" bytes' $
+  --     description "Team ID"
+  --   response 200 "List of classified domains" end
 
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Features.setSSOStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Nothing
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal (Just Features.setLegalholdStatusInternal)
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal (Just Features.setTeamSearchVisibilityAvailableInternal)
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Nothing
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Nothing
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal (Just Features.setAppLockInternal)
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal Nothing
+
 
   -- Custom Backend API -------------------------------------------------
 
@@ -900,9 +902,9 @@ mkFeatureGetAndPutRoute ::
     FromJSON (Public.TeamFeatureStatus a)
   ) =>
   (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
+  (Maybe (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a))) ->
   Routes ApiBuilder Galley ()
-mkFeatureGetAndPutRoute getter setter = do
+mkFeatureGetAndPutRoute getter mbSetter = do
   let featureName = Public.knownTeamFeatureName @a
 
   let getHandler :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -924,13 +926,13 @@ mkFeatureGetAndPutRoute getter setter = do
   mkGetRoute True (toByteString' featureName)
   mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName
 
-  let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-      putHandler (uid ::: tid ::: req ::: _) = do
-        status <- fromJsonBody req
-        res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
-        pure $ json res & Network.Wai.Utilities.setStatus status200
+  let mkPutRoute makeDocumentation name setter = do
+        let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
+            putHandler (uid ::: tid ::: req ::: _) = do
+              status <- fromJsonBody req
+              res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
+              pure $ json res & Network.Wai.Utilities.setStatus status200
 
-  let mkPutRoute makeDocumentation name = do
         put ("/teams/:tid/features/" <> name) (continue putHandler) $
           zauthUserId
             .&. capture "tid"
@@ -944,5 +946,6 @@ mkFeatureGetAndPutRoute getter setter = do
               description "JSON body"
             response 204 "Team feature status" end
 
-  mkPutRoute True (toByteString' featureName)
-  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName
+  for_ mbSetter $ \setter -> do
+    mkPutRoute True (toByteString' featureName) setter
+    mkPutRoute False `mapM_` Public.deprecatedFeatureName featureName setter

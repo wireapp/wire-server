@@ -25,6 +25,7 @@ module Wire.API.Team.Feature
     TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
     FeatureHasNoConfig,
+    FeatureHasConfig,
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
@@ -205,6 +206,11 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
+class FeatureHasConfig (a :: TeamFeatureName) where
+
+instance FeatureHasConfig 'TeamFeatureAppLock
+instance FeatureHasConfig 'TeamFeatureClassifiedDomains
+
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
 modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
@@ -294,12 +300,11 @@ instance ToSchema TeamFeatureClassifiedDomainsConfig where
         mempty
           & type_ .~ Just SwaggerObject
           & properties .~ configProperties
-          & required .~ ["domains"]
     where
       configProperties :: InsOrdHashMap Text (Referenced Schema)
       configProperties =
         fromList
-          [ ("classifiedDomains", Inline . toSchema $ Proxy @[Domain])
+          [ ("domains", Inline . toSchema $ Proxy @[Domain])
           ]
 
 modelTeamFeatureClassifiedDomainsConfig :: Doc.Model
