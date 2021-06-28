@@ -235,9 +235,5 @@ setAppLockInternal tid status = do
   TeamFeatures.setApplockFeatureStatus tid status
 
 getClassifiedDomainsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-getClassifiedDomainsInternal _tid = undefined
-
--- --
--- Defaults defaultStatus <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
--- -- get status from config file
--- -- maybe also from bbbbd
+getClassifiedDomainsInternal _tid =
+  view (options . optSettings . setFeatureFlags . flagClassifiedDomains)
