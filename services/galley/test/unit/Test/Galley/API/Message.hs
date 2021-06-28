@@ -17,9 +17,8 @@
 
 module Test.Galley.API.Message where
 
-import Data.Coerce (coerce)
 import Data.Domain (Domain)
-import Data.Id (UserId)
+import Data.Id (ClientId, UserId)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Galley.API.Message
@@ -27,7 +26,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Message
-import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), qualifiedUserClientMap)
+import Wire.API.User.Client (QualifiedUserClients (..))
 
 tests :: TestTree
 tests =
@@ -41,45 +40,23 @@ tests =
         ]
     ]
 
+type QualifiedUserClient = (Domain, UserId, ClientId)
+
 checkMessageClientSuccess :: TestTree
 checkMessageClientSuccess = testProperty "success" $
-  \(msg :: QualifiedNewOtrMessage) (senderDomain :: Domain) (senderUser :: UserId) ->
-    let plainRecipients = qualifiedUserClientMap . qualifiedOtrRecipientsMap . qualifiedNewOtrRecipients $ msg
-        expectedRecipients = qualifiedRecipientMapToSet plainRecipients
-     in not (isUserPresent expectedRecipients senderDomain senderUser)
-          ==> checkMessageClients senderDomain senderUser (QualifiedUserClients expectedRecipients) msg
-          === (Just plainRecipients, QualifiedMismatch mempty mempty mempty)
+  \(sender :: QualifiedUserClient) (msg :: Map QualifiedUserClient ByteString) (strat :: ClientMismatchStrategy) ->
+    let expectedRecipients = Map.keysSet msg
+     in not (Map.member sender msg)
+          ==> checkMessageClients sender expectedRecipients msg strat
+          === (Just msg, QualifiedMismatch mempty mempty mempty)
 
 checkMessageClientRedundantSender :: TestTree
 checkMessageClientRedundantSender = testProperty "sender should be part of redundant" $
-  \(msg0 :: QualifiedNewOtrMessage) (pickUserFromMsg :: Bool) (defaultSenderDomain :: Domain) (defaultSenderUser :: UserId) ->
-    let plainRecipients = qualifiedUserClientMap . qualifiedOtrRecipientsMap . qualifiedNewOtrRecipients $ msg0
-        (senderDomain, senderUser) =
-          fromMaybe (defaultSenderDomain, defaultSenderUser) $ do
-            guard pickUserFromMsg
-            (domain, userClientMap) <- Map.lookupMin plainRecipients
-            (user, _) <- Map.lookupMin userClientMap
-            pure (domain, user)
-        senderClientMessage =
-          Map.singleton senderDomain
-            . Map.singleton senderUser
-            . Map.singleton (qualifiedNewOtrSender msg0)
-            $ "msg to self"
-        senderClient =
-          QualifiedUserClients
-            . Map.singleton senderDomain
-            . Map.singleton senderUser
-            . Set.singleton
-            $ qualifiedNewOtrSender msg0
-        msg =
-          msg0
-            { qualifiedNewOtrRecipients =
-                qualifiedNewOtrRecipients msg0
-                  <> QualifiedOtrRecipients (QualifiedUserClientMap senderClientMessage)
-            }
-        expectedRecipients = QualifiedUserClients $ qualifiedRecipientMapToSet plainRecipients
-     in checkMessageClients senderDomain senderUser expectedRecipients msg
-          === (Just plainRecipients, QualifiedMismatch mempty senderClient mempty)
+  \(msg0 :: Map QualifiedUserClient ByteString) (sender :: QualifiedUserClient) (strat :: ClientMismatchStrategy) ->
+    let msg = Map.insert sender "msg to self" msg0
+        expectedRecipients = Map.keysSet msg0
+     in checkMessageClients sender expectedRecipients msg strat
+          === (Just msg0, QualifiedMismatch mempty (mkQualifiedUserClients (Set.singleton sender)) mempty)
 
 -- | FUTUREWORK: Write a custom generator for this test. expected' and
 -- expected'' are used along with msg to generate expected, this ensures that we
@@ -87,11 +64,11 @@ checkMessageClientRedundantSender = testProperty "sender should be part of redun
 -- recipients.
 checkMessageClientEverythingReported :: TestTree
 checkMessageClientEverythingReported = testProperty "all intended and expected recipients should be part of valid and extras" $
-  \(msg :: QualifiedNewOtrMessage) (senderDomain :: Domain) (senderUser :: UserId) (expected' :: QualifiedUserClients) (expected'' :: QualifiedUserClients) ->
-    let expected = coerce (qualifiedDiff (qualifiedRecipientMapToSet @ByteString . coerce $ qualifiedNewOtrRecipients msg) (coerce expected')) <> expected''
-        plainRecipients = qualifiedUserClientMap . qualifiedOtrRecipientsMap . qualifiedNewOtrRecipients $ msg
-        intendedRecipients = QualifiedUserClients $ qualifiedRecipientMapToSet plainRecipients
-        (maybeValidMessages, mismatch) = checkMessageClients senderDomain senderUser expected (msg {qualifiedNewOtrClientMismatchStrategy = MismatchIgnoreAll})
-        validRecipients = maybe mempty qualifiedRecipientMapToSet maybeValidMessages
-        extraRecipients = qmMissing mismatch <> qmDeleted mismatch <> qmRedundant mismatch
-     in QualifiedUserClients validRecipients <> extraRecipients === intendedRecipients <> expected
+  \(sender :: QualifiedUserClient) (expected' :: Set QualifiedUserClient) (msg0 :: Map QualifiedUserClient ByteString) (msg' :: Map QualifiedUserClient ByteString) ->
+    let expectedRecipients = Map.keysSet msg0 <> expected'
+        msg = msg0 <> msg'
+        intendedRecipients = Map.keysSet msg
+        (maybeValidMessages, mismatch) = checkMessageClients sender expectedRecipients msg MismatchIgnoreAll
+        validRecipients = maybe mempty Map.keysSet maybeValidMessages
+        extraRecipients = flatten . qualifiedUserClients $ qmMissing mismatch <> qmDeleted mismatch <> qmRedundant mismatch
+     in validRecipients <> extraRecipients === intendedRecipients <> expectedRecipients

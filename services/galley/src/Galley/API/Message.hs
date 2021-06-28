@@ -6,6 +6,7 @@ import Data.Id (ClientId, ConnId, ConvId, UserId)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.Map as Map
+import Data.Map.Lens (toMapOf)
 import Data.Qualified (Qualified (..))
 import qualified Data.Set as Set
 import Data.Set.Lens
@@ -51,9 +52,14 @@ mkQualifiedMismatch ::
   QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedMismatch
 mkQualifiedMismatch missing redundant deleted =
   QualifiedMismatch
-    (QualifiedUserClients missing)
-    (QualifiedUserClients redundant)
-    (QualifiedUserClients deleted)
+    (mkQualifiedUserClients missing)
+    (mkQualifiedUserClients redundant)
+    (mkQualifiedUserClients deleted)
+
+mkQualifiedUserClients :: QualifiedRecipientSet -> QualifiedUserClients
+mkQualifiedUserClients =
+  QualifiedUserClients
+    . Set.foldr (\(d, u, c) -> Map.insertWith (Map.unionWith Set.union) d (Map.singleton u (Set.singleton c))) Map.empty
 
 mkMessageSendingStatus :: UTCTimeMillis -> QualifiedMismatch -> QualifiedUserClients -> MessageSendingStatus
 mkMessageSendingStatus time mismatch failures =
@@ -76,22 +82,7 @@ type RecipientSet = Map UserId (Set ClientId)
 
 type QualifiedRecipientMap a = Map Domain (RecipientMap a)
 
-type QualifiedRecipientSet = Map Domain RecipientSet
-
-isUserPresent :: QualifiedRecipientSet -> Domain -> UserId -> Bool
-isUserPresent qrs d u =
-  let memberUsers = Map.keysSet $ Map.findWithDefault mempty d qrs
-   in Set.member u memberUsers
-
-qualifiedRecipientMapToSet :: QualifiedRecipientMap a -> QualifiedRecipientSet
-qualifiedRecipientMapToSet = Map.map (Map.map Map.keysSet)
-
-qualifiedRecipientSetSingleton :: Domain -> UserId -> ClientId -> QualifiedRecipientSet
-qualifiedRecipientSetSingleton dom uid cid =
-  Map.singleton dom
-    . Map.singleton uid
-    . Set.singleton
-    $ cid
+type QualifiedRecipientSet = Set (Domain, UserId, ClientId)
 
 -- A Venn diagram of words in this function:
 --
@@ -114,100 +105,50 @@ qualifiedRecipientSetSingleton dom uid cid =
 --                |                                   |
 --                +-----------------------------------+
 checkMessageClients ::
-  -- | Sender domain
-  Domain ->
-  -- | Sender User
-  UserId ->
-  QualifiedUserClients ->
-  QualifiedNewOtrMessage ->
-  (Maybe (QualifiedRecipientMap ByteString), QualifiedMismatch)
-checkMessageClients senderDomain senderUser (QualifiedUserClients expected) msg =
-  let senderClient = qualifiedNewOtrSender msg
-      -- Recipients provided in the message.
-      recipientMap =
-        -- we temporarely ignore remote users here to make this function behave
-        -- the same as its unqualified counterpart
-        -- TODO: remove this filter after we have implemented remote client discovery
-        -- Map.filterWithKey (\dom _ -> dom == senderDomain) .
-        qualifiedUserClientMap
-          . qualifiedOtrRecipientsMap
-          . qualifiedNewOtrRecipients
-          $ msg
-      recipients = qualifiedRecipientMapToSet recipientMap
+  -- | Sender
+  (Domain, UserId, ClientId) ->
+  Set (Domain, UserId, ClientId) ->
+  Map (Domain, UserId, ClientId) ByteString ->
+  ClientMismatchStrategy ->
+  (Maybe (Map (Domain, UserId, ClientId) ByteString), QualifiedMismatch)
+checkMessageClients sender expected recipientMap mismatchStrat =
+  let recipients = Map.keysSet recipientMap
       -- Whoever is expected but not in recipients is missing.
-      missing = qualifiedDiff expected recipients
+      missing = Set.difference expected recipients
       -- Whoever is in recipient but not expected is extra.
-      extra = qualifiedDiff recipients expected
+      extra = Set.difference recipients expected
       -- If sender includes a message for themself, it is considered redundant
       redundantSender
-        | isClientPresent extra senderDomain senderUser senderClient =
-          qualifiedRecipientSetSingleton senderDomain senderUser senderClient
+        | Set.member sender recipients = Set.singleton sender
         | otherwise = mempty
       -- The clients which belong to users who are expected are considered
       -- deleted.
       --
       -- FUTUREWORK: Optimize this by partitioning extra, this way redundants
       -- wouldn't need a qualifiedDiff.
-      deleted = qualifiedDiff (nestedKeyFilter (isUserPresent expected) extra) redundantSender
+      expectedUsers :: Set (Domain, UserId) = Set.map (\(d, u, _) -> (d, u)) expected
+      deleted = Set.difference (Set.filter (\(d, u, _) -> Set.member (d, u) expectedUsers) extra) redundantSender
       -- The clients which are extra but not deleted, must belong to users which
       -- are not in the convesation and hence considered redundant.
-      redundant = qualifiedDiff extra deleted <> redundantSender
+      redundant = Set.difference extra deleted <> redundantSender
       -- The clients which are recipients but not extra or the sender client are
       -- considered valid.
-      valid = qualifiedDiff recipients (extra <> redundantSender)
-      validMap = selectClients valid recipientMap
+      valid = Set.difference recipients (extra <> redundantSender)
+      validMap = Map.restrictKeys recipientMap valid
       -- Resolve whether the message is valid using client mismatch strategy
-      usersWithMissingClients = extractUsers missing
-      isValidMessage = case qualifiedNewOtrClientMismatchStrategy msg of
+      usersWithMissingClients = Set.map (\(d, u, _) -> (d, u)) missing
+      isValidMessage = case mismatchStrat of
         MismatchIgnoreAll -> True
-        MismatchReportAll -> Map.null missing
+        MismatchReportAll -> Set.null missing
         MismatchIgnoreOnly ignoredUsers ->
-          let nonIgnoredUsersMissingClients = usersWithMissingClients `Set.difference` ignoredUsers
+          let nonIgnoredUsersMissingClients = usersWithMissingClients `Set.difference` Set.map (\(Qualified u d) -> (d, u)) ignoredUsers
            in Set.null nonIgnoredUsersMissingClients
         MismatchReportOnly strictUsers ->
-          let strictUsersMissingClients = strictUsers `Set.intersection` usersWithMissingClients
+          let strictUsersMissingClients = Set.map (\(Qualified u d) -> (d, u)) strictUsers `Set.intersection` usersWithMissingClients
            in Set.null strictUsersMissingClients
    in ( guard isValidMessage $> validMap,
         mkQualifiedMismatch missing redundant deleted
       )
-  where
-    nestedKeyFilter :: (a -> b -> Bool) -> Map a (Map b c) -> Map a (Map b c)
-    nestedKeyFilter predicate =
-      Map.filterWithKey
-        ( \a ->
-            not . Map.null
-              . Map.filterWithKey (\b _ -> predicate a b)
-        )
-
-    extractUsers :: QualifiedRecipientSet -> Set (Qualified UserId)
-    extractUsers =
-      setOf $
-        reindexed (uncurry (flip Qualified)) (itraversed <.> itraversed)
-          . asIndex
-
-    -- TODO: I am pretty sure this was different
-    selectClients :: QualifiedRecipientSet -> QualifiedRecipientMap a -> QualifiedRecipientMap a
-    selectClients = Map.intersectionWith (Map.intersectionWith (flip Map.restrictKeys))
-
-isClientPresent :: QualifiedRecipientSet -> Domain -> UserId -> ClientId -> Bool
-isClientPresent qrs domain user client =
-  notNullOf
-    (ix domain . ix user . ix client)
-    qrs
-
-qualifiedDiff :: QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedRecipientSet
-qualifiedDiff =
-  Map.differenceWith
-    . guardedOp (not . Map.null)
-    . Map.differenceWith
-    . guardedOp (not . Set.null)
-    $ Set.difference
-  where
-    guarded :: (a -> Bool) -> a -> Maybe a
-    guarded p x = guard (p x) $> x
-
-    guardedOp :: (c -> Bool) -> (a -> b -> c) -> (a -> b -> Maybe c)
-    guardedOp p f a b = guarded p (f a b)
 
 postQualifiedOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
 postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
@@ -232,17 +173,17 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
         then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
         else Data.lookupClients localMemberIds
   let qualifiedLocalClients =
-        QualifiedUserClients
+        flatten
           . Map.singleton localDomain
           . Map.delete sender -- TODO: only delete the sender client
           . Clients.toMap
           $ localClients
   let (mValidMessages, mismatch) =
         checkMessageClients
-          senderDomain
-          sender
+          (senderDomain, sender, qualifiedNewOtrSender msg)
           qualifiedLocalClients
-          msg
+          (flattenMap $ qualifiedNewOtrRecipients msg)
+          (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty
 
   validMessages <- case mValidMessages of
@@ -252,10 +193,10 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
     Just v -> pure v
   let qualifiedConv = Qualified convId localDomain
       qualifiedSender = Qualified sender senderDomain
-      localValidMessages = Map.findWithDefault mempty localDomain validMessages
+      localValidMessages = Map.mapKeys (\(_, u, c) -> (u, c)) $ Map.filterWithKey (\(d, _, _) _ -> localDomain == d) validMessages
       metadata = qualifiedNewOtrMetadata msg
       events =
-        localValidMessages & traverse . itraversed
+        localValidMessages & reindexed snd itraversed
           %@~ newMessageEvent
             qualifiedConv
             qualifiedSender
@@ -263,10 +204,21 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
             (Public.qualifiedNewOtrData msg)
             now
       pushes =
-        events & itraversed <.> itraversed
+        events & itraversed
           %@~ newMessagePush localMemberMap mconn metadata
-  lift $ runMessagePush convId (pushes ^. traversed . traversed)
+  lift $ runMessagePush convId (pushes ^. traversed)
   throwUnion $ WithStatus @201 otrResult
+
+flatten :: Map Domain (Map UserId (Set ClientId)) -> Set (Domain, UserId, ClientId)
+flatten =
+  setOf $
+    (itraversed <.> itraversed <. folded)
+      . withIndex
+      . to (\((d, u), c) -> (d, u, c))
+
+flattenMap :: QualifiedOtrRecipients -> Map (Domain, UserId, ClientId) ByteString
+flattenMap (QualifiedOtrRecipients (QualifiedUserClientMap m)) =
+  toMapOf (reindexed (\(d, (u, c)) -> (d, u, c)) (itraversed <.> itraversed <.> itraversed)) m
 
 data MessagePush = MessagePush
   { userPushes :: [Push],
