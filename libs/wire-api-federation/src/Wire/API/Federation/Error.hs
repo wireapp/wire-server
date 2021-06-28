@@ -130,6 +130,13 @@ federationUnavailable err =
     "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
 
+federationUnauthorized :: Text -> Wai.Error
+federationUnauthorized err =
+  Wai.mkError
+    HTTP.status403
+    "federation-unauthorized"
+    (LT.fromStrict err)
+
 federationRemoteError :: Proto.OutwardError -> Wai.Error
 federationRemoteError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
   where
