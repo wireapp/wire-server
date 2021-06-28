@@ -28,6 +28,7 @@ module Data.Qualified
     partitionRemoteOrLocalIds',
     partitionQualified,
     deprecatedSchema,
+    partitionRemote,
   )
 where
 
@@ -87,6 +88,9 @@ partitionQualified = foldr add mempty
   where
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
+
+partitionRemote :: [Remote a] -> [(Domain, [a])]
+partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
 
 ----------------------------------------------------------------------
 

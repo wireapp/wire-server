@@ -35,6 +35,7 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
+import qualified Cassandra as Cql
 import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Data.Aeson hiding (json)
@@ -54,6 +55,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
+import qualified Galley.Data as Cql
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
@@ -69,9 +71,8 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Conversation (ConversationCoverView (ConversationCoverView))
-import Wire.API.Conversation.Member (Member (..))
-import Wire.API.Federation.API.Galley (GetConversationsResponse (GetConversationsResponse))
+import Wire.API.Conversation
+import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
 import Wire.API.User.Client (QualifiedUserClients (..), UserClientPrekeyMap, getUserClientPrekeyMap)
@@ -98,12 +99,15 @@ tests s =
           test s "metrics" metrics,
           test s "create conversation" postConvOk,
           test s "get empty conversations" getConvsOk,
+          test s "list-conversations empty" listConvsOk,
           test s "get conversations by ids" getConvsOk2,
-          test s "fail to get >100 conversations" getConvsFailMaxSize,
+          test s "list-conversations by ids" listConvsOk2,
+          test s "fail to get >500 conversations" getConvsFailMaxSize,
           test s "get conversation ids" getConvIdsOk,
           test s "paginate through conversation ids" paginateConvIds,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
+          test s "page through list-conversations (local conversations only)" listConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
           test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
@@ -132,7 +136,7 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
-          test s "get remote conversation" testGetRemoteConversation,
+          test s "get and list remote conversations" testGetRemoteConversations,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
@@ -843,6 +847,14 @@ getConvsOk = do
     const 200 === statusCode
     const [toUUID usr] === map (toUUID . cnvId) . decodeConvList
 
+-- same test as getConvsOk, but using the listConversations endpoint
+listConvsOk :: TestM ()
+listConvsOk = do
+  usr <- randomUser
+  listAllConvs usr !!! do
+    const 200 === statusCode
+    const [toUUID usr] === map (toUUID . cnvId) . decodeConvList
+
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
   [alice, bob] <- randomUsers 2
@@ -861,6 +873,45 @@ getConvsOk2 = do
     const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
   -- get both
   rs <- getConvs alice Nothing Nothing <!! const 200 === statusCode
+  let cs = convList <$> responseJsonUnsafe rs
+  let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
+  let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
+  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
+    assertEqual
+      "name mismatch"
+      (Just $ cnvName expected)
+      (cnvName <$> actual)
+    assertEqual
+      "self member mismatch"
+      (Just . cmSelf $ cnvMembers expected)
+      (cmSelf . cnvMembers <$> actual)
+    assertEqual
+      "other members mismatch"
+      (Just [])
+      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+
+-- same test as getConvsOk2, but using the listConversations endpoint
+listConvsOk2 :: TestM ()
+listConvsOk2 = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  connectUsers alice (singleton bob)
+  -- create & get one2one conv
+  cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
+  let req1 = ListConversations (Just (Qualified (cnvId cnv1) localDomain :| [])) Nothing Nothing
+  listConvs alice req1 !!! do
+    const 200 === statusCode
+    const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
+  -- create & get group conv
+  carl <- randomUser
+  connectUsers alice (singleton carl)
+  cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+  let req2 = ListConversations (Just (Qualified (cnvId cnv2) localDomain :| [])) Nothing Nothing
+  listConvs alice req2 !!! do
+    const 200 === statusCode
+    const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
+  -- get both
+  rs <- listAllConvs alice <!! const 200 === statusCode
   let cs = convList <$> responseJsonUnsafe rs
   let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
   let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
@@ -935,6 +986,33 @@ getConvsPagingOk = do
       let ids1 = convList <$> responseJsonUnsafe r1
       liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
       r2 <- getConvs u (Right <$> start) (Just step) <!! const 200 === statusCode
+      let ids3 = map cnvId . convList <$> responseJsonUnsafe r2
+      liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
+      liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
+      return $ ids1 >>= listToMaybe . reverse
+
+-- same test as getConvsPagingOk, but using the listConversations endpoint
+-- (only tests pagination behaviour for local conversations)
+-- FUTUREWORK: pagination for remote conversations
+listConvsPagingOk :: TestM ()
+listConvsPagingOk = do
+  [ally, bill, carl] <- randomUsers 3
+  connectUsers ally (list1 bill [carl])
+  replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
+  walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
+  walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  where
+    walk u = foldM_ (next u 3) Nothing
+    next u step start n = do
+      -- FUTUREWORK: support an endpoint to get qualified conversation IDs
+      -- (without all the conversation metadata)
+      r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
+      let ids1 = convList <$> responseJsonUnsafe r1
+      liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
+      localDomain <- viewFederationDomain
+      let requestBody = ListConversations Nothing (flip Qualified localDomain <$> start) (Just (unsafeRange step))
+      r2 <- listConvs u requestBody <!! const 200 === statusCode
       let ids3 = map cnvId . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
@@ -1316,45 +1394,76 @@ testAddRemoteMember = do
         toJSON [mkProfile bob (Name "bob")]
       | otherwise = toJSON ()
 
-testGetRemoteConversation :: TestM ()
-testGetRemoteConversation = do
+testGetRemoteConversations :: TestM ()
+testGetRemoteConversations = do
+  -- alice on local domain
+  -- bob and the conversation on the remote domain
   aliceQ <- randomQualifiedUser
   let alice = qUnqualified aliceQ
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
-      remoteConv = Qualified convId remoteDomain
+      remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      remoteConversationResponse =
-        GetConversationsResponse
-          [ Conversation
-              { cnvId = convId,
-                cnvType = RegularConv,
-                cnvCreator = alice,
-                cnvAccess = [],
-                cnvAccessRole = ActivatedAccessRole,
-                cnvName = Just "federated gossip",
-                cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
-                cnvTeam = Nothing,
-                cnvMessageTimer = Nothing,
-                cnvReceiptMode = Nothing
-              }
-          ]
+      mockConversation =
+        Conversation
+          { cnvId = convId,
+            cnvType = RegularConv,
+            cnvCreator = alice,
+            cnvAccess = [],
+            cnvAccessRole = ActivatedAccessRole,
+            cnvName = Just "federated gossip",
+            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
+            cnvTeam = Nothing,
+            cnvMessageTimer = Nothing,
+            cnvReceiptMode = Nothing
+          }
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
-  g <- view tsGalley
-  (resp, _) <-
+  -- test GET /conversations/:domain/:cnv for single conversation
+  (respOne, _) <-
     withTempMockFederator
       opts
       remoteDomain
       (const remoteConversationResponse)
-      (getConvQualified' g alice remoteConv)
-  conv :: Conversation <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
+      (getConvQualified alice remoteConvId)
+  conv :: Conversation <- responseJsonUnsafe <$> (pure respOne <!! const 200 === statusCode)
   liftIO $ do
     let actual = cmOthers $ cnvMembers conv
     let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
-    assertEqual "other members should include remoteBob" expected actual
+    assertEqual "getConversation: other members should include remoteBob" expected actual
+
+  -- insert remote conversationId for alice
+  cassState <- view tsCass
+  Cql.runClient cassState $ Cql.addLocalMembersToRemoteConv [alice] remoteConvId
+
+  -- FUTUREWORK: Do this test with more than one remote domains
+  -- test POST /list-conversations
+  (respAll, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const remoteConversationResponse)
+      (listAllConvs alice)
+  convs :: ConversationList Conversation <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
+  liftIO $ do
+    let expected = mockConversation
+    let actual = find ((== convId) . cnvId) (convList convs)
+    assertEqual
+      "name mismatch"
+      (Just $ cnvName expected)
+      (cnvName <$> actual)
+    assertEqual
+      "self member mismatch"
+      (Just . cmSelf $ cnvMembers expected)
+      (cmSelf . cnvMembers <$> actual)
+    assertEqual
+      "other members mismatch"
+      (Just [])
+      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+    assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do
