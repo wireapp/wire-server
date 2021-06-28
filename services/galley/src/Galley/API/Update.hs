@@ -627,38 +627,31 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postBotMessage zbot zcnv val' message
 
-data LegalholdProtectee'
-  = ProtectedUser' UserId
-  | UnprotectedBot' UserId
-  deriving (Show, Eq, Ord, Generic)
+data UserType = User | Bot
 
-legalholdProtectee'2LegalholdProtectee :: LegalholdProtectee' -> LegalholdProtectee
-legalholdProtectee'2LegalholdProtectee (ProtectedUser' uid) = ProtectedUser uid
-legalholdProtectee'2LegalholdProtectee (UnprotectedBot' _uid) = UnprotectedBot
-
-legalholdProtectee'2UserId :: LegalholdProtectee' -> UserId
-legalholdProtectee'2UserId (ProtectedUser' uid) = uid
-legalholdProtectee'2UserId (UnprotectedBot' uid) = uid
+userToProtectee :: UserType -> UserId -> LegalholdProtectee
+userToProtectee User user = ProtectedUser user
+userToProtectee Bot _ = UnprotectedBot
 
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
+  postNewOtrMessage Bot (botUserId zbot) Nothing zcnv val message
 
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
--- the conversation is not hosted on current backend. If the converastion is
+-- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
 postOtrMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postOtrMessage zusr zcon convDomain cnv msg = do
   localDomain <- viewFederationDomain
   if localDomain /= convDomain
     then throwM federationNotImplemented
-    else postQualifiedOtrMessage (ProtectedUser' zusr) (Just zcon) cnv msg
+    else postQualifiedOtrMessage User zusr (Just zcon) cnv msg
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
   let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
       overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
-  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv overallResovedMissingOptions message
+  translateToServant =<< postNewOtrMessage User zusr (Just zcon) cnv overallResovedMissingOptions message
   where
     translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
     translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
@@ -736,8 +729,8 @@ throwUnion = UnionT . throwE . inject . I
 runUnionT :: Functor m => UnionT as m Void -> m (Union as)
 runUnionT = fmap (either id absurd) . runExceptT . unUnionT
 
-postQualifiedOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postQualifiedOtrMessage protectee mconn convId msg = runUnionT $ do
+postQualifiedOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
   now <- liftIO $ getCurrentTime
@@ -762,17 +755,18 @@ postQualifiedOtrMessage protectee mconn convId msg = runUnionT $ do
   let (mValidMessages, mismatch) =
         MessageAPI.checkMessageClients
           senderDomain
-          (legalholdProtectee'2UserId protectee)
+          sender
           (Client.QualifiedUserClients qualifiedLocalClients)
           msg
       otrResult = MessageAPI.mkMessageSendingStatus nowMillis mismatch mempty
+
   validMessages <- case mValidMessages of
     Nothing -> do
-      lift $ guardQualifiedLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (MessageAPI.qmMissing mismatch)
+      lift $ guardQualifiedLegalholdPolicyConflicts (userToProtectee senderType sender) (MessageAPI.qmMissing mismatch)
       throwUnion $ WithStatus @412 otrResult
     Just v -> pure v
   let qualifiedConv = Qualified convId localDomain
-      qualifiedSender = Qualified (legalholdProtectee'2UserId protectee) senderDomain
+      qualifiedSender = Qualified sender senderDomain
       localValidMessages = Map.findWithDefault mempty localDomain validMessages
       metadata = qualifiedNewOtrMetadata msg
       events =
@@ -789,16 +783,15 @@ postQualifiedOtrMessage protectee mconn convId msg = runUnionT $ do
   lift $ runMessagePush convId (pushes ^. traversed . traversed)
   throwUnion $ WithStatus @201 otrResult
 
-postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
-postNewOtrMessage protectee con cnv val msg = do
+postNewOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postNewOtrMessage utype usr con cnv val msg = do
   localDomain <- viewFederationDomain
-  let usr = legalholdProtectee'2UserId protectee
-      qusr = Qualified usr localDomain
+  let qusr = Qualified usr localDomain
       qcnv = Qualified cnv localDomain
       sender = newOtrSender msg
       recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
-  withValidOtrRecipients protectee sender cnv recvrs val now $ \rs -> do
+  withValidOtrRecipients utype usr sender cnv recvrs val now $ \rs -> do
     let (toBots, toUsers) = foldr (newMessage qusr con (Just qcnv) msg now) ([], []) rs
     pushSome (catMaybes toUsers)
     void . forkIO $ do
@@ -1170,7 +1163,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       then Clients.fromUserClients <$> Intra.lookupClients users
       else Data.lookupClients users
   let membs = Data.newMember <$> users
-  handleOtrResponse (ProtectedUser' usr) clt rcps membs clts val now go
+  handleOtrResponse User usr clt rcps membs clts val now go
   where
     maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
       -- Get the users in the filter (remote ids are not in a local team)
@@ -1187,7 +1180,8 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  LegalholdProtectee' ->
+  UserType ->
+  UserId ->
   ClientId ->
   ConvId ->
   OtrRecipients ->
@@ -1195,7 +1189,7 @@ withValidOtrRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrRecipients protectee clt cnv rcps val now go = do
+withValidOtrRecipients utype usr clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   if not alive
     then do
@@ -1209,11 +1203,13 @@ withValidOtrRecipients protectee clt cnv rcps val now go = do
         if isInternal
           then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
           else Data.lookupClients localMemberIds
-      handleOtrResponse protectee clt rcps localMembers clts val now go
+      handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::
+  -- | Type of proposed sender (user / bot)
+  UserType ->
   -- | Proposed sender (user)
-  LegalholdProtectee' ->
+  UserId ->
   -- | Proposed sender (client)
   ClientId ->
   -- | Proposed recipients (users & clients).
@@ -1229,10 +1225,10 @@ handleOtrResponse ::
   -- | Callback if OtrRecipients are valid
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipients (legalholdProtectee'2UserId protectee) clt rcps membs clts val now of
+handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
-    guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
+    guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
   InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient
