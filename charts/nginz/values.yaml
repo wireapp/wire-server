@@ -52,6 +52,8 @@ nginx_conf:
   - ~* ^/conversations/([^/]*)/call/state
   - /search/top
   - /search/common
+  # -- The origins from which we allow CORS requests. Can be Regexes
+  # allowlisted_origins: []
   upstreams:
     cargohold:
     - path: ~* ^/conversations/([^/]*)/assets
@@ -79,7 +81,6 @@ nginx_conf:
       envs:
       - all
       allow_credentials: true
-      restrict_whitelisted_origin: true
       max_body_size: "0"
       disable_request_buffering: true
     brig:
@@ -149,7 +150,6 @@ nginx_conf:
       envs:
       - all
       allow_credentials: true
-      restrict_whitelisted_origin: true
     - path: /bot/self
       envs:
       - all
@@ -170,13 +170,11 @@ nginx_conf:
       envs:
       - all
       allow_credentials: true
-      restrict_whitelisted_origin: true
       disable_zauth: true
     - path: /activate
       envs:
       - all
       allow_credentials: true
-      restrict_whitelisted_origin: true
       disable_zauth: true
     - path: /delete
       envs:
@@ -238,7 +236,6 @@ nginx_conf:
       - all
       disable_zauth: true
       allow_credentials: true
-      restrict_whitelisted_origin: true
       unlimited_requests_endpoint: true
     - path: /login
       envs:

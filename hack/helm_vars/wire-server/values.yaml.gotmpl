@@ -192,6 +192,8 @@ nginz:
   nginx_conf:
     env: staging
     external_env_domain: zinfra.io
+    # NOTE: Web apps are disabled by default
+    allowlisted_origins: []
   secrets:
     basicAuth: "whatever"
     zAuth:

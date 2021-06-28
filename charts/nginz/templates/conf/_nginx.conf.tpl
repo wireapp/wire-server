@@ -125,7 +125,9 @@ http {
 
   map $http_origin $cors_header {
       default "";
-      "~^https://([^/]+\.)?{{ .Values.nginx_conf.external_env_domain | replace "." "\\." }}(:[0-9]{2,5})?$" "$http_origin";
+    {{ range $origin := required "allowlisted_origins is required" .Values.nginx_conf.allowlisted_origins }}
+      "{{ $origin }} "$http_origin";
+    {{ end }}
   }
 
 
@@ -293,11 +295,7 @@ http {
         more_set_headers 'Access-Control-Allow-Credentials: true';
             {{ end -}}
 
-            {{ if ($location.restrict_whitelisted_origin) -}}
-        more_set_headers 'Access-Control-Allow-Origin: $cors_header';
-            {{- else }}
         more_set_headers 'Access-Control-Allow-Origin: $http_origin';
-            {{- end }}
 
         more_set_headers 'Access-Control-Expose-Headers: Request-Id, Location';
         more_set_headers 'Request-Id: $request_id';
