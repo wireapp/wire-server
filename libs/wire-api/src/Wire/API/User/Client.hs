@@ -100,6 +100,7 @@ import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
+import qualified Data.Semigroup as Semigroup
 
 ----------------------------------------------------------------------
 -- ClientCapability, ClientCapabilityList
@@ -257,11 +258,17 @@ newtype QualifiedUserClientMap a = QualifiedUserClientMap
   { qualifiedUserClientMap :: Map Domain (Map UserId (Map ClientId a))
   }
   deriving stock (Eq, Show, Functor)
-  deriving newtype (Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (QualifiedUserClientMap a)
 
+instance Semigroup a => Semigroup (QualifiedUserClientMap a) where
+  (QualifiedUserClientMap m1) <> (QualifiedUserClientMap m2) =
+    QualifiedUserClientMap $ Map.unionWith (Map.unionWith (Map.unionWith (<>))) m1 m2
+
+instance Semigroup (QualifiedUserClientMap a) => Monoid (QualifiedUserClientMap a) where
+  mempty = QualifiedUserClientMap mempty
+
 instance Arbitrary a => Arbitrary (QualifiedUserClientMap a) where
-  arbitrary = QualifiedUserClientMap <$> mapOf' arbitrary arbitrary
+  arbitrary = QualifiedUserClientMap <$> mapOf' arbitrary (mapOf' arbitrary (mapOf' arbitrary arbitrary))
 
 instance ToSchema a => ToSchema (QualifiedUserClientMap a) where
   schema = qualifiedUserClientMapSchema schema
@@ -286,8 +293,9 @@ qualifiedUserClientMapSchema sch =
 newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
   {getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)}
   deriving stock (Eq, Show)
-  deriving newtype (Arbitrary, Semigroup, Monoid)
+  deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Semigroup.Option (Semigroup.First Prekey)))
 
 instance ToSchema QualifiedUserClientPrekeyMap where
   schema =
@@ -375,11 +383,17 @@ newtype QualifiedUserClients = QualifiedUserClients
   { qualifiedUserClients :: Map Domain (Map UserId (Set ClientId))
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via (Schema QualifiedUserClients)
 
+instance Semigroup QualifiedUserClients where
+  (QualifiedUserClients m1) <> (QualifiedUserClients m2) =
+    QualifiedUserClients $ Map.unionWith (Map.unionWith (<>)) m1 m2
+
+instance Monoid QualifiedUserClients where
+  mempty = QualifiedUserClients mempty
+
 instance Arbitrary QualifiedUserClients where
-  arbitrary = QualifiedUserClients <$> mapOf' arbitrary arbitrary
+  arbitrary = QualifiedUserClients <$> mapOf' arbitrary (mapOf' arbitrary (setOf' arbitrary))
 
 instance ToSchema QualifiedUserClients where
   schema =

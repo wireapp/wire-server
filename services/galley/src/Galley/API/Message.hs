@@ -45,6 +45,7 @@ data QualifiedMismatch = QualifiedMismatch
     qmRedundant :: QualifiedUserClients,
     qmDeleted :: QualifiedUserClients
   }
+  deriving (Show, Eq)
 
 mkQualifiedMismatch ::
   QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedMismatch
@@ -117,18 +118,18 @@ checkMessageClients ::
   Domain ->
   -- | Sender User
   UserId ->
-  QualifiedRecipientSet ->
+  QualifiedUserClients ->
   QualifiedNewOtrMessage ->
   (Maybe (QualifiedRecipientMap ByteString), QualifiedMismatch)
-checkMessageClients senderDomain senderUser expected msg =
+checkMessageClients senderDomain senderUser (QualifiedUserClients expected) msg =
   let senderClient = qualifiedNewOtrSender msg
       -- Recipients provided in the message.
       recipientMap =
         -- we temporarely ignore remote users here to make this function behave
         -- the same as its unqualified counterpart
         -- TODO: remove this filter after we have implemented remote client discovery
-        Map.filterWithKey (\dom _ -> dom == senderDomain)
-          . qualifiedUserClientMap
+        -- Map.filterWithKey (\dom _ -> dom == senderDomain) .
+        qualifiedUserClientMap
           . qualifiedOtrRecipientsMap
           . qualifiedNewOtrRecipients
           $ msg
@@ -137,17 +138,17 @@ checkMessageClients senderDomain senderUser expected msg =
       missing = qualifiedDiff expected recipients
       -- Whoever is in recipient but not expected is extra.
       extra = qualifiedDiff recipients expected
+      -- If sender includes a message for themself, it is considered redundant
+      redundantSender
+        | isClientPresent extra senderDomain senderUser senderClient =
+          qualifiedRecipientSetSingleton senderDomain senderUser senderClient
+        | otherwise = mempty
       -- The clients which belong to users who are expected are considered
       -- deleted.
       --
       -- FUTUREWORK: Optimize this by partitioning extra, this way redundants
       -- wouldn't need a qualifiedDiff.
-      deleted = nestedKeyFilter (isUserPresent expected) extra
-      -- If sender includes a message for themself, it is considered redundant
-      redundantSender
-        | isUserPresent expected senderDomain senderUser =
-          qualifiedRecipientSetSingleton senderDomain senderUser senderClient
-        | otherwise = mempty
+      deleted = qualifiedDiff (nestedKeyFilter (isUserPresent expected) extra) redundantSender
       -- The clients which are extra but not deleted, must belong to users which
       -- are not in the convesation and hence considered redundant.
       redundant = qualifiedDiff extra deleted <> redundantSender
@@ -164,8 +165,8 @@ checkMessageClients senderDomain senderUser expected msg =
           let nonIgnoredUsersMissingClients = usersWithMissingClients `Set.difference` ignoredUsers
            in Set.null nonIgnoredUsersMissingClients
         MismatchReportOnly strictUsers ->
-          let strictUsersMisingClients = strictUsers `Set.difference` usersWithMissingClients
-           in Set.null strictUsersMisingClients
+          let strictUsersMissingClients = strictUsers `Set.intersection` usersWithMissingClients
+           in Set.null strictUsersMissingClients
    in ( guard isValidMessage $> validMap,
         mkQualifiedMismatch missing redundant deleted
       )
@@ -188,6 +189,12 @@ checkMessageClients senderDomain senderUser expected msg =
     selectClients :: QualifiedRecipientSet -> QualifiedRecipientMap a -> QualifiedRecipientMap a
     selectClients = Map.intersectionWith (Map.intersectionWith (flip Map.restrictKeys))
 
+isClientPresent :: QualifiedRecipientSet -> Domain -> UserId -> ClientId -> Bool
+isClientPresent qrs domain user client =
+  notNullOf
+    (ix domain . ix user . ix client)
+    qrs
+
 qualifiedDiff :: QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedRecipientSet
 qualifiedDiff =
   Map.differenceWith
@@ -206,7 +213,7 @@ postQualifiedOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> Publi
 postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
-  now <- liftIO $ getCurrentTime
+  now <- liftIO getCurrentTime
   let nowMillis = toUTCTimeMillis now
   -- TODO: Test this, fix this, make it a parameters
   senderDomain <- viewFederationDomain
@@ -225,8 +232,9 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
         then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
         else Data.lookupClients localMemberIds
   let qualifiedLocalClients =
-        Map.singleton localDomain
-          . Map.delete sender
+        QualifiedUserClients
+          . Map.singleton localDomain
+          . Map.delete sender -- TODO: only delete the sender client
           . Clients.toMap
           $ localClients
   let (mValidMessages, mismatch) =

@@ -299,6 +299,7 @@ newtype QualifiedOtrRecipients = QualifiedOtrRecipients
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (First ByteString))
 
 protolensOtrRecipientsToOtrRecipients :: [Proto.Otr.QualifiedUserEntry] -> Either String QualifiedOtrRecipients
 protolensOtrRecipientsToOtrRecipients entries =
