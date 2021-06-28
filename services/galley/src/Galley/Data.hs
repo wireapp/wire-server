@@ -571,9 +571,9 @@ conversationIdsOf ::
   m [ConvId]
 conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
-conversationsRemote :: (MonadClient m) => UserId -> m [Qualified ConvId]
+conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
-  (\(d, c) -> Qualified c d) <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
+  (\(d, c) -> toRemote $ Qualified c d) <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
 
 createConversation ::
   MonadClient m =>

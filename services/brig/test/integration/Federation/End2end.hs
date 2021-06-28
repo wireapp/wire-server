@@ -323,15 +323,14 @@ testListConversations brig1 brig2 galley1 galley2 = do
   --  to pop up for alice (on galley1)
   --  when she request her own conversations ( GET /conversations )
   debug "list all convs galley 1..."
+  -- From Alice's point of view
+  -- both conversations should show her as the self member and bob as Othermember.
+  let expected = cnv1
   rs <- listAllConvs galley1 (userId alice) <!! (const 200 === statusCode)
   let cs = convList <$> responseJsonUnsafe rs
   let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
   let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
-  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
-    assertEqual
-      "name mismatch"
-      (Just $ cnvName expected)
-      (cnvName <$> actual)
+  liftIO . forM_ [c1, c2] $ \actual -> do
     assertEqual
       "self member mismatch"
       (Just . cmSelf $ cnvMembers expected)

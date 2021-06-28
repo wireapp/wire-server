@@ -36,9 +36,8 @@ import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
-import qualified Data.Map as Map
 import Data.Proxy
-import Data.Qualified (Qualified (..), Remote, partitionQualified, partitionRemote, partitionRemoteOrLocalIds, toRemote)
+import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -169,7 +168,7 @@ listConversations user (Public.ListConversations mIds qstart msize) = do
     throwM (invalidPayload "'start' and 'qualified_ids' are mutually exclusive")
   (localMore, localConvIds, remoteConvIds) <- case mIds of
     Just xs -> do
-      let (remoteConvIds, localIds) = partitionRemoteOrLocalIds localDomain (toList xs)
+      let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList xs)
       (localMore, localConvIds) <- getIdsAndMore localIds
       pure (localMore, localConvIds, remoteConvIds)
     Nothing -> do
