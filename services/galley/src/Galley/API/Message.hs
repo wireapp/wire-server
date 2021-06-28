@@ -2,15 +2,43 @@ module Galley.API.Message where
 
 import Control.Lens
 import Data.Domain (Domain)
-import Data.Id (ClientId, UserId)
-import Data.Json.Util (UTCTimeMillis)
+import Data.Id (ClientId, ConnId, ConvId, UserId)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.List1 (singleton)
 import qualified Data.Map as Map
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified (Qualified (..))
 import qualified Data.Set as Set
 import Data.Set.Lens
+import Data.Time.Clock (UTCTime, getCurrentTime)
+import Galley.API.LegalHold (guardQualifiedLegalholdPolicyConflicts)
+import Galley.API.Util (runUnionT, throwUnion, toBase64Text, viewFederationDomain)
+import Galley.App
+import qualified Galley.Data as Data
+import Galley.Data.Services as Data
+import qualified Galley.External as External
+import qualified Galley.Intra.Client as Intra
+import Galley.Intra.Push
+import Galley.Intra.User
+import Galley.Options (optSettings, setIntraListing)
+import qualified Galley.Types.Clients as Clients
+import Galley.Types.Conversations.Members
+import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
+import Servant.API (Union, WithStatus (..))
+import Wire.API.ErrorDescription as ErrorDescription
+import Wire.API.Event.Conversation
 import Wire.API.Message
+import qualified Wire.API.Message as Public
+import Wire.API.Routes.Public.Galley as Public
+import Wire.API.Team.LegalHold
+import Wire.API.Team.Member (ListType (..))
 import Wire.API.User.Client
+
+data UserType = User | Bot
+
+userToProtectee :: UserType -> UserId -> LegalholdProtectee
+userToProtectee User user = ProtectedUser user
+userToProtectee Bot _ = UnprotectedBot
 
 data QualifiedMismatch = QualifiedMismatch
   { qmMissing :: QualifiedUserClients,
@@ -36,12 +64,10 @@ mkMessageSendingStatus time mismatch failures =
       mssFailedToSend = failures
     }
 
-type QualifiedRecipient = (Domain, Recipient)
+type QualifiedRecipient = (Domain, (UserId, ClientId))
 
 qualifiedRecipientToUser :: QualifiedRecipient -> Qualified UserId
 qualifiedRecipientToUser (dom, (uid, _)) = Qualified uid dom
-
-type Recipient = (UserId, ClientId)
 
 type RecipientMap a = Map UserId (Map ClientId a)
 
@@ -171,3 +197,136 @@ qualifiedDiff =
 
     guardedOp :: (c -> Bool) -> (a -> b -> c) -> (a -> b -> Maybe c)
     guardedOp p f a b = guarded p (f a b)
+
+postQualifiedOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
+postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
+  alive <- Data.isConvAlive convId
+  localDomain <- viewFederationDomain
+  now <- liftIO $ getCurrentTime
+  let nowMillis = toUTCTimeMillis now
+  -- TODO: Test this, fix this, make it a parameters
+  senderDomain <- viewFederationDomain
+  unless alive $ do
+    Data.deleteConversation convId
+    throwUnion ErrorDescription.convNotFound
+
+  localMembers <- Data.members convId
+  let localMemberIds = memId <$> localMembers
+      localMemberMap :: Map UserId LocalMember
+      localMemberMap = Map.fromList (map (\mem -> (memId mem, mem)) localMembers)
+  isInternal <- view $ options . optSettings . setIntraListing
+  localClients <-
+    lift $
+      if isInternal
+        then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
+        else Data.lookupClients localMemberIds
+  let qualifiedLocalClients = Map.singleton localDomain $ Clients.toMap localClients
+  let (mValidMessages, mismatch) =
+        checkMessageClients
+          senderDomain
+          sender
+          (QualifiedUserClients qualifiedLocalClients)
+          msg
+      otrResult = mkMessageSendingStatus nowMillis mismatch mempty
+
+  validMessages <- case mValidMessages of
+    Nothing -> do
+      lift $ guardQualifiedLegalholdPolicyConflicts (userToProtectee senderType sender) (qmMissing mismatch)
+      throwUnion $ WithStatus @412 otrResult
+    Just v -> pure v
+  let qualifiedConv = Qualified convId localDomain
+      qualifiedSender = Qualified sender senderDomain
+      localValidMessages = Map.findWithDefault mempty localDomain validMessages
+      metadata = qualifiedNewOtrMetadata msg
+      events =
+        localValidMessages & traverse . itraversed
+          %@~ newMessageEvent
+            qualifiedConv
+            qualifiedSender
+            (Public.qualifiedNewOtrSender msg)
+            (Public.qualifiedNewOtrData msg)
+            now
+      pushes =
+        events & itraversed <.> itraversed
+          %@~ newMessagePush localMemberMap mconn metadata
+  lift $ runMessagePush convId (pushes ^. traversed . traversed)
+  throwUnion $ WithStatus @201 otrResult
+
+data MessagePush = MessagePush
+  { userPushes :: [Push],
+    botPushes :: [(BotMember, Event)]
+  }
+
+instance Semigroup MessagePush where
+  MessagePush us1 bs1 <> MessagePush us2 bs2 = MessagePush (us1 <> us2) (bs1 <> bs2)
+
+instance Monoid MessagePush where
+  mempty = MessagePush mempty mempty
+
+newUserPush :: Push -> MessagePush
+newUserPush p = MessagePush {userPushes = pure p, botPushes = mempty}
+
+newBotPush :: BotMember -> Event -> MessagePush
+newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
+
+runMessagePush :: ConvId -> MessagePush -> Galley ()
+runMessagePush cnv mp = do
+  pushSome (userPushes mp)
+  void . forkIO $ do
+    gone <- External.deliver (botPushes mp)
+    mapM_ (deleteBot cnv . botMemId) gone
+
+newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> ByteString -> UTCTime -> ClientId -> ByteString -> Event
+newMessageEvent convId sender senderClient dat time recieverClient cipherText =
+  Event OtrMessageAdd convId sender time . EdOtrMessage $
+    OtrMessage
+      { otrSender = senderClient,
+        otrRecipient = recieverClient,
+        otrCiphertext = toBase64Text cipherText,
+        otrData = Just $ toBase64Text dat
+      }
+
+newMessagePush ::
+  Ord k =>
+  Map k LocalMember ->
+  Maybe ConnId ->
+  MessageMetadata ->
+  (k, ClientId) ->
+  Event ->
+  MessagePush
+newMessagePush members mconn mm (k, client) e = fromMaybe mempty $ do
+  member <- Map.lookup k members
+  newBotMessagePush member <|> newUserMessagePush member
+  where
+    newBotMessagePush :: LocalMember -> Maybe MessagePush
+    newBotMessagePush member = newBotPush <$> newBotMember member <*> pure e
+    newUserMessagePush :: LocalMember -> Maybe MessagePush
+    newUserMessagePush member =
+      fmap newUserPush $
+        newPush
+          ListComplete
+          (qUnqualified (evtFrom e))
+          (ConvEvent e)
+          [ recipient member & recipientClients .~ RecipientClientsSome (singleton client)
+          ]
+          <&> set pushConn mconn
+            . set pushNativePriority (mmNativePriority mm)
+            . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
+            . set pushTransient (mmTransient mm)
+
+data MessageMetadata = MessageMetadata
+  { mmNativePush :: Bool,
+    mmTransient :: Bool,
+    mmNativePriority :: Maybe Priority,
+    mmData :: ByteString
+  }
+  deriving (Eq, Ord, Show)
+
+qualifiedNewOtrMetadata :: Public.QualifiedNewOtrMessage -> MessageMetadata
+qualifiedNewOtrMetadata msg =
+  MessageMetadata
+    { mmNativePush = Public.qualifiedNewOtrNativePush msg,
+      mmTransient = Public.qualifiedNewOtrTransient msg,
+      mmNativePriority = Public.qualifiedNewOtrNativePriority msg,
+      mmData = Public.qualifiedNewOtrData msg
+    }
