@@ -652,63 +652,7 @@ postOtrMessage zusr zcon convDomain cnv msg = do
   localDomain <- viewFederationDomain
   if localDomain /= convDomain
     then throwM federationNotImplemented
-    else do
-      let missingFilter = mkFilter localDomain $ Public.qualifiedNewOtrClientMismatchStrategy msg
-          unqualifiedMsg = toUnqualifiedMessage localDomain msg
-      translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv missingFilter unqualifiedMsg
-  where
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    mkFilter :: Domain -> Public.ClientMismatchStrategy -> Public.OtrFilterMissing
-    mkFilter localDomain = \case
-      Public.MismatchIgnoreOnly quids -> Public.OtrIgnoreMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
-      Public.MismatchIgnoreAll -> Public.OtrIgnoreAllMissing
-      Public.MismatchReportOnly quids -> Public.OtrReportMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
-      Public.MismatchReportAll -> Public.OtrReportAllMissing
-
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    toUnqualifiedMessage :: Domain -> Public.QualifiedNewOtrMessage -> Public.NewOtrMessage
-    toUnqualifiedMessage localDomain qmsg = do
-      Public.NewOtrMessage
-        { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
-          newOtrRecipients =
-            Public.OtrRecipients
-              . fmap toBase64Text
-              . Client.UserClientMap
-              . Map.findWithDefault mempty localDomain
-              . Client.qualifiedUserClientMap
-              . Public.qualifiedOtrRecipientsMap
-              . Public.qualifiedNewOtrRecipients
-              $ qmsg,
-          newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
-          newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
-          newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
-          newOtrData = Just . toBase64Text $ Public.qualifiedNewOtrData qmsg,
-          newOtrReportMissing = Nothing
-        }
-
-    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
-    translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch mempty)
-    translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch mempty)
-    translateToServant (OtrUnknownClient e) = Servant.respond e
-    translateToServant (OtrConversationNotFound e) = Servant.respond e
-
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    qualifyMismatch :: Public.ClientMismatch -> Client.QualifiedUserClients -> Galley Public.MessageSendingStatus
-    qualifyMismatch cm failedToSend = do
-      domain <- viewFederationDomain
-      pure
-        Public.MessageSendingStatus
-          { Public.mssTime = Public.cmismatchTime cm,
-            Public.mssDeletedClients = qualifyUserClients domain $ Public.deletedClients cm,
-            Public.mssMissingClients = qualifyUserClients domain $ Public.missingClients cm,
-            Public.mssRedundantClients = qualifyUserClients domain $ Public.redundantClients cm,
-            Public.mssFailedToSend = failedToSend
-          }
-    qualifyUserClients :: Domain -> Client.UserClients -> Client.QualifiedUserClients
-    qualifyUserClients domain (Client.UserClients userClients) =
-      if userClients == mempty
-        then mempty
-        else Client.QualifiedUserClients . Map.singleton domain $ userClients
+    else postQualifiedOtrMessage (ProtectedUser' zusr) (Just zcon) cnv msg
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
