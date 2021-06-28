@@ -22,13 +22,10 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
-    getClassifiedDomainsFeatureStatus,
-    setClassifiedDomainsFeatureStatus,
   )
 where
 
 import Cassandra
-import Data.Domain (Domain)
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
@@ -120,41 +117,4 @@ setApplockFeatureStatus tid status = do
           <> " = ?, "
           <> "app_lock_enforce = ?, "
           <> "app_lock_inactivity_timeout_secs = ? "
-          <> "where team_id = ?"
-
-getClassifiedDomainsFeatureStatus ::
-  MonadClient m =>
-  TeamId ->
-  m (Maybe (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains))
-getClassifiedDomainsFeatureStatus tid = do
-  let q = query1 select (params Quorum (Identity tid))
-  mTuple <- retry x1 q
-  pure $
-    mTuple >>= \(mbStatusValue, mbDomains) ->
-      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.TeamFeatureClassifiedDomainsConfig <$> mbDomains)
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe [Domain])
-    select =
-      fromString $
-        "select " <> toCol Public.TeamFeatureClassifiedDomains <> ", classified_domains_domains "
-          <> "from team_features where team_id = ?"
-
-setClassifiedDomainsFeatureStatus ::
-  MonadClient m =>
-  TeamId ->
-  TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
-  m (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-setClassifiedDomainsFeatureStatus tid status = do
-  let statusValue = Public.tfwcStatus status
-      domains = Public.classifiedDomainsDomains . Public.tfwcConfig $ status
-  retry x5 $ write update (params Quorum (statusValue, domains, tid))
-  pure status
-  where
-    update :: PrepQuery W (TeamFeatureStatusValue, [Domain], TeamId) ()
-    update =
-      fromString $
-        "update team_features set "
-          <> toCol Public.TeamFeatureClassifiedDomains
-          <> " = ?, "
-          <> "classified_domains_domains = ?, "
           <> "where team_id = ?"
