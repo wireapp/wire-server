@@ -937,5 +937,4 @@ mkFeatureGetAndPutRoute getter mbSetter = do
 
   for_ mbSetter $ \setter -> do
     mkPutRoute True (toByteString' featureName) setter
-
--- mkPutRoute False `mapM_` Public.deprecatedFeatureName featureName setter
+    mkPutRoute False `mapM_` Public.deprecatedFeatureName featureName setter
