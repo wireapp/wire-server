@@ -293,6 +293,8 @@ newtype TeamFeatureClassifiedDomainsConfig = TeamFeatureClassifiedDomainsConfig
   }
   deriving stock (Show, Eq, Generic)
 
+deriving via (GenericUniform TeamFeatureClassifiedDomainsConfig) instance Arbitrary TeamFeatureClassifiedDomainsConfig
+
 -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/376439791/Use%2Bcase%2BClassified%2Bdomains?focusedCommentId=384861096#How-clients-fetch-the-list-of-classified-domains
 instance ToSchema TeamFeatureClassifiedDomainsConfig where
   declareNamedSchema _ =
