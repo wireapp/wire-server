@@ -25,7 +25,6 @@ module Wire.API.Team.Feature
     TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
     FeatureHasNoConfig,
-    FeatureHasConfig,
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
@@ -206,12 +205,6 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
-
-class FeatureHasConfig (a :: TeamFeatureName)
-
-instance FeatureHasConfig 'TeamFeatureAppLock
-
-instance FeatureHasConfig 'TeamFeatureClassifiedDomains
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model

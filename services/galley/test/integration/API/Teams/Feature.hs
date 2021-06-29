@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Teams.Feature (tests) where
+module API.Teams.Feature (tests, assertFlagWithConfig) where
 
 import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
@@ -30,6 +30,7 @@ import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
 import Test.Tasty
+import Test.Tasty.HUnit ((@?=))
 import TestHelpers (test)
 import TestSetup
 import qualified Wire.API.Team.Feature as Public
@@ -258,21 +259,21 @@ assertFlagNoConfig res expected = do
       )
       === const (Right expected)
 
--- assertFlagWithConfig ::
---   forall (a :: Public.TeamFeatureName) cfg.
---   ( HasCallStack,
---     Typeable a,
---     Public.FeatureHasConfig a,
---     FromJSON (Public.TeamFeatureStatus a),
---     Public.KnownTeamFeatureName a
---   ) =>
---   TestM ResponseLBS ->
---   Public.TeamFeatureStatus a ->
---   TestM ()
--- assertFlagWithConfig response expected = do
---   r <- response
---   let rJson = responseJsonEither @(Public.TeamFeatureStatus a)
---   pure r !!! do
---     statusCode === const 200
---     let v = responseJsonEither @(Public.TeamFeatureStatus a) === const (Right expected)
---     fmap Public.tfwcStatus v === const (Right . Public.tfwcStatus $ expected)
+assertFlagWithConfig ::
+  forall cfg .
+  ( HasCallStack,
+    Eq cfg,
+    FromJSON cfg,
+    Show cfg,
+    Typeable cfg
+  ) =>
+  TestM ResponseLBS ->
+  Public.TeamFeatureStatusWithConfig cfg ->
+  TestM ()
+assertFlagWithConfig response expected = do
+  r <- response
+  let rJson = responseJsonEither @(Public.TeamFeatureStatusWithConfig cfg) r
+  pure r !!! statusCode === const 200
+  liftIO $ do
+    fmap Public.tfwcStatus rJson @?= (Right . Public.tfwcStatus $ expected)
+    fmap Public.tfwcConfig rJson @?= (Right . Public.tfwcConfig $ expected)
