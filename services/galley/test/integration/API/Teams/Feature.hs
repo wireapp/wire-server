@@ -193,6 +193,13 @@ testClassifiedDomains = do
   -- let getClassifiedDomains :: HasCallStack => Public.TeamFeatureStatusWithConfig cfg -> TestM ()
   --     getClassifiedDomains = assertFlagWithConfig @'Public.TeamFeatureClassifiedDomains $ Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
 
+  -- let getLegalHold :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+  --     getLegalHold = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
+  --     getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+  --     getLegalHoldInternal = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
+
+  let getClassifiedDomains :: HasCallStack => Public.TeamFeatureStatus a -> TestM ()
+      getClassifiedDomains = assertFlagWithConfig @'Public.TeamFeatureClassifiedDomains $ Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
   -- getClassifiedDomains $
   --   Public.TeamFeatureStatusWithConfig
   --     { Public.tfwcStatus = Public.TeamFeatureDisabled,
