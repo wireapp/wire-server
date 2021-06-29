@@ -164,8 +164,7 @@ tests s =
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "cannot join private conversation" postJoinConvFail,
-          test s "remove user" removeUser,
-          test s "fetch classified domains" getClassifiedDomains
+          test s "remove user" removeUser
         ]
 
 -------------------------------------------------------------------------------
@@ -1771,11 +1770,3 @@ removeUser = do
       evtType e @?= MemberLeave
       evtFrom e @?= u
       evtData e @?= EdMembersLeave (UserIdList [qUnqualified u])
-
-getClassifiedDomains :: TestM ()
-getClassifiedDomains = do
-  g <- view tsGalley
-  tid :: TeamId <- undefined
-  -- TODO(md): see how to create a team
-  get (g . paths ["/teams", toByteString' tid, "features", "classifiedDomains"])
-    !!! const 200 === statusCode
