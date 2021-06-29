@@ -73,7 +73,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs:198 (calls to 'testRoundTrip')
 -- * services/galley/src/Galley/API/Internal.hs:179: (calls to 'mkFeatureGetAndPutRoute')
 -- * services/galley/src/Galley/API/Public.hs:465: (calls to 'mkFeatureGetAndPutRoute')
--- * services/galley/src/Galley/API/Teams/Features.hs:106: (calls ot 'getStatus')
+-- * services/galley/src/Galley/API/Teams/Features.hs:106: (calls to 'getStatus')
 --
 -- Using something like '[minBound..]' on those expressions would require dependent types.  We
 -- could generate exhaustive lists of those calls using TH, along the lines of:
