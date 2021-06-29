@@ -295,7 +295,6 @@ makeLenses ''FeatureFlags
 -- The solution: add new permission bits to 'HiddenPerm', 'HiddenPermissions', and make
 -- 'hasPermission', 'mayGrantPermission' polymorphic.  Now you can check both for the hidden
 -- permission bits and the old ones that we share with the client apps.
--- TODO(md): explain why hidden
 
 -- | See Note [hidden team roles]
 data HiddenPerm
