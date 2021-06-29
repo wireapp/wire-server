@@ -39,7 +39,6 @@ settings:
     legalhold: disabled-by-default
     teamSearchVisibility: disabled-by-default
     setEmailVisibility: visible_to_self
-    classifiedDomains: disabled-by-default
 ```
 
 The `featureFlags` field in the galley settings is mandatory, and all
