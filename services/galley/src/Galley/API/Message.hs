@@ -48,6 +48,8 @@ data QualifiedMismatch = QualifiedMismatch
   }
   deriving (Show, Eq)
 
+type QualifiedRecipientSet = Set (Domain, UserId, ClientId)
+
 mkQualifiedMismatch ::
   QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedMismatch
 mkQualifiedMismatch missing redundant deleted =
@@ -71,18 +73,13 @@ mkMessageSendingStatus time mismatch failures =
       mssFailedToSend = failures
     }
 
-type QualifiedRecipient = (Domain, (UserId, ClientId))
-
-qualifiedRecipientToUser :: QualifiedRecipient -> Qualified UserId
-qualifiedRecipientToUser (dom, (uid, _)) = Qualified uid dom
-
-type RecipientMap a = Map UserId (Map ClientId a)
-
-type RecipientSet = Map UserId (Set ClientId)
-
-type QualifiedRecipientMap a = Map Domain (RecipientMap a)
-
-type QualifiedRecipientSet = Set (Domain, UserId, ClientId)
+clientMismatchStrategyApply :: ClientMismatchStrategy -> QualifiedRecipientSet -> QualifiedRecipientSet
+clientMismatchStrategyApply MismatchReportAll = id
+clientMismatchStrategyApply MismatchIgnoreAll = const mempty
+clientMismatchStrategyApply (MismatchReportOnly users) =
+  Set.filter (\(d, u, _) -> Set.member (Qualified u d) users)
+clientMismatchStrategyApply (MismatchIgnoreOnly users) =
+  Set.filter (\(d, u, _) -> not (Set.member (Qualified u d) users))
 
 -- A Venn diagram of words in this function:
 --
@@ -104,14 +101,16 @@ type QualifiedRecipientSet = Set (Domain, UserId, ClientId)
 --                |                 +--------------------------------------+----------+
 --                |                                   |
 --                +-----------------------------------+
--- TODO: Refactor expected to be room, derive expected from room and strategy
 checkMessageClients ::
   -- | Sender
   (Domain, UserId, ClientId) ->
+  -- | Expected recipients
   Set (Domain, UserId, ClientId) ->
+  -- | Provided recipients and ciphertexts
   Map (Domain, UserId, ClientId) ByteString ->
+  -- | Expected subset of participants
   ClientMismatchStrategy ->
-  (Maybe (Map (Domain, UserId, ClientId) ByteString), QualifiedMismatch)
+  (Bool, Map (Domain, UserId, ClientId) ByteString, QualifiedMismatch)
 checkMessageClients sender expected recipientMap mismatchStrat =
   let recipients = Map.keysSet recipientMap
       -- Whoever is expected but not in recipients is missing.
@@ -137,18 +136,10 @@ checkMessageClients sender expected recipientMap mismatchStrat =
       valid = Set.difference recipients (extra <> redundantSender)
       validMap = Map.restrictKeys recipientMap valid
       -- Resolve whether the message is valid using client mismatch strategy
-      usersWithMissingClients = Set.map (\(d, u, _) -> (d, u)) missing
-      isValidMessage = case mismatchStrat of
-        MismatchIgnoreAll -> True
-        MismatchReportAll -> Set.null missing
-        MismatchIgnoreOnly ignoredUsers ->
-          let nonIgnoredUsersMissingClients = usersWithMissingClients `Set.difference` Set.map (\(Qualified u d) -> (d, u)) ignoredUsers
-           in Set.null nonIgnoredUsersMissingClients
-        MismatchReportOnly strictUsers ->
-          let strictUsersMissingClients = Set.map (\(Qualified u d) -> (d, u)) strictUsers `Set.intersection` usersWithMissingClients
-           in Set.null strictUsersMissingClients
-   in ( guard isValidMessage $> validMap,
-        mkQualifiedMismatch missing redundant deleted
+      reportedMissing = clientMismatchStrategyApply mismatchStrat missing
+   in ( Set.null reportedMissing,
+        validMap,
+        mkQualifiedMismatch reportedMissing redundant deleted
       )
 
 postQualifiedOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
@@ -179,19 +170,16 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
           . Map.delete sender -- TODO: only delete the sender client
           . Clients.toMap
           $ localClients
-  let (mValidMessages, mismatch) =
+  let (sendMessage, validMessages, mismatch) =
         checkMessageClients
           (senderDomain, sender, qualifiedNewOtrSender msg)
           qualifiedLocalClients
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty
-
-  validMessages <- case mValidMessages of
-    Nothing -> do
-      lift $ guardQualifiedLegalholdPolicyConflicts (userToProtectee senderType sender) (qmMissing mismatch)
-      throwUnion $ WithStatus @412 otrResult
-    Just v -> pure v
+  unless sendMessage $ do
+    lift $ guardQualifiedLegalholdPolicyConflicts (userToProtectee senderType sender) (qmMissing mismatch)
+    throwUnion $ WithStatus @412 otrResult
   let qualifiedConv = Qualified convId localDomain
       qualifiedSender = Qualified sender senderDomain
       localValidMessages = Map.mapKeys (\(_, u, c) -> (u, c)) $ Map.filterWithKey (\(d, _, _) _ -> localDomain == d) validMessages
