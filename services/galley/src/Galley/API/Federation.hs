@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
+import Control.Monad.Catch (throwM)
 import Data.Containers.ListUtils (nubOrd)
+import Data.Domain
 import Data.Qualified (Qualified (..))
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
@@ -30,6 +32,7 @@ import Wire.API.Conversation.Member (OtherMember (..), memId)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.Federation.Error (federationUnauthorized)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
@@ -60,11 +63,13 @@ registerConversation rc = do
             (EdConversation c)
     pushConversationEvent event [memId mem] []
 
-getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
-getConversations (GetConversationsRequest qUid gcrConvIds) = do
-  domain <- viewFederationDomain
+getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
+getConversations originDomain (GetConversationsRequest qUid gcrConvIds) = do
+  when (qDomain qUid /= originDomain) $
+    throwM $ federationUnauthorized "unauthorized: originDomain / originUser mismatch"
+  localDomain <- viewFederationDomain
   convs <- Data.conversations gcrConvIds
-  let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
+  let convViews = Mapping.conversationViewMaybeQualified localDomain qUid <$> convs
   pure $ GetConversationsResponse . catMaybes $ convViews
 
 -- FUTUREWORK: also remove users from conversation

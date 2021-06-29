@@ -32,6 +32,7 @@ import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, Receip
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
+import Wire.API.Federation.Domain
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
@@ -50,7 +51,8 @@ data Api routes = Api
         :> Post '[JSON] (),
     getConversations ::
       routes
-        :- "federation"
+        :- DomainHeader
+        :> "federation"
         :> "get-conversations"
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
