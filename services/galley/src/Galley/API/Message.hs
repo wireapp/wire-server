@@ -104,36 +104,32 @@ clientMismatchStrategyApply (MismatchIgnoreOnly users) =
 checkMessageClients ::
   -- | Sender
   (Domain, UserId, ClientId) ->
-  -- | Expected recipients
+  -- | Participants of the conversation
   Set (Domain, UserId, ClientId) ->
   -- | Provided recipients and ciphertexts
   Map (Domain, UserId, ClientId) ByteString ->
-  -- | Expected subset of participants
+  -- | Subset of missing clients to report
   ClientMismatchStrategy ->
   (Bool, Map (Domain, UserId, ClientId) ByteString, QualifiedMismatch)
-checkMessageClients sender expected recipientMap mismatchStrat =
-  let recipients = Map.keysSet recipientMap
+checkMessageClients sender participants recipientMap mismatchStrat =
+  let expected = Set.delete sender participants
+      expectedUsers :: Set (Domain, UserId) = Set.map (\(d, u, _) -> (d, u)) expected
+
+      recipients = Map.keysSet recipientMap
       -- Whoever is expected but not in recipients is missing.
       missing = Set.difference expected recipients
       -- Whoever is in recipient but not expected is extra.
       extra = Set.difference recipients expected
-      -- If sender includes a message for themself, it is considered redundant
-      redundantSender
-        | Set.member sender recipients = Set.singleton sender
-        | otherwise = mempty
-      -- The clients which belong to users who are expected are considered
-      -- deleted.
-      --
-      -- FUTUREWORK: Optimize this by partitioning extra, this way redundants
-      -- wouldn't need a qualifiedDiff.
-      expectedUsers :: Set (Domain, UserId) = Set.map (\(d, u, _) -> (d, u)) expected
-      deleted = Set.difference (Set.filter (\(d, u, _) -> Set.member (d, u) expectedUsers) extra) redundantSender
+      -- The clients which belong to users who are expected are considered deleted.
+      deleted =
+        Set.delete sender -- the sender is never deleted
+          . Set.filter (\(d, u, _) -> Set.member (d, u) expectedUsers)
+          $ extra
       -- The clients which are extra but not deleted, must belong to users which
       -- are not in the convesation and hence considered redundant.
-      redundant = Set.difference extra deleted <> redundantSender
-      -- The clients which are recipients but not extra or the sender client are
-      -- considered valid.
-      valid = Set.difference recipients (extra <> redundantSender)
+      redundant = Set.difference extra deleted
+      -- The clients which are both recipients and expected are considered valid.
+      valid = Set.intersection recipients expected
       validMap = Map.restrictKeys recipientMap valid
       -- Resolve whether the message is valid using client mismatch strategy
       reportedMissing = clientMismatchStrategyApply mismatchStrat missing
@@ -167,7 +163,6 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   let qualifiedLocalClients =
         flatten
           . Map.singleton localDomain
-          . Map.delete sender -- TODO: only delete the sender client
           . Clients.toMap
           $ localClients
   let (sendMessage, validMessages, mismatch) =
