@@ -642,16 +642,32 @@ postOtrMessage' reportMissing f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissing)
 
-postProteusMessageQualified ::
+postProteusMessageQualifiedWithMockFederator ::
+  (ToJSON a) =>
   UserId ->
   ClientId ->
   Qualified ConvId ->
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   Message.ClientMismatchStrategy ->
-  TestM ResponseLBS
+  (FederatedRequest -> a) ->
+  TestM (ResponseLBS, Mock.ReceivedRequests)
+postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat responses = do
+  opts <- view tsGConf
+  withTempMockFederator opts (Domain "far-away.example.com") responses $
+    postProteusMessageQualified senderUser senderClient convId recipients dat strat
+
+postProteusMessageQualified ::
+  (MonadIO m, HasGalley m, MonadHttp m) =>
+  UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  [(Qualified UserId, ClientId, ByteString)] ->
+  ByteString ->
+  Message.ClientMismatchStrategy ->
+  m ResponseLBS
 postProteusMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
-  g <- view tsGalley
+  g <- viewGalley
   let protoMsg = mkQualifiedOtrPayload senderClient recipients dat strat
   post $
     g

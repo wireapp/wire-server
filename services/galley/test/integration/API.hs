@@ -52,6 +52,7 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Data as Cql
@@ -71,10 +72,12 @@ import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
+import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
 import Wire.API.User.Client (QualifiedUserClients (..), UserClientPrekeyMap, getUserClientPrekeyMap)
+import Wire.API.UserMap (UserMap (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -472,10 +475,26 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             (deeRemote, deeClient, "text-for-dee")
           ]
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent.
-    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+    let responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+    pure resp2 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     liftIO $ do
+      requests
+        @?= [ F.FederatedRequest
+                { F.domain = domainText (qDomain deeRemote),
+                  F.request =
+                    Just
+                      ( F.Request
+                          { F.component = F.Brig,
+                            F.path = "/federation/get-user-clients",
+                            F.body = cs (encode (FederatedBrig.GetUserClients [qUnqualified deeRemote])),
+                            F.originDomain = "example.com"
+                          }
+                      )
+                }
+            ]
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"
           encodedData = toBase64Text "data"
@@ -877,9 +896,9 @@ getConvsOk2 = do
     const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
   -- get both
   rs <- getConvs alice Nothing Nothing <!! const 200 === statusCode
-  let cs = convList <$> responseJsonUnsafe rs
-  let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
-  let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
+  let convs = convList <$> responseJsonUnsafe rs
+  let c1 = convs >>= find ((== cnvId cnv1) . cnvId)
+  let c2 = convs >>= find ((== cnvId cnv2) . cnvId)
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
@@ -916,9 +935,9 @@ listConvsOk2 = do
     const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
   -- get both
   rs <- listAllConvs alice <!! const 200 === statusCode
-  let cs = convList <$> responseJsonUnsafe rs
-  let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
-  let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
+  let convs = convList <$> responseJsonUnsafe rs
+  let c1 = convs >>= find ((== cnvId cnv1) . cnvId)
+  let c2 = convs >>= find ((== cnvId cnv2) . cnvId)
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"

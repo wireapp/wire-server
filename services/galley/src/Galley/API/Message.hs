@@ -151,7 +151,7 @@ getRemoteClients :: ConvId -> Galley (Map (Domain, UserId) (Set ClientId))
 getRemoteClients convId = do
   remoteMembers <- Data.lookupRemoteMembers convId
   -- FUTUREWORK: parallelise RPCs
-  fmap mconcat
+  fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
     . traverse (uncurry getRemoteClientsFromDomain)
     . Map.assocs
     . partitionQualified
