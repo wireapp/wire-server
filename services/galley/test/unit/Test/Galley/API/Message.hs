@@ -43,12 +43,16 @@ tests =
 
 type QualifiedUserClient = (Domain, UserId, ClientId)
 
+recipientSetToMap :: Set QualifiedUserClient -> Map (Domain, UserId) (Set ClientId)
+recipientSetToMap = Set.foldr (\(d, u, c) m -> Map.insertWith Set.union (d, u) (Set.singleton c) m) mempty
+
 checkMessageClientSuccess :: TestTree
 checkMessageClientSuccess = testProperty "success" $
   \(sender :: QualifiedUserClient) (msg :: Map QualifiedUserClient ByteString) (strat :: ClientMismatchStrategy) ->
     let expectedRecipients = Map.keysSet msg
+        expectedRecipientMap = recipientSetToMap expectedRecipients
      in not (Map.member sender msg)
-          ==> checkMessageClients sender expectedRecipients msg strat
+          ==> checkMessageClients sender expectedRecipientMap msg strat
           === (True, msg, QualifiedMismatch mempty mempty mempty)
 
 checkMessageClientRedundantSender :: TestTree
@@ -56,7 +60,8 @@ checkMessageClientRedundantSender = testProperty "sender should be part of redun
   \(msg0 :: Map QualifiedUserClient ByteString) (sender :: QualifiedUserClient) (strat :: ClientMismatchStrategy) ->
     let msg = Map.insert sender "msg to self" msg0
         expectedRecipients = Map.keysSet msg0
-     in checkMessageClients sender expectedRecipients msg strat
+        expectedRecipientMap = recipientSetToMap expectedRecipients
+     in checkMessageClients sender expectedRecipientMap msg strat
           === (True, msg0, QualifiedMismatch mempty (mkQualifiedUserClients (Set.singleton sender)) mempty)
 
 -- | FUTUREWORK: Write a custom generator for this test. expected' and
@@ -67,9 +72,10 @@ checkMessageClientEverythingReported :: TestTree
 checkMessageClientEverythingReported = testProperty "all intended and expected recipients should be part of valid and extras" $
   \(sender :: QualifiedUserClient) (expected' :: Set QualifiedUserClient) (msg0 :: Map QualifiedUserClient ByteString) (msg' :: Map QualifiedUserClient ByteString) ->
     let expectedRecipients = Map.keysSet msg0 <> expected'
+        expectedRecipientMap = recipientSetToMap expectedRecipients
         msg = msg0 <> msg'
         intendedRecipients = Map.keysSet msg
-        (_, validMessages, mismatch) = checkMessageClients sender expectedRecipients msg MismatchReportAll
+        (_, validMessages, mismatch) = checkMessageClients sender expectedRecipientMap msg MismatchReportAll
         validRecipients = Map.keysSet validMessages
         extraRecipients = flatten . qualifiedUserClients $ qmMissing mismatch <> qmDeleted mismatch <> qmRedundant mismatch
      in validRecipients <> extraRecipients
@@ -79,8 +85,9 @@ checkMessageClientMissingSubsetOfStrategy :: TestTree
 checkMessageClientMissingSubsetOfStrategy = testProperty "missing clients should be a subset of the clients determined by the strategy" $
   \(sender :: QualifiedUserClient) (expected' :: Set QualifiedUserClient) (msg0 :: Map QualifiedUserClient ByteString) (msg' :: Map QualifiedUserClient ByteString) (strat :: ClientMismatchStrategy) ->
     let expected = Map.keysSet msg0 <> expected'
+        expectedMap = recipientSetToMap expected
         msg = msg0 <> msg'
         stratClients = clientMismatchStrategyApply strat expected
-        (_, _, mismatch) = checkMessageClients sender expected msg strat
+        (_, _, mismatch) = checkMessageClients sender expectedMap msg strat
         missing = flatten . qualifiedUserClients $ qmMissing mismatch
      in Set.isSubsetOf missing stratClients

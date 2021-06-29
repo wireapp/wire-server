@@ -8,6 +8,7 @@ import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified (Qualified (..))
+import Data.SOP (I (..), NS (..))
 import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime, getCurrentTime)
@@ -105,15 +106,20 @@ checkMessageClients ::
   -- | Sender
   (Domain, UserId, ClientId) ->
   -- | Participants of the conversation
-  Set (Domain, UserId, ClientId) ->
+  --
+  -- When the set of clients for a given user is empty, that means the user is
+  -- present in the conversation, but has no clients at all, and this is a
+  -- valid state.
+  Map (Domain, UserId) (Set ClientId) ->
   -- | Provided recipients and ciphertexts
   Map (Domain, UserId, ClientId) ByteString ->
   -- | Subset of missing clients to report
   ClientMismatchStrategy ->
   (Bool, Map (Domain, UserId, ClientId) ByteString, QualifiedMismatch)
-checkMessageClients sender participants recipientMap mismatchStrat =
-  let expected = Set.delete sender participants
-      expectedUsers :: Set (Domain, UserId) = Set.map (\(d, u, _) -> (d, u)) expected
+checkMessageClients sender participantMap recipientMap mismatchStrat =
+  let participants = setOf ((itraversed <. folded) . withIndex . to (\((d, u), c) -> (d, u, c))) participantMap
+      expected = Set.delete sender participants
+      expectedUsers :: Set (Domain, UserId) = Map.keysSet participantMap
 
       recipients = Map.keysSet recipientMap
       -- Whoever is expected but not in recipients is missing.
@@ -161,8 +167,8 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
         then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
         else Data.lookupClients localMemberIds
   let qualifiedLocalClients =
-        flatten
-          . Map.singleton localDomain
+        Map.mapKeys (localDomain,)
+          . makeUserMap (Set.fromList (map memId localMembers))
           . Clients.toMap
           $ localClients
   let (sendMessage, validMessages, mismatch) =
@@ -192,6 +198,9 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
           %@~ newMessagePush localMemberMap mconn metadata
   lift $ runMessagePush convId (pushes ^. traversed)
   throwUnion $ WithStatus @201 otrResult
+  where
+    makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
+    makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 
 flatten :: Map Domain (Map UserId (Set ClientId)) -> Set (Domain, UserId, ClientId)
 flatten =
@@ -282,3 +291,34 @@ qualifiedNewOtrMetadata msg =
       mmNativePriority = Public.qualifiedNewOtrNativePriority msg,
       mmData = Public.qualifiedNewOtrData msg
     }
+
+-- unqualified
+
+legacyClientMismatchStrategy :: Domain -> Maybe [UserId] -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> ClientMismatchStrategy
+legacyClientMismatchStrategy localDomain (Just uids) _ _ =
+  MismatchReportOnly (Set.fromList (map (`Qualified` localDomain) uids))
+legacyClientMismatchStrategy _ Nothing (Just IgnoreMissingAll) _ = MismatchIgnoreAll
+legacyClientMismatchStrategy localDomain Nothing (Just (IgnoreMissingList uids)) _ =
+  MismatchIgnoreOnly (Set.map (`Qualified` localDomain) uids)
+legacyClientMismatchStrategy _ Nothing Nothing (Just ReportMissingAll) = MismatchReportAll
+legacyClientMismatchStrategy localDomain Nothing Nothing (Just (ReportMissingList uids)) =
+  MismatchReportOnly (Set.map (`Qualified` localDomain) uids)
+legacyClientMismatchStrategy _ Nothing Nothing Nothing = MismatchReportAll
+
+legacyMismatch :: Domain -> MessageSendingStatus -> ClientMismatch
+legacyMismatch localDomain status =
+  ClientMismatch
+    { cmismatchTime = mssTime status,
+      missingClients = unqualify (mssMissingClients status),
+      redundantClients = unqualify (mssRedundantClients status),
+      deletedClients = unqualify (mssDeletedClients status)
+    }
+  where
+    unqualify = UserClients . Map.findWithDefault mempty localDomain . qualifiedUserClients
+
+unqualifiedResponse :: Domain -> Union PostOtrResponses -> Union PostOtrResponsesUnqualified
+unqualifiedResponse localDomain (Z (I (WithStatus mss))) = Z . I . WithStatus . legacyMismatch localDomain $ mss
+unqualifiedResponse localDomain (S (Z (I (WithStatus mss)))) = S . Z . I . WithStatus . legacyMismatch localDomain $ mss
+unqualifiedResponse _ (S (S (Z (I x)))) = S . S . Z . I $ x
+unqualifiedResponse _ (S (S (S (Z (I x))))) = S . S . S . Z . I $ x
+unqualifiedResponse _ (S (S (S (S x)))) = case x of

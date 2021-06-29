@@ -29,7 +29,7 @@ import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Extra (allM, anyM)
-import Control.Monad.Trans.Except (runExceptT, throwE)
+import Control.Monad.Trans.Except (throwE)
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
@@ -566,6 +566,9 @@ catMembers localDomain ls rs =
 
 toBase64Text :: ByteString -> Text
 toBase64Text = Text.decodeUtf8 . B64.encode
+
+fromBase64TextLenient :: Text -> ByteString
+fromBase64TextLenient = B64.decodeLenient . Text.encodeUtf8
 
 -- union monad transformer
 

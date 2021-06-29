@@ -118,6 +118,7 @@ import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.User.Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -663,22 +664,29 @@ postProteusMessage zusr zcon convDomain cnv msg = do
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
-  let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
-      overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
-  translateToServant =<< postNewOtrMessage User zusr (Just zcon) cnv overallResovedMissingOptions message
-  where
-    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
-    translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
-    translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
-    translateToServant (OtrUnknownClient e) = Servant.respond e
-    translateToServant (OtrConversationNotFound e) = Servant.respond e
-
-    resolveQueryMissingOptions :: Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.OtrFilterMissing
-    resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
-    resolveQueryMissingOptions (Just Public.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
-    resolveQueryMissingOptions (Just (Public.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
-    resolveQueryMissingOptions Nothing (Just Public.ReportMissingAll) = Public.OtrReportAllMissing
-    resolveQueryMissingOptions Nothing (Just (Public.ReportMissingList uids)) = Public.OtrReportMissing uids
+  localDomain <- viewFederationDomain
+  let qualifiedRecipients =
+        Public.QualifiedOtrRecipients
+          . QualifiedUserClientMap
+          . Map.singleton localDomain
+          . userClientMap
+          . fmap fromBase64TextLenient
+          . Public.otrRecipientsMap
+          . Public.newOtrRecipients
+          $ message
+  let clientMismatchStrategy = legacyClientMismatchStrategy localDomain (newOtrReportMissing message) ignoreMissing reportMissing
+      qualifiedMessage =
+        Public.QualifiedNewOtrMessage
+          { Public.qualifiedNewOtrSender = newOtrSender message,
+            Public.qualifiedNewOtrRecipients = qualifiedRecipients,
+            Public.qualifiedNewOtrNativePush = newOtrNativePush message,
+            Public.qualifiedNewOtrTransient = newOtrTransient message,
+            Public.qualifiedNewOtrNativePriority = newOtrNativePriority message,
+            Public.qualifiedNewOtrData = maybe mempty fromBase64TextLenient (newOtrData message),
+            Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
+          }
+  unqualifiedResponse localDomain
+    <$> postQualifiedOtrMessage User zusr (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
