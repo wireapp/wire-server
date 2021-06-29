@@ -516,6 +516,8 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
   chadClient2 <- randomClient (qUnqualified chadOwningDomain) (someLastPrekeys !! 2)
   deeId <- randomId
+  deeClient <- liftIO $ generate arbitrary
+
   let remoteDomain = Domain "far-away.example.com"
       deeRemote = Qualified deeId remoteDomain
 
@@ -534,16 +536,22 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+    let responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+
+    pure resp2 !!! do
       const 412 === statusCode
       let expectedMissing =
             QualifiedUserClients $
               Map.fromList
                 [ ( owningDomain,
-                    Map.fromList $
+                    Map.fromList
                       [ (bobUnqualified, Set.singleton bobClient),
                         (chadUnqualified, Set.singleton chadClient2)
                       ]
+                  ),
+                  ( remoteDomain,
+                    Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
                 ]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
