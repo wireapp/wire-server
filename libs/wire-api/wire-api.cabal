@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5a329c1ce4c3f8abf32c807d1cb047eb19b26c074ed953ac0fbe333e32e74140
+-- hash: 8cb56552b9f89c25fdb19e0831a4fe68543982a5aaf1dbc3d482434a56a6f31f
 
 name:           wire-api
 version:        0.1.0
@@ -392,6 +392,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.ClientCapability
       Test.Wire.API.Golden.Manual.ClientCapabilityList
       Test.Wire.API.Golden.Manual.ConversationCoverView
+      Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
       Test.Wire.API.Golden.Runner
