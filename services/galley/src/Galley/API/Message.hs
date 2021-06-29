@@ -152,6 +152,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   let nowMillis = toUTCTimeMillis now
   -- TODO: Test this, fix this, make it a parameters
   senderDomain <- viewFederationDomain
+  let senderClient = qualifiedNewOtrSender msg
   unless alive $ do
     Data.deleteConversation convId
     throwUnion ErrorDescription.convNotFound
@@ -171,6 +172,17 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
           . makeUserMap (Set.fromList (map memId localMembers))
           . Clients.toMap
           $ localClients
+
+  -- check if the sender is part of the conversation
+  -- FUTUREWORK: handle remote sender
+  when (not (Map.member sender localMemberMap)) $ do
+    throwUnion ErrorDescription.convNotFound
+
+  -- check if the sender client exists (as one of the clients in the conversation)
+  -- FUTUREWORK: handle remote sender
+  unless (Set.member senderClient (Map.findWithDefault mempty (senderDomain, sender) qualifiedLocalClients)) $ do
+    throwUnion ErrorDescription.unknownClient
+
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
           (senderDomain, sender, qualifiedNewOtrSender msg)
