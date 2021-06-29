@@ -203,10 +203,12 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   unless (Set.member senderClient (Map.findWithDefault mempty (senderDomain, sender) qualifiedLocalClients)) $ do
     throwUnion ErrorDescription.unknownClient
 
+  qualifiedRemoteClients <- lift $ getRemoteClients convId
+
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
           (senderDomain, sender, qualifiedNewOtrSender msg)
-          qualifiedLocalClients
+          (qualifiedLocalClients <> qualifiedRemoteClients)
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty

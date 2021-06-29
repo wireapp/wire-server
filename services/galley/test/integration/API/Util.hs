@@ -1673,10 +1673,9 @@ eqMismatchQualified ::
   Maybe Message.MessageSendingStatus ->
   Bool
 eqMismatchQualified _ _ _ Nothing = False
-eqMismatchQualified missing _redundant deleted (Just other) = do
+eqMismatchQualified missing redundant deleted (Just other) = do
   missing == Message.mssMissingClients other
-    -- FUTUREWORK: reenable check once remote client discovery is implemented
-    -- && redundant == Message.mssRedundantClients other
+    && redundant == Message.mssRedundantClients other
     && deleted == Message.mssDeletedClients other
 
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
