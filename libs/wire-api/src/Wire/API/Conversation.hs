@@ -25,6 +25,7 @@ module Wire.API.Conversation
     Conversation (..),
     ConversationCoverView (..),
     ConversationList (..),
+    ListConversations (..),
 
     -- * Conversation properties
     Access (..),
@@ -78,6 +79,7 @@ import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified)
+import Data.Range (Range)
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -246,6 +248,26 @@ instance FromJSON a => FromJSON (ConversationList a) where
     ConversationList
       <$> o A..: "conversations"
       <*> o A..: "has_more"
+
+-- | Used on the POST /list-conversations endpoint
+-- FUTUREWORK: add to golden tests (how to generate them?)
+data ListConversations = ListConversations
+  { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
+    lStartId :: Maybe (Qualified ConvId),
+    lSize :: Maybe (Range 1 500 Int32)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversations
+
+instance ToSchema ListConversations where
+  schema =
+    objectWithDocModifier
+      "ListConversations"
+      (description ?~ "A request to list some or all of a user's conversations, including remote ones")
+      $ ListConversations
+        <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
+        <*> lStartId .= optField "start_id" Nothing schema
+        <*> lSize .= optField "size" Nothing schema
 
 --------------------------------------------------------------------------------
 -- Conversation properties
@@ -460,13 +482,15 @@ newConvSchema :: ValueSchema NamedSwaggerDoc NewConv
 newConvSchema =
   objectWithDocModifier
     "NewConv"
-    (description ?~ "JSON object to create a new conversation")
+    (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
     $ NewConv
       <$> newConvUsers
-        .= fieldWithDocModifier
-          "users"
-          (description ?~ usersDesc)
-          (array schema)
+        .= ( fieldWithDocModifier
+               "users"
+               (description ?~ usersDesc)
+               (array schema)
+               <|> pure []
+           )
       <*> newConvQualifiedUsers
         .= ( fieldWithDocModifier
                "qualified_users"
@@ -496,7 +520,7 @@ newConvSchema =
           )
       <*> newConvReceiptMode .= opt (field "receipt_mode" schema)
       <*> newConvUsersRole
-        .= ( field "conversation_role" schema
+        .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                <|> pure roleNameWireAdmin
            )
   where
@@ -506,6 +530,14 @@ newConvSchema =
     qualifiedUsersDesc =
       "List of qualified user IDs (excluding the requestor) \
       \to be part of this conversation"
+    usersRoleDesc :: Text
+    usersRoleDesc =
+      cs $
+        "The conversation permissions the users \
+        \added in this request should have. \
+        \Optional, defaults to '"
+          <> show roleNameWireAdmin
+          <> "' if unset."
 
 newConvIsManaged :: NewConv -> Bool
 newConvIsManaged = maybe False cnvManaged . newConvTeam

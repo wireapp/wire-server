@@ -28,7 +28,7 @@ import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Control.Lens (preview, (.~), (^.), (^?))
+import Control.Lens (at, preview, (.~), (^.), (^?))
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -88,6 +88,7 @@ tests _cl _at opts p b c g =
       test p "post /clients - 400" $ testTooManyClients opts b,
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
+      test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
@@ -452,7 +453,7 @@ testRemoveClient hasPwd brig cannon = do
     deleteClient brig uid (clientId c) Nothing !!! const 403 === statusCode
   -- Success
   WS.bracketR cannon uid $ \ws -> do
-    deleteClient brig uid (clientId c) (if hasPwd then Just defPassword else Nothing)
+    deleteClient brig uid (clientId c) (if hasPwd then Just defPasswordText else Nothing)
       !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
@@ -467,6 +468,32 @@ testRemoveClient hasPwd brig cannon = do
   -- Cookies are gone
   numCookies' <- countCookies brig (userId u) defCookieLabel
   liftIO $ Just 0 @=? numCookies'
+  where
+    client ty lk =
+      (defNewClient ty [somePrekeys !! 0] lk)
+        { newClientLabel = Just "Nexus 5x",
+          newClientCookie = Just defCookieLabel
+        }
+
+testRemoveClientShortPwd :: Brig -> Http ()
+testRemoveClientShortPwd brig = do
+  u <- randomUser brig
+  let uid = userId u
+  let Just email = userEmail u
+  -- Permanent client with attached cookie
+  login brig (defEmailLogin email) PersistentCookie
+    !!! const 200 === statusCode
+  numCookies <- countCookies brig uid defCookieLabel
+  liftIO $ Just 1 @=? numCookies
+  c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
+  resp <-
+    deleteClient brig uid (clientId c) (Just "a")
+      <!! const 400 === statusCode
+  err :: Object <- responseJsonError resp
+  liftIO $ do
+    (err ^. at "code") @?= Just (Number 400)
+    (err ^. at "label") @?= Just (String "bad-request")
+    (err ^. at "message") @?= Just (String "Error in $.password: outside range [6, 1024]")
   where
     client ty lk =
       (defNewClient ty [somePrekeys !! 0] lk)
@@ -685,7 +712,7 @@ testPreKeyRace brig = do
   liftIO $ assertEqual "insufficient prekeys" (length pks) (length actual)
   let regular = filter (/= lastPrekeyId) actual
   liftIO $ assertEqual "duplicate prekeys" (length regular) (length (nub regular))
-  deleteClient brig uid (clientId c) (Just defPassword) !!! const 200 === statusCode
+  deleteClient brig uid (clientId c) (Just defPasswordText) !!! const 200 === statusCode
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do

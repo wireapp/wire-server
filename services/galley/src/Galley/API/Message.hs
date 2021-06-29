@@ -11,7 +11,7 @@ import Data.Qualified (Qualified (..))
 import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime, getCurrentTime)
-import Galley.API.LegalHold (guardQualifiedLegalholdPolicyConflicts)
+import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util (runUnionT, throwUnion, toBase64Text, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data

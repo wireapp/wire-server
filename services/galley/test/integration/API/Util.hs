@@ -33,6 +33,7 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
+import Data.Aeson.Types (emptyObject)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
@@ -66,7 +67,8 @@ import Data.UUID.V4
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types hiding (InternalMember (..))
+import Galley.Types hiding (InternalMember, MemberJoin, MemberLeave, memConvRoleName, memId, memOtrArchived, memOtrArchivedRef, memOtrMuted, memOtrMutedRef)
+import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
 import qualified Galley.Types.Teams as Team
@@ -95,8 +97,9 @@ import TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
+import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
-import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
@@ -639,7 +642,7 @@ postOtrMessage' reportMissing f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissing)
 
-postOtrMessageQualified ::
+postProteusMessageQualified ::
   UserId ->
   ClientId ->
   Qualified ConvId ->
@@ -647,12 +650,12 @@ postOtrMessageQualified ::
   ByteString ->
   Message.ClientMismatchStrategy ->
   TestM ResponseLBS
-postOtrMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
+postProteusMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
   g <- view tsGalley
   let protoMsg = mkQualifiedOtrPayload senderClient recipients dat strat
   post $
     g
-      . paths ["conversations", toByteString' domain, toByteString' conv, "otr", "messages"]
+      . paths ["conversations", toByteString' domain, toByteString' conv, "proteus", "messages"]
       . zUser senderUser
       . zConn "conn"
       . zType "access"
@@ -826,6 +829,34 @@ getConvs u r s = do
       . zType "access"
       . convRange r s
 
+-- (should be) equivalent to
+-- listConvs u (ListConversations [] Nothing Nothing)
+-- (if the schema of ListConversations is correct)
+listAllConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> m ResponseLBS
+listAllConvs u = do
+  g <- viewGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json emptyObject
+
+listConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversations -> m ResponseLBS
+listConvs u req = do
+  -- when using servant-client (pending #1605), this would become:
+  -- galleyClient <- view tsGalleyClient
+  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
+  g <- viewGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json req
+
 getConv :: UserId -> ConvId -> TestM ResponseLBS
 getConv u c = do
   g <- view tsGalley
@@ -836,13 +867,9 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
-getConvQualified :: UserId -> Qualified ConvId -> TestM ResponseLBS
-getConvQualified u convId = do
-  g <- view tsGalley
-  getConvQualified' g u convId
-
-getConvQualified' :: (MonadIO m, MonadHttp m) => GalleyR -> UserId -> Qualified ConvId -> m ResponseLBS
-getConvQualified' g u (Qualified conv domain) = do
+getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> Qualified ConvId -> m ResponseLBS
+getConvQualified u (Qualified conv domain) = do
+  g <- viewGalley
   get $
     g
       . paths ["conversations", toByteString' domain, toByteString' conv]
@@ -1223,7 +1250,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
-  evtType e @?= MemberJoin
+  evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
 
@@ -1235,7 +1262,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtType e @?= MemberStateUpdate
   evtFrom e @?= usr
   case evtData e of
-    Galley.Types.EdMemberUpdate mis -> do
+    Conv.EdMemberUpdate mis -> do
       assertEqual "target" (Just target) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
@@ -1263,7 +1290,7 @@ wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
-  evtType e @?= MemberLeave
+  evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
   sorted (evtData e) @?= sorted (EdMembersLeave (UserIdList old))
   where
@@ -1947,3 +1974,81 @@ aFewTimesAssertBool :: HasCallStack => String -> (a -> Bool) -> TestM a -> TestM
 aFewTimesAssertBool msg good action = do
   result <- aFewTimes action good
   liftIO $ assertBool msg (good result)
+
+checkUserUpdateEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
+checkUserUpdateEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  let j = Object $ List1.head (ntfPayload notif)
+  let etype = j ^? key "type" . _String
+  let euser = j ^?! key "user" ^? key "id" . _String
+  etype @?= Just "user.update"
+  euser @?= Just (UUID.toText (toUUID uid))
+
+checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
+checkUserDeleteEvent uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  let j = Object $ List1.head (ntfPayload notif)
+  let etype = j ^? key "type" . _String
+  let euser = j ^? key "id" . _String
+  etype @?= Just "user.delete"
+  euser @?= Just (UUID.toText (toUUID uid))
+
+checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
+checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  e ^. eventType @?= MemberJoin
+  e ^. eventTeam @?= tid
+  e ^. eventData @?= Just (EdMemberJoin uid)
+
+checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
+checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  e ^. eventType @?= MemberLeave
+  e ^. eventTeam @?= tid
+  e ^. eventData @?= Just (EdMemberLeave usr)
+
+checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
+checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  e ^. eventType @?= TeamUpdate
+  e ^. eventTeam @?= tid
+  e ^. eventData @?= Just (EdTeamUpdate upd)
+
+checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
+checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  evtType e @?= Conv.ConvCreate
+  case evtData e of
+    Conv.EdConversation x -> cnvId x @?= cid
+    other -> assertFailure $ "Unexpected event data: " <> show other
+
+checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
+checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  e ^. eventType @?= TeamDelete
+  e ^. eventTeam @?= tid
+  e ^. eventData @?= Nothing
+
+checkConvDeleteEvent :: HasCallStack => Qualified ConvId -> WS.WebSocket -> TestM ()
+checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  evtType e @?= Conv.ConvDelete
+  evtConv e @?= cid
+  evtData e @?= Conv.EdConvDelete
+
+checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> UserId -> WS.WebSocket -> TestM ()
+checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= False
+  let e = List1.head (WS.unpackPayload notif)
+  evtConv e @?= cid
+  evtType e @?= Conv.MemberLeave
+  case evtData e of
+    Conv.EdMembersLeave mm -> mm @?= Conv.UserIdList [usr]
+    other -> assertFailure $ "Unexpected event data: " <> show other
+
+checkTimeout :: WS.Timeout
+checkTimeout = 3 # Second

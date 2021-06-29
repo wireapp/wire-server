@@ -360,7 +360,7 @@ data ClientMismatchStrategy
 
 protolensToClientMismatchStrategy :: Maybe Proto.Otr.QualifiedNewOtrMessage'ClientMismatchStrategy -> Either String ClientMismatchStrategy
 protolensToClientMismatchStrategy = \case
-  Nothing -> Right MismatchReportAll
+  Nothing -> Left "ClientMismatchStrategy not specified!"
   Just (Proto.Otr.QualifiedNewOtrMessage'IgnoreAll _) -> Right MismatchIgnoreAll
   Just (Proto.Otr.QualifiedNewOtrMessage'ReportAll _) -> Right MismatchReportAll
   Just (Proto.Otr.QualifiedNewOtrMessage'IgnoreOnly ignoreOnly) -> MismatchIgnoreOnly <$> protolensToSetQualifiedUserIds ignoreOnly

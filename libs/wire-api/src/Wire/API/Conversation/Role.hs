@@ -102,12 +102,13 @@ instance S.ToSchema ConversationRole where
   declareNamedSchema _ = do
     conversationRoleSchema <-
       S.declareSchemaRef (Proxy @RoleName)
+    actionsSchema <- S.declareSchema (Proxy @[Action])
     let convRoleSchema :: S.Schema =
           mempty
             & S.properties . at "conversation_role" ?~ conversationRoleSchema
             & S.properties . at "actions"
               ?~ S.Inline
-                ( S.toSchema (Proxy @[Action])
+                ( actionsSchema
                     & description ?~ "The set of actions allowed for this role"
                 )
     pure (S.NamedSchema (Just "ConversationRole") convRoleSchema)

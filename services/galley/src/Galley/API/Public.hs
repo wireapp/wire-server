@@ -82,6 +82,7 @@ servantSitemap =
         GalleyAPI.getConversationIds = Query.getConversationIds,
         GalleyAPI.getConversations = Query.getConversations,
         GalleyAPI.getConversationByReusableCode = Query.getConversationByReusableCode,
+        GalleyAPI.listConversations = Query.listConversations,
         GalleyAPI.createGroupConversation = Create.createGroupConversation,
         GalleyAPI.createSelfConversation = Create.createSelfConversation,
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
@@ -91,7 +92,7 @@ servantSitemap =
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
         GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
         GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
-        GalleyAPI.postOtrMessage = Update.postOtrMessage
+        GalleyAPI.postProteusMessage = Update.postProteusMessage
       }
 
 sitemap :: Routes ApiBuilder Galley ()
