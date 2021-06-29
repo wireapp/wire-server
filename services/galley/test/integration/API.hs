@@ -582,7 +582,9 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
   let aliceUnqualified = qUnqualified aliceOwningDomain
       bobUnqualified = qUnqualified bobOwningDomain
       chadUnqualified = qUnqualified chadOwningDomain
+      deeRemoteUnqualified = qUnqualified deeRemote
       nonMemberUnqualified = qUnqualified nonMemberOwningDomain
+      nonMemberRemoteUnqualified = qUnqualified nonMemberRemote
 
   connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
 
@@ -601,15 +603,35 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           ]
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent and
     -- nonParticipatingRemote is reported as redundant
-    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
+
+    let responses fedRequest =
+          let request = fromMaybe (error "no request") $ F.request fedRequest
+              lookupClients uid
+                | uid == deeRemoteUnqualified = Just (uid, [PubClient deeClient Nothing])
+                | uid == nonMemberRemoteUnqualified = Just (uid, [PubClient nonMemberRemoteClient Nothing])
+                | otherwise = Nothing
+           in case F.path request of
+                "/federation/get-user-clients" ->
+                  let (getUserClients :: FederatedBrig.GetUserClients) = fromMaybe (error "parsing GetUserClients") $ decode (cs . F.body $ request)
+                   in UserMap
+                        . Map.fromList
+                        . mapMaybe lookupClients
+                        . FederatedBrig.gucUsers
+                        $ getUserClients
+                _ -> error ("unmocked request: " <> show request)
+
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+    pure resp2 !!! do
       const 201 === statusCode
       let expectedRedundant =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
-              [(nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient)]
+              [ (nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient),
+                (nonMemberRemoteUnqualified, Set.singleton nonMemberRemoteClient)
+              ]
           expectedDeleted =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
-      assertTrue_ (eqMismatchQualified mempty expectedRedundant expectedDeleted . responseJsonMaybe)
+      assertMismatchQualified mempty expectedRedundant expectedDeleted
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"

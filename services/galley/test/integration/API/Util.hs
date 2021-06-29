@@ -1694,6 +1694,29 @@ eqMismatchQualified missing redundant deleted (Just other) = do
     && redundant == Message.mssRedundantClients other
     && deleted == Message.mssDeletedClients other
 
+assertExpected :: (Eq a, Show a) => String -> a -> (Response (Maybe LByteString) -> Maybe a) -> Assertions ()
+assertExpected msg expected tparser =
+  assertResponse $ \res ->
+    case tparser res of
+      Nothing -> Just (addTitle "Parsing the response failed")
+      Just parsed ->
+        if parsed == expected
+          then Nothing
+          else Just (addTitle (unlines ["Expected: ", show expected, "But got:", show parsed]))
+  where
+    addTitle s = unlines [msg, s]
+
+assertMismatchQualified ::
+  HasCallStack =>
+  Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
+  Assertions ()
+assertMismatchQualified missing redundant deleted = do
+  assertExpected "missing" missing (fmap Message.mssMissingClients . responseJsonMaybe)
+  assertExpected "redundant" redundant (fmap Message.mssRedundantClients . responseJsonMaybe)
+  assertExpected "deleted" deleted (fmap Message.mssDeletedClients . responseJsonMaybe)
+
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap
   where
