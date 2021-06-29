@@ -83,6 +83,7 @@ module Galley.Data
     addLocalMembersToRemoteConv,
     member,
     members,
+    lookupRemoteMembers,
     removeMember,
     removeMembers,
     removeLocalMembers,
