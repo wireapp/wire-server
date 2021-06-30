@@ -33,6 +33,7 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
+import Data.Aeson.Types (emptyObject)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
@@ -96,8 +97,8 @@ import TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
+import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
-import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
@@ -828,6 +829,34 @@ getConvs u r s = do
       . zType "access"
       . convRange r s
 
+-- (should be) equivalent to
+-- listConvs u (ListConversations [] Nothing Nothing)
+-- (if the schema of ListConversations is correct)
+listAllConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> m ResponseLBS
+listAllConvs u = do
+  g <- viewGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json emptyObject
+
+listConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversations -> m ResponseLBS
+listConvs u req = do
+  -- when using servant-client (pending #1605), this would become:
+  -- galleyClient <- view tsGalleyClient
+  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
+  g <- viewGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json req
+
 getConv :: UserId -> ConvId -> TestM ResponseLBS
 getConv u c = do
   g <- view tsGalley
@@ -838,13 +867,9 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
-getConvQualified :: UserId -> Qualified ConvId -> TestM ResponseLBS
-getConvQualified u convId = do
-  g <- view tsGalley
-  getConvQualified' g u convId
-
-getConvQualified' :: (MonadIO m, MonadHttp m) => GalleyR -> UserId -> Qualified ConvId -> m ResponseLBS
-getConvQualified' g u (Qualified conv domain) = do
+getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> Qualified ConvId -> m ResponseLBS
+getConvQualified u (Qualified conv domain) = do
+  g <- viewGalley
   get $
     g
       . paths ["conversations", toByteString' domain, toByteString' conv]

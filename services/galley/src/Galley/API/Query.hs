@@ -22,6 +22,7 @@ module Galley.API.Query
     getConversationRoles,
     getConversationIds,
     getConversations,
+    listConversations,
     iterateConversations,
     getSelfH,
     internalGetMemberH,
@@ -36,7 +37,7 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.Proxy
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -51,6 +52,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
+import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
@@ -87,21 +89,26 @@ getConversation zusr domain cnv = do
   localDomain <- viewFederationDomain
   if domain == localDomain
     then getUnqualifiedConversation zusr cnv
-    else getRemoteConversation zusr (Qualified cnv domain)
+    else getRemoteConversation zusr (toRemote $ Qualified cnv domain)
 
-getRemoteConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
-getRemoteConversation zusr (Qualified convId remoteDomain) = do
-  localDomain <- viewFederationDomain
-  let qualifiedZUser = Qualified zusr localDomain
-      req = FederatedGalley.GetConversationsRequest qualifiedZUser [convId]
-      rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
-  -- we expect the remote galley to make adequate checks on conversation
-  -- membership and here we just pass through the reponse
-  conversations <- runFederatedGalley remoteDomain rpc
-  case gcresConvs conversations of
+getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
+getRemoteConversation zusr remoteConvId = do
+  conversations <- getRemoteConversations zusr [remoteConvId]
+  case conversations of
     [] -> throwM convNotFound
     [conv] -> pure conv
     _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
+
+getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
+getRemoteConversations zusr remoteConvs = do
+  localDomain <- viewFederationDomain
+  let qualifiedZUser = Qualified zusr localDomain
+  let convsByDomain = partitionRemote remoteConvs
+  convs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> do
+    let req = FederatedGalley.GetConversationsRequest qualifiedZUser convIds
+        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+    gcresConvs <$> runFederatedGalley remoteDomain rpc
+  pure $ concat convs
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do
@@ -148,6 +155,53 @@ getConversationsInternal user mids mstart msize = do
       let hasMore = Data.resultSetType r == Data.ResultSetTruncated
       pure (hasMore, Data.resultSetResult r)
 
+    removeDeleted c
+      | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
+      | otherwise = pure True
+
+-- FUTUREWORK: pagination support for remote conversations, or should *all* of them be returned always?
+-- FUTUREWORK: optimize cassandra requests when retrieving conversations (avoid large IN queries, prefer parallel/chunked requests)
+listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
+listConversations user (Public.ListConversations mIds qstart msize) = do
+  localDomain <- viewFederationDomain
+  when (isJust mIds && isJust qstart) $
+    throwM (invalidPayload "'start' and 'qualified_ids' are mutually exclusive")
+  (localMore, localConvIds, remoteConvIds) <- case mIds of
+    Just xs -> do
+      let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList xs)
+      (localMore, localConvIds) <- getIdsAndMore localIds
+      pure (localMore, localConvIds, remoteConvIds)
+    Nothing -> do
+      (localMore, localConvIds) <- getAll (localstart localDomain)
+      remoteConvIds <- Data.conversationsRemote user
+      pure (localMore, localConvIds, remoteConvIds)
+
+  localInternalConversations <-
+    Data.conversations localConvIds
+      >>= filterM removeDeleted
+      >>= filterM (pure . isMember user . Data.convLocalMembers)
+  localConversations <- mapM (Mapping.conversationView user) localInternalConversations
+
+  remoteConversations <- getRemoteConversations user remoteConvIds
+  let allConvs = localConversations <> remoteConversations
+  pure $ Public.ConversationList allConvs localMore
+  where
+    localstart localDomain = case qstart of
+      Just start | qDomain start == localDomain -> Just (qUnqualified start)
+      _ -> Nothing
+
+    size = fromMaybe (toRange (Proxy @32)) msize
+
+    getIdsAndMore :: [ConvId] -> Galley (Bool, [ConvId])
+    getIdsAndMore ids = (False,) <$> Data.conversationIdsOf user ids
+
+    getAll :: Maybe ConvId -> Galley (Bool, [ConvId])
+    getAll mstart = do
+      r <- Data.conversationIdsFrom user mstart (rcast size)
+      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
+      pure (hasMore, Data.resultSetResult r)
+
+    removeDeleted :: Data.Conversation -> Galley Bool
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True

@@ -301,6 +301,9 @@ nginx_conf:
       envs:
       - all
       doc: true
+    - path: ~* ^/list-conversations$
+      envs:
+      - all
     - path: ~* ^/teams$
       envs:
       - all
