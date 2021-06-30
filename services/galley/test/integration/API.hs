@@ -601,8 +601,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
             (nonMemberOwningDomain, nonMemberOwningDomainClient, "text-for-non-member-owning-domain"),
             (nonMemberRemote, nonMemberRemoteClient, "text-for-non-member-remote")
           ]
-    -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent and
-    -- nonParticipatingRemote is reported as redundant
+    -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent
 
     let responses fedRequest =
           let request = fromMaybe (error "no request") $ F.request fedRequest
