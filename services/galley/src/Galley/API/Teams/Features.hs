@@ -220,19 +220,21 @@ getAppLockInternal tid = do
   status <- TeamFeatures.getApplockFeatureStatus tid
   pure $ fromMaybe defaultStatus status
 
-setAppLockInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
+setAppLockInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureAppLock -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setAppLockInternal tid status = do
   when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
     throwM inactivityTimeoutTooLow
   TeamFeatures.setApplockFeatureStatus tid status
 
 getClassifiedDomainsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-getClassifiedDomainsInternal _tid = do
-  storedConfig <- view (options . optSettings . setFeatureFlags . flagClassifiedDomains)
-  pure $ case Public.tfwcStatus storedConfig of
+getClassifiedDomainsInternal tid = do
+  globalConfig <- view (options . optSettings . setFeatureFlags . flagClassifiedDomains)
+  mbTeamConfig <- TeamFeatures.getClassifiedDomainsStatus tid
+  let config = fromMaybe globalConfig mbTeamConfig
+  pure $ case Public.tfwcStatus config of
     Public.TeamFeatureDisabled ->
       Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
-    Public.TeamFeatureEnabled  -> storedConfig
+    Public.TeamFeatureEnabled  -> config
 
-setClassifiedDomainsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-setClassifiedDomainsInternal _tid = pure
+setClassifiedDomainsInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+setClassifiedDomainsInternal = TeamFeatures.setClassifiedDomainsStatus

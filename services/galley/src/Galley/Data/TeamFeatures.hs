@@ -22,13 +22,17 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
+    getClassifiedDomainsStatus,
+    setClassifiedDomainsStatus
   )
 where
 
 import Cassandra
+import Data.Domain (mkDomain, domainText)
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
+import System.Logger.Class (MonadLogger, field, msg, warn)
 import Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus,
@@ -38,14 +42,14 @@ import Wire.API.Team.Feature
   )
 import qualified Wire.API.Team.Feature as Public
 
-toCol :: TeamFeatureName -> String
-toCol TeamFeatureLegalHold = "legalhold_status"
-toCol TeamFeatureSSO = "sso_status"
-toCol TeamFeatureSearchVisibility = "search_visibility_status"
-toCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
-toCol TeamFeatureDigitalSignatures = "digital_signatures"
-toCol TeamFeatureAppLock = "app_lock_status"
-toCol TeamFeatureClassifiedDomains = "classified_domains"
+toStatusCol :: TeamFeatureName -> String
+toStatusCol TeamFeatureLegalHold = "legalhold_status"
+toStatusCol TeamFeatureSSO = "sso_status"
+toStatusCol TeamFeatureSearchVisibility = "search_visibility_status"
+toStatusCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
+toStatusCol TeamFeatureDigitalSignatures = "digital_signatures"
+toStatusCol TeamFeatureAppLock = "app_lock_status"
+toStatusCol TeamFeatureClassifiedDomains = "classified_domains_status"
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
@@ -61,7 +65,7 @@ getFeatureStatusNoConfig tid = do
   pure $ TeamFeatureStatusNoConfig <$> mStatusValue
   where
     select :: TeamFeatureName -> PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
-    select feature = fromString $ "select " <> toCol feature <> " from team_features where team_id = ?"
+    select feature = fromString $ "select " <> toStatusCol feature <> " from team_features where team_id = ?"
 
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
@@ -70,7 +74,7 @@ setFeatureStatusNoConfig ::
     Public.FeatureHasNoConfig a
   ) =>
   TeamId ->
-  (TeamFeatureStatus a) ->
+  TeamFeatureStatus a ->
   m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
   let flag = Public.tfwoStatus status
@@ -78,14 +82,14 @@ setFeatureStatusNoConfig tid status = do
   pure status
   where
     update :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
-    update feature = fromString $ "update team_features set " <> toCol feature <> " = ? where team_id = ?"
+    update feature = fromString $ "update team_features set " <> toStatusCol feature <> " = ? where team_id = ?"
 
 getApplockFeatureStatus ::
   (MonadClient m) =>
   TeamId ->
   m (Maybe (TeamFeatureStatus 'Public.TeamFeatureAppLock))
 getApplockFeatureStatus tid = do
-  let q = query1 (select) (params Quorum (Identity tid))
+  let q = query1 select (params Quorum (Identity tid))
   mTuple <- retry x1 q
   pure $
     mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
@@ -94,13 +98,13 @@ getApplockFeatureStatus tid = do
     select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Public.EnforceAppLock, Maybe Int32)
     select =
       fromString $
-        "select " <> toCol Public.TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
+        "select " <> toStatusCol Public.TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
           <> "from team_features where team_id = ?"
 
 setApplockFeatureStatus ::
   (MonadClient m) =>
   TeamId ->
-  (TeamFeatureStatus 'Public.TeamFeatureAppLock) ->
+  TeamFeatureStatus 'Public.TeamFeatureAppLock ->
   m (TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setApplockFeatureStatus tid status = do
   let statusValue = Public.tfwcStatus status
@@ -113,8 +117,53 @@ setApplockFeatureStatus tid status = do
     update =
       fromString $
         "update team_features set "
-          <> toCol Public.TeamFeatureAppLock
+          <> toStatusCol Public.TeamFeatureAppLock
           <> " = ?, "
           <> "app_lock_enforce = ?, "
           <> "app_lock_inactivity_timeout_secs = ? "
+          <> "where team_id = ?"
+
+getClassifiedDomainsStatus ::
+  (MonadClient m, MonadLogger m) =>
+  TeamId ->
+  m (Maybe (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains))
+getClassifiedDomainsStatus tid = do
+  let q = query1 select (params Quorum (Identity tid))
+  mTuple <- retry x1 q
+  case mTuple of
+    Nothing -> pure Nothing
+    Just (mbStatusValue, mbDomainsText) -> do
+      let eitherDomains = map mkDomain $ concatMap Cassandra.fromSet mbDomainsText
+          (domainParseErrors, parsedDomains) = partitionEithers eitherDomains
+      unless (null domainParseErrors) $ do
+        warn $
+          msg ("Some domains failed to parse in classified domains" :: ByteString)
+            . field ("errors" :: ByteString) (intercalate ", " domainParseErrors)
+            . field ("tid" :: ByteString) (show tid)
+      pure $ TeamFeatureStatusWithConfig <$> mbStatusValue <*> Just (Public.TeamFeatureClassifiedDomainsConfig parsedDomains)
+  where
+    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe (Cassandra.Set Text))
+    select =
+      fromString $
+        "select " <> toStatusCol Public.TeamFeatureClassifiedDomains <> ", classified_domains_domains "
+          <> "from team_features where team_id = ?"
+
+setClassifiedDomainsStatus ::
+  (MonadClient m) =>
+  TeamId ->
+  TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+  m (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+setClassifiedDomainsStatus tid status = do
+  let statusValue = Public.tfwcStatus status
+      domains = Public.classifiedDomainsDomains . Public.tfwcConfig $ status
+  retry x5 $ write update (params Quorum (statusValue, Cassandra.Set $ domainText <$> domains, tid))
+  pure status
+  where
+    update :: PrepQuery W (TeamFeatureStatusValue, Cassandra.Set Text, TeamId) ()
+    update =
+      fromString $
+        "update team_features set "
+          <> toStatusCol Public.TeamFeatureClassifiedDomains
+          <> " = ?, "
+          <> "classified_domains_domains = ? "
           <> "where team_id = ?"
