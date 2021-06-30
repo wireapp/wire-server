@@ -121,6 +121,7 @@ import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
+import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
@@ -813,54 +814,41 @@ postNewOtrMessage protectee con cnv val msg = do
 
 -- | Locally post a message originating from a remote conversation
 -- FUTUREWORK: error handling for missing / mismatched clients
-postRemoteToLocal ::
-  UTCTime ->
-  Remote ConvId ->
-  Qualified UserId ->
-  ClientId ->
-  Maybe Text ->
-  Maybe Priority ->
-  Bool ->
-  UserClientMap Text ->
-  Galley ()
-postRemoteToLocal now conv sender senderc extra priority transient (UserClientMap rcpts) = do
+postRemoteToLocal :: RemoteMessage (Remote ConvId) -> Galley ()
+postRemoteToLocal rm = do
   localDomain <- viewFederationDomain
-  members <- Data.filterRemoteConvMembers (Map.keys rcpts) (unTagged conv)
+  let UserClientMap rcpts = rmRecipients rm
+      Tagged conv = rmConversation rm
+  members <- Data.filterRemoteConvMembers (Map.keys rcpts) conv
   let rcpts' = do
         m <- members
         (c, t) <- maybe [] Map.assocs (rcpts ^? ix m)
         pure (m, c, t)
-  pushSome (map (remoteToLocalPush localDomain now conv sender senderc extra priority transient) rcpts')
-
-remoteToLocalPush ::
-  Domain ->
-  UTCTime ->
-  Remote ConvId ->
-  Qualified UserId ->
-  ClientId ->
-  Maybe Text ->
-  Maybe Priority ->
-  Bool ->
-  (UserId, ClientId, Text) ->
-  Push
-remoteToLocalPush localDomain now (Tagged conv) sender senderc extra priority transient (rcpt, rcptc, ciphertext) =
-  newPush1
-    ListComplete
-    msender
-    (ConvEvent event)
-    (singleton (userRecipient rcpt))
-    & pushNativePriority .~ priority
-    & pushTransient .~ transient
-  where
-    msg =
-      OtrMessage
-        { otrSender = senderc,
-          otrRecipient = rcptc,
-          otrCiphertext = ciphertext,
-          otrData = extra
-        }
-    event = Event OtrMessageAdd conv sender now (EdOtrMessage msg)
-    msender = guard (localDomain == qDomain sender) $> qUnqualified sender
+  let remoteToLocalPush (rcpt, rcptc, ciphertext) =
+        newPush1
+          ListComplete
+          (guard (localDomain == qDomain (rmSender rm)) $> qUnqualified (rmSender rm))
+          ( ConvEvent
+              ( Event
+                  OtrMessageAdd
+                  conv
+                  (rmSender rm)
+                  (rmTime rm)
+                  ( EdOtrMessage
+                      ( OtrMessage
+                          { otrSender = rmSenderClient rm,
+                            otrRecipient = rcptc,
+                            otrCiphertext = ciphertext,
+                            otrData = rmData rm
+                          }
+                      )
+                  )
+              )
+          )
+          (singleton (userRecipient rcpt))
+          & pushNativePriority .~ rmPriority rm
+          & pushTransient .~ rmTransient rm
+  pushSome (map remoteToLocalPush rcpts')
 
 newMessage ::
   Qualified UserId ->

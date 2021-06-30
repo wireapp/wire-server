@@ -18,6 +18,7 @@ module Galley.API.Federation where
 
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
+import Data.Id (ConvId)
 import Data.Qualified (Qualified (..))
 import Data.Tagged
 import qualified Galley.API.Mapping as Mapping
@@ -100,14 +101,7 @@ updateConversationMemberships cmu = do
   pushConversationEvent Nothing event targets []
 
 -- FUTUREWORK: report errors to the originating backend
-receiveMessage :: Domain -> RemoteMessage -> Galley ()
-receiveMessage domain rm =
+receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
+receiveMessage domain =
   API.postRemoteToLocal
-    (rmTime rm)
-    (Tagged (Qualified (rmConversation rm) domain))
-    (rmSender rm)
-    (rmSenderClient rm)
-    (rmData rm)
-    (rmPriority rm)
-    (rmTransient rm)
-    (rmRecipients rm)
+    . fmap (Tagged . (`Qualified` domain))

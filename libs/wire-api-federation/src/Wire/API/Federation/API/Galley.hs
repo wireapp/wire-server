@@ -72,7 +72,7 @@ data Api routes = Api
         :- "federation"
         :> "receive-message"
         :> DomainHeader
-        :> ReqBody '[JSON] RemoteMessage
+        :> ReqBody '[JSON] (RemoteMessage ConvId)
         :> Post '[JSON] ()
   }
   deriving (Generic)
@@ -139,19 +139,19 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
 
-data RemoteMessage = RemoteMessage
+data RemoteMessage conv = RemoteMessage
   { rmTime :: UTCTime,
     rmData :: Maybe Text,
     rmSender :: Qualified UserId,
     rmSenderClient :: ClientId,
-    rmConversation :: ConvId,
+    rmConversation :: conv,
     rmPriority :: Maybe Priority,
     rmTransient :: Bool,
     rmRecipients :: UserClientMap Text
   }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RemoteMessage)
-  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMessage)
+  deriving stock (Eq, Show, Generic, Functor)
+  deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
+  deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient
