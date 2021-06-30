@@ -23,8 +23,11 @@ import Control.Lens (view)
 import Control.Monad.Catch
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.Bifunctor (first)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as LBS
+import Data.Data (typeRep)
+import qualified Data.Data as Data.Proxy
 import Data.Handle
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
@@ -40,7 +43,7 @@ import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.GRPC.Client
-import Wire.API.Federation.GRPC.Types (Component (..), Inward, InwardResponse (..), Request (Request))
+import Wire.API.Federation.GRPC.Types hiding (body, path)
 import Wire.API.User
 import Wire.API.User.Auth
 
@@ -73,24 +76,60 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        bdy <- asInwardBodyUnsafe <$> inwardBrigCall "federation/get-user-by-handle" (encode hdl)
+        liftIO $ bdy `shouldBe` expectedProfile
 
-        Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
-        client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
-        c <- case client of
-          Left err -> liftIO $ assertFailure (show err)
-          Right cli -> pure cli
-        let brigCall = Request Brig "federation/get-user-by-handle" (LBS.toStrict (encode hdl)) "foo.example.com"
-        res <- liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
+    it "should give InvalidEndpoint on a 404 'no-endpoint'" $
+      runTestFederator env $ do
+        err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
+        expectErr IInvalidEndpoint err
 
-        liftIO $ case res of
-          -- TODO: When brig returns 404, this does not correctly parse as
-          -- InwardResponseErr, this needs to be looked into.
-          GRpcOk (InwardResponseBody bdy) ->
-            eitherDecodeStrict bdy `shouldBe` Right expectedProfile
-          GRpcOk (InwardResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
-          x -> assertFailure $ "GRpc call failed unexpectedly: " <> show x
+-- Utility functions
+--
+expectErr :: InwardErrorType -> InwardError -> TestFederator IO ()
+expectErr expectedType err = do
+  case inwardErrorType err of
+    t | t == expectedType -> pure ()
+    _ -> liftIO $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
 
--- All the code below is copied from brig-integrration tests
+asInwardBodyUnsafe :: (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> a
+asInwardBodyUnsafe = either err id . asInwardBodyEither
+  where
+    err parserErr = error . unwords $ ["asInwardBodyUnsafe:"] <> [parserErr]
+
+asInwardBodyEither :: forall a. (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> Either String a
+asInwardBodyEither (GRpcOk (InwardResponseError err)) = Left (show err)
+asInwardBodyEither (GRpcOk (InwardResponseBody bdy)) = first addTypeInfo $ eitherDecodeStrict bdy
+  where
+    addTypeInfo :: String -> String
+    addTypeInfo = (("Could not parse InwardResponseBody as '" <> show (typeRep (Data.Proxy.Proxy @a)) <> "': ") <>)
+asInwardBodyEither other = Left $ "GRpc call failed unexpectedly: " <> show other
+
+asInwardErrorUnsafe :: HasCallStack => GRpcReply InwardResponse -> InwardError
+asInwardErrorUnsafe = either err id . asInwardErrorEither
+  where
+    err parserErr = error . unwords $ ["asInwardErrorUnsafe:"] <> [parserErr]
+
+asInwardErrorEither :: HasCallStack => GRpcReply InwardResponse -> Either String InwardError
+asInwardErrorEither (GRpcOk (InwardResponseError err)) = Right err
+asInwardErrorEither (GRpcOk (InwardResponseBody bdy)) = Left ("expected InwardError, but got InwardResponseBody: " <> show bdy)
+asInwardErrorEither other = Left $ "GRpc call failed unexpectedly: " <> show other
+
+inwardBrigCall :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
+inwardBrigCall requestPath payload = do
+  c <- viewFederatorExternalClient
+  let brigCall = Request Brig requestPath (LBS.toStrict payload) "foo.example.com"
+  liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
+
+viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
+viewFederatorExternalClient = do
+  Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
+  client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+  case client of
+    Left err -> liftIO $ assertFailure (show err)
+    Right cli -> pure cli
+
+-- All the code below is copied from brig-integration tests
 -- FUTUREWORK: This should live in another package and shared by all the integration tests
 
 randomUser ::

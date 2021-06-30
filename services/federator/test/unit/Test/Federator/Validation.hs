@@ -21,18 +21,19 @@ module Test.Federator.Validation where
 
 import Data.Domain (Domain (..))
 import Data.Either.Combinators (mapLeft)
-import qualified Data.Text as Text
 import Federator.Options
 import Federator.Remote (Remote)
 import Federator.Validation
 import Imports
 import Polysemy (runM)
 import Polysemy.Embed
+import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Test.Federator.InternalServer ()
 import Test.Polysemy.Mock (evalMock)
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.Federation.GRPC.Types
 
 tests :: TestTree
 tests =
@@ -41,10 +42,10 @@ tests =
         [ federateWithAllowListSuccess,
           federateWithAllowListFail
         ],
-      testGroup "federateWith'" $
-        [ federateWith'AllowListFailSemantic,
-          federateWith'AllowListFail,
-          federateWith'AllowListSuccess
+      testGroup "validateDomain" $
+        [ validateDomainAllowListFailSemantic,
+          validateDomainAllowListFail,
+          validateDomainAllowListSuccess
         ]
     ]
 
@@ -65,30 +66,28 @@ federateWithAllowListFail =
       res <- Polysemy.runReader allowList $ federateWith (Domain "hello.world")
       embed $ assertBool "federating should not be allowed" (not res)
 
-federateWith'AllowListFailSemantic :: TestTree
-federateWith'AllowListFailSemantic =
+validateDomainAllowListFailSemantic :: TestTree
+validateDomainAllowListFailSemantic =
   testCase "semantic validation" $
     runM . evalMock @Remote @IO $ do
       let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"]))
-      res <- Polysemy.runReader allowList $ federateWith' ("invalid//.><-semantic-&@-domain" :: Text)
-      embed $ assertBool "invalid semantic domains should produce errors" (isLeft res)
-      embed $ assertEqual "semantic:" (Left ("Domain parse failure" :: Text)) (mapLeft (Text.take 20) res)
+      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("invalid//.><-semantic-&@-domain" :: Text)
+      embed $ assertEqual "semantic parse failure" (Left IInvalidDomain) (mapLeft inwardErrorType res)
 
-federateWith'AllowListFail :: TestTree
-federateWith'AllowListFail =
+validateDomainAllowListFail :: TestTree
+validateDomainAllowListFail =
   testCase "allow list validation" $
     runM . evalMock @Remote @IO $ do
       let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"]))
-      res <- Polysemy.runReader allowList $ federateWith' ("hello.world" :: Text)
-      embed $ assertBool "federating should not be allowed" (isLeft res)
-      embed $ assertEqual "allow list:" (Left ("not in the federation allow list" :: Text)) (mapLeft (Text.takeEnd 32) res)
+      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("hello.world" :: Text)
+      embed $ assertEqual "allow list:" (Left IFederationDeniedByRemote) (mapLeft inwardErrorType res)
 
-federateWith'AllowListSuccess :: TestTree
-federateWith'AllowListSuccess =
+validateDomainAllowListSuccess :: TestTree
+validateDomainAllowListSuccess =
   testCase "should give parsed domain if in the allow list" $
     -- removing evalMock @Remote doesn't seem to work, but why?
     runM . evalMock @Remote @IO $ do
       let domain = Domain "hello.world"
       let allowList = RunSettings (AllowList (AllowedDomains [domain]))
-      res <- Polysemy.runReader allowList $ federateWith' ("hello.world" :: Text)
-      embed $ assertEqual "federateWith' should give 'hello.world' as domain" (Right domain) res
+      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("hello.world" :: Text)
+      embed $ assertEqual "validateDomain should give 'hello.world' as domain" (Right domain) res

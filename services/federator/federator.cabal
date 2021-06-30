@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b7d470767dc3f1475b43b3914d7aa4572f00de52e59a396331bf20062d1e71fb
+-- hash: c8d8d4810804d66206f0409a7239d3961d39ff18d757b13e15917b52ec2dfb08
 
 name:           federator
 version:        1.0.0
@@ -61,6 +61,7 @@ library
     , mu-grpc-client
     , mu-grpc-server
     , mu-rpc
+    , network-uri
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -71,7 +72,9 @@ library
     , tinylog
     , types-common
     , unliftio
+    , uri-bytestring
     , uuid
+    , wai-utilities
     , wire-api
     , wire-api-federation
   default-language: Haskell2010
@@ -111,6 +114,7 @@ executable federator
     , mu-grpc-client
     , mu-grpc-server
     , mu-rpc
+    , network-uri
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -121,7 +125,9 @@ executable federator
     , tinylog
     , types-common
     , unliftio
+    , uri-bytestring
     , uuid
+    , wai-utilities
     , wire-api
     , wire-api-federation
   default-language: Haskell2010
@@ -166,6 +172,7 @@ executable federator-integration
     , mu-grpc-client
     , mu-grpc-server
     , mu-rpc
+    , network-uri
     , optparse-applicative
     , polysemy
     , polysemy-wire-zoo
@@ -180,7 +187,9 @@ executable federator-integration
     , tinylog
     , types-common
     , unliftio
+    , uri-bytestring
     , uuid
+    , wai-utilities
     , wire-api
     , wire-api-federation
     , yaml
@@ -226,6 +235,7 @@ test-suite federator-tests
     , mu-grpc-client
     , mu-grpc-server
     , mu-rpc
+    , network-uri
     , polysemy
     , polysemy-mocks
     , polysemy-wire-zoo
@@ -239,7 +249,9 @@ test-suite federator-tests
     , tinylog
     , types-common
     , unliftio
+    , uri-bytestring
     , uuid
+    , wai-utilities
     , wire-api
     , wire-api-federation
     , yaml

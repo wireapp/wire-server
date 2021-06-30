@@ -164,6 +164,8 @@ assertResponseErrorWithType expectedType res =
   case res of
     OutwardResponseBody _ ->
       assertFailure $ "Expected response to be error, but it was not: " <> show res
+    OutwardResponseInwardError err ->
+      assertFailure $ "Expected response to be outward error, but it was not: " <> show err
     OutwardResponseError (OutwardError actualType _) ->
       assertEqual "Unexpected error type" expectedType actualType
 

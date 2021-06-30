@@ -47,6 +47,9 @@ dependencies:
 - HsOpenSSL-x509-system
 - http-client-openssl
 - unliftio
+- wai-utilities
+- network-uri
+- uri-bytestring
 
 library:
   source-dirs: src
