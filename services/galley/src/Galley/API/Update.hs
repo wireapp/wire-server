@@ -846,7 +846,9 @@ postRemoteToLocal rm = do
               )
           )
           (singleton (userRecipient rcpt))
+          -- FUTUREWORK: unify event creation logic after #1634 is merged
           & pushNativePriority .~ rmPriority rm
+          & pushRoute .~ bool RouteDirect RouteAny (rmPush rm)
           & pushTransient .~ rmTransient rm
   pushSome (map remoteToLocalPush rcpts')
 

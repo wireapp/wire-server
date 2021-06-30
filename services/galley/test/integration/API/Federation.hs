@@ -225,6 +225,7 @@ receiveMessage = do
             FedGalley.rmConversation = conv,
             FedGalley.rmPriority = Nothing,
             FedGalley.rmTransient = False,
+            FedGalley.rmPush = False,
             FedGalley.rmRecipients = rcpts
           }
 

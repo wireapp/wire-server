@@ -139,6 +139,10 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
 
+-- Note: this is parametric in the conversation type to allow it to be used
+-- both for conversations with a fixed known domain (e.g. as the argument of the
+-- federation RPC), and for conversations with an arbitrary Qualified or Remote id
+-- (e.g. as the argument of the corresponding handler).
 data RemoteMessage conv = RemoteMessage
   { rmTime :: UTCTime,
     rmData :: Maybe Text,
@@ -146,6 +150,7 @@ data RemoteMessage conv = RemoteMessage
     rmSenderClient :: ClientId,
     rmConversation :: conv,
     rmPriority :: Maybe Priority,
+    rmPush :: Bool,
     rmTransient :: Bool,
     rmRecipients :: UserClientMap Text
   }
