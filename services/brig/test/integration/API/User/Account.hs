@@ -643,6 +643,9 @@ testUserUpdate brig cannon aws = do
   Search.refreshIndex brig
   Search.assertCanFind brig suid aliceQ "dogbert"
 
+-- This tests the behavior of `/i/self/email` instead of `/self/email` or
+-- `/access/self/email`.  tests for session token handling under `/access/self/email` are in
+-- `services/brig/test/integration/API/User/Auth.hs`.
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
   usr <- randomUser brig
@@ -665,12 +668,15 @@ testEmailUpdate brig aws = do
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   where
+    ensureNoOtherUserWithEmail :: Email -> Http ()
     ensureNoOtherUserWithEmail eml = do
       tk :: Maybe AccessToken <-
         responseJsonMaybe <$> login brig (defEmailLogin eml) SessionCookie
       for_ tk $ \t -> do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
+
+    initiateUpdateAndActivate :: Email -> UserId -> Http ()
     initiateUpdateAndActivate eml uid = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml

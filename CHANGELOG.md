@@ -30,6 +30,8 @@
 
 ## Bug fixes and other updates
 
+* New, hardened end-point for changing email
+
 ## Documentation
 
 ## Internal changes
