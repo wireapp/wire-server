@@ -207,6 +207,7 @@ sitemap = do
   mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal Features.setClassifiedDomainsInternal
 
   -- Misc API (internal) ------------------------------------------------
 

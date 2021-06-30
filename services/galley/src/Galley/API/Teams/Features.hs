@@ -30,6 +30,7 @@ module Galley.API.Teams.Features
     getDigitalSignaturesInternal,
     setDigitalSignaturesInternal,
     getClassifiedDomainsInternal,
+    setClassifiedDomainsInternal,
     getAppLockInternal,
     setAppLockInternal,
     DoAuth (..),
@@ -228,3 +229,6 @@ setAppLockInternal tid status = do
 getClassifiedDomainsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
 getClassifiedDomainsInternal _tid =
   view (options . optSettings . setFeatureFlags . flagClassifiedDomains)
+
+setClassifiedDomainsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+setClassifiedDomainsInternal _tid = pure . id
