@@ -215,26 +215,64 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   unless sendMessage $ do
     lift $ guardQualifiedLegalholdPolicyConflicts (userToProtectee senderType sender) (qmMissing mismatch)
     throwUnion $ WithStatus @412 otrResult
-  let qualifiedConv = Qualified convId localDomain
-      qualifiedSender = Qualified sender senderDomain
-      localValidMessages = Map.mapKeys (\(_, u, c) -> (u, c)) $ Map.filterWithKey (\(d, _, _) _ -> localDomain == d) validMessages
-      metadata = qualifiedNewOtrMetadata msg
-      events =
-        localValidMessages & reindexed snd itraversed
+  failedToSend <-
+    lift $
+      sendMessages
+        now
+        (Qualified sender senderDomain)
+        senderClient
+        mconn
+        convId
+        localMemberMap
+        (qualifiedNewOtrMetadata msg)
+        validMessages
+  throwUnion $ WithStatus @201 (otrResult {mssFailedToSend = mkQualifiedUserClients failedToSend})
+  where
+    makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
+    makeUserMap keys = (<> Map.fromSet (const mempty) keys)
+
+-- | Send both local and remote messages, return the set of clients for which
+-- sending has failed.
+sendMessages ::
+  UTCTime ->
+  Qualified UserId ->
+  ClientId ->
+  Maybe ConnId ->
+  ConvId ->
+  Map UserId LocalMember ->
+  MessageMetadata ->
+  Map (Domain, UserId, ClientId) ByteString ->
+  Galley (Set (Domain, UserId, ClientId))
+sendMessages now sender senderClient mconn conv localMemberMap metadata messages = do
+  localDomain <- viewFederationDomain
+  let localMessages = Map.mapKeys (\(_, u, c) -> (u, c)) $ Map.filterWithKey (\(d, _, _) _ -> localDomain == d) messages
+  sendLocalMessages now sender senderClient mconn conv localMemberMap metadata localMessages
+  pure mempty
+
+sendLocalMessages ::
+  UTCTime ->
+  Qualified UserId ->
+  ClientId ->
+  Maybe ConnId ->
+  ConvId ->
+  Map UserId LocalMember ->
+  MessageMetadata ->
+  Map (UserId, ClientId) ByteString ->
+  Galley ()
+sendLocalMessages now sender senderClient mconn conv localMemberMap metadata localMessages = do
+  localDomain <- viewFederationDomain
+  let events =
+        localMessages & reindexed snd itraversed
           %@~ newMessageEvent
-            qualifiedConv
-            qualifiedSender
-            (Public.qualifiedNewOtrSender msg)
-            (Public.qualifiedNewOtrData msg)
+            (Qualified conv localDomain)
+            sender
+            senderClient
+            (mmData metadata)
             now
       pushes =
         events & itraversed
           %@~ newMessagePush localDomain localMemberMap mconn metadata
-  lift $ runMessagePush convId (pushes ^. traversed)
-  throwUnion $ WithStatus @201 otrResult
-  where
-    makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
-    makeUserMap keys = (<> Map.fromSet (const mempty) keys)
+  runMessagePush conv (pushes ^. traversed)
 
 flatten :: Map Domain (Map UserId (Set ClientId)) -> Set (Domain, UserId, ClientId)
 flatten =
