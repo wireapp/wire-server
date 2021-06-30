@@ -916,7 +916,7 @@ mkFeatureGetAndPutRoute getter mbSetter = do
   mkGetRoute True (toByteString' featureName)
   mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName
 
-  let mkPutRoute makeDocumentation setter name= do
+  let mkPutRoute makeDocumentation setter name = do
         let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
             putHandler (uid ::: tid ::: req ::: _) = do
               status <- fromJsonBody req
