@@ -1,4 +1,5 @@
 import grpc
+import json
 
 from router_pb2 import *
 import router_pb2_grpc
@@ -10,17 +11,19 @@ channel = grpc.insecure_channel('localhost:8098') # public-facing federator port
 stub = router_pb2_grpc.InwardStub(channel)
 
 def handle_search(handle):
-    param = QueryParam(key="handle".encode("utf-8"), value=handle.encode("utf-8"))
     return Request(
-            path="users/by-handle".encode("utf-8"),
-            query=[param],
-            method=GET,
+            path="federation/get-user-by-handle".encode("utf-8"),
+            body=('"' + handle + '"').encode("utf-8"),
+            originDomain="python.example.com",
             component=Brig)
 
-req = handle_search("alice")
+req = handle_search("pyaewrqxggbtbvzdsubkl")
 
 print("request: ", req)
 
 response = stub.call(req)
-
-print("response: ", response)
+try:
+    jsonresponse = json.dumps(json.loads(response.body.decode('utf-8')), indent=2)
+    print("json reponse:\n", jsonresponse)
+except:
+    print("non-json response:\n", response)

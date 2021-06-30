@@ -33,7 +33,6 @@ import Wire.API.Message
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley as Public
 import Wire.API.Team.LegalHold
-import Wire.API.Team.Member (ListType (..))
 import Wire.API.User.Client
 
 data UserType = User | Bot
@@ -207,7 +206,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
             now
       pushes =
         events & itraversed
-          %@~ newMessagePush localMemberMap mconn metadata
+          %@~ newMessagePush localDomain localMemberMap mconn metadata
   lift $ runMessagePush convId (pushes ^. traversed)
   throwUnion $ WithStatus @201 otrResult
   where
@@ -261,13 +260,14 @@ newMessageEvent convId sender senderClient dat time recieverClient cipherText =
 
 newMessagePush ::
   Ord k =>
+  Domain ->
   Map k LocalMember ->
   Maybe ConnId ->
   MessageMetadata ->
   (k, ClientId) ->
   Event ->
   MessagePush
-newMessagePush members mconn mm (k, client) e = fromMaybe mempty $ do
+newMessagePush localDomain members mconn mm (k, client) e = fromMaybe mempty $ do
   member <- Map.lookup k members
   newBotMessagePush member <|> newUserMessagePush member
   where
@@ -276,16 +276,12 @@ newMessagePush members mconn mm (k, client) e = fromMaybe mempty $ do
     newUserMessagePush :: LocalMember -> Maybe MessagePush
     newUserMessagePush member =
       fmap newUserPush $
-        newPush
-          ListComplete
-          (qUnqualified (evtFrom e))
-          (ConvEvent e)
-          [ recipient member & recipientClients .~ RecipientClientsSome (singleton client)
-          ]
+        newConversationEventPush localDomain e [memId member]
           <&> set pushConn mconn
             . set pushNativePriority (mmNativePriority mm)
             . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
             . set pushTransient (mmTransient mm)
+            . set (pushRecipients . traverse . recipientClients) (RecipientClientsSome (singleton client))
 
 data MessageMetadata = MessageMetadata
   { mmNativePush :: Bool,

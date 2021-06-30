@@ -299,7 +299,7 @@ rawPush (toList -> events) usrs orig route conn = do
     mkPush :: Range 1 1024 (Set.Set Recipient) -> (Object, Maybe ApsData) -> Push
     mkPush rcps (o, aps) =
       newPush
-        orig
+        (Just orig)
         rcps
         (singletonPayload o)
         & pushOriginConnection .~ conn

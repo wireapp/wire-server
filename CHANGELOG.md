@@ -20,11 +20,16 @@
 
 * New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
 
+## Features
+
+* [Federation] (Not-yet-used) RPC to propagate messages to other backends (#1596).
+
 ## Internal changes
 
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
 * [Federation] Let a receiving backend decide conversation attribute specifics of its users
   added to a new conversation via `POST /federation/register-conversation` (#1622)
+* [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632)
 
 ## Documentation
 

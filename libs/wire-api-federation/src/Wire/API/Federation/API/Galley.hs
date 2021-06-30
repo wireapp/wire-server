@@ -19,7 +19,7 @@ module Wire.API.Federation.API.Galley where
 
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Id (ConvId, UserId)
+import Data.Id (ClientId, ConvId, UserId)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -32,8 +32,11 @@ import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, Receip
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
+import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
+import Wire.API.Message (Priority)
+import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -61,6 +64,15 @@ data Api routes = Api
         :- "federation"
         :> "update-conversation-memberships"
         :> ReqBody '[JSON] ConversationMemberUpdate
+        :> Post '[JSON] (),
+    -- used to notify this backend that a new message has been posted to a
+    -- remote conversation
+    receiveMessage ::
+      routes
+        :- "federation"
+        :> "receive-message"
+        :> DomainHeader
+        :> ReqBody '[JSON] (RemoteMessage ConvId)
         :> Post '[JSON] ()
   }
   deriving (Generic)
@@ -126,6 +138,25 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+
+-- Note: this is parametric in the conversation type to allow it to be used
+-- both for conversations with a fixed known domain (e.g. as the argument of the
+-- federation RPC), and for conversations with an arbitrary Qualified or Remote id
+-- (e.g. as the argument of the corresponding handler).
+data RemoteMessage conv = RemoteMessage
+  { rmTime :: UTCTime,
+    rmData :: Maybe Text,
+    rmSender :: Qualified UserId,
+    rmSenderClient :: ClientId,
+    rmConversation :: conv,
+    rmPriority :: Maybe Priority,
+    rmPush :: Bool,
+    rmTransient :: Bool,
+    rmRecipients :: UserClientMap Text
+  }
+  deriving stock (Eq, Show, Generic, Functor)
+  deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
+  deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient
