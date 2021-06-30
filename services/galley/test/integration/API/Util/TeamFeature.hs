@@ -17,7 +17,7 @@
 
 module API.Util.TeamFeature where
 
-import API.Util (zUser, HasGalley (viewGalley))
+import API.Util (HasGalley (viewGalley), zUser)
 import qualified API.Util as Util
 import Bilge
 import qualified Bilge.TestSession as BilgeTest

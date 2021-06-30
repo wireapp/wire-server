@@ -28,7 +28,7 @@ module Galley.Data.TeamFeatures
 where
 
 import Cassandra
-import Data.Domain (mkDomain, domainText)
+import Data.Domain (domainText, mkDomain)
 import Data.Id
 import Galley.Data.Instances ()
 import Imports

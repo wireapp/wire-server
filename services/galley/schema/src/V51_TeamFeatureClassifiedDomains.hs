@@ -26,7 +26,8 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 51 "Add feature flag for classified domains" $ do
-  schema' [r|
+  schema'
+    [r|
               ALTER TABLE team_features ADD (
                 classified_domains_status int,
                 classified_domains_domains set<text>

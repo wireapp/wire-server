@@ -82,19 +82,61 @@ data InternalApi routes = InternalApi
       routes
         :- "i"
         :> "status"
-        :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+        :> Verb 'HEAD 200 '[Servant.JSON] NoContent,
+    iTeamFeatureStatusSSOGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureSSO,
+    iTeamFeatureStatusSSOPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureSSO
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi InternalApi
+
+type IFeatureStatusGet featureName =
+  "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+type IFeatureStatusPut featureName =
+  "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
 servantSitemap :: ServerT ServantAPI Galley
 servantSitemap =
   genericServerT $
     InternalApi
       { iStatusGet = pure NoContent,
-        iStatusHead = pure NoContent
+        iStatusHead = pure NoContent,
+        iTeamFeatureStatusSSOGet = iGetTeamFeature @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
+        iTeamFeatureStatusSSOPut = iPutTeamFeature @'Public.TeamFeatureSSO Features.setSSOStatusInternal
       }
+
+iGetTeamFeature ::
+  forall a.
+  Public.KnownTeamFeatureName a =>
+  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  TeamId ->
+  Galley (Public.TeamFeatureStatus a)
+iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
+
+iPutTeamFeature ::
+  forall a.
+  Public.KnownTeamFeatureName a =>
+  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  Galley (Public.TeamFeatureStatus a)
+iPutTeamFeature setter = Features.setFeatureStatus @a setter DontDoAuth
 
 sitemap :: Routes a Galley ()
 sitemap = do
@@ -201,7 +243,6 @@ sitemap = do
   -- Enabling this should only be possible internally.
   -- Viewing the status should be allowed for any admin.
 
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Features.setSSOStatusInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal

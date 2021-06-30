@@ -59,6 +59,7 @@ import Data.Swagger.Declare (Declare)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Deriving.Aeson
+import GHC.TypeLits (Symbol)
 import Imports
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -101,20 +102,35 @@ data TeamFeatureName
 
 class KnownTeamFeatureName (a :: TeamFeatureName) where
   knownTeamFeatureName :: TeamFeatureName
+  type KnownTeamFeatureNameSymbol a :: Symbol
 
-instance KnownTeamFeatureName 'TeamFeatureLegalHold where knownTeamFeatureName = TeamFeatureLegalHold
+instance KnownTeamFeatureName 'TeamFeatureLegalHold where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureLegalHold = "legalhold"
+  knownTeamFeatureName = TeamFeatureLegalHold
 
-instance KnownTeamFeatureName 'TeamFeatureSSO where knownTeamFeatureName = TeamFeatureSSO
+instance KnownTeamFeatureName 'TeamFeatureSSO where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureSSO = "sso"
+  knownTeamFeatureName = TeamFeatureSSO
 
-instance KnownTeamFeatureName 'TeamFeatureSearchVisibility where knownTeamFeatureName = TeamFeatureSearchVisibility
+instance KnownTeamFeatureName 'TeamFeatureSearchVisibility where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureSearchVisibility = "searchVisibility"
+  knownTeamFeatureName = TeamFeatureSearchVisibility
 
-instance KnownTeamFeatureName 'TeamFeatureValidateSAMLEmails where knownTeamFeatureName = TeamFeatureValidateSAMLEmails
+instance KnownTeamFeatureName 'TeamFeatureValidateSAMLEmails where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureValidateSAMLEmails = "validateSAMLemails"
+  knownTeamFeatureName = TeamFeatureValidateSAMLEmails
 
-instance KnownTeamFeatureName 'TeamFeatureDigitalSignatures where knownTeamFeatureName = TeamFeatureDigitalSignatures
+instance KnownTeamFeatureName 'TeamFeatureDigitalSignatures where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureDigitalSignatures = "digitalSignatures"
+  knownTeamFeatureName = TeamFeatureDigitalSignatures
 
-instance KnownTeamFeatureName 'TeamFeatureAppLock where knownTeamFeatureName = TeamFeatureAppLock
+instance KnownTeamFeatureName 'TeamFeatureAppLock where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureAppLock = "appLock"
+  knownTeamFeatureName = TeamFeatureAppLock
 
-instance KnownTeamFeatureName 'TeamFeatureClassifiedDomains where knownTeamFeatureName = TeamFeatureClassifiedDomains
+instance KnownTeamFeatureName 'TeamFeatureClassifiedDomains where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureClassifiedDomains = "classifiedDomains"
+  knownTeamFeatureName = TeamFeatureClassifiedDomains
 
 instance FromByteString TeamFeatureName where
   parser =

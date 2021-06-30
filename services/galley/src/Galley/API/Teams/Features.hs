@@ -234,7 +234,7 @@ getClassifiedDomainsInternal tid = do
   pure $ case Public.tfwcStatus config of
     Public.TeamFeatureDisabled ->
       Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
-    Public.TeamFeatureEnabled  -> config
+    Public.TeamFeatureEnabled -> config
 
 setClassifiedDomainsInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
 setClassifiedDomainsInternal = TeamFeatures.setClassifiedDomainsStatus
