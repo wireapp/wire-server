@@ -54,7 +54,6 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Encoding as Text
 import qualified Galley.Data as Cql
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))

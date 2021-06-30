@@ -30,7 +30,6 @@ import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Extra (allM, anyM)
 import Control.Monad.Trans.Except (throwE)
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -42,7 +41,6 @@ import Data.Qualified (Qualified (..), Remote, partitionQualified)
 import Data.SOP (I (..))
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
-import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
