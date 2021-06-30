@@ -912,7 +912,7 @@ filterRemoteConvMembers users (Qualified conv dom) =
   where
     filterMember :: MonadClient m => UserId -> m (Maybe UserId)
     filterMember user = do
-      let q = query Cql.selectRemoteConvMembership (params One (user, dom, conv))
+      let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
       listToMaybe . map runIdentity <$> retry x1 q
 
 removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> m Event
