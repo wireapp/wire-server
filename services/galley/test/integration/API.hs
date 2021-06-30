@@ -488,7 +488,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
                           { F.component = F.Brig,
                             F.path = "/federation/get-user-clients",
                             F.body = cs (encode (FederatedBrig.GetUserClients [qUnqualified deeRemote])),
-                            F.originDomain = "example.com"
+                            F.originDomain = domainText owningDomain
                           }
                       )
                 }
