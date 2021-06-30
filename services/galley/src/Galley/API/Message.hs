@@ -1,6 +1,9 @@
 module Galley.API.Message where
 
 import Control.Lens
+import Control.Monad.Trans.Except (runExceptT)
+import Data.Aeson (encode)
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id (ClientId, ConnId, ConvId, UserId)
 import Data.Json.Util (UTCTimeMillis, toBase64Text, toUTCTimeMillis)
@@ -29,9 +32,13 @@ import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Servant.API (Union, WithStatus (..))
+import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription as ErrorDescription
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Client (FederationError, executeFederated)
+import Wire.API.Federation.Error (federationErrorToWai)
 import Wire.API.Message
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley as Public
@@ -245,9 +252,23 @@ sendMessages ::
   Galley (Set (Domain, UserId, ClientId))
 sendMessages now sender senderClient mconn conv localMemberMap metadata messages = do
   localDomain <- viewFederationDomain
-  let localMessages = Map.mapKeys (\(_, u, c) -> (u, c)) $ Map.filterWithKey (\(d, _, _) _ -> localDomain == d) messages
-  sendLocalMessages now sender senderClient mconn conv localMemberMap metadata localMessages
-  pure mempty
+  let messageMap = Map.foldrWithKey (\(d, u, c) t -> Map.insertWith (<>) d (Map.singleton (u, c) t)) mempty messages
+  fmap (setOf ((itraversed <. folded) . withIndex . to (\(d, (u, c)) -> (d, u, c)))) . flip Map.traverseWithKey messageMap $ \d msgs ->
+    if d == localDomain
+      then do
+        sendLocalMessages now sender senderClient mconn conv localMemberMap metadata msgs
+        pure mempty
+      else do
+        x <- sendRemoteMessages d now sender senderClient conv metadata msgs
+        case x of
+          Nothing -> pure mempty
+          Just e -> do
+            Log.warn $
+              Log.field "conversation" (toByteString' conv)
+                Log.~~ Log.field "domain" (toByteString' d)
+                Log.~~ Log.field "exception" (encode (federationErrorToWai e))
+                Log.~~ Log.msg ("Remote message sending failed" :: Text)
+            pure (Map.keysSet msgs)
 
 sendLocalMessages ::
   UTCTime ->
@@ -273,6 +294,38 @@ sendLocalMessages now sender senderClient mconn conv localMemberMap metadata loc
         events & itraversed
           %@~ newMessagePush localDomain localMemberMap mconn metadata
   runMessagePush conv (pushes ^. traversed)
+
+sendRemoteMessages ::
+  Domain ->
+  UTCTime ->
+  Qualified UserId ->
+  ClientId ->
+  ConvId ->
+  MessageMetadata ->
+  Map (UserId, ClientId) ByteString ->
+  Galley (Maybe FederationError)
+sendRemoteMessages domain now sender senderClient conv metadata messages = fmap (either Just (const Nothing)) . runExceptT $ do
+  localDomain <- viewFederationDomain
+  let rcpts =
+        foldr
+          (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
+          mempty
+          (Map.assocs messages)
+      rm =
+        FederatedGalley.RemoteMessage
+          { FederatedGalley.rmTime = now,
+            FederatedGalley.rmData = Just (toBase64Text (mmData metadata)),
+            FederatedGalley.rmSender = sender,
+            FederatedGalley.rmSenderClient = senderClient,
+            FederatedGalley.rmConversation = conv,
+            FederatedGalley.rmPriority = mmNativePriority metadata,
+            FederatedGalley.rmPush = mmNativePush metadata,
+            FederatedGalley.rmTransient = mmTransient metadata,
+            FederatedGalley.rmRecipients = UserClientMap rcpts
+          }
+  -- TODO: we should not need to pass the local domain to the RPC
+  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes localDomain rm
+  executeFederated domain rpc
 
 flatten :: Map Domain (Map UserId (Set ClientId)) -> Set (Domain, UserId, ClientId)
 flatten =
