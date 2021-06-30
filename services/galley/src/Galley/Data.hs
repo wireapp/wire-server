@@ -127,6 +127,7 @@ import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
+import qualified Data.Monoid
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -905,15 +906,19 @@ updateMember cid uid mup = do
         misConvRoleName = mupConvRoleName mup
       }
 
-filterRemoteConvMembers :: (MonadUnliftIO m, MonadClient m) => [UserId] -> Qualified ConvId -> m [UserId]
+-- | Select only the members of a remote conversation from a list of users.
+-- Return the filtered list and a boolean indicating whether the all the input
+-- users are members.
+filterRemoteConvMembers :: (MonadUnliftIO m, MonadClient m) => [UserId] -> Qualified ConvId -> m ([UserId], Bool)
 filterRemoteConvMembers users (Qualified conv dom) =
-  catMaybes
+  fmap Data.Monoid.getAll
+    . foldMap (\muser -> (muser, Data.Monoid.All (not (null muser))))
     <$> pooledMapConcurrentlyN 8 filterMember users
   where
-    filterMember :: MonadClient m => UserId -> m (Maybe UserId)
+    filterMember :: MonadClient m => UserId -> m [UserId]
     filterMember user = do
       let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
-      listToMaybe . map runIdentity <$> retry x1 q
+      map runIdentity <$> retry x1 q
 
 removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> m Event
 removeLocalMembers localDomain conv orig localVictims = removeMembers localDomain conv orig localVictims []

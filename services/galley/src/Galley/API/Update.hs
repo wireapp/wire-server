@@ -819,7 +819,18 @@ postRemoteToLocal rm = do
   localDomain <- viewFederationDomain
   let UserClientMap rcpts = rmRecipients rm
       Tagged conv = rmConversation rm
-  members <- Data.filterRemoteConvMembers (Map.keys rcpts) conv
+  -- FUTUREWORK(authorization) review whether filtering members is appropriate
+  -- at this stage
+  (members, allMembers) <- Data.filterRemoteConvMembers (Map.keys rcpts) conv
+  unless allMembers $ do
+    Log.warn $
+      Log.field "conversation" (toByteString' (qUnqualified conv))
+        Log.~~ Log.field "domain" (toByteString' (qDomain conv))
+        Log.~~ Log.msg
+          ( "Attempt to send remote message to local\
+            \ users not in the conversation" ::
+              Text
+          )
   let rcpts' = do
         m <- members
         (c, t) <- maybe [] Map.assocs (rcpts ^? ix m)
