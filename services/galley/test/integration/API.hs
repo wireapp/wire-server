@@ -624,9 +624,17 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
     pure resp2 !!! do
       const 201 === statusCode
       let expectedRedundant =
-            QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
-              [ (nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient),
-                (nonMemberRemoteUnqualified, Set.singleton nonMemberRemoteClient)
+            QualifiedUserClients . Map.fromList $
+              [ ( owningDomain,
+                  Map.fromList $
+                    [ (nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient)
+                    ]
+                ),
+                ( remoteDomain,
+                  Map.fromList $
+                    [ (nonMemberRemoteUnqualified, Set.singleton nonMemberRemoteClient)
+                    ]
+                )
               ]
           expectedDeleted =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
