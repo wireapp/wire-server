@@ -62,7 +62,6 @@ where
 
 import Control.Lens (view, (?~))
 import qualified Data.Aeson as A
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain (Domain, mkDomain)
@@ -78,7 +77,6 @@ import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.UUID as UUID
 import Imports
 import qualified Proto.Otr
