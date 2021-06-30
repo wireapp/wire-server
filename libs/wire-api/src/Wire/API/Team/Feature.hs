@@ -256,6 +256,8 @@ instance ToJSON TeamFeatureStatusNoConfig where
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
 
+-- | FUTUREWORK: Does it ever happen that there is a config for a disabled
+-- feature? If not this type should be made isomorphic to 'Maybe cfg'.
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   { tfwcStatus :: TeamFeatureStatusValue,
     tfwcConfig :: cfg
