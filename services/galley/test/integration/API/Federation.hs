@@ -23,14 +23,17 @@ import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Lens hiding ((#))
 import Data.Domain
-import Data.Id (Id (..), randomId)
+import Data.Id (Id (..), newClientId, randomId)
 import Data.List1
+import qualified Data.List1 as List1
+import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Data.Queries as Cql
 import Galley.Types
+import Gundeck.Types.Notification
 import Imports
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -54,7 +57,8 @@ tests s =
       test
         s
         "POST /federation/update-conversation-memberships : Notify local user about other members joining"
-        notifyLocalUser
+        notifyLocalUser,
+      test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage
     ]
 
 getConversationsAllFound :: TestM ()
@@ -176,3 +180,67 @@ notifyLocalUser = do
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertMemberJoinWithRole qconv qbob [qcharlie] roleNameWireMember
+
+receiveMessage :: TestM ()
+receiveMessage = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  eve <- randomUser
+  bob <- randomId
+  conv <- randomId
+  let fromc = newClientId 0
+      alicec = newClientId 0
+      evec = newClientId 0
+      bdom = Domain "bob.example.com"
+      qconv = Qualified conv bdom
+      qbob = Qualified bob bdom
+      qalice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- only add alice to the remote conversation
+  let cmu =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qbob,
+            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuAlreadyPresentUsers = [],
+            FedGalley.cmuUsersAdd = [(qalice, roleNameWireMember)],
+            FedGalley.cmuUsersRemove = []
+          }
+  FedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  let txt = "Hello from another backend"
+      msg client = Map.fromList [(client, txt)]
+      rcpts =
+        UserClientMap $
+          Map.fromList [(alice, msg alicec), (eve, msg evec)]
+      rm =
+        FedGalley.RemoteMessage
+          { FedGalley.rmTime = now,
+            FedGalley.rmData = Nothing,
+            FedGalley.rmSender = qbob,
+            FedGalley.rmSenderClient = fromc,
+            FedGalley.rmConversation = conv,
+            FedGalley.rmPriority = Nothing,
+            FedGalley.rmTransient = False,
+            FedGalley.rmPush = False,
+            FedGalley.rmRecipients = rcpts
+          }
+
+  -- send message to alice and check reception
+  WS.bracketR2 c alice eve $ \(wsA, wsE) -> do
+    FedGalley.receiveMessage fedGalleyClient bdom rm
+    liftIO $ do
+      -- alice should receive the message
+      WS.assertMatch_ (5 # Second) wsA $ \n ->
+        do
+          let e = List1.head (WS.unpackPayload n)
+          ntfTransient n @?= False
+          evtConv e @?= qconv
+          evtType e @?= OtrMessageAdd
+          evtFrom e @?= qbob
+          evtData e @?= EdOtrMessage (OtrMessage fromc alicec txt Nothing)
+      -- eve should not receive the message
+      WS.assertNoEvent (1 # Second) [wsE]

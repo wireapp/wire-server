@@ -172,7 +172,7 @@ replacePresence = do
       notElem localhost8080 . map resource . decodePresence
   where
     pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 removeStalePresence :: TestM ()
 removeStalePresence = do
@@ -181,14 +181,14 @@ removeStalePresence = do
   con <- randomConnId
   void $ connectUser ca uid con
   ensurePresent uid 1
-  sendPush (push uid [uid])
+  sendPush (push (Just uid) [uid])
   m <- liftIO newEmptyMVar
   w <- wsRun ca uid con (wsCloser m)
   wsAssertPresences uid 1
   liftIO $ void $ putMVar m () >> wait w
   -- The websocket might take a few time units to drop so better to try a few pushes
   recoverAll (constantDelay 1000000 <> limitRetries 10) $ \_ -> do
-    sendPush (push uid [uid])
+    sendPush (push (Just uid) [uid])
     ensurePresent uid 0
   where
     pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
@@ -209,7 +209,7 @@ singleUserPush = do
       (ntfPayload <$> (decode . fromStrict . fromJust) msg)
   where
     pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 -- | Create a number of users with a number of connections each, and connect each user's connections
 -- to one of two cannons at random.  Push either encrypted notifications (@isE2E == True@) or
@@ -252,7 +252,7 @@ bulkPush isE2E numUsers numConnsPerUser = do
     ploadGroup :: List1 Aeson.Object
     ploadGroup = List1.singleton $ HashMap.fromList [("foo" :: Text) .= (42 :: Int)]
     pushGroup :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
-    pushGroup u ucs = [newPush u (toRecipients $ fst <$> ucs) ploadGroup & pushConnections .~ Set.fromList conns]
+    pushGroup u ucs = [newPush (Just u) (toRecipients $ fst <$> ucs) ploadGroup & pushConnections .~ Set.fromList conns]
       where
         conns =
           [ connid | (_, cns) <- ucs, (connid, shouldSend) <- cns, shouldSend
@@ -262,7 +262,7 @@ bulkPush isE2E numUsers numConnsPerUser = do
     pushE2E :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
     pushE2E u ucs =
       targets <&> \(uid, connid) ->
-        newPush u (toRecipients [uid]) (ploadE2E connid)
+        newPush (Just u) (toRecipients [uid]) (ploadE2E connid)
           & pushConnections .~ Set.singleton connid
       where
         targets :: [(UserId, ConnId)]
@@ -289,7 +289,7 @@ sendSingleUserNoPiggyback = do
   uid <- randomId
   did <- randomConnId
   ch <- connectUser ca uid did
-  sendPush (push uid [uid] did)
+  sendPush (push (Just uid) [uid] did)
   liftIO $ do
     msg <- waitForMessage ch
     assertBool "Push message received" (isNothing msg)
@@ -345,7 +345,7 @@ sendMultipleUsers = do
     checkNotifications (x : xs) = (x, xs)
     pload = List1.singleton pevent
     pevent = HashMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
 targetConnectionPush :: TestM ()
 targetConnectionPush = do
@@ -362,7 +362,7 @@ targetConnectionPush = do
     assertBool "Unexpected push message received" (isNothing e2)
   where
     pload = List1.singleton $ HashMap.fromList ["foo" .= (42 :: Int)]
-    push u t = newPush u (toRecipients [u]) pload & pushConnections .~ Set.singleton t
+    push u t = newPush (Just u) (toRecipients [u]) pload & pushConnections .~ Set.singleton t
 
 targetClientPush :: TestM ()
 targetClientPush = do
@@ -401,7 +401,7 @@ targetClientPush = do
     rcpt u c =
       recipient u RouteAny
         & recipientClients .~ RecipientClientsSome (List1.singleton c)
-    push u c = newPush u (unsafeRange (Set.singleton (rcpt u c))) (pload c)
+    push u c = newPush (Just u) (unsafeRange (Set.singleton (rcpt u c))) (pload c)
 
 -----------------------------------------------------------------------------
 -- Notifications
@@ -1044,7 +1044,7 @@ buildPush ::
   Push
 buildPush sdr rcps pload =
   let rcps' = Set.fromList (map (uncurry rcpt) rcps)
-   in newPush sdr (unsafeRange rcps') pload
+   in newPush (Just sdr) (unsafeRange rcps') pload
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
 

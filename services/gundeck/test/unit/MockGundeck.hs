@@ -345,7 +345,7 @@ genPush env = do
         genOriginConnId
       ]
   pure $
-    newPush sender rcps pload
+    newPush (Just sender) rcps pload
       & pushConnections .~ onlyPushToConnections
       & pushOriginConnection .~ originConnection
       & pushTransient .~ transient
@@ -482,7 +482,7 @@ handlePushWS Push {..} = do
       -- Condition 1: only devices with a working websocket connection will get the push.
       let isReachable = wsReachable env (uid, cid)
       -- Condition 2: we never deliver pushes to the originating device.
-      let isOriginDevice = origin == (uid, Just cid)
+      let isOriginDevice = origin == (Just uid, Just cid)
       -- Condition 3: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
       let isWhitelisted = null _pushConnections || fakeConnId cid `elem` _pushConnections
       when (isReachable && not isOriginDevice && isWhitelisted) $
@@ -513,8 +513,8 @@ handlePushNative Push {..} = do
       -- Condition 4: the originating *user* can receive a native push only if
       -- 'pushNativeIncludeOrigin' is true. Even so, the originating *device* should never
       -- receive a push.
-      let isOriginUser = uid == fst origin
-          isOriginDevice = origin == (uid, Just cid)
+      let isOriginUser = Just uid == fst origin
+          isOriginDevice = origin == (Just uid, Just cid)
           isAllowedPerOriginRules =
             not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
       -- Condition 5: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
@@ -642,7 +642,7 @@ mockOldSimpleWebPush ::
   (HasCallStack, m ~ MockGundeck) =>
   Notification ->
   List1 NotificationTarget ->
-  UserId ->
+  Maybe UserId ->
   Maybe ConnId ->
   Set ConnId ->
   m [Presence]

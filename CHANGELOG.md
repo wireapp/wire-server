@@ -20,6 +20,10 @@
 
 * New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
 
+## Features
+
+* [Federation] (Not-yet-used) RPC to propagate messages to other backends (#1596).
+
 ## Internal changes
 
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
