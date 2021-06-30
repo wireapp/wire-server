@@ -667,6 +667,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
   chadClient2 <- randomClient (qUnqualified chadOwningDomain) (someLastPrekeys !! 2)
   deeId <- randomId
+  deeClient <- liftIO $ generate arbitrary
+
   let remoteDomain = Domain "far-away.example.com"
       deeRemote = Qualified deeId remoteDomain
 
@@ -679,15 +681,17 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+      responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll !!! do
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll responses
+    pure resp2 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+      assertMismatchQualified mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -695,9 +699,10 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
 
   -- Another way to ignore all is to report nobody
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) !!! do
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) responses
+    pure resp2 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+      assertMismatchQualified mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -705,9 +710,18 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
 
   -- Yet another way to ignore all is to ignore specific users
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote])) !!! do
+    (resp2, _requests) <-
+      postProteusMessageQualifiedWithMockFederator
+        aliceUnqualified
+        aliceClient
+        convId
+        message
+        "data"
+        (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote]))
+        responses
+    pure resp2 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+      assertMismatchQualified mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -716,12 +730,40 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- When we ask only chad be reported, but one of their clients is missing, the
   -- message shouldn't be sent!
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly (Set.fromList [chadOwningDomain])) !!! do
+    (resp2, _requests) <-
+      postProteusMessageQualifiedWithMockFederator
+        aliceUnqualified
+        aliceClient
+        convId
+        message
+        "data"
+        (Message.MismatchReportOnly (Set.fromList [chadOwningDomain]))
+        responses
+    pure resp2 !!! do
       const 412 === statusCode
       let expectedMissing =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
-      assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
+      assertMismatchQualified expectedMissing mempty mempty
+    WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+  -- Same as above, but with a remote user's client
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    (resp2, _requests) <-
+      postProteusMessageQualifiedWithMockFederator
+        aliceUnqualified
+        aliceClient
+        convId
+        message
+        "data"
+        (Message.MismatchReportOnly (Set.fromList [deeRemote]))
+        responses
+    pure resp2 !!! do
+      const 412 === statusCode
+      let expectedMissing =
+            QualifiedUserClients . Map.singleton remoteDomain . Map.fromList $
+              [(qUnqualified deeRemote, Set.singleton deeClient)]
+      assertMismatchQualified expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 postMessageQualifiedRemoteOwningBackendNotImplemented :: TestM ()
