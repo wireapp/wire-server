@@ -243,13 +243,13 @@ postCryptoMessage1 = do
   let m1 = [(bob, bc, "ciphertext1")]
   postOtrMessage id alice ac conv m1 !!! do
     const 412 === statusCode
-    assertTrue_ (eqMismatch [(eve, Set.singleton ec)] [] [] . responseJsonUnsafe)
+    assertMismatch [(eve, Set.singleton ec)] [] []
   -- Complete
   WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
     let m2 = [(bob, bc, toBase64Text "ciphertext2"), (eve, ec, toBase64Text "ciphertext2")]
     postOtrMessage id alice ac conv m2 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
+      assertMismatch [] [] []
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext2"))
     void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext2"))
   -- Redundant self
@@ -257,7 +257,7 @@ postCryptoMessage1 = do
     let m3 = [(alice, ac, toBase64Text "ciphertext3"), (bob, bc, toBase64Text "ciphertext3"), (eve, ec, toBase64Text "ciphertext3")]
     postOtrMessage id alice ac conv m3 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
+      assertMismatch [] [(alice, Set.singleton ac)] []
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext3"))
     void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext3"))
     -- Alice should not get it
@@ -268,7 +268,7 @@ postCryptoMessage1 = do
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (eve, ec, toBase64Text "ciphertext4")]
     postOtrMessage id alice ac conv m4 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatch [] [] [(eve, Set.singleton ec)] . responseJsonUnsafe)
+      assertMismatch [] [] [(eve, Set.singleton ec)]
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext4"))
     -- Eve should not get it
     assertNoMsg wsE (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext4"))
@@ -277,7 +277,7 @@ postCryptoMessage1 = do
     let m5 = [(bob, bc, toBase64Text "ciphertext5"), (eve, ec, toBase64Text "ciphertext5"), (alice, ac, toBase64Text "ciphertext5")]
     postOtrMessage id alice ac conv m5 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [(eve, Set.singleton ec)] . responseJsonUnsafe)
+      assertMismatch [] [(alice, Set.singleton ac)] [(eve, Set.singleton ec)]
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext5"))
     -- Neither Alice nor Eve should get it
     assertNoMsg wsA (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext5"))
@@ -286,13 +286,10 @@ postCryptoMessage1 = do
   let m6 = [(eve, ec, toBase64Text "ciphertext6"), (alice, ac, toBase64Text "ciphertext6")]
   postOtrMessage id alice ac conv m6 !!! do
     const 412 === statusCode
-    assertTrue_
-      ( eqMismatch
-          [(bob, Set.singleton bc)]
-          [(alice, Set.singleton ac)]
-          [(eve, Set.singleton ec)]
-          . responseJsonUnsafe
-      )
+    assertMismatch
+      [(bob, Set.singleton bc)]
+      [(alice, Set.singleton ac)]
+      [(eve, Set.singleton ec)]
   -- A second client for Bob
   bc2 <- randomClient bob (someLastPrekeys !! 3)
   -- The first client listens for all messages of Bob
@@ -303,7 +300,7 @@ postCryptoMessage1 = do
       let m7 = [(bob, bc, cipher), (bob, bc2, cipher)]
       postOtrMessage id alice ac conv m7 !!! do
         const 201 === statusCode
-        assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
+        assertMismatch [] [] []
       -- Bob's first client gets both messages
       void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc cipher)
       void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc2 cipher)
@@ -327,7 +324,8 @@ postCryptoMessage2 = do
     postOtrMessage id alice ac conv m
       <!! const 412 === statusCode
   let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
-  liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
+  pure r1
+    !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   -- Fetch all missing clients prekeys
   r2 <-
     post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
@@ -353,7 +351,8 @@ postCryptoMessage3 = do
     postProtoOtrMessage alice ac conv m
       <!! const 412 === statusCode
   let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
-  liftIO $ assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec)] [] [] (Just x))
+  pure r1
+    !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   -- Fetch all missing clients prekeys
   r2 <-
     post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
@@ -422,17 +421,16 @@ postCryptoMessage5 = do
     -- send message with no clients
     postOtrMessage (queryItem "report_missing" (listToByteString [eve, chad])) alice ac conv []
       <!! const 412 === statusCode
-  let reportEveAndChandMismatch = responseJsonUnsafeWithMsg "ClientMismatch" reportEveAndChad
-  liftIO $
-    assertBool "client mismatch" (eqMismatch [(eve, Set.singleton ec), (chad, Set.singleton cc)] [] [] (Just reportEveAndChandMismatch))
+  pure reportEveAndChad
+    !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec), (chad, Set.singleton cc)] [] []
   -- Ignore missing clients of a specific user only
   postOtrMessage (queryItem "ignore_missing" (listToByteString [chad, eve])) alice ac conv msgMissingChadAndEve
     !!! const 201 === statusCode
   ignoreEveAndChadButNotBob <-
     postOtrMessage (queryItem "ignore_missing" (listToByteString [chad, eve])) alice ac conv []
       <!! const 412 === statusCode
-  let ignoreEveAndChadButNotBobMismatch = responseJsonUnsafeWithMsg "ClientMismatch" ignoreEveAndChadButNotBob
-  liftIO $ assertBool "client mismatch" (eqMismatch [(bob, Set.singleton bc)] [] [] (Just ignoreEveAndChadButNotBobMismatch))
+  pure ignoreEveAndChadButNotBob
+    !!! assertMismatchWithMessage (Just "client mismatch") [(bob, Set.singleton bc)] [] []
   where
     listToByteString = BS.intercalate "," . map toByteString'
 
@@ -479,7 +477,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
     pure resp2 !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
+      assertMismatchQualified mempty mempty mempty
     liftIO $ do
       requests
         @?= [ F.FederatedRequest
@@ -554,7 +552,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                     Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
                 ]
-      assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
+      assertMismatchQualified expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the

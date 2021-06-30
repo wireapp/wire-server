@@ -1666,34 +1666,6 @@ convRange range size =
 privateAccess :: [Access]
 privateAccess = [PrivateAccess]
 
-eqMismatch ::
-  [(UserId, Set ClientId)] ->
-  [(UserId, Set ClientId)] ->
-  [(UserId, Set ClientId)] ->
-  Maybe ClientMismatch ->
-  Bool
-eqMismatch _ _ _ Nothing = False
-eqMismatch mssd rdnt dltd (Just other) =
-  userClients mssd == missingClients other
-    && userClients rdnt == redundantClients other
-    && userClients dltd == deletedClients other
-  where
-    userClients :: [(UserId, Set ClientId)] -> UserClients
-    userClients = UserClients . Map.fromList
-
-eqMismatchQualified ::
-  HasCallStack =>
-  Client.QualifiedUserClients ->
-  Client.QualifiedUserClients ->
-  Client.QualifiedUserClients ->
-  Maybe Message.MessageSendingStatus ->
-  Bool
-eqMismatchQualified _ _ _ Nothing = False
-eqMismatchQualified missing redundant deleted (Just other) = do
-  missing == Message.mssMissingClients other
-    && redundant == Message.mssRedundantClients other
-    && deleted == Message.mssDeletedClients other
-
 assertExpected :: (Eq a, Show a) => String -> a -> (Response (Maybe LByteString) -> Maybe a) -> Assertions ()
 assertExpected msg expected tparser =
   assertResponse $ \res ->
@@ -1705,6 +1677,32 @@ assertExpected msg expected tparser =
           else Just (addTitle (unlines ["Expected: ", show expected, "But got:", show parsed]))
   where
     addTitle s = unlines [msg, s]
+
+assertMismatchWithMessage ::
+  HasCallStack =>
+  Maybe String ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  Assertions ()
+assertMismatchWithMessage mmsg missing redundant deleted = do
+  assertExpected (formatMessage "missing") (userClients missing) (fmap missingClients . responseJsonMaybe)
+  assertExpected (formatMessage "redundant") (userClients redundant) (fmap redundantClients . responseJsonMaybe)
+  assertExpected (formatMessage "deleted") (userClients deleted) (fmap deletedClients . responseJsonMaybe)
+  where
+    userClients :: [(UserId, Set ClientId)] -> UserClients
+    userClients = UserClients . Map.fromList
+
+    formatMessage :: String -> String
+    formatMessage = maybe id (\msg -> ((msg <> "\n") <>)) mmsg
+
+assertMismatch ::
+  HasCallStack =>
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  Assertions ()
+assertMismatch = assertMismatchWithMessage Nothing
 
 assertMismatchQualified ::
   HasCallStack =>
