@@ -68,7 +68,7 @@ import Control.Monad.State
 import Data.Code
 import Data.Domain (Domain)
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
+import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
 import Data.List1
 import qualified Data.Map.Strict as Map

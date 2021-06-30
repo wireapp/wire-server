@@ -40,11 +40,11 @@ import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
 import Data.Id
+import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
@@ -55,7 +55,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
-import Galley.API.Util (toBase64Text)
 import qualified Galley.Data as Cql
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
@@ -478,9 +477,9 @@ postMessageQualifiedLocalOwningBackendSuccess = do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     liftIO $ do
-      let encodedTextForBob = Text.decodeUtf8 (B64.encode "text-for-bob")
-          encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-          encodedData = Text.decodeUtf8 (B64.encode "data")
+      let encodedTextForBob = toBase64Text "text-for-bob"
+          encodedTextForChad = toBase64Text "text-for-chad"
+          encodedData = toBase64Text "data"
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
@@ -590,9 +589,9 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
       assertTrue_ (eqMismatchQualified mempty expectedRedundant expectedDeleted . responseJsonMaybe)
     liftIO $ do
-      let encodedTextForBob = Text.decodeUtf8 (B64.encode "text-for-bob")
-          encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-          encodedData = Text.decodeUtf8 (B64.encode "data")
+      let encodedTextForBob = toBase64Text "text-for-bob"
+          encodedTextForChad = toBase64Text "text-for-chad"
+          encodedData = toBase64Text "data"
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
       -- Wait less for no message
@@ -637,8 +636,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
-    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-        encodedData = Text.decodeUtf8 (B64.encode "data")
+    let encodedTextForChad = toBase64Text "text-for-chad"
+        encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
     WS.assertNoEvent (1 # Second) [wsBob]
 
@@ -647,8 +646,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
-    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-        encodedData = Text.decodeUtf8 (B64.encode "data")
+    let encodedTextForChad = toBase64Text "text-for-chad"
+        encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
     WS.assertNoEvent (1 # Second) [wsBob]
 
@@ -657,8 +656,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote])) !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
-    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-        encodedData = Text.decodeUtf8 (B64.encode "data")
+    let encodedTextForChad = toBase64Text "text-for-chad"
+        encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
     WS.assertNoEvent (1 # Second) [wsBob]
 

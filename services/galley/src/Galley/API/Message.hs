@@ -3,7 +3,7 @@ module Galley.API.Message where
 import Control.Lens
 import Data.Domain (Domain)
 import Data.Id (ClientId, ConnId, ConvId, UserId)
-import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, toBase64Text, toUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
@@ -13,7 +13,7 @@ import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
-import Galley.API.Util (runUnionT, throwUnion, toBase64Text, viewFederationDomain)
+import Galley.API.Util (runUnionT, throwUnion, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data

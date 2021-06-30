@@ -292,7 +292,7 @@ protoFromOtrRecipients rcps =
     mkProtoRecipient (usr, clts) =
       let xs = map mkClientEntry (Map.toList clts)
        in Proto.userEntry (Proto.fromUserId usr) xs
-    mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64Text t)
+    mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64TextLenient t)
 
 newtype QualifiedOtrRecipients = QualifiedOtrRecipients
   { qualifiedOtrRecipientsMap :: QualifiedUserClientMap ByteString
@@ -485,12 +485,3 @@ instance FromHttpApiData ReportMissing where
     "true" -> Right ReportMissingAll
     "false" -> Right $ ReportMissingList mempty
     list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
-
---------------------------------------------------------------------------------
--- Utilities
-
-fromBase64Text :: Text -> ByteString
-fromBase64Text = B64.decodeLenient . encodeUtf8
-
-toBase64Text :: ByteString -> Text
-toBase64Text = decodeUtf8 . B64.encode

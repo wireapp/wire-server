@@ -564,12 +564,6 @@ catMembers localDomain ls rs =
   map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
     <> map ((unTagged . rmId) &&& rmConvRoleName) rs
 
-toBase64Text :: ByteString -> Text
-toBase64Text = Text.decodeUtf8 . B64.encode
-
-fromBase64TextLenient :: Text -> ByteString
-fromBase64TextLenient = B64.decodeLenient . Text.encodeUtf8
-
 -- union monad transformer
 
 newtype UnionT as m x = UnionT {unUnionT :: ExceptT (Union as) m x}
