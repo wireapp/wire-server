@@ -17,7 +17,7 @@
 
 module API.Util.TeamFeature where
 
-import API.Util (zUser)
+import API.Util (zUser, HasGalley (viewGalley))
 import qualified API.Util as Util
 import Bilge
 import qualified Bilge.TestSession as BilgeTest
@@ -70,12 +70,12 @@ putLegalHoldEnabledInternal' g tid statusValue =
 --------------------------------------------------------------------------------
 
 getTeamFeatureFlagInternal ::
-  (HasCallStack) =>
+  (HasGalley m, MonadIO m, MonadHttp m) =>
   Public.TeamFeatureName ->
   TeamId ->
-  TestM ResponseLBS
+  m ResponseLBS
 getTeamFeatureFlagInternal feature tid = do
-  g <- view tsGalley
+  g <- viewGalley
   getTeamFeatureFlagInternalWithGalley feature g tid
 
 getTeamFeatureFlagInternalWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> m ResponseLBS
@@ -84,9 +84,14 @@ getTeamFeatureFlagInternalWithGalley feature g tid = do
     g
       . paths ["i", "teams", toByteString' tid, "features", toByteString' feature]
 
-getTeamFeatureFlag :: HasCallStack => Public.TeamFeatureName -> UserId -> TeamId -> TestM ResponseLBS
+getTeamFeatureFlag ::
+  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Public.TeamFeatureName ->
+  UserId ->
+  TeamId ->
+  m ResponseLBS
 getTeamFeatureFlag feature uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   getTeamFeatureFlagWithGalley feature g uid tid
 
 getTeamFeatureFlagWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> UserId -> TeamId -> m ResponseLBS

@@ -17,11 +17,12 @@
 
 module API.Teams.Feature (tests) where
 
+import API.Util (HasGalley, withSettingsOverrides)
 import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge
 import Bilge.Assert
-import Control.Lens (view)
+import Control.Lens (over, view)
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain (..))
@@ -44,7 +45,8 @@ tests s =
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures,
       test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails,
-      test s "Classified Domains" testClassifiedDomains
+      test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
+      test s "Classified Domains (disabled)" testClassifiedDomainsDisabled
     ]
 
 testSSO :: TestM ()
@@ -174,26 +176,65 @@ testSearchVisibility = do
     getTeamSearchVisibility tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
 
-testClassifiedDomains :: TestM ()
-testClassifiedDomains = do
+getClassifiedDomains ::
+  (HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+  UserId ->
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+  m ()
+getClassifiedDomains member tid =
+  assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
+    Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
+
+getClassifiedDomainsInternal ::
+  (HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+  m ()
+getClassifiedDomainsInternal tid =
+  assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
+    Util.getTeamFeatureFlagInternal Public.TeamFeatureClassifiedDomains tid
+
+testClassifiedDomainsEnabled :: TestM ()
+testClassifiedDomainsEnabled = do
   owner <- Util.randomUser
   member <- Util.randomUser
   tid <- Util.createNonBindingTeam "classified domains" owner []
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
-  let getClassifiedDomains :: HasCallStack => Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains -> TestM ()
-      getClassifiedDomains = assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $ Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
-      getClassifiedDomainsInternal :: HasCallStack => Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains -> TestM ()
-      getClassifiedDomainsInternal = assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $ Util.getTeamFeatureFlagInternal Public.TeamFeatureClassifiedDomains tid
-      expected =
+  let expected =
         Public.TeamFeatureStatusWithConfig
           { Public.tfwcStatus = Public.TeamFeatureEnabled,
             Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]
           }
 
-  getClassifiedDomains expected
-  getClassifiedDomainsInternal expected
+  getClassifiedDomains member tid expected
+  getClassifiedDomainsInternal tid expected
+
+testClassifiedDomainsDisabled :: TestM ()
+testClassifiedDomainsDisabled = do
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  tid <- Util.createNonBindingTeam "classified domains" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
+  let expected =
+        Public.TeamFeatureStatusWithConfig
+          { Public.tfwcStatus = Public.TeamFeatureDisabled,
+            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig []
+          }
+
+  opts <- view tsGConf
+  let classifiedDomainsDisabled =
+        opts
+          & over
+            (optSettings . setFeatureFlags . flagClassifiedDomains)
+            (\s -> s {Public.tfwcStatus = Public.TeamFeatureDisabled})
+  withSettingsOverrides classifiedDomainsDisabled $ do
+    getClassifiedDomains member tid expected
+    getClassifiedDomainsInternal tid expected
 
 testSimpleFlag ::
   forall (a :: Public.TeamFeatureName).
@@ -254,16 +295,20 @@ assertFlagNoConfig res expected = do
       === const (Right expected)
 
 assertFlagWithConfig ::
-  forall cfg.
+  forall cfg m.
   ( HasCallStack,
     Eq cfg,
     FromJSON cfg,
     Show cfg,
-    Typeable cfg
+    Typeable cfg,
+    HasGalley m,
+    MonadIO m,
+    MonadHttp m,
+    MonadCatch m
   ) =>
-  TestM ResponseLBS ->
+  m ResponseLBS ->
   Public.TeamFeatureStatusWithConfig cfg ->
-  TestM ()
+  m ()
 assertFlagWithConfig response expected = do
   r <- response
   let rJson = responseJsonEither @(Public.TeamFeatureStatusWithConfig cfg) r
