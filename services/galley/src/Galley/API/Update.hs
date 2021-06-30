@@ -685,7 +685,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
             Public.qualifiedNewOtrData = maybe mempty fromBase64TextLenient (newOtrData message),
             Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
-  unqualifiedResponse localDomain
+  unqualify localDomain
     <$> postQualifiedOtrMessage User zusr (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response

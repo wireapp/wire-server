@@ -7,8 +7,9 @@ import Data.Json.Util (UTCTimeMillis, toBase64Text, toUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
+import Data.Proxy
 import Data.Qualified (Qualified (..))
-import Data.SOP (I (..), NS (..))
+import Data.SOP (I (..), htrans, unI)
 import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime, getCurrentTime)
@@ -313,20 +314,32 @@ legacyClientMismatchStrategy localDomain Nothing Nothing (Just (ReportMissingLis
   MismatchReportOnly (Set.map (`Qualified` localDomain) uids)
 legacyClientMismatchStrategy _ Nothing Nothing Nothing = MismatchReportAll
 
-legacyMismatch :: Domain -> MessageSendingStatus -> ClientMismatch
-legacyMismatch localDomain status =
-  ClientMismatch
-    { cmismatchTime = mssTime status,
-      missingClients = unqualify (mssMissingClients status),
-      redundantClients = unqualify (mssRedundantClients status),
-      deletedClients = unqualify (mssDeletedClients status)
-    }
-  where
-    unqualify = UserClients . Map.findWithDefault mempty localDomain . qualifiedUserClients
+class Unqualify a b where
+  unqualify :: Domain -> a -> b
 
-unqualifiedResponse :: Domain -> Union PostOtrResponses -> Union PostOtrResponsesUnqualified
-unqualifiedResponse localDomain (Z (I (WithStatus mss))) = Z . I . WithStatus . legacyMismatch localDomain $ mss
-unqualifiedResponse localDomain (S (Z (I (WithStatus mss)))) = S . Z . I . WithStatus . legacyMismatch localDomain $ mss
-unqualifiedResponse _ (S (S (Z (I x)))) = S . S . Z . I $ x
-unqualifiedResponse _ (S (S (S (Z (I x))))) = S . S . S . Z . I $ x
-unqualifiedResponse _ (S (S (S (S x)))) = case x of
+instance Unqualify a a where
+  unqualify _ = id
+
+instance
+  Unqualify a b =>
+  Unqualify (WithStatus c a) (WithStatus c b)
+  where
+  unqualify domain (WithStatus x) = WithStatus (unqualify domain x)
+
+instance Unqualify MessageSendingStatus ClientMismatch where
+  unqualify domain status =
+    ClientMismatch
+      { cmismatchTime = mssTime status,
+        missingClients = unqualify domain (mssMissingClients status),
+        redundantClients = unqualify domain (mssRedundantClients status),
+        deletedClients = unqualify domain (mssDeletedClients status)
+      }
+
+instance Unqualify QualifiedUserClients UserClients where
+  unqualify domain =
+    UserClients
+      . Map.findWithDefault mempty domain
+      . qualifiedUserClients
+
+instance Unqualify (Union PostOtrResponses) (Union PostOtrResponsesUnqualified) where
+  unqualify domain = htrans (Proxy @Unqualify) $ I . unqualify domain . unI
