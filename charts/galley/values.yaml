@@ -32,8 +32,7 @@ config:
       teamSearchVisibility: disabled-by-default
       classifiedDomains:
         status: disabled
-        config:
-          domains: []
+        config: {}
   aws:
     region: "eu-west-1"
   proxy: {}
