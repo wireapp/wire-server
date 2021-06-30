@@ -150,7 +150,7 @@ galley:
         teamSearchVisibility: disabled-by-default
         classifiedDomains:
           status: disabled
-          config:
+          config: {}
     journal:
       endpoint: http://fake-aws-sqs:4568
       queue: integration-team-events.fifo

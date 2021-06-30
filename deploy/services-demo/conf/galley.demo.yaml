@@ -42,7 +42,7 @@ settings:
     classifiedDomains:
       status: enabled
       config:
-        domains: ["wire.com"]
+        domains: ["example.com"]
 
   federationDomain: example.com
 
