@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Teams.Feature (tests, assertFlagWithConfig) where
+module API.Teams.Feature (tests) where
 
 import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
@@ -24,6 +24,7 @@ import Bilge.Assert
 import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Domain (Domain (..))
 import Data.Id
 import Data.List1 (list1)
 import Galley.Options (optSettings, setFeatureFlags)
@@ -181,32 +182,18 @@ testClassifiedDomains = do
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
-  -- let getClassifiedDomains ::
-  --       (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
-  --       TeamId ->
-  --       Public.TeamFeatureStatusValue ->
-  --       m ()
-  --     getClassifiedDomains teamid expected =
-  --       Util.getClassifiedDomainsAvailable g owner teamid !!! do
-  --         statusCode === const 200
-  --         responseJsonEither === const (Right . Public.TeamFeatureStatusNoConfig $ expected)
-  -- let getClassifiedDomains :: HasCallStack => Public.TeamFeatureStatusWithConfig cfg -> TestM ()
-  --     getClassifiedDomains = assertFlagWithConfig @'Public.TeamFeatureClassifiedDomains $ Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
+  let getClassifiedDomains :: HasCallStack => Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains -> TestM ()
+      getClassifiedDomains = assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $ Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
+      getClassifiedDomainsInternal :: HasCallStack => Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains -> TestM ()
+      getClassifiedDomainsInternal = assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $ Util.getTeamFeatureFlagInternal Public.TeamFeatureClassifiedDomains tid
+      expected =
+        Public.TeamFeatureStatusWithConfig
+          { Public.tfwcStatus = Public.TeamFeatureEnabled,
+            Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]
+          }
 
-  -- let getLegalHold :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-  --     getLegalHold = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
-  --     getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-  --     getLegalHoldInternal = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
-
-  let getClassifiedDomains :: HasCallStack => Public.TeamFeatureStatus a -> TestM ()
-      getClassifiedDomains = assertFlagWithConfig @'Public.TeamFeatureClassifiedDomains $ Util.getTeamFeatureFlag Public.TeamFeatureClassifiedDomains member tid
-  -- getClassifiedDomains $
-  --   Public.TeamFeatureStatusWithConfig
-  --     { Public.tfwcStatus = Public.TeamFeatureDisabled,
-  --       Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig []
-  --     }
-
-  pure ()
+  getClassifiedDomains expected
+  getClassifiedDomainsInternal expected
 
 testSimpleFlag ::
   forall (a :: Public.TeamFeatureName).
@@ -267,7 +254,7 @@ assertFlagNoConfig res expected = do
       === const (Right expected)
 
 assertFlagWithConfig ::
-  forall cfg .
+  forall cfg.
   ( HasCallStack,
     Eq cfg,
     FromJSON cfg,
