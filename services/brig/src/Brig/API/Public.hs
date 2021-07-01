@@ -781,7 +781,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
         Map.foldMapWithKey
-          (\_ v -> Sum . Map.size . Public.userClients $ v)
+          (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
     throwStd tooManyClients

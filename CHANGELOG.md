@@ -28,8 +28,9 @@
 
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
 * [Federation] Let a receiving backend decide conversation attribute specifics of its users
-  added to a new conversation via `POST /federation/register-conversation` (#1622)
-* [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632)
+  added to a new conversation via `POST /federation/register-conversation` (#1622).
+* [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
+* Refactored Proteus endpoint to work with qualified users (#1634).
 
 ## Documentation
 

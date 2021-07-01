@@ -44,7 +44,6 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Message (UserClients (UserClients))
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
 import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
 
@@ -195,7 +194,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
   c1 <- generateClientPrekeys brig1 prekeys1
   c2 <- generateClientPrekeys brig2 prekeys2
   let uc =
-        QualifiedUserClients . fmap UserClients . qmap $
+        QualifiedUserClients . qmap $
           [mkClients <$> c1, mkClients <$> c2]
       ucm =
         mkQualifiedUserClientPrekeyMap . fmap mkUserClientPrekeyMap . qmap $
