@@ -498,12 +498,17 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             (chadOwningDomain, chadClient, "text-for-chad"),
             (deeRemote, deeClient, "text-for-dee")
           ]
-    -- let responses req = case fmap F.component (F.request req) of
-    --       Just F.Brig -> toJSON $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-    --       _ -> toJSON ()
 
-    let brigApi = emptyFederatedBrig
-        galleyApi = emptyFederatedGalley
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \_ ->
+                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+            }
+        galleyApi =
+          emptyFederatedGalley
+            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            }
+
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
