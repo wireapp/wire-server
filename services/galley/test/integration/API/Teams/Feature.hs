@@ -28,6 +28,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.List1 (list1)
+import Data.Schema (ToSchema)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
@@ -320,7 +321,7 @@ assertFlagWithConfig ::
   forall cfg m.
   ( HasCallStack,
     Eq cfg,
-    FromJSON cfg,
+    ToSchema cfg,
     Show cfg,
     Typeable cfg,
     HasGalley m,

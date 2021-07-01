@@ -22,9 +22,9 @@ module Galley.API.Public
   )
 where
 
-import Data.Aeson (FromJSON, ToJSON, encode)
-import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
-import Data.Id (TeamId, UserId)
+import Data.Aeson (encode)
+import Data.ByteString.Conversion (fromByteString, fromList)
+import Data.Id (UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -37,7 +37,6 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
-import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
@@ -64,7 +63,6 @@ import qualified Wire.API.Notification as Public
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
-import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
@@ -92,7 +90,17 @@ servantSitemap =
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
         GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
         GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
-        GalleyAPI.postProteusMessage = Update.postProteusMessage
+        GalleyAPI.postProteusMessage = Update.postProteusMessage,
+        GalleyAPI.teamFeatureStatusSSOGet = const Features.getSSOStatusInternal,
+        GalleyAPI.teamFeatureStatusLegalHoldGet = const Features.getLegalholdStatusInternal,
+        GalleyAPI.teamFeatureStatusLegalHoldPut = const Features.setLegalholdStatusInternal,
+        GalleyAPI.teamFeatureStatusSearchVisibilityGet = const Features.getTeamSearchVisibilityAvailableInternal,
+        GalleyAPI.teamFeatureStatusSearchVisibilityPut = const Features.setTeamSearchVisibilityAvailableInternal,
+        GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet = const Features.getValidateSAMLEmailsInternal,
+        GalleyAPI.teamFeatureStatusDigitalSignaturesGet = const Features.getDigitalSignaturesInternal,
+        GalleyAPI.teamFeatureStatusAppLockGet = const Features.getAppLockInternal,
+        GalleyAPI.teamFeatureStatusAppLockPut = const Features.setAppLockInternal,
+        GalleyAPI.teamFeatureStatusClassifiedDomainsGet = const Features.getClassifiedDomainsInternal
       }
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -447,14 +455,6 @@ sitemap = do
     parameter Path "tid" bytes' $
       description "Team ID"
     response 200 "All feature statuses" end
-
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Nothing
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal (Just Features.setLegalholdStatusInternal)
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal (Just Features.setTeamSearchVisibilityAvailableInternal)
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Nothing
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Nothing
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal (Just Features.setAppLockInternal)
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal Nothing
 
   -- Custom Backend API -------------------------------------------------
 
@@ -884,58 +884,3 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       -- user IDs, and then 'fromList' unwraps it; took me a while to
       -- understand this
       Just l -> P.Okay 0 (Set.fromList (fromList l))
-
-mkFeatureGetAndPutRoute ::
-  forall (a :: Public.TeamFeatureName).
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (Maybe (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a))) ->
-  Routes ApiBuilder Galley ()
-mkFeatureGetAndPutRoute getter mbSetter = do
-  let featureName = Public.knownTeamFeatureName @a
-
-  let getHandler :: UserId ::: TeamId ::: JSON -> Galley Response
-      getHandler (uid ::: tid ::: _) =
-        json <$> Features.getFeatureStatus @a getter (DoAuth uid) tid
-
-  let mkGetRoute makeDocumentation name = do
-        get ("/teams/:tid/features/" <> name) (continue getHandler) $
-          zauthUserId
-            .&. capture "tid"
-            .&. accept "application" "json"
-        when makeDocumentation $
-          document "GET" "getTeamFeature" $ do
-            parameter Path "tid" bytes' $
-              description "Team ID"
-            returns (ref (Public.modelForTeamFeature featureName))
-            response 200 "Team feature status" end
-
-  mkGetRoute True (toByteString' featureName)
-  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName
-
-  let mkPutRoute makeDocumentation setter name = do
-        let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-            putHandler (uid ::: tid ::: req ::: _) = do
-              status <- fromJsonBody req
-              res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
-              pure $ json res & Network.Wai.Utilities.setStatus status200
-
-        put ("/teams/:tid/features/" <> name) (continue putHandler) $
-          zauthUserId
-            .&. capture "tid"
-            .&. jsonRequest @(Public.TeamFeatureStatus a)
-            .&. accept "application" "json"
-        when makeDocumentation $
-          document "PUT" "putTeamFeature" $ do
-            parameter Path "tid" bytes' $
-              description "Team ID"
-            body (ref (Public.modelForTeamFeature featureName)) $
-              description "JSON body"
-            response 204 "Team feature status" end
-
-  for_ mbSetter $ \setter -> do
-    mkPutRoute True setter (toByteString' featureName)
-    mkPutRoute False setter `mapM_` Public.deprecatedFeatureName featureName
