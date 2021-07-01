@@ -507,7 +507,8 @@ postMessageQualifiedLocalOwningBackendSuccess = do
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
+
     liftIO $ do
       let expectedRequests =
             [ (F.Brig, "get-user-clients"),
@@ -576,7 +577,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                     Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
                 ]
-      assertMismatchQualified expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the
@@ -660,7 +661,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           expectedDeleted =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
-      assertMismatchQualified mempty expectedRedundant expectedDeleted
+      assertMismatchQualified mempty mempty expectedRedundant expectedDeleted
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"
@@ -712,7 +713,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll responses
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -723,7 +724,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) responses
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -742,7 +743,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         responses
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -765,7 +766,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       let expectedMissing =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
-      assertMismatchQualified expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
   -- Same as above, but with a remote user's client
@@ -784,7 +785,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       let expectedMissing =
             QualifiedUserClients . Map.singleton remoteDomain . Map.fromList $
               [(qUnqualified deeRemote, Set.singleton deeClient)]
-      assertMismatchQualified expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 postMessageQualifiedRemoteOwningBackendNotImplemented :: TestM ()
