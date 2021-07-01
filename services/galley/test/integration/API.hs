@@ -165,6 +165,7 @@ tests s =
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - remote owning backend - not implemented" postMessageQualifiedRemoteOwningBackendNotImplemented,
+          -- TODO: add tests for failing to send
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
           test s "join code-access conversation" postJoinCodeConvOk,
