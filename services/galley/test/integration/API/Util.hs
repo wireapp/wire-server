@@ -86,11 +86,13 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
-import Network.HTTP.Types (methodPost)
+import Network.HTTP.Types (methodPost, status200)
 import Network.Wai (Application, defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Test
-import Servant (HasServer, Server, serve)
+import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
+import Servant.API.Generic (ToServantApi)
+import Servant.Server.Generic (AsServerT, genericServerT)
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -105,6 +107,8 @@ import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
 import qualified Wire.API.Event.Team as TE
+import qualified Wire.API.Federation.API.Brig as FederatedBrig
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Domain (domainHeaderName)
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
@@ -660,6 +664,22 @@ postProteusMessageQualifiedWithMockFederator ::
 postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat responses = do
   opts <- view tsGConf
   withTempMockFederator opts (Domain "far-away.example.com") responses $
+    postProteusMessageQualified senderUser senderClient convId recipients dat strat
+
+postProteusMessageQualifiedWithMockFederator' ::
+  UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  [(Qualified UserId, ClientId, ByteString)] ->
+  ByteString ->
+  ClientMismatchStrategy ->
+  FederatedBrig.Api (AsServerT Handler) ->
+  FederatedGalley.Api (AsServerT Handler) ->
+  TestM (ResponseLBS, Mock.ReceivedRequests)
+postProteusMessageQualifiedWithMockFederator' senderUser senderClient convId recipients dat strat brigApi galleyApi = do
+  localDomain <- viewFederationDomain
+  opts <- view tsGConf
+  withTempServantMockFederator opts brigApi galleyApi localDomain (Domain "far-away.example.com") $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -1922,19 +1942,22 @@ withTempMockFederator' opts targetDomain resp action = assertRightT
     st0 = Mock.initState targetDomain (Domain "example.com")
 
 withTempServantMockFederator ::
-  forall (api :: *) b m.
-  (MonadMask m, MonadIO m, HasGalley m, HasServer api '[]) =>
+  (MonadMask m, MonadIO m, HasGalley m) =>
   Opts.Opts ->
-  Server api ->
+  FederatedBrig.Api (AsServerT Handler) ->
+  FederatedGalley.Api (AsServerT Handler) ->
   Domain ->
   Domain ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempServantMockFederator opts server originDomain targetDomain =
+withTempServantMockFederator opts brigApi galleyApi originDomain targetDomain =
   withTempMockFederator' opts targetDomain mock
   where
+    server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
+    server = genericServerT brigApi :<|> genericServerT galleyApi
+
     mock :: F.FederatedRequest -> IO F.OutwardResponse
-    mock = makeFedRequestToServant @api originDomain (server :: Server api)
+    mock = makeFedRequestToServant @(ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) originDomain server
 
 makeFedRequestToServant ::
   forall (api :: *).
@@ -1958,7 +1981,9 @@ makeFedRequestToServant originDomain server fedRequest =
               (toRequestWithoutBody req)
               (cs . F.body $ req)
           )
-      pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
+      if Test.simpleStatus response == status200
+        then pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
+        else pure (F.OutwardResponseError (F.OutwardError F.RemoteFederatorError (Just (F.ErrorPayload "mock-error" (cs (Test.simpleBody response))))))
 
     toRequestWithoutBody :: F.Request -> Wai.Request
     toRequestWithoutBody req =

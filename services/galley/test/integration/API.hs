@@ -176,7 +176,7 @@ tests s =
 
 emptyFederatedBrig :: FederatedBrig.Api routes
 emptyFederatedBrig =
-  let e :: String -> forall a. a
+  let e :: String -> a
       e s = error ("not implemented: " <> s)
    in FederatedBrig.Api
         { FederatedBrig.getUserByHandle = e "getUserByHandle",
@@ -186,6 +186,17 @@ emptyFederatedBrig =
           FederatedBrig.claimMultiPrekeyBundle = e "claimMultiPrekeyBundle",
           FederatedBrig.searchUsers = e "searchUsers",
           FederatedBrig.getUserClients = e "getUserClients"
+        }
+
+emptyFederatedGalley :: FederatedGalley.Api routes
+emptyFederatedGalley =
+  let e :: String -> a
+      e s = error ("not implemented: " <> s)
+   in FederatedGalley.Api
+        { FederatedGalley.registerConversation = e "registerConversation",
+          FederatedGalley.getConversations = e "getConversations",
+          FederatedGalley.updateConversationMemberships = e "updateConversationMemberships",
+          FederatedGalley.receiveMessage = e "receiveMessage"
         }
 
 -------------------------------------------------------------------------------
@@ -487,10 +498,13 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             (chadOwningDomain, chadClient, "text-for-chad"),
             (deeRemote, deeClient, "text-for-dee")
           ]
-    let responses req = case fmap F.component (F.request req) of
-          Just F.Brig -> toJSON $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-          _ -> toJSON ()
-    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+    -- let responses req = case fmap F.component (F.request req) of
+    --       Just F.Brig -> toJSON $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+    --       _ -> toJSON ()
+
+    let brigApi = emptyFederatedBrig
+        galleyApi = emptyFederatedGalley
+    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty
