@@ -42,6 +42,7 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
+import Data.Data (Proxy (Proxy))
 import Data.Domain
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
@@ -91,6 +92,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Test
 import qualified Proto.Otr
 import qualified Proto.Otr_Fields as Proto.Otr
+import Servant (HasServer, Server, serve)
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -1899,8 +1901,20 @@ withTempMockFederator ::
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action = assertRightT
-  . Mock.withTempMockFederator st0 (pure . oresp)
+withTempMockFederator opts targetDomain resp action =
+  withTempMockFederator' opts targetDomain (pure . oresp) action
+  where
+    oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
+
+withTempMockFederator' ::
+  (MonadIO m, HasGalley m, MonadMask m) =>
+  Opts.Opts ->
+  Domain ->
+  (FederatedRequest -> IO F.OutwardResponse) ->
+  SessionT m b ->
+  m (b, Mock.ReceivedRequests)
+withTempMockFederator' opts targetDomain resp action = assertRightT
+  . Mock.withTempMockFederator st0 (lift . resp)
   $ \st -> lift $ do
     let opts' =
           opts & Opts.optFederator
@@ -1908,12 +1922,35 @@ withTempMockFederator opts targetDomain resp action = assertRightT
     withSettingsOverrides opts' action
   where
     st0 = Mock.initState targetDomain (Domain "example.com")
-    oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
--- TODO: rename or inline
-makeRequest :: Domain -> Application -> F.FederatedRequest -> IO F.OutwardResponse
-makeRequest originDomain app fedRequest = Test.runSession session app
+withTempServantMockFederator ::
+  forall (api :: *) b m.
+  (MonadMask m, MonadIO m, HasGalley m, HasServer api '[]) =>
+  Opts.Opts ->
+  Server api ->
+  Domain ->
+  Domain ->
+  SessionT m b ->
+  m (b, Mock.ReceivedRequests)
+withTempServantMockFederator opts server originDomain targetDomain =
+  withTempMockFederator' opts targetDomain mock
   where
+    mock :: F.FederatedRequest -> IO F.OutwardResponse
+    mock = makeFedRequestToServant @api originDomain (server :: Server api)
+
+makeFedRequestToServant ::
+  forall (api :: *).
+  HasServer api '[] =>
+  Domain ->
+  Server api ->
+  F.FederatedRequest ->
+  IO F.OutwardResponse
+makeFedRequestToServant originDomain server fedRequest =
+  Test.runSession session app
+  where
+    app :: Application
+    app = serve (Proxy @api) server
+
     session :: Test.Session F.OutwardResponse
     session = do
       let req = fromMaybe (error "no request") (F.request fedRequest)
