@@ -82,85 +82,73 @@ data InternalApi routes = InternalApi
         :- "i"
         :> "status"
         :> Verb 'HEAD 200 '[Servant.JSON] NoContent,
-
     -- Team Feature Flag API (internal) -----------------------------------
     --
-    -- Enabling this should only be possible internally.
-    -- Viewing the status should be allowed for any admin.
-
+    -- Configuring some features should only be possible internally.
+    -- Viewing the config for features should be allowed for any admin.
     iTeamFeatureStatusSSOGet ::
       routes
-        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureSSO,
+        :- IFeatureStatusGet 'Public.TeamFeatureSSO,
     iTeamFeatureStatusSSOPut ::
       routes
-        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureSSO,
+        :- IFeatureStatusPut 'Public.TeamFeatureSSO,
     iTeamFeatureStatusLegalHoldGet ::
       routes
-        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureLegalHold,
+        :- IFeatureStatusGet 'Public.TeamFeatureLegalHold,
     iTeamFeatureStatusLegalHoldPut ::
       routes
-        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureLegalHold,
+        :- IFeatureStatusPut 'Public.TeamFeatureLegalHold,
     iTeamFeatureStatusSearchVisibilityGet ::
       routes
-        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureSearchVisibility,
+        :- IFeatureStatusGet 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusSearchVisibilityPut ::
       routes
-        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureSearchVisibility,
+        :- IFeatureStatusPut 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusValidateSAMLEmailsGet ::
       routes
-        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureValidateSAMLEmails,
+        :- IFeatureStatusGet 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusValidateSAMLEmailsPut ::
       routes
-        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureValidateSAMLEmails,
+        :- IFeatureStatusPut 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusDigitalSignaturesGet ::
       routes
-        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureDigitalSignatures,
+        :- IFeatureStatusGet 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusDigitalSignaturesPut ::
       routes
-        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureDigitalSignatures,
+        :- IFeatureStatusPut 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusAppLockGet ::
       routes
-        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureAppLock,
+        :- IFeatureStatusGet 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusAppLockPut ::
       routes
-        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureAppLock,
+        :- IFeatureStatusPut 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusClassifiedDomainsGet ::
       routes
-        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureClassifiedDomains,
+        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains,
     iTeamFeatureStatusClassifiedDomainsPut ::
       routes
-        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureClassifiedDomains
+        :- IFeatureStatusPut 'Public.TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi InternalApi
 
--- | An index to type families 'FeatureStatusGet' and 'FeatureStatusPut' so that
--- internal and public endpoints can be differentiated.
-data EndpointType = InternalEndpoint | PublicEndpoint
-
-type SubFeatureStatusGet featureName =
-  "teams"
+type IFeatureStatusGet featureName =
+  "i"
+    :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> Public.KnownTeamFeatureNameSymbol featureName
     :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
-type family FeatureStatusGet (t :: EndpointType) featureName :: * where
-  FeatureStatusGet 'InternalEndpoint name = "i" :> SubFeatureStatusGet name
-  FeatureStatusGet 'PublicEndpoint name = SubFeatureStatusGet name
-
-type SubFeatureStatusPut featureName =
-    "teams"
+type IFeatureStatusPut featureName =
+  "i"
+    :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> Public.KnownTeamFeatureNameSymbol featureName
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
-
-type family FeatureStatusPut (t :: EndpointType) featureName :: * where
-  FeatureStatusPut 'InternalEndpoint name = "i" :> SubFeatureStatusPut name
-  FeatureStatusPut 'PublicEndpoint name = SubFeatureStatusPut name
 
 servantSitemap :: ServerT ServantAPI Galley
 servantSitemap =
