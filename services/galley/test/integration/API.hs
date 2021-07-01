@@ -52,7 +52,6 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Data as Cql
@@ -636,25 +635,23 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
             (nonMemberOwningDomain, nonMemberOwningDomainClient, "text-for-non-member-owning-domain"),
             (nonMemberRemote, nonMemberRemoteClient, "text-for-non-member-remote")
           ]
+
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \getUserClients ->
+                let lookupClients uid
+                      | uid == deeRemoteUnqualified = Just (uid, Set.fromList [PubClient deeClient Nothing])
+                      | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
+                      | otherwise = Nothing
+                 in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ FederatedBrig.gucUsers getUserClients
+            }
+        galleyApi =
+          emptyFederatedGalley
+            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            }
 
-    let responses fedRequest =
-          let request = fromMaybe (error "no request") $ F.request fedRequest
-              lookupClients uid
-                | uid == deeRemoteUnqualified = Just (uid, [PubClient deeClient Nothing])
-                | uid == nonMemberRemoteUnqualified = Just (uid, [PubClient nonMemberRemoteClient Nothing])
-                | otherwise = Nothing
-           in case F.path request of
-                "/federation/get-user-clients" ->
-                  let (getUserClients :: FederatedBrig.GetUserClients) = fromMaybe (error "parsing GetUserClients") $ decode (cs . F.body $ request)
-                   in UserMap
-                        . Map.fromList
-                        . mapMaybe lookupClients
-                        . FederatedBrig.gucUsers
-                        $ getUserClients
-                _ -> error ("unmocked request: " <> show request)
-
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       let expectedRedundant =
