@@ -90,8 +90,6 @@ import Network.HTTP.Types (methodPost)
 import Network.Wai (Application, defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Test
-import qualified Proto.Otr
-import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (HasServer, Server, serve)
 import System.Random
 import qualified Test.QuickCheck as Q
