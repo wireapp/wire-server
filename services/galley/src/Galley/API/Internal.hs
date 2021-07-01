@@ -29,8 +29,6 @@ import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson (FromJSON, ToJSON)
-import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
 import Data.Range
@@ -83,33 +81,85 @@ data InternalApi routes = InternalApi
         :- "i"
         :> "status"
         :> Verb 'HEAD 200 '[Servant.JSON] NoContent,
+
+    -- Team Feature Flag API (internal) -----------------------------------
+    --
+    -- Enabling this should only be possible internally.
+    -- Viewing the status should be allowed for any admin.
+
     iTeamFeatureStatusSSOGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureSSO,
+        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureSSO,
     iTeamFeatureStatusSSOPut ::
       routes
-        :- IFeatureStatusPut 'Public.TeamFeatureSSO
+        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureSSO,
+    iTeamFeatureStatusLegalHoldGet ::
+      routes
+        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureLegalHold,
+    iTeamFeatureStatusLegalHoldPut ::
+      routes
+        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureLegalHold,
+    iTeamFeatureStatusSearchVisibilityGet ::
+      routes
+        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusSearchVisibilityPut ::
+      routes
+        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusValidateSAMLEmailsGet ::
+      routes
+        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusValidateSAMLEmailsPut ::
+      routes
+        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusDigitalSignaturesGet ::
+      routes
+        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusDigitalSignaturesPut ::
+      routes
+        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusAppLockGet ::
+      routes
+        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureAppLock,
+    iTeamFeatureStatusAppLockPut ::
+      routes
+        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureAppLock,
+    iTeamFeatureStatusClassifiedDomainsGet ::
+      routes
+        :- FeatureStatusGet 'InternalEndpoint 'Public.TeamFeatureClassifiedDomains,
+    iTeamFeatureStatusClassifiedDomainsPut ::
+      routes
+        :- FeatureStatusPut 'InternalEndpoint 'Public.TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi InternalApi
 
-type IFeatureStatusGet featureName =
-  "i"
-    :> "teams"
+-- | An index to type families 'FeatureStatusGet' and 'FeatureStatusPut' so that
+-- internal and public endpoints can be differentiated.
+data EndpointType = InternalEndpoint | PublicEndpoint
+
+type SubFeatureStatusGet featureName =
+  "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> Public.KnownTeamFeatureNameSymbol featureName
     :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
-type IFeatureStatusPut featureName =
-  "i"
-    :> "teams"
+type family FeatureStatusGet (t :: EndpointType) featureName :: * where
+  FeatureStatusGet 'InternalEndpoint name = "i" :> SubFeatureStatusGet name
+  FeatureStatusGet 'PublicEndpoint name = SubFeatureStatusGet name
+
+type SubFeatureStatusPut featureName =
+    "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> Public.KnownTeamFeatureNameSymbol featureName
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+type family FeatureStatusPut (t :: EndpointType) featureName :: * where
+  FeatureStatusPut 'InternalEndpoint name = "i" :> SubFeatureStatusPut name
+  FeatureStatusPut 'PublicEndpoint name = SubFeatureStatusPut name
 
 servantSitemap :: ServerT ServantAPI Galley
 servantSitemap =
@@ -118,7 +168,19 @@ servantSitemap =
       { iStatusGet = pure NoContent,
         iStatusHead = pure NoContent,
         iTeamFeatureStatusSSOGet = iGetTeamFeature @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
-        iTeamFeatureStatusSSOPut = iPutTeamFeature @'Public.TeamFeatureSSO Features.setSSOStatusInternal
+        iTeamFeatureStatusSSOPut = iPutTeamFeature @'Public.TeamFeatureSSO Features.setSSOStatusInternal,
+        iTeamFeatureStatusLegalHoldGet = iGetTeamFeature @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
+        iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal,
+        iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusValidateSAMLEmailsGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
+        iTeamFeatureStatusDigitalSignaturesGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
+        iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
+        iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
+        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
+        iTeamFeatureStatusClassifiedDomainsPut = iPutTeamFeature @'Public.TeamFeatureClassifiedDomains Features.setClassifiedDomainsInternal
       }
 
 iGetTeamFeature ::
@@ -237,18 +299,6 @@ sitemap = do
 
   get "/i/teams/:tid/members/check" (continue Teams.canUserJoinTeamH) $
     capture "tid"
-
-  -- Team Feature Flag API (internal) -----------------------------------
-  --
-  -- Enabling this should only be possible internally.
-  -- Viewing the status should be allowed for any admin.
-
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal Features.setClassifiedDomainsInternal
 
   -- Misc API (internal) ------------------------------------------------
 
@@ -386,45 +436,6 @@ safeForever funName action =
     action `catchAny` \exc -> do
       err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
-
-mkFeatureGetAndPutRoute ::
-  forall (a :: Public.TeamFeatureName) r.
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
-  Routes r Galley ()
-mkFeatureGetAndPutRoute getter setter = do
-  let featureName = Public.knownTeamFeatureName @a
-
-  let getHandler :: TeamId ::: JSON -> Galley Response
-      getHandler (tid ::: _) =
-        json <$> Features.getFeatureStatus @a getter DontDoAuth tid
-
-  let mkGetRoute name =
-        get ("/i/teams/:tid/features/" <> name) (continue getHandler) $
-          capture "tid"
-            .&. accept "application" "json"
-
-  mkGetRoute (toByteString' featureName)
-  mkGetRoute `mapM_` Public.deprecatedFeatureName featureName
-
-  let putHandler :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-      putHandler (tid ::: req ::: _) = do
-        status <- fromJsonBody req
-        res <- Features.setFeatureStatus @a setter DontDoAuth tid status
-        pure $ (json res) & Network.Wai.Utilities.setStatus status200
-
-  let mkPutRoute name =
-        put ("/i/teams/:tid/features/" <> name) (continue putHandler) $
-          capture "tid"
-            .&. jsonRequest @(Public.TeamFeatureStatus a)
-            .&. accept "application" "json"
-
-  mkPutRoute (toByteString' featureName)
-  mkPutRoute `mapM_` Public.deprecatedFeatureName featureName
 
 guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) -> Galley Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
