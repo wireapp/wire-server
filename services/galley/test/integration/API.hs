@@ -565,8 +565,14 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    let responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \_ ->
+                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+            }
+        galleyApi = emptyFederatedGalley
+
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
     pure resp2 !!! do
       const 412 === statusCode
