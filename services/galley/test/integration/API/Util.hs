@@ -1983,15 +1983,17 @@ makeFedRequestToServant originDomain server fedRequest =
           )
       if Test.simpleStatus response == status200
         then pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
-        else pure (F.OutwardResponseError (F.OutwardError F.RemoteFederatorError (Just (F.ErrorPayload "mock-error" (cs (Test.simpleBody response))))))
+        else do
+          pure (F.OutwardResponseError (F.OutwardError F.RemoteFederatorError (Just (F.ErrorPayload "mock-error" (cs (Test.simpleBody response))))))
 
     toRequestWithoutBody :: F.Request -> Wai.Request
     toRequestWithoutBody req =
       defaultRequest
         { Wai.requestMethod = methodPost,
-          Wai.pathInfo = ["federated"] <> (fmap cs . C.split '/' . F.path $ req),
+          Wai.pathInfo = fmap cs . drop 1 . C.split '/' . F.path $ req,
           Wai.requestHeaders =
             [ (CI.mk "Content-Type", "application/json"),
+              (CI.mk "Accept", "application/json"),
               (domainHeaderName, cs . domainText $ originDomain)
             ]
         }
