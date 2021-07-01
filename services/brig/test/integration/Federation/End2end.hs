@@ -408,6 +408,8 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
           . zUser (userId bob)
           . zConn "conn"
           . header "Z-Type" "access"
+          . contentProtobuf
+          . acceptJson
           . bytes (Protolens.encodeMessage msg)
       )
       !!! const 201 === statusCode
