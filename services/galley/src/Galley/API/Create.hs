@@ -264,7 +264,7 @@ createConnectConversation usr conn j = do
       localDomain <- viewFederationDomain
       (c, e) <- Data.createConnectConversation localDomain x y n j
       notifyCreatedConversation Nothing usr conn c
-      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
+      for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
@@ -307,7 +307,7 @@ createConnectConversation usr conn j = do
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
         let e = Event ConvConnect qconv qusr t (EdConnect j)
-        for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
+        for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
@@ -356,7 +356,7 @@ notifyCreatedConversation dtime usr conn c = do
       c' <- conversationView (memId m) c
       let e = Event ConvCreate qconv qusr t (EdConversation c')
       return $
-        newPush1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])
+        newPushLocal1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 

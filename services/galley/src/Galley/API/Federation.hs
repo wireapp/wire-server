@@ -17,8 +17,12 @@
 module Galley.API.Federation where
 
 import Data.Containers.ListUtils (nubOrd)
+import Data.Domain
+import Data.Id (ConvId)
 import Data.Qualified (Qualified (..))
+import Data.Tagged
 import qualified Galley.API.Mapping as Mapping
+import Galley.API.Update as API
 import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
@@ -28,7 +32,13 @@ import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Conversation.Member (OtherMember (..), memId)
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
+import Wire.API.Federation.API.Galley
+  ( ConversationMemberUpdate (..),
+    GetConversationsRequest (..),
+    GetConversationsResponse (..),
+    RegisterConversation (..),
+    RemoteMessage (..),
+  )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
@@ -37,7 +47,8 @@ federationSitemap =
     FederationAPIGalley.Api
       { FederationAPIGalley.registerConversation = registerConversation,
         FederationAPIGalley.getConversations = getConversations,
-        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
+        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
+        FederationAPIGalley.receiveMessage = receiveMessage
       }
 
 registerConversation :: RegisterConversation -> Galley ()
@@ -58,7 +69,7 @@ registerConversation rc = do
             (rcOrigUserId rc)
             (rcTime rc)
             (EdConversation c)
-    pushConversationEvent event [memId mem] []
+    pushConversationEvent Nothing event [memId mem] []
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
@@ -87,4 +98,10 @@ updateConversationMemberships cmu = do
   -- send notifications
   let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
   -- FUTUREWORK: support bots?
-  pushConversationEvent event targets []
+  pushConversationEvent Nothing event targets []
+
+-- FUTUREWORK: report errors to the originating backend
+receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
+receiveMessage domain =
+  API.postRemoteToLocal
+    . fmap (Tagged . (`Qualified` domain))
