@@ -39,6 +39,7 @@ import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
+import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
@@ -387,5 +388,5 @@ mkFeatureGetAndPutRoute getter setter = do
 guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) -> Galley Response
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
-  Update.guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+  guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
   pure $ Network.Wai.Utilities.setStatus status200 empty

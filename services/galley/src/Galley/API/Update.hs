@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -57,24 +59,18 @@ module Galley.API.Update
     Galley.API.Update.addBotH,
     rmBotH,
     postBotMessageH,
-
-    -- * Legalhold
-    guardLegalholdPolicyConflicts,
   )
 where
 
-import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
-import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -83,20 +79,20 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Tagged
-import qualified Data.Text.Encoding as Text
 import Data.Time
 import Galley.API.Error
+import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import Galley.API.Mapping
+import Galley.API.Message
 import Galley.API.Util
 import Galley.App
-import Galley.Data (teamMember)
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
-import Galley.Intra.User (deleteBot, getContactList, getUser, lookupActivatedUsers)
+import Galley.Intra.User (deleteBot, getContactList, lookupActivatedUsers)
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot hiding (addBot)
@@ -111,7 +107,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import Servant (respond)
+import qualified Servant
 import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
 import qualified System.Logger.Class as Log
@@ -127,9 +123,7 @@ import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.User (userTeam)
-import Wire.API.User.Client (UserClientsFull)
-import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -654,109 +648,45 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postBotMessage zbot zcnv val' message
 
-data LegalholdProtectee'
-  = ProtectedUser' UserId
-  | UnprotectedBot' UserId
-  deriving (Show, Eq, Ord, Generic)
-
-legalholdProtectee'2LegalholdProtectee :: LegalholdProtectee' -> LegalholdProtectee
-legalholdProtectee'2LegalholdProtectee (ProtectedUser' uid) = ProtectedUser uid
-legalholdProtectee'2LegalholdProtectee (UnprotectedBot' _uid) = UnprotectedBot
-
-legalholdProtectee'2UserId :: LegalholdProtectee' -> UserId
-legalholdProtectee'2UserId (ProtectedUser' uid) = uid
-legalholdProtectee'2UserId (UnprotectedBot' uid) = uid
-
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
+  postNewOtrMessage Bot (botUserId zbot) Nothing zcnv val message
 
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
--- the conversation is not hosted on current backend. If the converastion is
+-- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
 postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
 postProteusMessage zusr zcon convDomain cnv msg = do
   localDomain <- viewFederationDomain
   if localDomain /= convDomain
     then throwM federationNotImplemented
-    else do
-      let missingFilter = mkFilter localDomain $ Public.qualifiedNewOtrClientMismatchStrategy msg
-          unqualifiedMsg = toUnqualifiedMessage localDomain msg
-      translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv missingFilter unqualifiedMsg
-  where
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    mkFilter :: Domain -> Public.ClientMismatchStrategy -> Public.OtrFilterMissing
-    mkFilter localDomain = \case
-      Public.MismatchIgnoreOnly quids -> Public.OtrIgnoreMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
-      Public.MismatchIgnoreAll -> Public.OtrIgnoreAllMissing
-      Public.MismatchReportOnly quids -> Public.OtrReportMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
-      Public.MismatchReportAll -> Public.OtrReportAllMissing
-
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    toUnqualifiedMessage :: Domain -> Public.QualifiedNewOtrMessage -> Public.NewOtrMessage
-    toUnqualifiedMessage localDomain qmsg = do
-      Public.NewOtrMessage
-        { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
-          newOtrRecipients =
-            Public.OtrRecipients
-              . fmap toBase64Text
-              . Map.findWithDefault mempty localDomain
-              . Client.qualifiedUserClientMap
-              . Public.qualifiedOtrRecipientsMap
-              . Public.qualifiedNewOtrRecipients
-              $ qmsg,
-          newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
-          newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
-          newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
-          newOtrData = Just . toBase64Text $ Public.qualifiedNewOtrData qmsg,
-          newOtrReportMissing = Nothing
-        }
-
-    toBase64Text :: ByteString -> Text
-    toBase64Text = Text.decodeUtf8 . B64.encode
-
-    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
-    translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch mempty)
-    translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch mempty)
-    translateToServant (OtrUnknownClient e) = Servant.respond e
-    translateToServant (OtrConversationNotFound e) = Servant.respond e
-
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    qualifyMismatch :: Public.ClientMismatch -> Client.QualifiedUserClients -> Galley Public.MessageSendingStatus
-    qualifyMismatch cm failedToSend = do
-      domain <- viewFederationDomain
-      pure
-        Public.MessageSendingStatus
-          { Public.mssTime = Public.cmismatchTime cm,
-            Public.mssDeletedClients = qualifyUserClients domain $ Public.deletedClients cm,
-            Public.mssMissingClients = qualifyUserClients domain $ Public.missingClients cm,
-            Public.mssRedundantClients = qualifyUserClients domain $ Public.redundantClients cm,
-            Public.mssFailedToSend = failedToSend
-          }
-    qualifyUserClients :: Domain -> Client.UserClients -> Client.QualifiedUserClients
-    qualifyUserClients domain userClients =
-      if userClients == mempty
-        then mempty
-        else Client.QualifiedUserClients . Map.singleton domain $ userClients
+    else postQualifiedOtrMessage User zusr (Just zcon) cnv msg
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
-  let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
-      overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
-  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv overallResovedMissingOptions message
-  where
-    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
-    translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
-    translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
-    translateToServant (OtrUnknownClient e) = Servant.respond e
-    translateToServant (OtrConversationNotFound e) = Servant.respond e
-
-    resolveQueryMissingOptions :: Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.OtrFilterMissing
-    resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
-    resolveQueryMissingOptions (Just Public.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
-    resolveQueryMissingOptions (Just (Public.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
-    resolveQueryMissingOptions Nothing (Just Public.ReportMissingAll) = Public.OtrReportAllMissing
-    resolveQueryMissingOptions Nothing (Just (Public.ReportMissingList uids)) = Public.OtrReportMissing uids
+  localDomain <- viewFederationDomain
+  let qualifiedRecipients =
+        Public.QualifiedOtrRecipients
+          . QualifiedUserClientMap
+          . Map.singleton localDomain
+          . userClientMap
+          . fmap fromBase64TextLenient
+          . Public.otrRecipientsMap
+          . Public.newOtrRecipients
+          $ message
+  let clientMismatchStrategy = legacyClientMismatchStrategy localDomain (newOtrReportMissing message) ignoreMissing reportMissing
+      qualifiedMessage =
+        Public.QualifiedNewOtrMessage
+          { Public.qualifiedNewOtrSender = newOtrSender message,
+            Public.qualifiedNewOtrRecipients = qualifiedRecipients,
+            Public.qualifiedNewOtrNativePush = newOtrNativePush message,
+            Public.qualifiedNewOtrTransient = newOtrTransient message,
+            Public.qualifiedNewOtrNativePriority = newOtrNativePriority message,
+            Public.qualifiedNewOtrData = maybe mempty fromBase64TextLenient (newOtrData message),
+            Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
+          }
+  unqualify localDomain
+    <$> postQualifiedOtrMessage User zusr (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -796,16 +726,15 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage qusr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
-postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
-postNewOtrMessage protectee con cnv val msg = do
+postNewOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postNewOtrMessage utype usr con cnv val msg = do
   localDomain <- viewFederationDomain
-  let usr = legalholdProtectee'2UserId protectee
-      qusr = Qualified usr localDomain
+  let qusr = Qualified usr localDomain
       qcnv = Qualified cnv localDomain
       sender = newOtrSender msg
       recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
-  withValidOtrRecipients protectee sender cnv recvrs val now $ \rs -> do
+  withValidOtrRecipients utype usr sender cnv recvrs val now $ \rs -> do
     let (toBots, toUsers) = foldr (newMessage qusr con (Just qcnv) msg now) ([], []) rs
     pushSome (catMaybes toUsers)
     void . forkIO $ do
@@ -1145,7 +1074,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
       then Clients.fromUserClients <$> Intra.lookupClients users
       else Data.lookupClients users
   let membs = Data.newMember <$> users
-  handleOtrResponse (ProtectedUser' usr) clt rcps membs clts val now go
+  handleOtrResponse User usr clt rcps membs clts val now go
   where
     maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
       -- Get the users in the filter (remote ids are not in a local team)
@@ -1162,7 +1091,8 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ 
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  LegalholdProtectee' ->
+  UserType ->
+  UserId ->
   ClientId ->
   ConvId ->
   OtrRecipients ->
@@ -1170,26 +1100,27 @@ withValidOtrRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrRecipients protectee clt cnv rcps val now go = do
+withValidOtrRecipients utype usr clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   if not alive
     then do
       Data.deleteConversation cnv
       pure $ OtrConversationNotFound Public.convNotFound
     else do
-      -- FUTUREWORK(federation): also handle remote members
-      (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
+      localMembers <- Data.members cnv
       let localMemberIds = memId <$> localMembers
       isInternal <- view $ options . optSettings . setIntraListing
       clts <-
         if isInternal
           then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
           else Data.lookupClients localMemberIds
-      handleOtrResponse protectee clt rcps localMembers clts val now go
+      handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::
+  -- | Type of proposed sender (user / bot)
+  UserType ->
   -- | Proposed sender (user)
-  LegalholdProtectee' ->
+  UserId ->
   -- | Proposed sender (client)
   ClientId ->
   -- | Proposed recipients (users & clients).
@@ -1205,10 +1136,10 @@ handleOtrResponse ::
   -- | Callback if OtrRecipients are valid
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipients (legalholdProtectee'2UserId protectee) clt rcps membs clts val now of
+handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
-    guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
+    guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
   InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient
@@ -1294,97 +1225,6 @@ checkOtrRecipients usr sid prs vms vcs val now
       OtrIgnoreAllMissing -> Clients.nil
       OtrReportMissing us -> Clients.filter (`Set.member` us) miss
       OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
-
--- | If user has legalhold status `no_consent` or has client devices that have no legalhold
--- capability, and some of the clients she is about to get connected are LH devices, respond
--- with 412 and do not process notification.
---
--- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
--- intended.
-guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley ()
-guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure ()
-guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
-guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
-  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
-    FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
-      FutureWork () -> pure () -- FUTUREWORK: if federation is enabled, we still need to run the guard!
-    FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
-
-guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley ()
-guardLegalholdPolicyConflictsUid self otherClients = do
-  let otherCids :: [ClientId]
-      otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
-
-      otherUids :: [UserId]
-      otherUids = nub $ Map.keys . userClients $ otherClients
-
-  when (nub otherUids /= [self {- if all other clients belong to us, there can be no conflict -}]) $ do
-    allClients :: UserClientsFull <- Intra.lookupClientsFull (nub $ self : otherUids)
-
-    let selfClients :: [Client.Client] =
-          allClients
-            & Client.userClientsFull
-            & Map.lookup self
-            & fromMaybe Set.empty
-            & Set.toList
-
-        otherClientHasLH :: Bool
-        otherClientHasLH =
-          let clients =
-                allClients
-                  & Client.userClientsFull
-                  & Map.delete self
-                  & Map.elems
-                  & Set.unions
-                  & Set.toList
-                  & filter ((`elem` otherCids) . Client.clientId)
-           in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
-
-        checkSelfHasLHClients :: Bool
-        checkSelfHasLHClients =
-          any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
-
-        checkSelfHasOldClients :: Bool
-        checkSelfHasOldClients =
-          any isOld selfClients
-          where
-            isOld :: Client.Client -> Bool
-            isOld =
-              (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
-                . Client.fromClientCapabilityList
-                . Client.clientCapabilities
-
-        checkConsentMissing :: Galley Bool
-        checkConsentMissing = do
-          -- (we could also get the profile from brig.  would make the code slightly more
-          -- concise, but not really help with the rpc back-and-forth, so, like, why?)
-          mbUser <- accountUser <$$> getUser self
-          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`teamMember` self)
-          let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
-          pure (lhStatus == UserLegalHoldNoConsent)
-
-    Log.debug $
-      Log.field "self" (toByteString' self)
-        Log.~~ Log.field "otherClients" (toByteString' $ show otherClients)
-        Log.~~ Log.field "otherClientHasLH" (toByteString' otherClientHasLH)
-        Log.~~ Log.field "checkSelfHasOldClients" (toByteString' checkSelfHasOldClients)
-        Log.~~ Log.field "checkSelfHasLHClients" (toByteString' checkSelfHasLHClients)
-        Log.~~ Log.msg ("guardLegalholdPolicyConflicts[1]" :: Text)
-
-    -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
-    when otherClientHasLH $ do
-      when checkSelfHasOldClients $ do
-        Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[2]: old clients" :: Text)
-        throwM missingLegalholdConsent
-
-      unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
-        whenM checkConsentMissing $ do
-          -- We assume this is impossible, since conversations are automatically
-          -- blocked if LH consent is missing of any participant.
-          -- We add this check here as an extra failsafe.
-          Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
-          throwM missingLegalholdConsent
 
 -- Copied from 'Galley.API.Team' to break import cycles
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b

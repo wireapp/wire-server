@@ -50,6 +50,7 @@ import Data.Domain
 import Data.Handle (Handle (Handle))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id hiding (client)
+import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
@@ -1966,13 +1967,13 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     assertEqual "service" (Just sref) (omService =<< other)
   -- The bot greets the user
   WS.bracketR cannon uid $ \ws -> do
-    postBotMessage galley bid bc cid [(uid, uc, "Hi User!")]
+    postBotMessage galley bid bc cid [(uid, uc, (toBase64Text "Hi User!"))]
       !!! const 201 === statusCode
-    wsAssertMessage ws qcid qbuid bc uc "Hi User!"
+    wsAssertMessage ws qcid qbuid bc uc (toBase64Text "Hi User!")
   -- The user replies
-  postMessage galley uid uc cid [(buid, bc, "Hi Bot")]
+  postMessage galley uid uc cid [(buid, bc, (toBase64Text "Hi Bot"))]
     !!! const 201 === statusCode
-  let msg = OtrMessage uc bc "Hi Bot" (Just "data")
+  let msg = OtrMessage uc bc (toBase64Text "Hi Bot") (Just "data")
   svcAssertMessage buf quid msg qcid
   -- Remove the entire service; the bot should be removed from the conversation
   WS.bracketR cannon uid $ \ws -> do

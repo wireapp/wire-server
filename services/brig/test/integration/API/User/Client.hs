@@ -391,10 +391,9 @@ testMultiUserGetPrekeysQualified brig opts = do
   let userClients =
         QualifiedUserClients $
           Map.singleton domain $
-            UserClients $
-              Map.fromList $
-                xs <&> \(uid, c, _lpk, _cpk) ->
-                  (uid, Set.fromList [clientId c])
+            Map.fromList $
+              xs <&> \(uid, c, _lpk, _cpk) ->
+                (uid, Set.fromList [clientId c])
 
   uid <- userId <$> randomUser brig
 

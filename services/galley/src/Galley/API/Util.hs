@@ -1,3 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -14,18 +17,19 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow (second, (&&&))
+import Cassandra (MonadClient)
+import Control.Arrow (Arrow (second), second, (&&&))
 import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Extra (allM, anyM)
+import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -34,6 +38,7 @@ import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), Remote, partitionQualified)
+import Data.SOP (I (..))
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -58,6 +63,8 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
+import Servant.API (IsMember, Union, inject)
+import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
@@ -312,8 +319,7 @@ canDeleteMember deleter deletee
 pushConversationEvent :: Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
 pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
-  let musr = guard (localDomain == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-  for_ (newPush ListComplete musr (ConvEvent e) (userRecipient <$> users)) $ \p ->
+  for_ (newConversationEventPush localDomain e users) $ \p ->
     push1 $ p & set pushConn conn
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
@@ -553,6 +559,32 @@ catMembers ::
 catMembers localDomain ls rs =
   map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
     <> map ((unTagged . rmId) &&& rmConvRoleName) rs
+
+-- union monad transformer
+
+newtype UnionT as m x = UnionT {unUnionT :: ExceptT (Union as) m x}
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadTrans,
+      MonadThrow,
+      MonadIO,
+      MonadClient
+    )
+
+instance MonadReader a m => MonadReader a (UnionT as m) where
+  ask = UnionT ask
+  local f = UnionT . local f . unUnionT
+
+instance Log.MonadLogger m => Log.MonadLogger (UnionT as m) where
+  log l m = lift $ Log.log l m
+
+throwUnion :: (Monad m, IsMember a as) => a -> UnionT as m x
+throwUnion = UnionT . throwE . inject . I
+
+runUnionT :: Functor m => UnionT as m Void -> m (Union as)
+runUnionT = fmap (either id absurd) . runExceptT . unUnionT
 
 --------------------------------------------------------------------------------
 -- Legalhold

@@ -62,7 +62,6 @@ where
 
 import Control.Lens (view, (?~))
 import qualified Data.Aeson as A
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain (Domain, mkDomain)
@@ -78,7 +77,6 @@ import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.UUID as UUID
 import Imports
 import qualified Proto.Otr
@@ -292,23 +290,24 @@ protoFromOtrRecipients rcps =
     mkProtoRecipient (usr, clts) =
       let xs = map mkClientEntry (Map.toList clts)
        in Proto.userEntry (Proto.fromUserId usr) xs
-    mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64Text t)
+    mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64TextLenient t)
 
 newtype QualifiedOtrRecipients = QualifiedOtrRecipients
   { qualifiedOtrRecipientsMap :: QualifiedUserClientMap ByteString
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (First ByteString))
 
 protolensOtrRecipientsToOtrRecipients :: [Proto.Otr.QualifiedUserEntry] -> Either String QualifiedOtrRecipients
 protolensOtrRecipientsToOtrRecipients entries =
   QualifiedOtrRecipients . QualifiedUserClientMap <$> protolensToQualifiedUCMap entries
   where
-    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (UserClientMap ByteString))
+    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (Map UserId (Map ClientId ByteString)))
     protolensToQualifiedUCMap qualifiedEntries = parseMap (mkDomain . view Proto.Otr.domain) (protolensToUCMap . view Proto.Otr.entries) qualifiedEntries
 
-    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (UserClientMap ByteString)
-    protolensToUCMap es = UserClientMap <$> parseMap parseUserId parseClientMap es
+    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (Map UserId (Map ClientId ByteString))
+    protolensToUCMap es = parseMap parseUserId parseClientMap es
 
     parseUserId :: Proto.Otr.UserEntry -> Either String UserId
     parseUserId =
@@ -484,12 +483,3 @@ instance FromHttpApiData ReportMissing where
     "true" -> Right ReportMissingAll
     "false" -> Right $ ReportMissingList mempty
     list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
-
---------------------------------------------------------------------------------
--- Utilities
-
-fromBase64Text :: Text -> ByteString
-fromBase64Text = B64.decodeLenient . encodeUtf8
-
-toBase64Text :: ByteString -> Text
-toBase64Text = decodeUtf8 . B64.encode

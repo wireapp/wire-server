@@ -40,11 +40,11 @@ import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
 import Data.Id
+import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
@@ -54,7 +54,6 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
-import qualified Data.Text.Encoding as Text
 import qualified Galley.Data as Cql
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
@@ -244,44 +243,44 @@ postCryptoMessage1 = do
     assertTrue_ (eqMismatch [(eve, Set.singleton ec)] [] [] . responseJsonUnsafe)
   -- Complete
   WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
-    let m2 = [(bob, bc, "ciphertext2"), (eve, ec, "ciphertext2")]
+    let m2 = [(bob, bc, toBase64Text "ciphertext2"), (eve, ec, toBase64Text "ciphertext2")]
     postOtrMessage id alice ac conv m2 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext2")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec "ciphertext2")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext2"))
+    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext2"))
   -- Redundant self
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
-    let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (eve, ec, "ciphertext3")]
+    let m3 = [(alice, ac, toBase64Text "ciphertext3"), (bob, bc, toBase64Text "ciphertext3"), (eve, ec, toBase64Text "ciphertext3")]
     postOtrMessage id alice ac conv m3 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext3")
-    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec "ciphertext3")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext3"))
+    void . liftIO $ WS.assertMatch t wsE (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext3"))
     -- Alice should not get it
-    assertNoMsg wsA (wsAssertOtr qconv qalice ac ac "ciphertext3")
+    assertNoMsg wsA (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext3"))
   -- Deleted eve
   WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
     deleteClient eve ec (Just defPassword) !!! const 200 === statusCode
-    let m4 = [(bob, bc, "ciphertext4"), (eve, ec, "ciphertext4")]
+    let m4 = [(bob, bc, toBase64Text "ciphertext4"), (eve, ec, toBase64Text "ciphertext4")]
     postOtrMessage id alice ac conv m4 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [] [(eve, Set.singleton ec)] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext4")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext4"))
     -- Eve should not get it
-    assertNoMsg wsE (wsAssertOtr qconv qalice ac ec "ciphertext4")
+    assertNoMsg wsE (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext4"))
   -- Deleted eve & redundant self
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
-    let m5 = [(bob, bc, "ciphertext5"), (eve, ec, "ciphertext5"), (alice, ac, "ciphertext5")]
+    let m5 = [(bob, bc, toBase64Text "ciphertext5"), (eve, ec, toBase64Text "ciphertext5"), (alice, ac, toBase64Text "ciphertext5")]
     postOtrMessage id alice ac conv m5 !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [(eve, Set.singleton ec)] . responseJsonUnsafe)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc "ciphertext5")
+    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr qconv qalice ac bc (toBase64Text "ciphertext5"))
     -- Neither Alice nor Eve should get it
-    assertNoMsg wsA (wsAssertOtr qconv qalice ac ac "ciphertext5")
-    assertNoMsg wsE (wsAssertOtr qconv qalice ac ec "ciphertext5")
+    assertNoMsg wsA (wsAssertOtr qconv qalice ac ac (toBase64Text "ciphertext5"))
+    assertNoMsg wsE (wsAssertOtr qconv qalice ac ec (toBase64Text "ciphertext5"))
   -- Missing Bob, deleted eve & redundant self
-  let m6 = [(eve, ec, "ciphertext6"), (alice, ac, "ciphertext6")]
+  let m6 = [(eve, ec, toBase64Text "ciphertext6"), (alice, ac, toBase64Text "ciphertext6")]
   postOtrMessage id alice ac conv m6 !!! do
     const 412 === statusCode
     assertTrue_
@@ -295,7 +294,7 @@ postCryptoMessage1 = do
   bc2 <- randomClient bob (someLastPrekeys !! 3)
   -- The first client listens for all messages of Bob
   WS.bracketR c bob $ \wsB -> do
-    let cipher = "ciphertext7"
+    let cipher = toBase64Text "ciphertext7"
     -- The second client listens only for his own messages
     WS.bracketR (c . queryItem "client" (toByteString' bc2)) bob $ \wsB2 -> do
       let m7 = [(bob, bc, cipher), (bob, bc2, cipher)]
@@ -320,7 +319,7 @@ postCryptoMessage2 = do
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
-  let m = [(bob, bc, "hello bob")]
+  let m = [(bob, bc, toBase64Text "hello bob")]
   r1 <-
     postOtrMessage id alice ac conv m
       <!! const 412 === statusCode
@@ -345,7 +344,7 @@ postCryptoMessage3 = do
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
-  let ciphertext = encodeCiphertext "hello bob"
+  let ciphertext = toBase64Text "hello bob"
   let m = otrRecipients [(bob, [(bc, ciphertext)])]
   r1 <-
     postProtoOtrMessage alice ac conv m
@@ -371,7 +370,7 @@ postCryptoMessage4 = do
   connectUsers alice (list1 bob [])
   conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
   -- Unknown client ID => 403
-  let ciphertext = encodeCiphertext "hello bob"
+  let ciphertext = toBase64Text "hello bob"
   let m = otrRecipients [(bob, [(bc, ciphertext)])]
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
     !!! const 403 === statusCode
@@ -387,8 +386,8 @@ postCryptoMessage5 = do
   connectUsers alice (list1 bob [chad, eve])
   conv <- decodeConvId <$> postConv alice [bob, chad, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
-  let msgMissingChadAndEve = [(bob, bc, "hello bob")]
-  let m' = otrRecipients [(bob, [(bc, encodeCiphertext "hello bob")])]
+  let msgMissingChadAndEve = [(bob, bc, toBase64Text "hello bob")]
+  let m' = otrRecipients [(bob, [(bc, toBase64Text "hello bob")])]
   -- These three are equivalent (i.e. report all missing clients)
   postOtrMessage id alice ac conv msgMissingChadAndEve
     !!! const 412 === statusCode
@@ -477,9 +476,9 @@ postMessageQualifiedLocalOwningBackendSuccess = do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
     liftIO $ do
-      let encodedTextForBob = Text.decodeUtf8 (B64.encode "text-for-bob")
-          encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-          encodedData = Text.decodeUtf8 (B64.encode "data")
+      let encodedTextForBob = toBase64Text "text-for-bob"
+          encodedTextForChad = toBase64Text "text-for-chad"
+          encodedData = toBase64Text "data"
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
@@ -519,10 +518,15 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 412 === statusCode
       let expectedMissing =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
-              [ (bobUnqualified, Set.singleton bobClient),
-                (chadUnqualified, Set.singleton chadClient2)
-              ]
+            QualifiedUserClients $
+              Map.fromList
+                [ ( owningDomain,
+                    Map.fromList $
+                      [ (bobUnqualified, Set.singleton bobClient),
+                        (chadUnqualified, Set.singleton chadClient2)
+                      ]
+                  )
+                ]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
@@ -573,16 +577,16 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll !!! do
       const 201 === statusCode
       let expectedRedundant =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+            QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient)]
           expectedDeleted =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+            QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
       assertTrue_ (eqMismatchQualified mempty expectedRedundant expectedDeleted . responseJsonMaybe)
     liftIO $ do
-      let encodedTextForBob = Text.decodeUtf8 (B64.encode "text-for-bob")
-          encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-          encodedData = Text.decodeUtf8 (B64.encode "data")
+      let encodedTextForBob = toBase64Text "text-for-bob"
+          encodedTextForChad = toBase64Text "text-for-chad"
+          encodedData = toBase64Text "data"
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
       -- Wait less for no message
@@ -627,8 +631,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
-    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-        encodedData = Text.decodeUtf8 (B64.encode "data")
+    let encodedTextForChad = toBase64Text "text-for-chad"
+        encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
     WS.assertNoEvent (1 # Second) [wsBob]
 
@@ -637,8 +641,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
-    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-        encodedData = Text.decodeUtf8 (B64.encode "data")
+    let encodedTextForChad = toBase64Text "text-for-chad"
+        encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
     WS.assertNoEvent (1 # Second) [wsBob]
 
@@ -647,8 +651,8 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote])) !!! do
       const 201 === statusCode
       assertTrue_ (eqMismatchQualified mempty mempty mempty . responseJsonMaybe)
-    let encodedTextForChad = Text.decodeUtf8 (B64.encode "text-for-chad")
-        encodedData = Text.decodeUtf8 (B64.encode "data")
+    let encodedTextForChad = toBase64Text "text-for-chad"
+        encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
     WS.assertNoEvent (1 # Second) [wsBob]
 
@@ -658,7 +662,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
     postProteusMessageQualified aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly (Set.fromList [chadOwningDomain])) !!! do
       const 412 === statusCode
       let expectedMissing =
-            QualifiedUserClients . Map.singleton owningDomain . UserClients . Map.fromList $
+            QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
       assertTrue_ (eqMismatchQualified expectedMissing mempty mempty . responseJsonMaybe)
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
