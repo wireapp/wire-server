@@ -158,10 +158,22 @@ Federation can happen between any backends on a network (e.g. the open internet)
   :ref:`authorization error <authorization error>`
 
 
+.. _per-request-authorization:
+
 Per-request Authorization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-TODO.
+In addition to the general authorization step that is performed by the federator
+when a new, mutually authenticated TLS connection is established, the component
+processing the request performs an additional, per-request authorization step.
+
+How this step is performed depends on the API endpoint, the contents of the
+request and the context in which it is made.
+
+See the documentation of the individual :ref:`API endpoints <api-endpoints>` for
+details.
+
+
 
 
 ..

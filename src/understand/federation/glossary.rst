@@ -42,12 +42,12 @@ Qualified User Name (QUN)
   source code, user names are called 'Handle' and qualified user names
   'Qualified Handle'.
 
-.. _qualified-device-id:
+.. _qualified-client-id:
 
-Qualified Device Identifier (QDID)
+Qualified Client Identifier (QDID)
 
-  A combination of a device identifier (a hash of the public key generated for a
-  user's device) concatenated with a dot and the QUID of the associated user.
+  A combination of a client identifier (a hash of the public key generated for a
+  user's client) concatenated with a dot and the QUID of the associated user.
 
 .. _qualified-group-id:
 
