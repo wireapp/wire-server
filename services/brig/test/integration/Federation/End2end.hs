@@ -390,7 +390,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
       <$> createConversation galley2 (userId bob) [userQualifiedId alice]
 
   -- send a message from bob at domain 2 to alice at domain 1
-  let qconvId = Qualified convId (qDomain (userQualifiedId alice))
+  let qconvId = Qualified convId (qDomain (userQualifiedId bob))
       msgText = "🕊️"
       rcpts = [(userQualifiedId alice, aliceClient, msgText)]
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
