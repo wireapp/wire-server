@@ -514,7 +514,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             { FederatedGalley.receiveMessage = \_ _ -> pure ()
             }
 
-    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
@@ -576,7 +576,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
             }
         galleyApi = emptyFederatedGalley
 
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
     pure resp2 !!! do
       const 412 === statusCode
@@ -656,7 +656,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
             { FederatedGalley.receiveMessage = \_ _ -> pure ()
             }
 
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       let expectedRedundant =
@@ -729,7 +729,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
@@ -740,7 +740,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
 
   -- Another way to ignore all is to report nobody
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator' aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
@@ -752,7 +752,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- Yet another way to ignore all is to ignore specific users
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     (resp2, _requests) <-
-      postProteusMessageQualifiedWithMockFederator'
+      postProteusMessageQualifiedWithMockFederator
         aliceUnqualified
         aliceClient
         convId
@@ -773,7 +773,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- message shouldn't be sent!
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     (resp2, _requests) <-
-      postProteusMessageQualifiedWithMockFederator'
+      postProteusMessageQualifiedWithMockFederator
         aliceUnqualified
         aliceClient
         convId
@@ -793,7 +793,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- Same as above, but with a remote user's client
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     (resp2, _requests) <-
-      postProteusMessageQualifiedWithMockFederator'
+      postProteusMessageQualifiedWithMockFederator
         aliceUnqualified
         aliceClient
         convId

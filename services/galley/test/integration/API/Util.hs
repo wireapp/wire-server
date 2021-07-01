@@ -652,21 +652,6 @@ postOtrMessage' reportMissing f u d c rec = do
       . json (mkOtrPayload d rec reportMissing)
 
 postProteusMessageQualifiedWithMockFederator ::
-  (ToJSON a) =>
-  UserId ->
-  ClientId ->
-  Qualified ConvId ->
-  [(Qualified UserId, ClientId, ByteString)] ->
-  ByteString ->
-  ClientMismatchStrategy ->
-  (FederatedRequest -> a) ->
-  TestM (ResponseLBS, Mock.ReceivedRequests)
-postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat responses = do
-  opts <- view tsGConf
-  withTempMockFederator opts (Domain "far-away.example.com") responses $
-    postProteusMessageQualified senderUser senderClient convId recipients dat strat
-
-postProteusMessageQualifiedWithMockFederator' ::
   UserId ->
   ClientId ->
   Qualified ConvId ->
@@ -676,7 +661,7 @@ postProteusMessageQualifiedWithMockFederator' ::
   FederatedBrig.Api (AsServerT Handler) ->
   FederatedGalley.Api (AsServerT Handler) ->
   TestM (ResponseLBS, Mock.ReceivedRequests)
-postProteusMessageQualifiedWithMockFederator' senderUser senderClient convId recipients dat strat brigApi galleyApi = do
+postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
   localDomain <- viewFederationDomain
   opts <- view tsGConf
   withTempServantMockFederator opts brigApi galleyApi localDomain (Domain "far-away.example.com") $
