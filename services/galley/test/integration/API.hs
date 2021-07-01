@@ -64,7 +64,7 @@ import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
 import Imports
 import Network.Wai.Utilities.Error
-import Servant (ServerError (errBody), err501)
+import Servant (ServerError (errBody), err501, err503)
 import Servant.Server (Handler)
 import Servant.Server.Generic (AsServerT)
 import Test.QuickCheck (arbitrary, generate)
@@ -168,8 +168,8 @@ tests s =
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
+          test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
           test s "post message qualified - remote owning backend - not implemented" postMessageQualifiedRemoteOwningBackendNotImplemented,
-          -- TODO: add tests for failing to send
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
           test s "join code-access conversation" postJoinCodeConvOk,
@@ -809,6 +809,73 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
               [(qUnqualified deeRemote, Set.singleton deeClient)]
       assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+postMessageQualifiedLocalOwningBackendFailedToSendClients :: TestM ()
+postMessageQualifiedLocalOwningBackendFailedToSendClients = do
+  -- WS receive timeout
+  let t = 5 # Second
+  -- Cannon for local users
+  cannon <- view tsCannon
+  -- Domain which owns the converstaion
+  owningDomain <- viewFederationDomain
+
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  bobClient2 <- randomClient (qUnqualified bobOwningDomain) (someLastPrekeys !! 2)
+  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
+  deeId <- randomId
+  deeClient <- liftIO $ generate arbitrary
+  let remoteDomain = Domain "far-away.example.com"
+      deeRemote = Qualified deeId remoteDomain
+
+  let aliceUnqualified = qUnqualified aliceOwningDomain
+      bobUnqualified = qUnqualified bobOwningDomain
+      chadUnqualified = qUnqualified chadOwningDomain
+
+  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+
+  -- FUTUREWORK: Do this test with more than one remote domains
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
+  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    let message =
+          [ (bobOwningDomain, bobClient, "text-for-bob"),
+            (bobOwningDomain, bobClient2, "text-for-bob2"),
+            (chadOwningDomain, chadClient, "text-for-chad"),
+            (deeRemote, deeClient, "text-for-dee")
+          ]
+
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \_ ->
+                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+            }
+        galleyApi =
+          emptyFederatedGalley
+            { FederatedGalley.receiveMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+            }
+
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+
+    let expectedFailedToSend =
+          QualifiedUserClients . Map.fromList $
+            [ ( remoteDomain,
+                Map.fromList
+                  [ (deeId, Set.singleton deeClient)
+                  ]
+              )
+            ]
+    pure resp2 !!! do
+      const 201 === statusCode
+      assertMismatchQualified expectedFailedToSend mempty mempty mempty
+
+    liftIO $ do
+      let encodedTextForBob = toBase64Text "text-for-bob"
+          encodedTextForChad = toBase64Text "text-for-chad"
+          encodedData = toBase64Text "data"
+      WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
+      WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
 postMessageQualifiedRemoteOwningBackendNotImplemented :: TestM ()
 postMessageQualifiedRemoteOwningBackendNotImplemented = do
