@@ -487,27 +487,22 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             (chadOwningDomain, chadClient, "text-for-chad"),
             (deeRemote, deeClient, "text-for-dee")
           ]
-    -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent.
-    let responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+    let responses req = case fmap F.component (F.request req) of
+          Just F.Brig -> toJSON $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+          _ -> toJSON ()
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty
     liftIO $ do
-      requests
-        @?= [ F.FederatedRequest
-                { F.domain = domainText (qDomain deeRemote),
-                  F.request =
-                    Just
-                      ( F.Request
-                          { F.component = F.Brig,
-                            F.path = "/federation/get-user-clients",
-                            F.body = cs (encode (FederatedBrig.GetUserClients [qUnqualified deeRemote])),
-                            F.originDomain = domainText owningDomain
-                          }
-                      )
-                }
+      let expectedRequests =
+            [ (F.Brig, "get-user-clients"),
+              (F.Galley, "receive-message")
             ]
+      forM_ (zip requests expectedRequests) $ \(req, (component, rpcPath)) -> do
+        F.domain req @?= domainText (qDomain deeRemote)
+        fmap F.component (F.request req) @?= Just component
+        fmap F.path (F.request req) @?= Just ("/federation/" <> rpcPath)
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"
           encodedData = toBase64Text "data"
