@@ -39,6 +39,7 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Domain
@@ -84,6 +85,12 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
+import Network.HTTP.Types (methodPost)
+import Network.Wai (Application, defaultRequest)
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Test as Test
+import qualified Proto.Otr
+import qualified Proto.Otr_Fields as Proto.Otr
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -98,6 +105,7 @@ import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
 import qualified Wire.API.Event.Team as TE
+import Wire.API.Federation.Domain (domainHeaderName)
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
@@ -1901,6 +1909,32 @@ withTempMockFederator opts targetDomain resp action = assertRightT
   where
     st0 = Mock.initState targetDomain (Domain "example.com")
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
+
+-- TODO: rename or inline
+makeRequest :: Domain -> Application -> F.FederatedRequest -> IO F.OutwardResponse
+makeRequest originDomain app fedRequest = Test.runSession session app
+  where
+    session :: Test.Session F.OutwardResponse
+    session = do
+      let req = fromMaybe (error "no request") (F.request fedRequest)
+      response <-
+        Test.srequest
+          ( Test.SRequest
+              (toRequestWithoutBody req)
+              (cs . F.body $ req)
+          )
+      pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
+
+    toRequestWithoutBody :: F.Request -> Wai.Request
+    toRequestWithoutBody req =
+      defaultRequest
+        { Wai.requestMethod = methodPost,
+          Wai.pathInfo = ["federated"] <> (fmap cs . C.split '/' . F.path $ req),
+          Wai.requestHeaders =
+            [ (CI.mk "Content-Type", "application/json"),
+              (domainHeaderName, cs . domainText $ originDomain)
+            ]
+        }
 
 assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
 assertRight = \case
