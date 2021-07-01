@@ -74,6 +74,7 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
 import Wire.API.User.Client (QualifiedUserClients (..), UserClientPrekeyMap, getUserClientPrekeyMap)
@@ -172,6 +173,20 @@ tests s =
           test s "cannot join private conversation" postJoinConvFail,
           test s "remove user" removeUser
         ]
+
+emptyFederatedBrig :: FederatedBrig.Api routes
+emptyFederatedBrig =
+  let e :: String -> forall a. a
+      e s = error ("not implemented: " <> s)
+   in FederatedBrig.Api
+        { FederatedBrig.getUserByHandle = e "getUserByHandle",
+          FederatedBrig.getUsersByIds = e "getUsersByIds",
+          FederatedBrig.claimPrekey = e "claimPrekey",
+          FederatedBrig.claimPrekeyBundle = e "claimPrekeyBundle",
+          FederatedBrig.claimMultiPrekeyBundle = e "claimMultiPrekeyBundle",
+          FederatedBrig.searchUsers = e "searchUsers",
+          FederatedBrig.getUserClients = e "getUserClients"
+        }
 
 -------------------------------------------------------------------------------
 -- API Tests
