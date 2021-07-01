@@ -38,6 +38,7 @@ import Brig.Types
 import qualified Cassandra as Cql
 import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
+import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -52,6 +53,7 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Data as Cql
@@ -62,6 +64,9 @@ import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
 import Imports
 import Network.Wai.Utilities.Error
+import Servant (ServerError (errBody), err501)
+import Servant.Server (Handler)
+import Servant.Server.Generic (AsServerT)
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -174,29 +179,29 @@ tests s =
           test s "remove user" removeUser
         ]
 
-emptyFederatedBrig :: FederatedBrig.Api routes
+emptyFederatedBrig :: FederatedBrig.Api (AsServerT Handler)
 emptyFederatedBrig =
-  let e :: String -> a
-      e s = error ("not implemented: " <> s)
+  let e :: Text -> Handler a
+      e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
    in FederatedBrig.Api
-        { FederatedBrig.getUserByHandle = e "getUserByHandle",
-          FederatedBrig.getUsersByIds = e "getUsersByIds",
-          FederatedBrig.claimPrekey = e "claimPrekey",
-          FederatedBrig.claimPrekeyBundle = e "claimPrekeyBundle",
-          FederatedBrig.claimMultiPrekeyBundle = e "claimMultiPrekeyBundle",
-          FederatedBrig.searchUsers = e "searchUsers",
-          FederatedBrig.getUserClients = e "getUserClients"
+        { FederatedBrig.getUserByHandle = \_ -> e "getUserByHandle",
+          FederatedBrig.getUsersByIds = \_ -> e "getUsersByIds",
+          FederatedBrig.claimPrekey = \_ -> e "claimPrekey",
+          FederatedBrig.claimPrekeyBundle = \_ -> e "claimPrekeyBundle",
+          FederatedBrig.claimMultiPrekeyBundle = \_ -> e "claimMultiPrekeyBundle",
+          FederatedBrig.searchUsers = \_ -> e "searchUsers",
+          FederatedBrig.getUserClients = \_ -> e "getUserClients"
         }
 
-emptyFederatedGalley :: FederatedGalley.Api routes
+emptyFederatedGalley :: FederatedGalley.Api (AsServerT Handler)
 emptyFederatedGalley =
-  let e :: String -> a
-      e s = error ("not implemented: " <> s)
+  let e :: Text -> Handler a
+      e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
    in FederatedGalley.Api
-        { FederatedGalley.registerConversation = e "registerConversation",
-          FederatedGalley.getConversations = e "getConversations",
-          FederatedGalley.updateConversationMemberships = e "updateConversationMemberships",
-          FederatedGalley.receiveMessage = e "receiveMessage"
+        { FederatedGalley.registerConversation = \_ -> e "registerConversation",
+          FederatedGalley.getConversations = \_ -> e "getConversations",
+          FederatedGalley.updateConversationMemberships = \_ -> e "updateConversationMemberships",
+          FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage"
         }
 
 -------------------------------------------------------------------------------
