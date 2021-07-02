@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: daa78b8456ee89c52c754d98427c3e13c99938ce4760461a5e8858173c582d2c
+-- hash: 96dff81406479414ae1895ab698c0a9e3ca78542243155bfb89a3293998bcd32
 
 name:           wire-api-federation
 version:        0.1.0
@@ -62,6 +62,7 @@ library
     , servant >=0.16
     , servant-client
     , servant-client-core
+    , sop-core
     , template-haskell
     , text >=0.11
     , time >=1.8
@@ -112,6 +113,7 @@ test-suite spec
     , servant >=0.16
     , servant-client
     , servant-client-core
+    , sop-core
     , template-haskell
     , text >=0.11
     , time >=1.8
