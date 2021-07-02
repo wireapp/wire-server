@@ -32,6 +32,7 @@
   added to a new conversation via `POST /federation/register-conversation` (#1622).
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
+* Added a CustomEncodedUnion newtype to simplify the implementation of RPCs returning unions (#1639).
 
 ## Documentation
 
