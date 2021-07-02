@@ -45,17 +45,19 @@ import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
 import Data.Id
-import Data.Json.Util (toBase64Text)
+import Data.Json.Util (toBase64Text, toUTCTimeMillis)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
+import Data.SOP (I (..))
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
+import Data.Time.Clock (getCurrentTime)
 import qualified Galley.Data as Cql
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
@@ -65,6 +67,7 @@ import Gundeck.Types.Notification
 import Imports
 import Network.Wai.Utilities.Error
 import Servant (ServerError (errBody), err501, err503)
+import Servant.API (WithStatus (..), inject)
 import Servant.Server (Handler)
 import Servant.Server.Generic (AsServerT)
 import Test.QuickCheck (arbitrary, generate)
@@ -169,8 +172,8 @@ tests s =
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
-          -- TODO: add remote owning backend success test
           test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
+          test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
           test s "join code-access conversation" postJoinCodeConvOk,
@@ -894,7 +897,49 @@ postMessageQualifiedRemoteOwningBackendFailure = do
   (resp2, _requests) <-
     postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll emptyFederatedBrig galleyApi
 
-  pure resp2 !!! const 533 === statusCode
+  pure resp2 !!! do
+    const 533 === statusCode
+
+postMessageQualifiedRemoteOwningBackendSuccess :: TestM ()
+postMessageQualifiedRemoteOwningBackendSuccess = do
+  (aliceLocal, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  deeId <- randomId
+  deeClient <- liftIO $ generate arbitrary
+
+  let aliceUnqualified = qUnqualified aliceLocal
+  convIdUnqualified <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      convId = Qualified convIdUnqualified remoteDomain
+      deeRemote = Qualified deeId remoteDomain
+
+  now <- toUTCTimeMillis <$> liftIO getCurrentTime
+  let redundant =
+        QualifiedUserClients
+          . Map.singleton remoteDomain
+          . Map.singleton deeId
+          . Set.singleton
+          $ deeClient
+      mss =
+        Message.MessageSendingStatus
+          { Message.mssTime = now,
+            Message.mssMissingClients = mempty,
+            Message.mssRedundantClients = redundant,
+            Message.mssDeletedClients = mempty,
+            Message.mssFailedToSend = mempty
+          }
+      message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
+      galleyApi =
+        emptyFederatedGalley
+          { FederatedGalley.sendMessage = \_ -> pure (FederatedGalley.MessageSendResponse (inject (I (WithStatus @201 mss))))
+          }
+
+  (resp2, _requests) <-
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll emptyFederatedBrig galleyApi
+
+  pure resp2 !!! do
+    const 201 === statusCode
+    assertMismatchQualified mempty mempty redundant mempty
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do
