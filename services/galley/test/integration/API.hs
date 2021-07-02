@@ -321,11 +321,10 @@ postCryptoMessage2 = do
   -- Missing eve
   let m = [(bob, bc, toBase64Text "hello bob")]
   r1 <-
-    postOtrMessage id alice ac conv m
-      <!! const 412 === statusCode
+    postOtrMessage id alice ac conv m <!! do
+      const 412 === statusCode
+      assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
-  pure r1
-    !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   -- Fetch all missing clients prekeys
   r2 <-
     post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
