@@ -22,11 +22,15 @@ import Bilge
 import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Lens hiding ((#))
+import Data.Aeson (ToJSON (..))
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id (Id (..), newClientId, randomId)
+import Data.Json.Util (Base64ByteString (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
+import qualified Data.ProtoLens as Protolens
 import Data.Qualified (Qualified (..))
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
@@ -35,6 +39,7 @@ import qualified Galley.Data.Queries as Cql
 import Galley.Types
 import Gundeck.Types.Notification
 import Imports
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
@@ -43,6 +48,9 @@ import TestSetup
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
+import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.Message (ClientMismatchStrategy (..), mkQualifiedOtrPayload)
+import Wire.API.User.Profile
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -58,7 +66,8 @@ tests s =
         s
         "POST /federation/update-conversation-memberships : Notify local user about other members joining"
         notifyLocalUser,
-      test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage
+      test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage,
+      test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
     ]
 
 getConversationsAllFound :: TestM ()
@@ -250,3 +259,62 @@ receiveMessage = do
           evtData e @?= EdOtrMessage (OtrMessage fromc alicec txt Nothing)
       -- eve should not receive the message
       WS.assertNoEvent (1 # Second) [wsE]
+
+-- alice local, bob and chad remote in a local conversation
+-- bob sends a message (using the RPC), we test that alice receives and that a
+-- call is made to the receiveMessage RPC to inform chad
+sendMessage :: TestM ()
+sendMessage = do
+  -- domains
+  -- localDomain <- viewFederationDomain
+  let remoteDomain = Domain "far-away.example.com"
+
+  -- users and clients
+  (alice, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  let aliceId = qUnqualified alice
+  bobId <- randomId
+  bobClient <- liftIO $ generate arbitrary
+  let bob = Qualified bobId remoteDomain
+      bobProfile = mkProfile bob (Name "Bob")
+  chadId <- randomId
+  chadClient <- liftIO $ generate arbitrary
+  let chad = Qualified chadId remoteDomain
+      chadProfile = mkProfile chad (Name "Chad")
+
+  -- conversation
+  opts <- view tsGConf
+  let responses1 req
+        | fmap F.component (F.request req) == Just F.Brig =
+          toJSON $ [bobProfile, chadProfile]
+        | otherwise = toJSON ()
+  (convId, requests1) <-
+    withTempMockFederator opts remoteDomain responses1 $
+      fmap decodeConvId $
+        postConvQualified aliceId [bob, chad] Nothing [] Nothing Nothing
+          <!! const 201 === statusCode
+
+  liftIO $ do
+    [brigReq, galleyReq] <- case requests1 of
+      xs@[_, _] -> pure xs
+      _ -> assertFailure "unexpected number of requests"
+    fmap F.component (F.request brigReq) @?= Just F.Brig
+    fmap F.path (F.request brigReq) @?= Just "/federation/get-users-by-ids"
+    fmap F.component (F.request galleyReq) @?= Just F.Galley
+    fmap F.path (F.request galleyReq) @?= Just "/federation/register-conversation"
+  -- let conv = Qualified convId localDomain
+
+  fedGalleyClient <- view tsFedGalleyClient
+  let rcpts =
+        [ (alice, aliceClient, "hi alice"),
+          (chad, chadClient, "hi chad")
+        ]
+      msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
+      msr =
+        FedGalley.MessageSendRequest
+          { FedGalley.msrConvId = convId,
+            FedGalley.msrSender = alice,
+            FedGalley.msrRawMessage = Base64ByteString (LBS.fromStrict (Protolens.encodeMessage msg))
+          }
+
+  _mr <- FedGalley.sendMessage fedGalleyClient msr
+  pure ()
