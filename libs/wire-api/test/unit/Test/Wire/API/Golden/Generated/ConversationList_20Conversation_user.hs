@@ -60,7 +60,7 @@ testObject_ConversationList_20Conversation_user_1 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -89,7 +89,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -125,7 +125,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -161,7 +161,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -202,7 +202,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -230,7 +230,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -266,7 +266,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -299,7 +299,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -336,7 +336,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -377,7 +377,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               cnvAccess = [],
@@ -405,7 +405,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -441,7 +441,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
               cnvAccess = [],
@@ -490,7 +490,7 @@ testObject_ConversationList_20Conversation_user_2 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [CodeAccess, PrivateAccess],
@@ -539,7 +539,7 @@ testObject_ConversationList_20Conversation_user_3 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -586,7 +586,7 @@ testObject_ConversationList_20Conversation_user_5 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) "",
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -619,7 +619,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -655,7 +655,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -692,7 +692,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -725,7 +725,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -766,7 +766,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -802,7 +802,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -843,7 +843,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
               cnvAccess = [],
@@ -879,7 +879,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -912,7 +912,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -945,7 +945,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -986,7 +986,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -1019,7 +1019,7 @@ testObject_ConversationList_20Conversation_user_5 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
               cnvAccess = [],
@@ -1061,7 +1061,7 @@ testObject_ConversationList_20Conversation_user_7 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -1108,7 +1108,7 @@ testObject_ConversationList_20Conversation_user_8 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               cnvAccess = [PrivateAccess],
@@ -1147,7 +1147,7 @@ testObject_ConversationList_20Conversation_user_10 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -1188,7 +1188,7 @@ testObject_ConversationList_20Conversation_user_10 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -1224,7 +1224,7 @@ testObject_ConversationList_20Conversation_user_10 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -1265,7 +1265,7 @@ testObject_ConversationList_20Conversation_user_10 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -1298,7 +1298,7 @@ testObject_ConversationList_20Conversation_user_10 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -1339,7 +1339,7 @@ testObject_ConversationList_20Conversation_user_11 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -1367,7 +1367,7 @@ testObject_ConversationList_20Conversation_user_11 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -1403,7 +1403,7 @@ testObject_ConversationList_20Conversation_user_11 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -1444,7 +1444,7 @@ testObject_ConversationList_20Conversation_user_11 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
               cnvAccess = [],
@@ -1481,7 +1481,7 @@ testObject_ConversationList_20Conversation_user_11 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               cnvAccess = [],
@@ -1517,7 +1517,7 @@ testObject_ConversationList_20Conversation_user_11 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -1545,7 +1545,7 @@ testObject_ConversationList_20Conversation_user_11 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -1573,7 +1573,7 @@ testObject_ConversationList_20Conversation_user_11 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -1622,7 +1622,7 @@ testObject_ConversationList_20Conversation_user_12 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -1663,7 +1663,7 @@ testObject_ConversationList_20Conversation_user_12 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -1699,7 +1699,7 @@ testObject_ConversationList_20Conversation_user_12 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -1740,7 +1740,7 @@ testObject_ConversationList_20Conversation_user_12 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -1776,7 +1776,7 @@ testObject_ConversationList_20Conversation_user_12 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -1817,7 +1817,7 @@ testObject_ConversationList_20Conversation_user_12 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -1866,7 +1866,7 @@ testObject_ConversationList_20Conversation_user_13 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -1902,7 +1902,7 @@ testObject_ConversationList_20Conversation_user_13 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -1935,7 +1935,7 @@ testObject_ConversationList_20Conversation_user_13 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               cnvAccess = [],
@@ -1971,7 +1971,7 @@ testObject_ConversationList_20Conversation_user_13 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -2012,7 +2012,7 @@ testObject_ConversationList_20Conversation_user_14 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -2048,7 +2048,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -2081,7 +2081,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -2114,7 +2114,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -2150,7 +2150,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -2191,7 +2191,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -2227,7 +2227,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Nothing
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -2268,7 +2268,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -2305,7 +2305,7 @@ testObject_ConversationList_20Conversation_user_14 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
               cnvAccess = [],
@@ -2350,7 +2350,7 @@ testObject_ConversationList_20Conversation_user_15 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               cnvAccess = [CodeAccess, LinkAccess, PrivateAccess, PrivateAccess, CodeAccess],
@@ -2391,7 +2391,7 @@ testObject_ConversationList_20Conversation_user_16 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               cnvAccess = [],
@@ -2427,7 +2427,7 @@ testObject_ConversationList_20Conversation_user_16 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -2463,7 +2463,7 @@ testObject_ConversationList_20Conversation_user_16 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -2499,7 +2499,7 @@ testObject_ConversationList_20Conversation_user_16 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
               cnvAccess = [],
@@ -2551,7 +2551,7 @@ testObject_ConversationList_20Conversation_user_18 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -2587,7 +2587,7 @@ testObject_ConversationList_20Conversation_user_18 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -2615,7 +2615,7 @@ testObject_ConversationList_20Conversation_user_18 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
               cnvAccess = [],
@@ -2643,7 +2643,7 @@ testObject_ConversationList_20Conversation_user_18 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -2690,7 +2690,7 @@ testObject_ConversationList_20Conversation_user_19 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               cnvAccess = [],
@@ -2731,7 +2731,7 @@ testObject_ConversationList_20Conversation_user_19 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = RegularConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
               cnvAccess = [],
@@ -2780,7 +2780,7 @@ testObject_ConversationList_20Conversation_user_20 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
               cnvAccess = [],
@@ -2813,7 +2813,7 @@ testObject_ConversationList_20Conversation_user_20 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
               cnvAccess = [],
@@ -2854,7 +2854,7 @@ testObject_ConversationList_20Conversation_user_20 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 1})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -2890,7 +2890,7 @@ testObject_ConversationList_20Conversation_user_20 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Domain "golden.example.com"),
               cnvType = ConnectConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               cnvAccess = [],
@@ -2923,7 +2923,7 @@ testObject_ConversationList_20Conversation_user_20 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain "golden.example.com"),
               cnvType = One2OneConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
               cnvAccess = [],
@@ -2956,7 +2956,7 @@ testObject_ConversationList_20Conversation_user_20 =
               cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
             },
           Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain ""),
+            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
               cnvType = SelfConv,
               cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
               cnvAccess = [],
