@@ -1168,7 +1168,7 @@ assertNotConvMember u c =
 
 assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
-  assertEqual "id" (cnvId c1) (cnvId c2)
+  assertEqual "id" (cnvQualifiedId c1) (cnvQualifiedId c2)
   assertEqual "type" (cnvType c1) (cnvType c2)
   assertEqual "creator" (cnvCreator c1) (cnvCreator c2)
   assertEqual "access" (accessSet c1) (accessSet c2)
@@ -1209,7 +1209,7 @@ assertConvWithRole r t c s us n mt role = do
   let _self = cmSelf . cnvMembers <$> cnv
   let others = cmOthers . cnvMembers <$> cnv
   liftIO $ do
-    assertEqual "id" (Just cId) (cnvId <$> cnv)
+    assertEqual "id" (Just cId) (qUnqualified . cnvQualifiedId <$> cnv)
     assertEqual "name" n (cnv >>= cnvName)
     assertEqual "type" (Just t) (cnvType <$> cnv)
     assertEqual "creator" (Just c) (cnvCreator <$> cnv)
@@ -1332,7 +1332,7 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvId = cnvId . responseJsonUnsafe
+decodeConvId = qUnqualified . cnvQualifiedId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
@@ -2021,7 +2021,7 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   let e = List1.head (WS.unpackPayload notif)
   evtType e @?= Conv.ConvCreate
   case evtData e of
-    Conv.EdConversation x -> cnvId x @?= cid
+    Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()

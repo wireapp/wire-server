@@ -34,7 +34,7 @@ domain = Domain "golden.example.com"
 testObject_Conversation_user_1 :: Conversation
 testObject_Conversation_user_1 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain ""),
       cnvType = One2OneConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001"))),
       cnvAccess = [],
@@ -65,7 +65,7 @@ testObject_Conversation_user_1 =
 testObject_Conversation_user_2 :: Conversation
 testObject_Conversation_user_2 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) (Domain ""),
       cnvType = SelfConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
       cnvAccess =
@@ -110,7 +110,7 @@ testObject_Conversation_user_2 =
 testObject_Conversation_user_3 :: Conversation
 testObject_Conversation_user_3 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000"))) (Domain ""),
       cnvType = One2OneConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
       cnvAccess = [],
@@ -153,7 +153,7 @@ testObject_Conversation_user_3 =
 testObject_Conversation_user_4 :: Conversation
 testObject_Conversation_user_4 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000000"))) (Domain ""),
       cnvType = ConnectConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
       cnvAccess = [],
@@ -211,7 +211,7 @@ testObject_Conversation_user_4 =
 testObject_Conversation_user_5 :: Conversation
 testObject_Conversation_user_5 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000001"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000001"))) (Domain ""),
       cnvType = ConnectConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002"))),
       cnvAccess = [],
@@ -333,7 +333,7 @@ testObject_Conversation_user_5 =
 testObject_Conversation_user_6 :: Conversation
 testObject_Conversation_user_6 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) (Domain ""),
       cnvType = RegularConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
       cnvAccess = [PrivateAccess],
@@ -379,7 +379,7 @@ testObject_Conversation_user_6 =
 testObject_Conversation_user_7 :: Conversation
 testObject_Conversation_user_7 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000001"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000001"))) (Domain ""),
       cnvType = SelfConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
       cnvAccess = [PrivateAccess, CodeAccess],
@@ -422,7 +422,7 @@ testObject_Conversation_user_7 =
 testObject_Conversation_user_8 :: Conversation
 testObject_Conversation_user_8 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000000"))) (Domain ""),
       cnvType = SelfConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000000"))),
       cnvAccess = [InviteAccess, PrivateAccess, PrivateAccess, InviteAccess, InviteAccess, PrivateAccess, LinkAccess],
@@ -479,7 +479,7 @@ testObject_Conversation_user_8 =
 testObject_Conversation_user_9 :: Conversation
 testObject_Conversation_user_9 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000002"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000002"))) (Domain ""),
       cnvType = RegularConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
       cnvAccess = [PrivateAccess, InviteAccess, LinkAccess, LinkAccess, InviteAccess, LinkAccess, CodeAccess],
@@ -520,7 +520,7 @@ testObject_Conversation_user_9 =
 testObject_Conversation_user_10 :: Conversation
 testObject_Conversation_user_10 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000000"))) (Domain ""),
       cnvType = ConnectConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000002"))),
       cnvAccess = [CodeAccess, PrivateAccess, InviteAccess],
@@ -582,7 +582,7 @@ testObject_Conversation_user_10 =
 testObject_Conversation_user_11 :: Conversation
 testObject_Conversation_user_11 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000002"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000002"))) (Domain ""),
       cnvType = SelfConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000000"))),
       cnvAccess = [LinkAccess],
@@ -692,7 +692,7 @@ testObject_Conversation_user_11 =
 testObject_Conversation_user_12 :: Conversation
 testObject_Conversation_user_12 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000000"))) (Domain ""),
       cnvType = ConnectConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
       cnvAccess = [],
@@ -728,7 +728,7 @@ testObject_Conversation_user_12 =
 testObject_Conversation_user_13 :: Conversation
 testObject_Conversation_user_13 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002"))) (Domain ""),
       cnvType = RegularConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
       cnvAccess = [PrivateAccess, PrivateAccess, LinkAccess, LinkAccess, InviteAccess, CodeAccess, InviteAccess],
@@ -797,7 +797,7 @@ testObject_Conversation_user_13 =
 testObject_Conversation_user_14 :: Conversation
 testObject_Conversation_user_14 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) (Domain ""),
       cnvType = RegularConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000002"))),
       cnvAccess = [],
@@ -840,7 +840,7 @@ testObject_Conversation_user_14 =
 testObject_Conversation_user_15 :: Conversation
 testObject_Conversation_user_15 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000001"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000001"))) (Domain ""),
       cnvType = SelfConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000000"))),
       cnvAccess = [PrivateAccess, PrivateAccess, InviteAccess],
@@ -883,7 +883,7 @@ testObject_Conversation_user_15 =
 testObject_Conversation_user_16 :: Conversation
 testObject_Conversation_user_16 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001"))) (Domain ""),
       cnvType = One2OneConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000000"))),
       cnvAccess = [InviteAccess, LinkAccess, LinkAccess],
@@ -940,7 +940,7 @@ testObject_Conversation_user_16 =
 testObject_Conversation_user_17 :: Conversation
 testObject_Conversation_user_17 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))) (Domain ""),
       cnvType = ConnectConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001"))),
       cnvAccess = [LinkAccess, LinkAccess],
@@ -978,7 +978,7 @@ testObject_Conversation_user_17 =
 testObject_Conversation_user_18 :: Conversation
 testObject_Conversation_user_18 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000000"))) (Domain ""),
       cnvType = One2OneConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
       cnvAccess = [PrivateAccess],
@@ -1068,7 +1068,7 @@ testObject_Conversation_user_18 =
 testObject_Conversation_user_19 :: Conversation
 testObject_Conversation_user_19 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002"))) (Domain ""),
       cnvType = SelfConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000"))),
       cnvAccess = [LinkAccess],
@@ -1111,7 +1111,7 @@ testObject_Conversation_user_19 =
 testObject_Conversation_user_20 :: Conversation
 testObject_Conversation_user_20 =
   Conversation
-    { cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000000"))),
+    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000000"))) (Domain ""),
       cnvType = ConnectConv,
       cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
       cnvAccess = [],

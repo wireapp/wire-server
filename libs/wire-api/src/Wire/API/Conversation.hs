@@ -78,7 +78,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified (Qualified)
+import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range (Range)
 import Data.Schema
 import qualified Data.Set as Set
@@ -100,7 +100,8 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
 data Conversation = Conversation
-  { cnvId :: ConvId,
+  { -- | A qualified conversation ID
+    cnvQualifiedId :: Qualified ConvId,
     cnvType :: ConvType,
     -- FUTUREWORK: Make this a qualified user ID.
     cnvCreator :: UserId,
@@ -124,7 +125,9 @@ instance ToSchema Conversation where
       "Conversation"
       (description ?~ "A conversation object as returned from the server")
       $ Conversation
-        <$> cnvId .= field "id" schema
+        <$> cnvQualifiedId .= field "qualified_id" schema
+        <* (qUnqualified . cnvQualifiedId)
+          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> cnvType .= field "type" schema
         <*> cnvCreator
           .= fieldWithDocModifier

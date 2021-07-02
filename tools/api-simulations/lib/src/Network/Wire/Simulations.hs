@@ -49,6 +49,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
 import qualified Data.Map.Strict as Map
+import Data.Qualified (qUnqualified)
 import Data.Serialize
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -78,7 +79,7 @@ prepareConv [a, b] = do
 prepareConv (a : bs) = do
   mapM_ (connectIfNeeded a) bs
   let bIds = map botId bs
-  conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
+  conv <- qUnqualified . cnvQualifiedId <$> runBotSession a (createConv bIds Nothing)
   assertConvCreated conv a bs
   return conv
 

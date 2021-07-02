@@ -57,10 +57,10 @@ import Wire.API.Conversation
         cnvAccess,
         cnvAccessRole,
         cnvCreator,
-        cnvId,
         cnvMembers,
         cnvMessageTimer,
         cnvName,
+        cnvQualifiedId,
         cnvReceiptMode,
         cnvTeam,
         cnvType

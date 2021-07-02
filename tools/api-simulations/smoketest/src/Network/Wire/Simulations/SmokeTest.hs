@@ -28,6 +28,7 @@ import qualified Codec.MIME.Type as MIME
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id (ConvId)
 import Data.List1
+import Data.Qualified (qUnqualified)
 import Imports
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
@@ -87,7 +88,7 @@ mainBotNet n = do
   info $ msg "Creating a group conversation ('Meetup') with everyone"
   meetup <- runBotSession ally $ do
     let others = bill : carl : goons
-    conv <- cnvId <$> createConv (map botId others) (Just "Meetup")
+    conv <- qUnqualified . cnvQualifiedId <$> createConv (map botId others) (Just "Meetup")
     assertConvCreated conv ally others
     return conv
   info $ msg "Bill updates his member state"

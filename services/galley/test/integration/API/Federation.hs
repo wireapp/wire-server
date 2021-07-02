@@ -68,24 +68,27 @@ getConversationsAllFound = do
   connectUsers alice (singleton bob)
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  getConvs alice (Just $ Left [cnvId cnv1]) Nothing !!! do
+  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
     const 200 === statusCode
-    const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
+    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
   cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-  getConvs alice (Just $ Left [cnvId cnv2]) Nothing !!! do
+  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
     const 200 === statusCode
-    const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
+    const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
   -- get both
 
   fedGalleyClient <- view tsFedGalleyClient
   localDomain <- viewFederationDomain
   let aliceQualified = Qualified alice localDomain
-  GetConversationsResponse cs <- FedGalley.getConversations fedGalleyClient (GetConversationsRequest aliceQualified [cnvId cnv1, cnvId cnv2])
-  let c1 = find ((== cnvId cnv1) . cnvId) cs
-  let c2 = find ((== cnvId cnv2) . cnvId) cs
+  GetConversationsResponse cs <-
+    FedGalley.getConversations
+      fedGalleyClient
+      (GetConversationsRequest aliceQualified $ qUnqualified . cnvQualifiedId <$> [cnv1, cnv2])
+  let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) cs
+  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) cs
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
@@ -107,15 +110,18 @@ getConversationsNotPartOf = do
   connectUsers alice (singleton bob)
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  getConvs alice (Just $ Left [cnvId cnv1]) Nothing !!! do
+  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
     const 200 === statusCode
-    const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
+    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
 
   fedGalleyClient <- view tsFedGalleyClient
   localDomain <- viewFederationDomain
   rando <- Id <$> liftIO nextRandom
   let randoQualified = Qualified rando localDomain
-  GetConversationsResponse cs <- FedGalley.getConversations fedGalleyClient (GetConversationsRequest randoQualified [cnvId cnv1])
+  GetConversationsResponse cs <-
+    FedGalley.getConversations
+      fedGalleyClient
+      (GetConversationsRequest randoQualified [qUnqualified . cnvQualifiedId $ cnv1])
   liftIO $ assertEqual "conversation list not empty" [] cs
 
 addLocalUser :: TestM ()
