@@ -8,11 +8,10 @@ import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Proxy
-import Data.Qualified (Qualified (..), partitionQualified)
+import Data.Qualified (Qualified (..), partitionRemote)
 import Data.SOP (I (..), htrans, unI)
 import qualified Data.Set as Set
 import Data.Set.Lens
-import Data.Tagged
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util (runFederatedBrig, runUnionT, throwUnion, viewFederationDomain)
@@ -29,6 +28,7 @@ import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Servant.API (Union, WithStatus (..))
+import UnliftIO.Async
 import Wire.API.ErrorDescription as ErrorDescription
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
@@ -150,12 +150,10 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
 getRemoteClients :: ConvId -> Galley (Map (Domain, UserId) (Set ClientId))
 getRemoteClients convId = do
   remoteMembers <- Data.lookupRemoteMembers convId
-  -- FUTUREWORK: parallelise RPCs
   fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
-    . traverse (uncurry getRemoteClientsFromDomain)
-    . Map.assocs
-    . partitionQualified
-    . map (unTagged . rmId)
+    . pooledMapConcurrentlyN 8 (uncurry getRemoteClientsFromDomain)
+    . partitionRemote
+    . map rmId
     $ remoteMembers
   where
     getRemoteClientsFromDomain :: Domain -> [UserId] -> Galley (Map (Domain, UserId) (Set ClientId))
