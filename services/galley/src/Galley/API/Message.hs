@@ -6,7 +6,12 @@ import Data.Aeson (encode)
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id (ClientId, ConnId, ConvId, UserId)
-import Data.Json.Util (UTCTimeMillis, toBase64Text, toUTCTimeMillis)
+import Data.Json.Util
+  ( Base64ByteString (..),
+    UTCTimeMillis,
+    toBase64Text,
+    toUTCTimeMillis,
+  )
 import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
@@ -17,7 +22,13 @@ import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
-import Galley.API.Util (runFederatedBrig, runUnionT, throwUnion, viewFederationDomain)
+import Galley.API.Util
+  ( runFederatedBrig,
+    runFederatedGalley,
+    runUnionT,
+    throwUnion,
+    viewFederationDomain,
+  )
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
@@ -187,6 +198,21 @@ getRemoteClients convId = do
     getRemoteClientsFromDomain domain uids = do
       let rpc = FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap <$> runFederatedBrig domain rpc
+
+postRemoteOtrMessage ::
+  Qualified UserId ->
+  Qualified ConvId ->
+  LByteString ->
+  Galley (Union Public.PostOtrResponses)
+postRemoteOtrMessage sender conv rawMsg = do
+  let msr =
+        FederatedGalley.MessageSendRequest
+          { FederatedGalley.msrConvId = qUnqualified conv,
+            FederatedGalley.msrSender = sender,
+            FederatedGalley.msrRawMessage = Base64ByteString rawMsg
+          }
+      rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes msr
+  runFederatedGalley (qDomain conv) rpc
 
 postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
 postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do

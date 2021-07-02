@@ -169,7 +169,8 @@ tests s =
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
-          test s "post message qualified - remote owning backend - not implemented" postMessageQualifiedRemoteOwningBackendNotImplemented,
+          -- TODO: add remote owning backend success test
+          test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
           test s "join code-access conversation" postJoinCodeConvOk,
@@ -877,16 +878,23 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
-postMessageQualifiedRemoteOwningBackendNotImplemented :: TestM ()
-postMessageQualifiedRemoteOwningBackendNotImplemented = do
+postMessageQualifiedRemoteOwningBackendFailure :: TestM ()
+postMessageQualifiedRemoteOwningBackendFailure = do
   (aliceLocal, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
   let aliceUnqualified = qUnqualified aliceLocal
   convIdUnqualified <- randomId
   let remoteDomain = Domain "far-away.example.com"
       convId = Qualified convIdUnqualified remoteDomain
-  postProteusMessageQualified aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll !!! do
-    const 403 === statusCode
-    const (Right (Just (String "federation-not-implemented"))) === fmap (view (at @Object "label")) . responseJsonEither
+
+  let galleyApi =
+        emptyFederatedGalley
+          { FederatedGalley.sendMessage = \_ -> throwError err503 {errBody = "Down for maintanance."}
+          }
+
+  (resp2, _requests) <-
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll emptyFederatedBrig galleyApi
+
+  pure resp2 !!! const 533 === statusCode
 
 postJoinConvOk :: TestM ()
 postJoinConvOk = do

@@ -118,7 +118,6 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
-import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -657,12 +656,12 @@ postBotMessage zbot zcnv val message = do
 -- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
 postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postProteusMessage zusr zcon convDomain cnv msg = do
+postProteusMessage zusr zcon convDomain conv msg = do
   localDomain <- viewFederationDomain
   let sender = Qualified zusr localDomain
   if localDomain /= convDomain
-    then throwM federationNotImplemented
-    else postQualifiedOtrMessage User sender (Just zcon) cnv (rpValue msg)
+    then postRemoteOtrMessage sender (Qualified conv convDomain) (rpRaw msg)
+    else postQualifiedOtrMessage User sender (Just zcon) conv (rpValue msg)
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
