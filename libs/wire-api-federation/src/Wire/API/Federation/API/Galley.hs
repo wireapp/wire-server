@@ -25,7 +25,7 @@ import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, StdMethod (..), Summary, UVerb, (:>))
+import Servant.API (JSON, Post, ReqBody, Summary, Union, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -35,7 +35,7 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
+import Wire.API.Federation.Util.Aeson (CustomEncoded (..), CustomEncodedUnion (..))
 import Wire.API.Message (Priority)
 import Wire.API.Routes.Public.Galley (PostOtrResponses)
 import Wire.API.User.Client (UserClientMap)
@@ -83,7 +83,7 @@ data Api routes = Api
         :- "federation"
         :> "send-message"
         :> ReqBody '[JSON] MessageSendRequest
-        :> UVerb 'POST '[JSON] PostOtrResponses
+        :> Post '[JSON] MessageSendResponse
   }
   deriving (Generic)
 
@@ -176,6 +176,10 @@ data MessageSendRequest = MessageSendRequest
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MessageSendRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
+
+newtype MessageSendResponse = MessageSendResponse
+  {getMessageSendResponse :: Union PostOtrResponses}
+  deriving (ToJSON, FromJSON) via (CustomEncodedUnion PostOtrResponses)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

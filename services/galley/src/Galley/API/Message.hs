@@ -212,7 +212,7 @@ postRemoteOtrMessage sender conv rawMsg = do
             FederatedGalley.msrRawMessage = Base64ByteString rawMsg
           }
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes msr
-  runFederatedGalley (qDomain conv) rpc
+  FederatedGalley.getMessageSendResponse <$> runFederatedGalley (qDomain conv) rpc
 
 postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
 postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do

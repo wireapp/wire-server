@@ -33,7 +33,6 @@ import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Imports
 import Servant (ServerT)
-import Servant.API (Union)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Conversation.Member (OtherMember (..), memId)
@@ -43,11 +42,11 @@ import Wire.API.Federation.API.Galley
     GetConversationsRequest (..),
     GetConversationsResponse (..),
     MessageSendRequest (..),
+    MessageSendResponse (..),
     RegisterConversation (..),
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
-import Wire.API.Routes.Public.Galley (PostOtrResponses)
 import Wire.API.ServantProto (FromProto (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
@@ -116,9 +115,9 @@ receiveMessage domain =
   API.postRemoteToLocal
     . fmap (Tagged . (`Qualified` domain))
 
-sendMessage :: MessageSendRequest -> Galley (Union PostOtrResponses)
+sendMessage :: MessageSendRequest -> Galley MessageSendResponse
 sendMessage msr = do
   msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
-  postQualifiedOtrMessage User (msrSender msr) Nothing (msrConvId msr) msg
+  MessageSendResponse <$> postQualifiedOtrMessage User (msrSender msr) Nothing (msrConvId msr) msg
   where
     err = throwM . invalidPayload . LT.pack
