@@ -352,11 +352,10 @@ postCryptoMessage2 = do
   -- Missing eve
   let m = [(bob, bc, toBase64Text "hello bob")]
   r1 <-
-    postOtrMessage id alice ac conv m
-      <!! const 412 === statusCode
+    postOtrMessage id alice ac conv m <!! do
+      const 412 === statusCode
+      assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
-  pure r1
-    !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   -- Fetch all missing clients prekeys
   r2 <-
     post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
@@ -566,8 +565,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
-  -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
-  -- ensure that message is not propagated to remotes
+  -- FUTUREWORK: Mock federator and ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
     let brigApi =
           emptyFederatedBrig
@@ -788,6 +786,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
       assertMismatchQualified mempty expectedMissing mempty mempty
+
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
   -- Same as above, but with a remote user's client
