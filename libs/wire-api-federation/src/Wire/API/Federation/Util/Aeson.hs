@@ -55,6 +55,10 @@ instance (Generic a, GFromJSON Zero (Rep a)) => FromJSON (CustomEncoded a) where
 newtype CustomEncodedUnion as = CustomEncodedUnion
   {unCustomEncodedUnion :: NS I as}
 
+deriving instance All (Compose Show I) as => Show (CustomEncodedUnion as)
+
+deriving instance All (Compose Eq I) as => Eq (CustomEncodedUnion as)
+
 class HasStatus a => UnionMember a where
   memberToJSON :: a -> Value
   memberParseJSON :: Value -> Parser a
