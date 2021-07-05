@@ -141,7 +141,7 @@ galley:
       maxTeamSize: 32
       maxFanoutSize: 18
       maxConvSize: 16
-      conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/join/
+      conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
       enableIndexedBillingTeamMembers: true
       federationDomain: integration.example.com
       featureFlags:
