@@ -27,6 +27,7 @@
 
 ## Internal changes
 
+* Team feature endpoints are rewritten in Servant (#1642).
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
 * [Federation] Let a receiving backend decide conversation attribute specifics of its users
   added to a new conversation via `POST /federation/register-conversation` (#1622).
