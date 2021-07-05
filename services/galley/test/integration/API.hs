@@ -84,7 +84,11 @@ import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
-import Wire.API.User.Client (QualifiedUserClients (..), UserClientPrekeyMap, getUserClientPrekeyMap)
+import Wire.API.User.Client
+  ( QualifiedUserClients (..),
+    UserClientPrekeyMap,
+    getUserClientPrekeyMap,
+  )
 import Wire.API.UserMap (UserMap (..))
 
 tests :: IO TestSetup -> TestTree

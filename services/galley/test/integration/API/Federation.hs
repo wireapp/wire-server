@@ -53,6 +53,7 @@ import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversa
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), mkQualifiedOtrPayload)
+import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
 tests :: IO TestSetup -> TestTree
@@ -317,12 +318,15 @@ sendMessage = do
       msr =
         FedGalley.MessageSendRequest
           { FedGalley.msrConvId = convId,
-            FedGalley.msrSender = alice,
+            FedGalley.msrSender = bob,
             FedGalley.msrRawMessage =
               Base64ByteString
                 (LBS.fromStrict (Protolens.encodeMessage msg))
           }
-  let responses2 _ = toJSON ()
+  let responses2 req
+        | fmap F.component (F.request req) == Just F.Brig =
+          toJSON (Map.singleton chadId (Set.singleton (PubClient chadClient Nothing)))
+        | otherwise = toJSON ()
   (_, requests2) <- withTempMockFederator opts remoteDomain responses2 $ do
     WS.bracketR cannon aliceId $ \ws -> do
       g <- viewGalley
@@ -335,13 +339,12 @@ sendMessage = do
           )
           <!! do
             const 200 === statusCode
-      (status, value :: A.Value) <- either fail pure $
+      (status, _value :: A.Value) <- either fail pure $
         flip A.parseEither (responseJsonUnsafe msresp) $
           A.withObject "Union" $ \obj -> do
             s <- obj .: "status"
             v <- obj .: "value"
             pure (s, v)
-      print value
       liftIO $ status @?= (201 :: Int)
 
       -- check that alice received the message
@@ -351,13 +354,12 @@ sendMessage = do
 
   -- check that a request to propagate message to chad has been made
   liftIO $ do
-    print requests2
-    [req] <- case requests2 of
-      xs@[_] -> pure xs
+    [_clientReq, receiveReq] <- case requests2 of
+      xs@[_, _] -> pure xs
       _ -> assertFailure "unexpected number of requests"
-    fmap F.component (F.request req) @?= Just F.Galley
-    fmap F.path (F.request req) @?= Just "/federation/receive-message"
-    rm <- case (A.decode . LBS.fromStrict) =<< fmap F.body (F.request req) of
+    fmap F.component (F.request receiveReq) @?= Just F.Galley
+    fmap F.path (F.request receiveReq) @?= Just "/federation/receive-message"
+    rm <- case (A.decode . LBS.fromStrict) =<< fmap F.body (F.request receiveReq) of
       Nothing -> assertFailure "invalid federated request body"
       Just x -> pure (x :: FedGalley.RemoteMessage ConvId)
     FedGalley.rmSender rm @?= bob

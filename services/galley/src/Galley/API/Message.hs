@@ -246,21 +246,17 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
 
   -- check if the sender is part of the conversation
   if senderDomain == localDomain
-    then when (not (Map.member senderUser localMemberMap)) $
-      do
-        throwUnion ErrorDescription.convNotFound
+    then when (not (Map.member senderUser localMemberMap)) $ do
+      void $ throwUnion ErrorDescription.convNotFound
+
+      -- check if the sender client exists (as one of the clients in the conversation)
+      unless
+        ( Set.member
+            senderClient
+            (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedLocalClients)
+        )
+        $ do void $ throwUnion ErrorDescription.unknownClient
     else pure () -- TODO: handle remote sender
-
-  -- check if the sender client exists (as one of the clients in the conversation)
-  -- TODO: handle remote sender
-  unless
-    ( Set.member
-        senderClient
-        (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedLocalClients)
-    )
-    $ do
-      throwUnion ErrorDescription.unknownClient
-
   qualifiedRemoteClients <- lift $ getRemoteClients convId
 
   let (sendMessage, validMessages, mismatch) =
