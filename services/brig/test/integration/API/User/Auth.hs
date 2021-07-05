@@ -372,33 +372,6 @@ testLoginFailure brig = do
   let badmail = Email "wrong" "wire.com"
   login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing) PersistentCookie
     !!! const 403 === statusCode
-  -- Create user with only phone number
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
-            ]
-  res <-
-    post (brig . path "/i/users" . contentJson . Http.body newUser)
-      <!! const 201 === statusCode
-  uid <- userId <$> responseJsonError res
-  eml <- randomEmail
-  -- Add email
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . Http.body emailUpdate)
-    !!! (const 202 === statusCode)
-  -- Activate
-  act <- getActivationCode brig (Left eml)
-  case act of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> do
-      activate brig kc !!! const 200 === statusCode
-      -- Attempt to log in without having set a password
-      login brig (defEmailLogin eml) PersistentCookie !!! do
-        const 403 === statusCode
-        const (Just "invalid-credentials") === errorLabel
 
 testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
@@ -670,6 +643,7 @@ testTokenMismatchLegalhold z brig galley = do
 -- | This only tests access; the logic is tested in 'testEmailUpdate' in `Account.hs`.
 testAccessSelfEmailAllowed :: Nginz -> Brig -> Http ()
 testAccessSelfEmailAllowed nginz brig = do
+  -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
   forM_ [True, False] $ \withCookie -> do
     usr <- randomUser brig
     let Just email = userEmail usr
@@ -694,6 +668,7 @@ testAccessSelfEmailAllowed nginz brig = do
 
 testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Http ()
 testAccessSelfEmailDenied zenv nginz brig = do
+  -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
   forM_ [True, False] $ \withCookie -> do
     mbCky <-
       if withCookie
