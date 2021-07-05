@@ -91,7 +91,8 @@ spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
         test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
         test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
-        test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon
+        test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon,
+        test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon
       ]
 
 -- | Path covered by this test:
@@ -388,6 +389,70 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
 
   -- send a message from bob at domain 2 to alice at domain 1
   let qconvId = Qualified convId (qDomain (userQualifiedId bob))
+      msgText = "🕊️"
+      rcpts = [(userQualifiedId alice, aliceClient, msgText)]
+      msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
+
+  WS.bracketR cannon1 (userId alice) $ \(wsAlice) -> do
+    post
+      ( galley2
+          . paths
+            [ "conversations",
+              toByteString' (qDomain qconvId),
+              toByteString' convId,
+              "proteus",
+              "messages"
+            ]
+          . zUser (userId bob)
+          . zConn "conn"
+          . header "Z-Type" "access"
+          . contentProtobuf
+          . acceptJson
+          . bytes (Protolens.encodeMessage msg)
+      )
+      !!! const 201 === statusCode
+
+    -- verify that alice received the message
+    WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconvId
+      evtType e @?= OtrMessageAdd
+      evtFrom e @?= userQualifiedId bob
+      evtData e
+        @?= EdOtrMessage
+          ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
+          )
+
+-- alice creates a conversation on domain 1 with bob on domain 2, then bob
+-- sends a message to alice
+testSendMessageToRemoteConv :: Brig -> Brig -> Galley -> Galley -> Cannon -> Http ()
+testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
+  -- create alice user and client on domain 1
+  alice <- randomUser brig1
+  aliceClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig1
+        (userId alice)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+
+  -- create bob user and client on domain 2
+  bob <- randomUser brig2
+  bobClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig2
+        (userId bob)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+
+  -- create conversation on domain 1
+  convId <-
+    cnvId . responseJsonUnsafe
+      <$> createConversation galley1 (userId bob) [userQualifiedId alice]
+
+  -- send a message from bob at domain 2 to alice at domain 1
+  let qconvId = Qualified convId (qDomain (userQualifiedId alice))
       msgText = "🕊️"
       rcpts = [(userQualifiedId alice, aliceClient, msgText)]
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
