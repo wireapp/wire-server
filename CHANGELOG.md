@@ -16,6 +16,10 @@
 
 # Unreleased
 
+## Release Notes
+
+This release requires a manual change in your galley configuration: `settings.conversationCodeURI` in `galley.yaml` was had to be set to `${WEBAPP}/join` before this release, and must be set to `${ACCOUNTS}/conversation-join` from now on, where `${WEBAPP}` is the url to the webapp and `${ACCOUNTS}` is the url to the account pages.
+
 ## API Changes
 
 * New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
@@ -32,6 +36,7 @@
   added to a new conversation via `POST /federation/register-conversation` (#1622).
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
+* Change `settings.conversationCodeURI` in galley.yaml (#1643).
 
 ## Documentation
 
