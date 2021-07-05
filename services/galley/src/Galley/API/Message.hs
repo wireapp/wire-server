@@ -20,6 +20,7 @@ import Data.Qualified (Qualified (..), partitionRemote)
 import Data.SOP (I (..), htrans, unI)
 import qualified Data.Set as Set
 import Data.Set.Lens
+import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
