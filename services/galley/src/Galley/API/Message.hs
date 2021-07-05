@@ -1,6 +1,8 @@
 module Galley.API.Message where
 
 import Control.Lens
+import Control.Monad.Catch (throwM)
+import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (toByteString')
@@ -22,12 +24,11 @@ import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
+import Galley.API.Error (missingLegalholdConsent)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
   ( runFederatedBrig,
     runFederatedGalley,
-    runUnionT,
-    throwUnion,
     viewFederationDomain,
   )
 import Galley.App
@@ -42,6 +43,7 @@ import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
+import qualified Servant
 import Servant.API (Union, WithStatus (..))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
@@ -212,10 +214,18 @@ postRemoteOtrMessage sender conv rawMsg = do
             FederatedGalley.msrRawMessage = Base64ByteString rawMsg
           }
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes msr
-  FederatedGalley.getMessageSendResponse <$> runFederatedGalley (qDomain conv) rpc
+  mkPostOtrResponsesUnion . FederatedGalley.msResponse =<< runFederatedGalley (qDomain conv) rpc
 
-postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
-postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
+mkPostOtrResponsesUnion :: Either FederatedGalley.MessageNotSent MessageSendingStatus -> Galley (Union Public.PostOtrResponses)
+mkPostOtrResponsesUnion (Right mss) = Servant.respond (WithStatus @201 mss)
+mkPostOtrResponsesUnion (Left reason) = case reason of
+  FederatedGalley.MessageNotSentClientMissing mss -> Servant.respond (WithStatus @412 mss)
+  FederatedGalley.MessageNotSentUnknownClient -> Servant.respond ErrorDescription.unknownClient
+  FederatedGalley.MessageNotSentConversationNotFound -> Servant.respond ErrorDescription.convNotFound
+  FederatedGalley.MessageNotSentLegalhold -> throwM missingLegalholdConsent
+
+postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Either FederatedGalley.MessageNotSent Public.MessageSendingStatus)
+postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
   now <- liftIO getCurrentTime
@@ -224,11 +234,11 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
       senderUser = qUnqualified sender
   let senderClient = qualifiedNewOtrSender msg
   unless alive $ do
-    Data.deleteConversation convId
-    throwUnion ErrorDescription.convNotFound
+    lift $ Data.deleteConversation convId
+    throwError FederatedGalley.MessageNotSentConversationNotFound
 
   -- conversation members
-  localMembers <- Data.members convId
+  localMembers <- lift $ Data.members convId
   remoteMembers <- Data.lookupRemoteMembers convId
 
   let localMemberIds = memId <$> localMembers
@@ -241,8 +251,8 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   isInternal <- view $ options . optSettings . setIntraListing
 
   -- check if the sender is part of the conversation
-  when (not (Set.member sender members)) $ do
-    void $ throwUnion ErrorDescription.convNotFound
+  unless (Set.member sender members) $
+    throwError FederatedGalley.MessageNotSentConversationNotFound
 
   -- get local clients
   localClients <-
@@ -266,7 +276,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
         senderClient
         (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedClients)
     )
-    $ throwUnion ErrorDescription.unknownClient
+    $ throwError FederatedGalley.MessageNotSentUnknownClient
 
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
@@ -280,7 +290,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
       guardQualifiedLegalholdPolicyConflicts
         (qualifiedUserToProtectee localDomain senderType sender)
         (qmMissing mismatch)
-    throwUnion $ WithStatus @412 otrResult
+    throwError (FederatedGalley.MessageNotSentClientMissing otrResult)
   failedToSend <-
     lift $
       sendMessages
@@ -292,7 +302,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
         localMemberMap
         (qualifiedNewOtrMetadata msg)
         validMessages
-  throwUnion $ WithStatus @201 (otrResult {mssFailedToSend = failedToSend})
+  pure otrResult {mssFailedToSend = failedToSend}
   where
     makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
     makeUserMap keys = (<> Map.fromSet (const mempty) keys)

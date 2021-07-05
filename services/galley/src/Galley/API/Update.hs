@@ -661,7 +661,7 @@ postProteusMessage zusr zcon convDomain conv msg = do
   let sender = Qualified zusr localDomain
   if localDomain /= convDomain
     then postRemoteOtrMessage sender (Qualified conv convDomain) (rpRaw msg)
-    else postQualifiedOtrMessage User sender (Just zcon) conv (rpValue msg)
+    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) conv (rpValue msg)
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
@@ -688,7 +688,9 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
             Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
   unqualify localDomain
-    <$> postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
+    <$> ( mkPostOtrResponsesUnion
+            =<< postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
+        )
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do

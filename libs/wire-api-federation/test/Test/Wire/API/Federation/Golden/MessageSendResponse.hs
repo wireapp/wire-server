@@ -23,7 +23,7 @@ import Data.Json.Util (toUTCTimeMillis)
 import Data.UUID as UUID
 import GHC.Exts (IsList (fromList))
 import Imports
-import Wire.API.Federation.API.Galley (MessageSendResponse (..))
+import Wire.API.Federation.API.Galley (MessageNotSent (..), MessageSendResponse (..))
 import Wire.API.Message
 import Wire.API.User.Client (QualifiedUserClients (..))
 
@@ -101,21 +101,22 @@ failed =
 
 testObject_MessageSendReponse1 :: MessageSendResponse
 testObject_MessageSendReponse1 =
-  MessageSent
-    MessageSendingStatus
-      { mssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
-        mssMissingClients = missing,
-        mssRedundantClients = redundant,
-        mssDeletedClients = deleted,
-        mssFailedToSend = failed
-      }
+  MessageSendResponse $
+    Right
+      MessageSendingStatus
+        { mssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
+          mssMissingClients = missing,
+          mssRedundantClients = redundant,
+          mssDeletedClients = deleted,
+          mssFailedToSend = failed
+        }
 
 testObject_MessageSendReponse2 :: MessageSendResponse
-testObject_MessageSendReponse2 = MessageNotSentLegalhold
+testObject_MessageSendReponse2 = MessageSendResponse . Left $ MessageNotSentLegalhold
 
 testObject_MessageSendReponse3 :: MessageSendResponse
 testObject_MessageSendReponse3 =
-  MessageNotSentClientMissing
+  MessageSendResponse . Left . MessageNotSentClientMissing $
     MessageSendingStatus
       { mssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
         mssMissingClients = missing,
@@ -125,7 +126,7 @@ testObject_MessageSendReponse3 =
       }
 
 testObject_MessageSendReponse4 :: MessageSendResponse
-testObject_MessageSendReponse4 = MessageNotSentConversationNotFound
+testObject_MessageSendReponse4 = MessageSendResponse . Left $ MessageNotSentConversationNotFound
 
 testObject_MessageSendReponse5 :: MessageSendResponse
-testObject_MessageSendReponse5 = MessageNotSentUnknownClient
+testObject_MessageSendReponse5 = MessageSendResponse . Left $ MessageNotSentUnknownClient

@@ -1,3 +1,5 @@
 {
-    "tag": "MessageNotSentConversationNotFound"
+    "Left": {
+        "tag": "MessageNotSentConversationNotFound"
+    }
 }

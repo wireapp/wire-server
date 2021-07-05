@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -176,17 +178,18 @@ data MessageSendRequest = MessageSendRequest
   deriving (Arbitrary) via (GenericUniform MessageSendRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
 
-data MessageSendResponse
-  = MessageSent MessageSendingStatus
-  | MessageNotSentLegalhold
+newtype MessageSendResponse = MessageSendResponse
+  {msResponse :: Either MessageNotSent MessageSendingStatus}
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON)
+
+data MessageNotSent
+  = MessageNotSentLegalhold
   | MessageNotSentClientMissing MessageSendingStatus
   | MessageNotSentConversationNotFound
   | MessageNotSentUnknownClient
   deriving stock (Eq, Show, Generic)
-
-instance ToJSON MessageSendResponse
-
-instance FromJSON MessageSendResponse
+  deriving (ToJSON, FromJSON) via (CustomEncoded MessageNotSent)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

@@ -36,7 +36,7 @@ testObjects objs = do
   for_ objs $ \(obj, filepath) ->
     specify filepath $ do
       fileExists <- testObject obj filepath
-      assertBool "Some golden JSON files do not exist" fileExists
+      assertBool ("Golden JSON file '" <> filepath <> "' does not exist") fileExists
 
 testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
 testObject obj path = do

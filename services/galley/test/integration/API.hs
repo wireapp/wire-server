@@ -52,7 +52,6 @@ import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import Data.Range
-import Data.SOP (I (..))
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
@@ -67,7 +66,6 @@ import Gundeck.Types.Notification
 import Imports
 import Network.Wai.Utilities.Error
 import Servant (ServerError (errBody), err501, err503)
-import Servant.API (WithStatus (..), inject)
 import Servant.Server (Handler)
 import Servant.Server.Generic (AsServerT)
 import Test.QuickCheck (arbitrary, generate)
@@ -935,7 +933,7 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
       galleyApi =
         emptyFederatedGalley
-          { FederatedGalley.sendMessage = \_ -> pure (FederatedGalley.MessageSendResponse (inject (I (WithStatus @201 mss))))
+          { FederatedGalley.sendMessage = \_ -> pure (FederatedGalley.MessageSendResponse (Right mss))
           }
 
   (resp2, _requests) <-

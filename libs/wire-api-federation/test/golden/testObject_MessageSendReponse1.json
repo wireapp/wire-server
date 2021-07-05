@@ -1,6 +1,5 @@
 {
-    "tag": "MessageSent",
-    "contents": {
+    "Right": {
         "failed_to_send": {
             "golden.example.com": {
                 "00000000-0000-0000-0000-000200000008": [
