@@ -991,10 +991,10 @@ getConvsPagingOk = do
       let ids1 = convList <$> responseJsonUnsafe r1
       liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
       r2 <- getConvs u (Right <$> start) (Just step) <!! const 200 === statusCode
-      let ids3 = map cnvQualifiedId . convList <$> responseJsonUnsafe r2
+      let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
-      return $ ids1 >>= fmap qUnqualified . listToMaybe . reverse
+      return $ ids1 >>= listToMaybe . reverse
 
 -- same test as getConvsPagingOk, but using the listConversations endpoint
 -- (only tests pagination behaviour for local conversations)
@@ -1021,10 +1021,10 @@ listConvsPagingOk = do
       localDomain <- viewFederationDomain
       let requestBody = ListConversations Nothing (flip Qualified localDomain <$> start) (Just (unsafeRange step))
       r2 <- listConvs u requestBody <!! const 200 === statusCode
-      let ids3 = map cnvQualifiedId . convList <$> responseJsonUnsafe r2
+      let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
-      return $ ids1 >>= fmap qUnqualified . listToMaybe . reverse
+      return $ ids1 >>= listToMaybe . reverse
 
 postConvFailNotConnected :: TestM ()
 postConvFailNotConnected = do
