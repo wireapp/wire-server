@@ -286,11 +286,15 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty
   unless sendMessage $ do
-    lift $
-      guardQualifiedLegalholdPolicyConflicts
-        (qualifiedUserToProtectee localDomain senderType sender)
-        (qmMissing mismatch)
-    throwError (FederatedGalley.MessageNotSentClientMissing otrResult)
+    guardResult <-
+      lift $
+        guardQualifiedLegalholdPolicyConflicts
+          (qualifiedUserToProtectee localDomain senderType sender)
+          (qmMissing mismatch)
+    case guardResult of
+      Left _ -> throwError FederatedGalley.MessageNotSentLegalhold
+      Right () -> pure ()
+
   failedToSend <-
     lift $
       sendMessages

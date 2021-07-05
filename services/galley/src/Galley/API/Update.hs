@@ -1144,6 +1144,7 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
+      >>= either (const (throwM missingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
   InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient
