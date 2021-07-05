@@ -185,9 +185,8 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
         mkQualifiedMismatch reportedMissing redundant deleted
       )
 
-getRemoteClients :: ConvId -> Galley (Map (Domain, UserId) (Set ClientId))
-getRemoteClients convId = do
-  remoteMembers <- Data.lookupRemoteMembers convId
+getRemoteClients :: [RemoteMember] -> Galley (Map (Domain, UserId) (Set ClientId))
+getRemoteClients remoteMembers = do
   fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
     . pooledMapConcurrentlyN 8 (uncurry getRemoteClientsFromDomain)
     . partitionRemote
@@ -227,12 +226,24 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
     Data.deleteConversation convId
     throwUnion ErrorDescription.convNotFound
 
-  -- get local clients
+  -- conversation members
   localMembers <- Data.members convId
+  remoteMembers <- Data.lookupRemoteMembers convId
+
   let localMemberIds = memId <$> localMembers
       localMemberMap :: Map UserId LocalMember
       localMemberMap = Map.fromList (map (\mem -> (memId mem, mem)) localMembers)
+      members :: Set (Qualified UserId)
+      members =
+        Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
+          <> Set.fromList (map (unTagged . rmId) remoteMembers)
   isInternal <- view $ options . optSettings . setIntraListing
+
+  -- check if the sender is part of the conversation
+  when (not (Set.member sender members)) $ do
+    void $ throwUnion ErrorDescription.convNotFound
+
+  -- get local clients
   localClients <-
     lift $
       if isInternal
@@ -244,25 +255,22 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
           . Clients.toMap
           $ localClients
 
-  -- check if the sender is part of the conversation
-  if senderDomain == localDomain
-    then when (not (Map.member senderUser localMemberMap)) $ do
-      void $ throwUnion ErrorDescription.convNotFound
+  -- get remote clients
+  qualifiedRemoteClients <- lift $ getRemoteClients remoteMembers
+  let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
 
-      -- check if the sender client exists (as one of the clients in the conversation)
-      unless
-        ( Set.member
-            senderClient
-            (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedLocalClients)
-        )
-        $ do void $ throwUnion ErrorDescription.unknownClient
-    else pure () -- TODO: handle remote sender
-  qualifiedRemoteClients <- lift $ getRemoteClients convId
+  -- check if the sender client exists (as one of the clients in the conversation)
+  unless
+    ( Set.member
+        senderClient
+        (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedClients)
+    )
+    $ throwUnion ErrorDescription.unknownClient
 
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
           (senderDomain, senderUser, qualifiedNewOtrSender msg)
-          (qualifiedLocalClients <> qualifiedRemoteClients)
+          qualifiedClients
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty

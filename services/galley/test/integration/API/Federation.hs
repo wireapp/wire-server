@@ -325,7 +325,12 @@ sendMessage = do
           }
   let responses2 req
         | fmap F.component (F.request req) == Just F.Brig =
-          toJSON (Map.singleton chadId (Set.singleton (PubClient chadClient Nothing)))
+          toJSON
+            ( Map.fromList
+                [ (chadId, (Set.singleton (PubClient chadClient Nothing))),
+                  (bobId, (Set.singleton (PubClient bobClient Nothing)))
+                ]
+            )
         | otherwise = toJSON ()
   (_, requests2) <- withTempMockFederator opts remoteDomain responses2 $ do
     WS.bracketR cannon aliceId $ \ws -> do
