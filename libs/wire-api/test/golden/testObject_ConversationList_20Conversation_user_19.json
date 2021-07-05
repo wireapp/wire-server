@@ -28,6 +28,10 @@
             },
             "name": "",
             "team": null,
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000000000001"
+            },
             "id": "00000001-0000-0000-0000-000000000001",
             "type": 3,
             "receipt_mode": 0,
@@ -62,6 +66,10 @@
             },
             "name": "",
             "team": null,
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0000-0000-000100000000"
+            },
             "id": "00000000-0000-0000-0000-000100000000",
             "type": 0,
             "receipt_mode": null,
