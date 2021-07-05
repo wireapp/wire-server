@@ -22,16 +22,19 @@ import Bilge
 import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Lens hiding ((#))
-import Data.Aeson (ToJSON (..))
+import Data.Aeson (ToJSON (..), (.:))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
-import Data.Id (Id (..), newClientId, randomId)
+import Data.Id (ConvId, Id (..), newClientId, randomId)
 import Data.Json.Util (Base64ByteString (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Protolens
 import Data.Qualified (Qualified (..))
+import qualified Data.Set as Set
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
@@ -261,13 +264,13 @@ receiveMessage = do
       WS.assertNoEvent (1 # Second) [wsE]
 
 -- alice local, bob and chad remote in a local conversation
--- bob sends a message (using the RPC), we test that alice receives and that a
--- call is made to the receiveMessage RPC to inform chad
+-- bob sends a message (using the RPC), we test that alice receives it and that
+-- a call is made to the receiveMessage RPC to inform chad
 sendMessage :: TestM ()
 sendMessage = do
-  -- domains
-  -- localDomain <- viewFederationDomain
+  cannon <- view tsCannon
   let remoteDomain = Domain "far-away.example.com"
+  localDomain <- viewFederationDomain
 
   -- users and clients
   (alice, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
@@ -301,9 +304,11 @@ sendMessage = do
     fmap F.path (F.request brigReq) @?= Just "/federation/get-users-by-ids"
     fmap F.component (F.request galleyReq) @?= Just F.Galley
     fmap F.path (F.request galleyReq) @?= Just "/federation/register-conversation"
-  -- let conv = Qualified convId localDomain
+  let conv = Qualified convId localDomain
 
-  fedGalleyClient <- view tsFedGalleyClient
+  -- we use bilge instead of the federation client to make a federated request
+  -- here, because we need to make use of the mock federator, which at the moment
+  -- supports only bilge requests
   let rcpts =
         [ (alice, aliceClient, "hi alice"),
           (chad, chadClient, "hi chad")
@@ -313,8 +318,48 @@ sendMessage = do
         FedGalley.MessageSendRequest
           { FedGalley.msrConvId = convId,
             FedGalley.msrSender = alice,
-            FedGalley.msrRawMessage = Base64ByteString (LBS.fromStrict (Protolens.encodeMessage msg))
+            FedGalley.msrRawMessage =
+              Base64ByteString
+                (LBS.fromStrict (Protolens.encodeMessage msg))
           }
+  let responses2 _ = toJSON ()
+  (_, requests2) <- withTempMockFederator opts remoteDomain responses2 $ do
+    WS.bracketR cannon aliceId $ \ws -> do
+      g <- viewGalley
+      msresp <-
+        post
+          ( g
+              . paths ["federation", "send-message"]
+              . content "application/json"
+              . json msr
+          )
+          <!! do
+            const 200 === statusCode
+      (status, value :: A.Value) <- either fail pure $
+        flip A.parseEither (responseJsonUnsafe msresp) $
+          A.withObject "Union" $ \obj -> do
+            s <- obj .: "status"
+            v <- obj .: "value"
+            pure (s, v)
+      print value
+      liftIO $ status @?= (201 :: Int)
 
-  _mr <- FedGalley.sendMessage fedGalleyClient msr
-  pure ()
+      -- check that alice received the message
+      when False $ do
+        WS.assertMatch_ (5 # Second) ws $
+          wsAssertOtr' "" conv bob bobClient aliceClient "hi alice"
+
+  -- check that a request to propagate message to chad has been made
+  liftIO $ do
+    print requests2
+    [req] <- case requests2 of
+      xs@[_] -> pure xs
+      _ -> assertFailure "unexpected number of requests"
+    fmap F.component (F.request req) @?= Just F.Galley
+    fmap F.path (F.request req) @?= Just "/federation/receive-message"
+    rm <- case (A.decode . LBS.fromStrict) =<< fmap F.body (F.request req) of
+      Nothing -> assertFailure "invalid federated request body"
+      Just x -> pure (x :: FedGalley.RemoteMessage ConvId)
+    FedGalley.rmSender rm @?= bob
+    Map.keysSet (userClientMap (FedGalley.rmRecipients rm))
+      @?= Set.singleton chadId
