@@ -198,7 +198,7 @@ data Api routes = Api
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
     addMembersToConversationV2 ::
       routes
-        :- Summary "Add qualified members to an existing conversation: WIP, events not propagated yet."
+        :- Summary "Add qualified members to an existing conversation."
         :> ZUser
         :> ZConn
         :> "conversations"
