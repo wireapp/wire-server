@@ -31,6 +31,7 @@
 ## Bug fixes and other updates
 
 * New, hardened end-point for changing email
+* Remove old end-point for changing email
 
 ## Documentation
 
