@@ -37,6 +37,7 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
+import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatus)
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
@@ -63,6 +64,7 @@ import qualified Wire.API.Notification as Public
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
+import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
@@ -91,15 +93,31 @@ servantSitemap =
         GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
         GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
         GalleyAPI.postProteusMessage = Update.postProteusMessage,
-        GalleyAPI.teamFeatureStatusSSOGet = const Features.getSSOStatusInternal,
-        GalleyAPI.teamFeatureStatusLegalHoldGet = const Features.getLegalholdStatusInternal,
-        GalleyAPI.teamFeatureStatusLegalHoldPut = const Features.setLegalholdStatusInternal,
-        GalleyAPI.teamFeatureStatusSearchVisibilityGet = const Features.getTeamSearchVisibilityAvailableInternal,
-        GalleyAPI.teamFeatureStatusSearchVisibilityPut = const Features.setTeamSearchVisibilityAvailableInternal,
-        GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet = const Features.getValidateSAMLEmailsInternal,
-        GalleyAPI.teamFeatureStatusDigitalSignaturesGet = const Features.getDigitalSignaturesInternal,
-        GalleyAPI.teamFeatureStatusAppLockGet = const Features.getAppLockInternal,
-        GalleyAPI.teamFeatureStatusAppLockPut = const Features.setAppLockInternal
+        GalleyAPI.teamFeatureStatusSSOGet =
+          getFeatureStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusLegalHoldGet =
+          getFeatureStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusLegalHoldPut =
+          setFeatureStatus @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityGet =
+          getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityPut =
+          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet =
+          getFeatureStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusDigitalSignaturesGet =
+          getFeatureStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusAppLockGet =
+          getFeatureStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusAppLockPut =
+          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal . DoAuth
       }
 
 sitemap :: Routes ApiBuilder Galley ()

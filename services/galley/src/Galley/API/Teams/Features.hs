@@ -180,7 +180,7 @@ getDigitalSignaturesInternal =
   getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ do
     pure Public.TeamFeatureDisabled
 
-setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
+setDigitalSignaturesInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
 setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
@@ -189,7 +189,7 @@ getLegalholdStatusInternal tid = do
     True -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
     False -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
 
-setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
+setLegalholdStatusInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   do
     -- this extra do is to encapsulate the assertions running before the actual operation.
