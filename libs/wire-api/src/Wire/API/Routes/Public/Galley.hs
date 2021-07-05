@@ -26,6 +26,7 @@ import Data.Domain
 import Data.Id (ConvId, TeamId)
 import Data.Range
 import qualified Data.Swagger as Swagger
+import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import qualified Servant
@@ -40,6 +41,7 @@ import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.ServantProto (Proto)
 import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Feature
 
 type ConversationResponses =
   '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
@@ -276,11 +278,57 @@ data Api routes = Api
         :> "proteus"
         :> "messages"
         :> ReqBody '[Proto] Public.QualifiedNewOtrMessage
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponses
+        :> UVerb 'POST '[Servant.JSON] PostOtrResponses,
+    teamFeatureStatusSSOGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureSSO,
+    teamFeatureStatusLegalHoldGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureLegalHold,
+    teamFeatureStatusLegalHoldPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureLegalHold,
+    teamFeatureStatusSearchVisibilityGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureSearchVisibility,
+    teamFeatureStatusValidateSAMLEmailsGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureValidateSAMLEmails,
+    teamFeatureStatusDigitalSignaturesGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureDigitalSignatures,
+    teamFeatureStatusAppLockGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureAppLock,
+    teamFeatureStatusAppLockPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureAppLock
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi Api
+
+type FeatureStatusGet featureName =
+  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type FeatureStatusPut featureName =
+  Summary (AppendSymbol "Put config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\

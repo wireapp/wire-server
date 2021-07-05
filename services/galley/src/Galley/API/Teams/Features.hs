@@ -53,7 +53,7 @@ import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
 import Network.Wai
-import Network.Wai.Predicate hiding (or, result, setStatus)
+import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Team.Feature as Public
 
@@ -217,7 +217,7 @@ getAppLockInternal tid = do
   status <- TeamFeatures.getApplockFeatureStatus tid
   pure $ fromMaybe defaultStatus status
 
-setAppLockInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
+setAppLockInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureAppLock -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setAppLockInternal tid status = do
   when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
     throwM inactivityTimeoutTooLow
