@@ -29,11 +29,11 @@ import Data.List1 (list1)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
+import Network.Wai.Utilities (label)
 import Test.Tasty
 import TestHelpers (test)
 import TestSetup
 import qualified Wire.API.Team.Feature as Public
-import Network.Wai.Utilities (label)
 
 tests :: IO TestSetup -> TestTree
 tests s =
