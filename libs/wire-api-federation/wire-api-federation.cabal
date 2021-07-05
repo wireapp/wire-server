@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9871f56827a3c81b6bf5b23bac8369916ee34f49d219d07131e90909590f7c0c
+-- hash: 9c774ce71a566703c101ccdcc662909e86dace863d91131124b381e6a2327b28
 
 name:           wire-api-federation
 version:        0.1.0
@@ -79,6 +79,9 @@ test-suite spec
   other-modules:
       Test.Wire.API.Federation.API.BrigSpec
       Test.Wire.API.Federation.ClientSpec
+      Test.Wire.API.Federation.Golden.GoldenSpec
+      Test.Wire.API.Federation.Golden.MessageSendResponse
+      Test.Wire.API.Federation.Golden.Runner
       Test.Wire.API.Federation.GRPC.TypesSpec
       Paths_wire_api_federation
   hs-source-dirs:
@@ -88,12 +91,15 @@ test-suite spec
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:
-      QuickCheck >=2.13
+      HUnit
+    , QuickCheck >=2.13
     , aeson >=1.4
+    , aeson-pretty
     , async
     , base >=4.6 && <5.0
     , bytestring
     , bytestring-conversion
+    , containers
     , either
     , errors
     , exceptions
@@ -120,6 +126,7 @@ test-suite spec
     , text >=0.11
     , time >=1.8
     , types-common
+    , uuid
     , wai-utilities
     , warp
     , wire-api

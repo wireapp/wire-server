@@ -56,8 +56,12 @@ tests:
     build-tools:
     - hspec-discover:hspec-discover
     dependencies:
-      - wire-api-federation
+      - HUnit
+      - aeson-pretty
+      - containers
       - hspec
       - metrics-wai
       - network
       - retry
+      - uuid
+      - wire-api-federation

@@ -25,7 +25,7 @@ import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, Summary, Union, (:>))
+import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -35,9 +35,8 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Federation.Util.Aeson (CustomEncoded (..), CustomEncodedUnion (..))
-import Wire.API.Message (Priority)
-import Wire.API.Routes.Public.Galley (PostOtrResponses)
+import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
+import Wire.API.Message (MessageSendingStatus, Priority)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -177,9 +176,17 @@ data MessageSendRequest = MessageSendRequest
   deriving (Arbitrary) via (GenericUniform MessageSendRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
 
-newtype MessageSendResponse = MessageSendResponse
-  {getMessageSendResponse :: Union PostOtrResponses}
-  deriving (ToJSON, FromJSON) via (CustomEncodedUnion PostOtrResponses)
+data MessageSendResponse
+  = MessageSent MessageSendingStatus
+  | MessageNotSentLegalhold
+  | MessageNotSentClientMissing MessageSendingStatus
+  | MessageNotSentConversationNotFound
+  | MessageNotSentUnknownClient
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON MessageSendResponse
+
+instance FromJSON MessageSendResponse
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient
