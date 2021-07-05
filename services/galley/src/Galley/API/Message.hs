@@ -8,13 +8,13 @@ import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Proxy
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), partitionRemote)
 import Data.SOP (I (..), htrans, unI)
 import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
-import Galley.API.Util (runUnionT, throwUnion, viewFederationDomain)
+import Galley.API.Util (runFederatedBrig, runUnionT, throwUnion, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
@@ -28,13 +28,16 @@ import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Servant.API (Union, WithStatus (..))
+import UnliftIO.Async
 import Wire.API.ErrorDescription as ErrorDescription
 import Wire.API.Event.Conversation
+import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Message
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley as Public
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
+import Wire.API.UserMap (UserMap (..))
 
 data UserType = User | Bot
 
@@ -144,6 +147,20 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
         mkQualifiedMismatch reportedMissing redundant deleted
       )
 
+getRemoteClients :: ConvId -> Galley (Map (Domain, UserId) (Set ClientId))
+getRemoteClients convId = do
+  remoteMembers <- Data.lookupRemoteMembers convId
+  fmap mconcat -- concatenating maps is correct here, because their sets of keys are disjoint
+    . pooledMapConcurrentlyN 8 (uncurry getRemoteClientsFromDomain)
+    . partitionRemote
+    . map rmId
+    $ remoteMembers
+  where
+    getRemoteClientsFromDomain :: Domain -> [UserId] -> Galley (Map (Domain, UserId) (Set ClientId))
+    getRemoteClientsFromDomain domain uids = do
+      let rpc = FederatedBrig.getUserClients FederatedBrig.clientRoutes (FederatedBrig.GetUserClients uids)
+      Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap <$> runFederatedBrig domain rpc
+
 postQualifiedOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union Public.PostOtrResponses)
 postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   alive <- Data.isConvAlive convId
@@ -157,6 +174,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
     Data.deleteConversation convId
     throwUnion ErrorDescription.convNotFound
 
+  -- get local clients
   localMembers <- Data.members convId
   let localMemberIds = memId <$> localMembers
       localMemberMap :: Map UserId LocalMember
@@ -183,10 +201,12 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   unless (Set.member senderClient (Map.findWithDefault mempty (senderDomain, sender) qualifiedLocalClients)) $ do
     throwUnion ErrorDescription.unknownClient
 
+  qualifiedRemoteClients <- lift $ getRemoteClients convId
+
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
           (senderDomain, sender, qualifiedNewOtrSender msg)
-          qualifiedLocalClients
+          (qualifiedLocalClients <> qualifiedRemoteClients)
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty

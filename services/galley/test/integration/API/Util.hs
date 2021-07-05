@@ -642,16 +642,32 @@ postOtrMessage' reportMissing f u d c rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissing)
 
-postProteusMessageQualified ::
+postProteusMessageQualifiedWithMockFederator ::
+  (ToJSON a) =>
   UserId ->
   ClientId ->
   Qualified ConvId ->
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   Message.ClientMismatchStrategy ->
-  TestM ResponseLBS
+  (FederatedRequest -> a) ->
+  TestM (ResponseLBS, Mock.ReceivedRequests)
+postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat responses = do
+  opts <- view tsGConf
+  withTempMockFederator opts (Domain "far-away.example.com") responses $
+    postProteusMessageQualified senderUser senderClient convId recipients dat strat
+
+postProteusMessageQualified ::
+  (MonadIO m, HasGalley m, MonadHttp m) =>
+  UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  [(Qualified UserId, ClientId, ByteString)] ->
+  ByteString ->
+  Message.ClientMismatchStrategy ->
+  m ResponseLBS
 postProteusMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
-  g <- view tsGalley
+  g <- viewGalley
   let protoMsg = mkQualifiedOtrPayload senderClient recipients dat strat
   post $
     g
@@ -1650,34 +1666,54 @@ convRange range size =
 privateAccess :: [Access]
 privateAccess = [PrivateAccess]
 
-eqMismatch ::
+assertExpected :: (Eq a, Show a) => String -> a -> (Response (Maybe LByteString) -> Maybe a) -> Assertions ()
+assertExpected msg expected tparser =
+  assertResponse $ \res ->
+    case tparser res of
+      Nothing -> Just (addTitle "Parsing the response failed")
+      Just parsed ->
+        if parsed == expected
+          then Nothing
+          else Just (addTitle (unlines ["Expected: ", show expected, "But got:", show parsed]))
+  where
+    addTitle s = unlines [msg, s]
+
+assertMismatchWithMessage ::
+  HasCallStack =>
+  Maybe String ->
   [(UserId, Set ClientId)] ->
   [(UserId, Set ClientId)] ->
   [(UserId, Set ClientId)] ->
-  Maybe ClientMismatch ->
-  Bool
-eqMismatch _ _ _ Nothing = False
-eqMismatch mssd rdnt dltd (Just other) =
-  userClients mssd == missingClients other
-    && userClients rdnt == redundantClients other
-    && userClients dltd == deletedClients other
+  Assertions ()
+assertMismatchWithMessage mmsg missing redundant deleted = do
+  assertExpected (formatMessage "missing") (userClients missing) (fmap missingClients . responseJsonMaybe)
+  assertExpected (formatMessage "redundant") (userClients redundant) (fmap redundantClients . responseJsonMaybe)
+  assertExpected (formatMessage "deleted") (userClients deleted) (fmap deletedClients . responseJsonMaybe)
   where
     userClients :: [(UserId, Set ClientId)] -> UserClients
     userClients = UserClients . Map.fromList
 
-eqMismatchQualified ::
+    formatMessage :: String -> String
+    formatMessage = maybe id (\msg -> ((msg <> "\n") <>)) mmsg
+
+assertMismatch ::
+  HasCallStack =>
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  [(UserId, Set ClientId)] ->
+  Assertions ()
+assertMismatch = assertMismatchWithMessage Nothing
+
+assertMismatchQualified ::
   HasCallStack =>
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
-  Maybe Message.MessageSendingStatus ->
-  Bool
-eqMismatchQualified _ _ _ Nothing = False
-eqMismatchQualified missing _redundant deleted (Just other) = do
-  missing == Message.mssMissingClients other
-    -- FUTUREWORK: reenable check once remote client discovery is implemented
-    -- && redundant == Message.mssRedundantClients other
-    && deleted == Message.mssDeletedClients other
+  Assertions ()
+assertMismatchQualified missing redundant deleted = do
+  assertExpected "missing" missing (fmap Message.mssMissingClients . responseJsonMaybe)
+  assertExpected "redundant" redundant (fmap Message.mssRedundantClients . responseJsonMaybe)
+  assertExpected "deleted" deleted (fmap Message.mssDeletedClients . responseJsonMaybe)
 
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap
