@@ -250,7 +250,7 @@ receiveMessage = do
 
   -- send message to alice and check reception
   WS.bracketR2 c alice eve $ \(wsA, wsE) -> do
-    FedGalley.receiveMessage fedGalleyClient bdom rm
+    FedGalley.receiveMessage fedGalleyClient rm
     liftIO $ do
       -- alice should receive the message
       WS.assertMatch_ (5 # Second) wsA $ \n ->

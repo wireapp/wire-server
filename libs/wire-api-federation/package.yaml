@@ -35,6 +35,7 @@ dependencies:
 - servant >=0.16
 - servant-client
 - servant-client-core
+- servant-server
 - sop-core
 - template-haskell
 - text >=0.11

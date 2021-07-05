@@ -360,29 +360,26 @@ sendRemoteMessages ::
   MessageMetadata ->
   Map (UserId, ClientId) ByteString ->
   Galley (Set (UserId, ClientId))
-sendRemoteMessages domain now sender senderClient conv metadata messages =
-  (>>= handle) . runExceptT $ do
-    localDomain <- viewFederationDomain
-    let rcpts =
-          foldr
-            (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
-            mempty
-            (Map.assocs messages)
-        rm =
-          FederatedGalley.RemoteMessage
-            { FederatedGalley.rmTime = now,
-              FederatedGalley.rmData = Just (toBase64Text (mmData metadata)),
-              FederatedGalley.rmSender = sender,
-              FederatedGalley.rmSenderClient = senderClient,
-              FederatedGalley.rmConversation = conv,
-              FederatedGalley.rmPriority = mmNativePriority metadata,
-              FederatedGalley.rmPush = mmNativePush metadata,
-              FederatedGalley.rmTransient = mmTransient metadata,
-              FederatedGalley.rmRecipients = UserClientMap rcpts
-            }
-    -- FUTUREWORK: we should not need to pass the local domain to the RPC
-    let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes localDomain rm
-    executeFederated domain rpc
+sendRemoteMessages domain now sender senderClient conv metadata messages = (>>= handle) . runExceptT $ do
+  let rcpts =
+        foldr
+          (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
+          mempty
+          (Map.assocs messages)
+      rm =
+        FederatedGalley.RemoteMessage
+          { FederatedGalley.rmTime = now,
+            FederatedGalley.rmData = Just (toBase64Text (mmData metadata)),
+            FederatedGalley.rmSender = sender,
+            FederatedGalley.rmSenderClient = senderClient,
+            FederatedGalley.rmConversation = conv,
+            FederatedGalley.rmPriority = mmNativePriority metadata,
+            FederatedGalley.rmPush = mmNativePush metadata,
+            FederatedGalley.rmTransient = mmTransient metadata,
+            FederatedGalley.rmRecipients = UserClientMap rcpts
+          }
+  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes rm
+  executeFederated domain rpc
   where
     handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
     handle (Right _) = pure mempty
