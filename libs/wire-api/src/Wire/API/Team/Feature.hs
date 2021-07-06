@@ -224,7 +224,7 @@ newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
 
 modelTeamFeatureStatusNoConfig :: Doc.Model
 modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
-  Doc.description "Configuration for a team feature that has no configuration"
+  Doc.description "Team feature that has no configuration beyond the boolean on/off switch."
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
 instance ToSchema TeamFeatureStatusNoConfig where
