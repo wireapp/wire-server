@@ -17,28 +17,44 @@
 
 module Galley.API.Error where
 
+import Control.Monad.Catch (MonadThrow (..))
 import Data.Domain (Domain, domainText)
 import Data.Id (Id)
 import Data.List.NonEmpty (NonEmpty)
+import Data.Proxy
 import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
+import GHC.TypeLits
 import Galley.Types.Conversations.Roles (Action)
 import Galley.Types.Teams (IsPerm, hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Servant.API.Status (KnownStatus (..))
 import Type.Reflection (typeRep)
+import Wire.API.ErrorDescription
+
+errorDescriptionToWai ::
+  forall (code :: Nat) (desc :: Symbol).
+  KnownStatus code =>
+  ErrorDescription code desc ->
+  Error
+errorDescriptionToWai (ErrorDescription lbl msg) =
+  mkError (statusVal (Proxy @code)) (LT.fromStrict lbl) (LT.fromStrict msg)
+
+throwErrorDescription ::
+  (KnownStatus code, MonadThrow m) =>
+  ErrorDescription code desc ->
+  m a
+throwErrorDescription = throwM . errorDescriptionToWai
 
 internalError :: Error
 internalError = internalErrorWithDescription "internal error"
 
 internalErrorWithDescription :: LText -> Error
 internalErrorWithDescription = mkError status500 "internal-error"
-
-convNotFound :: Error
-convNotFound = mkError status404 "no-conversation" "conversation not found"
 
 convMemberNotFound :: Error
 convMemberNotFound = mkError status404 "no-conversation-member" "conversation member not found"
@@ -73,9 +89,6 @@ invalidPayload = mkError status400 "invalid-payload"
 badRequest :: LText -> Error
 badRequest = mkError status400 "bad-request"
 
-notConnected :: Error
-notConnected = mkError status403 "not-connected" "Users are not connected"
-
 unknownRemoteUser :: Error
 unknownRemoteUser = mkError status400 "unknown-remote-user" "Remote user(s) not found"
 
@@ -93,9 +106,6 @@ reAuthFailed = mkError status403 "access-denied" "This operation requires reauth
 
 invalidUUID4 :: Error
 invalidUUID4 = mkError status400 "client-error" "Invalid UUID v4 format"
-
-unknownClient :: Error
-unknownClient = mkError status403 "unknown-client" "Sending client not known"
 
 invalidRange :: LText -> Error
 invalidRange = mkError status400 "client-error"

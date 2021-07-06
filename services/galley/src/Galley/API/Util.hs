@@ -67,6 +67,7 @@ import Servant.API (IsMember, Union, inject)
 import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
+import Wire.API.ErrorDescription (convNotFound, notConnected)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
@@ -122,7 +123,7 @@ ensureConnectedToLocals u uids = do
     getConnections [u] (Just uids) (Just Accepted)
       `concurrently` getConnections uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwM notConnected
+    throwErrorDescription notConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
@@ -188,7 +189,7 @@ permissionCheckTeamConv zusr cnv perm =
     Just cnv' -> case Data.convTeam cnv' of
       Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
       Nothing -> pure ()
-    Nothing -> throwM convNotFound
+    Nothing -> throwErrorDescription convNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
@@ -204,7 +205,7 @@ acceptOne2One usr conv conn = do
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> promote
-      [_, _] -> throwM convNotFound
+      [_, _] -> throwErrorDescription convNotFound
       _ -> do
         when (length mems > 2) $
           throwM badConvState
@@ -272,7 +273,7 @@ membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view use
 -- the conversation, we don't want to disclose that such a conversation
 -- with that id exists.
 getSelfMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getSelfMember = getMember convNotFound
+getSelfMember = getMember (errorDescriptionToWai convNotFound)
 
 getOtherMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
 getOtherMember = getMember convMemberNotFound
@@ -290,10 +291,10 @@ getConversationAndCheckMembership = getConversationAndCheckMembershipWithError c
 
 getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr convId = do
-  c <- Data.conversation convId >>= ifNothing convNotFound
+  c <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
-    throwM convNotFound
+    throwErrorDescription convNotFound
   unless (zusr `isMember` Data.convLocalMembers c) $
     throwM ex
   return c
@@ -332,7 +333,7 @@ verifyReusableCode convCode = do
 
 ensureConversationAccess :: UserId -> ConvId -> Access -> Galley Data.Conversation
 ensureConversationAccess zusr cnv access = do
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
