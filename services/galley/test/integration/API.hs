@@ -1106,7 +1106,6 @@ listConvsPagingOk = do
     walk u = foldM_ (next u 3) Nothing
     next :: UserId -> Int32 -> Maybe ConvId -> Int -> TestM (Maybe ConvId)
     next u step start n = do
-      -- TODO(md): Check if the FUTUREWORK note is addressed.
       -- FUTUREWORK: support an endpoint to get qualified conversation IDs
       -- (without all the conversation metadata)
       r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
