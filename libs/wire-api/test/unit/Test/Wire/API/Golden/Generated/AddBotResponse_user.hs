@@ -57,10 +57,10 @@ import Wire.API.Conversation
         cnvAccess,
         cnvAccessRole,
         cnvCreator,
-        cnvId,
         cnvMembers,
         cnvMessageTimer,
         cnvName,
+        cnvQualifiedId,
         cnvReceiptMode,
         cnvTeam,
         cnvType
@@ -218,7 +218,7 @@ testObject_AddBotResponse_user_3 =
             (read "1864-05-10 11:22:13.523 UTC")
             ( ( EdConversation
                   ( Conversation
-                      { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+                      { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
                         cnvType = RegularConv,
                         cnvCreator = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
                         cnvAccess = [],
@@ -297,7 +297,7 @@ testObject_AddBotResponse_user_5 =
             (read "1864-05-13 21:19:26.488 UTC")
             ( ( EdConversation
                   ( Conversation
-                      { cnvId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
+                      { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Domain "golden.example.com"),
                         cnvType = RegularConv,
                         cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
                         cnvAccess = [],

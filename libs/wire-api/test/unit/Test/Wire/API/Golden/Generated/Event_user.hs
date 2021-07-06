@@ -214,7 +214,7 @@ testObject_Event_user_10 =
       (read "1864-05-29 19:31:31.226 UTC")
       ( ( EdConversation
             ( Conversation
-                { cnvId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+                { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
                   cnvType = RegularConv,
                   cnvCreator = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
                   cnvAccess =

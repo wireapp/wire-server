@@ -48,7 +48,7 @@ assertConvCreated c b bs = do
         let cnv = convEvtData e
             mems = cnvMembers cnv
             omems = Set.fromList (map (qUnqualified . omQualifiedId) (cmOthers mems))
-         in cnvId cnv == c
+         in (qUnqualified . cnvQualifiedId $ cnv) == c
               && convEvtFrom e == botId b
               && cnvType cnv == RegularConv
               && memId (cmSelf mems) == self

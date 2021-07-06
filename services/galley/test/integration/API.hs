@@ -248,7 +248,7 @@ postConvOk = do
     checkWs qalice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
       let e = List1.head (WS.unpackPayload n)
-      evtConv e @?= Qualified (cnvId cnv) (qDomain qalice)
+      evtConv e @?= cnvQualifiedId cnv
       evtType e @?= ConvCreate
       evtFrom e @?= qalice
       case evtData e of
@@ -1058,7 +1058,7 @@ getConvsOk = do
   usr <- randomUser
   getConvs usr Nothing Nothing !!! do
     const 200 === statusCode
-    const [toUUID usr] === map (toUUID . cnvId) . decodeConvList
+    const [toUUID usr] === map (toUUID . qUnqualified . cnvQualifiedId) . decodeConvList
 
 -- same test as getConvsOk, but using the listConversations endpoint
 listConvsOk :: TestM ()
@@ -1066,7 +1066,7 @@ listConvsOk = do
   usr <- randomUser
   listAllConvs usr !!! do
     const 200 === statusCode
-    const [toUUID usr] === map (toUUID . cnvId) . decodeConvList
+    const [toUUID usr] === map (toUUID . qUnqualified . cnvQualifiedId) . decodeConvList
 
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
@@ -1074,21 +1074,21 @@ getConvsOk2 = do
   connectUsers alice (singleton bob)
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  getConvs alice (Just $ Left [cnvId cnv1]) Nothing !!! do
+  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
     const 200 === statusCode
-    const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
+    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
   cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-  getConvs alice (Just $ Left [cnvId cnv2]) Nothing !!! do
+  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
     const 200 === statusCode
-    const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
+    const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
   -- get both
   rs <- getConvs alice Nothing Nothing <!! const 200 === statusCode
   let convs = convList <$> responseJsonUnsafe rs
-  let c1 = convs >>= find ((== cnvId cnv1) . cnvId)
-  let c2 = convs >>= find ((== cnvId cnv2) . cnvId)
+  let c1 = convs >>= find ((== cnvQualifiedId cnv1) . cnvQualifiedId)
+  let c2 = convs >>= find ((== cnvQualifiedId cnv2) . cnvQualifiedId)
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
@@ -1106,28 +1106,27 @@ getConvsOk2 = do
 -- same test as getConvsOk2, but using the listConversations endpoint
 listConvsOk2 :: TestM ()
 listConvsOk2 = do
-  localDomain <- viewFederationDomain
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  let req1 = ListConversations (Just (Qualified (cnvId cnv1) localDomain :| [])) Nothing Nothing
+  let req1 = ListConversations (Just (cnvQualifiedId cnv1 :| [])) Nothing Nothing
   listConvs alice req1 !!! do
     const 200 === statusCode
-    const (Just [cnvId cnv1]) === fmap (map cnvId . convList) . responseJsonUnsafe
+    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
   cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-  let req2 = ListConversations (Just (Qualified (cnvId cnv2) localDomain :| [])) Nothing Nothing
+  let req2 = ListConversations (Just (cnvQualifiedId cnv2 :| [])) Nothing Nothing
   listConvs alice req2 !!! do
     const 200 === statusCode
-    const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . responseJsonUnsafe
+    const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
   -- get both
   rs <- listAllConvs alice <!! const 200 === statusCode
   let convs = convList <$> responseJsonUnsafe rs
-  let c1 = convs >>= find ((== cnvId cnv1) . cnvId)
-  let c2 = convs >>= find ((== cnvId cnv2) . cnvId)
+  let c1 = convs >>= find ((== cnvQualifiedId cnv1) . cnvQualifiedId)
+  let c2 = convs >>= find ((== cnvQualifiedId cnv2) . cnvQualifiedId)
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
@@ -1193,13 +1192,15 @@ getConvsPagingOk = do
   walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
   walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
   where
+    walk :: Foldable t => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing
+    next :: UserId -> Int32 -> Maybe ConvId -> Int -> TestM (Maybe ConvId)
     next u step start n = do
       r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
       let ids1 = convList <$> responseJsonUnsafe r1
       liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
       r2 <- getConvs u (Right <$> start) (Just step) <!! const 200 === statusCode
-      let ids3 = map cnvId . convList <$> responseJsonUnsafe r2
+      let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
       return $ ids1 >>= listToMaybe . reverse
@@ -1216,7 +1217,9 @@ listConvsPagingOk = do
   walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
   walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
   where
+    walk :: Foldable t => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing
+    next :: UserId -> Int32 -> Maybe ConvId -> Int -> TestM (Maybe ConvId)
     next u step start n = do
       -- FUTUREWORK: support an endpoint to get qualified conversation IDs
       -- (without all the conversation metadata)
@@ -1226,7 +1229,7 @@ listConvsPagingOk = do
       localDomain <- viewFederationDomain
       let requestBody = ListConversations Nothing (flip Qualified localDomain <$> start) (Just (unsafeRange step))
       r2 <- listConvs u requestBody <!! const 200 === statusCode
-      let ids3 = map cnvId . convList <$> responseJsonUnsafe r2
+      let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
       return $ ids1 >>= listToMaybe . reverse
@@ -1468,15 +1471,16 @@ postRepeatConnectConvCancel = do
     (Just "B") @=? cnvName cnv3
     privateAccess @=? cnvAccess cnv3
   -- Bob accepting is a no-op, since he is already a member
-  putConvAccept bob (cnvId cnv) !!! const 200 === statusCode
-  cnvX <- responseJsonUnsafeWithMsg "conversation" <$> getConv bob (cnvId cnv)
+  let convId = qUnqualified . cnvQualifiedId $ cnv
+  putConvAccept bob convId !!! const 200 === statusCode
+  cnvX <- responseJsonUnsafeWithMsg "conversation" <$> getConv bob convId
   liftIO $ do
     ConnectConv @=? cnvType cnvX
     (Just "B") @=? cnvName cnvX
     privateAccess @=? cnvAccess cnvX
   -- Alice accepts, finally turning it into a 1-1
-  putConvAccept alice (cnvId cnv) !!! const 200 === statusCode
-  cnv4 <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice (cnvId cnv)
+  putConvAccept alice convId !!! const 200 === statusCode
+  cnv4 <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
   liftIO $ do
     One2OneConv @=? cnvType cnv4
     (Just "B") @=? cnvName cnv4
@@ -1484,6 +1488,7 @@ postRepeatConnectConvCancel = do
   where
     cancel u c = do
       g <- view tsGalley
+      let cnvId = qUnqualified . cnvQualifiedId
       put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u)
         !!! const 200 === statusCode
       getConv u (cnvId c) !!! const 403 === statusCode
@@ -1494,28 +1499,29 @@ putBlockConvOk = do
   alice <- randomUser
   bob <- randomUser
   conv <- responseJsonUnsafeWithMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
-  getConv alice (cnvId conv) !!! const 200 === statusCode
-  getConv bob (cnvId conv) !!! const 403 === statusCode
-  put (g . paths ["/i/conversations", toByteString' (cnvId conv), "block"] . zUser bob)
+  let convId = qUnqualified . cnvQualifiedId $ conv
+  getConv alice convId !!! const 200 === statusCode
+  getConv bob convId !!! const 403 === statusCode
+  put (g . paths ["/i/conversations", toByteString' convId, "block"] . zUser bob)
     !!! const 200 === statusCode
   -- A is still the only member of the 1-1
-  getConv alice (cnvId conv) !!! do
+  getConv alice convId !!! do
     const 200 === statusCode
     const (cnvMembers conv) === cnvMembers . responseJsonUnsafeWithMsg "conversation"
   -- B accepts the conversation by unblocking
-  put (g . paths ["/i/conversations", toByteString' (cnvId conv), "unblock"] . zUser bob)
+  put (g . paths ["/i/conversations", toByteString' convId, "unblock"] . zUser bob)
     !!! const 200 === statusCode
-  getConv bob (cnvId conv) !!! const 200 === statusCode
+  getConv bob convId !!! const 200 === statusCode
   -- B blocks A in the 1-1
-  put (g . paths ["/i/conversations", toByteString' (cnvId conv), "block"] . zUser bob)
+  put (g . paths ["/i/conversations", toByteString' convId, "block"] . zUser bob)
     !!! const 200 === statusCode
   -- B no longer sees the 1-1
-  getConv bob (cnvId conv) !!! const 403 === statusCode
+  getConv bob convId !!! const 403 === statusCode
   -- B unblocks A in the 1-1
-  put (g . paths ["/i/conversations", toByteString' (cnvId conv), "unblock"] . zUser bob)
+  put (g . paths ["/i/conversations", toByteString' convId, "unblock"] . zUser bob)
     !!! const 200 === statusCode
   -- B sees the blocked 1-1 again
-  getConv bob (cnvId conv) !!! do
+  getConv bob convId !!! do
     const 200 === statusCode
 
 getConvOk :: TestM ()
@@ -1558,7 +1564,7 @@ leaveConnectConversation = do
   alice <- randomUser
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
-  let c = fromMaybe (error "invalid connect conversation") (cnvId <$> responseJsonUnsafe bdy)
+  let c = fromMaybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId <$> responseJsonUnsafe bdy)
   deleteMember alice alice c !!! const 403 === statusCode
 
 -- FUTUREWORK: Add more tests for scenarios of federation.
@@ -1622,7 +1628,7 @@ testGetRemoteConversations = do
       bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
       mockConversation =
         Conversation
-          { cnvId = convId,
+          { cnvQualifiedId = remoteConvId,
             cnvType = RegularConv,
             cnvCreator = alice,
             cnvAccess = [],
@@ -1663,7 +1669,7 @@ testGetRemoteConversations = do
   convs :: ConversationList Conversation <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do
     let expected = mockConversation
-    let actual = find ((== convId) . cnvId) (convList convs)
+    let actual = find ((== remoteConvId) . cnvQualifiedId) (convList convs)
     assertEqual
       "name mismatch"
       (Just $ cnvName expected)

@@ -18,6 +18,8 @@
 
 ## API Changes
 
+* All endpoints that fetch conversation details now also include a new key
+  `qualified_id` for a qualified conversation ID (#1640)
 * New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
 
 ## Features
@@ -29,6 +31,9 @@
 ## Internal changes
 
 * Team feature endpoints are rewritten in Servant (#1642).
+* Internal federation endpoints using the publicly-facing conversation data type
+  now also include a qualified conversation ID under the `qualified_id` key
+  (#1640)
 * schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
 * [Federation] Let a receiving backend decide conversation attribute specifics of its users
   added to a new conversation via `POST /federation/register-conversation` (#1622).
