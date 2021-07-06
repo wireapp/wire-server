@@ -375,6 +375,7 @@ sendRemoteMessages ::
   Map (UserId, ClientId) ByteString ->
   Galley (Set (UserId, ClientId))
 sendRemoteMessages domain now sender senderClient conv metadata messages = (>>= handle) . runExceptT $ do
+  localDomain <- viewFederationDomain
   let rcpts =
         foldr
           (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
@@ -392,7 +393,8 @@ sendRemoteMessages domain now sender senderClient conv metadata messages = (>>= 
             FederatedGalley.rmTransient = mmTransient metadata,
             FederatedGalley.rmRecipients = UserClientMap rcpts
           }
-  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes rm
+  -- TODO: we should not need to pass the local domain to the RPC
+  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes localDomain rm
   executeFederated domain rpc
   where
     handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
