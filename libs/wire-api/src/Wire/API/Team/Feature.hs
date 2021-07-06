@@ -162,7 +162,6 @@ data TeamFeatureStatusValue
   deriving (Arbitrary) via (GenericUniform TeamFeatureStatusValue)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusValue)
 
--- TODO: Delete!
 typeTeamFeatureStatusValue :: Doc.DataType
 typeTeamFeatureStatusValue =
   Doc.string $
@@ -206,7 +205,6 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
--- TODO: Delete!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
 modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
@@ -224,7 +222,6 @@ newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
   deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusNoConfig)
 
--- TODO: Delete
 modelTeamFeatureStatusNoConfig :: Doc.Model
 modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
   Doc.description "Configuration for a team feature that has no configuration"
@@ -251,7 +248,6 @@ data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
 instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
   arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary
 
--- TODO: Delete
 modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
 modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
   Doc.description $ "Status and config of " <> cs (show name)
@@ -292,7 +288,6 @@ newtype EnforceAppLock = EnforceAppLock Bool
 instance ToSchema EnforceAppLock where
   schema = EnforceAppLock <$> (\(EnforceAppLock v) -> v) .= schema
 
--- TODO: delete
 modelTeamFeatureAppLockConfig :: Doc.Model
 modelTeamFeatureAppLockConfig =
   Doc.defineModel "TeamFeatureAppLockConfig" $ do
