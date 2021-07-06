@@ -34,7 +34,7 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
@@ -155,12 +155,12 @@ data Api routes = Api
         :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
-    -- FUTUREWORK: errorResponse Error.notConnected
-    --             errorResponse Error.notATeamMember
+    -- FUTUREWORK: errorResponse Error.notATeamMember
     --             errorResponse (Error.operationDenied Public.CreateConversation)
     getConversationByReusableCode ::
       routes
         :- Summary "Get limited conversation information by key/code pair"
+        :> CanThrow NotConnected
         :> ZUser
         :> "conversations"
         :> "join"
