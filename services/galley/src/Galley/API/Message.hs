@@ -293,7 +293,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
           (qmMissing mismatch)
     case guardResult of
       Left _ -> throwError FederatedGalley.MessageNotSentLegalhold
-      Right () -> pure ()
+      Right () -> throwError $ FederatedGalley.MessageNotSentClientMissing otrResult
 
   failedToSend <-
     lift $
