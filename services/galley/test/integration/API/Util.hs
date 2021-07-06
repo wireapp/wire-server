@@ -39,8 +39,10 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
+import Data.Data (Proxy (Proxy))
 import Data.Domain
 import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
@@ -61,7 +63,6 @@ import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Read as Reader
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Galley.Intra.User (chunkify)
@@ -85,8 +86,13 @@ import Gundeck.Types.Notification
     queuedTime,
   )
 import Imports
-import qualified Proto.Otr
-import qualified Proto.Otr_Fields as Proto.Otr
+import Network.HTTP.Types (methodPost, status200)
+import Network.Wai (Application, defaultRequest)
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Test as Test
+import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
+import Servant.API.Generic (ToServantApi)
+import Servant.Server.Generic (AsServerT, genericServerT)
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -101,10 +107,13 @@ import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
 import qualified Wire.API.Event.Team as TE
+import qualified Wire.API.Federation.API.Brig as FederatedBrig
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Domain (domainHeaderName)
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
-import qualified Wire.API.Message as Message
+import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
@@ -643,18 +652,19 @@ postOtrMessage' reportMissing f u d c rec = do
       . json (mkOtrPayload d rec reportMissing)
 
 postProteusMessageQualifiedWithMockFederator ::
-  (ToJSON a) =>
   UserId ->
   ClientId ->
   Qualified ConvId ->
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
-  Message.ClientMismatchStrategy ->
-  (FederatedRequest -> a) ->
+  ClientMismatchStrategy ->
+  FederatedBrig.Api (AsServerT Handler) ->
+  FederatedGalley.Api (AsServerT Handler) ->
   TestM (ResponseLBS, Mock.ReceivedRequests)
-postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat responses = do
+postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
+  localDomain <- viewFederationDomain
   opts <- view tsGConf
-  withTempMockFederator opts (Domain "far-away.example.com") responses $
+  withTempServantMockFederator opts brigApi galleyApi localDomain (Domain "far-away.example.com") $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -664,7 +674,7 @@ postProteusMessageQualified ::
   Qualified ConvId ->
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
-  Message.ClientMismatchStrategy ->
+  ClientMismatchStrategy ->
   m ResponseLBS
 postProteusMessageQualified senderUser senderClient (Qualified conv domain) recipients dat strat = do
   g <- viewGalley
@@ -704,86 +714,6 @@ mkOtrPayload sender rec reportMissingBody =
       "data" .= Just ("data" :: Text),
       "report_missing" .= reportMissingBody
     ]
-
-mkQualifiedOtrPayload :: ClientId -> [(Qualified UserId, ClientId, ByteString)] -> ByteString -> Message.ClientMismatchStrategy -> Proto.Otr.QualifiedNewOtrMessage
-mkQualifiedOtrPayload sender recipients dat strat =
-  Protolens.defMessage
-    & Proto.Otr.sender .~ clientIdToProto sender
-    & Proto.Otr.recipients .~ mkQualifiedUserEntries recipients
-    & Proto.Otr.blob .~ dat
-    & ( case strat of
-          Message.MismatchIgnoreAll -> Proto.Otr.ignoreAll .~ Protolens.defMessage
-          Message.MismatchReportAll -> Proto.Otr.reportAll .~ Protolens.defMessage
-          Message.MismatchIgnoreOnly quids ->
-            Proto.Otr.ignoreOnly
-              .~ ( Protolens.defMessage
-                     & Proto.Otr.userIds .~ map qualifiedUserIdToProto (Set.toList quids)
-                 )
-          Message.MismatchReportOnly quids ->
-            Proto.Otr.reportOnly
-              .~ ( Protolens.defMessage
-                     & Proto.Otr.userIds .~ map qualifiedUserIdToProto (Set.toList quids)
-                 )
-      )
-
-clientIdToProto :: ClientId -> Proto.Otr.ClientId
-clientIdToProto cid =
-  Protolens.defMessage
-    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ client cid)
-
-userIdToProto :: UserId -> Proto.Otr.UserId
-userIdToProto uid =
-  Protolens.defMessage
-    & Proto.Otr.uuid .~ Lazy.toStrict (UUID.toByteString (toUUID uid))
-
-qualifiedUserIdToProto :: Qualified UserId -> Proto.Otr.QualifiedUserId
-qualifiedUserIdToProto (Qualified uid domain) =
-  Protolens.defMessage
-    & Proto.Otr.id .~ idToText uid
-    & Proto.Otr.domain .~ domainText domain
-
-mkQualifiedUserEntries :: [(Qualified UserId, ClientId, ByteString)] -> [Proto.Otr.QualifiedUserEntry]
-mkQualifiedUserEntries = foldr addQualifiedRecipient []
-  where
-    addQualifiedRecipient :: (Qualified UserId, ClientId, ByteString) -> [Proto.Otr.QualifiedUserEntry] -> [Proto.Otr.QualifiedUserEntry]
-    addQualifiedRecipient (quid, cid, msg) entries =
-      let (currentDomainEntries, rest) = partition (\e -> domainText (qDomain quid) == view Proto.Otr.domain e) entries
-          newCurrentDomainEntry = case currentDomainEntries of
-            [] ->
-              Protolens.defMessage
-                & Proto.Otr.domain .~ domainText (qDomain quid)
-                & Proto.Otr.entries .~ addEntry (qUnqualified quid) cid msg []
-            [currentDomainEntry] -> currentDomainEntry & over Proto.Otr.entries (addEntry (qUnqualified quid) cid msg)
-            xs -> error $ "There should be only one entry per domain, found: " <> show xs
-       in newCurrentDomainEntry : rest
-
-    addEntry :: UserId -> ClientId -> ByteString -> [Proto.Otr.UserEntry] -> [Proto.Otr.UserEntry]
-    addEntry uid cid msg entries =
-      let (currentUserEntries, rest) = partition (\e -> userIdToProto uid == view Proto.Otr.user e) entries
-          newCurrentUserEntry = case currentUserEntries of
-            [] ->
-              Protolens.defMessage
-                & Proto.Otr.user .~ userIdToProto uid
-                & Proto.Otr.clients .~ [newClientEntry cid msg]
-            [currentUserEntry] -> currentUserEntry & Proto.Otr.clients <>~ [newClientEntry cid msg]
-            xs -> error $ "There should be only one entry per user, found: " <> show xs
-       in newCurrentUserEntry : rest
-
-    newClientEntry :: ClientId -> ByteString -> Proto.Otr.ClientEntry
-    newClientEntry cid msg =
-      Protolens.defMessage
-        & Proto.Otr.client .~ clientIdToProto cid
-        & Proto.Otr.text .~ msg
-
-mkUserEntry :: (UserId, ClientId, ByteString) -> Proto.Otr.UserEntry
-mkUserEntry (uid, cid, txt) =
-  Protolens.defMessage
-    & Proto.Otr.user .~ userIdToProto uid
-    & Proto.Otr.clients
-      .~ [ Protolens.defMessage
-             & Proto.Otr.client .~ clientIdToProto cid
-             & Proto.Otr.text .~ txt
-         ]
 
 mkOtrMessage :: (UserId, ClientId, Text) -> (Text, HashMap.HashMap Text Text)
 mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
@@ -827,7 +757,7 @@ postProtoOtrBroadcast' reportMissing modif u d rec = do
 
 mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [UserId] -> Proto.NewOtrMessage
 mkOtrProtoMessage sender rec reportMissing =
-  let rcps = Message.protoFromOtrRecipients rec
+  let rcps = protoFromOtrRecipients rec
       sndr = Proto.fromClientId sender
       rmis = Proto.fromUserId <$> fromMaybe [] reportMissing
    in Proto.newOtrMessage sndr rcps
@@ -1709,11 +1639,14 @@ assertMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
   Assertions ()
-assertMismatchQualified missing redundant deleted = do
-  assertExpected "missing" missing (fmap Message.mssMissingClients . responseJsonMaybe)
-  assertExpected "redundant" redundant (fmap Message.mssRedundantClients . responseJsonMaybe)
-  assertExpected "deleted" deleted (fmap Message.mssDeletedClients . responseJsonMaybe)
+assertMismatchQualified failedToSend missing redundant deleted = do
+  assertExpected "failed to send" failedToSend (fmap mssFailedToSend . responseJsonMaybe)
+  assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
+  assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
+
+  assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
 
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap
@@ -1974,8 +1907,20 @@ withTempMockFederator ::
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action = assertRightT
-  . Mock.withTempMockFederator st0 (pure . oresp)
+withTempMockFederator opts targetDomain resp action =
+  withTempMockFederator' opts targetDomain (pure . oresp) action
+  where
+    oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
+
+withTempMockFederator' ::
+  (MonadIO m, HasGalley m, MonadMask m) =>
+  Opts.Opts ->
+  Domain ->
+  (FederatedRequest -> IO F.OutwardResponse) ->
+  SessionT m b ->
+  m (b, Mock.ReceivedRequests)
+withTempMockFederator' opts targetDomain resp action = assertRightT
+  . Mock.withTempMockFederator st0 (lift . resp)
   $ \st -> lift $ do
     let opts' =
           opts & Opts.optFederator
@@ -1983,7 +1928,63 @@ withTempMockFederator opts targetDomain resp action = assertRightT
     withSettingsOverrides opts' action
   where
     st0 = Mock.initState targetDomain (Domain "example.com")
-    oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
+
+withTempServantMockFederator ::
+  (MonadMask m, MonadIO m, HasGalley m) =>
+  Opts.Opts ->
+  FederatedBrig.Api (AsServerT Handler) ->
+  FederatedGalley.Api (AsServerT Handler) ->
+  Domain ->
+  Domain ->
+  SessionT m b ->
+  m (b, Mock.ReceivedRequests)
+withTempServantMockFederator opts brigApi galleyApi originDomain targetDomain =
+  withTempMockFederator' opts targetDomain mock
+  where
+    server :: ServerT (ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) Handler
+    server = genericServerT brigApi :<|> genericServerT galleyApi
+
+    mock :: F.FederatedRequest -> IO F.OutwardResponse
+    mock = makeFedRequestToServant @(ToServantApi FederatedBrig.Api :<|> ToServantApi FederatedGalley.Api) originDomain server
+
+makeFedRequestToServant ::
+  forall (api :: *).
+  HasServer api '[] =>
+  Domain ->
+  Server api ->
+  F.FederatedRequest ->
+  IO F.OutwardResponse
+makeFedRequestToServant originDomain server fedRequest =
+  Test.runSession session app
+  where
+    app :: Application
+    app = serve (Proxy @api) server
+
+    session :: Test.Session F.OutwardResponse
+    session = do
+      let req = fromMaybe (error "no request") (F.request fedRequest)
+      response <-
+        Test.srequest
+          ( Test.SRequest
+              (toRequestWithoutBody req)
+              (cs . F.body $ req)
+          )
+      if Test.simpleStatus response == status200
+        then pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
+        else do
+          pure (F.OutwardResponseError (F.OutwardError F.RemoteFederatorError (Just (F.ErrorPayload "mock-error" (cs (Test.simpleBody response))))))
+
+    toRequestWithoutBody :: F.Request -> Wai.Request
+    toRequestWithoutBody req =
+      defaultRequest
+        { Wai.requestMethod = methodPost,
+          Wai.pathInfo = fmap cs . drop 1 . C.split '/' . F.path $ req,
+          Wai.requestHeaders =
+            [ (CI.mk "Content-Type", "application/json"),
+              (CI.mk "Accept", "application/json"),
+              (domainHeaderName, cs . domainText $ originDomain)
+            ]
+        }
 
 assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
 assertRight = \case

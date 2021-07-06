@@ -187,6 +187,7 @@ executables:
     - random
     - retry
     - servant
+    - servant-server
     - servant-swagger
     - servant-client
     - servant-client-core

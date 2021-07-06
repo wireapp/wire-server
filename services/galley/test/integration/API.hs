@@ -38,6 +38,7 @@ import Brig.Types
 import qualified Cassandra as Cql
 import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
+import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -63,6 +64,9 @@ import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
 import Imports
 import Network.Wai.Utilities.Error
+import Servant (ServerError (errBody), err501, err503)
+import Servant.Server (Handler)
+import Servant.Server.Generic (AsServerT)
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -74,6 +78,7 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
 import Wire.API.User.Client (QualifiedUserClients (..), UserClientPrekeyMap, getUserClientPrekeyMap)
@@ -163,6 +168,7 @@ tests s =
           test s "post message qualified - local owning backend - missing clients" postMessageQualifiedLocalOwningBackendMissingClients,
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
+          test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
           test s "post message qualified - remote owning backend - not implemented" postMessageQualifiedRemoteOwningBackendNotImplemented,
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
@@ -172,6 +178,31 @@ tests s =
           test s "cannot join private conversation" postJoinConvFail,
           test s "remove user" removeUser
         ]
+
+emptyFederatedBrig :: FederatedBrig.Api (AsServerT Handler)
+emptyFederatedBrig =
+  let e :: Text -> Handler a
+      e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
+   in FederatedBrig.Api
+        { FederatedBrig.getUserByHandle = \_ -> e "getUserByHandle",
+          FederatedBrig.getUsersByIds = \_ -> e "getUsersByIds",
+          FederatedBrig.claimPrekey = \_ -> e "claimPrekey",
+          FederatedBrig.claimPrekeyBundle = \_ -> e "claimPrekeyBundle",
+          FederatedBrig.claimMultiPrekeyBundle = \_ -> e "claimMultiPrekeyBundle",
+          FederatedBrig.searchUsers = \_ -> e "searchUsers",
+          FederatedBrig.getUserClients = \_ -> e "getUserClients"
+        }
+
+emptyFederatedGalley :: FederatedGalley.Api (AsServerT Handler)
+emptyFederatedGalley =
+  let e :: Text -> Handler a
+      e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
+   in FederatedGalley.Api
+        { FederatedGalley.registerConversation = \_ -> e "registerConversation",
+          FederatedGalley.getConversations = \_ -> e "getConversations",
+          FederatedGalley.updateConversationMemberships = \_ -> e "updateConversationMemberships",
+          FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage"
+        }
 
 -------------------------------------------------------------------------------
 -- API Tests
@@ -471,27 +502,31 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             (chadOwningDomain, chadClient, "text-for-chad"),
             (deeRemote, deeClient, "text-for-dee")
           ]
-    -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent.
-    let responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \_ ->
+                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+            }
+        galleyApi =
+          emptyFederatedGalley
+            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            }
+
+    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
+
     liftIO $ do
-      requests
-        @?= [ F.FederatedRequest
-                { F.domain = domainText (qDomain deeRemote),
-                  F.request =
-                    Just
-                      ( F.Request
-                          { F.component = F.Brig,
-                            F.path = "/federation/get-user-clients",
-                            F.body = cs (encode (FederatedBrig.GetUserClients [qUnqualified deeRemote])),
-                            F.originDomain = domainText owningDomain
-                          }
-                      )
-                }
+      let expectedRequests =
+            [ (F.Brig, "get-user-clients"),
+              (F.Galley, "receive-message")
             ]
+      forM_ (zip requests expectedRequests) $ \(req, (component, rpcPath)) -> do
+        F.domain req @?= domainText (qDomain deeRemote)
+        fmap F.component (F.request req) @?= Just component
+        fmap F.path (F.request req) @?= Just ("/federation/" <> rpcPath)
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"
           encodedData = toBase64Text "data"
@@ -532,8 +567,14 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
   -- FUTUREWORK: Mock federator and ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    let responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \_ ->
+                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+            }
+        galleyApi = emptyFederatedGalley
+
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
 
     pure resp2 !!! do
       const 412 === statusCode
@@ -550,7 +591,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
                     Map.singleton (qUnqualified deeRemote) (Set.singleton deeClient)
                   )
                 ]
-      assertMismatchQualified expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
 -- | Sets up a conversation on Backend A known as "owning backend". One of the
@@ -597,25 +638,23 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
             (nonMemberOwningDomain, nonMemberOwningDomainClient, "text-for-non-member-owning-domain"),
             (nonMemberRemote, nonMemberRemoteClient, "text-for-non-member-remote")
           ]
+
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \getUserClients ->
+                let lookupClients uid
+                      | uid == deeRemoteUnqualified = Just (uid, Set.fromList [PubClient deeClient Nothing])
+                      | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
+                      | otherwise = Nothing
+                 in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ FederatedBrig.gucUsers getUserClients
+            }
+        galleyApi =
+          emptyFederatedGalley
+            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            }
 
-    let responses fedRequest =
-          let request = fromMaybe (error "no request") $ F.request fedRequest
-              lookupClients uid
-                | uid == deeRemoteUnqualified = Just (uid, [PubClient deeClient Nothing])
-                | uid == nonMemberRemoteUnqualified = Just (uid, [PubClient nonMemberRemoteClient Nothing])
-                | otherwise = Nothing
-           in case F.path request of
-                "/federation/get-user-clients" ->
-                  let (getUserClients :: FederatedBrig.GetUserClients) = fromMaybe (error "parsing GetUserClients") $ decode (cs . F.body $ request)
-                   in UserMap
-                        . Map.fromList
-                        . mapMaybe lookupClients
-                        . FederatedBrig.gucUsers
-                        $ getUserClients
-                _ -> error ("unmocked request: " <> show request)
-
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll responses
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
       let expectedRedundant =
@@ -634,7 +673,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           expectedDeleted =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClientNonExistent)]
-      assertMismatchQualified mempty expectedRedundant expectedDeleted
+      assertMismatchQualified mempty mempty expectedRedundant expectedDeleted
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"
           encodedTextForChad = toBase64Text "text-for-chad"
@@ -676,17 +715,22 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
-      responses _ = UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+
+  let brigApi =
+        emptyFederatedBrig
+          { FederatedBrig.getUserClients = \_ -> pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+          }
+      galleyApi = emptyFederatedGalley
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll responses
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -694,10 +738,10 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
 
   -- Another way to ignore all is to report nobody
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) responses
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) brigApi galleyApi
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -713,10 +757,11 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         message
         "data"
         (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote]))
-        responses
+        brigApi
+        galleyApi
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified mempty mempty mempty
+      assertMismatchQualified mempty mempty mempty mempty
     let encodedTextForChad = toBase64Text "text-for-chad"
         encodedData = toBase64Text "data"
     WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
@@ -733,13 +778,15 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         message
         "data"
         (Message.MismatchReportOnly (Set.fromList [chadOwningDomain]))
-        responses
+        brigApi
+        galleyApi
     pure resp2 !!! do
       const 412 === statusCode
       let expectedMissing =
             QualifiedUserClients . Map.singleton owningDomain . Map.fromList $
               [(chadUnqualified, Set.singleton chadClient2)]
-      assertMismatchQualified expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty
+
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
 
   -- Same as above, but with a remote user's client
@@ -752,14 +799,82 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         message
         "data"
         (Message.MismatchReportOnly (Set.fromList [deeRemote]))
-        responses
+        brigApi
+        galleyApi
     pure resp2 !!! do
       const 412 === statusCode
       let expectedMissing =
             QualifiedUserClients . Map.singleton remoteDomain . Map.fromList $
               [(qUnqualified deeRemote, Set.singleton deeClient)]
-      assertMismatchQualified expectedMissing mempty mempty
+      assertMismatchQualified mempty expectedMissing mempty mempty
     WS.assertNoEvent (1 # Second) [wsBob, wsChad]
+
+postMessageQualifiedLocalOwningBackendFailedToSendClients :: TestM ()
+postMessageQualifiedLocalOwningBackendFailedToSendClients = do
+  -- WS receive timeout
+  let t = 5 # Second
+  -- Cannon for local users
+  cannon <- view tsCannon
+  -- Domain which owns the converstaion
+  owningDomain <- viewFederationDomain
+
+  (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (bobOwningDomain, bobClient) <- randomUserWithClientQualified (someLastPrekeys !! 1)
+  bobClient2 <- randomClient (qUnqualified bobOwningDomain) (someLastPrekeys !! 2)
+  (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
+  deeId <- randomId
+  deeClient <- liftIO $ generate arbitrary
+  let remoteDomain = Domain "far-away.example.com"
+      deeRemote = Qualified deeId remoteDomain
+
+  let aliceUnqualified = qUnqualified aliceOwningDomain
+      bobUnqualified = qUnqualified bobOwningDomain
+      chadUnqualified = qUnqualified chadOwningDomain
+
+  connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
+
+  -- FUTUREWORK: Do this test with more than one remote domains
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile deeRemote (Name "Dee")) aliceUnqualified [bobOwningDomain, chadOwningDomain, deeRemote]
+  let convId = (`Qualified` owningDomain) . decodeConvId $ resp
+
+  WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
+    let message =
+          [ (bobOwningDomain, bobClient, "text-for-bob"),
+            (bobOwningDomain, bobClient2, "text-for-bob2"),
+            (chadOwningDomain, chadClient, "text-for-chad"),
+            (deeRemote, deeClient, "text-for-dee")
+          ]
+
+    let brigApi =
+          emptyFederatedBrig
+            { FederatedBrig.getUserClients = \_ ->
+                pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+            }
+        galleyApi =
+          emptyFederatedGalley
+            { FederatedGalley.receiveMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+            }
+
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+
+    let expectedFailedToSend =
+          QualifiedUserClients . Map.fromList $
+            [ ( remoteDomain,
+                Map.fromList
+                  [ (deeId, Set.singleton deeClient)
+                  ]
+              )
+            ]
+    pure resp2 !!! do
+      const 201 === statusCode
+      assertMismatchQualified expectedFailedToSend mempty mempty mempty
+
+    liftIO $ do
+      let encodedTextForBob = toBase64Text "text-for-bob"
+          encodedTextForChad = toBase64Text "text-for-chad"
+          encodedData = toBase64Text "data"
+      WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
+      WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
 
 postMessageQualifiedRemoteOwningBackendNotImplemented :: TestM ()
 postMessageQualifiedRemoteOwningBackendNotImplemented = do
