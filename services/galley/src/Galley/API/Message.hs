@@ -24,6 +24,7 @@ import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
+import Extra (eitherM)
 import Galley.API.Error (missingLegalholdConsent)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
@@ -286,14 +287,14 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus nowMillis mismatch mempty
   unless sendMessage $ do
-    guardResult <-
-      lift $
-        guardQualifiedLegalholdPolicyConflicts
-          (qualifiedUserToProtectee localDomain senderType sender)
-          (qmMissing mismatch)
-    case guardResult of
-      Left _ -> throwError FederatedGalley.MessageNotSentLegalhold
-      Right () -> throwError $ FederatedGalley.MessageNotSentClientMissing otrResult
+    let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
+        missingClients = qmMissing mismatch
+        legalholdErr = pure FederatedGalley.MessageNotSentLegalhold
+        clientMissingErr = pure $ FederatedGalley.MessageNotSentClientMissing otrResult
+    guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
+      & eitherM (const legalholdErr) (const clientMissingErr)
+      & lift
+      >>= throwError
 
   failedToSend <-
     lift $
