@@ -32,6 +32,7 @@ import Data.Schema (ToSchema)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
+import Network.Wai.Utilities (label)
 import Test.Tasty
 import Test.Tasty.HUnit ((@?=))
 import TestHelpers (test)
@@ -55,6 +56,7 @@ testSSO :: TestM ()
 testSSO = do
   owner <- Util.randomUser
   member <- Util.randomUser
+  nonMember <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
@@ -65,6 +67,9 @@ testSSO = do
       getSSOInternal = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       setSSOInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
+
+  assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureSSO nonMember tid
+
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
   case featureSSO of
     FeatureSSODisabledByDefault -> do
@@ -86,6 +91,7 @@ testLegalHold :: TestM ()
 testLegalHold = do
   owner <- Util.randomUser
   member <- Util.randomUser
+  nonMember <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
@@ -99,6 +105,8 @@ testLegalHold = do
       setLegalHoldInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
   getLegalHold Public.TeamFeatureDisabled
   getLegalHoldInternal Public.TeamFeatureDisabled
+
+  assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold nonMember tid
 
   -- FUTUREWORK: run two galleys, like below for custom search visibility.
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
@@ -125,6 +133,7 @@ testSearchVisibility :: TestM ()
 testSearchVisibility = do
   owner <- Util.randomUser
   member <- Util.randomUser
+  nonMember <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
@@ -156,6 +165,8 @@ testSearchVisibility = do
         Public.TeamFeatureStatusValue ->
         m ()
       setTeamSearchVisibilityInternal = Util.putTeamSearchVisibilityAvailableInternal g
+
+  assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureSearchVisibility nonMember tid
 
   tid2 <- Util.createNonBindingTeam "foo" owner []
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
@@ -273,6 +284,7 @@ testSimpleFlag = do
   let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
   member <- Util.randomUser
+  nonMember <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
@@ -289,6 +301,8 @@ testSimpleFlag = do
       setFlagInternal statusValue =
         Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
+  assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
+
   -- Disabled by default
   getFlag Public.TeamFeatureDisabled
   getFlagInternal Public.TeamFeatureDisabled
@@ -297,6 +311,12 @@ testSimpleFlag = do
   setFlagInternal Public.TeamFeatureEnabled
   getFlag Public.TeamFeatureEnabled
   getFlagInternal Public.TeamFeatureEnabled
+
+assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
+assertFlagForbidden res = do
+  res !!! do
+    statusCode === const 403
+    fmap label . responseJsonMaybe === const (Just "no-team-member")
 
 assertFlagNoConfig ::
   forall (a :: Public.TeamFeatureName).

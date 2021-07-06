@@ -30,6 +30,7 @@
 
 ## Internal changes
 
+* Team feature endpoints are rewritten in Servant (#1642).
 * Internal federation endpoints using the publicly-facing conversation data type
   now also include a qualified conversation ID under the `qualified_id` key
   (#1640)

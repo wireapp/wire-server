@@ -67,8 +67,8 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- by ghc errors:
 --
 -- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs:198 (calls to 'testRoundTrip')
--- * services/galley/src/Galley/API/Internal.hs:179: (calls to 'mkFeatureGetAndPutRoute')
--- * services/galley/src/Galley/API/Public.hs:465: (calls to 'mkFeatureGetAndPutRoute')
+-- * services/galley/src/Galley/API/Internal.hs:179: (add a field to the 'InternalApi routes' record)
+-- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs (add a field to the 'Api routes' record)
 -- * services/galley/src/Galley/API/Teams/Features.hs:106: (calls to 'getStatus')
 --
 -- Using something like '[minBound..]' on those expressions would require dependent types.  We
@@ -240,7 +240,7 @@ newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
 -- TODO: Delete
 modelTeamFeatureStatusNoConfig :: Doc.Model
 modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
-  Doc.description "Configuration for a team feature that has no configuration"
+  Doc.description "Team feature that has no configuration beyond the boolean on/off switch."
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
 instance ToSchema TeamFeatureStatusNoConfig where
@@ -252,8 +252,10 @@ instance ToSchema TeamFeatureStatusNoConfig where
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
 
--- | FUTUREWORK: Does it ever happen that there is a config for a disabled
--- feature? If not this type should be made isomorphic to 'Maybe cfg'.
+-- | The support for disabled features with configs is intentional:
+-- for instance, we want to be able to keep the config of a feature
+-- that is turned on and off occasionally, and so not force the admin
+-- to recreate the config every time it's turned on.
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   { tfwcStatus :: TeamFeatureStatusValue,
     tfwcConfig :: cfg
