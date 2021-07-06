@@ -33,11 +33,6 @@ module Wire.API.Team.Feature
 
     -- * Swagger
     typeTeamFeatureName,
-    typeTeamFeatureStatusValue,
-    modelTeamFeatureStatusNoConfig,
-    modelTeamFeatureStatusWithConfig,
-    modelTeamFeatureAppLockConfig,
-    modelForTeamFeature,
   )
 where
 
@@ -63,8 +58,8 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- by ghc errors:
 --
 -- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs:198 (calls to 'testRoundTrip')
--- * services/galley/src/Galley/API/Internal.hs:179: (calls to 'mkFeatureGetAndPutRoute')
--- * services/galley/src/Galley/API/Public.hs:465: (calls to 'mkFeatureGetAndPutRoute')
+-- * services/galley/src/Galley/API/Internal.hs:179: (add a field to the 'InternalApi routes' record)
+-- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs (add a field to the 'Api routes' record)
 -- * services/galley/src/Galley/API/Teams/Features.hs:106: (calls to 'getStatus')
 --
 -- Using something like '[minBound..]' on those expressions would require dependent types.  We
@@ -162,15 +157,6 @@ data TeamFeatureStatusValue
   deriving (Arbitrary) via (GenericUniform TeamFeatureStatusValue)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusValue)
 
--- TODO: Delete!
-typeTeamFeatureStatusValue :: Doc.DataType
-typeTeamFeatureStatusValue =
-  Doc.string $
-    Doc.enum
-      [ "enabled",
-        "disabled"
-      ]
-
 instance ToSchema TeamFeatureStatusValue where
   schema =
     enum @Text "TeamFeatureStatusValue" $
@@ -205,16 +191,6 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
--- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
--- TODO: Delete!
-modelForTeamFeature :: TeamFeatureName -> Doc.Model
-modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
-modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
-
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
 
@@ -223,12 +199,6 @@ newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
   }
   deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureStatusNoConfig)
-
--- TODO: Delete
-modelTeamFeatureStatusNoConfig :: Doc.Model
-modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
-  Doc.description "Configuration for a team feature that has no configuration"
-  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
 instance ToSchema TeamFeatureStatusNoConfig where
   schema =
@@ -250,13 +220,6 @@ data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
 
 instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
   arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary
-
--- TODO: Delete
-modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
-modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
-  Doc.description $ "Status and config of " <> cs (show name)
-  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
-  Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
   schema =
@@ -291,13 +254,6 @@ newtype EnforceAppLock = EnforceAppLock Bool
 
 instance ToSchema EnforceAppLock where
   schema = EnforceAppLock <$> (\(EnforceAppLock v) -> v) .= schema
-
--- TODO: delete
-modelTeamFeatureAppLockConfig :: Doc.Model
-modelTeamFeatureAppLockConfig =
-  Doc.defineModel "TeamFeatureAppLockConfig" $ do
-    Doc.property "enforceAppLock" Doc.bool' $ Doc.description "enforceAppLock"
-    Doc.property "inactivityTimeoutSecs" Doc.int32' $ Doc.description ""
 
 defaultAppLockStatus :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
 defaultAppLockStatus =
