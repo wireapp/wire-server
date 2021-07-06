@@ -67,7 +67,7 @@ import Servant.API (IsMember, Union, inject)
 import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
-import Wire.API.ErrorDescription (convNotFound, notConnected)
+import Wire.API.ErrorDescription (convNotFound, notConnected, operationDenied)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
@@ -165,7 +165,7 @@ permissionCheck p = \case
   Just m -> do
     if m `hasPermission` p
       then pure m
-      else throwM (operationDenied p)
+      else throwErrorDescription (operationDenied p)
   Nothing -> throwM notATeamMember
 
 assertTeamExists :: TeamId -> Galley ()

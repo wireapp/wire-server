@@ -125,7 +125,7 @@ sitemap = do
     body (ref Public.modelUpdateData) $
       description "JSON body"
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.SetTeamData)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetTeamData))
 
   get "/teams" (continue Teams.getManyTeamsH) $
     zauthUserId
@@ -173,7 +173,7 @@ sitemap = do
       description "JSON body, required only for binding teams."
     response 202 "Team is scheduled for removal" end
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.DeleteTeam)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.DeleteTeam))
     errorResponse Error.deleteQueueFull
     errorResponse Error.reAuthFailed
     errorResponse Error.teamNotFound
@@ -302,7 +302,7 @@ sitemap = do
     body (ref Public.modelNewTeamMember) $
       description "JSON body"
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.AddTeamMember)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.AddTeamMember))
     errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse Error.invalidPermissions
     errorResponse Error.tooManyTeamMembers
@@ -325,7 +325,7 @@ sitemap = do
       description "JSON body, required only for binding teams."
     response 202 "Team member scheduled for deletion" end
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.RemoveTeamMember)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.RemoveTeamMember))
     errorResponse Error.reAuthFailed
 
   put "/teams/:tid/members" (continue Teams.updateTeamMemberH) $
@@ -342,7 +342,7 @@ sitemap = do
       description "JSON body"
     errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
-    errorResponse (Error.operationDenied Public.SetMemberPermissions)
+    errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetMemberPermissions))
 
   -- Team Legalhold API -------------------------------------------------
   --
