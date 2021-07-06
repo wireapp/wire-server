@@ -280,7 +280,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
 
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
-          (senderDomain, senderUser, qualifiedNewOtrSender msg)
+          (senderDomain, senderUser, senderClient)
           qualifiedClients
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
