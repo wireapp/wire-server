@@ -80,6 +80,7 @@ This release requires a manual change in your galley configuration: `settings.co
 
 * Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
   * Note: federation should not be in use anywhere yet, so this should not have any impact
+* Added golden tests for protobuf serialisation / deserialisation (#1644).
 
 ## Documentation
 
