@@ -27,7 +27,7 @@ import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id (ConvId, Id (..), newClientId, randomId)
-import Data.Json.Util (Base64ByteString (..))
+import Data.Json.Util (Base64ByteString (..), toBase64Text)
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -353,9 +353,8 @@ sendMessage = do
           assertEqual "failed to send should be empty" mempty (mssFailedToSend mss)
 
       -- check that alice received the message
-      when False $ do
-        WS.assertMatch_ (5 # Second) ws $
-          wsAssertOtr' "" conv bob bobClient aliceClient "hi alice"
+      WS.assertMatch_ (5 # Second) ws $
+        wsAssertOtr' "" conv bob bobClient aliceClient (toBase64Text "hi alice")
 
   -- check that a request to propagate message to chad has been made
   liftIO $ do
@@ -364,7 +363,7 @@ sendMessage = do
       _ -> assertFailure "unexpected number of requests"
     fmap F.component (F.request receiveReq) @?= Just F.Galley
     fmap F.path (F.request receiveReq) @?= Just "/federation/receive-message"
-    rm <- case (A.decode . LBS.fromStrict) =<< fmap F.body (F.request receiveReq) of
+    rm <- case A.decode . LBS.fromStrict . F.body =<< F.request receiveReq of
       Nothing -> assertFailure "invalid federated request body"
       Just x -> pure (x :: FedGalley.RemoteMessage ConvId)
     FedGalley.rmSender rm @?= bob
