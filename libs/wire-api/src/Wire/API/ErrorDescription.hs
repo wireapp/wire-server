@@ -17,6 +17,9 @@ import Wire.API.ServantSwagger
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
+--
+-- This type can also be added to an endpoint to document a possible failure
+-- case outside its return type (usually through an exception).
 data ErrorDescription (statusCode :: Nat) (desc :: Symbol) = ErrorDescription
   { label :: !Text,
     message :: !Text
@@ -89,3 +92,8 @@ type ClientNotFound = ErrorDescription 404 "Client not found"
 
 clientNotFound :: ClientNotFound
 clientNotFound = ErrorDescription "client-not-found" "client not found"
+
+type NotConnected = ErrorDescription 403 "Users are not connected"
+
+notConnected :: NotConnected
+notConnected = ErrorDescription "not-connected" "Users are not connected"

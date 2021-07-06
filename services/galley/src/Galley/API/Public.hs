@@ -58,6 +58,7 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Conversation.Typing as Public
 import qualified Wire.API.CustomBackend as Public
+import qualified Wire.API.ErrorDescription as Error
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
@@ -150,7 +151,7 @@ sitemap = do
     body (ref Public.modelNewNonBindingTeam) $
       description "JSON body"
     response 201 "Team ID as `Location` header value" end
-    errorResponse Error.notConnected
+    errorResponse (Error.errorDescriptionToWai Error.notConnected)
 
   put "/teams/:tid" (continue Teams.updateTeamH) $
     zauthUserId
@@ -343,7 +344,7 @@ sitemap = do
       description "JSON body"
     errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied Public.AddTeamMember)
-    errorResponse Error.notConnected
+    errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse Error.invalidPermissions
     errorResponse Error.tooManyTeamMembers
 
@@ -535,7 +536,7 @@ sitemap = do
     body (ref Public.modelConversationUpdateName) $
       description "JSON body"
     returns (ref Public.modelEvent)
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - ConvRename event to members
@@ -551,7 +552,7 @@ sitemap = do
     body (ref Public.modelConversationUpdateName) $
       description "JSON body"
     returns (ref Public.modelEvent)
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
@@ -566,7 +567,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelEvent)
     response 200 "Conversation joined." end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   post "/conversations/code-check" (continue Update.checkReusableCodeH) $
     jsonRequest @Public.ConversationCode
@@ -590,7 +591,7 @@ sitemap = do
     body (ref Public.modelConversationCode) $
       description "JSON body"
     errorResponse Error.codeNotFound
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.tooManyMembers
 
   -- This endpoint can lead to the following events being sent:
@@ -607,7 +608,7 @@ sitemap = do
     returns (ref Public.modelConversationCode)
     response 201 "Conversation code created." (model Public.modelEvent)
     response 200 "Conversation code already exists." (model Public.modelConversationCode)
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.invalidAccessOp
 
   -- This endpoint can lead to the following events being sent:
@@ -622,7 +623,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelEvent)
     response 200 "Conversation code deleted." end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.invalidAccessOp
 
   get "/conversations/:cnv/code" (continue Update.getCodeH) $
@@ -634,7 +635,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelConversationCode)
     response 200 "Conversation Code" end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.invalidAccessOp
 
   -- This endpoint can lead to the following events being sent:
@@ -654,7 +655,7 @@ sitemap = do
     response 204 "Conversation access unchanged." end
     body (ref Public.modelConversationAccessUpdate) $
       description "JSON body"
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.convAccessDenied
     errorResponse Error.invalidTargetAccess
     errorResponse Error.invalidSelfOp
@@ -678,7 +679,7 @@ sitemap = do
     response 204 "Conversation receipt mode unchanged." end
     body (ref Public.modelConversationReceiptModeUpdate) $
       description "JSON body"
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.convAccessDenied
 
   -- This endpoint can lead to the following events being sent:
@@ -697,7 +698,7 @@ sitemap = do
     response 204 "Message timer unchanged." end
     body (ref Public.modelConversationMessageTimerUpdate) $
       description "JSON body"
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.convAccessDenied
     errorResponse Error.invalidSelfOp
     errorResponse Error.invalidOne2OneOp
@@ -720,9 +721,9 @@ sitemap = do
     response 200 "Members added" end
     response 204 "No change" end
     response 412 "The user(s) cannot be added to the conversation (eg., due to legalhold policy conflict)." end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
-    errorResponse Error.notConnected
+    errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse Error.convAccessDenied
 
   get "/conversations/:cnv/self" (continue Query.getSelfH) $
@@ -733,7 +734,7 @@ sitemap = do
     parameter Path "cnv" bytes' $
       description "Conversation ID"
     returns (ref Public.modelMember)
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberStateUpdate event to self
@@ -749,7 +750,7 @@ sitemap = do
       description "Conversation ID"
     body (ref Public.modelMemberUpdate) $
       description "JSON body"
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberStateUpdate event to members
@@ -768,7 +769,7 @@ sitemap = do
       description "Target User ID"
     body (ref Public.modelOtherMemberUpdate) $
       description "JSON body"
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.convMemberNotFound
     errorResponse Error.invalidTargetUserOp
 
@@ -785,7 +786,7 @@ sitemap = do
       description "Conversation ID"
     body (ref Public.modelTyping) $
       description "JSON body"
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberLeave event to members
@@ -803,7 +804,7 @@ sitemap = do
     returns (ref Public.modelEvent)
     response 200 "Member removed" end
     response 204 "No change" end
-    errorResponse Error.convNotFound
+    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
 
   -- This endpoint can lead to the following events being sent:
@@ -841,7 +842,7 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
-    errorResponse Error.unknownClient
+    errorResponse (Error.errorDescriptionToWai Error.unknownClient)
     errorResponse Error.broadcastLimitExceeded
 
   -- This endpoint can lead to the following events being sent:
@@ -876,7 +877,7 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
-    errorResponse Error.unknownClient
+    errorResponse (Error.errorDescriptionToWai Error.unknownClient)
     errorResponse Error.broadcastLimitExceeded
 
 apiDocs :: Routes ApiBuilder Galley ()
