@@ -1162,8 +1162,8 @@ testClaimKeys testcase = do
           upgradeClientToLH peer peerClient
           putLHWhitelistTeam teamPeer !!! const 200 === statusCode
 
-  let assertResponse :: Assertions ()
-      assertResponse = case testcase of
+  let assertResponse' :: Assertions ()
+      assertResponse' = case testcase of
         TCKConsentMissing -> bad
         TCKOldClient -> bad
         TCKConsentAndNewClients -> good
@@ -1173,10 +1173,10 @@ testClaimKeys testcase = do
 
   let fetchKeys :: ClientId -> TestM ()
       fetchKeys legalholderLHDevice = do
-        getUsersPrekeysClientUnqualified peer legalholder legalholderLHDevice !!! assertResponse
-        getUsersPrekeyBundleUnqualified peer legalholder !!! assertResponse
+        getUsersPrekeysClientUnqualified peer legalholder legalholderLHDevice !!! assertResponse'
+        getUsersPrekeyBundleUnqualified peer legalholder !!! assertResponse'
         let userClients = UserClients (Map.fromList [(legalholder, Set.fromList [legalholderLHDevice])])
-        getMultiUserPrekeyBundleUnqualified peer userClients !!! assertResponse
+        getMultiUserPrekeyBundleUnqualified peer userClients !!! assertResponse'
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
 

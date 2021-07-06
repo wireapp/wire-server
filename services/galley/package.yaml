@@ -188,6 +188,7 @@ executables:
     - retry
     - schema-profunctor
     - servant
+    - servant-server
     - servant-swagger
     - servant-client
     - servant-client-core

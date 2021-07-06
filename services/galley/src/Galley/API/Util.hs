@@ -472,7 +472,7 @@ fromRegisterConversation d MkRegisterConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        { cnvId = qUnqualified rcCnvId,
+        { cnvQualifiedId = rcCnvId,
           cnvType = rcCnvType,
           -- FUTUREWORK: a UserId from another instance is communicated here, which
           -- without domain does not make much sense here.

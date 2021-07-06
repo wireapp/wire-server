@@ -60,9 +60,9 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 
 conversationResponse :: ConversationResponse -> Galley (Union ConversationResponses)
 conversationResponse (ConversationExisted c) =
-  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (cnvId c) $ c
+  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
 conversationResponse (ConversationCreated c) =
-  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (cnvId c) $ c
+  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
 
 -------------------------------------------------------------------------
 
@@ -330,8 +330,8 @@ conversationExisted usr cnv = ConversationExisted <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
-  ConversationCreated cnv -> json cnv & setStatus status201 . location (cnvId cnv)
-  ConversationExisted cnv -> json cnv & setStatus status200 . location (cnvId cnv)
+  ConversationCreated cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
+  ConversationExisted cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
 notifyCreatedConversation dtime usr conn c = do

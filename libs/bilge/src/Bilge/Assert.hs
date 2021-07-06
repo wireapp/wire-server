@@ -26,6 +26,7 @@ module Bilge.Assert
     (===),
     (=/=),
     (=~=),
+    assertResponse,
     assertTrue,
     assertTrue_,
     assert,
@@ -139,6 +140,11 @@ f =/= g = Assertions $ tell [\r -> test " === " (/=) (f r) (g r)]
   (Response (Maybe Lazy.ByteString) -> a) ->
   Assertions ()
 f =~= g = Assertions $ tell [\r -> test " not in " contains (f r) (g r)]
+
+-- | Most generic assertion on a request. If the test function evaluates to
+-- @(Just msg)@ then the assertion fails with the error message @msg@.
+assertResponse :: HasCallStack => (Response (Maybe Lazy.ByteString) -> Maybe String) -> Assertions ()
+assertResponse f = Assertions $ tell [f]
 
 -- | Generic assertion on a request. The 'String' argument will be printed
 -- in case the assertion fails.
