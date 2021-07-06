@@ -19,7 +19,7 @@
 ## API Changes
 
 * All endpoints that fetch conversation details now also include a new key
-  `qualified_id` for a qualified convevrsation ID (#1640)
+  `qualified_id` for a qualified conversation ID (#1640)
 * New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
 
 ## Features
