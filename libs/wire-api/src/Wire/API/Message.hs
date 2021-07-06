@@ -211,6 +211,7 @@ protolensToClientId :: Proto.Otr.ClientId -> ClientId
 protolensToClientId = newClientId . view Proto.Otr.client
 
 --- functions to generate protobuf messages
+-- FUTUREWORK: add unit tests
 
 mkQualifiedOtrPayload :: ClientId -> [(Qualified UserId, ClientId, ByteString)] -> ByteString -> ClientMismatchStrategy -> Proto.Otr.QualifiedNewOtrMessage
 mkQualifiedOtrPayload sender recipients dat strat =
