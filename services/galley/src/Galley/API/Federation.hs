@@ -115,9 +115,10 @@ receiveMessage domain =
   API.postRemoteToLocal
     . fmap (Tagged . (`Qualified` domain))
 
-sendMessage :: MessageSendRequest -> Galley MessageSendResponse
-sendMessage msr = do
+sendMessage :: Domain -> MessageSendRequest -> Galley MessageSendResponse
+sendMessage originDomain msr = do
+  let sender = Qualified (msrSender msr) originDomain
   msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
-  MessageSendResponse <$> postQualifiedOtrMessage User (msrSender msr) Nothing (msrConvId msr) msg
+  MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
   where
     err = throwM . invalidPayload . LT.pack

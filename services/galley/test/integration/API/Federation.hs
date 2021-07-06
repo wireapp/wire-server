@@ -54,6 +54,7 @@ import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
+import Data.ByteString.Conversion (toByteString')
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -288,7 +289,7 @@ sendMessage = do
   opts <- view tsGConf
   let responses1 req
         | fmap F.component (F.request req) == Just F.Brig =
-          toJSON $ [bobProfile, chadProfile]
+          toJSON [bobProfile, chadProfile]
         | otherwise = toJSON ()
   (convId, requests1) <-
     withTempMockFederator opts remoteDomain responses1 $
@@ -317,7 +318,7 @@ sendMessage = do
       msr =
         FedGalley.MessageSendRequest
           { FedGalley.msrConvId = convId,
-            FedGalley.msrSender = bob,
+            FedGalley.msrSender = bobId,
             FedGalley.msrRawMessage =
               Base64ByteString
                 (LBS.fromStrict (Protolens.encodeMessage msg))
@@ -326,8 +327,8 @@ sendMessage = do
         | fmap F.component (F.request req) == Just F.Brig =
           toJSON
             ( Map.fromList
-                [ (chadId, (Set.singleton (PubClient chadClient Nothing))),
-                  (bobId, (Set.singleton (PubClient bobClient Nothing)))
+                [ (chadId, Set.singleton (PubClient chadClient Nothing)),
+                  (bobId, Set.singleton (PubClient bobClient Nothing))
                 ]
             )
         | otherwise = toJSON ()
@@ -339,6 +340,7 @@ sendMessage = do
           ( g
               . paths ["federation", "send-message"]
               . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' remoteDomain)
               . json msr
           )
           <!! do

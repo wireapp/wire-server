@@ -83,6 +83,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "send-message"
+        :> DomainHeader
         :> ReqBody '[JSON] MessageSendRequest
         :> Post '[JSON] MessageSendResponse
   }
@@ -170,8 +171,12 @@ data RemoteMessage conv = RemoteMessage
   deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
 
 data MessageSendRequest = MessageSendRequest
-  { msrConvId :: ConvId,
-    msrSender :: Qualified UserId,
+  { -- | Converastion is assumed to be owned by the target domain, this allows
+    -- us to protect against relay attacks
+    msrConvId :: ConvId,
+    -- | Sender is assumed to be owned by the origin domain, this allows us to
+    -- protect against spoofing attacks
+    msrSender :: UserId,
     msrRawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)

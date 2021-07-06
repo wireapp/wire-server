@@ -208,7 +208,7 @@ emptyFederatedGalley =
           FederatedGalley.getConversations = \_ -> e "getConversations",
           FederatedGalley.updateConversationMemberships = \_ -> e "updateConversationMemberships",
           FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage",
-          FederatedGalley.sendMessage = \_ -> e "sendMessage"
+          FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
         }
 
 -------------------------------------------------------------------------------
@@ -893,7 +893,7 @@ postMessageQualifiedRemoteOwningBackendFailure = do
 
   let galleyApi =
         emptyFederatedGalley
-          { FederatedGalley.sendMessage = \_ -> throwError err503 {errBody = "Down for maintanance."}
+          { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
           }
 
   (resp2, _requests) <-
@@ -933,7 +933,7 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
       galleyApi =
         emptyFederatedGalley
-          { FederatedGalley.sendMessage = \_ -> pure (FederatedGalley.MessageSendResponse (Right mss))
+          { FederatedGalley.sendMessage = \_ _ -> pure (FederatedGalley.MessageSendResponse (Right mss))
           }
 
   (resp2, _requests) <-

@@ -210,10 +210,10 @@ postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         FederatedGalley.MessageSendRequest
           { FederatedGalley.msrConvId = qUnqualified conv,
-            FederatedGalley.msrSender = sender,
+            FederatedGalley.msrSender = qUnqualified sender,
             FederatedGalley.msrRawMessage = Base64ByteString rawMsg
           }
-      rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes msr
+      rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
   mkPostOtrResponsesUnion . FederatedGalley.msResponse =<< runFederatedGalley (qDomain conv) rpc
 
 mkPostOtrResponsesUnion :: Either FederatedGalley.MessageNotSent MessageSendingStatus -> Galley (Union Public.PostOtrResponses)
@@ -375,7 +375,6 @@ sendRemoteMessages ::
   Map (UserId, ClientId) ByteString ->
   Galley (Set (UserId, ClientId))
 sendRemoteMessages domain now sender senderClient conv metadata messages = (>>= handle) . runExceptT $ do
-  localDomain <- viewFederationDomain
   let rcpts =
         foldr
           (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
@@ -393,8 +392,10 @@ sendRemoteMessages domain now sender senderClient conv metadata messages = (>>= 
             FederatedGalley.rmTransient = mmTransient metadata,
             FederatedGalley.rmRecipients = UserClientMap rcpts
           }
-  -- TODO: we should not need to pass the local domain to the RPC
-  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes localDomain rm
+  -- Semantically, the origin domain should be the converation domain. Here one
+  -- backend has only one domain so we just pick it from the environment.
+  originDomain <- viewFederationDomain
+  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes originDomain rm
   executeFederated domain rpc
   where
     handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
