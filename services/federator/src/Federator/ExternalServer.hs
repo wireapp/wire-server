@@ -52,10 +52,7 @@ import Wire.API.Federation.GRPC.Types
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
 -- for versioning schemas here.
 
--- FUTUREWORK(federation): How do we make sure that only legitimate endpoints can be
--- reached, some discussion here:
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
--- Also, see comment in 'Federator.Service.interpretService'
 --
 -- FUTUREWORK(federation): implement server2server authentication!
 -- (current validation only checks parsing and compares to allowList)
@@ -76,7 +73,7 @@ callLocal' req@Request {..} = do
       . Log.field "request" (show req)
 
   validatedDomain <- validateDomain originDomain
-  validatedPath <- pure path -- FUTUREWORK implementation next PR
+  validatedPath <- sanitizePath path
   Log.debug $
     Log.msg ("Path validation" :: ByteString)
       . Log.field "original path:" (show path)

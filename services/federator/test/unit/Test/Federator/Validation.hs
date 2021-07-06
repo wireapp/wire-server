@@ -21,6 +21,7 @@ module Test.Federator.Validation where
 
 import Data.Domain (Domain (..))
 import Data.Either.Combinators (mapLeft)
+import Data.String.Conversions
 import Federator.Options
 import Federator.Remote (Remote)
 import Federator.Validation
@@ -46,7 +47,11 @@ tests =
         [ validateDomainAllowListFailSemantic,
           validateDomainAllowListFail,
           validateDomainAllowListSuccess
-        ]
+        ],
+      testGroup "validatePath" $
+        [ validatePathSuccess
+        ],
+      testGroup "validatePathNormalize" validatePathNormalize
     ]
 
 federateWithAllowListSuccess :: TestTree
@@ -91,3 +96,29 @@ validateDomainAllowListSuccess =
       let allowList = RunSettings (AllowList (AllowedDomains [domain]))
       res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("hello.world" :: Text)
       embed $ assertEqual "validateDomain should give 'hello.world' as domain" (Right domain) res
+
+validatePathSuccess :: TestTree
+validatePathSuccess = do
+  let path = "federation/get-user-by-handle"
+  testCase ("should allow " <> cs path) $ do
+    res <- runSanitize path
+    res @?= Right path
+
+validatePathNormalize :: [TestTree]
+validatePathNormalize = do
+  let x =
+        [ ("federation//stuff", "federation/stuff"),
+          -- TODO add more
+          ("federation/../federation/stuff", "/federation/stuff")
+          -- ("federation%2Fstuff", "federation/stuff")
+        ]
+  expectNormalized <$> x
+  where
+    expectNormalized :: (ByteString, ByteString) -> TestTree
+    expectNormalized (input, output) = do
+      testCase ("Should allow " <> cs input <> " and normalize to " <> cs output) $ do
+        res <- runSanitize input
+        res @?= Right output
+
+runSanitize :: ByteString -> IO (Either InwardError ByteString)
+runSanitize = runM . evalMock @Remote @IO . Polysemy.runError @InwardError . sanitizePath
