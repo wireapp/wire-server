@@ -194,11 +194,11 @@ data Api routes = Api
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- FUTUREWORK: errorResponse Error.notATeamMember
-    --             errorResponse (Error.operationDenied Public.CreateConversation)
     getConversationByReusableCode ::
       routes
         :- Summary "Get limited conversation information by key/code pair"
         :> CanThrow NotConnected
+        :> CanThrow OperationDenied
         :> ZUser
         :> "conversations"
         :> "join"
@@ -257,19 +257,19 @@ data Api routes = Api
         :> "conversations"
         :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
     getTeamConversations ::
       routes
         :- Summary "Get team conversations"
+        :> CanThrow OperationDenied
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
         :> Get '[Servant.JSON] Public.TeamConversationList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
     getTeamConversation ::
       routes
         :- Summary "Get one team conversation"
+        :> CanThrow OperationDenied
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId

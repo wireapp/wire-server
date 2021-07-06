@@ -114,7 +114,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (convNotFound)
+import Wire.API.ErrorDescription (convNotFound, operationDenied)
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Team as Public
@@ -765,14 +765,14 @@ getTeamConversations :: UserId -> TeamId -> Galley Public.TeamConversationList
 getTeamConversations zusr tid = do
   tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
-    throwM (operationDenied GetTeamConversations)
+    throwErrorDescription (operationDenied GetTeamConversations)
   Public.newTeamConversationList <$> Data.teamConversations tid
 
 getTeamConversation :: UserId -> TeamId -> ConvId -> Galley Public.TeamConversation
 getTeamConversation zusr tid cid = do
   tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
-    throwM (operationDenied GetTeamConversations)
+    throwErrorDescription (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwErrorDescription convNotFound) pure
 
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley (EmptyResult 200)

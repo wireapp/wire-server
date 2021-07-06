@@ -1,6 +1,6 @@
 module Wire.API.ErrorDescription where
 
-import Control.Lens (at, over, (.~), (?~))
+import Control.Lens (at, over, (%~), (.~), (<>~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
 import Data.Schema
@@ -49,6 +49,20 @@ errorDescriptionAddToSwagger ::
 errorDescriptionAddToSwagger =
   over (Swagger.paths . traverse) overridePathItem
   where
+    addRef ::
+      Maybe (Swagger.Referenced Swagger.Response) ->
+      Maybe (Swagger.Referenced Swagger.Response)
+    addRef Nothing =
+      Just . Swagger.Inline $
+        mempty
+          & Swagger.description .~ Text.pack (symbolVal (Proxy @desc))
+          & Swagger.schema ?~ Swagger.toSchemaRef (Proxy @(ErrorDescription code desc))
+    addRef (Just response) =
+      Just $
+        response
+          & Swagger._Inline . Swagger.description
+          <>~ (", " <> Text.pack (symbolVal (Proxy @desc)))
+
     overridePathItem :: Swagger.PathItem -> Swagger.PathItem
     overridePathItem =
       over (Swagger.get . _Just) overrideOp
@@ -61,11 +75,7 @@ errorDescriptionAddToSwagger =
     overrideOp :: Swagger.Operation -> Swagger.Operation
     overrideOp =
       Swagger.responses . Swagger.responses . at (fromInteger $ natVal (Proxy @code))
-        ?~ Swagger.Inline
-          ( mempty
-              & Swagger.description .~ Text.pack (symbolVal (Proxy @desc))
-              & Swagger.schema ?~ Swagger.toSchemaRef (Proxy @(ErrorDescription code desc))
-          )
+        %~ addRef
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
@@ -128,3 +138,11 @@ type NotConnected = ErrorDescription 403 "Users are not connected"
 
 notConnected :: NotConnected
 notConnected = ErrorDescription "not-connected" "Users are not connected"
+
+type OperationDenied = ErrorDescription 403 "Insufficient permissions"
+
+operationDenied :: Show perm => perm -> OperationDenied
+operationDenied p =
+  ErrorDescription
+    "operation-denied"
+    ("Insufficient permissions (missing " <> (Text.pack $ show p) <> ")")

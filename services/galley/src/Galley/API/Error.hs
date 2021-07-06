@@ -28,7 +28,7 @@ import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
 import GHC.TypeLits
 import Galley.Types.Conversations.Roles (Action)
-import Galley.Types.Teams (IsPerm, hardTruncationLimit)
+import Galley.Types.Teams (hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -109,13 +109,6 @@ invalidUUID4 = mkError status400 "client-error" "Invalid UUID v4 format"
 
 invalidRange :: LText -> Error
 invalidRange = mkError status400 "client-error"
-
-operationDenied :: (IsPerm perm, Show perm) => perm -> Error
-operationDenied p =
-  mkError
-    status403
-    "operation-denied"
-    ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
 
 actionDenied :: Action -> Error
 actionDenied a =
