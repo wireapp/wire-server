@@ -17,6 +17,10 @@ import Wire.API.ServantSwagger
 
 -- This can be added to an endpoint to document a possible failure
 -- case outside its return type (usually through an exception).
+--
+-- Note that there is no static check for these annotations. The set of
+-- exceptions that a handler might throw can be completely independent from the
+-- set of exceptions reported by 'CanThrow', as far as the compiler is concerned.
 data CanThrow err
 
 instance
