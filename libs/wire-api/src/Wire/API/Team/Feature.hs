@@ -63,8 +63,8 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- by ghc errors:
 --
 -- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs:198 (calls to 'testRoundTrip')
--- * services/galley/src/Galley/API/Internal.hs:179: (calls to 'mkFeatureGetAndPutRoute')
--- * services/galley/src/Galley/API/Public.hs:465: (calls to 'mkFeatureGetAndPutRoute')
+-- * services/galley/src/Galley/API/Internal.hs:179: (add a field to the 'InternalApi routes' record)
+-- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs (add a field to the 'Api routes' record)
 -- * services/galley/src/Galley/API/Teams/Features.hs:106: (calls to 'getStatus')
 --
 -- Using something like '[minBound..]' on those expressions would require dependent types.  We
