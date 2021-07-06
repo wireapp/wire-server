@@ -24,6 +24,7 @@ import qualified Cassandra as Cql
 import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id (ConvId, Id (..), newClientId, randomId)
@@ -54,7 +55,6 @@ import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
-import Data.ByteString.Conversion (toByteString')
 
 tests :: IO TestSetup -> TestTree
 tests s =
