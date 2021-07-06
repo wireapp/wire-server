@@ -1,0 +1,21 @@
+sender { client: 1 }
+recipients {
+  domain: "9mns-s.ww-ph5oy"
+  entries {
+    user {
+      uuid: "\000\000\000\000\000\000\000\002\000\000\000\001\000\000\000\001"
+    }
+    clients { client { client: 0 } text: "" }
+    clients { client { client: 1 } text: "" }
+  }
+  entries {
+    user {
+      uuid: "\000\000\000\001\000\000\000\001\000\000\000\001\000\000\000\000"
+    }
+  }
+}
+native_push: false
+blob: "\352\026\253"
+native_priority: HIGH_PRIORITY
+transient: false
+report_all { }

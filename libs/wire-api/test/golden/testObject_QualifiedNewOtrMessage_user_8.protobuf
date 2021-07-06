@@ -1,0 +1,7 @@
+sender { client: 4 }
+recipients { domain: "cg7t2.rf-2" }
+native_push: true
+blob: ""
+native_priority: LOW_PRIORITY
+transient: true
+ignore_all { }

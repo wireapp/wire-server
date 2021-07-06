@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Main
   ( main,
@@ -21,11 +22,13 @@ module Main
 where
 
 import Imports
+import Test.QuickCheck
 import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
 import qualified Test.Wire.API.Golden.Generated as Golden.Generated
 import qualified Test.Wire.API.Golden.Manual as Golden.Manual
+import qualified Test.Wire.API.Golden.Protobuf as Golden.Protobuf
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
@@ -34,6 +37,7 @@ import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
 import qualified Test.Wire.API.User.Search as User.Search
+import Wire.API.Message
 
 main :: IO ()
 main =
@@ -51,5 +55,6 @@ main =
         Roundtrip.CSV.tests,
         Golden.Generated.tests,
         Golden.Manual.tests,
-        Golden.FromJSON.tests
+        Golden.FromJSON.tests,
+        Golden.Protobuf.tests
       ]
