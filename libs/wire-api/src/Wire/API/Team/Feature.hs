@@ -236,8 +236,10 @@ instance ToSchema TeamFeatureStatusNoConfig where
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
 
--- | FUTUREWORK: Does it ever happen that there is a config for a disabled
--- feature? If not this type should be made isomorphic to 'Maybe cfg'.
+-- | The support for disabled features with configs is intentional:
+-- for instance, we want to be able to keep the config of a feature
+-- that is turned on and off occasionally, and so not force the admin
+-- to recreate the config every time it's turned on.
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   { tfwcStatus :: TeamFeatureStatusValue,
     tfwcConfig :: cfg
