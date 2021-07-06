@@ -22,9 +22,8 @@ import Bilge
 import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Lens hiding ((#))
-import Data.Aeson (ToJSON (..), (.:))
+import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id (ConvId, Id (..), newClientId, randomId)
@@ -52,7 +51,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
-import Wire.API.Message (ClientMismatchStrategy (..), mkQualifiedOtrPayload)
+import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
@@ -267,7 +266,7 @@ receiveMessage = do
 -- alice local, bob and chad remote in a local conversation
 -- bob sends a message (using the RPC), we test that alice receives it and that
 -- a call is made to the receiveMessage RPC to inform chad
-sendMessage :: TestM ()
+sendMessage :: HasCallStack => TestM ()
 sendMessage = do
   cannon <- view tsCannon
   let remoteDomain = Domain "far-away.example.com"
@@ -344,13 +343,14 @@ sendMessage = do
           )
           <!! do
             const 200 === statusCode
-      (status, _value :: A.Value) <- either fail pure $
-        flip A.parseEither (responseJsonUnsafe msresp) $
-          A.withObject "Union" $ \obj -> do
-            s <- obj .: "status"
-            v <- obj .: "value"
-            pure (s, v)
-      liftIO $ status @?= (201 :: Int)
+      (FedGalley.MessageSendResponse eithStatus) <- responseJsonError msresp
+      liftIO $ case eithStatus of
+        Left err -> assertFailure $ "Expected Right, got Left: " <> show err
+        Right mss -> do
+          assertEqual "missing clients should be empty" mempty (mssMissingClients mss)
+          assertEqual "redundant clients should be empty" mempty (mssRedundantClients mss)
+          assertEqual "deleted clients should be empty" mempty (mssDeletedClients mss)
+          assertEqual "failed to send should be empty" mempty (mssFailedToSend mss)
 
       -- check that alice received the message
       when False $ do
