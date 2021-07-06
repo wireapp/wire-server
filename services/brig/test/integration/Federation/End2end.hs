@@ -31,21 +31,29 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
 import Data.Id (ClientId, ConvId)
+import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List1 as List1
 import qualified Data.Map as Map
+import qualified Data.ProtoLens as Protolens
 import Data.Qualified
 import qualified Data.Set as Set
 import Federation.Util (generateClientPrekeys, getConvQualified)
+import Gundeck.Types.Notification (ntfTransient)
 import Imports
 import qualified System.Logger as Log
 import Test.Tasty
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Event.Conversation
+import Wire.API.Message
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
-import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
+import Wire.API.User.Client
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -59,8 +67,17 @@ import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPre
 -- - Remote discovery succeeds but server doesn't exist
 -- - Remote federator fails to respond in many ways (protocol error, timeout, etc.)
 -- - SRV record has two servers but higher priority one always fails
-spec :: BrigOpts.Opts -> Manager -> Brig -> Galley -> Endpoint -> Brig -> Galley -> IO TestTree
-spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
+spec ::
+  BrigOpts.Opts ->
+  Manager ->
+  Brig ->
+  Galley ->
+  Cannon ->
+  Endpoint ->
+  Brig ->
+  Galley ->
+  IO TestTree
+spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
   pure $
     testGroup
       "federation-end2end-user"
@@ -73,7 +90,8 @@ spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
         test mg "list user clients" $ testListUserClients brig brigTwo,
         test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
         test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
-        test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo
+        test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
+        test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon
       ]
 
 -- | Path covered by this test:
@@ -343,3 +361,67 @@ debug :: Text -> Http ()
 debug text = do
   l <- Log.new Log.defSettings
   liftIO $ Log.warn l (Log.msg text)
+
+-- bob creates a conversation on domain 2 with alice on domain 1, then sends a
+-- message to alice
+testSendMessage :: Brig -> Brig -> Galley -> Cannon -> Http ()
+testSendMessage brig1 brig2 galley2 cannon1 = do
+  -- create alice user and client on domain 1
+  alice <- randomUser brig1
+  aliceClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig1
+        (userId alice)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+
+  -- create bob user and client on domain 2
+  bob <- randomUser brig2
+  bobClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig2
+        (userId bob)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+
+  -- create conversation on domain 2
+  convId <-
+    cnvId . responseJsonUnsafe
+      <$> createConversation galley2 (userId bob) [userQualifiedId alice]
+
+  -- send a message from bob at domain 2 to alice at domain 1
+  let qconvId = Qualified convId (qDomain (userQualifiedId bob))
+      msgText = "🕊️"
+      rcpts = [(userQualifiedId alice, aliceClient, msgText)]
+      msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
+
+  WS.bracketR cannon1 (userId alice) $ \(wsAlice) -> do
+    post
+      ( galley2
+          . paths
+            [ "conversations",
+              toByteString' (qDomain qconvId),
+              toByteString' convId,
+              "proteus",
+              "messages"
+            ]
+          . zUser (userId bob)
+          . zConn "conn"
+          . header "Z-Type" "access"
+          . contentProtobuf
+          . acceptJson
+          . bytes (Protolens.encodeMessage msg)
+      )
+      !!! const 201 === statusCode
+
+    -- verify that alice received the message
+    WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconvId
+      evtType e @?= OtrMessageAdd
+      evtFrom e @?= userQualifiedId bob
+      evtData e
+        @?= EdOtrMessage
+          ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
+          )

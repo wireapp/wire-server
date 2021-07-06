@@ -22,8 +22,9 @@
 
 ## Features
 
-* [Federation] (Not-yet-used) RPC to propagate messages to other backends (#1596).
+* [Federation] RPC to propagate messages to other backends (#1596).
 * [Federation] Fetch remote user's clients when sending messages (#1635).
+* [Federation] Actually propagate messages to other backends (#1638).
 
 ## Internal changes
 

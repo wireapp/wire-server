@@ -1,6 +1,9 @@
 module Galley.API.Message where
 
 import Control.Lens
+import Control.Monad.Trans.Except (runExceptT)
+import Data.Aeson (encode)
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id (ClientId, ConnId, ConvId, UserId)
 import Data.Json.Util (UTCTimeMillis, toBase64Text, toUTCTimeMillis)
@@ -28,10 +31,14 @@ import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Servant.API (Union, WithStatus (..))
+import qualified System.Logger.Class as Log
 import UnliftIO.Async
 import Wire.API.ErrorDescription as ErrorDescription
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Client (FederationError, executeFederated)
+import Wire.API.Federation.Error (federationErrorToWai)
 import Wire.API.Message
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley as Public
@@ -54,6 +61,8 @@ data QualifiedMismatch = QualifiedMismatch
 
 type QualifiedRecipientSet = Set (Domain, UserId, ClientId)
 
+type RecipientSet = Set (UserId, ClientId)
+
 mkQualifiedMismatch ::
   QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedRecipientSet -> QualifiedMismatch
 mkQualifiedMismatch missing redundant deleted =
@@ -66,6 +75,15 @@ mkQualifiedUserClients :: QualifiedRecipientSet -> QualifiedUserClients
 mkQualifiedUserClients =
   QualifiedUserClients
     . Set.foldr (\(d, u, c) -> Map.insertWith (Map.unionWith Set.union) d (Map.singleton u (Set.singleton c))) Map.empty
+
+mkQualifiedUserClientsByDomain :: Map Domain RecipientSet -> QualifiedUserClients
+mkQualifiedUserClientsByDomain =
+  QualifiedUserClients
+    . Map.filter (not . Map.null)
+    . fmap byUser
+  where
+    byUser :: RecipientSet -> Map UserId (Set ClientId)
+    byUser = foldr (\(u, c) -> Map.insertWith (<>) u (Set.singleton c)) mempty
 
 mkMessageSendingStatus :: UTCTimeMillis -> QualifiedMismatch -> QualifiedUserClients -> MessageSendingStatus
 mkMessageSendingStatus time mismatch failures =
@@ -213,26 +231,118 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runUnionT $ do
   unless sendMessage $ do
     lift $ guardQualifiedLegalholdPolicyConflicts (userToProtectee senderType sender) (qmMissing mismatch)
     throwUnion $ WithStatus @412 otrResult
-  let qualifiedConv = Qualified convId localDomain
-      qualifiedSender = Qualified sender senderDomain
-      localValidMessages = Map.mapKeys (\(_, u, c) -> (u, c)) $ Map.filterWithKey (\(d, _, _) _ -> localDomain == d) validMessages
-      metadata = qualifiedNewOtrMetadata msg
-      events =
-        localValidMessages & reindexed snd itraversed
+  failedToSend <-
+    lift $
+      sendMessages
+        now
+        (Qualified sender senderDomain)
+        senderClient
+        mconn
+        convId
+        localMemberMap
+        (qualifiedNewOtrMetadata msg)
+        validMessages
+  throwUnion $ WithStatus @201 (otrResult {mssFailedToSend = failedToSend})
+  where
+    makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
+    makeUserMap keys = (<> Map.fromSet (const mempty) keys)
+
+-- | Send both local and remote messages, return the set of clients for which
+-- sending has failed.
+sendMessages ::
+  UTCTime ->
+  Qualified UserId ->
+  ClientId ->
+  Maybe ConnId ->
+  ConvId ->
+  Map UserId LocalMember ->
+  MessageMetadata ->
+  Map (Domain, UserId, ClientId) ByteString ->
+  Galley QualifiedUserClients
+sendMessages now sender senderClient mconn conv localMemberMap metadata messages = do
+  localDomain <- viewFederationDomain
+  let messageMap = byDomain messages
+  let send dom
+        | localDomain == dom =
+          sendLocalMessages now sender senderClient mconn conv localMemberMap metadata
+        | otherwise =
+          sendRemoteMessages dom now sender senderClient conv metadata
+  mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
+  where
+    byDomain :: Map (Domain, UserId, ClientId) a -> Map Domain (Map (UserId, ClientId) a)
+    byDomain =
+      Map.foldrWithKey
+        (\(d, u, c) t -> Map.insertWith (<>) d (Map.singleton (u, c) t))
+        mempty
+
+sendLocalMessages ::
+  UTCTime ->
+  Qualified UserId ->
+  ClientId ->
+  Maybe ConnId ->
+  ConvId ->
+  Map UserId LocalMember ->
+  MessageMetadata ->
+  Map (UserId, ClientId) ByteString ->
+  Galley (Set (UserId, ClientId))
+sendLocalMessages now sender senderClient mconn conv localMemberMap metadata localMessages = do
+  localDomain <- viewFederationDomain
+  let events =
+        localMessages & reindexed snd itraversed
           %@~ newMessageEvent
-            qualifiedConv
-            qualifiedSender
-            (Public.qualifiedNewOtrSender msg)
-            (Public.qualifiedNewOtrData msg)
+            (Qualified conv localDomain)
+            sender
+            senderClient
+            (mmData metadata)
             now
       pushes =
         events & itraversed
           %@~ newMessagePush localDomain localMemberMap mconn metadata
-  lift $ runMessagePush convId (pushes ^. traversed)
-  throwUnion $ WithStatus @201 otrResult
+  runMessagePush conv (pushes ^. traversed)
+  pure mempty
+
+sendRemoteMessages ::
+  Domain ->
+  UTCTime ->
+  Qualified UserId ->
+  ClientId ->
+  ConvId ->
+  MessageMetadata ->
+  Map (UserId, ClientId) ByteString ->
+  Galley (Set (UserId, ClientId))
+sendRemoteMessages domain now sender senderClient conv metadata messages =
+  (>>= handle) . runExceptT $ do
+    localDomain <- viewFederationDomain
+    let rcpts =
+          foldr
+            (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
+            mempty
+            (Map.assocs messages)
+        rm =
+          FederatedGalley.RemoteMessage
+            { FederatedGalley.rmTime = now,
+              FederatedGalley.rmData = Just (toBase64Text (mmData metadata)),
+              FederatedGalley.rmSender = sender,
+              FederatedGalley.rmSenderClient = senderClient,
+              FederatedGalley.rmConversation = conv,
+              FederatedGalley.rmPriority = mmNativePriority metadata,
+              FederatedGalley.rmPush = mmNativePush metadata,
+              FederatedGalley.rmTransient = mmTransient metadata,
+              FederatedGalley.rmRecipients = UserClientMap rcpts
+            }
+    -- FUTUREWORK: we should not need to pass the local domain to the RPC
+    let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes localDomain rm
+    executeFederated domain rpc
   where
-    makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
-    makeUserMap keys = (<> Map.fromSet (const mempty) keys)
+    handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
+    handle (Right _) = pure mempty
+    handle (Left e) = do
+      Log.warn $
+        Log.field "conversation" (toByteString' conv)
+          Log.~~ Log.field "domain" (toByteString' domain)
+          Log.~~ Log.field "exception" (encode (federationErrorToWai e))
+          Log.~~ Log.msg ("Remote message sending failed" :: Text)
+      pure (Map.keysSet messages)
 
 flatten :: Map Domain (Map UserId (Set ClientId)) -> Set (Domain, UserId, ClientId)
 flatten =
