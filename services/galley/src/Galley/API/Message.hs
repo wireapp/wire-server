@@ -330,7 +330,7 @@ sendRemoteMessages domain now sender senderClient conv metadata messages =
               FederatedGalley.rmTransient = mmTransient metadata,
               FederatedGalley.rmRecipients = UserClientMap rcpts
             }
-    -- TODO: we should not need to pass the local domain to the RPC
+    -- FUTUREWORK: we should not need to pass the local domain to the RPC
     let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes localDomain rm
     executeFederated domain rpc
   where
