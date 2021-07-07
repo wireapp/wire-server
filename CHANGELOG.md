@@ -16,8 +16,17 @@
 
 # Unreleased
 
+## Release Notes
+
+This release requires a manual change in your galley configuration: `settings.conversationCodeURI` in `galley.yaml` was had to be set to `${WEBAPP}/join` before this release, and must be set to `${ACCOUNTS}/conversation-join` from now on, where `${WEBAPP}` is the url to the webapp and `${ACCOUNTS}` is the url to the account pages.
+
 ## API Changes
 
+* Several public team feature endpoints are removed (their internal and
+  Stern-based counterparts remain available):
+  - `PUT /teams/:tid/features/sso`
+  - `PUT /teams/:tid/features/validateSAMLemails`
+  - `PUT /teams/:tid/features/digitalSignatures`
 * All endpoints that fetch conversation details now also include a new key
   `qualified_id` for a qualified conversation ID (#1640)
 * New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
@@ -31,6 +40,7 @@
 
 ## Internal changes
 
+* Team feature endpoints are rewritten in Servant (#1642).
 * Internal federation endpoints using the publicly-facing conversation data type
   now also include a qualified conversation ID under the `qualified_id` key
   (#1640)
@@ -39,6 +49,7 @@
   added to a new conversation via `POST /federation/register-conversation` (#1622).
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
+* Change `settings.conversationCodeURI` in galley.yaml (#1643).
 * Refactored Federator InternalServer (#1637)
 
 ### Internal Federation API changes
