@@ -62,7 +62,7 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
-import Wire.API.ErrorDescription (convNotFound, notATeamMember, notConnected, operationDenied)
+import Wire.API.ErrorDescription (actionDenied, convNotFound, notATeamMember, notConnected, operationDenied)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
@@ -133,7 +133,7 @@ ensureReAuthorised u secret = do
 ensureActionAllowed :: Action -> InternalMember a -> Galley ()
 ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
   Just True -> return ()
-  Just False -> throwM (actionDenied action)
+  Just False -> throwErrorDescription (actionDenied action)
   Nothing -> throwM (badRequest "Custom roles not supported")
 
 -- Actually, this will "never" happen due to the
