@@ -88,11 +88,17 @@ data ErrorDescription (statusCode :: Nat) (desc :: Symbol) = ErrorDescription
 
 instance (KnownStatus statusCode, KnownSymbol desc) => ToSchema (ErrorDescription statusCode desc) where
   schema =
-    object "ErrorDescription" $
+    objectWithDocModifier "ErrorDescription" addExample $
       ErrorDescription
         <$> label .= field "label" schema
         <*> message .= field "message" schema
         <* const (natVal (Proxy @statusCode)) .= field "code" schema
+    where
+      addExample =
+        Swagger.schema . Swagger.example
+          ?~ A.toJSON
+            ( ErrorDescription @statusCode @desc "error-label" "An error has occurred"
+            )
 
 -- | This instance works with 'UVerb' only becaue of the following overlapping
 -- instance for 'UVerb method cs (ErrorDescription status desc ': rest))'
