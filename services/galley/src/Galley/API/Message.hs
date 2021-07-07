@@ -375,7 +375,7 @@ sendRemoteMessages ::
   MessageMetadata ->
   Map (UserId, ClientId) ByteString ->
   Galley (Set (UserId, ClientId))
-sendRemoteMessages domain now sender senderClient conv metadata messages = (>>= handle) . runExceptT $ do
+sendRemoteMessages domain now sender senderClient conv metadata messages = handle <=< runExceptT $ do
   let rcpts =
         foldr
           (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
