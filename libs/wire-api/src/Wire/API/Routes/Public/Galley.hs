@@ -239,11 +239,11 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cid" ConvId
         :> Get '[Servant.JSON] Public.TeamConversation,
-    -- FUTUREWORK: errorResponse (Error.actionDenied Public.DeleteConversation)
     deleteTeamConversation ::
       routes
         :- Summary "Remove a team conversation"
         :> CanThrow NotATeamMember
+        :> CanThrow ActionDenied
         :> ZUser
         :> ZConn
         :> "teams"

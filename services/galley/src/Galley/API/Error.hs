@@ -27,7 +27,6 @@ import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
 import GHC.TypeLits
-import Galley.Types.Conversations.Roles (Action)
 import Galley.Types.Teams (hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
@@ -109,13 +108,6 @@ invalidUUID4 = mkError status400 "client-error" "Invalid UUID v4 format"
 
 invalidRange :: LText -> Error
 invalidRange = mkError status400 "client-error"
-
-actionDenied :: Action -> Error
-actionDenied a =
-  mkError
-    status403
-    "action-denied"
-    ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
 
 noBindingTeam :: Error
 noBindingTeam = mkError status403 "no-binding-team" "Operation allowed only on binding teams."

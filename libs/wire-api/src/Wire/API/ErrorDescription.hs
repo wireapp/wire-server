@@ -182,3 +182,10 @@ type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is 
 
 notATeamMember :: NotATeamMember
 notATeamMember = mkErrorDescription
+
+type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
+
+actionDenied :: Show a => a -> ActionDenied
+actionDenied a =
+  ErrorDescription $
+    "Insufficient authorization (missing " <> Text.pack (show a) <> ")"
