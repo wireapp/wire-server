@@ -87,15 +87,12 @@ spec env =
 -- Utility functions
 --
 expectErr :: InwardErrorType -> InwardError -> TestFederator IO ()
-expectErr expectedType err = do
-  case inwardErrorType err of
-    t | t == expectedType -> pure ()
-    _ -> liftIO $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
+expectErr expectedType err =
+  unless (inwardErrorType err == expectedType)
+    . liftIO $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
 
 asInwardBody :: forall a. (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> TestFederator IO a
-asInwardBody = either err pure . asInwardBodyEither
-  where
-    err parserErr = liftIO $ assertFailure parserErr
+asInwardBody = either (liftIO . assertFailure) pure . asInwardBodyEither
 
 asInwardBodyUnsafe :: (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> a
 asInwardBodyUnsafe = either err id . asInwardBodyEither
