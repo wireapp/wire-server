@@ -3,6 +3,7 @@ module Galley.API.Message where
 import Control.Lens
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except (throwError)
+import Control.Monad.Extra (eitherM)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (toByteString')
@@ -24,7 +25,6 @@ import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
-import Extra (eitherM)
 import Galley.API.Error (missingLegalholdConsent)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
