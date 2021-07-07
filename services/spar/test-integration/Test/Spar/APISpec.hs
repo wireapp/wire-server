@@ -75,6 +75,7 @@ import Util.Core
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
+import qualified Web.Scim.Schema.User as Scim
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
@@ -800,7 +801,7 @@ specCRUDIdentityProvider = do
           statusCode resp `shouldBe` 200
           idp ^. idpMetadata . edIssuer `shouldBe` issuer2
           idp ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-      it "migrates old users to new idp on their next login" $ do
+      it "migrates old users to new idp on their next login (auto-prov)" $ do
         env <- ask
         (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
         issuer2 <- makeIssuer
@@ -817,6 +818,33 @@ specCRUDIdentityProvider = do
         newuref <- tryLogin privkey2 idp2 userSubject
         getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldBe` Nothing
         getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+
+      it "migrates old users to new idp on their next login (scim)" $ do
+        -- even scim users are automatically updated to a changed IdP issuer.  (this is for
+        -- high-availability; otherwise we could also require the scim peer to push the
+        -- update, and block the old users from logging in until then.)
+        env <- ask
+        (tok, (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1))) <- ScimT.registerIdPAndScimTokenWithMeta
+        issuer2 <- makeIssuer
+        let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+            privkey2 = privkey1
+            idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
+        let userSubject = SAML.unspecifiedNameID extId
+            extId = "bloob"
+        void $ do
+          -- provision scim user (this is the difference to the above test case)
+          scimusr <- ScimT.randomScimUser
+          ScimT.createUser tok (scimusr {Scim.externalId = Just extId})
+        olduref <- tryLogin privkey1 idp1 userSubject
+        getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+        _ <-
+          let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
+           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+        getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+        newuref <- tryLogin privkey2 idp2 userSubject
+        getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldBe` Nothing
+        getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
+
       it "creates non-existent users" $ do
         env <- ask
         (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
