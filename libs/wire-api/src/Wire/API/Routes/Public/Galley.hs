@@ -294,12 +294,24 @@ data Api routes = Api
     teamFeatureStatusSearchVisibilityPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityDeprecatedPut ::
+      routes
+        :- FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility,
     teamFeatureStatusValidateSAMLEmailsGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureValidateSAMLEmails,
+    teamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureValidateSAMLEmails,
     teamFeatureStatusDigitalSignaturesGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureDigitalSignatures,
+    teamFeatureStatusDigitalSignaturesDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureDigitalSignatures,
     teamFeatureStatusAppLockGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureAppLock,
@@ -329,6 +341,28 @@ type FeatureStatusPut featureName =
     :> KnownTeamFeatureNameSymbol featureName
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+
+-- | A type for a GET endpoint for a feature with a deprecated path
+type FeatureStatusDeprecatedGet featureName =
+  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> DeprecatedFeatureName featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+-- | A type for a PUT endpoint for a feature with a deprecated path
+type FeatureStatusDeprecatedPut featureName =
+  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> DeprecatedFeatureName featureName
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+
 
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
