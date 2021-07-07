@@ -62,7 +62,7 @@ errorDescriptionAddToSwagger =
         response
           -- add the description of this error to the response description
           & Swagger._Inline . Swagger.description
-            <>~ (" or " <> Text.pack (symbolVal (Proxy @desc)))
+            <>~ ("\n\n" <> Text.pack (symbolVal (Proxy @desc)))
           -- add the label of this error to the possible values of the corresponding enum
           & Swagger._Inline . Swagger.schema . _Just . Swagger._Inline . Swagger.properties . ix "label" . Swagger._Inline . Swagger.enum_ . _Just
             <>~ [A.toJSON (symbolVal (Proxy @label))]
@@ -177,3 +177,8 @@ operationDenied :: Show perm => perm -> OperationDenied
 operationDenied p =
   ErrorDescription $
     "Insufficient permissions (missing " <> Text.pack (show p) <> ")"
+
+type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
+
+notATeamMember :: NotATeamMember
+notATeamMember = mkErrorDescription

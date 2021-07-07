@@ -123,9 +123,6 @@ noBindingTeam = mkError status403 "no-binding-team" "Operation allowed only on b
 notAOneMemberTeam :: Error
 notAOneMemberTeam = mkError status403 "not-one-member-team" "Can only delete teams with a single member."
 
-notATeamMember :: Error
-notATeamMember = mkError status403 "no-team-member" "Requesting user is not a team member."
-
 bulkGetMemberLimitExceeded :: Error
 bulkGetMemberLimitExceeded =
   mkError
