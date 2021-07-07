@@ -29,11 +29,10 @@ import Data.Domain (Domain, domainText, mkDomain)
 import Data.String.Conversions (cs)
 import Federator.Options
 import Imports
-import Network.URI
 import Polysemy (Members, Sem)
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
-import qualified URI.ByteString as URIB
+import URI.ByteString
 import Wire.API.Federation.GRPC.Types
 
 -- | Validates an already-parsed domain against the allowList using the federator
@@ -71,16 +70,16 @@ sanitizePath originalPath = do
   when (BS.length originalPath > 200) $
     throwInward IForbiddenEndpoint "path too long"
   -- we parse the path using the URI.ByteString module to make use of its normalization functions
-  uriRef <- case URIB.parseRelativeRef URIB.strictURIParserOptions originalPath of
+  uriRef <- case parseRelativeRef strictURIParserOptions originalPath of
     Left err -> throwInward IForbiddenEndpoint (cs $ show err <> cs originalPath)
     Right ref -> pure ref
 
   -- we don't expect any query parameters or other URL parts other than a plain path
-  when (URIB.queryPairs (URIB.rrQuery uriRef) /= []) $
+  when (queryPairs (rrQuery uriRef) /= []) $
     throwInward IForbiddenEndpoint "query parameters not allowed"
-  when (isJust (URIB.rrFragment uriRef)) $
+  when (isJust (rrFragment uriRef)) $
     throwInward IForbiddenEndpoint "fragments not allowed"
-  when (isJust (URIB.rrAuthority uriRef)) $
+  when (isJust (rrAuthority uriRef)) $
     throwInward IForbiddenEndpoint "authority not allowed"
 
   -- Perform these normalizations:
@@ -91,7 +90,7 @@ sanitizePath originalPath = do
   -- - Rewrite path from /foo//bar///baz to /foo/bar/baz
   -- - Sorts parameters by parameter name
   -- - Remove dot segments as per RFC3986 Section 5.2.4
-  let normalizedURI = URIB.normalizeURIRef' URIB.aggressiveNormalization uriRef
+  let normalizedURI = normalizeURIRef' aggressiveNormalization uriRef
   -- sometimes normalization above results in a path with a leading slash.
   -- For consistency, remove a leading slash, if any
   let withoutLeadingSlash = BS.stripPrefix "/" normalizedURI
