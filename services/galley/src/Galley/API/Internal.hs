@@ -28,7 +28,7 @@ where
 import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow (throwM))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
@@ -38,6 +38,7 @@ import Data.String.Conversions (cs)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Error (missingLegalholdConsent)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import qualified Galley.API.Query as Query
@@ -389,4 +390,5 @@ guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts :::
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+    >>= either (const (throwM missingLegalholdConsent)) pure
   pure $ Network.Wai.Utilities.setStatus status200 empty

@@ -191,6 +191,9 @@ instance ToJSON Base64ByteString where
 instance IsString Base64ByteString where
   fromString = Base64ByteString . L8.pack
 
+instance Arbitrary Base64ByteString where
+  arbitrary = Base64ByteString <$> arbitrary
+
 --------------------------------------------------------------------------------
 -- Utilities
 
