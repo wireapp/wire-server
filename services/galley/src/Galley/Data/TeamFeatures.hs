@@ -22,17 +22,14 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
-    getClassifiedDomainsStatus,
-    setClassifiedDomainsStatus
+    HasStatusCol(..)
   )
 where
 
 import Cassandra
-import Data.Domain (domainText, mkDomain)
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
-import System.Logger.Class (MonadLogger, field, msg, warn)
 import Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus,
@@ -42,50 +39,61 @@ import Wire.API.Team.Feature
   )
 import qualified Wire.API.Team.Feature as Public
 
-toStatusCol :: TeamFeatureName -> String
-toStatusCol TeamFeatureLegalHold = "legalhold_status"
-toStatusCol TeamFeatureSSO = "sso_status"
-toStatusCol TeamFeatureSearchVisibility = "search_visibility_status"
-toStatusCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
-toStatusCol TeamFeatureDigitalSignatures = "digital_signatures"
-toStatusCol TeamFeatureAppLock = "app_lock_status"
-toStatusCol TeamFeatureClassifiedDomains = "classified_domains_status"
+-- | Because not all so called team features are actually team-level features,
+-- not all of them have a corresponding column in the database. Therefore,
+-- instead of having a function like:
+--
+--   statusCol :: TeamFeatureName -> String
+--
+-- there is a need for turning it into a class and then defining an instance for
+-- team features that do have a database column.
+class HasStatusCol (a :: TeamFeatureName) where
+  statusCol :: String
+
+instance HasStatusCol 'TeamFeatureLegalHold where statusCol = "legalhold_status"
+instance HasStatusCol 'TeamFeatureSSO where statusCol = "sso_status"
+instance HasStatusCol 'TeamFeatureSearchVisibility where statusCol = "search_visibility_status"
+instance HasStatusCol 'TeamFeatureValidateSAMLEmails where statusCol = "validate_saml_emails"
+instance HasStatusCol 'TeamFeatureDigitalSignatures where statusCol = "digital_signatures"
+instance HasStatusCol 'TeamFeatureAppLock where statusCol = "app_lock_status"
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
-    Public.KnownTeamFeatureName a,
-    Public.FeatureHasNoConfig a
+    -- Public.KnownTeamFeatureName a,
+    Public.FeatureHasNoConfig a,
+    HasStatusCol a
   ) =>
   TeamId ->
   m (Maybe (TeamFeatureStatus a))
 getFeatureStatusNoConfig tid = do
-  let q = query1 (select (Public.knownTeamFeatureName @a)) (params Quorum (Identity tid))
+  let q = query1 select (params Quorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
   pure $ TeamFeatureStatusNoConfig <$> mStatusValue
   where
-    select :: TeamFeatureName -> PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
-    select feature = fromString $ "select " <> toStatusCol feature <> " from team_features where team_id = ?"
+    select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
+    select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
 
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
-    Public.KnownTeamFeatureName a,
-    Public.FeatureHasNoConfig a
+    -- Public.KnownTeamFeatureName a,
+    Public.FeatureHasNoConfig a,
+    HasStatusCol a
   ) =>
   TeamId ->
   TeamFeatureStatus a ->
   m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
   let flag = Public.tfwoStatus status
-  retry x5 $ write (update (Public.knownTeamFeatureName @a)) (params Quorum (flag, tid))
+  retry x5 $ write update (params Quorum (flag, tid))
   pure status
   where
-    update :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
-    update feature = fromString $ "update team_features set " <> toStatusCol feature <> " = ? where team_id = ?"
+    update :: PrepQuery W (TeamFeatureStatusValue, TeamId) ()
+    update = fromString $ "update team_features set " <> statusCol @a <> " = ? where team_id = ?"
 
 getApplockFeatureStatus ::
-  (MonadClient m) =>
+  forall m. (MonadClient m) =>
   TeamId ->
   m (Maybe (TeamFeatureStatus 'Public.TeamFeatureAppLock))
 getApplockFeatureStatus tid = do
@@ -98,7 +106,7 @@ getApplockFeatureStatus tid = do
     select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Public.EnforceAppLock, Maybe Int32)
     select =
       fromString $
-        "select " <> toStatusCol Public.TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
+        "select " <> statusCol @'Public.TeamFeatureAppLock <> ", app_lock_enforce, app_lock_inactivity_timeout_secs "
           <> "from team_features where team_id = ?"
 
 setApplockFeatureStatus ::
@@ -117,53 +125,9 @@ setApplockFeatureStatus tid status = do
     update =
       fromString $
         "update team_features set "
-          <> toStatusCol Public.TeamFeatureAppLock
+          <> statusCol @'Public.TeamFeatureAppLock
           <> " = ?, "
           <> "app_lock_enforce = ?, "
           <> "app_lock_inactivity_timeout_secs = ? "
           <> "where team_id = ?"
 
-getClassifiedDomainsStatus ::
-  (MonadClient m, MonadLogger m) =>
-  TeamId ->
-  m (Maybe (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains))
-getClassifiedDomainsStatus tid = do
-  let q = query1 select (params Quorum (Identity tid))
-  mTuple <- retry x1 q
-  case mTuple of
-    Nothing -> pure Nothing
-    Just (mbStatusValue, mbDomainsText) -> do
-      let eitherDomains = map mkDomain $ concatMap Cassandra.fromSet mbDomainsText
-          (domainParseErrors, parsedDomains) = partitionEithers eitherDomains
-      unless (null domainParseErrors) $ do
-        warn $
-          msg ("Some domains failed to parse in classified domains" :: ByteString)
-            . field ("errors" :: ByteString) (intercalate ", " domainParseErrors)
-            . field ("tid" :: ByteString) (show tid)
-      pure $ TeamFeatureStatusWithConfig <$> mbStatusValue <*> Just (Public.TeamFeatureClassifiedDomainsConfig parsedDomains)
-  where
-    select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe (Cassandra.Set Text))
-    select =
-      fromString $
-        "select " <> toStatusCol Public.TeamFeatureClassifiedDomains <> ", classified_domains_domains "
-          <> "from team_features where team_id = ?"
-
-setClassifiedDomainsStatus ::
-  (MonadClient m) =>
-  TeamId ->
-  TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
-  m (TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-setClassifiedDomainsStatus tid status = do
-  let statusValue = Public.tfwcStatus status
-      domains = Public.classifiedDomainsDomains . Public.tfwcConfig $ status
-  retry x5 $ write update (params Quorum (statusValue, Cassandra.Set $ domainText <$> domains, tid))
-  pure status
-  where
-    update :: PrepQuery W (TeamFeatureStatusValue, Cassandra.Set Text, TeamId) ()
-    update =
-      fromString $
-        "update team_features set "
-          <> toStatusCol Public.TeamFeatureClassifiedDomains
-          <> " = ?, "
-          <> "classified_domains_domains = ? "
-          <> "where team_id = ?"

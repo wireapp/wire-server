@@ -30,7 +30,6 @@ module Galley.API.Teams.Features
     getDigitalSignaturesInternal,
     setDigitalSignaturesInternal,
     getClassifiedDomainsInternal,
-    setClassifiedDomainsInternal,
     getAppLockInternal,
     setAppLockInternal,
     DoAuth (..),
@@ -125,7 +124,7 @@ getAllFeatures uid tid = do
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName).
-  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a) =>
+  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a, TeamFeatures.HasStatusCol a) =>
   Galley Public.TeamFeatureStatusValue ->
   TeamId ->
   Galley (Public.TeamFeatureStatus a)
@@ -135,7 +134,7 @@ getFeatureStatusNoConfig getDefault tid = do
 
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName).
-  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a) =>
+  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a, TeamFeatures.HasStatusCol a) =>
   (Public.TeamFeatureStatusValue -> TeamId -> Galley ()) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
@@ -227,14 +226,10 @@ setAppLockInternal tid status = do
   TeamFeatures.setApplockFeatureStatus tid status
 
 getClassifiedDomainsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-getClassifiedDomainsInternal tid = do
+getClassifiedDomainsInternal _tid = do
   globalConfig <- view (options . optSettings . setFeatureFlags . flagClassifiedDomains)
-  mbTeamConfig <- TeamFeatures.getClassifiedDomainsStatus tid
-  let config = fromMaybe globalConfig mbTeamConfig
+  let config = globalConfig
   pure $ case Public.tfwcStatus config of
     Public.TeamFeatureDisabled ->
       Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
     Public.TeamFeatureEnabled -> config
-
-setClassifiedDomainsInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
-setClassifiedDomainsInternal = TeamFeatures.setClassifiedDomainsStatus

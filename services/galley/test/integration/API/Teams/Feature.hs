@@ -47,9 +47,8 @@ tests s =
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures,
       test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails,
-      test s "Classified Domains (config level, enabled)" testClassifiedDomainsEnabled,
-      test s "Classified Domains (config level, disabled)" testClassifiedDomainsDisabled,
-      test s "Classified Domains (team level)" testClassifiedDomainsTeamLevel
+      test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
+      test s "Classified Domains (disabled)" testClassifiedDomainsDisabled
     ]
 
 testSSO :: TestM ()
@@ -248,27 +247,6 @@ testClassifiedDomainsDisabled = do
   withSettingsOverrides classifiedDomainsDisabled $ do
     getClassifiedDomains member tid expected
     getClassifiedDomainsInternal tid expected
-
-testClassifiedDomainsTeamLevel :: TestM ()
-testClassifiedDomainsTeamLevel = do
-  (tid, _, member : _) <- Util.createBindingTeamWithMembers 2
-  let postedConfig =
-        Public.TeamFeatureStatusWithConfig Public.TeamFeatureEnabled $
-          Public.TeamFeatureClassifiedDomainsConfig [Domain "classified.example.com"]
-
-  Util.putTeamFeatureFlagInternal @'Public.TeamFeatureClassifiedDomains expect2xx tid postedConfig
-
-  getClassifiedDomains member tid postedConfig
-
-  -- It should return the same thing even if global setting is different
-  opts <- view tsGConf
-  let classifiedDomainsDisabled =
-        opts
-          & over
-            (optSettings . setFeatureFlags . flagClassifiedDomains)
-            (\s -> s {Public.tfwcStatus = Public.TeamFeatureDisabled})
-  withSettingsOverrides classifiedDomainsDisabled $
-    getClassifiedDomains member tid postedConfig
 
 testSimpleFlag ::
   forall (a :: Public.TeamFeatureName).

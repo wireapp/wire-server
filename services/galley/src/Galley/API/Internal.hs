@@ -144,10 +144,7 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusClassifiedDomainsGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains,
-    iTeamFeatureStatusClassifiedDomainsPut ::
-      routes
-        :- IFeatureStatusPut 'Public.TeamFeatureClassifiedDomains
+        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 
@@ -217,8 +214,7 @@ servantSitemap =
         iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
         iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
-        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
-        iTeamFeatureStatusClassifiedDomainsPut = iPutTeamFeature @'Public.TeamFeatureClassifiedDomains Features.setClassifiedDomainsInternal
+        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
       }
 
 iGetTeamFeature ::
