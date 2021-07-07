@@ -448,7 +448,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
 
   -- create conversation on domain 1
   convId <-
-    cnvId . responseJsonUnsafe
+    qUnqualified . cnvQualifiedId . responseJsonUnsafe
       <$> createConversation galley1 (userId alice) [userQualifiedId bob]
 
   -- send a message from bob at domain 2 to alice at domain 1
