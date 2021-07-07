@@ -17,22 +17,23 @@
 
 module Federator.Validation
   ( federateWith,
-    federateWith',
+    validateDomain,
+    throwInward,
   )
 where
 
 import Control.Lens (view)
 import Data.Domain (Domain, domainText, mkDomain)
-import Data.Either.Combinators (mapLeft)
 import Data.String.Conversions (cs)
 import Federator.Options
 import Imports
 import Polysemy (Members, Sem)
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
+import Wire.API.Federation.GRPC.Types
 
 -- | Validates an already-parsed domain against the allowList using the federator
--- startup configuration. See also federateWith' for an alternative
+-- startup configuration.
 federateWith :: Members '[Polysemy.Reader RunSettings] r => Domain -> Sem r Bool
 federateWith targetDomain = do
   strategy <- view federationStrategy <$> Polysemy.ask
@@ -41,17 +42,21 @@ federateWith targetDomain = do
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains
 
 -- | Validates an unknown domain string against the allowList using the federator startup configuration
-federateWith' :: Members '[Polysemy.Reader RunSettings] r => Text -> Sem r (Either Text Domain)
-federateWith' targetDomain = Polysemy.runError $ do
-  parsedDomain <- Polysemy.fromEither $ mapLeft (errDomainParsing targetDomain) $ mkDomain targetDomain
-  allowCheck <- federateWith parsedDomain
-  unless allowCheck $
-    Polysemy.throw (errAllowList parsedDomain)
-  pure parsedDomain
+validateDomain :: Members '[Polysemy.Reader RunSettings, Polysemy.Error InwardError] r => Text -> Sem r Domain
+validateDomain unparsedDomain = do
+  targetDomain <- case mkDomain unparsedDomain of
+    Left parseErr -> throwInward IInvalidDomain (errDomainParsing parseErr)
+    Right d -> pure d
+  passAllowList <- federateWith targetDomain
+  if passAllowList
+    then pure targetDomain
+    else throwInward IFederationDeniedByRemote (errAllowList targetDomain)
+  where
+    errDomainParsing :: String -> Text
+    errDomainParsing err = "Domain parse failure for [" <> unparsedDomain <> "]: " <> cs err
 
--- FUTUREWORK: create error data types and adjust InwardResponseErr and OutwardResponseError
-errDomainParsing :: Text -> String -> Text
-errDomainParsing domain err = "Domain parse failure for [" <> domain <> "]: " <> cs err
+    errAllowList :: Domain -> Text
+    errAllowList domain = "Origin domain [" <> domainText domain <> "] not in the federation allow list"
 
-errAllowList :: Domain -> Text
-errAllowList domain = "Origin domain [" <> domainText domain <> "] not in the federation allow list"
+throwInward :: Members '[Polysemy.Error InwardError] r => InwardErrorType -> Text -> Sem r a
+throwInward errType errMsg = Polysemy.throw $ InwardError errType errMsg

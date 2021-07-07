@@ -50,6 +50,12 @@ This release requires a manual change in your galley configuration: `settings.co
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
 * Change `settings.conversationCodeURI` in galley.yaml (#1643).
+* Refactored Federator InternalServer (#1637)
+
+### Internal Federation API changes
+
+* Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
+  * Note: federation should not be in use anywhere yet, so this should not have any impact
 
 ## Documentation
 

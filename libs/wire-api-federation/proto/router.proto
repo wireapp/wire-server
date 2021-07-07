@@ -18,15 +18,16 @@ enum Component {
 
 message InwardResponse {
   oneof response {
-    bytes body = 1;
-    string err = 2;
+    InwardError err = 1;
+    bytes body = 2;
   }
 }
 
 message OutwardResponse {
   oneof response {
-    OutwardError err = 1;
-    bytes body = 2;
+    OutwardError outErr = 1;
+    InwardError inErr = 2;
+    bytes body = 3;
   }
 }
 
@@ -46,6 +47,19 @@ message OutwardError {
 
   ErrorType type = 1;
   ErrorPayload payload = 2;
+}
+
+message InwardError {
+  enum ErrorType {
+    IOther = 0;
+    IInvalidDomain = 1;
+    IFederationDeniedByRemote = 2;
+    IInvalidEndpoint = 3;
+    IForbiddenEndpoint = 4;
+  }
+
+  ErrorType type = 1;
+  string msg = 2;
 }
 
 message ErrorPayload {

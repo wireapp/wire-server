@@ -96,6 +96,7 @@ instance (Monad m, MonadIO m, MonadError FederationClientFailure m, KnownCompone
       GRpcErrorString msg -> rpcFailure $ "grpc error: " <> T.pack msg
       GRpcClientError msg -> rpcFailure $ "grpc client error: " <> T.pack (show msg)
       GRpcOk (Proto.OutwardResponseError err) -> failure (FederationClientOutwardError err)
+      GRpcOk (Proto.OutwardResponseInwardError err) -> failure (FederationClientInwardError err)
       GRpcOk (Proto.OutwardResponseBody res) -> do
         pure $
           Response
@@ -135,6 +136,7 @@ data FederationClientError
   | FederationClientStreamingUnsupported
   | FederationClientRPCError Text
   | FederationClientOutwardError Proto.OutwardError
+  | FederationClientInwardError Proto.InwardError
   | FederationClientServantError Servant.ClientError
   deriving (Show, Eq)
 
