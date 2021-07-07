@@ -67,7 +67,7 @@ import Servant.API (IsMember, Union, inject)
 import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
-import Wire.API.ErrorDescription (convNotFound, notConnected, operationDenied)
+import Wire.API.ErrorDescription (convNotFound, notATeamMember, notConnected, operationDenied)
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
@@ -82,7 +82,7 @@ ensureAccessRole role users = case role of
   PrivateAccessRole -> throwM convAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
-      throwM notATeamMember
+      throwErrorDescription notATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
@@ -166,7 +166,7 @@ permissionCheck p = \case
     if m `hasPermission` p
       then pure m
       else throwErrorDescription (operationDenied p)
-  Nothing -> throwM notATeamMember
+  Nothing -> throwErrorDescription notATeamMember
 
 assertTeamExists :: TeamId -> Galley ()
 assertTeamExists tid = do
@@ -178,7 +178,7 @@ assertTeamExists tid = do
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
   Data.teamMember tid uid >>= \case
-    Nothing -> throwM notATeamMember
+    Nothing -> throwErrorDescription notATeamMember
     Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named

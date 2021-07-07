@@ -124,7 +124,7 @@ sitemap = do
       description "Team ID"
     body (ref Public.modelUpdateData) $
       description "JSON body"
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetTeamData))
 
   get "/teams" (continue Teams.getManyTeamsH) $
@@ -172,7 +172,7 @@ sitemap = do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team is scheduled for removal" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.DeleteTeam))
     errorResponse Error.deleteQueueFull
     errorResponse Error.reAuthFailed
@@ -194,7 +194,7 @@ sitemap = do
       description "Maximum Results to be returned"
     returns (ref Public.modelTeamMemberList)
     response 200 "Team members" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
 
   get "/teams/:tid/members/csv" (continue Teams.getTeamMembersCSVH) $
     -- we could discriminate based on accept header only, but having two paths makes building
@@ -230,7 +230,7 @@ sitemap = do
       description "JSON body"
     returns (ref Public.modelTeamMemberList)
     response 200 "Team members" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse Error.bulkGetMemberLimitExceeded
 
   get "/teams/:tid/members/:uid" (continue Teams.getTeamMemberH) $
@@ -246,7 +246,7 @@ sitemap = do
       description "User ID"
     returns (ref Public.modelTeamMember)
     response 200 "Team member" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse Error.teamMemberNotFound
 
   get "/teams/notifications" (continue Teams.getTeamNotificationsH) $
@@ -301,7 +301,7 @@ sitemap = do
       description "Team ID"
     body (ref Public.modelNewTeamMember) $
       description "JSON body"
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.AddTeamMember))
     errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse Error.invalidPermissions
@@ -324,7 +324,7 @@ sitemap = do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team member scheduled for deletion" end
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.RemoveTeamMember))
     errorResponse Error.reAuthFailed
 
@@ -340,7 +340,7 @@ sitemap = do
       description "Team ID"
     body (ref Public.modelNewTeamMember) $
       description "JSON body"
-    errorResponse Error.notATeamMember
+    errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse Error.teamMemberNotFound
     errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.SetMemberPermissions))
 

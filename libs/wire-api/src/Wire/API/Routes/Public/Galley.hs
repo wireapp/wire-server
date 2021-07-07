@@ -155,22 +155,23 @@ data Api routes = Api
         :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
-    -- FUTUREWORK: errorResponse Error.notATeamMember
     getConversationByReusableCode ::
       routes
         :- Summary "Get limited conversation information by key/code pair"
         :> CanThrow NotConnected
         :> CanThrow OperationDenied
+        :> CanThrow NotATeamMember
         :> ZUser
         :> "conversations"
         :> "join"
         :> QueryParam' [Required, Strict] "key" Code.Key
         :> QueryParam' [Required, Strict] "code" Code.Value
         :> Get '[Servant.JSON] Public.ConversationCoverView,
-    -- FUTUREWORK: potential errors: codeNotFound, convNotFound, notATeamMember, convAccessDenied
+    -- FUTUREWORK: potential errors: codeNotFound, convNotFound, convAccessDenied
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
+        :> CanThrow NotATeamMember
         :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
         :> ZUser
         :> ZConn
@@ -210,9 +211,9 @@ data Api routes = Api
     -- Team Conversations
 
     getTeamConversationRoles ::
-      -- FUTUREWORK: errorResponse Error.notATeamMember
       routes
         :- Summary "Get existing roles available for the given team"
+        :> CanThrow NotATeamMember
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -239,10 +240,10 @@ data Api routes = Api
         :> Capture "cid" ConvId
         :> Get '[Servant.JSON] Public.TeamConversation,
     -- FUTUREWORK: errorResponse (Error.actionDenied Public.DeleteConversation)
-    --             errorResponse Error.notATeamMember
     deleteTeamConversation ::
       routes
         :- Summary "Remove a team conversation"
+        :> CanThrow NotATeamMember
         :> ZUser
         :> ZConn
         :> "teams"
