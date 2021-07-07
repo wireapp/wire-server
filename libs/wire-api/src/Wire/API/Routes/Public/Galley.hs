@@ -363,7 +363,6 @@ type FeatureStatusDeprecatedPut featureName =
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 
-
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
   \To override this, the endpoint accepts two query params:\n\
