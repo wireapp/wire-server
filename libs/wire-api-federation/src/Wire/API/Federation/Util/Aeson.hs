@@ -24,7 +24,7 @@ where
 import Data.Aeson
 import qualified Data.Char as Char
 import GHC.Generics (Rep)
-import Imports
+import Imports hiding (All)
 
 -- | Drops record field name prefixes (anything until the first upper-case char)
 -- and turns the rest into snake_case.

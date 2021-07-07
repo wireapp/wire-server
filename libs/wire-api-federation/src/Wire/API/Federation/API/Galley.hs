@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -20,6 +22,7 @@ module Wire.API.Federation.API.Galley where
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
+import Data.Json.Util (Base64ByteString)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -34,8 +37,8 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
-import Wire.API.Message (Priority)
+import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
+import Wire.API.Message (MessageSendingStatus, Priority)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -73,7 +76,16 @@ data Api routes = Api
         :> "receive-message"
         :> DomainHeader
         :> ReqBody '[JSON] (RemoteMessage ConvId)
-        :> Post '[JSON] ()
+        :> Post '[JSON] (),
+    -- used by a remote backend to send a message to a conversation owned by
+    -- this backend
+    sendMessage ::
+      routes
+        :- "federation"
+        :> "send-message"
+        :> DomainHeader
+        :> ReqBody '[JSON] MessageSendRequest
+        :> Post '[JSON] MessageSendResponse
   }
   deriving (Generic)
 
@@ -157,6 +169,32 @@ data RemoteMessage conv = RemoteMessage
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
   deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
+
+data MessageSendRequest = MessageSendRequest
+  { -- | Converastion is assumed to be owned by the target domain, this allows
+    -- us to protect against relay attacks
+    msrConvId :: ConvId,
+    -- | Sender is assumed to be owned by the origin domain, this allows us to
+    -- protect against spoofing attacks
+    msrSender :: UserId,
+    msrRawMessage :: Base64ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MessageSendRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
+
+newtype MessageSendResponse = MessageSendResponse
+  {msResponse :: Either MessageNotSent MessageSendingStatus}
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON)
+
+data MessageNotSent
+  = MessageNotSentLegalhold
+  | MessageNotSentClientMissing MessageSendingStatus
+  | MessageNotSentConversationNotFound
+  | MessageNotSentUnknownClient
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MessageNotSent)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient
