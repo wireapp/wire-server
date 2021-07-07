@@ -53,6 +53,7 @@
 ## Bug fixes and other updates
 
 * Restore old behaviour for parse errors in request bodies (#1628, #1629).
+* Allow to change IdP Issuer name to previous name (#1615).
 
 # 2021-06-23
 
