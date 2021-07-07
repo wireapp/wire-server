@@ -33,6 +33,7 @@ import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
 import Data.Range
 import Data.String.Conversions (cs)
+import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
@@ -146,7 +147,8 @@ data InternalApi routes = InternalApi
 type ServantAPI = ToServantApi InternalApi
 
 type IFeatureStatusGet featureName =
-  "i"
+  Summary (AppendSymbol "Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
@@ -154,7 +156,8 @@ type IFeatureStatusGet featureName =
     :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
 type IFeatureStatusPut featureName =
-  "i"
+  Summary (AppendSymbol "Put config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
