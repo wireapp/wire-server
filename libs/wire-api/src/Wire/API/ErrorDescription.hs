@@ -1,6 +1,6 @@
 module Wire.API.ErrorDescription where
 
-import Control.Lens (at, over, (%~), (.~), (<>~), (?~))
+import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
 import Data.Schema
@@ -60,8 +60,12 @@ errorDescriptionAddToSwagger =
     addRef (Just response) =
       Just $
         response
+          -- add the description of this error to the response description
           & Swagger._Inline . Swagger.description
-          <>~ (", " <> Text.pack (symbolVal (Proxy @desc)))
+            <>~ (" or " <> Text.pack (symbolVal (Proxy @desc)))
+          -- add the label of this error to the possible values of the corresponding enum
+          & Swagger._Inline . Swagger.schema . _Just . Swagger._Inline . Swagger.properties . ix "label" . Swagger._Inline . Swagger.enum_ . _Just
+            <>~ [A.toJSON (symbolVal (Proxy @label))]
 
     overridePathItem :: Swagger.PathItem -> Swagger.PathItem
     overridePathItem =
@@ -87,7 +91,7 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
   schema =
     objectWithDocModifier "ErrorDescription" addExample $
       ErrorDescription
-        <$ const label .= field "label" schema
+        <$ const label .= field "label" labelSchema
           <*> edMessage .= field "message" schema
           <* const code .= field "code" schema
     where
@@ -97,6 +101,8 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
       addExample =
         Swagger.schema . Swagger.example
           ?~ A.toJSON (ErrorDescription @statusCode @label @desc desc)
+      labelSchema :: ValueSchema SwaggerDoc Text
+      labelSchema = unnamed $ enum @Text "Label" (element label label)
 
 -- | This instance works with 'UVerb' only because of the following overlapping
 -- instance for 'UVerb method cs (ErrorDescription status label desc ': rest))'
