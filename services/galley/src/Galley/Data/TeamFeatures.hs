@@ -22,7 +22,7 @@ module Galley.Data.TeamFeatures
     setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
-    HasStatusCol(..)
+    HasStatusCol (..),
   )
 where
 
@@ -51,10 +51,15 @@ class HasStatusCol (a :: TeamFeatureName) where
   statusCol :: String
 
 instance HasStatusCol 'TeamFeatureLegalHold where statusCol = "legalhold_status"
+
 instance HasStatusCol 'TeamFeatureSSO where statusCol = "sso_status"
+
 instance HasStatusCol 'TeamFeatureSearchVisibility where statusCol = "search_visibility_status"
+
 instance HasStatusCol 'TeamFeatureValidateSAMLEmails where statusCol = "validate_saml_emails"
+
 instance HasStatusCol 'TeamFeatureDigitalSignatures where statusCol = "digital_signatures"
+
 instance HasStatusCol 'TeamFeatureAppLock where statusCol = "app_lock_status"
 
 getFeatureStatusNoConfig ::
@@ -91,7 +96,8 @@ setFeatureStatusNoConfig tid status = do
     update = fromString $ "update team_features set " <> statusCol @a <> " = ? where team_id = ?"
 
 getApplockFeatureStatus ::
-  forall m. (MonadClient m) =>
+  forall m.
+  (MonadClient m) =>
   TeamId ->
   m (Maybe (TeamFeatureStatus 'Public.TeamFeatureAppLock))
 getApplockFeatureStatus tid = do
@@ -128,4 +134,3 @@ setApplockFeatureStatus tid status = do
           <> "app_lock_enforce = ?, "
           <> "app_lock_inactivity_timeout_secs = ? "
           <> "where team_id = ?"
-
