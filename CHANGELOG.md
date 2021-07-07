@@ -43,9 +43,8 @@
 
 ### Internal Federation API changes
 
-(federation should not be in use anywhere yet, so this should not have any impact)
-
 * Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
+  * Note: federation should not be in use anywhere yet, so this should not have any impact
 
 ## Documentation
 

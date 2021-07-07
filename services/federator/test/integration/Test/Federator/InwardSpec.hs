@@ -44,6 +44,7 @@ import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.GRPC.Client
 import Wire.API.Federation.GRPC.Types hiding (body, path)
+import qualified Wire.API.Federation.GRPC.Types as GRPC
 import Wire.API.User
 import Wire.API.User.Auth
 
@@ -89,7 +90,8 @@ spec env =
 expectErr :: InwardErrorType -> InwardError -> TestFederator IO ()
 expectErr expectedType err =
   unless (inwardErrorType err == expectedType)
-    . liftIO $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
+    . liftIO
+    $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
 
 asInwardBody :: forall a. (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> TestFederator IO a
 asInwardBody = either (liftIO . assertFailure) pure . asInwardBodyEither
@@ -125,7 +127,13 @@ asInwardErrorEither other = Left $ "GRpc call failed unexpectedly: " <> show oth
 inwardBrigCall :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
 inwardBrigCall requestPath payload = do
   c <- viewFederatorExternalClient
-  let brigCall = Request Brig requestPath (LBS.toStrict payload) "foo.example.com"
+  let brigCall =
+        GRPC.Request
+          { GRPC.component = Brig,
+            GRPC.path = requestPath,
+            GRPC.body = LBS.toStrict payload,
+            GRPC.originDomain = "foo.example.com"
+          }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
 viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient

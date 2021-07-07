@@ -56,6 +56,7 @@ data InwardResponse
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform InwardResponse)
 
+-- FUTUREWORK: add roundtrip tests for these to/from schema definitions.
 instance ToSchema Router "InwardResponse" InwardResponse where
   toSchema r =
     let protoChoice = case r of
@@ -97,6 +98,8 @@ instance FromSchema Router "OutwardResponse" OutwardResponse where
       S (S (Z (FPrimitive res))) -> OutwardResponseBody res
       S (S (S x)) -> case x of
 
+-- See mu-haskell Custom Mapping documentation here:
+-- https://higherkindness.io/mu-haskell/schema/#mapping-haskell-types
 type OutwardErrorFieldMapping =
   '[ "outwardErrorType" ':-> "type",
      "outwardErrorPayload" ':-> "payload"
@@ -133,6 +136,8 @@ data ErrorPayload = ErrorPayload
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "ErrorPayload", FromSchema Router "ErrorPayload")
   deriving (Arbitrary) via (GenericUniform ErrorPayload)
 
+-- See mu-haskell Custom Mapping documentation here:
+-- https://higherkindness.io/mu-haskell/schema/#mapping-haskell-types
 type InwardErrorFieldMapping =
   '[ "inwardErrorType" ':-> "type",
      "inwardErrorMsg" ':-> "msg"
