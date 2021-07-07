@@ -344,7 +344,7 @@ type FeatureStatusPut featureName =
 
 -- | A type for a GET endpoint for a feature with a deprecated path
 type FeatureStatusDeprecatedGet featureName =
-  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+  Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
     :> "teams"
     :> Capture "tid" TeamId
@@ -354,7 +354,7 @@ type FeatureStatusDeprecatedGet featureName =
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
 type FeatureStatusDeprecatedPut featureName =
-  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+  Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
     :> "teams"
     :> Capture "tid" TeamId

@@ -167,7 +167,8 @@ type IFeatureStatusPut featureName =
 
 -- | A type for a GET endpoint for a feature with a deprecated path
 type IFeatureStatusDeprecatedGet featureName =
-  "i"
+  Summary (AppendSymbol "[deprecated] Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
@@ -176,7 +177,8 @@ type IFeatureStatusDeprecatedGet featureName =
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
 type IFeatureStatusDeprecatedPut featureName =
-  "i"
+  Summary (AppendSymbol "[deprecated] Put config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
