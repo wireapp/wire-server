@@ -192,6 +192,7 @@ executables:
     - servant-swagger
     - servant-client
     - servant-client-core
+    - sop-core
     - string-conversions
     - tagged
     - tasty >=0.8

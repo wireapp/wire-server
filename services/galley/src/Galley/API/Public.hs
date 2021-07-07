@@ -107,17 +107,30 @@ servantSitemap =
         GalleyAPI.teamFeatureStatusSearchVisibilityPut =
           setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
             . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedPut =
+          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
+            . DoAuth,
         GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet =
           getFeatureStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
             . DoAuth,
+        GalleyAPI.teamFeatureStatusValidateSAMLEmailsDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+            . DoAuth,
         GalleyAPI.teamFeatureStatusDigitalSignaturesGet =
+          getFeatureStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusDigitalSignaturesDeprecatedGet =
           getFeatureStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusAppLockGet =
           getFeatureStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusAppLockPut =
-          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal . DoAuth,
+          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal
+            . DoAuth,
         GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
           getFeatureStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
             . DoAuth

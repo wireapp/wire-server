@@ -118,10 +118,10 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
-import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
 
@@ -655,17 +655,19 @@ postBotMessage zbot zcnv val message = do
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
 -- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
-postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postProteusMessage zusr zcon convDomain cnv msg = do
+postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postProteusMessage zusr zcon convDomain conv msg = do
   localDomain <- viewFederationDomain
+  let sender = Qualified zusr localDomain
   if localDomain /= convDomain
-    then throwM federationNotImplemented
-    else postQualifiedOtrMessage User zusr (Just zcon) cnv msg
+    then postRemoteOtrMessage sender (Qualified conv convDomain) (rpRaw msg)
+    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) conv (rpValue msg)
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
   localDomain <- viewFederationDomain
-  let qualifiedRecipients =
+  let sender = Qualified zusr localDomain
+      qualifiedRecipients =
         Public.QualifiedOtrRecipients
           . QualifiedUserClientMap
           . Map.singleton localDomain
@@ -674,7 +676,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
           . Public.otrRecipientsMap
           . Public.newOtrRecipients
           $ message
-  let clientMismatchStrategy = legacyClientMismatchStrategy localDomain (newOtrReportMissing message) ignoreMissing reportMissing
+      clientMismatchStrategy = legacyClientMismatchStrategy localDomain (newOtrReportMissing message) ignoreMissing reportMissing
       qualifiedMessage =
         Public.QualifiedNewOtrMessage
           { Public.qualifiedNewOtrSender = newOtrSender message,
@@ -686,7 +688,9 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
             Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
   unqualify localDomain
-    <$> postQualifiedOtrMessage User zusr (Just zcon) cnv qualifiedMessage
+    <$> ( mkPostOtrResponsesUnion
+            =<< postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
+        )
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -1140,6 +1144,7 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
+      >>= either (const (throwM missingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
   InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient

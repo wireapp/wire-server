@@ -257,6 +257,7 @@ executable galley-integration
     , servant-client-core
     , servant-server
     , servant-swagger
+    , sop-core
     , ssl-util
     , string-conversions
     , tagged

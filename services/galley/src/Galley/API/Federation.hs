@@ -16,13 +16,18 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
+import Control.Monad.Catch (throwM)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.Id (ConvId)
+import Data.Json.Util (Base64ByteString (..))
 import Data.Qualified (Qualified (..))
 import Data.Tagged
+import qualified Data.Text.Lazy as LT
+import Galley.API.Error (invalidPayload)
 import qualified Galley.API.Mapping as Mapping
-import Galley.API.Update as API
+import Galley.API.Message (UserType (..), postQualifiedOtrMessage)
+import qualified Galley.API.Update as API
 import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
@@ -36,10 +41,13 @@ import Wire.API.Federation.API.Galley
   ( ConversationMemberUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
+    MessageSendRequest (..),
+    MessageSendResponse (..),
     RegisterConversation (..),
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.ServantProto (FromProto (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
@@ -48,7 +56,8 @@ federationSitemap =
       { FederationAPIGalley.registerConversation = registerConversation,
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
-        FederationAPIGalley.receiveMessage = receiveMessage
+        FederationAPIGalley.receiveMessage = receiveMessage,
+        FederationAPIGalley.sendMessage = sendMessage
       }
 
 registerConversation :: RegisterConversation -> Galley ()
@@ -105,3 +114,11 @@ receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
 receiveMessage domain =
   API.postRemoteToLocal
     . fmap (Tagged . (`Qualified` domain))
+
+sendMessage :: Domain -> MessageSendRequest -> Galley MessageSendResponse
+sendMessage originDomain msr = do
+  let sender = Qualified (msrSender msr) originDomain
+  msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
+  MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
+  where
+    err = throwM . invalidPayload . LT.pack

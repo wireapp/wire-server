@@ -263,11 +263,13 @@ testOrderName brig = do
   nameMatch <- userQualifiedId <$> createUser' True searchedWord brig
   namePrefixMatch <- userQualifiedId <$> createUser' True (searchedWord <> "suffix") brig
   refreshIndex brig
-  resultUIds <- map contactQualifiedId . searchResults <$> executeSearch brig searcher searchedWord
+  results <- searchResults <$> executeSearch brig searcher searchedWord
+  let resultUIds = map contactQualifiedId results
   let expectedOrder = [nameMatch, namePrefixMatch]
+  let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
   liftIO $
     assertEqual
-      "Expected order: name match, name prefix match"
+      ("Expected order: name match, name prefix match.\n\nSince this test fails sporadically for unknown reasons here is some debug info:\n" <> dbg)
       expectedOrder
       resultUIds
 

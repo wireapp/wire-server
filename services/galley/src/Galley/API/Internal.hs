@@ -28,14 +28,16 @@ where
 import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow (throwM))
 import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
 import Data.Range
 import Data.String.Conversions (cs)
+import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Error (missingLegalholdConsent)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import qualified Galley.API.Query as Query
@@ -104,18 +106,36 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusSearchVisibilityPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusSearchVisibilityDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusSearchVisibilityDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusValidateSAMLEmailsGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusValidateSAMLEmailsPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusDigitalSignaturesGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusDigitalSignaturesPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusDigitalSignaturesDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusDigitalSignaturesDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusAppLockGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureAppLock,
@@ -134,7 +154,8 @@ data InternalApi routes = InternalApi
 type ServantAPI = ToServantApi InternalApi
 
 type IFeatureStatusGet featureName =
-  "i"
+  Summary (AppendSymbol "Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
@@ -142,11 +163,33 @@ type IFeatureStatusGet featureName =
     :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
 type IFeatureStatusPut featureName =
-  "i"
+  Summary (AppendSymbol "Put config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> Public.KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+-- | A type for a GET endpoint for a feature with a deprecated path
+type IFeatureStatusDeprecatedGet featureName =
+  Summary (AppendSymbol "[deprecated] Get config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.DeprecatedFeatureName featureName
+    :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+-- | A type for a PUT endpoint for a feature with a deprecated path
+type IFeatureStatusDeprecatedPut featureName =
+  Summary (AppendSymbol "[deprecated] Put config for " (Public.KnownTeamFeatureNameSymbol featureName))
+    :> "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.DeprecatedFeatureName featureName
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
@@ -162,10 +205,16 @@ servantSitemap =
         iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal,
         iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusValidateSAMLEmailsGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
         iTeamFeatureStatusValidateSAMLEmailsPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
         iTeamFeatureStatusDigitalSignaturesGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
         iTeamFeatureStatusDigitalSignaturesPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
         iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
@@ -430,4 +479,5 @@ guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts :::
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+    >>= either (const (throwM missingLegalholdConsent)) pure
   pure $ Network.Wai.Utilities.setStatus status200 empty

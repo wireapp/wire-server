@@ -39,7 +39,7 @@ import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
-import Wire.API.ServantProto (Proto)
+import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Feature
 
@@ -277,7 +277,7 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "proteus"
         :> "messages"
-        :> ReqBody '[Proto] Public.QualifiedNewOtrMessage
+        :> ReqBody '[Proto] (RawProto Public.QualifiedNewOtrMessage)
         :> UVerb 'POST '[Servant.JSON] PostOtrResponses,
     teamFeatureStatusSSOGet ::
       routes
@@ -294,12 +294,24 @@ data Api routes = Api
     teamFeatureStatusSearchVisibilityPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityDeprecatedPut ::
+      routes
+        :- FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility,
     teamFeatureStatusValidateSAMLEmailsGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureValidateSAMLEmails,
+    teamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureValidateSAMLEmails,
     teamFeatureStatusDigitalSignaturesGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureDigitalSignatures,
+    teamFeatureStatusDigitalSignaturesDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureDigitalSignatures,
     teamFeatureStatusAppLockGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureAppLock,
@@ -330,6 +342,27 @@ type FeatureStatusPut featureName =
     :> Capture "tid" TeamId
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+
+-- | A type for a GET endpoint for a feature with a deprecated path
+type FeatureStatusDeprecatedGet featureName =
+  Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> DeprecatedFeatureName featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+-- | A type for a PUT endpoint for a feature with a deprecated path
+type FeatureStatusDeprecatedPut featureName =
+  Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> DeprecatedFeatureName featureName
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 

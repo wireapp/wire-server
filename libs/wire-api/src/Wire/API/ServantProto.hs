@@ -1,6 +1,7 @@
 module Wire.API.ServantProto where
 
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Swagger
 import Imports
 import Network.HTTP.Media ((//))
 import Servant
@@ -23,3 +24,17 @@ instance Accept Proto where
 
 instance FromProto a => MimeUnrender Proto a where
   mimeUnrender _ bs = fromProto bs
+
+-- | This wrapper can be used to get the raw protobuf representation of a type.
+-- It is used when the protobuf is supposed to be forwarded somewhere like a
+-- federated remote, this saves us from having to re-encode it.
+data RawProto a = RawProto
+  { rpRaw :: LByteString,
+    rpValue :: a
+  }
+
+instance FromProto a => FromProto (RawProto a) where
+  fromProto x = fmap (RawProto x) (fromProto x)
+
+instance ToSchema a => ToSchema (RawProto a) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @a)

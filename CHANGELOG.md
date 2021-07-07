@@ -18,6 +18,11 @@
 
 ## API Changes
 
+* Several public team feature endpoints are removed (their internal and
+  Stern-based counterparts remain available):
+  - `PUT /teams/:tid/features/sso`
+  - `PUT /teams/:tid/features/validateSAMLemails`
+  - `PUT /teams/:tid/features/digitalSignatures`
 * All endpoints that fetch conversation details now also include a new key
   `qualified_id` for a qualified conversation ID (#1640)
 * New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
@@ -27,6 +32,7 @@
 * [Federation] RPC to propagate messages to other backends (#1596).
 * [Federation] Fetch remote user's clients when sending messages (#1635).
 * [Federation] Actually propagate messages to other backends (#1638).
+* [Federation] Support sending messages to remote conversations (#1609).
 
 ## Internal changes
 
