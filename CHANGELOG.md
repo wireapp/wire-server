@@ -37,6 +37,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * [Federation] Fetch remote user's clients when sending messages (#1635).
 * [Federation] Actually propagate messages to other backends (#1638).
 * [Federation] Support sending messages to remote conversations (#1609).
+* [Federation] Guard against path traversal attacks (#1646).
 
 ## Internal changes
 
