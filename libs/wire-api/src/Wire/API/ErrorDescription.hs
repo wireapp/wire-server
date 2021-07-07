@@ -56,7 +56,7 @@ errorDescriptionAddToSwagger =
       Just . Swagger.Inline $
         mempty
           & Swagger.description .~ Text.pack (symbolVal (Proxy @desc))
-          & Swagger.schema ?~ Swagger.toSchemaRef (Proxy @(ErrorDescription code desc))
+          & Swagger.schema ?~ Swagger.Inline (Swagger.toSchema (Proxy @(ErrorDescription code desc)))
     addRef (Just response) =
       Just $
         response
@@ -100,13 +100,32 @@ instance (KnownStatus statusCode, KnownSymbol desc) => ToSchema (ErrorDescriptio
             ( ErrorDescription @statusCode @desc "error-label" "An error has occurred"
             )
 
--- | This instance works with 'UVerb' only becaue of the following overlapping
+-- | This instance works with 'UVerb' only because of the following overlapping
 -- instance for 'UVerb method cs (ErrorDescription status desc ': rest))'
-instance (KnownStatus statusCode, KnownSymbol desc, AllAccept cs, SwaggerMethod method) => HasSwagger (Verb method statusCode cs (ErrorDescription statusCode desc)) where
-  toSwagger _ = overrideResponseDesc $ mkEndpoint "/" (Proxy @(Verb method statusCode cs (Headers '[] (ErrorDescription statusCode desc))))
+instance
+  (KnownStatus statusCode, KnownSymbol desc, AllAccept cs, SwaggerMethod method) =>
+  HasSwagger (Verb method statusCode cs (ErrorDescription statusCode desc))
+  where
+  toSwagger _ =
+    mempty
+      & Swagger.paths . at "/"
+        ?~ ( mempty & method
+               ?~ ( mempty
+                      & Swagger.produces ?~ Swagger.MimeList responseContentTypes
+                      & at code
+                        ?~ Swagger.Inline
+                          ( mempty
+                              & Swagger.description .~ desc
+                              & Swagger.schema ?~ schemaRef
+                          )
+                  )
+           )
     where
-      overrideResponseDesc :: Swagger -> Swagger
-      overrideResponseDesc = errorDescriptionAddToSwagger @statusCode @desc
+      method = swaggerMethod (Proxy @method)
+      responseContentTypes = allContentType (Proxy @cs)
+      code = fromIntegral (natVal (Proxy @statusCode))
+      desc = Text.pack (symbolVal (Proxy @desc))
+      schemaRef = Swagger.Inline $ Swagger.toSchema (Proxy @(ErrorDescription statusCode desc))
 
 -- | This is a copy of instance for 'UVerb method cs (a:as)', but without this
 -- things don't work because the instance defined in the library is already
