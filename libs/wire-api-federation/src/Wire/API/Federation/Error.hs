@@ -131,7 +131,6 @@ federationUnavailable err =
     "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
 
--- FUTUREWORK: Add Domain where the error occured to the WAI error responses here
 federationRemoteInwardError :: Proto.InwardError -> Wai.Error
 federationRemoteInwardError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
   where
@@ -143,7 +142,6 @@ federationRemoteInwardError err = Wai.mkError status (LT.fromStrict label) (LT.f
       Proto.IForbiddenEndpoint -> (unexpectedFederationResponseStatus, "forbidden-endpoint")
       Proto.IOther -> (unexpectedFederationResponseStatus, "inward-other")
 
--- FUTUREWORK: Add Domain where the error occured to the WAI error responses here
 federationRemoteError :: Proto.OutwardError -> Wai.Error
 federationRemoteError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
   where

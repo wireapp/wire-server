@@ -76,12 +76,12 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        bdy <- asInwardBodyUnsafe <$> inwardBrigCall "federation/get-user-by-handle" (encode hdl)
+        bdy <- asInwardBody =<< inwardBrigCall "federation/get-user-by-handle" (encode hdl)
         liftIO $ bdy `shouldBe` expectedProfile
 
     it "should give InvalidEndpoint on a 404 'no-endpoint'" $
       runTestFederator env $ do
-        err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
+        err <- asInwardError =<< inwardBrigCall "federation/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
         expectErr IInvalidEndpoint err
 
 -- Utility functions
@@ -91,6 +91,11 @@ expectErr expectedType err = do
   case inwardErrorType err of
     t | t == expectedType -> pure ()
     _ -> liftIO $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
+
+asInwardBody :: forall a. (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> TestFederator IO a
+asInwardBody = either err pure . asInwardBodyEither
+  where
+    err parserErr = liftIO $ assertFailure parserErr
 
 asInwardBodyUnsafe :: (HasCallStack, Typeable a, FromJSON a) => GRpcReply InwardResponse -> a
 asInwardBodyUnsafe = either err id . asInwardBodyEither
@@ -104,6 +109,11 @@ asInwardBodyEither (GRpcOk (InwardResponseBody bdy)) = first addTypeInfo $ eithe
     addTypeInfo :: String -> String
     addTypeInfo = (("Could not parse InwardResponseBody as '" <> show (typeRep (Data.Proxy.Proxy @a)) <> "': ") <>)
 asInwardBodyEither other = Left $ "GRpc call failed unexpectedly: " <> show other
+
+asInwardError :: HasCallStack => GRpcReply InwardResponse -> TestFederator IO InwardError
+asInwardError = either err pure . asInwardErrorEither
+  where
+    err parserErr = liftIO $ assertFailure (unwords $ ["asInwardError:"] <> [parserErr])
 
 asInwardErrorUnsafe :: HasCallStack => GRpcReply InwardResponse -> InwardError
 asInwardErrorUnsafe = either err id . asInwardErrorEither
