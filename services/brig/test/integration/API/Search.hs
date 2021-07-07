@@ -269,7 +269,7 @@ testOrderName brig = do
   let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
   liftIO $
     assertEqual
-      ("Expected order: name match, name prefix match.\n\nSince this test fails sporadically for unknown reasons here here is some debug info:\n" <> dbg)
+      ("Expected order: name match, name prefix match.\n\nSince this test fails sporadically for unknown reasons here is some debug info:\n" <> dbg)
       expectedOrder
       resultUIds
 
