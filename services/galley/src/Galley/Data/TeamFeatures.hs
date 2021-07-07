@@ -60,7 +60,6 @@ instance HasStatusCol 'TeamFeatureAppLock where statusCol = "app_lock_status"
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
-    -- Public.KnownTeamFeatureName a,
     Public.FeatureHasNoConfig a,
     HasStatusCol a
   ) =>
@@ -77,7 +76,6 @@ getFeatureStatusNoConfig tid = do
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
-    -- Public.KnownTeamFeatureName a,
     Public.FeatureHasNoConfig a,
     HasStatusCol a
   ) =>
