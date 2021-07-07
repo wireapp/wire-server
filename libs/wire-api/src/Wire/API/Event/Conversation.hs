@@ -495,12 +495,6 @@ modelOtrMessage = Doc.defineModel "OtrMessage" $ do
 
 makePrisms ''EventData
 
-nullSchema :: Monoid d => SchemaP d A.Value A.Value () ()
-nullSchema = mkSchema mempty i o
-  where
-    i x = guard (x == A.Null)
-    o _ = pure A.Null
-
 taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, EventData)
 taggedEventDataSchema =
   bind
@@ -520,8 +514,8 @@ taggedEventDataSchema =
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
       Typing -> tag _EdTyping (unnamed schema)
-      ConvCodeDelete -> tag _EdConvCodeDelete nullSchema
-      ConvDelete -> tag _EdConvDelete nullSchema
+      ConvCodeDelete -> tag _EdConvCodeDelete null_
+      ConvDelete -> tag _EdConvDelete null_
 
 instance ToSchema Event where
   schema = object "Event" eventObjectSchema

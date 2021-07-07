@@ -35,6 +35,7 @@ dependencies:
 - servant >=0.16
 - servant-client
 - servant-client-core
+- sop-core
 - template-haskell
 - text >=0.11
 - time >=1.8
@@ -54,8 +55,12 @@ tests:
     build-tools:
     - hspec-discover:hspec-discover
     dependencies:
-      - wire-api-federation
+      - HUnit
+      - aeson-pretty
+      - containers
       - hspec
       - metrics-wai
       - network
       - retry
+      - uuid
+      - wire-api-federation

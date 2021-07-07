@@ -61,6 +61,7 @@ module Data.Schema
     dispatch,
     text,
     parsedText,
+    null_,
     element,
     tag,
     unnamed,
@@ -592,6 +593,13 @@ jsonObject :: ValueSchema SwaggerDoc A.Object
 jsonObject =
   unnamed . object "Object" $
     mkSchema mempty pure (pure . (^.. ifolded . withIndex))
+
+-- | A schema for a null value.
+null_ :: Monoid d => SchemaP d A.Value A.Value () ()
+null_ = mkSchema mempty i o
+  where
+    i x = guard (x == A.Null)
+    o _ = pure A.Null
 
 data WithDeclare s = WithDeclare (Declare ()) s
   deriving (Functor)

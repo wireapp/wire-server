@@ -39,7 +39,7 @@ import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
-import Wire.API.ServantProto (Proto)
+import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Feature
 
@@ -277,7 +277,7 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "proteus"
         :> "messages"
-        :> ReqBody '[Proto] Public.QualifiedNewOtrMessage
+        :> ReqBody '[Proto] (RawProto Public.QualifiedNewOtrMessage)
         :> UVerb 'POST '[Servant.JSON] PostOtrResponses,
     teamFeatureStatusSSOGet ::
       routes
