@@ -104,18 +104,36 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusSearchVisibilityPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSearchVisibility,
+     iTeamFeatureStatusSearchVisibilityDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureSearchVisibility,
+    iTeamFeatureStatusSearchVisibilityDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusValidateSAMLEmailsGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusValidateSAMLEmailsPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureValidateSAMLEmails,
+     iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureValidateSAMLEmails,
+    iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusDigitalSignaturesGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusDigitalSignaturesPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureDigitalSignatures,
+     iTeamFeatureStatusDigitalSignaturesDeprecatedGet ::
+      routes
+        :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureDigitalSignatures,
+    iTeamFeatureStatusDigitalSignaturesDeprecatedPut ::
+      routes
+        :- IFeatureStatusDeprecatedPut 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusAppLockGet ::
       routes
         :- IFeatureStatusGet 'Public.TeamFeatureAppLock,
@@ -144,6 +162,26 @@ type IFeatureStatusPut featureName =
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
 
+-- | A type for a GET endpoint for a feature with a deprecated path
+type IFeatureStatusDeprecatedGet featureName =
+  "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.DeprecatedFeatureName featureName
+    :> Get '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+-- | A type for a PUT endpoint for a feature with a deprecated path
+type IFeatureStatusDeprecatedPut featureName =
+  "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> Public.DeprecatedFeatureName featureName
+    :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
+
+
 servantSitemap :: ServerT ServantAPI Galley
 servantSitemap =
   genericServerT $
@@ -156,10 +194,16 @@ servantSitemap =
         iTeamFeatureStatusLegalHoldPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal,
         iTeamFeatureStatusSearchVisibilityGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusSearchVisibilityPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        iTeamFeatureStatusSearchVisibilityDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureLegalHold Features.setTeamSearchVisibilityAvailableInternal,
         iTeamFeatureStatusValidateSAMLEmailsGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
         iTeamFeatureStatusValidateSAMLEmailsPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureValidateSAMLEmails Features.setValidateSAMLEmailsInternal,
         iTeamFeatureStatusDigitalSignaturesGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
         iTeamFeatureStatusDigitalSignaturesPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
         iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal
       }

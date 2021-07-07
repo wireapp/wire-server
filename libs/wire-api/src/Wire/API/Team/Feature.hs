@@ -28,7 +28,7 @@ module Wire.API.Team.Feature
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
-    deprecatedFeatureName,
+    HasDeprecatedFeatureName(..),
     defaultAppLockStatus,
 
     -- * Swagger
@@ -143,11 +143,17 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureDigitalSignatures = "digitalSignatures"
   builder TeamFeatureAppLock = "appLock"
 
-deprecatedFeatureName :: TeamFeatureName -> Maybe ByteString
-deprecatedFeatureName TeamFeatureSearchVisibility = Just "search-visibility"
-deprecatedFeatureName TeamFeatureValidateSAMLEmails = Just "validate-saml-emails"
-deprecatedFeatureName TeamFeatureDigitalSignatures = Just "digital-signatures"
-deprecatedFeatureName _ = Nothing
+class HasDeprecatedFeatureName (a :: TeamFeatureName) where
+  type DeprecatedFeatureName a :: Symbol
+
+instance HasDeprecatedFeatureName 'TeamFeatureSearchVisibility where
+  type DeprecatedFeatureName 'TeamFeatureSearchVisibility= "search-visibility"
+
+instance HasDeprecatedFeatureName 'TeamFeatureValidateSAMLEmails where
+  type DeprecatedFeatureName 'TeamFeatureValidateSAMLEmails = "validate-saml-emails"
+
+instance HasDeprecatedFeatureName 'TeamFeatureDigitalSignatures where
+  type DeprecatedFeatureName 'TeamFeatureDigitalSignatures = "digital-signatures"
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
