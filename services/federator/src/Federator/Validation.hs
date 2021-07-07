@@ -24,6 +24,7 @@ module Federator.Validation
 where
 
 import Control.Lens (view)
+import qualified Data.ByteString as BS
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.String.Conversions (cs)
 import Federator.Options
@@ -67,10 +68,21 @@ throwInward errType errMsg = Polysemy.throw $ InwardError errType errMsg
 -- | Normalize the path, and ensure the path begins with "federation/" after normalization
 sanitizePath :: Members '[Polysemy.Error InwardError] r => ByteString -> Sem r ByteString
 sanitizePath originalPath = do
-  -- we parse the path using the URI.ByteString so we can make use of that library's normalization functions
+  when (BS.length originalPath > 200) $
+    throwInward IForbiddenEndpoint "path too long"
+  -- we parse the path using the URI.ByteString module to make use of its normalization functions
   uriRef <- case URIB.parseRelativeRef URIB.strictURIParserOptions originalPath of
-    Left err -> throwInward IInvalidEndpoint (cs $ show err)
+    Left err -> throwInward IForbiddenEndpoint (cs $ show err <> cs originalPath)
     Right ref -> pure ref
+
+  -- we don't expect any query parameters or other URL parts other than a plain path
+  when (URIB.queryPairs (URIB.rrQuery uriRef) /= []) $
+    throwInward IForbiddenEndpoint "query parameters not allowed"
+  when (isJust (URIB.rrFragment uriRef)) $
+    throwInward IForbiddenEndpoint "fragments not allowed"
+  when (isJust (URIB.rrAuthority uriRef)) $
+    throwInward IForbiddenEndpoint "authority not allowed"
+
   -- Perform these normalizations:
   -- - hTtP -> http
   -- - eXaMpLe.org -> example.org
@@ -79,14 +91,21 @@ sanitizePath originalPath = do
   -- - Rewrite path from /foo//bar///baz to /foo/bar/baz
   -- - Sorts parameters by parameter name
   -- - Remove dot segments as per RFC3986 Section 5.2.4
-  let normalized = URIB.normalizeURIRef' URIB.aggressiveNormalization uriRef
-  -- next, we use the Network.URI library to get path segments after normalization,
-  -- and ensure the first segment in the path is "federation"
-  uri <- case parseURIReference (cs normalized) of
-    -- The Nothing case is unlikely to happen here as it's already parsed by URI.bytestring at this point
-    Nothing -> throwInward IInvalidEndpoint (cs $ "cannot parse " <> normalized)
-    Just u -> pure u
-  case pathSegments uri of
-    ["federation"] -> throwInward IForbiddenEndpoint $ cs ("disallowed path: " <> uriPath uri)
-    "federation" : _ -> pure (cs (uriPath uri))
-    _ -> throwInward IForbiddenEndpoint $ cs ("disallowed path: " <> uriPath uri)
+  let normalizedURI = URIB.normalizeURIRef' URIB.aggressiveNormalization uriRef
+  -- sometimes normalization above results in a path with a leading slash.
+  -- For consistency, remove a leading slash, if any
+  let withoutLeadingSlash = BS.stripPrefix "/" normalizedURI
+  let normalized = fromMaybe normalizedURI withoutLeadingSlash
+
+  -- to guard against double percent encoding, we disallow the '%' character
+  -- here, since we expect to only use POST requests on ASCII paths without any
+  -- query parameters
+  let (_, pTailEncoding) = BS.breakSubstring "%" normalized
+  unless (BS.null pTailEncoding) $
+    throwInward IForbiddenEndpoint "percent encoding not allowed"
+
+  -- Most importantly, only allow paths with the federation/ prefix.
+  unless ("federation/" `BS.isPrefixOf` normalized) $
+    throwInward IForbiddenEndpoint ("disallowed path: " <> cs originalPath)
+
+  pure normalized

@@ -85,7 +85,7 @@ spec env =
         err <- asInwardError =<< inwardBrigCall "federation/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
         expectErr IInvalidEndpoint err
 
-    it "should only not accept invalid paths" $
+    it "should not accept invalid paths" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
         err <- asInwardErrorUnsafe <$> inwardBrigCall "http://localhost:8080/i/users" (encode o)
@@ -97,7 +97,7 @@ spec env =
         err <- asInwardErrorUnsafe <$> inwardBrigCall "i/users" (encode o)
         expectErr IForbiddenEndpoint err
 
-    it "should only accept /federation/ paths (also when there are .. segments)" $
+    it "should only accept /federation/ paths (also when there are /../ segments)" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
         err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/../i/users" (encode o)
