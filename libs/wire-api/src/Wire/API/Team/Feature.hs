@@ -28,7 +28,7 @@ module Wire.API.Team.Feature
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
-    HasDeprecatedFeatureName(..),
+    HasDeprecatedFeatureName (..),
     defaultAppLockStatus,
 
     -- * Swagger
@@ -147,7 +147,7 @@ class HasDeprecatedFeatureName (a :: TeamFeatureName) where
   type DeprecatedFeatureName a :: Symbol
 
 instance HasDeprecatedFeatureName 'TeamFeatureSearchVisibility where
-  type DeprecatedFeatureName 'TeamFeatureSearchVisibility= "search-visibility"
+  type DeprecatedFeatureName 'TeamFeatureSearchVisibility = "search-visibility"
 
 instance HasDeprecatedFeatureName 'TeamFeatureValidateSAMLEmails where
   type DeprecatedFeatureName 'TeamFeatureValidateSAMLEmails = "validate-saml-emails"

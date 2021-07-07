@@ -104,7 +104,7 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusSearchVisibilityPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureSearchVisibility,
-     iTeamFeatureStatusSearchVisibilityDeprecatedGet ::
+    iTeamFeatureStatusSearchVisibilityDeprecatedGet ::
       routes
         :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureSearchVisibility,
     iTeamFeatureStatusSearchVisibilityDeprecatedPut ::
@@ -116,7 +116,7 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusValidateSAMLEmailsPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureValidateSAMLEmails,
-     iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
+    iTeamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
       routes
         :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureValidateSAMLEmails,
     iTeamFeatureStatusValidateSAMLEmailsDeprecatedPut ::
@@ -128,7 +128,7 @@ data InternalApi routes = InternalApi
     iTeamFeatureStatusDigitalSignaturesPut ::
       routes
         :- IFeatureStatusPut 'Public.TeamFeatureDigitalSignatures,
-     iTeamFeatureStatusDigitalSignaturesDeprecatedGet ::
+    iTeamFeatureStatusDigitalSignaturesDeprecatedGet ::
       routes
         :- IFeatureStatusDeprecatedGet 'Public.TeamFeatureDigitalSignatures,
     iTeamFeatureStatusDigitalSignaturesDeprecatedPut ::
@@ -180,7 +180,6 @@ type IFeatureStatusDeprecatedPut featureName =
     :> Public.DeprecatedFeatureName featureName
     :> ReqBody '[Servant.JSON] (Public.TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (Public.TeamFeatureStatus featureName)
-
 
 servantSitemap :: ServerT ServantAPI Galley
 servantSitemap =
