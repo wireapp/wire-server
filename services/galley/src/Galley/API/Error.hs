@@ -37,16 +37,16 @@ import Type.Reflection (typeRep)
 import Wire.API.ErrorDescription
 
 errorDescriptionToWai ::
-  forall (code :: Nat) (desc :: Symbol).
-  KnownStatus code =>
-  ErrorDescription code desc ->
+  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  (KnownStatus code, KnownSymbol lbl) =>
+  ErrorDescription code lbl desc ->
   Error
-errorDescriptionToWai (ErrorDescription lbl msg) =
-  mkError (statusVal (Proxy @code)) (LT.fromStrict lbl) (LT.fromStrict msg)
+errorDescriptionToWai (ErrorDescription msg) =
+  mkError (statusVal (Proxy @code)) (LT.pack (symbolVal (Proxy @lbl))) (LT.fromStrict msg)
 
 throwErrorDescription ::
-  (KnownStatus code, MonadThrow m) =>
-  ErrorDescription code desc ->
+  (KnownStatus code, KnownSymbol lbl, MonadThrow m) =>
+  ErrorDescription code lbl desc ->
   m a
 throwErrorDescription = throwM . errorDescriptionToWai
 

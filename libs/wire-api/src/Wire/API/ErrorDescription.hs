@@ -21,13 +21,13 @@ import Wire.API.ServantSwagger
 -- Note that there is no static check for these annotations. The set of
 -- exceptions that a handler might throw can be completely independent from the
 -- set of exceptions reported by 'CanThrow', as far as the compiler is concerned.
-data CanThrow err
+data CanThrow (err :: *)
 
 instance
-  (HasSwagger api, KnownStatus code, KnownSymbol desc) =>
-  HasSwagger (CanThrow (ErrorDescription code desc) :> api)
+  (HasSwagger api, KnownStatus code, KnownSymbol label, KnownSymbol desc) =>
+  HasSwagger (CanThrow (ErrorDescription code label desc) :> api)
   where
-  toSwagger _ = errorDescriptionAddToSwagger @code @desc (toSwagger (Proxy @api))
+  toSwagger _ = errorDescriptionAddToSwagger @code @label @desc (toSwagger (Proxy @api))
 
 -- CanThrow annotations are ignored by servant
 instance
@@ -42,8 +42,8 @@ instance
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
 errorDescriptionAddToSwagger ::
-  forall (code :: Nat) (desc :: Symbol).
-  (KnownStatus code, KnownSymbol desc) =>
+  forall (code :: Nat) (label :: Symbol) (desc :: Symbol).
+  (KnownStatus code, KnownSymbol label, KnownSymbol desc) =>
   Swagger ->
   Swagger
 errorDescriptionAddToSwagger =
@@ -56,7 +56,7 @@ errorDescriptionAddToSwagger =
       Just . Swagger.Inline $
         mempty
           & Swagger.description .~ Text.pack (symbolVal (Proxy @desc))
-          & Swagger.schema ?~ Swagger.Inline (Swagger.toSchema (Proxy @(ErrorDescription code desc)))
+          & Swagger.schema ?~ Swagger.Inline (Swagger.toSchema (Proxy @(ErrorDescription code label desc)))
     addRef (Just response) =
       Just $
         response
@@ -79,32 +79,30 @@ errorDescriptionAddToSwagger =
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
-data ErrorDescription (statusCode :: Nat) (desc :: Symbol) = ErrorDescription
-  { label :: !Text,
-    message :: !Text
-  }
+data ErrorDescription (statusCode :: Nat) (label :: Symbol) (desc :: Symbol) = ErrorDescription {edMessage :: Text}
   deriving stock (Show, Typeable)
-  deriving (A.ToJSON, A.FromJSON, Swagger.ToSchema) via Schema (ErrorDescription statusCode desc)
+  deriving (A.ToJSON, A.FromJSON, Swagger.ToSchema) via Schema (ErrorDescription statusCode label desc)
 
-instance (KnownStatus statusCode, KnownSymbol desc) => ToSchema (ErrorDescription statusCode desc) where
+instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSchema (ErrorDescription statusCode label desc) where
   schema =
     objectWithDocModifier "ErrorDescription" addExample $
       ErrorDescription
-        <$> label .= field "label" schema
-        <*> message .= field "message" schema
-        <* const (natVal (Proxy @statusCode)) .= field "code" schema
+        <$ const label .= field "label" schema
+          <*> edMessage .= field "message" schema
+          <* const code .= field "code" schema
     where
+      label = Text.pack (symbolVal (Proxy @label))
+      code = natVal (Proxy @statusCode)
+      desc = Text.pack (symbolVal (Proxy @desc))
       addExample =
         Swagger.schema . Swagger.example
-          ?~ A.toJSON
-            ( ErrorDescription @statusCode @desc "error-label" "An error has occurred"
-            )
+          ?~ A.toJSON (ErrorDescription @statusCode @label @desc desc)
 
 -- | This instance works with 'UVerb' only because of the following overlapping
--- instance for 'UVerb method cs (ErrorDescription status desc ': rest))'
+-- instance for 'UVerb method cs (ErrorDescription status label desc ': rest))'
 instance
-  (KnownStatus statusCode, KnownSymbol desc, AllAccept cs, SwaggerMethod method) =>
-  HasSwagger (Verb method statusCode cs (ErrorDescription statusCode desc))
+  (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc, AllAccept cs, SwaggerMethod method) =>
+  HasSwagger (Verb method statusCode cs (ErrorDescription statusCode label desc))
   where
   toSwagger _ =
     mempty
@@ -125,49 +123,51 @@ instance
       responseContentTypes = allContentType (Proxy @cs)
       code = fromIntegral (natVal (Proxy @statusCode))
       desc = Text.pack (symbolVal (Proxy @desc))
-      schemaRef = Swagger.Inline $ Swagger.toSchema (Proxy @(ErrorDescription statusCode desc))
+      schemaRef = Swagger.Inline $ Swagger.toSchema (Proxy @(ErrorDescription statusCode label desc))
 
 -- | This is a copy of instance for 'UVerb method cs (a:as)', but without this
 -- things don't work because the instance defined in the library is already
 -- compiled with the now overlapped version of `Verb method cs a` and won't
 -- pickup the above instance.
 instance
-  (KnownStatus status, KnownSymbol desc, AllAccept cs, SwaggerMethod method, HasSwagger (UVerb method cs rest)) =>
-  HasSwagger (UVerb method cs (ErrorDescription status desc ': rest))
+  (KnownStatus status, KnownSymbol label, KnownSymbol desc, AllAccept cs, SwaggerMethod method, HasSwagger (UVerb method cs rest)) =>
+  HasSwagger (UVerb method cs (ErrorDescription status label desc ': rest))
   where
   toSwagger _ =
-    toSwagger (Proxy @(Verb method (StatusOf (ErrorDescription status desc)) cs (ErrorDescription status desc)))
+    toSwagger (Proxy @(Verb method status cs (ErrorDescription status label desc)))
       `combineSwagger` toSwagger (Proxy @(UVerb method cs rest))
 
-instance (KnownStatus status, KnownStatus status) => HasStatus (ErrorDescription status desc) where
-  type StatusOf (ErrorDescription status desc) = status
+instance KnownStatus status => HasStatus (ErrorDescription status label desc) where
+  type StatusOf (ErrorDescription status label desc) = status
 
 -- * Errors
 
-type ConversationNotFound = ErrorDescription 404 "Conversation not found"
+mkErrorDescription :: forall code label desc. KnownSymbol desc => ErrorDescription code label desc
+mkErrorDescription = ErrorDescription $ Text.pack (symbolVal (Proxy @desc))
+
+type ConversationNotFound = ErrorDescription 404 "no-conversation" "Conversation not found"
 
 convNotFound :: ConversationNotFound
-convNotFound = ErrorDescription "no-conversation" "conversation not found"
+convNotFound = mkErrorDescription
 
-type UnknownClient = ErrorDescription 403 "Unknown Client"
+type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 unknownClient :: UnknownClient
-unknownClient = ErrorDescription "unknown-client" "Sending client not known"
+unknownClient = ErrorDescription "Sending client not known"
 
-type ClientNotFound = ErrorDescription 404 "Client not found"
+type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
 clientNotFound :: ClientNotFound
-clientNotFound = ErrorDescription "client-not-found" "client not found"
+clientNotFound = mkErrorDescription
 
-type NotConnected = ErrorDescription 403 "Users are not connected"
+type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
 notConnected :: NotConnected
-notConnected = ErrorDescription "not-connected" "Users are not connected"
+notConnected = mkErrorDescription
 
-type OperationDenied = ErrorDescription 403 "Insufficient permissions"
+type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
 
 operationDenied :: Show perm => perm -> OperationDenied
 operationDenied p =
-  ErrorDescription
-    "operation-denied"
-    ("Insufficient permissions (missing " <> (Text.pack $ show p) <> ")")
+  ErrorDescription $
+    "Insufficient permissions (missing " <> Text.pack (show p) <> ")"
