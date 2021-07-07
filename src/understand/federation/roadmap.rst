@@ -19,18 +19,17 @@ Caveats:
 
 * Message delivery guarantees will be weak if any backends are temporarily unavailable.
 * Images, files, calling, etc will not yet be supported.
-* Only the web client will be supported, mobile clients will not yet be supported.
 * Federation with the production cloud version of wire.com will not yet be supported.
 
 .. note::
-   Status March 2021:
+   Status July 2021:
      * implementation: under active development
 
 M(N) | N >1
 ------------
 
 .. note::
-   Status March 2021:
+   Status July 2021:
      * planning & design phase: ongoing
      * implementation: not started yet
 
