@@ -29,8 +29,6 @@ import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, MonadThrow (throwM))
-import Data.Aeson (FromJSON, ToJSON)
-import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
 import Data.Range
