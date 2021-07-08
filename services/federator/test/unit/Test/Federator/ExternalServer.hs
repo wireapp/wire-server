@@ -20,6 +20,7 @@
 module Test.Federator.ExternalServer where
 
 import Data.Domain (Domain (..))
+import Data.String.Conversions (cs)
 import Federator.ExternalServer (callLocal)
 import Federator.Options (FederationStrategy (AllowAll), RunSettings (..))
 import Federator.Service (Service)
@@ -33,8 +34,9 @@ import qualified Polysemy.TinyLog as Log
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertEqual, testCase)
+import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Wire.API.Federation.GRPC.Types
+import qualified Wire.API.Federation.GRPC.Types as InwardError
 
 genMock ''Service
 
@@ -51,38 +53,40 @@ requestBrigSuccess =
   testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Service @IO $ do
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
-      let request = Request Brig "/get-user-by-handle" "\"foo\"" exampleDomain
+      let request = Request Brig "/federation/get-user-by-handle" "\"foo\"" exampleDomain
 
       res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/get-user-by-handle", "\"foo\"", aValidDomain)
+      let expectedCall = (Brig, "/federation/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
 requestBrigFailure :: TestTree
 requestBrigFailure =
-  testCase "should translate response from brig to 'InwardResponseBody' when response has status 404" $
+  testCase "should translate response from brig to 'InwardResponseError' when response has status 404" $
     runM . evalMock @Service @IO $ do
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.notFound404, Just "response body"))
-      let request = Request Brig "/get-user-by-handle" "\"foo\"" exampleDomain
+      let request = Request Brig "/federation/get-user-by-handle" "\"foo\"" exampleDomain
 
       res <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
 
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/get-user-by-handle", "\"foo\"", aValidDomain)
+      let expectedCall = (Brig, "/federation/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
-      embed $ assertEqual "response should be success with correct body" (InwardResponseErr "Invalid HTTP status from component: 404 Not Found") res
+      embed $ case res of
+        InwardResponseBody b -> assertFailure ("expecting error, got success: " <> cs b)
+        InwardResponseError err -> assertEqual ("response should be InwardError 'IOther', but got:" <> show err) InwardError.IOther (inwardErrorType err)
 
 requestGalleySuccess :: TestTree
 requestGalleySuccess =
   testCase "should translate response from galley to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Service @IO $ do
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
-      let request = Request Galley "/get-conversations" "{}" exampleDomain
+      let request = Request Galley "/federation/get-conversations" "{}" exampleDomain
 
       res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Galley, "/get-conversations", "{}", aValidDomain)
+      let expectedCall = (Galley, "/federation/get-conversations", "{}", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 

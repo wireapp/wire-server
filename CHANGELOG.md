@@ -16,6 +16,10 @@
 
 # Unreleased
 
+## Release Notes
+
+This release requires a manual change in your galley configuration: `settings.conversationCodeURI` in `galley.yaml` was had to be set to `${WEBAPP}/join` before this release, and must be set to `${ACCOUNTS}/conversation-join` from now on, where `${WEBAPP}` is the url to the webapp and `${ACCOUNTS}` is the url to the account pages.
+
 ## API Changes
 
 * A new team feature for classified domains is available (#1626):
@@ -48,6 +52,13 @@
   added to a new conversation via `POST /federation/register-conversation` (#1622).
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
+* Change `settings.conversationCodeURI` in galley.yaml (#1643).
+* Refactored Federator InternalServer (#1637)
+
+### Internal Federation API changes
+
+* Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
+  * Note: federation should not be in use anywhere yet, so this should not have any impact
 
 ## Documentation
 

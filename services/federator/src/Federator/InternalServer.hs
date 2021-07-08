@@ -64,8 +64,7 @@ mkRemoteResponse reply =
   case reply of
     Right (GRpcOk (InwardResponseBody res)) ->
       OutwardResponseBody res
-    Right (GRpcOk (InwardResponseErr err)) ->
-      mkOutwardErr RemoteFederatorError "remote-federator-returned-error" err
+    Right (GRpcOk (InwardResponseError err)) -> OutwardResponseInwardError err
     Right (GRpcTooMuchConcurrency _) ->
       mkOutwardErr RemoteFederatorError "too-much-concurrency" "Too much concurrency"
     Right (GRpcErrorCode grpcErr) ->

@@ -44,6 +44,7 @@ federationErrorToWai (FederationCallFailure failure) = addErrorData $
         ("Unexpected method: " <> LT.fromStrict (T.decodeUtf8 mth))
     FederationClientStreamingUnsupported -> federationInvalidCall "Streaming unsupported"
     FederationClientOutwardError outwardErr -> federationRemoteError outwardErr
+    FederationClientInwardError inwardErr -> federationRemoteInwardError inwardErr
     FederationClientServantError (Servant.DecodeFailure msg _) -> federationInvalidBody msg
     FederationClientServantError (Servant.FailureResponse _ _) ->
       Wai.mkError unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
@@ -129,6 +130,17 @@ federationUnavailable err =
     HTTP.status500
     "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
+
+federationRemoteInwardError :: Proto.InwardError -> Wai.Error
+federationRemoteInwardError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
+  where
+    msg = Proto.inwardErrorMsg err
+    (status, label) = case Proto.inwardErrorType err of
+      Proto.IInvalidEndpoint -> (HTTP.Status 531 "Version Mismatch", "inward-invalid-endpoint")
+      Proto.IFederationDeniedByRemote -> (HTTP.Status 532 "Federation Denied", "federation-denied-by-remote")
+      Proto.IInvalidDomain -> (unexpectedFederationResponseStatus, "invalid-origin-domain")
+      Proto.IForbiddenEndpoint -> (unexpectedFederationResponseStatus, "forbidden-endpoint")
+      Proto.IOther -> (unexpectedFederationResponseStatus, "inward-other")
 
 federationRemoteError :: Proto.OutwardError -> Wai.Error
 federationRemoteError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
