@@ -158,7 +158,10 @@ the :ref:`allow-list` and replies with an :ref:`authorization error
 Domain Allow List
 ^^^^^^^^^^^^^^^^^^
 
-Federation can happen between any backends on a network (e.g. the open internet); or it can be restricted :ref:`via server configuration <how-to-configure-federation>` to happen between a specified set of domains on an 'allow list'. If an allow list is configured, then:
+Federation can happen between any backends on a network (e.g. the open
+internet); or it can be restricted via server configuration to happen between a
+specified set of domains on an 'allow list'. If an allow list is configured,
+then:
 
 * outgoing requests will only happen if the requested domain is contained in the allow list.
 * incoming requests: if the domain of the sending backend is not in the allow

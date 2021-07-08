@@ -7,6 +7,7 @@ The Federation API consists of two *layers*:
   1. Between federators
   2. Between other components
 
+.. _qualified-identifiers-and-names:
 
 Qualified Identifiers and Names
 -------------------------------
