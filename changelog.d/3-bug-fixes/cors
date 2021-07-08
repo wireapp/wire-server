@@ -1,0 +1,2 @@
+* There is now an explicit CORS allowlist for _all_ endpoints.  Even subdomains need to be listed explicitly (whilst before all subdomains were accepted). This is technically a breaking change as now only javascript applications that are known can access the backend.
+
