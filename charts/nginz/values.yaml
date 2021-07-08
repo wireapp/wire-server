@@ -52,8 +52,11 @@ nginx_conf:
   - ~* ^/conversations/([^/]*)/call/state
   - /search/top
   - /search/common
-  # -- The origins from which we allow CORS requests. Can be Regexes
-  # allowlisted_origins: []
+  # -- The origins from which we allow CORS requests. These are combined with 'external_env_domain' to form a full url
+  allowlisted_origins:
+    - webapp
+    - teams
+    - accounts
   upstreams:
     cargohold:
     - path: ~* ^/conversations/([^/]*)/assets
