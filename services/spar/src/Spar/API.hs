@@ -386,7 +386,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
               Nothing -> True
               Just c -> c ^. SAML.idpId == _idpId
         if notInUseByOthers
-          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ (previousIssuer :)
+          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSpar SparIdPIssuerInUse
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
