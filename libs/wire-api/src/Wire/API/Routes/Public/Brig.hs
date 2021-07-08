@@ -34,6 +34,7 @@ import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.ErrorDescription (ClientNotFound)
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.User
 import Wire.API.User.Client
@@ -73,7 +74,12 @@ data Api routes = Api
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> UVerb 'HEAD '[] CheckUserExistsResponse,
+        :> MultiVerb
+             'HEAD
+             '[ Respond '[] 200 "User exists" (),
+                Respond '[] 404 "User not found" ()
+              ]
+             Bool,
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -87,7 +93,12 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> UVerb 'HEAD '[] CheckUserExistsResponse,
+        :> MultiVerb
+             'HEAD
+             '[ Respond '[] 200 "User exists" (),
+                Respond '[] 404 "User not found" ()
+              ]
+             Bool,
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]

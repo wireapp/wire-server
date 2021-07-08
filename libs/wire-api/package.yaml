@@ -56,6 +56,7 @@ library:
   - proto-lens
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
+  - resourcet
   - saml2-web-sso
   - servant
   - servant-multipart
