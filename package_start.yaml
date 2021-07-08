@@ -1,0 +1,14 @@
+defaults:
+  local: ../package-defaults.yaml
+name: wire-server
+description: Backend of the Wire collaboration platform
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2020 Wire Swiss GmbH
+license: AGPL-3
+
+dependencies: []
+
+library:
+  source-dirs: src
+  dependencies: []
