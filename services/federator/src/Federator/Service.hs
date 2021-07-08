@@ -58,7 +58,7 @@ interpretService = interpret $ \case
     res <-
       rpc' (LText.pack (show component)) (serviceReq component) $
         RPC.method HTTP.POST
-          . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
+          . RPC.path path
           . RPC.body (RPC.RequestBodyBS body)
           . RPC.contentJson
           . RPC.header domainHeaderName (cs (domainText domain))
