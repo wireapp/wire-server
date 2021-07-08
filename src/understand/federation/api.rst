@@ -9,8 +9,6 @@ The Federation API consists of two *layers*:
 
 .. _qualified-identifiers-and-names:
 
-.. _qualified-identifiers-and-names:
-
 Qualified Identifiers and Names
 -------------------------------
 
