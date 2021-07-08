@@ -9,6 +9,8 @@ The Federation API consists of two *layers*:
 
 .. _qualified-identifiers-and-names:
 
+.. _qualified-identifiers-and-names:
+
 Qualified Identifiers and Names
 -------------------------------
 
@@ -132,6 +134,7 @@ objects look like this:
       string msg = 2;
     }
 
+.. _federator-component-api:
 
 API From Federator to Components
 --------------------------------
@@ -162,9 +165,9 @@ The federator connects to Brig and makes an HTTP request which looks like this:
 The ``/federation`` prefix to the path allows the component to distinguish
 federated requests from requests by clients or other local components.
 
-If this request succeeds with any status, the body and response are encoded as
-the ``HTTPResponse`` object and returned as a response to the ``Inward.call``
-gRPC call.
+If this request succeeds with any status, the response is encoded as the
+``InwardResponse`` object and returned as a response to the ``Inward.call`` gRPC
+call.
 
 Note, that before the ``path`` field of the ``Request`` is concatenated with
 ``/federation`` and used as a component of the HTTP request, its segments are

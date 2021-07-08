@@ -15,97 +15,125 @@ for requests from internal backend components to other, remote backends.
    :width: 100%
 
 
-Flow of information between server components
-------------------------------------------------
+Backend domains
+^^^^^^^^^^^^^^^
 
-Assuming two installations hosted on subdomains of ``a.example.com`` (A) and ``b.example.com`` (B).
+A backend is identified by its `infrastructure domain` (or `infra domain` for
+short). This is the domain that the backend uses to authenticate towards other
+backends.
 
-Example of the network connections made between the components of two :ref:`backends <backend>` for a user search (*'exact handle search'*):
+Similarly, there is the `backend domain`, which is used to qualify the names and
+identifiers of users local to an individual backend in the context of
+federation. See :ref:`Qualified Identifiers and Names
+<qualified-identifiers-and-names>` for more information. The owner of the
+backend domain has to specify an infra domain under which the Wire backend
+representing their domain is reachable.
 
-.. image:: img/exact-handle-search.png
-   :width: 100%
+Backend components
+^^^^^^^^^^^^^^^^^^
 
-* The exact message objects shown in the above diagram are simplified to ease understanding of which components send bytes over the network to which other components. For the precise definitions of those bytes take a look at the :ref:`federation API<federation-api>`.
-* Depending on the request made by user 1 registered on backend A, different :ref:`wire-server components <other-wire-server>` than 'brig' shown above will make a request over their local network to the 'federator' component.
+In addition to the regular components of a Wire backend, two additional
+components are added to enable federation with other backends: The `Ingress` and
+the `Federator`. Other Wire components use these two components to contact other
+backends and respond to queries originating from remote backends.
 
-Component responsibilities
----------------------------
-
-.. _federator:
-
-Federator
-^^^^^^^^^
-
-The 'federator' will, for outgoing requests to other backends:
-
-#. If enabled, ensure the target domain is in the :ref:`allow list <allow-list>`
-#. :ref:`discover <discovery>` the other backend
-#. establish a :ref:`mutually authenticated channel <authentication>` to the other backend
-#. send the request to the other backend and
-#. forward the response back to the originating component (and eventually to the originating Wire client).
-
-The 'federator' will, for incoming requests from other backends (forwarded via the local :ref:`ingress`):
-
-#. Establish a mutually authenticated channel with the other backend,
-#. if enabled, ensure the originating domain is in the :ref:`allow list <allow-list>` and
-#. forward requests to other wire-server components (brig, galley, ...).
+The following subsections briefly introduce the individual components, their
+state and their functionality. The semantics of backend-to-backend communication
+will be explained in more detail in Section 2.2.
 
 .. _ingress:
 
 Ingress
-^^^^^^^
+~~~~~~~
 
-The ingress is a `kubernetes ingress <https://kubernetes.io/docs/concepts/services-networking/ingress/>`_ and uses `nginx <https://nginx.org/en/>`_ as its underlying software. Its functions are:
+The ingress is a `kubernetes ingress
+<https://kubernetes.io/docs/concepts/services-networking/ingress/>`_ and uses
+`nginx <https://nginx.org/en/>`_ as its underlying software.
+
+It is configured with a set of X.509 certificates, which acts as root of trust
+for the authentication of the infra domain of remote backends, as well as with a
+certificate, which it uses to authenticate itself toward other backends.
+
+Its functions are:
 
 * terminate TLS connections
-* perform :ref:`authentication`
-* forward requests to a local instance of the :ref:`federator`
+
+  - perform mutual :ref:`authentication` as part of the TLS connection
+    establishment
+* forward requests to the local :ref:`federator` instance
+
+
+.. _federator:
+
+Federator
+~~~~~~~~~
+
+The federator acts as egress point for other backend components. It can be
+configured to use an :ref:`allow list <allow-list>` to authorize incoming and
+outgoing connections, and it keeps an X.509 client certificate for the backend's
+infra domain to authenticate itself towards other backends. Additionally, it
+requires a connection to a DNS resolver to :ref:`discover<discovery>` other
+backends.
+
+When receiving a request from an internal component, the federator will:
+
+#. If enabled, ensure the target domain is in the :ref:`allow list <allow-list>`
+#. :ref:`discover <discovery>` the other backend,
+#. establish a :ref:`mutually authenticated channel <authentication>` to the
+   other backend using its client certificate,
+#. send the request to the other backend and
+#. forward the response back to the originating component (and eventually to the
+   originating Wire client).
+
+The federator also implements the authorization logic for incoming requests and
+acts as intermediary between the Ingress and the internal components. The
+'federator' will, for incoming requests from other backends (forwarded via the
+local :ref:`ingress`):
+
+#. Discover the backend domain claimed by the other backend,
+#. if enabled, ensure that the backend domain of the other backend is in the
+   :ref:`allow list <allow-list>`,
+#. normalize and sanitize the :ref:`path component <federator-component-api>` of
+   the incoming request to ensure it's recognizable as a federated request and
+#. forward requests to other wire-server components.
 
 .. _other-wire-server:
 
 Other wire-server components
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Components such as 'brig', 'galley', or 'gundeck' are responsible for actual business logic and interfacing with databases and non-federation related external services. See `source code documentation <https://github.com/wireapp/wire-server>`_. In the context of federation, their functions include:
+Components such as 'brig', 'galley', or 'gundeck' are responsible for actual
+business logic and interfacing with databases and non-federation related
+external services. See `source code documentation
+<https://github.com/wireapp/wire-server>`_. In the context of federation, their
+functions include:
 
-* For incoming requests from other backends: per-request :ref:`authorization`
+* For incoming requests from other backends:  :ref:`per-request authorization<per-request-authorization>`
 * Outgoing requests to other backends are always sent via a local :ref:`federator` instance.
 
-.. _discovery:
+For more information of the functionalities provided to remote backends through
+their federator, see the :ref:`federated API documentation<api-endpoints>`.
 
-Discovery
-----------
 
-If a backend would like to send a request to a remote backend with a given
-domain, for example because a user would like to send a message to a user on a
-that backend, it first needs to 'discover' that backend. This step is required,
-as backends are not necessarily hosted under the domain they represent.
+Backend to backend communication
+--------------------------------------------
 
-The domain that a Wire backend represents, i.e. the domain that is present in
-the qualified UIDs of its users is simply referred to as the backend's 'domain',
-while the domain that the backend is hosted at is called `infrastructure domain`
-(or 'infra domain' for short).
+We require communication between the federator of one (sending) backend another
+(receiving) backend to be both mutually authenticated and authorized. More
+specifically, both backends need to ensure the following:
 
-To make discovery possible, any party hosting a Wire backend has to announce the
-the infra domain via a DNS `SRV` record as defined in `RFC 2782
-<https://tools.ietf.org/html/rfc2782>`_ with `service = wire-server-federator, proto =
-tcp` and with `name` pointing to the backend's domain and `target` to the
-backend's infra domain.
+:Authentication: Determine the identity (infra domain name) of the other
+                 backend.
+:Discovery: Ensure that the other backend is authorized to represent the backend
+            domain claimed by the other backend.
+:Authorization: Ensure that this backend is authorized to federate with the
+                other backend.
 
-For example, Company A with domain `company-a.com` and infra
-domain `wire.company-a.com` could publish
-
-.. code-block:: bash
-
-   _wire-server-federator._tcp.company-a.com. 600  IN  SRV 10 5 443 federator.wire.company-a.com.
-
-A backend can then be discovered, given its domain, by issueing a DNS query for
-the SRV record specifying the `wire-server-federator` service.
 
 .. _authentication:
 
 Authentication
----------------
+^^^^^^^^^^^^^^
 
 Authentication between Wire backends is achieved using the mutual authentication
 feature of TLS as defined in `RFC 8556 <https://tools.ietf.org/html/rfc8446>`_.
@@ -125,10 +153,54 @@ infra domain as the subject alternative name (SAN), which is defined in `RFC
 If a receiving backend fails to authenticate the client certificate, it should
 reply with an :ref:`authentication error <authentication error>`.
 
+
+.. _discovery:
+
+Discovery
+^^^^^^^^^
+
+The discovery process allows a backend to determine the infra domain of a given
+backend domain.
+
+This step is necessary in two scenarios:
+
+* A backend would like to establish a connection to another backend that they
+  only know the backend domain of. This is the case, for example, when a user of
+  a local backend searchers for a :ref:`qualified username
+  <qualified-user-name>`, which only includes that user's backends's backend
+  domain.
+* When receiving a message from another backend that authenticates with a given
+  infra domain and claims to represent a given backend domain, a backend would
+  like to ensure the backend domain owner authorized the owner of the infra
+  domain to run their Wire backend.
+
+To make discovery possible, any party hosting a Wire backend has to announce the
+the infra domain via a DNS `SRV` record as defined in `RFC 2782
+<https://tools.ietf.org/html/rfc2782>`_ with `service = wire-server-federator, proto =
+tcp` and with `name` pointing to the backend's domain and `target` to the
+backend's infra domain.
+
+For example, Company A with domain `company-a.com` and infra
+domain `wire.company-a.com` could publish
+
+.. code-block:: bash
+
+   _wire-server-federator._tcp.company-a.com. 600  IN  SRV 10 5 443 federator.wire.company-a.com.
+
+A backend can then be discovered, given its domain, by issueing a DNS query for
+the SRV record specifying the `wire-server-federator` service.
+
+Caching
+~~~~~~~
+
+After retrieving the SRV record for a given domain, it caches the `backend
+domain <--> infra domain` mapping for the duration indicated in the TTL field of
+the record.
+
 .. _authorization:
 
 Authorization
----------------
+^^^^^^^^^^^^^
 
 After an incoming connection is authenticated, a second step is required to
 ensure that the sending backend is authorized to connect to the receiving
@@ -156,7 +228,7 @@ the :ref:`allow-list` and replies with an :ref:`authorization error
 .. _allow-list:
 
 Domain Allow List
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 Federation can happen between any backends on a network (e.g. the open
 internet); or it can be restricted via server configuration to happen between a
@@ -171,8 +243,8 @@ then:
 
 .. _per-request-authorization:
 
-Per-request Authorization
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Per-request authorization
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In addition to the general authorization step that is performed by the federator
 when a new, mutually authenticated TLS connection is established, the component
@@ -184,6 +256,23 @@ request and the context in which it is made.
 See the documentation of the individual :ref:`API endpoints <api-endpoints>` for
 details.
 
+
+Example
+^^^^^^^
+
+The following is an example for the message and information flow between a
+backend with backend domain `a.com` and infra domain `infra.a.com` and another
+backend with backend domain `b.com` and infra domain `infra.b.com`.
+
+The content and format of the message is meant to be representative. For the
+definitions of the actual payloads, please see the :ref:`federation
+API<federation-api>` section.
+
+The scenario is that the brig at `infra.a.com` has received a user search
+request from one of its clients.
+
+.. image:: img/federation-flow.png
+   :width: 100%
 
 
 
