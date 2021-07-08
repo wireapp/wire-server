@@ -75,10 +75,24 @@ supports one rpc called ``call`` which requires a ``Request`` and returns an
 
     message InwardResponse {
       oneof response {
-        bytes body = 1;
-        string err = 2;
+        InwardError err = 1;
+        bytes body = 2;
       }
     }
+
+    message InwardError {
+      enum ErrorType {
+        IOther = 0;
+        IInvalidDomain = 1;
+        IFederationDeniedByRemote = 2;
+        IInvalidEndpoint = 3;
+        IForbiddenEndpoint = 4;
+      }
+
+      ErrorType type = 1;
+      string msg = 2;
+    }
+
 
 The ``component`` field in ``Request`` tells the federator which components this
 request is meant for and the rest of the arguments are details of the HTTP
@@ -239,8 +253,11 @@ to synchronize the state of the conversations of their members.
   conversation id, update the conversation details locally with the other data
   provided. This is used to alert remote backend of updates in the conversation
   metadata of conversations that one of their local users is involved in.
-
-
+* ``receive-message``: Given (sender, recipients, message payloads), propagate a message to local users.
+  This is used whenever there is a remote user in a conversation (see end-to-end flows).
+* ``send-message``: Given a sender and a raw message request, send a message to
+  a conversation owned by another backend. This is used when the user sending a
+  message is not on the same backend as the conversation the message is sent in.
 
 .. _end-to-end-flows:
 
@@ -278,3 +295,37 @@ Conversation Establishment
    conversation, including the conversation metadata in the request.
 8. `B`'s backend registers the conversation locally and confirms the query.
 9. `B`'s backend notifies `B`'s client of the creation of the conversation.
+
+Message Sending (A)
+^^^^^^^^^^^^^^^^^^^
+
+1. In a conversation `conv-1@backend-a.com` on `A`'s backend with users
+   `A@backend-a.com` and `B@backend-b.com`, `A` sends a message by using the
+   ``/conversations/backend-a.com/conv-1/proteus/messages`` endpoint
+   on `A`'s backend.
+2. `A`'s backend will check if `A` included all necessary user devices in their
+   request. For that it will make a ``get-user-clients`` request to `B`'s
+   backend. The returned list of clients will be checked to match against the
+   list of clients the message was encrypted for.
+3. `A`'s backend will send the message to all clients of those users on `A`'s
+   backend part of the conversation as usual,
+4. `A`'s backend will query the ``receive-message`` endpoint on `B`'s backend.
+5. `B`'s backend will propagate the message to all users on `B`.
+
+Message Sending (B)
+^^^^^^^^^^^^^^^^^^^
+
+1. In a conversation `conv-1@backend-a.com` on `A`'s backend with users
+   `A@backend-a.com` and `B@backend-b.com`, `B` sends a message by using the
+   ``/conversations/backend-a.com/conv-1/proteus/messages`` endpoint
+   on `B`'s backend.
+2. `B`'s backend will query the ``send-message`` endpoint on `A`'s backend.
+   *Steps 3-6 below are essentially the same as steps 2-5 in Message Sending (A)*
+3. `A`'s backend will check if `B` included all necessary user devices in their
+   request. For that it will make a ``get-user-clients`` request to `B`'s
+   backend. The returned list of clients will be checked to match against the
+   list of clients the message was encrypted for.
+4. `A`'s backend will send the message to all clients of those users on `A`'s
+   backend part of the conversation as usual,
+5. `A`'s backend will query the ``receive-message`` endpoint on `B`'s backend.
+6. `B`'s backend will propagate the message to all users on `B`.
