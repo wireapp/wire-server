@@ -40,6 +40,9 @@ def file_is_excluded(filename):
     return False
 
 def list_source_files(dir_):
+    '''
+    Returns all files relative to `dir_` except for those that are excluded (see file_is_excluded)
+    '''
     result = []
     for root, sub_folders, filenames in os.walk(dir_):
         if '/.' in root:
@@ -51,18 +54,25 @@ def list_source_files(dir_):
     return result
 
 def add_suffix(path, suffix):
+    '''
+    add_suffix(README.md, 'wire-api') -> README-wire-api.md
+    '''
     return path + '-' + suffix # TODO
 
-def copy_with_dir(relpath, src_dir, dst_dir, suffix=None):
-    src_path = os.path.join(src_dir, relpath)
-    dst_path = os.path.join(dst_dir, relpath)
-    if suffix is not None:
-        dst_path = add_suffix(dst_path, suffix)
-    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-    shutil.copyfile(src_path, dst_path)
-    # print(f'{src_path} -> {dst_path}')
+# def copy_with_dir(relpath, src_dir, dst_dir, suffix=None):
+#     src_path = os.path.join(src_dir, relpath)
+#     dst_path = os.path.join(dst_dir, relpath)
+#     if suffix is not None:
+#         dst_path = add_suffix(dst_path, suffix)
+#     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+#     if os.path.exists(dst_path):
+#         raise ValueError(f'{dst_path} already exists')
+#     shutil.copyfile(src_path, dst_path)
 
 def get_path(obj, path):
+    '''
+    get value of a nested structure (e.g. parsed YAML)
+    '''
     o = obj
     while(len(path) > 0):
         o = o.get(path[0])
@@ -71,49 +81,64 @@ def get_path(obj, path):
         path = path[1:]
     return o
 
+def get_list(obj, path):
+    s = get_path(obj, path)
+    if s is not None:
+        if type(s) is list:
+            return s
+        elif isinstance(s, str):
+            return [s]
+        else:
+            raise ValueError(f'dont know how to hande {s}')
+    else:
+        return None
+
+def get_dependencies(obj, path, remove=[]):
+    deps = set(get_path(obj, path + ['dependencies']) or [])
+    return list(deps - set(remove))
+
 def merge_projects(dir_source, dir_target):
 
     package_source = read_yaml(os.path.join(dir_source, 'package.yaml'))
     package_target = read_yaml(os.path.join(dir_target, 'package.yaml'))
 
-    package_target['dependencies'] = merge_deps(package_target['dependencies'], get_path(package_source, ['dependencies']) or [])
-    package_target['library']['dependencies'] = merge_deps(package_target['library']['dependencies'], get_path(package_source, ['library', 'dependencies']) or [])
+    prefix = package_source['name']
+
+    # TODO: remove  from all deps
+
+    package_target['dependencies'] = \
+        merge_deps(package_target['dependencies'],
+                   get_dependencies(package_source, [], remove=[package_source['name']]))
+
+    package_target['library']['dependencies'] = \
+        merge_deps(package_target['library']['dependencies'], get_dependencies(package_source, ['library'], remove=[package_source['name']]))
+
+    prefixed_source_dirs = [os.path.join(prefix, d) for d in get_list(package_source, ['library', 'source-dirs'])]
+    package_target['library']['source-dirs'].extend(prefixed_source_dirs)
 
     # TODO: executables
     # TODO: tests
 
     package_source_name = package_source['name']
 
-    for fname in (list_source_files(dir_source)):
-        suffix=None
-        if fname in ['README.md', 'Makefile']:
-            suffix = package_source_name
-        copy_with_dir(fname, dir_source, dir_target, suffix=suffix)
+    # for fname in (list_source_files(dir_source)):
+    #     suffix=None
+    #     if fname in ['README.md', 'Makefile']:
+    #         suffix = package_source_name
+
+    shutil.copytree(dir_source, os.path.join(dir_target, prefix))
 
     write_yaml(package_target, os.path.join(dir_target, 'package.yaml'))
 
 
-def get_lib_dirs():
-    result = []
-    for root, sub_folders, _ in os.walk('libs'):
-        if root != 'libs':
-            continue
-        for sub_folder in sub_folders:
-            lib_dir = os.path.join(root, sub_folder)
-            result.append(lib_dir)
-    return result
-
 def main():
     os.makedirs('wire-server', exist_ok=True)
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
-    for lib_dir in get_lib_dirs():
-        if lib_dir in ['libs/hscim',
-                       'libs/libzauth',
-                       'libs/brig-types',
-                       ]:
-            continue
-        print(f'Merging {lib_dir}')
-        merge_projects(lib_dir, 'wire-server')
+
+    packages_topo_order = ['services/brig']
+
+    for package in packages_topo_order:
+        merge_projects(package, 'wire-server')
 
 if __name__ == '__main__':
     main()

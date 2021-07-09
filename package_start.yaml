@@ -10,5 +10,5 @@ license: AGPL-3
 dependencies: []
 
 library:
-  source-dirs: src
+  source-dirs: []
   dependencies: []
