@@ -146,7 +146,7 @@ def merge_projects(dir_source, dir_target):
         if 'flags' not in package_target:
             package_target['flags'] = {}
         if name in package_target['flags']:
-            raise ValueError(f"duplicated flag {name}")
+            print(f"WARNING: duplicated flag {name}")
         package_target['flags'][name] = flag
 
     prefixed_source_dirs = [os.path.join(prefix, d) for d in get_list(package_source, ['library', 'source-dirs'])]
