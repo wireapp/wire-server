@@ -42,7 +42,7 @@ library:
   - unliftio-core
 executables:
   proxy:
-    main: src/Main.hs
+    main: exe/Main.hs
     ghc-options:
     - -threaded
     - -rtsopts

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e36a48793e77087ee1a5e60f78c9c308b686a1d9318e083dc6bb78d0e27ac056
+-- hash: a2b334b1e28bace72513e15280c9369f2f0bb42f58b0c5c7699faea9336eb156
 
 name:           proxy
 version:        0.9.0
@@ -24,7 +24,6 @@ flag static
 
 library
   exposed-modules:
-      Main
       Proxy.API
       Proxy.API.Public
       Proxy.Env
@@ -67,7 +66,7 @@ library
   default-language: Haskell2010
 
 executable proxy
-  main-is: src/Main.hs
+  main-is: exe/Main.hs
   other-modules:
       Paths_proxy
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
