@@ -88,6 +88,7 @@ data TeamFeatureName
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
   | TeamFeatureAppLock
+  | TeamFeatureFileSharing
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
