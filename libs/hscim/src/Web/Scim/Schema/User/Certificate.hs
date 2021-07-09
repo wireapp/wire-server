@@ -21,6 +21,7 @@ import Data.Aeson
 import Data.Text (Text)
 import GHC.Generics
 import Web.Scim.Schema.Common
+import Prelude
 
 data Certificate = Certificate
   { typ :: Maybe Text,

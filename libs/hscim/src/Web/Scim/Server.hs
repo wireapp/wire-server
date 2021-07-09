@@ -1,4 +1,41 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE NoBangPatterns #-}
+{-# LANGUAGE NoDefaultSignatures #-}
+{-# LANGUAGE NoDeriveLift #-}
+{-# LANGUAGE NoDeriveTraversable #-}
+{-# LANGUAGE NoDerivingStrategies #-}
+{-# LANGUAGE NoDerivingVia #-}
+{-# LANGUAGE NoEmptyCase #-}
+{-# LANGUAGE NoFunctionalDependencies #-}
+{-# LANGUAGE NoGADTs #-}
+{-# LANGUAGE NoInstanceSigs #-}
+{-# LANGUAGE NoMultiWayIf #-}
+{-# LANGUAGE NoNamedFieldPuns #-}
+{-# LANGUAGE NoPackageImports #-}
+{-# LANGUAGE NoPatternSynonyms #-}
+{-# LANGUAGE NoPolyKinds #-}
+{-# LANGUAGE NoQuasiQuotes #-}
+{-# LANGUAGE NoStandaloneDeriving #-}
+{-# LANGUAGE NoTemplateHaskell #-}
+{-# LANGUAGE NoTupleSections #-}
+{-# LANGUAGE NoUndecidableInstances #-}
+{-# LANGUAGE NoViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -37,6 +74,7 @@ module Web.Scim.Server
   )
 where
 
+import Data.Either
 import Network.Wai
 import Servant
 import Servant.API.Generic
@@ -46,6 +84,7 @@ import Web.Scim.Class.Auth (AuthDB (..), AuthTypes (..))
 import Web.Scim.Class.Group (GroupDB, GroupSite (..), GroupTypes (..), groupServer)
 import Web.Scim.Class.User (UserDB (..), UserSite (..), userServer)
 import Web.Scim.Handler
+import Prelude
 
 ----------------------------------------------------------------------------
 -- API specification

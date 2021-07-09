@@ -35,6 +35,7 @@ import Web.Scim.Schema.User.Email as E
 import Web.Scim.Schema.User.Name
 import Web.Scim.Server
 import Web.Scim.Server.Mock
+import Prelude
 
 main :: IO ()
 main = do

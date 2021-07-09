@@ -27,6 +27,7 @@ import Data.Aeson
 import GHC.Generics (Generic)
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
+import Prelude
 
 -- | A "pagination" type used as a wrapper whenever a SCIM endpoint has to
 -- return a list.

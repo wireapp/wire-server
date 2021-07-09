@@ -21,6 +21,7 @@ import Data.Aeson
 import Data.Text hiding (dropWhile)
 import GHC.Generics (Generic)
 import Web.Scim.Schema.Common
+import Prelude
 
 data Address = Address
   { formatted :: Maybe Text,

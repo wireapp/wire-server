@@ -32,6 +32,7 @@ import Web.Scim.Filter (AttrPath (..), SubAttr (..), ValuePath (..), pAttrPath, 
 import Web.Scim.Schema.Error
 import Web.Scim.Schema.Schema (Schema (PatchOp20))
 import Web.Scim.Schema.UserTypes (UserTypes (supportedSchemas))
+import Prelude
 
 newtype PatchOp tag = PatchOp
   {getOperations :: [Operation]}

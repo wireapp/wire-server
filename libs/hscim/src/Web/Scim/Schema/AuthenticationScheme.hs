@@ -29,6 +29,7 @@ import Data.Text
 import GHC.Generics
 import Network.URI.Static
 import Web.Scim.Schema.Common
+import Prelude
 
 ----------------------------------------------------------------------------
 -- Types

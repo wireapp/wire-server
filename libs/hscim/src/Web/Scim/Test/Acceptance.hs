@@ -1,6 +1,43 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE NoAllowAmbiguousTypes #-}
+{-# LANGUAGE NoBangPatterns #-}
+{-# LANGUAGE NoConstraintKinds #-}
+{-# LANGUAGE NoDataKinds #-}
+{-# LANGUAGE NoDefaultSignatures #-}
+{-# LANGUAGE NoDeriveFunctor #-}
+{-# LANGUAGE NoDeriveGeneric #-}
+{-# LANGUAGE NoDeriveLift #-}
+{-# LANGUAGE NoDeriveTraversable #-}
+{-# LANGUAGE NoDerivingStrategies #-}
+{-# LANGUAGE NoDerivingVia #-}
+{-# LANGUAGE NoEmptyCase #-}
+{-# LANGUAGE NoFlexibleInstances #-}
+{-# LANGUAGE NoFunctionalDependencies #-}
+{-# LANGUAGE NoGADTs #-}
+{-# LANGUAGE NoInstanceSigs #-}
+{-# LANGUAGE NoKindSignatures #-}
+{-# LANGUAGE NoLambdaCase #-}
+{-# LANGUAGE NoMultiParamTypeClasses #-}
+{-# LANGUAGE NoMultiWayIf #-}
+{-# LANGUAGE NoNamedFieldPuns #-}
+{-# LANGUAGE NoPackageImports #-}
+{-# LANGUAGE NoPatternSynonyms #-}
+{-# LANGUAGE NoPolyKinds #-}
+{-# LANGUAGE NoRankNTypes #-}
+{-# LANGUAGE NoStandaloneDeriving #-}
+{-# LANGUAGE NoTemplateHaskell #-}
+{-# LANGUAGE NoTypeFamilies #-}
+{-# LANGUAGE NoTypeFamilyDependencies #-}
+{-# LANGUAGE NoTypeOperators #-}
+{-# LANGUAGE NoUndecidableInstances #-}
+{-# LANGUAGE NoViewPatterns #-}
+{-# LANGUAGE ImplicitPrelude #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -45,6 +82,7 @@ import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.UserTypes
 import Web.Scim.Test.Util
+import Prelude
 
 ignore :: Monad m => m a -> m ()
 ignore _ = pure ()

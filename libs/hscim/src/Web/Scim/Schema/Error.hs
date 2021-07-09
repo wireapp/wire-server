@@ -42,6 +42,7 @@ import GHC.Generics (Generic)
 import Servant (ServerError (..))
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
+import Prelude
 
 ----------------------------------------------------------------------------
 -- Types

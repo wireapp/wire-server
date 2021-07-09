@@ -1,6 +1,43 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE NoBangPatterns #-}
+{-# LANGUAGE NoDefaultSignatures #-}
+{-# LANGUAGE NoDeriveLift #-}
+{-# LANGUAGE NoDeriveTraversable #-}
+{-# LANGUAGE NoDerivingStrategies #-}
+{-# LANGUAGE NoDerivingVia #-}
+{-# LANGUAGE NoEmptyCase #-}
+{-# LANGUAGE NoFunctionalDependencies #-}
+{-# LANGUAGE NoGADTs #-}
+{-# LANGUAGE NoInstanceSigs #-}
+{-# LANGUAGE NoMultiWayIf #-}
+{-# LANGUAGE NoNamedFieldPuns #-}
+{-# LANGUAGE NoPackageImports #-}
+{-# LANGUAGE NoPatternSynonyms #-}
+{-# LANGUAGE NoPolyKinds #-}
+{-# LANGUAGE NoQuasiQuotes #-}
+{-# LANGUAGE NoStandaloneDeriving #-}
+{-# LANGUAGE NoTemplateHaskell #-}
+{-# LANGUAGE NoUndecidableInstances #-}
+{-# LANGUAGE NoViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -58,6 +95,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as L
+import Data.Either
 import qualified Data.HashMap.Strict as SMap
 import Data.Proxy
 import Data.Text
@@ -76,6 +114,7 @@ import Web.Scim.Class.Auth (AuthTypes (..))
 import Web.Scim.Class.Group (GroupTypes (..))
 import Web.Scim.Schema.Schema (Schema (CustomSchema, User20))
 import Web.Scim.Schema.User (UserTypes (..))
+import Prelude
 
 -- | re-implementation of 'shouldRespondWith' with better error reporting.
 -- FUTUREWORK: make this a PR upstream.  (while we're at it, we can also patch 'WaiSession'

@@ -24,6 +24,7 @@ where
 
 import Control.Monad.Except
 import Web.Scim.Schema.Error
+import Prelude
 
 -- | Handler type for SCIM. All errors will be thrown via 'ExceptT'.
 type ScimHandler m = ExceptT ScimError m

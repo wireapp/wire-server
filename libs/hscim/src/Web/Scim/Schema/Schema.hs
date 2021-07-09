@@ -27,6 +27,7 @@ import Web.Scim.Capabilities.MetaSchema.ResourceType
 import Web.Scim.Capabilities.MetaSchema.SPConfig
 import Web.Scim.Capabilities.MetaSchema.Schema
 import Web.Scim.Capabilities.MetaSchema.User
+import Prelude
 
 -- | All schemas that we support.
 data Schema

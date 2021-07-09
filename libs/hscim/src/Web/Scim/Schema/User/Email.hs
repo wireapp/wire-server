@@ -23,6 +23,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
 import Text.Email.Validate
 import Web.Scim.Schema.Common
+import Prelude
 
 newtype EmailAddress2 = EmailAddress2
   {unEmailAddress :: EmailAddress}

@@ -39,6 +39,7 @@ import Web.Scim.Schema.ListResponse hiding (schemas)
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.PatchOp
 import Web.Scim.Schema.User
+import Prelude
 
 ----------------------------------------------------------------------------
 -- /Users API

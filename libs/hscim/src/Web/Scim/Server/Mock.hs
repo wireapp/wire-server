@@ -50,6 +50,7 @@ import Web.Scim.Schema.Meta
 import Web.Scim.Schema.ResourceType
 import Web.Scim.Schema.Schema (Schema (User20))
 import Web.Scim.Schema.User
+import Prelude
 
 -- | Tag used in the mock server.
 data Mock

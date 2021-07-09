@@ -40,6 +40,7 @@ import Web.Scim.Handler
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
+import Prelude
 
 ----------------------------------------------------------------------------
 -- /Groups API

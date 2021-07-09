@@ -21,6 +21,7 @@ import Data.Aeson
 import Data.Text (Text)
 import GHC.Generics
 import Web.Scim.Schema.Common
+import Prelude
 
 data Name = Name
   { formatted :: Maybe Text,

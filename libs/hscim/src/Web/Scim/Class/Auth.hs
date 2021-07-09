@@ -28,6 +28,7 @@ where
 
 import Servant
 import Web.Scim.Handler
+import Prelude
 
 -- | Types used in authentication routines.
 class AuthTypes tag where

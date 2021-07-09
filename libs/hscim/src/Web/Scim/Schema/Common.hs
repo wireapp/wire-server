@@ -29,6 +29,7 @@ import Data.String (IsString)
 import Data.String.Conversions (cs)
 import Data.Text hiding (dropWhile)
 import qualified Network.URI as Network
+import Prelude
 
 data WithId id a = WithId
   { id :: id,
