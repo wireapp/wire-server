@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2b9aecb8f8e68d10c210a71da9a6397f92405239068d5e26f66183a0a10dbce
+-- hash: 66eafd08ffd55824f2f008f82c66d8e9a4c66436dce603ad17b67fa76fee055e
 
 name:           galley
 version:        0.83.0
@@ -68,7 +68,6 @@ library
       Galley.Run
       Galley.Types.Clients
       Galley.Validation
-      Main
   other-modules:
       Paths_galley
   hs-source-dirs:
@@ -159,7 +158,7 @@ library
   default-language: Haskell2010
 
 executable galley
-  main-is: src/Main.hs
+  main-is: exe/Main.hs
   other-modules:
       Paths_galley
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
