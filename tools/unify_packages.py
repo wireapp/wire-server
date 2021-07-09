@@ -94,9 +94,8 @@ def get_list(obj, path):
     else:
         return []
 
-def get_dependencies(obj, path, remove=[]):
-    deps = set(get_path(obj, path + ['dependencies']) or [])
-    return list(deps - set(remove))
+def get_dependencies(obj, path):
+    return list(get_path(obj, path + ['dependencies']) or [])
 
 def get_all_dependencies(package):
     all_deps = []
@@ -120,27 +119,41 @@ def merge_projects(dir_source, dir_target):
 
     # TODO: remove  from all deps
 
-    package_target['dependencies'] = \
+    def remove_source(deps):
+        return [dep for dep in deps if dep != package_source["name"]]
+
+    package_target['dependencies'] = remove_source(
         merge_deps(package_target['dependencies'],
-                   get_dependencies(package_source, [], remove=[package_source['name']]))
+            get_dependencies(package_source, [])))
 
-    package_target['library']['dependencies'] = \
-        merge_deps(package_target['library']['dependencies'], get_dependencies(package_source, ['library'], remove=[package_source['name']]))
+    package_target['library']['dependencies'] = remove_source(
+        merge_deps(package_target['library']['dependencies'], 
+            get_dependencies(package_source, ['library'])))
 
-    executables = list(package_source.get('executables', {}).items()) + \
-        list(package_source.get('tests', {}).items())
+    executables = \
+        [('executables', name, exe) \
+            for name, exe in package_source.get('executables', {}).items()] + \
+        [('tests', name, exe) \
+            for name, exe in package_source.get('tests', {}).items()]
 
-    for name, exe in executables:
+    for ty, name, exe in executables:
         if 'source-dirs' in exe:
             exe['source-dirs'] = [os.path.join(prefix, d)
                 for d in get_list(exe, ['source-dirs'])]
         else:
             exe['main'] = os.path.join(prefix, exe['main'])
-        if 'executables' not in package_target:
-            package_target['executables'] = {}
+        if ty not in package_target:
+            package_target[ty] = {}
 
         deps = [parse_simple_dep(dep) for dep in exe.get('dependencies', [])]
-        exe['dependencies'] = [d for d in deps if d != package_source['name']]
+        exe['dependencies'] = ['wire-server'] + deps
+        package_target[ty][name] = exe
+
+    # remove source from all executable and test dependencies
+    for exe in package_target.get('executables', {}).values():
+        exe['dependencies'] = remove_source(get_list(exe, ['dependencies']))
+    for exe in package_target.get('tests', {}).values():
+        exe['dependencies'] = remove_source(get_list(exe, ['dependencies']))
 
     for name, flag in package_source.get('flags', {}).items():
         if 'flags' not in package_target:
@@ -197,7 +210,7 @@ def main():
     # packages_topo_order = ['services/brig', 'services/galley']
     packages_topo_order = read_dep_dag()
 
-    for package in packages_topo_order[:10]:
+    for package in packages_topo_order:
         print(package)
         merge_projects(package, 'wire-server')
 
