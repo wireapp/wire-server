@@ -84,6 +84,7 @@ This release requires a manual change in your galley configuration: `settings.co
 
 ## Internal changes
 
+
 # [2021-06-08]
 
 ## Release Notes
@@ -135,6 +136,7 @@ Deploy brig before galley (#1526, #1549)
 
 ## Documentation
 * Update Rich Info docs (#1544)
+
 
 # [2021-05-26]
 
@@ -205,6 +207,7 @@ changes.)
  - wire-api-fed: Mark flaky tests as pending
  - RFC: Schemas for documented bidirectional JSON encoding (#1474)
 
+
 # [2021-05-04]
 
 ## Features
@@ -240,6 +243,7 @@ changes.)
  - [docs] Update release notes with data migration for SCIM (#1442)
  - [docs] Fixes a k8s typo in the README (#1475)
  - [docs] Document testing strategy and patterns (#1472)
+
 
 # [2021-03-23]
 
@@ -305,6 +309,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 * Use mu-haskell to implement one initial federation request across backends (#1319)
 * Add migrate-external-ids tool (#1384)
 
+
 # [2021-02-16]
 
 ## Release Notes
@@ -345,6 +350,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Update ES upgrade path (#1339) (#1376)
 * Bump saml2-web-sso version to latest upstream (#1369)
 * Add docs for deriving-swagger2 (#1373)
+
 
 # [2021-01-15]
 
