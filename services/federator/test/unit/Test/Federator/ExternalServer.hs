@@ -57,7 +57,7 @@ requestBrigSuccess =
 
       res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/federation/get-user-by-handle", "\"foo\"", aValidDomain)
+      let expectedCall = (Brig, "federation/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
@@ -71,7 +71,7 @@ requestBrigFailure =
       res <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
 
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Brig, "/federation/get-user-by-handle", "\"foo\"", aValidDomain)
+      let expectedCall = (Brig, "federation/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ case res of
         InwardResponseBody b -> assertFailure ("expecting error, got success: " <> cs b)
@@ -82,11 +82,11 @@ requestGalleySuccess =
   testCase "should translate response from galley to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Service @IO $ do
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
-      let request = Request Galley "/federation/get-conversations" "{}" exampleDomain
+      let request = Request Galley "federation/get-conversations" "{}" exampleDomain
 
       res :: InwardResponse <- mock @Service @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
-      let expectedCall = (Galley, "/federation/get-conversations", "{}", aValidDomain)
+      let expectedCall = (Galley, "federation/get-conversations", "{}", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 

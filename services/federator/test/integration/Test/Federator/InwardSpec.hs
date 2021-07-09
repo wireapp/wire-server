@@ -80,10 +80,30 @@ spec env =
         bdy <- asInwardBody =<< inwardBrigCall "federation/get-user-by-handle" (encode hdl)
         liftIO $ bdy `shouldBe` expectedProfile
 
-    it "should give InvalidEndpoint on a 404 'no-endpoint'" $
+    it "should give an InvalidEndpoint error on a 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
         err <- asInwardError =<< inwardBrigCall "federation/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
         expectErr IInvalidEndpoint err
+
+    -- Note: most tests for forbidden endpoints are in the unit tests of the sanitizePath function
+    -- The integration tests are just another safeguard.
+    it "should not accept invalid/disallowed paths" $
+      runTestFederator env $ do
+        let o = object ["name" .= ("fakeNewUser" :: Text)]
+        err <- asInwardErrorUnsafe <$> inwardBrigCall "http://localhost:8080/i/users" (encode o)
+        expectErr IForbiddenEndpoint err
+
+    it "should only accept /federation/ paths" $
+      runTestFederator env $ do
+        let o = object ["name" .= ("fakeNewUser" :: Text)]
+        err <- asInwardErrorUnsafe <$> inwardBrigCall "i/users" (encode o)
+        expectErr IForbiddenEndpoint err
+
+    it "should only accept /federation/ paths (also when there are /../ segments)" $
+      runTestFederator env $ do
+        let o = object ["name" .= ("fakeNewUser" :: Text)]
+        err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/../i/users" (encode o)
+        expectErr IForbiddenEndpoint err
 
 -- Utility functions
 --

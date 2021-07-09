@@ -19,8 +19,10 @@
 
 module Test.Federator.Validation where
 
+import qualified Data.ByteString as BS
 import Data.Domain (Domain (..))
 import Data.Either.Combinators (mapLeft)
+import Data.String.Conversions
 import Federator.Options
 import Federator.Remote (Remote)
 import Federator.Validation
@@ -46,7 +48,10 @@ tests =
         [ validateDomainAllowListFailSemantic,
           validateDomainAllowListFail,
           validateDomainAllowListSuccess
-        ]
+        ],
+      testGroup "validatePath - Success" validatePathSuccess,
+      testGroup "validatePath - Normalize" validatePathNormalize,
+      testGroup "validatePath - Forbid" validatePathForbidden
     ]
 
 federateWithAllowListSuccess :: TestTree
@@ -91,3 +96,81 @@ validateDomainAllowListSuccess =
       let allowList = RunSettings (AllowList (AllowedDomains [domain]))
       res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("hello.world" :: Text)
       embed $ assertEqual "validateDomain should give 'hello.world' as domain" (Right domain) res
+
+validatePathSuccess :: [TestTree]
+validatePathSuccess = do
+  let paths =
+        [ "federation/get-user-by-handle",
+          "federation/get-conversations"
+        ]
+  expectOk <$> paths
+  where
+    expectOk :: ByteString -> TestTree
+    expectOk path = testCase ("should allow " <> cs path) $ do
+      res <- runSanitize path
+      res @?= Right path
+
+validatePathNormalize :: [TestTree]
+validatePathNormalize = do
+  let paths =
+        [ ("federation//stuff", "federation/stuff"),
+          ("/federation/get-user-by-handle", "federation/get-user-by-handle"),
+          ("federation/../federation/stuff", "federation/stuff")
+        ]
+  expectNormalized <$> paths
+  where
+    expectNormalized :: (ByteString, ByteString) -> TestTree
+    expectNormalized (input, output) = do
+      testCase ("Should allow " <> cs input <> " and normalize to " <> cs output) $ do
+        res <- runSanitize input
+        res @?= Right output
+
+validatePathForbidden :: [TestTree]
+validatePathForbidden = do
+  let paths =
+        [ "",
+          "/",
+          "///",
+          -- disallowed paths
+          "federation",
+          "/federation",
+          "/federation/",
+          "i/users",
+          "/i/users",
+          -- path traversals to avoid
+          "../i/users",
+          "federation/../i/users",
+          "federation/%2e%2e/i/users", -- percent-encoded '../'
+          "federation/%2E%2E/i/users",
+          "federation/%252e%252e/i/users", -- double percent-encoded '../'
+          "federation/%c0%ae%c0%ae/i/users", -- weird-encoded '../'
+          -- syntax we don't wish to support
+          "federation/é", -- not ASCII
+          "federation/stuff?bar[]=baz", -- not parseable as URI
+          "http://federation.wire.link/federation/stuff", -- contains scheme and domain
+          "http://federation/stuff", -- contains scheme
+          "federation.wire.link/federation/stuff", -- contains domain
+          "federation/stuff?key=value", -- contains query parameter
+          "federation/stuff%3fkey%3dvalue", -- contains query parameter
+          "federation/stuff#fragment", -- contains fragment
+          "federation/stuff%23fragment", -- contains fragment
+          "federation/this-url-is-waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay-too-long"
+        ]
+  expectForbidden <$> paths
+  where
+    expectForbidden :: ByteString -> TestTree
+    expectForbidden input = do
+      testCase ("Should forbid '" <> cs (BS.take 40 input) <> "'") $ do
+        res <- runSanitize input
+        expectErr IForbiddenEndpoint res
+
+runSanitize :: ByteString -> IO (Either InwardError ByteString)
+runSanitize = runM . evalMock @Remote @IO . Polysemy.runError @InwardError . sanitizePath
+
+expectErr :: InwardErrorType -> Either InwardError ByteString -> IO ()
+expectErr expectedType (Right bdy) = do
+  assertFailure $ "expected error '" <> show expectedType <> "' but got a valid body: " <> show bdy
+expectErr expectedType (Left err) =
+  unless (inwardErrorType err == expectedType)
+    . liftIO
+    $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err

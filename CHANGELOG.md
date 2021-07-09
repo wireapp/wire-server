@@ -40,6 +40,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * [Federation] Fetch remote user's clients when sending messages (#1635).
 * [Federation] Actually propagate messages to other backends (#1638).
 * [Federation] Support sending messages to remote conversations (#1609).
+* [Federation] Guard against path traversal attacks (#1646).
 
 ## Internal changes
 
@@ -67,6 +68,7 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Bug fixes and other updates
 
 * Restore old behaviour for parse errors in request bodies (#1628, #1629).
+* Allow to change IdP Issuer name to previous name (#1615).
 
 # 2021-06-23
 

@@ -357,8 +357,9 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
   pure idp
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
--- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else; request
--- uri is https.  Keep track of old issuer in extra info if issuer has changed.
+-- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else (except as
+-- an earlier IdP under the same ID); request uri is https.  Keep track of old issuer in extra
+-- info if issuer has changed.
 validateIdPUpdate ::
   forall m.
   (HasCallStack, m ~ Spar) =>
@@ -380,9 +381,12 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
     if previousIssuer == newIssuer
       then pure $ previousIdP ^. SAML.idpExtraInfo
       else do
-        notInUse <- isNothing <$> wrapMonadClient (Data.getIdPConfigByIssuer newIssuer)
-        if notInUse
-          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ (previousIssuer :)
+        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuer newIssuer)
+        let notInUseByOthers = case foundConfig of
+              Nothing -> True
+              Just c -> c ^. SAML.idpId == _idpId
+        if notInUseByOthers
+          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSpar SparIdPIssuerInUse
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
