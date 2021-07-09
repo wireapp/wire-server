@@ -125,7 +125,7 @@ executables:
     - condition: flag(static)
       ld-options: -static
   gundeck:
-    main: src/Main.hs
+    main: exe/Main.hs
     ghc-options:
     - -threaded
     - -rtsopts
