@@ -4,6 +4,8 @@
 
 ## Release Notes
 
+## API Changes
+
 ## Features
 
 ## Bug fixes and other updates
@@ -14,7 +16,23 @@
 
 -->
 
-# Unreleased
+
+# [unreleased]
+
+## Release Notes
+
+## API Changes
+
+## Features
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
+
+# [2021-06-07]
 
 ## Release Notes
 
