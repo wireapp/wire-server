@@ -525,11 +525,11 @@ packages:
     git: https://github.com/wireapp/servant-swagger.git
     pantry-tree:
       size: 1896
-      sha256: 73fb52248eec3d91d6b26daf526bf099d6ef1a3bc57954528387993d2cf481d6
-    commit: 23e9afafadaade29d21181b935286087457171e3
+      sha256: e7764ff7696d462222887e366b94f8c7a34d2509043a80d911327c1eda8989ff
+    commit: ce92103bc31ec9e7678b25c702ea55e7fb8d46c0
   original:
     git: https://github.com/wireapp/servant-swagger.git
-    commit: 23e9afafadaade29d21181b935286087457171e3
+    commit: ce92103bc31ec9e7678b25c702ea55e7fb8d46c0
 - completed:
     subdir: servant
     name: servant
