@@ -64,6 +64,7 @@ module Galley.Data
     conversationIdsOf,
     conversationMeta,
     conversations,
+    conversationsRemote,
     createConnectConversation,
     createConversation,
     createOne2OneConversation,
@@ -82,10 +83,12 @@ module Galley.Data
     addLocalMembersToRemoteConv,
     member,
     members,
+    lookupRemoteMembers,
     removeMember,
     removeMembers,
     removeLocalMembers,
     updateMember,
+    filterRemoteConvMembers,
 
     -- * Conversation Codes
     lookupCode,
@@ -125,6 +128,7 @@ import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
+import qualified Data.Monoid
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -570,6 +574,10 @@ conversationIdsOf ::
   m [ConvId]
 conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
+conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
+conversationsRemote usr = do
+  (\(d, c) -> toRemote $ Qualified c d) <$$> retry x1 (query Cql.selectUserRemoteConvs (params Quorum (Identity usr)))
+
 createConversation ::
   MonadClient m =>
   Domain ->
@@ -898,6 +906,20 @@ updateMember cid uid mup = do
         misHiddenRef = mupHiddenRef mup,
         misConvRoleName = mupConvRoleName mup
       }
+
+-- | Select only the members of a remote conversation from a list of users.
+-- Return the filtered list and a boolean indicating whether the all the input
+-- users are members.
+filterRemoteConvMembers :: (MonadUnliftIO m, MonadClient m) => [UserId] -> Qualified ConvId -> m ([UserId], Bool)
+filterRemoteConvMembers users (Qualified conv dom) =
+  fmap Data.Monoid.getAll
+    . foldMap (\muser -> (muser, Data.Monoid.All (not (null muser))))
+    <$> pooledMapConcurrentlyN 8 filterMember users
+  where
+    filterMember :: MonadClient m => UserId -> m [UserId]
+    filterMember user = do
+      let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
+      map runIdentity <$> retry x1 q
 
 removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> m Event
 removeLocalMembers localDomain conv orig localVictims = removeMembers localDomain conv orig localVictims []

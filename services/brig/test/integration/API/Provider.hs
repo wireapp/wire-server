@@ -50,6 +50,7 @@ import Data.Domain
 import Data.Handle (Handle (Handle))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id hiding (client)
+import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
@@ -495,7 +496,7 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   cnv <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
-  let cid = cnvId cnv
+  let cid = qUnqualified . cnvQualifiedId $ cnv
       qcid = Qualified cid localDomain
   -- Add two bots there
   bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
@@ -539,7 +540,7 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
   -- Create conversation
   _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
   let Just cnv = responseJsonMaybe _rs
-  let cid = cnvId cnv
+  let cid = qUnqualified . cnvQualifiedId $ cnv
   testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
 testMessageBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -555,7 +556,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   let Just uc = clientId <$> responseJsonMaybe _rs
   -- Create conversation
   _rs <- createConv galley uid [] <!! const 201 === statusCode
-  let Just cid = cnvId <$> responseJsonMaybe _rs
+  let Just cid = qUnqualified . cnvQualifiedId <$> responseJsonMaybe _rs
   testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -576,7 +577,7 @@ testBadFingerprint config db brig galley _cannon = do
     _rs <- addClient brig uid new <!! const 201 === statusCode
     -- Create conversation
     _rs <- createConv galley uid [] <!! const 201 === statusCode
-    let Just cid = cnvId <$> responseJsonMaybe _rs
+    let Just cid = qUnqualified . cnvQualifiedId <$> responseJsonMaybe _rs
     -- Try to add a bot and observe failure
     addBot brig uid pid sid cid
       !!! const 502 === statusCode
@@ -1966,13 +1967,13 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     assertEqual "service" (Just sref) (omService =<< other)
   -- The bot greets the user
   WS.bracketR cannon uid $ \ws -> do
-    postBotMessage galley bid bc cid [(uid, uc, "Hi User!")]
+    postBotMessage galley bid bc cid [(uid, uc, (toBase64Text "Hi User!"))]
       !!! const 201 === statusCode
-    wsAssertMessage ws qcid qbuid bc uc "Hi User!"
+    wsAssertMessage ws qcid qbuid bc uc (toBase64Text "Hi User!")
   -- The user replies
-  postMessage galley uid uc cid [(buid, bc, "Hi Bot")]
+  postMessage galley uid uc cid [(buid, bc, (toBase64Text "Hi Bot"))]
     !!! const 201 === statusCode
-  let msg = OtrMessage uc bc "Hi Bot" (Just "data")
+  let msg = OtrMessage uc bc (toBase64Text "Hi Bot") (Just "data")
   svcAssertMessage buf quid msg qcid
   -- Remove the entire service; the bot should be removed from the conversation
   WS.bracketR cannon uid $ \ws -> do

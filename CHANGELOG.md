@@ -4,6 +4,8 @@
 
 ## Release Notes
 
+## API Changes
+
 ## Features
 
 ## Bug fixes and other updates
@@ -14,11 +16,87 @@
 
 -->
 
-# 2021-06-23
+
+# [unreleased]
+
+[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
+[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
+
+## Release Notes
 
 ## API Changes
 
-* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616).
+## Features
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
+## Federation changes (alpha feature, do not use yet)
+
+
+# [2021-07-09]
+
+## Release Notes
+
+This release requires a manual change in your galley configuration: `settings.conversationCodeURI` in `galley.yaml` was had to be set to `${WEBAPP}/join` before this release, and must be set to `${ACCOUNTS}/conversation-join` from now on, where `${WEBAPP}` is the url to the webapp and `${ACCOUNTS}` is the url to the account pages.
+
+## API Changes
+
+* Several public team feature endpoints are removed (their internal and
+  Stern-based counterparts remain available):
+  - `PUT /teams/:tid/features/sso`
+  - `PUT /teams/:tid/features/validateSAMLemails`
+  - `PUT /teams/:tid/features/digitalSignatures`
+* All endpoints that fetch conversation details now also include a new key
+  `qualified_id` for a qualified conversation ID (#1640)
+* New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
+
+## Features
+
+* Change `settings.conversationCodeURI` in galley.yaml (#1643).
+* [Federation] RPC to propagate messages to other backends (#1596).
+* [Federation] Fetch remote user's clients when sending messages (#1635).
+* [Federation] Actually propagate messages to other backends (#1638).
+* [Federation] Support sending messages to remote conversations (#1609).
+* [Federation] Guard against path traversal attacks (#1646).
+
+## Internal changes
+
+* Feature endpoints are rewritten in Servant (#1642).
+* Internal federation endpoints using the publicly-facing conversation data type
+  now also include a qualified conversation ID under the `qualified_id` key
+  (#1640)
+* schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
+* [Federation] Let a receiving backend decide conversation attribute specifics of its users
+  added to a new conversation via `POST /federation/register-conversation` (#1622).
+* [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
+* Refactored Proteus endpoint to work with qualified users (#1634).
+* Refactored Federator InternalServer (#1637)
+
+### Internal Federation API changes
+
+* Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
+  * Note: federation should not be in use anywhere yet, so this should not have any impact
+
+## Documentation
+
+* Fix validation errors in Swagger documentation (#1625).
+
+## Bug fixes and other updates
+
+* Restore old behaviour for parse errors in request bodies (#1628, #1629).
+* Allow to change IdP Issuer name to previous name (#1615).
+
+
+# [2021-06-23]
+
+## API Changes
+
+* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616, #1620).
+* Replace 'otr' with 'proteus' in new message sending API (#1616)
 
 ## Features
 
@@ -26,10 +104,44 @@
 
 * [helm] Allow sending messages upto 40 MB by default (#1614)
 * Fix for https://github.com/wireapp/wire-webapp/security/advisories/GHSA-382j-mmc8-m5rw  (#1613)
+* Update wire-webapp version (#1613)
+* Update team-settings version (#1598)
+* Allow optional password field in RmClient (#1604, #1607)
+* Add endpoint: Get name, id with for CodeAccess conversations (#1592)
+* demote logging failed invitations to a warning, rather than an error. Server operators can't act on these errors in any way (#1586)
 
 ## Documentation
 
+* Add descriptive comments to `ConversationMemberUpdate` (#1578)
+* initial few anti-patterns and links about cassandra (#1599)
+
 ## Internal changes
+
+* Rename a local members field in the Conversation data type (#1580)
+* Servantify Protobuf endpoint to send messages (#1583)
+* Servantify own client API (#1584, #1603)
+* Remove resource requests (#1581)
+* Import http2 fix (#1582)
+* Remove stale FUTUREWORK comment (#1587)
+* Reorganise helper functions for conversation notifications (#1588)
+* Extract origin domain header name for use in API (#1597)
+* Merge Empty200, Empty404 and EmptyResult (#1589)
+* Set content-type header for JSON errors in Servant (#1600)
+* Add golden tests for ClientCapability(List) (#1590)
+* Add checklist for PRs (#1601, #1610)
+* Remove outdated TODO (#1606)
+* submodules (#1612)
+
+## More federation changes (inactive code)
+
+* Add getUserClients RPC (and thereby allow remote clients lookup) (#1500)
+* minor refactor: runFederated (#1575)
+* Notify remote backends when users join (#1556)
+* end2end test getting remote conversation and complete its implementation (#1585)
+* Federation: Notify Remote Users of Being Added to a New Conversation (#1594)
+* Add qualified endpoint for sending messages (#1593, #1614)
+* Galley/int: Expect remote call when creating conv with remotes (#1611)
+
 
 # [2021-06-08]
 
@@ -82,6 +194,7 @@ Deploy brig before galley (#1526, #1549)
 
 ## Documentation
 * Update Rich Info docs (#1544)
+
 
 # [2021-05-26]
 
@@ -152,6 +265,7 @@ changes.)
  - wire-api-fed: Mark flaky tests as pending
  - RFC: Schemas for documented bidirectional JSON encoding (#1474)
 
+
 # [2021-05-04]
 
 ## Features
@@ -187,6 +301,7 @@ changes.)
  - [docs] Update release notes with data migration for SCIM (#1442)
  - [docs] Fixes a k8s typo in the README (#1475)
  - [docs] Document testing strategy and patterns (#1472)
+
 
 # [2021-03-23]
 
@@ -252,6 +367,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 * Use mu-haskell to implement one initial federation request across backends (#1319)
 * Add migrate-external-ids tool (#1384)
 
+
 # [2021-02-16]
 
 ## Release Notes
@@ -292,6 +408,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Update ES upgrade path (#1339) (#1376)
 * Bump saml2-web-sso version to latest upstream (#1369)
 * Add docs for deriving-swagger2 (#1373)
+
 
 # [2021-01-15]
 
@@ -418,6 +535,7 @@ As a preparation for federation, this release introduces a mandatory 'federation
 * refactor brig Servant API for consistency (#1276)
 * Feature flags cleanup (#1256)
 
+
 # 2020-11-24
 
 ## Release Notes
@@ -440,6 +558,7 @@ As a preparation for federation, this release introduces a mandatory 'federation
 * parse exposed 'tracestate' header in nginz logs if present (#1244)
 * Store SCIM tokens in hashed form (#1240)
 * better error handling (#1251)
+
 
 # 2020-10-28
 
@@ -494,6 +613,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * GHC upgrade to 8.8.4 (#1204)
 * Preparation for APNS notification on iOS 13 devices: Use mutable content for non-voip notifications and update limits (#1212)
 * Cleanup: remove unused scim_user table (#1211)
+
 
 # 2020-09-04
 
@@ -629,6 +749,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Enable additional GHC warnings (#1131)
 * Cleanup export list; swagger names. (#1126)
 
+
 # 2020-06-03
 
 ## Release Notes
@@ -660,6 +781,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Move and add wire-api JSON roundtrip tests (#1098)
 * Spar tests cleanup (#1100)
 
+
 # 2020-05-15
 
 ## New Features
@@ -673,6 +795,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * More tests for OTR messages using protobuf (#1095)
 * Set brig's logLevel to Warn while running integration-tests (#1099)
 * Refactor: Create wire-api package for types used in the public API (#1090)
+
 
 # 2020-05-07
 
@@ -715,6 +838,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Upgrade Ormolu to 0.0.5.0 (#1078)
 * Add (very few) unit tests to galley (#1071)
 * Pull brig-index before running the docker ephemeral setup (#1066)
+
 
 # 2020-04-21
 
@@ -777,6 +901,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Upgrade to restund 0.4.14 (#1043)
 * Add license headers to all files (#980, #1045)
 * Federation: Link related issue IDs (#1041)
+
 
 # 2020-03-10
 
@@ -903,6 +1028,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 - Remove collectd metrics (finally!) (#940)
 - Update `cargoSha256` for cryptobox-c in stack-deps.nix (#949)
 
+
 # 2020-01-08
 
 ## Relevant for self-hosters
@@ -952,6 +1078,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 
 - Gundeck: Use polledMapConcurrently (#914)
 
+
 # 2019-11-06 #901
 
 ## Relevant for self-hosters
@@ -975,6 +1102,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 - New backoffice/stern endpoint (#896)
 - SAML: Store raw idp metadata with typed details in c* (#872)
 - documentation/script updates
+
 
 # 2019-09-30 #868
 
@@ -1096,6 +1224,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Cannon analytics (2) (#750)
 * fix this file.
 
+
 # 2019-05-13 #756
 
 ## Documentation changes
@@ -1119,6 +1248,7 @@ Docker image building improvements (#755)
 ## Changes (potentially) requiring action for self-hosters
 
 Config value `setEmailVisibility` must be set in brig's config file (if you're not sure, `visible_to_self` is the preferred default)
+
 
 # 2019-05-02 #746
 
@@ -1149,6 +1279,7 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
 * On password reset the new password must be different than the old one
 * Stern is now available as a new tool for performing adminstrative tasks via API (#720)
 * SCIM handler errors are now reported according to SCIM error schema (#575)
+
 
 # 2019-04-09 #710
 
@@ -1182,6 +1313,7 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
 ## Changes (potentially) requiring action for self-hosters
 
 - Switch proxy to use YAML-only config (#684)
+
 
 # 2019-03-25 #674
 
@@ -1348,6 +1480,7 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
 # Others
 
   * Improved docs (yes!) with (#528)
+
 
 # 2018-11-28 #527
 

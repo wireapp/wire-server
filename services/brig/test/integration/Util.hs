@@ -39,8 +39,9 @@ import qualified Brig.ZAuth as ZAuth
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
+import Data.Aeson.Types (emptyObject)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
@@ -52,6 +53,7 @@ import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified (Qualified)
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -69,7 +71,9 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
 import Util.AWS
+import Wire.API.Conversation (ListConversations, NewConv (..), NewConvUnmanaged (..))
 import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.Federation.API.Brig as FedBrig
 
 type Brig = Request -> Request
@@ -526,12 +530,45 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversation :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ConvId -> m ResponseLBS
 getConversation galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' cnv]
       . zAuthAccess usr "conn"
+
+createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
+createConversation galley zusr usersToAdd = do
+  let conv = NewConvUnmanaged $ NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  post $
+    galley
+      . path "/conversations"
+      . zUser zusr
+      . zConn "conn"
+      . json conv
+
+-- (should be) equivalent to
+-- listConvs u (ListConversations [] Nothing Nothing)
+listAllConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+listAllConvs g u = do
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . json emptyObject
+
+listConvs :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ListConversations -> m ResponseLBS
+listConvs g u req = do
+  -- when using servant-client (pending #1605), this would become:
+  -- galleyClient <- view tsGalleyClient
+  -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . json req
 
 isMember :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
@@ -706,7 +743,10 @@ someLastPrekeys =
   ]
 
 defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword = PlainTextPassword defPasswordText
+
+defPasswordText :: Text
+defPasswordText = "secret"
 
 defWrongPassword :: PlainTextPassword
 defWrongPassword = PlainTextPassword "not secret"

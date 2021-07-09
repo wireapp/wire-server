@@ -22,9 +22,9 @@ module Galley.API.Public
   )
 where
 
-import Data.Aeson (FromJSON, ToJSON, encode)
-import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
-import Data.Id (TeamId, UserId)
+import Data.Aeson (encode)
+import Data.ByteString.Conversion (fromByteString, fromList)
+import Data.Id (UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -37,7 +37,7 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
-import Galley.API.Teams.Features (DoAuth (..))
+import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatus)
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
@@ -82,6 +82,7 @@ servantSitemap =
         GalleyAPI.getConversationIds = Query.getConversationIds,
         GalleyAPI.getConversations = Query.getConversations,
         GalleyAPI.getConversationByReusableCode = Query.getConversationByReusableCode,
+        GalleyAPI.listConversations = Query.listConversations,
         GalleyAPI.createGroupConversation = Create.createGroupConversation,
         GalleyAPI.createSelfConversation = Create.createSelfConversation,
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
@@ -91,7 +92,44 @@ servantSitemap =
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
         GalleyAPI.deleteTeamConversation = Teams.deleteTeamConversation,
         GalleyAPI.postOtrMessageUnqualified = Update.postOtrMessageUnqualified,
-        GalleyAPI.postProteusMessage = Update.postProteusMessage
+        GalleyAPI.postProteusMessage = Update.postProteusMessage,
+        GalleyAPI.teamFeatureStatusSSOGet =
+          getFeatureStatus @'Public.TeamFeatureSSO Features.getSSOStatusInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusLegalHoldGet =
+          getFeatureStatus @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusLegalHoldPut =
+          setFeatureStatus @'Public.TeamFeatureLegalHold Features.setLegalholdStatusInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityGet =
+          getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityPut =
+          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusSearchVisibilityDeprecatedPut =
+          setFeatureStatus @'Public.TeamFeatureSearchVisibility Features.setTeamSearchVisibilityAvailableInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusValidateSAMLEmailsGet =
+          getFeatureStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusValidateSAMLEmailsDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusDigitalSignaturesGet =
+          getFeatureStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusDigitalSignaturesDeprecatedGet =
+          getFeatureStatus @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusAppLockGet =
+          getFeatureStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
+            . DoAuth,
+        GalleyAPI.teamFeatureStatusAppLockPut =
+          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal . DoAuth
       }
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -446,13 +484,6 @@ sitemap = do
     parameter Path "tid" bytes' $
       description "Team ID"
     response 200 "All feature statuses" end
-
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Features.setSSOStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
 
   -- Custom Backend API -------------------------------------------------
 
@@ -882,57 +913,3 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       -- user IDs, and then 'fromList' unwraps it; took me a while to
       -- understand this
       Just l -> P.Okay 0 (Set.fromList (fromList l))
-
-mkFeatureGetAndPutRoute ::
-  forall (a :: Public.TeamFeatureName).
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
-  Routes ApiBuilder Galley ()
-mkFeatureGetAndPutRoute getter setter = do
-  let featureName = Public.knownTeamFeatureName @a
-
-  let getHandler :: UserId ::: TeamId ::: JSON -> Galley Response
-      getHandler (uid ::: tid ::: _) =
-        json <$> Features.getFeatureStatus @a getter (DoAuth uid) tid
-
-  let mkGetRoute makeDocumentation name = do
-        get ("/teams/:tid/features/" <> name) (continue getHandler) $
-          zauthUserId
-            .&. capture "tid"
-            .&. accept "application" "json"
-        when makeDocumentation $
-          document "GET" "getTeamFeature" $ do
-            parameter Path "tid" bytes' $
-              description "Team ID"
-            returns (ref (Public.modelForTeamFeature featureName))
-            response 200 "Team feature status" end
-
-  mkGetRoute True (toByteString' featureName)
-  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName
-
-  let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-      putHandler (uid ::: tid ::: req ::: _) = do
-        status <- fromJsonBody req
-        res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
-        pure $ json res & Network.Wai.Utilities.setStatus status200
-
-  let mkPutRoute makeDocumentation name = do
-        put ("/teams/:tid/features/" <> name) (continue putHandler) $
-          zauthUserId
-            .&. capture "tid"
-            .&. jsonRequest @(Public.TeamFeatureStatus a)
-            .&. accept "application" "json"
-        when makeDocumentation $
-          document "PUT" "putTeamFeature" $ do
-            parameter Path "tid" bytes' $
-              description "Team ID"
-            body (ref (Public.modelForTeamFeature featureName)) $
-              description "JSON body"
-            response 204 "Team feature status" end
-
-  mkPutRoute True (toByteString' featureName)
-  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName

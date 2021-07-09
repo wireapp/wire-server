@@ -85,6 +85,7 @@ import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
 import Data.Schema
+import qualified Data.Semigroup as Semigroup
 import qualified Data.Set as Set
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Build.Api as Doc
@@ -254,14 +255,20 @@ instance Arbitrary a => Arbitrary (UserClientMap a) where
   arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
 
 newtype QualifiedUserClientMap a = QualifiedUserClientMap
-  { qualifiedUserClientMap :: Map Domain (UserClientMap a)
+  { qualifiedUserClientMap :: Map Domain (Map UserId (Map ClientId a))
   }
-  deriving stock (Eq, Show)
-  deriving newtype (Semigroup, Monoid)
+  deriving stock (Eq, Show, Functor)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (QualifiedUserClientMap a)
 
+instance Semigroup a => Semigroup (QualifiedUserClientMap a) where
+  (QualifiedUserClientMap m1) <> (QualifiedUserClientMap m2) =
+    QualifiedUserClientMap $ Map.unionWith (Map.unionWith (Map.unionWith (<>))) m1 m2
+
+instance Semigroup (QualifiedUserClientMap a) => Monoid (QualifiedUserClientMap a) where
+  mempty = QualifiedUserClientMap mempty
+
 instance Arbitrary a => Arbitrary (QualifiedUserClientMap a) where
-  arbitrary = QualifiedUserClientMap <$> mapOf' arbitrary arbitrary
+  arbitrary = QualifiedUserClientMap <$> mapOf' arbitrary (mapOf' arbitrary (mapOf' arbitrary arbitrary))
 
 instance ToSchema a => ToSchema (QualifiedUserClientMap a) where
   schema = qualifiedUserClientMapSchema schema
@@ -271,10 +278,10 @@ qualifiedUserClientMapSchema ::
   ValueSchema NamedSwaggerDoc (QualifiedUserClientMap a)
 qualifiedUserClientMapSchema sch =
   addDoc . named nm $
-    QualifiedUserClientMap <$> qualifiedUserClientMap .= map_ innerSchema
+    QualifiedUserClientMap <$> qualifiedUserClientMap .= map_ (map_ (map_ sch))
   where
     innerSchema = userClientMapSchema sch
-    nm = "QualifiedUserClientMap" <> maybe "" (" " <>) (getName (schemaDoc sch))
+    nm = "QualifiedUserClientMap" <> maybe "" ("_" <>) (getName (schemaDoc sch))
     addDoc =
       Swagger.schema . Swagger.example
         ?~ toJSON
@@ -286,8 +293,9 @@ qualifiedUserClientMapSchema sch =
 newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
   {getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)}
   deriving stock (Eq, Show)
-  deriving newtype (Arbitrary, Semigroup, Monoid)
+  deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Semigroup.Option (Semigroup.First Prekey)))
 
 instance ToSchema QualifiedUserClientPrekeyMap where
   schema =
@@ -372,18 +380,24 @@ filterClientsFull :: (Set Client -> Bool) -> UserClientsFull -> UserClientsFull
 filterClientsFull p (UserClientsFull c) = UserClientsFull $ Map.filter p c
 
 newtype QualifiedUserClients = QualifiedUserClients
-  { qualifiedUserClients :: Map Domain UserClients
+  { qualifiedUserClients :: Map Domain (Map UserId (Set ClientId))
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via (Schema QualifiedUserClients)
 
+instance Semigroup QualifiedUserClients where
+  (QualifiedUserClients m1) <> (QualifiedUserClients m2) =
+    QualifiedUserClients $ Map.unionWith (Map.unionWith (<>)) m1 m2
+
+instance Monoid QualifiedUserClients where
+  mempty = QualifiedUserClients mempty
+
 instance Arbitrary QualifiedUserClients where
-  arbitrary = QualifiedUserClients <$> mapOf' arbitrary arbitrary
+  arbitrary = QualifiedUserClients <$> mapOf' arbitrary (mapOf' arbitrary (setOf' arbitrary))
 
 instance ToSchema QualifiedUserClients where
   schema =
-    addDoc . named "QualifiedUserClients" $ QualifiedUserClients <$> qualifiedUserClients .= map_ schema
+    addDoc . named "QualifiedUserClients" $ QualifiedUserClients <$> qualifiedUserClients .= map_ (map_ (set schema))
     where
       addDoc sch =
         sch
@@ -757,15 +771,14 @@ instance ToSchema RmClient where
     object "DeleteClient" $
       RmClient
         <$> rmPassword
-          .= lax
-            ( fieldWithDocModifier
-                "password"
-                ( description
-                    ?~ "The password of the authenticated user for verification. \
-                       \The password is not required for deleting temporary clients."
-                )
-                (optWithDefault A.Null schema)
-            )
+        .= optFieldWithDocModifier
+          "password"
+          (Just A.Null)
+          ( description
+              ?~ "The password of the authenticated user for verification. \
+                 \The password is not required for deleting temporary clients."
+          )
+          schema
 
 modelDeleteClient :: Doc.Model
 modelDeleteClient = Doc.defineModel "DeleteClient" $ do

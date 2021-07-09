@@ -46,6 +46,9 @@ module Data.Schema
     field,
     fieldWithDocModifier,
     fieldOver,
+    optField,
+    optFieldWithDocModifier,
+    optFieldOver,
     array,
     set,
     nonEmptyArray,
@@ -58,6 +61,7 @@ module Data.Schema
     dispatch,
     text,
     parsedText,
+    null_,
     element,
     tag,
     unnamed,
@@ -264,12 +268,26 @@ field ::
   SchemaP doc A.Object [A.Pair] a b
 field = fieldOver id
 
+-- | A schema for a JSON object with a single optional field.
+optField ::
+  (HasOpt doc, HasField doc' doc) =>
+  Text ->
+  -- | The value to use when serialising Nothing.
+  Maybe A.Value ->
+  SchemaP doc' A.Value A.Value a b ->
+  SchemaP doc A.Object [A.Pair] (Maybe a) (Maybe b)
+optField = optFieldOver id
+
+newtype Negative x y a = Negative {runNegative :: (a -> x) -> y}
+  deriving (Functor)
+
 -- | A version of 'field' for more general input values.
 --
 -- This can be used when the input type 'v' of the parser is not exactly a
 -- 'A.Object', but it contains one. The first argument is a lens that can
 -- extract the 'A.Object' contained in 'v'.
 fieldOver ::
+  forall doc' doc v v' a b.
   HasField doc' doc =>
   Lens v v' A.Object A.Value ->
   Text ->
@@ -277,14 +295,43 @@ fieldOver ::
   SchemaP doc v [A.Pair] a b
 fieldOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
-    parseField obj = ContT $ \k -> A.explicitParseField k obj name
-    r obj = runContT (l parseField obj) (schemaIn sch)
+    parseField :: A.Object -> Negative (A.Parser b) (A.Parser b) A.Value
+    parseField obj = Negative $ \k -> A.explicitParseField k obj name
+
+    r :: v -> A.Parser b
+    r obj = runNegative (l parseField obj) (schemaIn sch)
 
     w x = do
       v <- schemaOut sch x
       pure [name A..= v]
 
     s = mkField name (schemaDoc sch)
+
+-- | A version of 'optField' for more general input values.
+--
+-- See documentation of 'fieldOver' for more details.
+optFieldOver ::
+  forall doc' doc v v' a b.
+  (HasOpt doc, HasField doc' doc) =>
+  Lens v v' A.Object A.Value ->
+  Text ->
+  Maybe A.Value ->
+  SchemaP doc' v' A.Value a b ->
+  SchemaP doc v [A.Pair] (Maybe a) (Maybe b)
+optFieldOver l name def sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+  where
+    parseField :: A.Object -> Negative (A.Parser b) (A.Parser (Maybe b)) A.Value
+    parseField obj = Negative $ \k -> A.explicitParseFieldMaybe k obj name
+
+    r :: v -> A.Parser (Maybe b)
+    r obj = runNegative (l parseField obj) (schemaIn sch)
+
+    w (Just x) = do
+      v <- schemaOut sch x
+      pure [name A..= v]
+    w Nothing = pure (maybeToList (fmap (name A..=) def))
+
+    s = mkOpt (mkField name (schemaDoc sch))
 
 -- | Like 'field', but apply an arbitrary function to the
 -- documentation of the field.
@@ -295,6 +342,17 @@ fieldWithDocModifier ::
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a b
 fieldWithDocModifier name modify sch = field name (over doc modify sch)
+
+-- | Like 'optField', but apply an arbitrary function to the
+-- documentation of the field.
+optFieldWithDocModifier ::
+  (HasOpt doc, HasField doc' doc) =>
+  Text ->
+  Maybe A.Value ->
+  (doc' -> doc') ->
+  SchemaP doc' A.Value A.Value a b ->
+  SchemaP doc A.Object [A.Pair] (Maybe a) (Maybe b)
+optFieldWithDocModifier name def modify sch = optField name def (over doc modify sch)
 
 -- | Change the input type of a schema.
 (.=) :: Profunctor p => (a -> a') -> p a' b -> p a b
@@ -535,6 +593,13 @@ jsonObject :: ValueSchema SwaggerDoc A.Object
 jsonObject =
   unnamed . object "Object" $
     mkSchema mempty pure (pure . (^.. ifolded . withIndex))
+
+-- | A schema for a null value.
+null_ :: Monoid d => SchemaP d A.Value A.Value () ()
+null_ = mkSchema mempty i o
+  where
+    i x = guard (x == A.Null)
+    o _ = pure A.Null
 
 data WithDeclare s = WithDeclare (Declare ()) s
   deriving (Functor)

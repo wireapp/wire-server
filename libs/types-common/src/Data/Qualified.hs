@@ -28,6 +28,7 @@ module Data.Qualified
     partitionRemoteOrLocalIds',
     partitionQualified,
     deprecatedSchema,
+    partitionRemote,
   )
 where
 
@@ -88,6 +89,9 @@ partitionQualified = foldr add mempty
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
+partitionRemote :: [Remote a] -> [(Domain, [a])]
+partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
+
 ----------------------------------------------------------------------
 
 renderQualifiedId :: Qualified (Id a) -> Text
@@ -102,7 +106,7 @@ qualifiedSchema ::
   ValueSchema NamedSwaggerDoc a ->
   ValueSchema NamedSwaggerDoc (Qualified a)
 qualifiedSchema name fieldName sch =
-  object ("Qualified " <> name) $
+  object ("Qualified_" <> name) $
     Qualified
       <$> qUnqualified .= field fieldName sch
       <*> qDomain .= field "domain" schema

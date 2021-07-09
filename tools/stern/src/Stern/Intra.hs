@@ -76,6 +76,7 @@ import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
+import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
@@ -693,7 +694,7 @@ getUserConversations uid = do
       userConversationList <- fetchBatch start
       let batch = convList userConversationList
       if (not . null) batch && (convHasMore userConversationList)
-        then fetchAll (batch ++ xs) (Just . cnvId $ last batch)
+        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch)
         else return (batch ++ xs)
     fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
     fetchBatch start = do

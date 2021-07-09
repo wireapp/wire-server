@@ -21,7 +21,10 @@ module Galley.Intra.Push
   ( -- * Push
     Push,
     newPush,
+    newPushLocal,
+    newConversationEventPush,
     newPush1,
+    newPushLocal1,
     push,
     push1,
     pushSome,
@@ -33,6 +36,7 @@ module Galley.Intra.Push
     pushRoute,
     pushNativePriority,
     pushAsync,
+    pushRecipients,
 
     -- * Push Recipients
     Recipient,
@@ -54,12 +58,14 @@ import Control.Lens (makeLenses, set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (Object)
+import Data.Domain
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Misc
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Text.Encoding (encodeUtf8)
@@ -109,8 +115,8 @@ data PushTo user = Push
     _pushRoute :: Gundeck.Route,
     _pushNativePriority :: Maybe Gundeck.Priority,
     _pushAsync :: Bool,
-    pushOrigin :: UserId,
-    pushRecipients :: List1 (RecipientBy user),
+    pushOrigin :: Maybe UserId,
+    _pushRecipients :: List1 (RecipientBy user),
     pushJson :: Object,
     pushRecipientListType :: Teams.ListType
   }
@@ -118,7 +124,7 @@ data PushTo user = Push
 
 makeLenses ''PushTo
 
-newPush1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 :: Teams.ListType -> Maybe UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 recipientListType from e rr =
   Push
     { _pushConn = Nothing,
@@ -129,12 +135,23 @@ newPush1 recipientListType from e rr =
       pushRecipientListType = recipientListType,
       pushJson = pushEventJson e,
       pushOrigin = from,
-      pushRecipients = rr
+      _pushRecipients = rr
     }
 
-newPush :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLocal1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPushLocal1 lt uid e rr = newPush1 lt (Just uid) e rr
+
+newPush :: Teams.ListType -> Maybe UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPush _ _ _ [] = Nothing
 newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
+
+newPushLocal :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLocal lt uid e rr = newPush lt (Just uid) e rr
+
+newConversationEventPush :: Domain -> Event -> [UserId] -> Maybe Push
+newConversationEventPush localDomain e users =
+  let musr = guard (localDomain == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+   in newPush Teams.ListComplete musr (ConvEvent e) (map userRecipient users)
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
@@ -155,12 +172,12 @@ push ps = do
     splitPush p =
       (mkPushTo localRecipients p, mkPushTo remoteRecipients p)
       where
-        localRecipients = toList $ pushRecipients p
+        localRecipients = toList $ _pushRecipients p
         remoteRecipients = [] -- FUTUREWORK: deal with remote sending
     mkPushTo :: [RecipientBy a] -> PushTo b -> Maybe (PushTo a)
     mkPushTo recipients p =
       nonEmpty recipients <&> \nonEmptyRecipients ->
-        p {pushRecipients = List1 nonEmptyRecipients}
+        p {_pushRecipients = List1 nonEmptyRecipients}
 
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
@@ -187,7 +204,7 @@ pushLocal ps = do
                   tl = tailDef [] pss
                in ((toPush p r : hd) : tl, n + nr)
     maxRecipients = 128
-    recipientList p = map (toRecipient p) . toList $ pushRecipients p
+    recipientList p = map (toRecipient p) . toList $ _pushRecipients p
     toPush p r =
       let pload = Gundeck.singletonPayload (pushJson p)
        in Gundeck.newPush (pushOrigin p) (unsafeRange (Set.fromList r)) pload
@@ -202,7 +219,7 @@ pushLocal ps = do
       filter
         ( \p ->
             (pushRecipientListType p == Teams.ListComplete)
-              && (length (pushRecipients p) <= (fromIntegral $ fromRange limit))
+              && (length (_pushRecipients p) <= (fromIntegral $ fromRange limit))
         )
 
 -- instead of IdMapping, we could also just take qualified IDs

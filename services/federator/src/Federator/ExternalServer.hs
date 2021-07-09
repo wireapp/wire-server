@@ -22,7 +22,9 @@
 module Federator.ExternalServer where
 
 import Control.Lens (view)
+import Data.Aeson (decode)
 import qualified Data.ByteString.Lazy as LBS
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
@@ -36,6 +38,7 @@ import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
 import qualified Network.HTTP.Types.Status as HTTP
+import qualified Network.Wai.Utilities.Error as WaiError
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
@@ -49,34 +52,45 @@ import Wire.API.Federation.GRPC.Types
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
 -- for versioning schemas here.
 
--- FUTUREWORK(federation): How do we make sure that only legitimate endpoints can be
--- reached, some discussion here:
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
--- Also, see comment in 'Federator.Service.interpretService'
 --
 -- FUTUREWORK(federation): implement server2server authentication!
 -- (current validation only checks parsing and compares to allowList)
---
--- FUTUREWORK: consider using Polysemy.Error also in callLocal to reduce nesting and improve readability.
 callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Request -> Sem r InwardResponse
-callLocal req@Request {..} = do
+callLocal = runInwardError . callLocal'
+  where
+    runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
+    runInwardError action = toResponse <$> Polysemy.runError action
+
+    toResponse :: Either InwardError ByteString -> InwardResponse
+    toResponse (Left err) = InwardResponseError err
+    toResponse (Right bs) = InwardResponseBody bs
+
+callLocal' :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Error InwardError] r) => Request -> Sem r ByteString
+callLocal' req@Request {..} = do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "request" (show req)
 
-  validation <- federateWith' originDomain
-  case validation of
-    Left err -> pure $ InwardResponseErr err
-    Right domain -> do
-      (resStatus, resBody) <- serviceCall component path body domain
-      pure $ case HTTP.statusCode resStatus of
-        200 -> InwardResponseBody $ maybe mempty LBS.toStrict resBody
-        -- TODO: There is a unit test for this, but Akshay has seen the integration
-        -- test never sees InwardResponseErr, when the error is supposed to be
-        -- returned, the integration test just sees `InwardResponseBody` with empty
-        -- body. Maybe this is a bug in mu-haskell, maybe something is wrong with
-        -- our integration test, let's verify this.
-        code -> InwardResponseErr $ "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus)
+  validatedDomain <- validateDomain originDomain
+  validatedPath <- sanitizePath path
+  Log.debug $
+    Log.msg ("Path validation" :: ByteString)
+      . Log.field "original path:" (show path)
+      . Log.field "sanitized result:" (show validatedPath)
+  (resStatus, resBody) <- serviceCall component validatedPath body validatedDomain
+  Log.debug $
+    Log.msg ("Inward Request response" :: ByteString)
+      . Log.field "resStatus" (show resStatus)
+  case HTTP.statusCode resStatus of
+    200 -> pure $ maybe mempty LBS.toStrict resBody
+    404 ->
+      case WaiError.label <$> (decode =<< resBody) of
+        Just "no-endpoint" -> throwInward IInvalidEndpoint (cs $ "component " <> show component <> "does not have an endpoint " <> cs validatedPath)
+        _ -> throwInward IOther (cs $ show resStatus)
+    code -> do
+      let description = "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus) <> " Response body: " <> maybe mempty cs resBody
+      throwInward IOther description
 
 routeToInternal :: (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) => SingleServerT info Inward (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)

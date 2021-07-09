@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -38,6 +40,7 @@ module Galley.API.Update
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
+    removeMember,
 
     -- * Servant
     UpdateResponses,
@@ -48,6 +51,7 @@ module Galley.API.Update
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
     isTypingH,
+    postRemoteToLocal,
 
     -- * External Services
     addServiceH,
@@ -55,46 +59,40 @@ module Galley.API.Update
     Galley.API.Update.addBotH,
     rmBotH,
     postBotMessageH,
-
-    -- * Legalhold
-    guardLegalholdPolicyConflicts,
   )
 where
 
-import Brig.Types.Intra (accountUser)
 import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
-import Data.Domain (Domain)
+import Data.Domain
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
-import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent), defUserLegalHoldStatus)
+import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
 import Data.List1
 import qualified Data.Map.Strict as Map
-import Data.Misc (FutureWork (..))
+import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
+import Data.Tagged
 import Data.Time
 import Galley.API.Error
+import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import Galley.API.Mapping
-import qualified Galley.API.Teams as Teams
+import Galley.API.Message
 import Galley.API.Util
 import Galley.App
-import Galley.Data (teamMember)
 import qualified Galley.Data as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import qualified Galley.External as External
 import qualified Galley.Intra.Client as Intra
 import Galley.Intra.Push
-import Galley.Intra.User (deleteBot, getContactList, getUser, lookupActivatedUsers)
+import Galley.Intra.User (deleteBot, getContactList, lookupActivatedUsers)
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot hiding (addBot)
@@ -109,23 +107,23 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import Servant (respond)
+import qualified Servant
 import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
-import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.User (userTeam)
-import Wire.API.User.Client (UserClientsFull)
-import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do
@@ -272,7 +270,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   now <- liftIO getCurrentTime
   let accessEvent = Event ConvAccessUpdate qcnv qusr now (EdConvAccessUpdate body)
   Data.updateConversationAccess cnv targetAccess targetRole
-  pushEvent accessEvent users bots zcon
+  pushConversationEvent (Just zcon) accessEvent (map memId users) bots
   -- Remove users and bots
   let removedUsers = map memId users \\ map memId newUsers
       removedBots = map botMemId bots \\ map botMemId newBots
@@ -284,7 +282,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
       e <- Data.removeLocalMembers localDomain conv usr (list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+      for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
       void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
@@ -316,7 +314,7 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.Conversatio
       Data.updateConversationReceiptMode cnv target
       now <- liftIO getCurrentTime
       let receiptEvent = Event ConvReceiptModeUpdate qcnv qusr now (EdConvReceiptModeUpdate receiptModeUpdate)
-      pushEvent receiptEvent users bots zcon
+      pushConversationEvent (Just zcon) receiptEvent (map memId users) bots
       pure receiptEvent
 
 updateConversationMessageTimerH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationMessageTimerUpdate -> Galley Response
@@ -344,14 +342,8 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
       now <- liftIO getCurrentTime
       let timerEvent = Event ConvMessageTimerUpdate qcnv qusr now (EdConvMessageTimerUpdate timerUpdate)
       Data.updateConversationMessageTimer cnv target
-      pushEvent timerEvent users bots zcon
+      pushConversationEvent (Just zcon) timerEvent (map memId users) bots
       pure timerEvent
-
-pushEvent :: Event -> [LocalMember] -> [BotMember] -> ConnId -> Galley ()
-pushEvent e users bots zcon = do
-  for_ (newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) (recipient <$> users)) $ \p ->
-    push1 $ p & pushConn ?~ zcon
-  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
 addCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
 addCodeH (usr ::: zcon ::: cnv) = do
@@ -381,7 +373,7 @@ addCode usr zcon cnv = do
       now <- liftIO getCurrentTime
       conversationCode <- createCode code
       let event = Event ConvCodeUpdate qcnv qusr now (EdConvCodeUpdate conversationCode)
-      pushEvent event users bots zcon
+      pushConversationEvent (Just zcon) event (map memId users) bots
       pure $ CodeAdded event
     Just code -> do
       conversationCode <- createCode code
@@ -409,7 +401,7 @@ rmCode usr zcon cnv = do
   Data.deleteCode key ReusableCode
   now <- liftIO getCurrentTime
   let event = Event ConvCodeDelete qcnv qusr now EdConvCodeDelete
-  pushEvent event users bots zcon
+  pushConversationEvent (Just zcon) event (map memId users) bots
   pure event
 
 getCodeH :: UserId ::: ConvId -> Galley Response
@@ -515,6 +507,8 @@ addMembers zusr zcon convId invite = do
   ensureConvRoleNotElevated self (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
   checkRemoteUsersExist newRemotes
+  checkLHPolicyConflictsLocal conv newLocals
+  checkLHPolicyConflictsRemote (FutureWork newRemotes)
   addToConversation mems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
@@ -531,6 +525,40 @@ addMembers zusr zcon convId invite = do
     checkLocals conv Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
       ensureConnectedOrSameTeam zusr newUsers
+
+    checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
+    checkLHPolicyConflictsLocal conv newUsers = do
+      let convUsers = Data.convLocalMembers conv
+
+      allNewUsersGaveConsent <- allLegalholdConsentGiven newUsers
+
+      whenM (anyLegalholdActivated (memId <$> convUsers)) $
+        unless allNewUsersGaveConsent $
+          throwM missingLegalholdConsent
+
+      whenM (anyLegalholdActivated newUsers) $ do
+        unless allNewUsersGaveConsent $
+          throwM missingLegalholdConsent
+
+        convUsersLHStatus <- do
+          uidsStatus <- getLHStatusForUsers (memId <$> convUsers)
+          pure $ zipWith (\mem (_, status) -> (mem, status)) convUsers uidsStatus
+
+        if any
+          ( \(mem, status) ->
+              memConvRoleName mem == roleNameWireAdmin
+                && consentGiven status == ConsentGiven
+          )
+          convUsersLHStatus
+          then do
+            for_ convUsersLHStatus $ \(mem, status) -> do
+              when (consentGiven status == ConsentNotGiven) $
+                void $ removeMember (memId mem) Nothing (Data.convId conv) (memId mem)
+          else do
+            throwM missingLegalholdConsent
+
+    checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
+    checkLHPolicyConflictsRemote _remotes = pure ()
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
@@ -565,9 +593,9 @@ updateOtherMember zusr zcon cid victim update = do
 
 removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
-  handleUpdateResult <$> removeMember zusr zcon cid victim
+  handleUpdateResult <$> removeMember zusr (Just zcon) cid victim
 
-removeMember :: UserId -> ConnId -> ConvId -> UserId -> Galley UpdateResult
+removeMember :: UserId -> Maybe ConnId -> ConvId -> UserId -> Galley UpdateResult
 removeMember zusr zcon convId victim = do
   localDomain <- viewFederationDomain
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
@@ -582,8 +610,9 @@ removeMember zusr zcon convId victim = do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
       event <- Data.removeLocalMembers localDomain conv zusr (singleton victim)
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
-      for_ (newPush ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
-        push1 $ p & pushConn ?~ zcon
+      for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
+        push1 $ p & pushConn .~ zcon
+
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
       pure $ Updated event
     else pure Unchanged
@@ -619,109 +648,49 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult =<< postBotMessage zbot zcnv val' message
 
-data LegalholdProtectee'
-  = ProtectedUser' UserId
-  | UnprotectedBot' UserId
-  deriving (Show, Eq, Ord, Generic)
-
-legalholdProtectee'2LegalholdProtectee :: LegalholdProtectee' -> LegalholdProtectee
-legalholdProtectee'2LegalholdProtectee (ProtectedUser' uid) = ProtectedUser uid
-legalholdProtectee'2LegalholdProtectee (UnprotectedBot' _uid) = UnprotectedBot
-
-legalholdProtectee'2UserId :: LegalholdProtectee' -> UserId
-legalholdProtectee'2UserId (ProtectedUser' uid) = uid
-legalholdProtectee'2UserId (UnprotectedBot' uid) = uid
-
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (UnprotectedBot' $ botUserId zbot) Nothing zcnv val message
+  postNewOtrMessage Bot (botUserId zbot) Nothing zcnv val message
 
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
--- the conversation is not hosted on current backend. If the converastion is
+-- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
-postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postProteusMessage zusr zcon convDomain cnv msg = do
+postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postProteusMessage zusr zcon convDomain conv msg = do
   localDomain <- viewFederationDomain
+  let sender = Qualified zusr localDomain
   if localDomain /= convDomain
-    then throwM federationNotImplemented
-    else do
-      let missingFilter = mkFilter localDomain $ Public.qualifiedNewOtrClientMismatchStrategy msg
-          unqualifiedMsg = toUnqualifiedMessage localDomain msg
-      translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv missingFilter unqualifiedMsg
-  where
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    mkFilter :: Domain -> Public.ClientMismatchStrategy -> Public.OtrFilterMissing
-    mkFilter localDomain = \case
-      Public.MismatchIgnoreOnly quids -> Public.OtrIgnoreMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
-      Public.MismatchIgnoreAll -> Public.OtrIgnoreAllMissing
-      Public.MismatchReportOnly quids -> Public.OtrReportMissing . Set.map qUnqualified . Set.filter (\quid -> qDomain quid == localDomain) $ quids
-      Public.MismatchReportAll -> Public.OtrReportAllMissing
-
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    toUnqualifiedMessage :: Domain -> Public.QualifiedNewOtrMessage -> Public.NewOtrMessage
-    toUnqualifiedMessage localDomain qmsg = do
-      Public.NewOtrMessage
-        { Public.newOtrSender = Public.qualifiedNewOtrSender qmsg,
-          newOtrRecipients =
-            Public.OtrRecipients
-              . fmap toBase64Text
-              . Map.findWithDefault mempty localDomain
-              . Client.qualifiedUserClientMap
-              . Public.qualifiedOtrRecipientsMap
-              . Public.qualifiedNewOtrRecipients
-              $ qmsg,
-          newOtrNativePush = Public.qualifiedNewOtrNativePush qmsg,
-          newOtrTransient = Public.qualifiedNewOtrTransient qmsg,
-          newOtrNativePriority = Public.qualifiedNewOtrNativePriority qmsg,
-          newOtrData = Just . toBase64Text $ Public.qualifiedNewOtrData qmsg,
-          newOtrReportMissing = Nothing
-        }
-
-    toBase64Text :: ByteString -> Text
-    toBase64Text = Text.decodeUtf8 . B64.encode
-
-    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponses)
-    translateToServant (OtrSent mismatch) = Servant.respond =<< (WithStatus @201 <$> qualifyMismatch mismatch mempty)
-    translateToServant (OtrMissingRecipients mismatch) = Servant.respond =<< (WithStatus @412 <$> qualifyMismatch mismatch mempty)
-    translateToServant (OtrUnknownClient e) = Servant.respond e
-    translateToServant (OtrConversationNotFound e) = Servant.respond e
-
-    -- Unnecessary glue code, it should go away when we implement federated messaging
-    qualifyMismatch :: Public.ClientMismatch -> Client.QualifiedUserClients -> Galley Public.MessageSendingStatus
-    qualifyMismatch cm failedToSend = do
-      domain <- viewFederationDomain
-      pure
-        Public.MessageSendingStatus
-          { Public.mssTime = Public.cmismatchTime cm,
-            Public.mssDeletedClients = qualifyUserClients domain $ Public.deletedClients cm,
-            Public.mssMissingClients = qualifyUserClients domain $ Public.missingClients cm,
-            Public.mssRedundantClients = qualifyUserClients domain $ Public.redundantClients cm,
-            Public.mssFailedToSend = failedToSend
-          }
-    qualifyUserClients :: Domain -> Client.UserClients -> Client.QualifiedUserClients
-    qualifyUserClients domain userClients =
-      if userClients == mempty
-        then mempty
-        else Client.QualifiedUserClients . Map.singleton domain $ userClients
+    then postRemoteOtrMessage sender (Qualified conv convDomain) (rpRaw msg)
+    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) conv (rpValue msg)
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
-  let queryParamIndication = resolveQueryMissingOptions ignoreMissing reportMissing
-      overallResovedMissingOptions = allowOtrFilterMissingInBody queryParamIndication message
-  translateToServant =<< postNewOtrMessage (ProtectedUser' zusr) (Just zcon) cnv overallResovedMissingOptions message
-  where
-    translateToServant :: OtrResult -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
-    translateToServant (OtrSent mismatch) = Servant.respond (WithStatus @201 mismatch)
-    translateToServant (OtrMissingRecipients mismatch) = Servant.respond (WithStatus @412 mismatch)
-    translateToServant (OtrUnknownClient e) = Servant.respond e
-    translateToServant (OtrConversationNotFound e) = Servant.respond e
-
-    resolveQueryMissingOptions :: Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.OtrFilterMissing
-    resolveQueryMissingOptions Nothing Nothing = Public.OtrReportAllMissing
-    resolveQueryMissingOptions (Just Public.IgnoreMissingAll) _ = Public.OtrIgnoreAllMissing
-    resolveQueryMissingOptions (Just (Public.IgnoreMissingList uids)) _ = Public.OtrIgnoreMissing uids
-    resolveQueryMissingOptions Nothing (Just Public.ReportMissingAll) = Public.OtrReportAllMissing
-    resolveQueryMissingOptions Nothing (Just (Public.ReportMissingList uids)) = Public.OtrReportMissing uids
+  localDomain <- viewFederationDomain
+  let sender = Qualified zusr localDomain
+      qualifiedRecipients =
+        Public.QualifiedOtrRecipients
+          . QualifiedUserClientMap
+          . Map.singleton localDomain
+          . userClientMap
+          . fmap fromBase64TextLenient
+          . Public.otrRecipientsMap
+          . Public.newOtrRecipients
+          $ message
+      clientMismatchStrategy = legacyClientMismatchStrategy localDomain (newOtrReportMissing message) ignoreMissing reportMissing
+      qualifiedMessage =
+        Public.QualifiedNewOtrMessage
+          { Public.qualifiedNewOtrSender = newOtrSender message,
+            Public.qualifiedNewOtrRecipients = qualifiedRecipients,
+            Public.qualifiedNewOtrNativePush = newOtrNativePush message,
+            Public.qualifiedNewOtrTransient = newOtrTransient message,
+            Public.qualifiedNewOtrNativePriority = newOtrNativePriority message,
+            Public.qualifiedNewOtrData = maybe mempty fromBase64TextLenient (newOtrData message),
+            Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
+          }
+  unqualify localDomain
+    <$> ( mkPostOtrResponsesUnion
+            =<< postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
+        )
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -761,21 +730,71 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage qusr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
-postNewOtrMessage :: LegalholdProtectee' -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
-postNewOtrMessage protectee con cnv val msg = do
+postNewOtrMessage :: UserType -> UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postNewOtrMessage utype usr con cnv val msg = do
   localDomain <- viewFederationDomain
-  let usr = legalholdProtectee'2UserId protectee
-      qusr = Qualified usr localDomain
+  let qusr = Qualified usr localDomain
       qcnv = Qualified cnv localDomain
       sender = newOtrSender msg
       recvrs = newOtrRecipients msg
   now <- liftIO getCurrentTime
-  withValidOtrRecipients protectee sender cnv recvrs val now $ \rs -> do
+  withValidOtrRecipients utype usr sender cnv recvrs val now $ \rs -> do
     let (toBots, toUsers) = foldr (newMessage qusr con (Just qcnv) msg now) ([], []) rs
     pushSome (catMaybes toUsers)
     void . forkIO $ do
       gone <- External.deliver toBots
       mapM_ (deleteBot cnv . botMemId) gone
+
+-- | Locally post a message originating from a remote conversation
+-- FUTUREWORK: error handling for missing / mismatched clients
+postRemoteToLocal :: RemoteMessage (Remote ConvId) -> Galley ()
+postRemoteToLocal rm = do
+  localDomain <- viewFederationDomain
+  let UserClientMap rcpts = rmRecipients rm
+      Tagged conv = rmConversation rm
+  -- FUTUREWORK(authorization) review whether filtering members is appropriate
+  -- at this stage
+  (members, allMembers) <- Data.filterRemoteConvMembers (Map.keys rcpts) conv
+  unless allMembers $ do
+    Log.warn $
+      Log.field "conversation" (toByteString' (qUnqualified conv))
+        Log.~~ Log.field "domain" (toByteString' (qDomain conv))
+        Log.~~ Log.msg
+          ( "Attempt to send remote message to local\
+            \ users not in the conversation" ::
+              Text
+          )
+  let rcpts' = do
+        m <- members
+        (c, t) <- maybe [] Map.assocs (rcpts ^? ix m)
+        pure (m, c, t)
+  let remoteToLocalPush (rcpt, rcptc, ciphertext) =
+        newPush1
+          ListComplete
+          (guard (localDomain == qDomain (rmSender rm)) $> qUnqualified (rmSender rm))
+          ( ConvEvent
+              ( Event
+                  OtrMessageAdd
+                  conv
+                  (rmSender rm)
+                  (rmTime rm)
+                  ( EdOtrMessage
+                      ( OtrMessage
+                          { otrSender = rmSenderClient rm,
+                            otrRecipient = rcptc,
+                            otrCiphertext = ciphertext,
+                            otrData = rmData rm
+                          }
+                      )
+                  )
+              )
+          )
+          (singleton (userRecipient rcpt))
+          -- FUTUREWORK: unify event creation logic after #1634 is merged
+          & pushNativePriority .~ rmPriority rm
+          & pushRoute .~ bool RouteDirect RouteAny (rmPush rm)
+          & pushTransient .~ rmTransient rm
+  pushSome (map remoteToLocalPush rcpts')
 
 newMessage ::
   Qualified UserId ->
@@ -805,7 +824,7 @@ newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
           let p =
-                newPush ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) [r]
+                newPushLocal ListComplete (qUnqualified (evtFrom e)) (ConvEvent e) [r]
                   <&> set pushConn con
                     . set pushNativePriority (newOtrNativePriority msg)
                     . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
@@ -837,7 +856,7 @@ updateConversationName zusr zcon cnv convRename = do
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
   let e = Event ConvRename qcnv qusr now (EdConvRename convRename)
-  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
   return e
@@ -858,7 +877,7 @@ isTyping zusr zcon cnv typingData = do
     throwM convNotFound
   now <- liftIO getCurrentTime
   let e = Event Typing qcnv qusr now (EdTyping typingData)
-  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -891,7 +910,7 @@ addBot zusr zcon b = do
   t <- liftIO getCurrentTime
   Data.updateClient True (botUserId (b ^. addBotId)) (b ^. addBotClient)
   (e, bm) <- Data.addBotMember qusr (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv) t
-  for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver ((bm : bots) `zip` repeat e)
   pure e
@@ -930,7 +949,7 @@ rmBot zusr zcon b = do
       t <- liftIO getCurrentTime
       let evd = EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)])
       let e = Event MemberLeave qcnv qusr t evd
-      for_ (newPush ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+      for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
       Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
@@ -965,7 +984,7 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
   updateRemoteConversationMemberships existingRemotes usr now c lmm rmm
   let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
-  pushJoinEvents usr (Just conn) e localsToNotify bots
+  pushConversationEvent (Just conn) e localsToNotify bots
   pure $ Updated e
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
@@ -1009,7 +1028,7 @@ processUpdateMemberEvent zusr zcon cid users target update = do
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate qcnv qusr now (EdMemberUpdate up)
   let recipients = fmap recipient (target : filter ((/= memId target) . memId) users)
-  for_ (newPush ListComplete zusr (ConvEvent e) recipients) $ \p ->
+  for_ (newPushLocal ListComplete zusr (ConvEvent e) recipients) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -1039,7 +1058,7 @@ withValidOtrBroadcastRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
+withValidOtrBroadcastRecipients usr clt rcps val now go = withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
@@ -1059,7 +1078,7 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       then Clients.fromUserClients <$> Intra.lookupClients users
       else Data.lookupClients users
   let membs = Data.newMember <$> users
-  handleOtrResponse (ProtectedUser' usr) clt rcps membs clts val now go
+  handleOtrResponse User usr clt rcps membs clts val now go
   where
     maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
       -- Get the users in the filter (remote ids are not in a local team)
@@ -1076,7 +1095,8 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
       pure (mems ^. teamMembers)
 
 withValidOtrRecipients ::
-  LegalholdProtectee' ->
+  UserType ->
+  UserId ->
   ClientId ->
   ConvId ->
   OtrRecipients ->
@@ -1084,26 +1104,27 @@ withValidOtrRecipients ::
   UTCTime ->
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-withValidOtrRecipients protectee clt cnv rcps val now go = do
+withValidOtrRecipients utype usr clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   if not alive
     then do
       Data.deleteConversation cnv
       pure $ OtrConversationNotFound Public.convNotFound
     else do
-      -- FUTUREWORK(federation): also handle remote members
-      (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteMembers, localMembers) <- (undefined,) <$> Data.members cnv
+      localMembers <- Data.members cnv
       let localMemberIds = memId <$> localMembers
       isInternal <- view $ options . optSettings . setIntraListing
       clts <-
         if isInternal
           then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
           else Data.lookupClients localMemberIds
-      handleOtrResponse protectee clt rcps localMembers clts val now go
+      handleOtrResponse utype usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::
+  -- | Type of proposed sender (user / bot)
+  UserType ->
   -- | Proposed sender (user)
-  LegalholdProtectee' ->
+  UserId ->
   -- | Proposed sender (client)
   ClientId ->
   -- | Proposed recipients (users & clients).
@@ -1119,10 +1140,11 @@ handleOtrResponse ::
   -- | Callback if OtrRecipients are valid
   ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
-handleOtrResponse protectee clt rcps membs clts val now go = case checkOtrRecipients (legalholdProtectee'2UserId protectee) clt rcps membs clts val now of
+handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
-    guardLegalholdPolicyConflicts (legalholdProtectee'2LegalholdProtectee protectee) (missingClients m)
+    guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
+      >>= either (const (throwM missingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
   InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient
@@ -1209,93 +1231,11 @@ checkOtrRecipients usr sid prs vms vcs val now
       OtrReportMissing us -> Clients.filter (`Set.member` us) miss
       OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
 
--- | If user has legalhold status `no_consent` or has client devices that have no legalhold
--- capability, and some of the clients she is about to get connected are LH devices, respond
--- with 412 and do not process notification.
---
--- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
--- intended.
-guardLegalholdPolicyConflicts :: LegalholdProtectee -> UserClients -> Galley ()
-guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClients = pure ()
-guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
-guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
-  view (options . optSettings . setFeatureFlags . flagLegalHold) >>= \case
-    FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
-      FutureWork () -> pure () -- FUTUREWORK: if federation is enabled, we still need to run the guard!
-    FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
-
-guardLegalholdPolicyConflictsUid :: UserId -> UserClients -> Galley ()
-guardLegalholdPolicyConflictsUid self otherClients = do
-  let otherCids :: [ClientId]
-      otherCids = Set.toList . Set.unions . Map.elems . userClients $ otherClients
-
-      otherUids :: [UserId]
-      otherUids = nub $ Map.keys . userClients $ otherClients
-
-  when (nub otherUids /= [self {- if all other clients belong to us, there can be no conflict -}]) $ do
-    allClients :: UserClientsFull <- Intra.lookupClientsFull (nub $ self : otherUids)
-
-    let selfClients :: [Client.Client] =
-          allClients
-            & Client.userClientsFull
-            & Map.lookup self
-            & fromMaybe Set.empty
-            & Set.toList
-
-        otherClientHasLH :: Bool
-        otherClientHasLH =
-          let clients =
-                allClients
-                  & Client.userClientsFull
-                  & Map.delete self
-                  & Map.elems
-                  & Set.unions
-                  & Set.toList
-                  & filter ((`elem` otherCids) . Client.clientId)
-           in Client.LegalHoldClientType `elem` (Client.clientType <$> clients)
-
-        checkSelfHasLHClients :: Bool
-        checkSelfHasLHClients =
-          any ((== Client.LegalHoldClientType) . Client.clientType) selfClients
-
-        checkSelfHasOldClients :: Bool
-        checkSelfHasOldClients =
-          any isOld selfClients
-          where
-            isOld :: Client.Client -> Bool
-            isOld =
-              (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
-                . Client.fromClientCapabilityList
-                . Client.clientCapabilities
-
-        checkConsentMissing :: Galley Bool
-        checkConsentMissing = do
-          -- (we could also get the profile from brig.  would make the code slightly more
-          -- concise, but not really help with the rpc back-and-forth, so, like, why?)
-          mbUser <- accountUser <$$> getUser self
-          mbTeamMember <- join <$> for (mbUser >>= userTeam) (`teamMember` self)
-          let lhStatus = maybe defUserLegalHoldStatus (view legalHoldStatus) mbTeamMember
-          pure (lhStatus == UserLegalHoldNoConsent)
-
-    Log.debug $
-      Log.field "self" (toByteString' self)
-        Log.~~ Log.field "otherClients" (toByteString' $ show otherClients)
-        Log.~~ Log.field "otherClientHasLH" (toByteString' otherClientHasLH)
-        Log.~~ Log.field "checkSelfHasOldClients" (toByteString' checkSelfHasOldClients)
-        Log.~~ Log.field "checkSelfHasLHClients" (toByteString' checkSelfHasLHClients)
-        Log.~~ Log.msg ("guardLegalholdPolicyConflicts[1]" :: Text)
-
-    -- (I've tried to order the following checks for minimum IO; did it work?  ~~fisx)
-    when otherClientHasLH $ do
-      when checkSelfHasOldClients $ do
-        Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[2]: old clients" :: Text)
-        throwM missingLegalholdConsent
-
-      unless checkSelfHasLHClients {- carrying a LH device implies having granted LH consent -} $ do
-        whenM checkConsentMissing $ do
-          -- We assume this is impossible, since conversations are automatically
-          -- blocked if LH consent is missing of any participant.
-          -- We add this check here as an extra failsafe.
-          Log.debug $ Log.msg ("guardLegalholdPolicyConflicts[3]: consent missing" :: Text)
-          throwM missingLegalholdConsent
+-- Copied from 'Galley.API.Team' to break import cycles
+withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
+withBindingTeam zusr callback = do
+  tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
+  binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+  case binding of
+    Binding -> callback tid
+    NonBinding -> throwM nonBindingTeam

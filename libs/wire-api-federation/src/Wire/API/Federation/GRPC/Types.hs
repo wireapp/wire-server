@@ -50,25 +50,25 @@ data Component
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
   deriving (Arbitrary) via (GenericUniform Component)
 
--- | FUTUREWORK(federation): Make this a better ADT for the errors
 data InwardResponse
   = InwardResponseBody ByteString
-  | InwardResponseErr Text
+  | InwardResponseError InwardError
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform InwardResponse)
 
+-- FUTUREWORK: add roundtrip tests for these to/from schema definitions.
 instance ToSchema Router "InwardResponse" InwardResponse where
   toSchema r =
     let protoChoice = case r of
-          (InwardResponseBody res) -> Z (FPrimitive res)
-          (InwardResponseErr e) -> S (Z (FPrimitive e))
+          (InwardResponseError err) -> Z (FSchematic (toSchema err))
+          (InwardResponseBody res) -> S (Z (FPrimitive res))
      in TRecord (Field (FUnion protoChoice) :* Nil)
 
 instance FromSchema Router "InwardResponse" InwardResponse where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
     case protoChoice of
-      Z (FPrimitive res) -> InwardResponseBody res
-      S (Z (FPrimitive e)) -> InwardResponseErr e
+      Z (FSchematic err) -> InwardResponseError $ fromSchema err
+      S (Z (FPrimitive res)) -> InwardResponseBody res
       S (S x) ->
         -- I don't understand why this empty case is needed, but there is some
         -- explanation here:
@@ -78,6 +78,7 @@ instance FromSchema Router "InwardResponse" InwardResponse where
 data OutwardResponse
   = OutwardResponseBody ByteString
   | OutwardResponseError OutwardError
+  | OutwardResponseInwardError InwardError
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform OutwardResponse)
 
@@ -85,16 +86,20 @@ instance ToSchema Router "OutwardResponse" OutwardResponse where
   toSchema r =
     let protoChoice = case r of
           OutwardResponseError err -> Z (FSchematic (toSchema err))
-          OutwardResponseBody res -> S (Z (FPrimitive res))
+          OutwardResponseInwardError err -> S (Z (FSchematic (toSchema err)))
+          OutwardResponseBody res -> S (S (Z (FPrimitive res)))
      in TRecord (Field (FUnion protoChoice) :* Nil)
 
 instance FromSchema Router "OutwardResponse" OutwardResponse where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
     case protoChoice of
       Z (FSchematic err) -> OutwardResponseError $ fromSchema err
-      S (Z (FPrimitive res)) -> OutwardResponseBody res
-      S (S x) -> case x of
+      S (Z (FSchematic err)) -> OutwardResponseInwardError $ fromSchema err
+      S (S (Z (FPrimitive res))) -> OutwardResponseBody res
+      S (S (S x)) -> case x of
 
+-- See mu-haskell Custom Mapping documentation here:
+-- https://higherkindness.io/mu-haskell/schema/#mapping-haskell-types
 type OutwardErrorFieldMapping =
   '[ "outwardErrorType" ':-> "type",
      "outwardErrorPayload" ':-> "payload"
@@ -130,6 +135,32 @@ data ErrorPayload = ErrorPayload
   }
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "ErrorPayload", FromSchema Router "ErrorPayload")
   deriving (Arbitrary) via (GenericUniform ErrorPayload)
+
+-- See mu-haskell Custom Mapping documentation here:
+-- https://higherkindness.io/mu-haskell/schema/#mapping-haskell-types
+type InwardErrorFieldMapping =
+  '[ "inwardErrorType" ':-> "type",
+     "inwardErrorMsg" ':-> "msg"
+   ]
+
+data InwardError = InwardError
+  { inwardErrorType :: InwardErrorType,
+    inwardErrorMsg :: Text
+  }
+  deriving (Typeable, Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform InwardError)
+  deriving
+    (ToSchema Router "InwardError", FromSchema Router "InwardError")
+    via (CustomFieldMapping "InwardError" InwardErrorFieldMapping InwardError)
+
+data InwardErrorType
+  = IOther
+  | IInvalidDomain
+  | IFederationDeniedByRemote
+  | IInvalidEndpoint
+  | IForbiddenEndpoint
+  deriving (Typeable, Show, Eq, Generic, ToSchema Router "InwardError.ErrorType", FromSchema Router "InwardError.ErrorType")
+  deriving (Arbitrary) via (GenericUniform InwardErrorType)
 
 -- Does this make it hard to use in a type checked way?
 data Request = Request

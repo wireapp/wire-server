@@ -34,6 +34,9 @@ module Wire.API.Message
     QualifiedNewOtrMessage (..),
     protoToNewOtrMessage,
 
+    -- * Protobuf messages
+    mkQualifiedOtrPayload,
+
     -- * Priority
     Priority (..),
 
@@ -60,12 +63,11 @@ module Wire.API.Message
   )
 where
 
-import Control.Lens (view, (?~))
+import Control.Lens (over, view, (.~), (<>~), (?~))
 import qualified Data.Aeson as A
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
-import Data.Domain (Domain, mkDomain)
+import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
@@ -78,7 +80,7 @@ import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.Read as Reader
 import qualified Data.UUID as UUID
 import Imports
 import qualified Proto.Otr
@@ -208,6 +210,79 @@ protolensToQualifiedNewOtrMessage protoMsg = do
 protolensToClientId :: Proto.Otr.ClientId -> ClientId
 protolensToClientId = newClientId . view Proto.Otr.client
 
+--- functions to generate protobuf messages
+-- FUTUREWORK: add unit tests
+
+mkQualifiedOtrPayload :: ClientId -> [(Qualified UserId, ClientId, ByteString)] -> ByteString -> ClientMismatchStrategy -> Proto.Otr.QualifiedNewOtrMessage
+mkQualifiedOtrPayload sender recipients dat strat =
+  ProtoLens.defMessage
+    & Proto.Otr.sender .~ clientIdToProto sender
+    & Proto.Otr.recipients .~ mkQualifiedUserEntries recipients
+    & Proto.Otr.blob .~ dat
+    & ( case strat of
+          MismatchIgnoreAll -> Proto.Otr.ignoreAll .~ ProtoLens.defMessage
+          MismatchReportAll -> Proto.Otr.reportAll .~ ProtoLens.defMessage
+          MismatchIgnoreOnly quids ->
+            Proto.Otr.ignoreOnly
+              .~ ( ProtoLens.defMessage
+                     & Proto.Otr.userIds .~ map qualifiedUserIdToProto (Set.toList quids)
+                 )
+          MismatchReportOnly quids ->
+            Proto.Otr.reportOnly
+              .~ ( ProtoLens.defMessage
+                     & Proto.Otr.userIds .~ map qualifiedUserIdToProto (Set.toList quids)
+                 )
+      )
+
+clientIdToProto :: ClientId -> Proto.Otr.ClientId
+clientIdToProto cid =
+  ProtoLens.defMessage
+    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ client cid)
+
+userIdToProto :: UserId -> Proto.Otr.UserId
+userIdToProto uid =
+  ProtoLens.defMessage
+    & Proto.Otr.uuid .~ LBS.toStrict (UUID.toByteString (toUUID uid))
+
+qualifiedUserIdToProto :: Qualified UserId -> Proto.Otr.QualifiedUserId
+qualifiedUserIdToProto (Qualified uid domain) =
+  ProtoLens.defMessage
+    & Proto.Otr.id .~ idToText uid
+    & Proto.Otr.domain .~ domainText domain
+
+mkQualifiedUserEntries :: [(Qualified UserId, ClientId, ByteString)] -> [Proto.Otr.QualifiedUserEntry]
+mkQualifiedUserEntries = foldr addQualifiedRecipient []
+  where
+    addQualifiedRecipient :: (Qualified UserId, ClientId, ByteString) -> [Proto.Otr.QualifiedUserEntry] -> [Proto.Otr.QualifiedUserEntry]
+    addQualifiedRecipient (quid, cid, msg) entries =
+      let (currentDomainEntries, rest) = partition (\e -> domainText (qDomain quid) == view Proto.Otr.domain e) entries
+          newCurrentDomainEntry = case currentDomainEntries of
+            [] ->
+              ProtoLens.defMessage
+                & Proto.Otr.domain .~ domainText (qDomain quid)
+                & Proto.Otr.entries .~ addEntry (qUnqualified quid) cid msg []
+            [currentDomainEntry] -> currentDomainEntry & over Proto.Otr.entries (addEntry (qUnqualified quid) cid msg)
+            xs -> error $ "There should be only one entry per domain, found: " <> show xs
+       in newCurrentDomainEntry : rest
+
+    addEntry :: UserId -> ClientId -> ByteString -> [Proto.Otr.UserEntry] -> [Proto.Otr.UserEntry]
+    addEntry uid cid msg entries =
+      let (currentUserEntries, rest) = partition (\e -> userIdToProto uid == view Proto.Otr.user e) entries
+          newCurrentUserEntry = case currentUserEntries of
+            [] ->
+              ProtoLens.defMessage
+                & Proto.Otr.user .~ userIdToProto uid
+                & Proto.Otr.clients .~ [newClientEntry cid msg]
+            [currentUserEntry] -> currentUserEntry & Proto.Otr.clients <>~ [newClientEntry cid msg]
+            xs -> error $ "There should be only one entry per user, found: " <> show xs
+       in newCurrentUserEntry : rest
+
+    newClientEntry :: ClientId -> ByteString -> Proto.Otr.ClientEntry
+    newClientEntry cid msg =
+      ProtoLens.defMessage
+        & Proto.Otr.client .~ clientIdToProto cid
+        & Proto.Otr.text .~ msg
+
 --------------------------------------------------------------------------------
 -- Priority
 
@@ -292,23 +367,24 @@ protoFromOtrRecipients rcps =
     mkProtoRecipient (usr, clts) =
       let xs = map mkClientEntry (Map.toList clts)
        in Proto.userEntry (Proto.fromUserId usr) xs
-    mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64Text t)
+    mkClientEntry (clt, t) = Proto.clientEntry (Proto.fromClientId clt) (fromBase64TextLenient t)
 
 newtype QualifiedOtrRecipients = QualifiedOtrRecipients
   { qualifiedOtrRecipientsMap :: QualifiedUserClientMap ByteString
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (First ByteString))
 
 protolensOtrRecipientsToOtrRecipients :: [Proto.Otr.QualifiedUserEntry] -> Either String QualifiedOtrRecipients
 protolensOtrRecipientsToOtrRecipients entries =
   QualifiedOtrRecipients . QualifiedUserClientMap <$> protolensToQualifiedUCMap entries
   where
-    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (UserClientMap ByteString))
+    protolensToQualifiedUCMap :: [Proto.Otr.QualifiedUserEntry] -> Either String (Map Domain (Map UserId (Map ClientId ByteString)))
     protolensToQualifiedUCMap qualifiedEntries = parseMap (mkDomain . view Proto.Otr.domain) (protolensToUCMap . view Proto.Otr.entries) qualifiedEntries
 
-    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (UserClientMap ByteString)
-    protolensToUCMap es = UserClientMap <$> parseMap parseUserId parseClientMap es
+    protolensToUCMap :: [Proto.Otr.UserEntry] -> Either String (Map UserId (Map ClientId ByteString))
+    protolensToUCMap es = parseMap parseUserId parseClientMap es
 
     parseUserId :: Proto.Otr.UserEntry -> Either String UserId
     parseUserId =
@@ -359,7 +435,7 @@ data ClientMismatchStrategy
 
 protolensToClientMismatchStrategy :: Maybe Proto.Otr.QualifiedNewOtrMessage'ClientMismatchStrategy -> Either String ClientMismatchStrategy
 protolensToClientMismatchStrategy = \case
-  Nothing -> Right MismatchReportAll
+  Nothing -> Left "ClientMismatchStrategy not specified!"
   Just (Proto.Otr.QualifiedNewOtrMessage'IgnoreAll _) -> Right MismatchIgnoreAll
   Just (Proto.Otr.QualifiedNewOtrMessage'ReportAll _) -> Right MismatchReportAll
   Just (Proto.Otr.QualifiedNewOtrMessage'IgnoreOnly ignoreOnly) -> MismatchIgnoreOnly <$> protolensToSetQualifiedUserIds ignoreOnly
@@ -484,12 +560,3 @@ instance FromHttpApiData ReportMissing where
     "true" -> Right ReportMissingAll
     "false" -> Right $ ReportMissingList mempty
     list -> ReportMissingList . Set.fromList . fromCommaSeparatedList <$> parseQueryParam list
-
---------------------------------------------------------------------------------
--- Utilities
-
-fromBase64Text :: Text -> ByteString
-fromBase64Text = B64.decodeLenient . encodeUtf8
-
-toBase64Text :: ByteString -> Text
-toBase64Text = decodeUtf8 . B64.encode

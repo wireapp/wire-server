@@ -34,7 +34,6 @@ import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (json)
-import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Csv (FromNamedRecord (..), decodeByName)
@@ -56,7 +55,6 @@ import qualified Data.Vector as V
 import qualified Galley.App as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
-import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
@@ -1655,81 +1653,6 @@ testUpdateTeamStatus = do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
-checkUserUpdateEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
-checkUserUpdateEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
-  let j = Object $ List1.head (ntfPayload notif)
-  let etype = j ^? key "type" . _String
-  let euser = j ^?! key "user" ^? key "id" . _String
-  etype @?= Just "user.update"
-  euser @?= Just (UUID.toText (toUUID uid))
-
-checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> TestM ()
-checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
-  let j = Object $ List1.head (ntfPayload notif)
-  let etype = j ^? key "type" . _String
-  let euser = j ^? key "id" . _String
-  etype @?= Just "user.delete"
-  euser @?= Just (UUID.toText (toUUID uid))
-
-checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
-checkTeamMemberJoin tid uid w = WS.awaitMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberJoin
-  e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdMemberJoin uid)
-
-checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
-checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberLeave
-  e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdMemberLeave usr)
-
-checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
-checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamUpdate
-  e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdTeamUpdate upd)
-
-checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
-checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
-  evtType e @?= Conv.ConvCreate
-  case evtData e of
-    Conv.EdConversation x -> cnvId x @?= cid
-    other -> assertFailure $ "Unexpected event data: " <> show other
-
-checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
-checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamDelete
-  e ^. eventTeam @?= tid
-  e ^. eventData @?= Nothing
-
-checkConvDeleteEvent :: HasCallStack => Qualified ConvId -> WS.WebSocket -> TestM ()
-checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
-  evtType e @?= Conv.ConvDelete
-  evtConv e @?= cid
-  evtData e @?= Conv.EdConvDelete
-
-checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> UserId -> WS.WebSocket -> TestM ()
-checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
-  ntfTransient notif @?= False
-  let e = List1.head (WS.unpackPayload notif)
-  evtConv e @?= cid
-  evtType e @?= Conv.MemberLeave
-  case evtData e of
-    Conv.EdMembersLeave mm -> mm @?= Conv.UserIdList [usr]
-    other -> assertFailure $ "Unexpected event data: " <> show other
-
 postCryptoBroadcastMessageJson :: TestM ()
 postCryptoBroadcastMessageJson = do
   localDomain <- viewFederationDomain
@@ -1759,7 +1682,7 @@ postCryptoBroadcastMessageJson = do
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
         Util.postOtrBroadcastMessage id alice ac msg !!! do
           const 201 === statusCode
-          assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
+          assertMismatch [] [] []
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext1")
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
@@ -1818,7 +1741,7 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
           let inbody = Just [alice, bob, charlie, dan]
           Util.postOtrBroadcastMessage' g inbody id alice ac msg !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
+            assertMismatch [] [] []
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext1")
         -- Charlie should get the broadcast (contact of alice and user of teams feature)
@@ -1867,13 +1790,13 @@ postCryptoBroadcastMessageJson2 = do
   let m1 = [(bob, bc, "ciphertext1")]
   Util.postOtrBroadcastMessage id alice ac m1 !!! do
     const 412 === statusCode
-    assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . responseJsonUnsafe)
+    assertMismatchWithMessage (Just "1: Only Charlie and his device") [(charlie, Set.singleton cc)] [] []
   -- Complete
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
     Util.postOtrBroadcastMessage id alice ac m2 !!! do
       const 201 === statusCode
-      assertTrue "No devices expected" (eqMismatch [] [] [] . responseJsonUnsafe)
+      assertMismatchWithMessage (Just "No devices expected") [] [] []
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext2")
     void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext2")
   -- Redundant self
@@ -1881,7 +1804,7 @@ postCryptoBroadcastMessageJson2 = do
     let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
     Util.postOtrBroadcastMessage id alice ac m3 !!! do
       const 201 === statusCode
-      assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . responseJsonUnsafe)
+      assertMismatchWithMessage (Just "2: Only Alice and her device") [] [(alice, Set.singleton ac)] []
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext3")
     void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext3")
     -- Alice should not get it
@@ -1892,7 +1815,7 @@ postCryptoBroadcastMessageJson2 = do
     let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
     Util.postOtrBroadcastMessage id alice ac m4 !!! do
       const 201 === statusCode
-      assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . responseJsonUnsafe)
+      assertMismatchWithMessage (Just "3: Only Charlie and his device") [] [] [(charlie, Set.singleton cc)]
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc "ciphertext4")
     -- charlie should not get it
     assertNoMsg wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc "ciphertext4")
@@ -1924,7 +1847,7 @@ postCryptoBroadcastMessageProto = do
     let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
     Util.postProtoOtrBroadcast alice ac msg !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
+      assertMismatch [] [] []
     -- Bob should get the broadcast (team member of alice)
     void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (encodeCiphertext "data") (q (selfConv bob)) (q alice) ac bc ciphertext)
     -- Charlie should get the broadcast (contact of alice and user of teams feature)
@@ -1963,7 +1886,7 @@ postCryptoBroadcastMessage100OrMaxConns = do
     let msg = (bob, bc, "ciphertext") : (f <$> others)
     Util.postOtrBroadcastMessage id alice ac msg !!! do
       const 201 === statusCode
-      assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
+      assertMismatch [] [] []
     let qbobself = Qualified (selfConv bob) localDomain
     void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr qbobself qalice ac bc "ciphertext")
     for_ (zip (tail ws) others) $ \(wsU, (u, clt)) -> do

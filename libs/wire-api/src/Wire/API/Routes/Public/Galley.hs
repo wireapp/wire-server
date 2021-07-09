@@ -26,6 +26,7 @@ import Data.Domain
 import Data.Id (ConvId, TeamId)
 import Data.Range
 import qualified Data.Swagger as Swagger
+import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import qualified Servant
@@ -38,8 +39,9 @@ import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
-import Wire.API.ServantProto (Proto)
+import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Feature
 
 type ConversationResponses =
   '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
@@ -119,7 +121,8 @@ data Api routes = Api
         :> Get '[Servant.JSON] (Public.ConversationList ConvId),
     getConversations ::
       routes
-        :- Summary "Get all conversations"
+        :- Summary "Get all *local* conversations."
+        :> Description "Will not return remote conversations (will eventually be deprecated in favour of list-conversations)"
         :> ZUser
         :> "conversations"
         :> QueryParam'
@@ -144,6 +147,14 @@ data Api routes = Api
              "size"
              (Range 1 500 Int32)
         :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
+    listConversations ::
+      routes
+        :- Summary "Get all conversations (also returns remote conversations)"
+        :> Description "Like GET /conversations, but allows specifying a list of remote conversations in its request body. Will return all or the requested qualified conversations, including remote ones. WIP: Size parameter is not yet honoured for remote conversations."
+        :> ZUser
+        :> "list-conversations"
+        :> ReqBody '[Servant.JSON] Public.ListConversations
+        :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- FUTUREWORK: errorResponse Error.notConnected
@@ -189,7 +200,7 @@ data Api routes = Api
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
     addMembersToConversationV2 ::
       routes
-        :- Summary "Add qualified members to an existing conversation: WIP, events not propagated yet."
+        :- Summary "Add qualified members to an existing conversation."
         :> ZUser
         :> ZConn
         :> "conversations"
@@ -266,12 +277,91 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "proteus"
         :> "messages"
-        :> ReqBody '[Proto] Public.QualifiedNewOtrMessage
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponses
+        :> ReqBody '[Proto] (RawProto Public.QualifiedNewOtrMessage)
+        :> UVerb 'POST '[Servant.JSON] PostOtrResponses,
+    teamFeatureStatusSSOGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureSSO,
+    teamFeatureStatusLegalHoldGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureLegalHold,
+    teamFeatureStatusLegalHoldPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureLegalHold,
+    teamFeatureStatusSearchVisibilityGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureSearchVisibility,
+    teamFeatureStatusSearchVisibilityDeprecatedPut ::
+      routes
+        :- FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility,
+    teamFeatureStatusValidateSAMLEmailsGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureValidateSAMLEmails,
+    teamFeatureStatusValidateSAMLEmailsDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureValidateSAMLEmails,
+    teamFeatureStatusDigitalSignaturesGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureDigitalSignatures,
+    teamFeatureStatusDigitalSignaturesDeprecatedGet ::
+      routes
+        :- FeatureStatusDeprecatedGet 'TeamFeatureDigitalSignatures,
+    teamFeatureStatusAppLockGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureAppLock,
+    teamFeatureStatusAppLockPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureAppLock
   }
   deriving (Generic)
 
 type ServantAPI = ToServantApi Api
+
+type FeatureStatusGet featureName =
+  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type FeatureStatusPut featureName =
+  Summary (AppendSymbol "Put config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+
+-- | A type for a GET endpoint for a feature with a deprecated path
+type FeatureStatusDeprecatedGet featureName =
+  Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> DeprecatedFeatureName featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+-- | A type for a PUT endpoint for a feature with a deprecated path
+type FeatureStatusDeprecatedPut featureName =
+  Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> DeprecatedFeatureName featureName
+    :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
+    :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\

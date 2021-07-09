@@ -31,21 +31,29 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Handle
 import Data.Id (ClientId, ConvId)
+import Data.Json.Util (toBase64Text)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List1 as List1
 import qualified Data.Map as Map
+import qualified Data.ProtoLens as Protolens
 import Data.Qualified
 import qualified Data.Set as Set
 import Federation.Util (generateClientPrekeys, getConvQualified)
+import Gundeck.Types.Notification (ntfTransient)
 import Imports
+import qualified System.Logger as Log
 import Test.Tasty
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Message (UserClients (UserClients))
+import Wire.API.Event.Conversation
+import Wire.API.Message
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
-import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPrekeyMap, mkUserClientPrekeyMap)
+import Wire.API.User.Client
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -59,8 +67,17 @@ import Wire.API.User.Client (QualifiedUserClients (..), mkQualifiedUserClientPre
 -- - Remote discovery succeeds but server doesn't exist
 -- - Remote federator fails to respond in many ways (protocol error, timeout, etc.)
 -- - SRV record has two servers but higher priority one always fails
-spec :: BrigOpts.Opts -> Manager -> Brig -> Galley -> Endpoint -> Brig -> Galley -> IO TestTree
-spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
+spec ::
+  BrigOpts.Opts ->
+  Manager ->
+  Brig ->
+  Galley ->
+  Cannon ->
+  Endpoint ->
+  Brig ->
+  Galley ->
+  IO TestTree
+spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
   pure $
     testGroup
       "federation-end2end-user"
@@ -71,8 +88,11 @@ spec _brigOpts mg brig galley _federator brigTwo galleyTwo =
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
+        test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
         test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
-        test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo
+        test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
+        test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon,
+        test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon
       ]
 
 -- | Path covered by this test:
@@ -124,7 +144,7 @@ testGetUsersById brig1 brig2 = do
     ( brig1
         . path "list-users"
         . zUser (userId self)
-        . body (RequestBodyLBS (Aeson.encode q))
+        . json q
         . contentJson
         . acceptJson
         . expect2xx
@@ -193,7 +213,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
   c1 <- generateClientPrekeys brig1 prekeys1
   c2 <- generateClientPrekeys brig2 prekeys2
   let uc =
-        QualifiedUserClients . fmap UserClients . qmap $
+        QualifiedUserClients . qmap $
           [mkClients <$> c1, mkClients <$> c2]
       ucm =
         mkQualifiedUserClientPrekeyMap . fmap mkUserClientPrekeyMap . qmap $
@@ -218,7 +238,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
 
   let newConv = NewConvUnmanaged $ NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   convId <-
-    cnvId . responseJsonUnsafe
+    cnvQualifiedId . responseJsonUnsafe
       <$> post
         ( galley1
             . path "/conversations"
@@ -228,14 +248,10 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
             . json newConv
         )
 
-  let backend1Domain = qDomain (userQualifiedId alice)
-      -- FUTUREWORK add qualified conversation Id to Conversation data type, then use that from the conversation creation response
-      qualifiedConvId = Qualified convId backend1Domain
-
   let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
   post
     ( galley1
-        . paths ["conversations", toByteString' convId, "members", "v2"]
+        . paths ["conversations", (toByteString' . qUnqualified) convId, "members", "v2"]
         . zUser (userId alice)
         . zConn "conn"
         . header "Z-Type" "access"
@@ -243,17 +259,17 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
     )
     !!! (const 200 === statusCode)
 
-  -- test GET /conversations/:backend1Domain/:cnv
+  -- test GET /conversations/:domain/:cnv -- Alice's domain is used here
   liftIO $ putStrLn "search for conversation on backend 1..."
-  res <- getConvQualified galley1 (userId alice) qualifiedConvId <!! (const 200 === statusCode)
-  let conv = responseJsonUnsafeWithMsg ("backend 1 - get /conversations/domain/cnvId") res
+  res <- getConvQualified galley1 (userId alice) convId <!! (const 200 === statusCode)
+  let conv = responseJsonUnsafeWithMsg "backend 1 - get /conversations/domain/cnvId" res
       actual = cmOthers $ cnvMembers conv
       expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
   liftIO $ actual @?= expected
 
   liftIO $ putStrLn "search for conversation on backend 2..."
-  res' <- getConvQualified galley2 (userId bob) qualifiedConvId <!! (const 200 === statusCode)
-  let conv' = responseJsonUnsafeWithMsg ("backend 2 - get /conversations/domain/cnvId") res'
+  res' <- getConvQualified galley2 (userId bob) convId <!! (const 200 === statusCode)
+  let conv' = responseJsonUnsafeWithMsg "backend 2 - get /conversations/domain/cnvId" res'
       actual' = cmOthers $ cnvMembers conv'
       expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
   liftIO $ actual' @?= expected'
@@ -264,22 +280,12 @@ testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
 testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
-
-  let conv = NewConvUnmanaged $ NewConv [] [userQualifiedId bob] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
   convId <-
-    cnvId . responseJsonUnsafe
-      <$> post
-        ( galley1
-            . path "/conversations"
-            . zUser (userId alice)
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . json conv
-        )
-  let qconvId = Qualified convId (qDomain (userQualifiedId alice))
+    cnvQualifiedId . responseJsonUnsafe
+      <$> createConversation galley1 (userId alice) [userQualifiedId bob]
   -- test GET /conversations/:backend1Domain/:cnv
-  testQualifiedGetConversation galley1 "galley1" alice bob qconvId
-  testQualifiedGetConversation galley2 "galley2" bob alice qconvId
+  testQualifiedGetConversation galley1 "galley1" alice bob convId
+  testQualifiedGetConversation galley2 "galley2" bob alice convId
 
 -- | Test a scenario of a two-user conversation.
 testQualifiedGetConversation ::
@@ -317,4 +323,167 @@ testListUserClients brig1 brig2 = do
 -- FUTUREWORK: check the happy path case as implementation of these things progresses:
 --  - conversation can be queried and shows members (galley1)
 --  - conversation can be queried and shows members (galley2 via qualified get conversation endpoint)
---  - this (qualified) convId pops up for both alice (on galley1) and bob (on galley2) when they request their own conversations ( GET /conversations )
+--
+
+testListConversations :: Brig -> Brig -> Galley -> Galley -> Http ()
+testListConversations brig1 brig2 galley1 galley2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+
+  -- create two group conversations with alice & bob, on each of domain1, domain2
+  cnv1 <- responseJsonUnsafe <$> createConversation galley1 (userId alice) [userQualifiedId bob]
+  cnv2 <- responseJsonUnsafe <$> createConversation galley2 (userId bob) [userQualifiedId alice]
+
+  --  Expect both group conversations containing alice and bob
+  --  to pop up for alice (on galley1)
+  --  when she request her own conversations ( GET /conversations )
+  debug "list all convs galley 1..."
+  -- From Alice's point of view
+  -- both conversations should show her as the self member and bob as Othermember.
+  let expected = cnv1
+  rs <- listAllConvs galley1 (userId alice) <!! (const 200 === statusCode)
+  let cs = convList <$> responseJsonUnsafe rs
+  let c1 = cs >>= find ((== cnvQualifiedId cnv1) . cnvQualifiedId)
+  let c2 = cs >>= find ((== cnvQualifiedId cnv2) . cnvQualifiedId)
+  liftIO . forM_ [c1, c2] $ \actual -> do
+    assertEqual
+      "self member mismatch"
+      (Just . cmSelf $ cnvMembers expected)
+      (cmSelf . cnvMembers <$> actual)
+    assertEqual
+      "other members mismatch"
+      (Just [])
+      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+
+debug :: Text -> Http ()
+debug text = do
+  l <- Log.new Log.defSettings
+  liftIO $ Log.warn l (Log.msg text)
+
+-- bob creates a conversation on domain 2 with alice on domain 1, then sends a
+-- message to alice
+testSendMessage :: Brig -> Brig -> Galley -> Cannon -> Http ()
+testSendMessage brig1 brig2 galley2 cannon1 = do
+  -- create alice user and client on domain 1
+  alice <- randomUser brig1
+  aliceClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig1
+        (userId alice)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+
+  -- create bob user and client on domain 2
+  bob <- randomUser brig2
+  bobClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig2
+        (userId bob)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+
+  -- create conversation on domain 2
+  convId <-
+    qUnqualified . cnvQualifiedId . responseJsonUnsafe
+      <$> createConversation galley2 (userId bob) [userQualifiedId alice]
+
+  -- send a message from bob at domain 2 to alice at domain 1
+  let qconvId = Qualified convId (qDomain (userQualifiedId bob))
+      msgText = "🕊️"
+      rcpts = [(userQualifiedId alice, aliceClient, msgText)]
+      msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
+
+  WS.bracketR cannon1 (userId alice) $ \(wsAlice) -> do
+    post
+      ( galley2
+          . paths
+            [ "conversations",
+              toByteString' (qDomain qconvId),
+              toByteString' convId,
+              "proteus",
+              "messages"
+            ]
+          . zUser (userId bob)
+          . zConn "conn"
+          . header "Z-Type" "access"
+          . contentProtobuf
+          . acceptJson
+          . bytes (Protolens.encodeMessage msg)
+      )
+      !!! const 201 === statusCode
+
+    -- verify that alice received the message
+    WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconvId
+      evtType e @?= OtrMessageAdd
+      evtFrom e @?= userQualifiedId bob
+      evtData e
+        @?= EdOtrMessage
+          ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
+          )
+
+-- alice creates a conversation on domain 1 with bob on domain 2, then bob
+-- sends a message to alice
+testSendMessageToRemoteConv :: Brig -> Brig -> Galley -> Galley -> Cannon -> Http ()
+testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
+  -- create alice user and client on domain 1
+  alice <- randomUser brig1
+  aliceClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig1
+        (userId alice)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+
+  -- create bob user and client on domain 2
+  bob <- randomUser brig2
+  bobClient <-
+    clientId . responseJsonUnsafe
+      <$> addClient
+        brig2
+        (userId bob)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+
+  -- create conversation on domain 1
+  convId <-
+    qUnqualified . cnvQualifiedId . responseJsonUnsafe
+      <$> createConversation galley1 (userId alice) [userQualifiedId bob]
+
+  -- send a message from bob at domain 2 to alice at domain 1
+  let qconvId = Qualified convId (qDomain (userQualifiedId alice))
+      msgText = "🕊️"
+      rcpts = [(userQualifiedId alice, aliceClient, msgText)]
+      msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
+
+  WS.bracketR cannon1 (userId alice) $ \(wsAlice) -> do
+    post
+      ( galley2
+          . paths
+            [ "conversations",
+              toByteString' (qDomain qconvId),
+              toByteString' convId,
+              "proteus",
+              "messages"
+            ]
+          . zUser (userId bob)
+          . zConn "conn"
+          . header "Z-Type" "access"
+          . contentProtobuf
+          . acceptJson
+          . bytes (Protolens.encodeMessage msg)
+      )
+      !!! const 201 === statusCode
+
+    -- verify that alice received the message
+    WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconvId
+      evtType e @?= OtrMessageAdd
+      evtFrom e @?= userQualifiedId bob
+      evtData e
+        @?= EdOtrMessage
+          ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
+          )

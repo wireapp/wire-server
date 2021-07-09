@@ -29,7 +29,8 @@ import Control.Lens hiding ((??))
 import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
-import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds')
+import Data.Misc (FutureWork (FutureWork))
+import Data.Qualified (Qualified (..), Remote, partitionRemoteOrLocalIds')
 import Data.Range
 import qualified Data.Set as Set
 import Data.Time
@@ -53,14 +54,15 @@ import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Routes.Public.Galley (ConversationResponses)
+import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 
 -- Servant helpers ------------------------------------------------------
 
 conversationResponse :: ConversationResponse -> Galley (Union ConversationResponses)
 conversationResponse (ConversationExisted c) =
-  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (cnvId c) $ c
+  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
 conversationResponse (ConversationCreated c) =
-  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (cnvId c) $ c
+  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
 
 -------------------------------------------------------------------------
 
@@ -93,6 +95,13 @@ internalCreateManagedConversation zusr zcon (NewConvManaged body) = do
     Nothing -> throwM internalError
     Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
+ensureNoLegalholdConflicts :: [Remote UserId] -> [UserId] -> Galley ()
+ensureNoLegalholdConflicts remotes locals = do
+  let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
+  whenM (anyLegalholdActivated locals) $
+    unlessM (allLegalholdConsentGiven locals) $
+      throwM missingLegalholdConsent
+
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
@@ -106,6 +115,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   let (remotes, locals) = fromConvSize checkedPartitionedUsers
   ensureConnected zusr locals
   checkRemoteUsersExist remotes
+  ensureNoLegalholdConflicts remotes locals
   -- FUTUREWORK: Implement (3) per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
@@ -167,6 +177,7 @@ createTeamGroupConv zusr zcon tinfo body = do
         ensureConnectedToLocals zusr (notTeamMember localUserIds (catMaybes convLocalMemberships))
         pure checkedPartitionedUsers
   checkRemoteUsersExist remotes
+  ensureNoLegalholdConflicts remotes localUserIds
   -- FUTUREWORK: Implement (3) per comments for Update.addMembers.
   conv <-
     Data.createConversation
@@ -253,7 +264,7 @@ createConnectConversation usr conn j = do
       localDomain <- viewFederationDomain
       (c, e) <- Data.createConnectConversation localDomain x y n j
       notifyCreatedConversation Nothing usr conn c
-      for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
+      for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
@@ -296,7 +307,7 @@ createConnectConversation usr conn j = do
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
         let e = Event ConvConnect qconv qusr t (EdConnect j)
-        for_ (newPush ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
+        for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
@@ -319,8 +330,8 @@ conversationExisted usr cnv = ConversationExisted <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
-  ConversationCreated cnv -> json cnv & setStatus status201 . location (cnvId cnv)
-  ConversationExisted cnv -> json cnv & setStatus status200 . location (cnvId cnv)
+  ConversationCreated cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
+  ConversationExisted cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
 notifyCreatedConversation dtime usr conn c = do
@@ -345,7 +356,7 @@ notifyCreatedConversation dtime usr conn c = do
       c' <- conversationView (memId m) c
       let e = Event ConvCreate qconv qusr t (EdConversation c')
       return $
-        newPush1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])
+        newPushLocal1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
 

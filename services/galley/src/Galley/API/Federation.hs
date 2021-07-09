@@ -16,12 +16,18 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
+import Control.Monad.Catch (throwM)
 import Data.Containers.ListUtils (nubOrd)
-import Data.Domain (Domain)
-import Data.Id (UserId)
-import qualified Data.Map as Map
+import Data.Domain
+import Data.Id (ConvId)
+import Data.Json.Util (Base64ByteString (..))
 import Data.Qualified (Qualified (..))
+import Data.Tagged
+import qualified Data.Text.Lazy as LT
+import Galley.API.Error (invalidPayload)
 import qualified Galley.API.Mapping as Mapping
+import Galley.API.Message (UserType (..), postQualifiedOtrMessage)
+import qualified Galley.API.Update as API
 import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
@@ -29,10 +35,19 @@ import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
-import Wire.API.Conversation.Member (Member, memId)
+import Wire.API.Conversation.Member (OtherMember (..), memId)
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..), RegisterConversation (..))
+import Wire.API.Federation.API.Galley
+  ( ConversationMemberUpdate (..),
+    GetConversationsRequest (..),
+    GetConversationsResponse (..),
+    MessageSendRequest (..),
+    MessageSendResponse (..),
+    RegisterConversation (..),
+    RemoteMessage (..),
+  )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.ServantProto (FromProto (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
@@ -40,18 +55,22 @@ federationSitemap =
     FederationAPIGalley.Api
       { FederationAPIGalley.registerConversation = registerConversation,
         FederationAPIGalley.getConversations = getConversations,
-        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships
+        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
+        FederationAPIGalley.receiveMessage = receiveMessage,
+        FederationAPIGalley.sendMessage = sendMessage
       }
 
 registerConversation :: RegisterConversation -> Galley ()
 registerConversation rc = do
   localDomain <- viewFederationDomain
-  let localUsers = fmap (toQualified localDomain) . getLocals $ localDomain
-      localUserIds = map qUnqualified localUsers
+  let localUsers =
+        foldMap (\om -> guard (qDomain (omQualifiedId om) == localDomain) $> omQualifiedId om)
+          . rcMembers
+          $ rc
+      localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
     Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
-  forM_ localUsers $ \usr -> do
-    c <- fromRegisterConversation usr rc
+  forM_ (fromRegisterConversation localDomain rc) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate
@@ -59,12 +78,7 @@ registerConversation rc = do
             (rcOrigUserId rc)
             (rcTime rc)
             (EdConversation c)
-    pushConversationEvent event [qUnqualified usr] []
-  where
-    getLocals :: Domain -> [Member]
-    getLocals localDomain = fromMaybe [] . Map.lookup localDomain . rcMembers $ rc
-    toQualified :: Domain -> Member -> Qualified UserId
-    toQualified domain mem = Qualified (memId mem) domain
+    pushConversationEvent Nothing event [memId mem] []
 
 getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
 getConversations (GetConversationsRequest qUid gcrConvIds) = do
@@ -93,4 +107,18 @@ updateConversationMemberships cmu = do
   -- send notifications
   let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
   -- FUTUREWORK: support bots?
-  pushConversationEvent event targets []
+  pushConversationEvent Nothing event targets []
+
+-- FUTUREWORK: report errors to the originating backend
+receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
+receiveMessage domain =
+  API.postRemoteToLocal
+    . fmap (Tagged . (`Qualified` domain))
+
+sendMessage :: Domain -> MessageSendRequest -> Galley MessageSendResponse
+sendMessage originDomain msr = do
+  let sender = Qualified (msrSender msr) originDomain
+  msg <- either err pure (fromProto (fromBase64ByteString (msrRawMessage msr)))
+  MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
+  where
+    err = throwM . invalidPayload . LT.pack

@@ -160,7 +160,7 @@ deleteToken u ev tk cl = do
       p = singletonPayload (PushRemove t)
       n = Notification i False p
       r = singleton (target u & targetClients .~ [cl])
-  void $ Web.push n r u Nothing Set.empty
+  void $ Web.push n r (Just u) Nothing Set.empty
   Stream.add i r p =<< view (options . optSettings . setNotificationTTL)
   Push.delete u (t ^. tokenTransport) (t ^. tokenApp) tk
 
