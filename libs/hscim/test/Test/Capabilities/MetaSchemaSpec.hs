@@ -36,6 +36,7 @@ import Web.Scim.Capabilities.MetaSchema
 import Web.Scim.Server (ConfigAPI, mkapp)
 import Web.Scim.Server.Mock
 import Web.Scim.Test.Util
+import Prelude
 
 app :: IO Application
 app = do

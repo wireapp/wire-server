@@ -31,6 +31,7 @@ import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
 import Web.Scim.Server (GroupAPI, groupServer, mkapp)
 import Web.Scim.Server.Mock
 import Web.Scim.Test.Util
+import Prelude
 
 app :: IO Application
 app = do

@@ -30,7 +30,6 @@
 {-# LANGUAGE NoPackageImports #-}
 {-# LANGUAGE NoPatternSynonyms #-}
 {-# LANGUAGE NoPolyKinds #-}
-{-# LANGUAGE NoQuasiQuotes #-}
 {-# LANGUAGE NoStandaloneDeriving #-}
 {-# LANGUAGE NoTemplateHaskell #-}
 {-# LANGUAGE NoTupleSections #-}
@@ -74,7 +73,6 @@ module Web.Scim.Server
   )
 where
 
-import Data.Either
 import Network.Wai
 import Servant
 import Servant.API.Generic

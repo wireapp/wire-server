@@ -23,6 +23,7 @@ import Web.Scim.Capabilities.MetaSchema (empty)
 import Web.Scim.Server (app)
 import Web.Scim.Server.Mock
 import Web.Scim.Test.Acceptance (defAcceptanceConfig, microsoftAzure, responsesFullyKnown)
+import Prelude
 
 spec :: Spec
 spec = do

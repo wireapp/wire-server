@@ -1,6 +1,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-partial-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -52,6 +54,7 @@ import Web.Scim.Schema.User.Name as Name
 import Web.Scim.Schema.User.Phone as Phone
 import Web.Scim.Schema.User.Photo as Photo
 import Web.Scim.Test.Util
+import Prelude
 
 prop_roundtrip :: Property
 prop_roundtrip = property $ do

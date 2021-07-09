@@ -43,6 +43,7 @@ import Web.Scim.Schema.Schema (Schema (User20))
 import Web.Scim.Schema.User (UserTypes)
 import Web.Scim.Schema.UserTypes (supportedSchemas)
 import Web.Scim.Test.Util (TestTag, scim)
+import Prelude
 
 isSuccess :: Result a -> Bool
 isSuccess (Success _) = True

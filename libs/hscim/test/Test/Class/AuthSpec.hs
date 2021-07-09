@@ -32,6 +32,7 @@ import Test.Hspec.Wai hiding (patch, post, put)
 import Web.Scim.Capabilities.MetaSchema (empty)
 import Web.Scim.Server (app)
 import Web.Scim.Server.Mock
+import Prelude
 
 testStorage :: IO TestStorage
 testStorage = TestStorage <$> STMMap.newIO <*> STMMap.newIO

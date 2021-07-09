@@ -24,6 +24,7 @@ import Data.Aeson (eitherDecode', encode)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Web.Scim.Server.Mock (Id (..))
 import Web.Scim.Test.Util ((<//>))
+import Prelude
 
 -- | These tests are also doctests in the prod code,
 -- [but](https://github.com/zinfra/backend-issues/issues/1549).
