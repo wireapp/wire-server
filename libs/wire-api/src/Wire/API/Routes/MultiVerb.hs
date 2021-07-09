@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.MultiVerb where
 
+import Control.Lens hiding (Context)
 import Data.Proxy
 import Data.SOP
 import Data.SOP.NS
@@ -35,6 +36,7 @@ import Servant.API.Status (KnownStatus (..))
 import Servant.Server
 import Servant.Server.Internal
 import Servant.Swagger as S
+import Servant.Swagger.Internal as S
 import UnliftIO.Resource (runResourceT)
 
 type Declare = S.Declare (S.Definitions S.Schema)
@@ -43,7 +45,8 @@ data Respond (cs :: [*]) (s :: Nat) (desc :: Symbol) (a :: *)
 
 data ResponseSwagger = ResponseSwagger
   { rsDescription :: Text,
-    rsSchema :: S.NamedSchema
+    rsStatus :: Status,
+    rsSchema :: Maybe (S.Referenced S.Schema)
   }
 
 data RenderOutput = RenderOutput
@@ -68,20 +71,32 @@ class IsResponse a where
   responseRender :: ResponseType a -> [RenderOutput]
   responseSwagger :: Declare ResponseSwagger
 
+class GenerateSchemaRef (cs :: [*]) a where
+  generateSchemaRef :: Declare (Maybe (S.Referenced S.Schema))
+
+instance GenerateSchemaRef '[] a where
+  generateSchemaRef = pure Nothing
+
+instance S.ToSchema a => GenerateSchemaRef (c ': cs) a where
+  generateSchemaRef = Just <$> S.declareSchemaRef (Proxy @a)
+
 instance
   ( Render cs a,
     KnownStatus s,
     KnownSymbol desc,
-    S.ToSchema a
+    S.ToSchema a,
+    GenerateSchemaRef cs a
   ) =>
   IsResponse (Respond cs s desc a)
   where
   type ResponseType (Respond cs s desc a) = a
   type ResponseContentTypes (Respond cs s desc a) = cs
 
-  responseSwagger = ResponseSwagger desc <$> S.declareNamedSchema (Proxy @a)
+  responseSwagger = ResponseSwagger desc status <$> generateSchemaRef @cs @a
     where
       desc = Text.pack (symbolVal (Proxy @desc))
+      status = statusVal (Proxy @s)
+
   responseRender x = map mkRenderOutput (render @cs x)
     where
       mkRenderOutput :: LByteString -> RenderOutput
@@ -97,6 +112,7 @@ class IsResponseList as where
 
   responseListContentTypes :: [[M.MediaType]]
   responseListRender :: Union (ResponseTypes as) -> [RenderOutput]
+  responseListSwagger :: Declare [ResponseSwagger]
 
 instance IsResponseList '[] where
   type ResponseTypes '[] = '[]
@@ -104,6 +120,8 @@ instance IsResponseList '[] where
   responseListContentTypes = []
 
   responseListRender x = case x of
+
+  responseListSwagger = pure []
 
 instance (AllMime (ResponseContentTypes a), IsResponse a, IsResponseList as) => IsResponseList (a ': as) where
   type ResponseTypes (a ': as) = ResponseType a ': ResponseTypes as
@@ -113,6 +131,8 @@ instance (AllMime (ResponseContentTypes a), IsResponse a, IsResponseList as) => 
   responseListRender :: Union (ResponseType a ': ResponseTypes as) -> [RenderOutput]
   responseListRender (Z (I x)) = responseRender @a x
   responseListRender (S xs) = responseListRender @as xs
+
+  responseListSwagger = (:) <$> responseSwagger @a <*> responseListSwagger @as
 
 data MultiVerb (method :: StdMethod) (as :: [*]) (r :: *)
 
@@ -133,8 +153,34 @@ instance
   asUnion True = Z (I ())
   asUnion False = S (Z (I ()))
 
-instance S.HasSwagger (MultiVerb method as r) where
-  toSwagger _ = undefined -- TODO
+instance
+  (SwaggerMethod method, IsResponseList as) =>
+  S.HasSwagger (MultiVerb method as r)
+  where
+  toSwagger _ =
+    mempty
+      & S.definitions <>~ defs
+      & S.paths
+        . at "/"
+        ?~ ( mempty
+               & method
+                 ?~ ( mempty
+                        & S.produces ?~ S.MimeList cs
+                        & S.responses .~ foldr addResponse mempty responses
+                    )
+           )
+    where
+      method = S.swaggerMethod (Proxy @method)
+      cs = mconcat (responseListContentTypes @as)
+      (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
+      addResponse :: ResponseSwagger -> S.Responses -> S.Responses
+      addResponse response =
+        at (statusCode (rsStatus response))
+          .~ (Just . S.Inline)
+            ( mempty
+                & S.description .~ rsDescription response
+                & S.schema .~ rsSchema response
+            )
 
 roResponse :: RenderOutput -> Response
 roResponse ro = responseLBS (roStatus ro) (roHeaders ro) (roBody ro)
