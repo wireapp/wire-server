@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7fe255326cb9428aeec3221e074cd2eec369cad640361ae18e967e7f095fd0a8
+-- hash: 62008807c4fa09de03a7b80308bda130f99c132dc464828f39de60e7a7d45c76
 
 name:           makedeb
 version:        0.3.0
@@ -20,7 +20,6 @@ build-type:     Simple
 
 library
   exposed-modules:
-      Main
       System.MakeDeb
       System.MakeDeb.FileUtils
   other-modules:
@@ -40,7 +39,7 @@ library
   default-language: Haskell2010
 
 executable makedeb
-  main-is: src/Main.hs
+  main-is: exe/Main.hs
   other-modules:
       Paths_makedeb
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns

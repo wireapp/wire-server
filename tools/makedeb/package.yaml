@@ -22,7 +22,7 @@ library:
   - text >=0.11
 executables:
   makedeb:
-    main: src/Main.hs
+    main: exe/Main.hs
     ghc-options:
     - -threaded
     dependencies:
