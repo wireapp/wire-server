@@ -86,11 +86,12 @@ This release requires a manual change in your galley configuration: `settings.co
 * Allow to change IdP Issuer name to previous name (#1615).
 
 
-# 2021-06-23
+# [2021-06-23]
 
 ## API Changes
 
 * [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616, #1620).
+* Replace 'otr' with 'proteus' in new message sending API (#1616)
 
 ## Features
 
@@ -98,10 +99,43 @@ This release requires a manual change in your galley configuration: `settings.co
 
 * [helm] Allow sending messages upto 40 MB by default (#1614)
 * Fix for https://github.com/wireapp/wire-webapp/security/advisories/GHSA-382j-mmc8-m5rw  (#1613)
+* Update wire-webapp version (#1613)
+* Update team-settings version (#1598)
+* Allow optional password field in RmClient (#1604, #1607)
+* Add endpoint: Get name, id with for CodeAccess conversations (#1592)
+* demote logging failed invitations to a warning, rather than an error. Server operators can't act on these errors in any way (#1586)
 
 ## Documentation
 
+* Add descriptive comments to `ConversationMemberUpdate` (#1578)
+* initial few anti-patterns and links about cassandra (#1599)
+
 ## Internal changes
+
+* Rename a local members field in the Conversation data type (#1580)
+* Servantify Protobuf endpoint to send messages (#1583)
+* Servantify own client API (#1584, #1603)
+* Remove resource requests (#1581)
+* Import http2 fix (#1582)
+* Remove stale FUTUREWORK comment (#1587)
+* Reorganise helper functions for conversation notifications (#1588)
+* Extract origin domain header name for use in API (#1597)
+* Merge Empty200, Empty404 and EmptyResult (#1589)
+* Set content-type header for JSON errors in Servant (#1600)
+* Add golden tests for ClientCapability(List) (#1590)
+* Add checklist for PRs (#1601, #1610)
+* Remove outdated TODO (#1606)
+* submodules (#1612)
+
+## More federation changes (inactive code)
+
+* Add getUserClients RPC (and thereby allow remote clients lookup) (#1500)
+* minor refactor: runFederated (#1575)
+* Notify remote backends when users join (#1556)
+* end2end test getting remote conversation and complete its implementation (#1585)
+* Federation: Notify Remote Users of Being Added to a New Conversation (#1594)
+* Add qualified endpoint for sending messages (#1593, #1614)
+* Galley/int: Expect remote call when creating conv with remotes (#1611)
 
 
 # [2021-06-08]
