@@ -181,7 +181,7 @@ def merge_projects(dir_source, dir_target):
     write_yaml(package_target, os.path.join(dir_target, 'package.yaml'))
 
 
-def read_dep_dag():
+def read_dep_dag(exceptions):
     '''
     Returns all internal packages in topological order w.r.t to dependency
     '''
@@ -195,6 +195,8 @@ def read_dep_dag():
             print(f'{fn} does not exist')
             continue
         package = read_yaml(fn)
+        if package['name'] in exceptions:
+            continue
         deps = get_all_dependencies(package)
         dag[package['name']] = set(deps)
         package_to_dir[package['name']] = package_dir
@@ -208,7 +210,7 @@ def main():
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
 
     # packages_topo_order = ['services/brig', 'services/galley']
-    packages_topo_order = read_dep_dag()
+    packages_topo_order = read_dep_dag(exceptions=['wire-message-proto-lens'])
 
     for package in packages_topo_order:
         print(package)
