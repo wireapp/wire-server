@@ -39,10 +39,6 @@ settings:
         config:
           enforceAppLock: false
           inactivityTimeoutSecs: 60
-    classifiedDomains:
-      status: enabled
-      config:
-        domains: ["example.com"]
 
   federationDomain: example.com
 
