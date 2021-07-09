@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9964cbee009e206492e2a4bb74873592f1963ac4c13deb477b04491ee4471a2a
+-- hash: 89df7eafc25d3da1a95a405d6e6509ee3dc7d488291d449ca7a01b9afdb00747
 
 name:           brig
 version:        1.35.0
@@ -106,7 +106,6 @@ library
       Brig.User.Template
       Brig.Whitelist
       Brig.ZAuth
-      Main
   other-modules:
       Paths_brig
   hs-source-dirs:
@@ -234,7 +233,7 @@ library
   default-language: Haskell2010
 
 executable brig
-  main-is: src/Main.hs
+  main-is: exe/Main.hs
   other-modules:
       Paths_brig
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns

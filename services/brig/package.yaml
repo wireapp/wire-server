@@ -272,7 +272,7 @@ executables:
     - optparse-applicative
     - tinylog
   brig:
-    main: src/Main.hs
+    main: exe/Main.hs
     ghc-options:
     - -threaded
     - -with-rtsopts=-N1
