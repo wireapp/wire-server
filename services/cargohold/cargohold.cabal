@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7476868d5acce0bd802155cbab24a29a80fd5eec48f540dd3e6dcb492a47d683
+-- hash: 0059b9b3cea1e74c5f38a947f0cd4e40bacfa93a30c5a9aea2ee88d8513bcd5b
 
 name:           cargohold
 version:        1.5.0
@@ -40,7 +40,6 @@ library
       CargoHold.S3
       CargoHold.TUS
       CargoHold.Util
-      Main
   other-modules:
       Paths_cargohold
   hs-source-dirs:
@@ -101,7 +100,7 @@ library
   default-language: Haskell2010
 
 executable cargohold
-  main-is: src/Main.hs
+  main-is: exe/Main.hs
   other-modules:
       Paths_cargohold
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
