@@ -19,6 +19,9 @@
 
 # [unreleased]
 
+[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
+[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
+
 ## Release Notes
 
 ## API Changes
@@ -30,6 +33,8 @@
 ## Documentation
 
 ## Internal changes
+
+## Federation changes (alpha feature, do not use yet)
 
 
 # [2021-07-09]
@@ -51,6 +56,7 @@ This release requires a manual change in your galley configuration: `settings.co
 
 ## Features
 
+* Change `settings.conversationCodeURI` in galley.yaml (#1643).
 * [Federation] RPC to propagate messages to other backends (#1596).
 * [Federation] Fetch remote user's clients when sending messages (#1635).
 * [Federation] Actually propagate messages to other backends (#1638).
@@ -59,7 +65,7 @@ This release requires a manual change in your galley configuration: `settings.co
 
 ## Internal changes
 
-* Team feature endpoints are rewritten in Servant (#1642).
+* Feature endpoints are rewritten in Servant (#1642).
 * Internal federation endpoints using the publicly-facing conversation data type
   now also include a qualified conversation ID under the `qualified_id` key
   (#1640)
@@ -68,7 +74,6 @@ This release requires a manual change in your galley configuration: `settings.co
   added to a new conversation via `POST /federation/register-conversation` (#1622).
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
-* Change `settings.conversationCodeURI` in galley.yaml (#1643).
 * Refactored Federator InternalServer (#1637)
 
 ### Internal Federation API changes
