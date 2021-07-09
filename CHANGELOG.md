@@ -28,6 +28,8 @@
 
 ## Features
 
+* `fileSharing` feature config (#1652)
+
 ## Bug fixes and other updates
 
 ## Documentation
