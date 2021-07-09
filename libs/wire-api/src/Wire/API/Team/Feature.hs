@@ -125,6 +125,10 @@ instance KnownTeamFeatureName 'TeamFeatureAppLock where
   type KnownTeamFeatureNameSymbol 'TeamFeatureAppLock = "appLock"
   knownTeamFeatureName = TeamFeatureAppLock
 
+instance KnownTeamFeatureName 'TeamFeatureFileSharing where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureFileSharing = "fileSharing"
+  knownTeamFeatureName = TeamFeatureFileSharing
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -139,6 +143,7 @@ instance FromByteString TeamFeatureName where
         Right "digitalSignatures" -> pure TeamFeatureDigitalSignatures
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
         Right "appLock" -> pure TeamFeatureAppLock
+        Right "fileSharing" -> pure TeamFeatureFileSharing
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -148,6 +153,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureValidateSAMLEmails = "validateSAMLemails"
   builder TeamFeatureDigitalSignatures = "digitalSignatures"
   builder TeamFeatureAppLock = "appLock"
+  builder TeamFeatureFileSharing = "fileSharing"
 
 class HasDeprecatedFeatureName (a :: TeamFeatureName) where
   type DeprecatedFeatureName a :: Symbol
@@ -213,6 +219,7 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+  TeamFeatureStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
@@ -224,6 +231,7 @@ modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
+modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig

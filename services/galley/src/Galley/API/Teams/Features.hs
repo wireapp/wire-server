@@ -31,6 +31,8 @@ module Galley.API.Teams.Features
     setDigitalSignaturesInternal,
     getAppLockInternal,
     setAppLockInternal,
+    getFileSharingInternal,
+    setFileSharingInternal,
     DoAuth (..),
   )
 where
@@ -105,7 +107,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
         getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
-        getStatus @'Public.TeamFeatureAppLock getAppLockInternal
+        getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
+        getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal
       ]
   where
     getStatus ::
@@ -210,6 +213,12 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
     Public.TeamFeatureEnabled -> do
       ensureNotTooLargeToActivateLegalHold tid
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
+
+getFileSharingInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
+getFileSharingInternal = getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ pure Public.TeamFeatureEnabled
+
+setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
+setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_ _ -> pure ()
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do
