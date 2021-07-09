@@ -113,6 +113,26 @@ def merge_projects(dir_source, dir_target):
     package_target['library']['dependencies'] = \
         merge_deps(package_target['library']['dependencies'], get_dependencies(package_source, ['library'], remove=[package_source['name']]))
 
+    executables = list(package_source.get('executables', {}).items()) + \
+        list(package_source.get('tests', {}).items())
+
+    for name, exe in executables:
+        if 'source-dirs' in exe:
+            exe['source-dirs'] = [os.path.join(prefix, d)
+                for d in get_list(exe, ['source-dirs'])]
+        else:
+            exe['main'] = os.path.join(prefix, exe['main'])
+        if 'executables' not in package_target:
+            package_target['executables'] = {}
+        package_target['executables'][name] = exe
+
+    for name, flag in package_source.get('flags', {}).items():
+        if 'flags' not in package_target:
+            package_target['flags'] = {}
+        if name in package_target['flags']:
+            raise ValueError(f"duplicated flag {name}")
+        package_target['flags'][name] = flag
+
     prefixed_source_dirs = [os.path.join(prefix, d) for d in get_list(package_source, ['library', 'source-dirs'])]
     package_target['library']['source-dirs'].extend(prefixed_source_dirs)
 
@@ -126,7 +146,8 @@ def merge_projects(dir_source, dir_target):
     #     if fname in ['README.md', 'Makefile']:
     #         suffix = package_source_name
 
-    shutil.copytree(dir_source, os.path.join(dir_target, prefix))
+    shutil.copytree(dir_source, os.path.join(dir_target, prefix),
+        ignore=shutil.ignore_patterns('.stack-*', 'dist', 'deb', 'deb-*'))
 
     write_yaml(package_target, os.path.join(dir_target, 'package.yaml'))
 
@@ -135,7 +156,7 @@ def main():
     os.makedirs('wire-server', exist_ok=True)
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
 
-    packages_topo_order = ['services/brig']
+    packages_topo_order = ['services/brig', 'services/galley']
 
     for package in packages_topo_order:
         merge_projects(package, 'wire-server')
