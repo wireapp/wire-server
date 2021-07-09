@@ -93,9 +93,10 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
       ErrorDescription
         <$ const label .= field "label" labelSchema
           <*> edMessage .= field "message" schema
-          <* const code .= field "code" schema
+          <* const code .= field "code" codeSchema
     where
       label = Text.pack (symbolVal (Proxy @label))
+      code :: Integer
       code = natVal (Proxy @statusCode)
       desc = Text.pack (symbolVal (Proxy @desc))
       addExample =
@@ -103,6 +104,8 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
           ?~ A.toJSON (ErrorDescription @statusCode @label @desc desc)
       labelSchema :: ValueSchema SwaggerDoc Text
       labelSchema = unnamed $ enum @Text "Label" (element label label)
+      codeSchema :: ValueSchema SwaggerDoc Integer
+      codeSchema = unnamed $ enum @Integer "Status" (element code code)
 
 -- | This instance works with 'UVerb' only because of the following overlapping
 -- instance for 'UVerb method cs (ErrorDescription status label desc ': rest))'
