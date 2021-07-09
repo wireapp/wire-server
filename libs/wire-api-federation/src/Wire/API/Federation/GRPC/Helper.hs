@@ -31,7 +31,7 @@ routerProtoFile = "libs/wire-api-federation/proto/router.proto"
 -- There doesn't seem to be cpp variable to signify GHCI, so use -DWIRE_GHCI
 routerProtoFile = "libs/wire-api-federation/proto/router.proto"
 #else
-routerProtoFile = "proto/router.proto"
+routerProtoFile = "wire-api-federation/proto/router.proto"
 #endif
 
 recompileRouterUponProtoChanges :: Q [Dec]
