@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 427354dd7819ba82a24149dd338a58c577aa8b4ba3a1682d80de4c8f3c459049
+-- hash: 491042f6c3d0a496b02eac1cd5a9584cfa94b432c2643ce4d0e1d0104fc801ff
 
 name:           hscim
 version:        0.3.4
@@ -66,8 +66,8 @@ library
       Paths_hscim
   hs-source-dirs:
       src
-  default-extensions: ConstraintKinds DataKinds DeriveFunctor DeriveGeneric FlexibleContexts FlexibleInstances KindSignatures LambdaCase MultiParamTypeClasses OverloadedStrings RankNTypes ScopedTypeVariables TypeApplications TypeFamilies TypeOperators TypeSynonymInstances
-  ghc-options: -Wall -Werror
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -Wall -Werror
   build-depends:
       aeson >=1.4.5 && <1.5
     , aeson-qq >=0.8.2 && <0.9
@@ -113,8 +113,8 @@ executable hscim-server
       Paths_hscim
   hs-source-dirs:
       server
-  default-extensions: ConstraintKinds DataKinds DeriveFunctor DeriveGeneric FlexibleContexts FlexibleInstances KindSignatures LambdaCase MultiParamTypeClasses OverloadedStrings RankNTypes ScopedTypeVariables TypeApplications TypeFamilies TypeOperators TypeSynonymInstances
-  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson >=1.4.5 && <1.5
     , aeson-qq >=0.8.2 && <0.9
@@ -171,8 +171,8 @@ test-suite spec
       Paths_hscim
   hs-source-dirs:
       test
-  default-extensions: ConstraintKinds DataKinds DeriveFunctor DeriveGeneric FlexibleContexts FlexibleInstances KindSignatures LambdaCase MultiParamTypeClasses OverloadedStrings RankNTypes ScopedTypeVariables TypeApplications TypeFamilies TypeOperators TypeSynonymInstances
-  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:

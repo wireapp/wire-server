@@ -12,23 +12,26 @@ category:            Web
 build-type:          Simple
 github:              wireapp/hscim
 
-default-extensions:
-  - ConstraintKinds
-  - DataKinds
-  - DeriveFunctor
-  - DeriveGeneric
-  - FlexibleContexts
-  - FlexibleInstances
-  - KindSignatures
-  - LambdaCase
-  - MultiParamTypeClasses
-  - OverloadedStrings
-  - RankNTypes
-  - ScopedTypeVariables
-  - TypeApplications
-  - TypeFamilies
-  - TypeOperators
-  - TypeSynonymInstances
+# # default-extensions:
+#   - ConstraintKinds
+#   - DataKinds
+#   - DeriveFunctor
+#   - DeriveGeneric
+#   - FlexibleContexts
+#   - FlexibleInstances
+#   - KindSignatures
+#   - LambdaCase
+#   - MultiParamTypeClasses
+#   - OverloadedStrings
+#   - RankNTypes
+#   - ScopedTypeVariables
+#   - TypeApplications
+#   - TypeFamilies
+#   - TypeOperators
+#   - TypeSynonymInstances
+
+defaults:
+  local: ../../package-defaults.yaml
 
 extra-source-files:
   - README.md
