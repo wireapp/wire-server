@@ -92,7 +92,7 @@ def get_list(obj, path):
         else:
             raise ValueError(f'dont know how to hande {s}')
     else:
-        return None
+        return []
 
 def get_dependencies(obj, path, remove=[]):
     deps = set(get_path(obj, path + ['dependencies']) or [])
@@ -138,7 +138,9 @@ def merge_projects(dir_source, dir_target):
             exe['main'] = os.path.join(prefix, exe['main'])
         if 'executables' not in package_target:
             package_target['executables'] = {}
-        package_target['executables'][name] = exe
+
+        deps = [parse_simple_dep(dep) for dep in exe.get('dependencies', [])]
+        exe['dependencies'] = [d for d in deps if d != package_source['name']]
 
     for name, flag in package_source.get('flags', {}).items():
         if 'flags' not in package_target:
@@ -195,7 +197,8 @@ def main():
     # packages_topo_order = ['services/brig', 'services/galley']
     packages_topo_order = read_dep_dag()
 
-    for package in packages_topo_order:
+    for package in packages_topo_order[:10]:
+        print(package)
         merge_projects(package, 'wire-server')
 
 if __name__ == '__main__':
