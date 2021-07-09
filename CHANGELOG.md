@@ -85,6 +85,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * Restore old behaviour for parse errors in request bodies (#1628, #1629).
 * Allow to change IdP Issuer name to previous name (#1615).
 
+
 # 2021-06-23
 
 ## API Changes
@@ -495,6 +496,7 @@ As a preparation for federation, this release introduces a mandatory 'federation
 * refactor brig Servant API for consistency (#1276)
 * Feature flags cleanup (#1256)
 
+
 # 2020-11-24
 
 ## Release Notes
@@ -517,6 +519,7 @@ As a preparation for federation, this release introduces a mandatory 'federation
 * parse exposed 'tracestate' header in nginz logs if present (#1244)
 * Store SCIM tokens in hashed form (#1240)
 * better error handling (#1251)
+
 
 # 2020-10-28
 
@@ -571,6 +574,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * GHC upgrade to 8.8.4 (#1204)
 * Preparation for APNS notification on iOS 13 devices: Use mutable content for non-voip notifications and update limits (#1212)
 * Cleanup: remove unused scim_user table (#1211)
+
 
 # 2020-09-04
 
@@ -706,6 +710,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Enable additional GHC warnings (#1131)
 * Cleanup export list; swagger names. (#1126)
 
+
 # 2020-06-03
 
 ## Release Notes
@@ -737,6 +742,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Move and add wire-api JSON roundtrip tests (#1098)
 * Spar tests cleanup (#1100)
 
+
 # 2020-05-15
 
 ## New Features
@@ -750,6 +756,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * More tests for OTR messages using protobuf (#1095)
 * Set brig's logLevel to Warn while running integration-tests (#1099)
 * Refactor: Create wire-api package for types used in the public API (#1090)
+
 
 # 2020-05-07
 
@@ -792,6 +799,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Upgrade Ormolu to 0.0.5.0 (#1078)
 * Add (very few) unit tests to galley (#1071)
 * Pull brig-index before running the docker ephemeral setup (#1066)
+
 
 # 2020-04-21
 
@@ -854,6 +862,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Upgrade to restund 0.4.14 (#1043)
 * Add license headers to all files (#980, #1045)
 * Federation: Link related issue IDs (#1041)
+
 
 # 2020-03-10
 
@@ -980,6 +989,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 - Remove collectd metrics (finally!) (#940)
 - Update `cargoSha256` for cryptobox-c in stack-deps.nix (#949)
 
+
 # 2020-01-08
 
 ## Relevant for self-hosters
@@ -1029,6 +1039,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 
 - Gundeck: Use polledMapConcurrently (#914)
 
+
 # 2019-11-06 #901
 
 ## Relevant for self-hosters
@@ -1052,6 +1063,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 - New backoffice/stern endpoint (#896)
 - SAML: Store raw idp metadata with typed details in c* (#872)
 - documentation/script updates
+
 
 # 2019-09-30 #868
 
@@ -1173,6 +1185,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 * Cannon analytics (2) (#750)
 * fix this file.
 
+
 # 2019-05-13 #756
 
 ## Documentation changes
@@ -1196,6 +1209,7 @@ Docker image building improvements (#755)
 ## Changes (potentially) requiring action for self-hosters
 
 Config value `setEmailVisibility` must be set in brig's config file (if you're not sure, `visible_to_self` is the preferred default)
+
 
 # 2019-05-02 #746
 
@@ -1226,6 +1240,7 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
 * On password reset the new password must be different than the old one
 * Stern is now available as a new tool for performing adminstrative tasks via API (#720)
 * SCIM handler errors are now reported according to SCIM error schema (#575)
+
 
 # 2019-04-09 #710
 
@@ -1259,6 +1274,7 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
 ## Changes (potentially) requiring action for self-hosters
 
 - Switch proxy to use YAML-only config (#684)
+
 
 # 2019-03-25 #674
 
@@ -1425,6 +1441,7 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
 # Others
 
   * Improved docs (yes!) with (#528)
+
 
 # 2018-11-28 #527
 
