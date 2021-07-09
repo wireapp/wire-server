@@ -47,6 +47,14 @@ type MaxUsersForListClientsBulk = 500
 
 type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
 
+type UserExistVerb =
+  MultiVerb
+    'HEAD
+    '[ Respond '[] 404 "User not found" (),
+       Respond '[] 200 "User exists" ()
+     ]
+    Bool
+
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
@@ -63,29 +71,14 @@ data Api routes = Api
     -- https://github.com/haskell-servant/servant/issues/1369
 
     -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User exists" Doc.end
-    --   Doc.errorResponse userNotFound
     checkUserExistsUnqualified ::
       routes
         :- Summary "Check if a user ID exists (deprecated)"
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> MultiVerb
-             'HEAD
-             '[ Respond '[] 200 "User exists" (),
-                Respond '[] 404 "User not found" ()
-              ]
-             Bool,
+        :> UserExistVerb,
     -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User exists" Doc.end
-    --   Doc.errorResponse userNotFound
     checkUserExistsQualified ::
       routes
         :- Summary "Check if a user ID exists"
@@ -93,12 +86,7 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> MultiVerb
-             'HEAD
-             '[ Respond '[] 200 "User exists" (),
-                Respond '[] 404 "User not found" ()
-              ]
-             Bool,
+        :> UserExistVerb,
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -111,7 +99,12 @@ data Api routes = Api
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> Get '[JSON] UserProfile,
+        :> MultiVerb
+             'GET
+             [ Respond '[] 404 "User not found" (),
+               Respond '[JSON] 200 "User exists" UserProfile
+             ]
+             (Maybe UserProfile),
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -125,7 +118,12 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> Get '[JSON] UserProfile,
+        :> MultiVerb
+             'GET
+             [ Respond '[] 404 "User not found" (),
+               Respond '[JSON] 200 "User exists" UserProfile
+             ]
+             (Maybe UserProfile),
     getSelf ::
       routes
         :- Summary "Get your own profile"

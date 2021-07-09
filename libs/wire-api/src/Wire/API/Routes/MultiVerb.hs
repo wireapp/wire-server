@@ -55,11 +55,14 @@ data RenderOutput = RenderOutput
     roHeaders :: [(HeaderName, ByteString)]
   }
 
-class Render (cs :: [*]) x where
+class AllMime cs => Render (cs :: [*]) x where
   render :: x -> [LByteString]
 
-instance (MimeRender c x, Render cs x) => Render (c ': cs) x where
-  render x = mimeRender (Proxy @c) x : render @cs x
+instance MimeRender c x => Render '[c] x where
+  render x = [mimeRender (Proxy @c) x]
+
+instance (MimeRender c1 x, Render (c2 ': cs) x) => Render (c1 ': c2 ': cs) x where
+  render x = mimeRender (Proxy @c1) x : render @(c2 ': cs) x
 
 instance Render '[] () where
   render () = mempty
@@ -150,8 +153,27 @@ instance
   ) =>
   AsUnion '[Respond '[] s1 desc1 (), Respond '[] s2 desc2 ()] Bool
   where
-  asUnion True = Z (I ())
-  asUnion False = S (Z (I ()))
+  asUnion False = Z (I ())
+  asUnion True = S (Z (I ()))
+
+instance
+  ( KnownStatus s1,
+    KnownStatus s2,
+    KnownSymbol desc1,
+    KnownSymbol desc2,
+    Render cs2 a2,
+    -- FUTUREWORK: try to get rid of the following constraints
+    GenerateSchemaRef cs2 a2,
+    S.ToSchema a2
+  ) =>
+  AsUnion
+    '[ Respond '[] s1 desc1 (),
+       Respond cs2 s2 desc2 a2
+     ]
+    (Maybe a2)
+  where
+  asUnion Nothing = Z (I ())
+  asUnion (Just x) = S (Z (I x))
 
 instance
   (SwaggerMethod method, IsResponseList as) =>
