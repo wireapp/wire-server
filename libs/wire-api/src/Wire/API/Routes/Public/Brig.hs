@@ -33,7 +33,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.ErrorDescription (ClientNotFound, ErrorDescription)
+import Wire.API.ErrorDescription (ClientNotFound, ErrorDescription, HandleNotFound)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.User
@@ -119,11 +119,6 @@ data Api routes = Api
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile,
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.returns (Doc.ref modelUserHandleInfo)
-    --   Doc.response 200 "Handle info" Doc.end
-    --   Doc.errorResponse handleNotFound
     getHandleInfoUnqualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
@@ -131,13 +126,13 @@ data Api routes = Api
         :> "users"
         :> "handles"
         :> Capture' '[Description "The user handle"] "handle" Handle
-        :> Get '[JSON] UserHandleInfo,
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.returns (Doc.ref modelUserHandleInfo)
-    --   Doc.response 200 "Handle info" Doc.end
-    --   Doc.errorResponse handleNotFound
-    getUserByHandleQualfied ::
+        :> MultiVerb
+             'GET
+             '[ HandleNotFound,
+                Respond '[JSON] 200 "User found" UserHandleInfo
+              ]
+             (Maybe UserHandleInfo),
+    getUserByHandleQualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
         :> ZUser
@@ -145,7 +140,12 @@ data Api routes = Api
         :> "by-handle"
         :> Capture "domain" Domain
         :> Capture' '[Description "The user handle"] "handle" Handle
-        :> Get '[JSON] UserProfile,
+        :> MultiVerb
+             'GET
+             '[ HandleNotFound,
+                Respond '[JSON] 200 "User found" UserProfile
+              ]
+             (Maybe UserProfile),
     -- See Note [ephemeral user sideeffect]
     listUsersByUnqualifiedIdsOrHandles ::
       routes

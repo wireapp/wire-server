@@ -27,14 +27,30 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Proxy
 import Data.String.Conversions (cs)
+import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
+import GHC.TypeLits
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
+import Servant.API.Status
+import Wire.API.ErrorDescription
 import Wire.API.Federation.Client (FederationError (..))
 import Wire.API.Federation.Error
+
+errorDescriptionToWai ::
+  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  (KnownStatus code, KnownSymbol lbl) =>
+  ErrorDescription code lbl desc ->
+  Wai.Error
+errorDescriptionToWai (ErrorDescription msg) =
+  Wai.mkError
+    (statusVal (Proxy @code))
+    (LT.pack (symbolVal (Proxy @lbl)))
+    (LT.fromStrict msg)
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -62,6 +78,12 @@ throwRich e x h = throwError (RichError e x h)
 throwEmptyForLegacyReasons :: MonadError Error m => Status -> m a
 throwEmptyForLegacyReasons = throwError . EmptyErrorForLegacyReasons
 
+throwErrorDescription ::
+  (KnownStatus code, KnownSymbol lbl, MonadError Error m) =>
+  ErrorDescription code lbl desc ->
+  m a
+throwErrorDescription = throwStd . errorDescriptionToWai
+
 instance ToJSON Error where
   toJSON (StdError e) = toJSON e
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of
@@ -74,7 +96,7 @@ instance ToJSON Error where
 connError :: ConnectionError -> Error
 connError TooManyConnections {} = StdError connectionLimitReached
 connError InvalidTransition {} = StdError invalidTransition
-connError NotConnected {} = StdError notConnected
+connError NotConnected {} = StdError (errorDescriptionToWai notConnected)
 connError InvalidUser {} = StdError invalidUser
 connError ConnectNoIdentity {} = StdError (noIdentity 0)
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
@@ -183,7 +205,7 @@ zauthError ZAuth.Invalid = StdError authTokenInvalid
 zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
 clientError :: ClientError -> Error
-clientError ClientNotFound = StdError clientNotFound
+clientError ClientNotFound = StdError (errorDescriptionToWai clientNotFound)
 clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
@@ -246,9 +268,6 @@ connectionLimitReached = Wai.mkError status403 "connection-limit" "Too many sent
 missingAuthError :: Wai.Error
 missingAuthError = Wai.mkError status403 "missing-auth" "Re-authentication via password required."
 
-clientNotFound :: Wai.Error
-clientNotFound = Wai.mkError status404 "client-not-found" "Client not found"
-
 tooManyClients :: Wai.Error
 tooManyClients = Wai.mkError status403 "too-many-clients" "Too many clients"
 
@@ -263,9 +282,6 @@ invalidUser = Wai.mkError status400 "invalid-user" "Invalid user."
 
 invalidTransition :: Wai.Error
 invalidTransition = Wai.mkError status403 "bad-conn-update" "Invalid status transition."
-
-notConnected :: Wai.Error
-notConnected = Wai.mkError status403 "no-connection" "No connection exists between users."
 
 noIdentity :: Int -> Wai.Error
 noIdentity i = Wai.mkError status403 "no-identity" ("The user has no verified identity (email or phone number). [code: " <> cs (show i) <> "]")
@@ -350,9 +366,6 @@ notFound = Wai.mkError status404 "not-found"
 
 userNotFound :: Wai.Error
 userNotFound = notFound "User not found."
-
-handleNotFound :: Wai.Error
-handleNotFound = notFound "Handle not found."
 
 invalidCode :: Wai.Error
 invalidCode = Wai.mkError status403 "invalid-code" "Invalid verification code"

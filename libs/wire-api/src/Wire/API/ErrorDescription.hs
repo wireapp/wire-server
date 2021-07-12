@@ -231,3 +231,8 @@ type ConvAccessDenied = ErrorDescription 403 "access-denied" "Conversation acces
 
 convAccessDenied :: ConvAccessDenied
 convAccessDenied = mkErrorDescription
+
+type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
+
+handleNotFound :: HandleNotFound
+handleNotFound = mkErrorDescription
