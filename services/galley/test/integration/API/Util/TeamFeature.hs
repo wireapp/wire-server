@@ -113,6 +113,30 @@ getTeamFeatureFlagWithGalley feature galley uid tid = do
       . paths ["teams", toByteString' tid, "features", toByteString' feature]
       . zUser uid
 
+getFeatureConfig :: HasCallStack => Public.TeamFeatureName -> UserId -> TestM ResponseLBS
+getFeatureConfig feature uid = do
+  g <- view tsGalley
+  getFeatureConfigWithGalley feature g uid
+
+getFeatureConfigWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> UserId -> m ResponseLBS
+getFeatureConfigWithGalley feature galley uid = do
+  get $
+    galley
+      . paths ["feature-config", toByteString' feature]
+      . zUser uid
+
+getAllFeatureConfigs :: HasCallStack => UserId -> TestM ResponseLBS
+getAllFeatureConfigs uid = do
+  g <- view tsGalley
+  getAllFeatureConfigsWithGalley g uid
+
+getAllFeatureConfigsWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
+getAllFeatureConfigsWithGalley galley uid = do
+  get $
+    galley
+      . paths ["feature-configs"]
+      . zUser uid
+
 putTeamFeatureFlagInternal ::
   forall (a :: Public.TeamFeatureName).
   ( HasCallStack,

@@ -25,28 +25,36 @@ import Bilge.Assert
 import Control.Lens (over, view)
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON, object, (.=))
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import Data.Id
 import Data.List1 (list1)
+import Data.Proxy (Proxy (Proxy))
 import Data.Schema (ToSchema)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TE
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
+import Test.Hspec (expectationFailure, shouldBe)
 import Test.Tasty
-import Test.Tasty.HUnit ((@?=))
+import Test.Tasty.HUnit (assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
-import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (KnownTeamFeatureName (..), TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
 tests s =
-  testGroup
-    "Team Features API"
-    [ test s "SSO" testSSO,
+  testGroup "Feature Config API and Team Features API" $
+    [ test s "Configs for all features" testGetAllFeature,
+      test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
@@ -268,6 +276,10 @@ testSimpleFlag defaultValue = do
       getFlag expected =
         flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
 
+      getFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getFeatureConfig expected =
+        flip (assertFlagNoConfig @a) expected $ Util.getFeatureConfig feature member
+
       getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlagInternal expected =
         flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlagInternal feature tid
@@ -285,10 +297,12 @@ testSimpleFlag defaultValue = do
   -- Disabled by default
   getFlag defaultValue
   getFlagInternal defaultValue
+  getFeatureConfig defaultValue
 
   -- Setting should work
   setFlagInternal otherValue
   getFlag otherValue
+  getFeatureConfig otherValue
   getFlagInternal otherValue
 
 -- | Call 'GET /teams/:tid/features' and check if all features are there
@@ -365,3 +379,49 @@ assertFlagWithConfig response expected = do
   liftIO $ do
     fmap Public.tfwcStatus rJson @?= (Right . Public.tfwcStatus $ expected)
     fmap Public.tfwcConfig rJson @?= (Right . Public.tfwcConfig $ expected)
+
+testGetAllFeature :: HasCallStack => TestM ()
+testGetAllFeature = do
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
+  allFeaturesRes <- Util.getAllFeatureConfigs member >>= parseObjectKeys
+  liftIO $ allFeaturesRes `shouldBe` allFeatures
+
+  allTeamFeaturesRes <- Util.getAllTeamFeatures member tid >>= parseObjectKeys
+  liftIO $ allTeamFeaturesRes `shouldBe` allTeamFeatures
+
+  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
+    liftIO $ expectationFailure (show allTeamFeatures <> " is not a subset of " <> show allFeaturesRes)
+
+  pure ()
+  where
+    parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
+    parseObjectKeys res = do
+      case responseJsonEither res of
+        Left err -> liftIO $ assertFailure ("Did not parse as an object" <> err)
+        Right (val :: Aeson.Value) ->
+          case val of
+            (Aeson.Object hm) -> pure (Set.fromList . HashSet.toList . HashMap.keysSet $ hm)
+            x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
+
+    featureKey :: forall (a :: TeamFeatureName). (KnownTeamFeatureName a, KnownSymbol (KnownTeamFeatureNameSymbol a)) => Text
+    featureKey = Text.pack $ symbolVal (Proxy @(KnownTeamFeatureNameSymbol a))
+
+    allFeatures :: Set.Set Text
+    allFeatures =
+      Set.fromList
+        [ featureKey @'TeamFeatureLegalHold,
+          featureKey @'TeamFeatureSSO,
+          featureKey @'TeamFeatureSearchVisibility,
+          featureKey @'TeamFeatureValidateSAMLEmails,
+          featureKey @'TeamFeatureDigitalSignatures,
+          featureKey @'TeamFeatureAppLock,
+          featureKey @'TeamFeatureFileSharing
+        ]
+
+    allTeamFeatures :: Set.Set Text
+    allTeamFeatures = allFeatures
