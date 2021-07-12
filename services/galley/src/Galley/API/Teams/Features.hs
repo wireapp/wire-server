@@ -19,6 +19,7 @@ module Galley.API.Teams.Features
   ( getFeatureStatus,
     setFeatureStatus,
     getFeatureConfig,
+    getAllFeatureConfigs,
     getAllFeaturesH,
     getSSOStatusInternal,
     setSSOStatusInternal,
@@ -43,6 +44,7 @@ import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
+import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.String.Conversions (cs)
 import Galley.API.Error as Galley
@@ -59,6 +61,7 @@ import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities
+import Wire.API.Team.Feature (AllFeatureConfigs (..))
 import qualified Wire.API.Team.Feature as Public
 
 data DoAuth = DoAuth UserId | DontDoAuth
@@ -110,7 +113,38 @@ getFeatureConfig getter zusr = do
       Just team -> pure team
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
+  assertTeamExists tid
   getter tid
+
+getAllFeatureConfigs :: UserId -> Galley AllFeatureConfigs
+getAllFeatureConfigs zusr = do
+  tid <- do
+    mbTeam <- Data.oneUserTeam zusr
+    case mbTeam of
+      Nothing -> throwM teamNotFound
+      Just team -> pure team
+  zusrMembership <- Data.teamMember tid zusr
+  let getStatus ::
+        forall (a :: Public.TeamFeatureName).
+        ( Public.KnownTeamFeatureName a,
+          Aeson.ToJSON (Public.TeamFeatureStatus a)
+        ) =>
+        (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+        Galley (Text, Aeson.Value)
+      getStatus getter = do
+        void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
+        status <- getter tid
+        let feature = Public.knownTeamFeatureName @a
+        pure $ (cs (toByteString' feature) Aeson..= status)
+  AllFeatureConfigs . HashMap.fromList
+    <$> sequence
+      [ getStatus @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
+        getStatus @'Public.TeamFeatureSSO getSSOStatusInternal,
+        getStatus @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
+        getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
+        getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
+        getStatus @'Public.TeamFeatureAppLock getAppLockInternal
+      ]
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
 getAllFeaturesH (uid ::: tid ::: _) =

@@ -30,6 +30,7 @@ module Wire.API.Team.Feature
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
     HasDeprecatedFeatureName (..),
+    AllFeatureConfigs (..),
     defaultAppLockStatus,
     defaultClassifiedDomains,
 
@@ -44,6 +45,8 @@ module Wire.API.Team.Feature
   )
 where
 
+import Control.Lens.Combinators (dimap)
+import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
 import Data.Domain (Domain)
@@ -368,3 +371,12 @@ data LowerCaseFirst
 instance StringModifier LowerCaseFirst where
   getStringModifier (x : xs) = toLower x : xs
   getStringModifier [] = []
+
+newtype AllFeatureConfigs = AllFeatureConfigs {_allFeatureConfigs :: Aeson.Object}
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
+
+instance ToSchema AllFeatureConfigs where
+  schema =
+    named "AllFeatureConfigs" $
+      dimap _allFeatureConfigs AllFeatureConfigs jsonObject

@@ -326,7 +326,10 @@ data Api routes = Api
         :- FeatureStatusPut 'TeamFeatureFileSharing,
     teamFeatureStatusClassifiedDomainsGet ::
       routes
-        :- FeatureStatusGet 'TeamFeatureClassifiedDomains
+        :- FeatureStatusGet 'TeamFeatureClassifiedDomains,
+    featureAllFeatureConfigsGet ::
+      routes
+        :- AllFeatureConfigsGet,
     featureConfigLegalHoldGet ::
       routes
         :- FeatureConfigGet 'TeamFeatureLegalHold,
@@ -396,6 +399,12 @@ type FeatureConfigGet featureName =
     :> "feature-config"
     :> KnownTeamFeatureNameSymbol featureName
     :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type AllFeatureConfigsGet =
+  Summary "Get configurations of all features"
+    :> ZUser
+    :> "feature-configs"
+    :> Get '[Servant.JSON] AllFeatureConfigs
 
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\

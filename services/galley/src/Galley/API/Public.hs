@@ -137,7 +137,8 @@ servantSitemap =
           setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth,
         GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
           getFeatureStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
-            . DoAuth
+            . DoAuth,
+        GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
         GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
         GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
         GalleyAPI.featureConfigSearchVisibilityGet = Features.getFeatureConfig @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
