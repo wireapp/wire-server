@@ -327,6 +327,24 @@ data Api routes = Api
     teamFeatureStatusClassifiedDomainsGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureClassifiedDomains
+    featureConfigLegalHoldGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureLegalHold,
+    featureConfigSSOGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureSSO,
+    featureConfigSearchVisibilityGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureSearchVisibility,
+    featureConfigValidateSAMLEmailsGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureValidateSAMLEmails,
+    featureConfigDigitalSignaturesGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureDigitalSignatures,
+    featureConfigAppLockGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureAppLock
   }
   deriving (Generic)
 
@@ -371,6 +389,13 @@ type FeatureStatusDeprecatedPut featureName =
     :> DeprecatedFeatureName featureName
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type FeatureConfigGet featureName =
+  Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "feature-config"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
 
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\

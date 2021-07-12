@@ -18,6 +18,7 @@
 module Galley.API.Teams.Features
   ( getFeatureStatus,
     setFeatureStatus,
+    getFeatureConfig,
     getAllFeaturesH,
     getSSOStatusInternal,
     setSSOStatusInternal,
@@ -94,6 +95,22 @@ setFeatureStatus setter doauth tid status = do
     DontDoAuth ->
       assertTeamExists tid
   setter tid status
+
+getFeatureConfig ::
+  forall (a :: Public.TeamFeatureName).
+  Public.KnownTeamFeatureName a =>
+  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  UserId ->
+  Galley (Public.TeamFeatureStatus a)
+getFeatureConfig getter zusr = do
+  tid <- do
+    mbTeam <- Data.oneUserTeam zusr
+    case mbTeam of
+      Nothing -> throwM teamNotFound
+      Just team -> pure team
+  zusrMembership <- Data.teamMember tid zusr
+  void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
+  getter tid
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
 getAllFeaturesH (uid ::: tid ::: _) =
