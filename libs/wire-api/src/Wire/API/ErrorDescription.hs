@@ -3,6 +3,7 @@ module Wire.API.ErrorDescription where
 import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
+import Data.SOP (I (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
 import qualified Data.Swagger as Swagger
@@ -10,9 +11,10 @@ import qualified Data.Text as Text
 import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, contentType, respond)
+import Servant hiding (Handler, addHeader, contentType, respond)
 import Servant.API.Status (KnownStatus)
 import Servant.Swagger.Internal
+import Wire.API.Routes.MultiVerb
 import Wire.API.ServantSwagger
 
 -- This can be added to an endpoint to document a possible failure
@@ -148,6 +150,33 @@ instance
 
 instance KnownStatus status => HasStatus (ErrorDescription status label desc) where
   type StatusOf (ErrorDescription status label desc) = status
+
+-- * MultiVerb errors
+
+type RespondWithErrorDescription s label desc =
+  Respond '[JSON] s desc (ErrorDescription s label desc)
+
+instance
+  ( KnownStatus s,
+    KnownSymbol label,
+    KnownSymbol desc
+  ) =>
+  IsResponse (ErrorDescription s label desc)
+  where
+  type ResponseContentTypes (ErrorDescription s label desc) = '[JSON]
+  type ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
+
+  responseRender = responseRender @(RespondWithErrorDescription s label desc)
+  responseSwagger = responseSwagger @(RespondWithErrorDescription s label desc)
+
+instance
+  (ResponseType r ~ a, KnownSymbol desc) =>
+  AsUnion
+    '[ErrorDescription s label desc, r]
+    (Maybe a)
+  where
+  asUnion Nothing = Z (I mkErrorDescription)
+  asUnion (Just x) = S (Z (I x))
 
 -- * Errors
 

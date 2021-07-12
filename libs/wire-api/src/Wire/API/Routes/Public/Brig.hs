@@ -33,7 +33,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.ErrorDescription (ClientNotFound)
+import Wire.API.ErrorDescription (ClientNotFound, ErrorDescription)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.User
@@ -47,7 +47,7 @@ type MaxUsersForListClientsBulk = 500
 
 type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
 
-type UserExistVerb =
+type UserExistsVerb =
   MultiVerb
     'HEAD
     '[]
@@ -55,6 +55,14 @@ type UserExistVerb =
        RespondEmpty 200 "User exists"
      ]
     Bool
+
+type UserGetVerb =
+  MultiVerb
+    'GET
+    '[ ErrorDescription 404 "user-not-found" "User not found",
+       Respond '[JSON] 200 "User found" UserProfile
+     ]
+    (Maybe UserProfile)
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -78,7 +86,7 @@ data Api routes = Api
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> UserExistVerb,
+        :> UserExistsVerb,
     -- See Note [ephemeral user sideeffect]
     checkUserExistsQualified ::
       routes
@@ -87,32 +95,16 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> UserExistVerb,
+        :> UserExistsVerb,
     -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User" Doc.end
-    --   Doc.errorResponse userNotFound
     getUserUnqualified ::
       routes
         :- Summary "Get a user by UserId (deprecated)"
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             [ RespondEmpty 404 "User not found",
-               Respond 200 "User exists" UserProfile
-             ]
-             (Maybe UserProfile),
+        :> UserGetVerb,
     -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User" Doc.end
-    --   Doc.errorResponse userNotFound
     getUserQualified ::
       routes
         :- Summary "Get a user by Domain and UserId"
@@ -120,13 +112,7 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             [ RespondEmpty 404 "User not found",
-               Respond 200 "User exists" UserProfile
-             ]
-             (Maybe UserProfile),
+        :> UserGetVerb,
     getSelf ::
       routes
         :- Summary "Get your own profile"
