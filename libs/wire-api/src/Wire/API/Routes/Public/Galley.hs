@@ -24,29 +24,58 @@ import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Domain
 import Data.Id (ConvId, TeamId)
+import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, contentType, respond)
-import qualified Servant
+import Servant hiding (Handler, addHeader, contentType, respond)
+import Servant.API (addHeader)
 import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Feature
 
-type ConversationResponses =
-  '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
-     WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
-   ]
+instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
+  toHeaders c = addHeader (qUnqualified (Public.cnvQualifiedId c)) c
+  fromHeaders = getResponse
+
+instance
+  (ResponseType r1 ~ a, ResponseType r2 ~ a) =>
+  AsUnion '[r1, r2] (ConversationResponseFor a)
+  where
+  asUnion (ConversationExisted x) = Z (I x)
+  asUnion (ConversationCreated x) = S (Z (I x))
+
+data ConversationResponseFor a
+  = ConversationExisted !a
+  | ConversationCreated !a
+
+type ConversationResponse = ConversationResponseFor Conversation
+
+type ConversationVerb =
+  MultiVerb
+    'POST
+    '[ WithHeaders
+         '[Header "Location" ConvId]
+         Conversation
+         (Respond '[JSON] 200 "Conversation existed" Conversation),
+       WithHeaders
+         '[Header "Location" ConvId]
+         Conversation
+         (Respond '[JSON] 201 "Conversation created" Conversation)
+     ]
+    ConversationResponse
 
 type UpdateResponses =
   '[ WithStatus 200 Public.Event,
@@ -178,14 +207,14 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ConversationVerb,
     createSelfConversation ::
       routes
         :- Summary "Create a self-conversation"
         :> ZUser
         :> "conversations"
         :> "self"
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ConversationVerb,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"
@@ -197,7 +226,7 @@ data Api routes = Api
         :> "conversations"
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ConversationVerb,
     addMembersToConversationV2 ::
       routes
         :- Summary "Add qualified members to an existing conversation."

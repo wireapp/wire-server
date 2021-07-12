@@ -32,6 +32,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (Request, Response, ResponseReceived, responseLBS)
 import Servant.API
 import Servant.API.ContentTypes
+import Servant.API.ResponseHeaders
 import Servant.API.Status (KnownStatus (..))
 import Servant.Server
 import Servant.Server.Internal
@@ -107,8 +108,28 @@ instance
         RenderOutput
           { roStatus = statusVal (Proxy @s),
             roBody = body,
-            roHeaders = [] -- TODO
+            roHeaders = []
           }
+
+data WithHeaders (hs :: [*]) (a :: *) (r :: *)
+
+class AsHeaders hs a b where
+  fromHeaders :: Headers hs a -> b
+  toHeaders :: b -> Headers hs a
+
+instance
+  (AsHeaders hs (ResponseType r) a, IsResponse r, GetHeaders' hs) =>
+  IsResponse (WithHeaders hs a r)
+  where
+  type ResponseType (WithHeaders hs a r) = a
+  type ResponseContentTypes (WithHeaders hs a r) = ResponseContentTypes r
+
+  responseSwagger = responseSwagger @r
+  responseRender x = map addHeaders rs
+    where
+      h = toHeaders @hs x
+      rs = responseRender @r (getResponse h)
+      addHeaders r = r {roHeaders = roHeaders r ++ getHeaders h}
 
 class IsResponseList as where
   type ResponseTypes as :: [*]
@@ -139,7 +160,7 @@ instance (AllMime (ResponseContentTypes a), IsResponse a, IsResponseList as) => 
 
 data MultiVerb (method :: StdMethod) (as :: [*]) (r :: *)
 
-class IsResponseList as => AsUnion (as :: [*]) (r :: *) where
+class AsUnion (as :: [*]) (r :: *) where
   asUnion :: r -> Union (ResponseTypes as)
 
 instance (IsResponseList as, rs ~ ResponseTypes as) => AsUnion as (Union rs) where
@@ -222,7 +243,10 @@ handlerToRouteResult h = do
 hoistRouteResult :: (forall x. m x -> n x) -> RouteResultT m a -> RouteResultT n a
 hoistRouteResult f (RouteResultT m) = RouteResultT (f m)
 
-instance (AsUnion as r, ReflectMethod method) => HasServer (MultiVerb method as r) ctx where
+instance
+  (IsResponseList as, AsUnion as r, ReflectMethod method) =>
+  HasServer (MultiVerb method as r) ctx
+  where
   type ServerT (MultiVerb method as r) m = m r
 
   hoistServerWithContext _ _ nt s = nt s
