@@ -143,7 +143,8 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
         getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
-        getStatus @'Public.TeamFeatureAppLock getAppLockInternal
+        getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
+        getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal
       ]
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
