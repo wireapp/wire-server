@@ -42,6 +42,7 @@
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
+* Document more error responses (#1645).
 
 ## Bug fixes and other updates
 
