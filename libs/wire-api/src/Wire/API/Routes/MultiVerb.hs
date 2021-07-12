@@ -167,31 +167,20 @@ instance (IsResponseList as, rs ~ ResponseTypes as) => AsUnion as (Union rs) whe
   asUnion = id
 
 instance
-  ( KnownStatus s1,
-    KnownStatus s2,
-    KnownSymbol desc1,
-    KnownSymbol desc2
-  ) =>
-  AsUnion '[Respond '[] s1 desc1 (), Respond '[] s2 desc2 ()] Bool
+  AsUnion
+    '[ Respond '[] s1 desc1 (),
+       Respond '[] s2 desc2 ()
+     ]
+    Bool
   where
   asUnion False = Z (I ())
   asUnion True = S (Z (I ()))
 
 instance
-  ( KnownStatus s1,
-    KnownStatus s2,
-    KnownSymbol desc1,
-    KnownSymbol desc2,
-    Render cs2 a2,
-    -- FUTUREWORK: try to get rid of the following constraints
-    GenerateSchemaRef cs2 a2,
-    S.ToSchema a2
-  ) =>
+  (ResponseType r2 ~ a) =>
   AsUnion
-    '[ Respond '[] s1 desc1 (),
-       Respond cs2 s2 desc2 a2
-     ]
-    (Maybe a2)
+    '[Respond '[] s1 desc1 (), r2]
+    (Maybe a)
   where
   asUnion Nothing = Z (I ())
   asUnion (Just x) = S (Z (I x))
