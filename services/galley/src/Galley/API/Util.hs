@@ -79,14 +79,14 @@ type JSON = Media "application" "json"
 
 ensureAccessRole :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley ()
 ensureAccessRole role users = case role of
-  PrivateAccessRole -> throwM convAccessDenied
+  PrivateAccessRole -> throwErrorDescription convAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
       throwErrorDescription notATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
-      throwM convAccessDenied
+      throwErrorDescription convAccessDenied
   NonActivatedAccessRole -> return ()
 
 -- | Check that the given user is either part of the same team(s) as the other
@@ -287,7 +287,9 @@ getMember ex u ms = do
     Nothing -> throwM ex
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
-getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
+getConversationAndCheckMembership =
+  getConversationAndCheckMembershipWithError
+    (errorDescriptionToWai convAccessDenied)
 
 getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr convId = do
@@ -344,7 +346,7 @@ ensureConversationAccess zusr cnv access = do
 ensureAccess :: Data.Conversation -> Access -> Galley ()
 ensureAccess conv access =
   unless (access `elem` Data.convAccess conv) $
-    throwM convAccessDenied
+    throwErrorDescription convAccessDenied
 
 --------------------------------------------------------------------------------
 -- Federation

@@ -154,9 +154,9 @@ instance KnownStatus status => HasStatus (ErrorDescription status label desc) wh
 mkErrorDescription :: forall code label desc. KnownSymbol desc => ErrorDescription code label desc
 mkErrorDescription = ErrorDescription $ Text.pack (symbolVal (Proxy @desc))
 
-type ConversationNotFound = ErrorDescription 404 "no-conversation" "Conversation not found"
+type ConvNotFound = ErrorDescription 404 "no-conversation" "Conversation not found"
 
-convNotFound :: ConversationNotFound
+convNotFound :: ConvNotFound
 convNotFound = mkErrorDescription
 
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
@@ -197,3 +197,8 @@ type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation co
 
 codeNotFound :: CodeNotFound
 codeNotFound = mkErrorDescription
+
+type ConvAccessDenied = ErrorDescription 403 "access-denied" "Conversation access denied"
+
+convAccessDenied :: ConvAccessDenied
+convAccessDenied = mkErrorDescription

@@ -622,7 +622,7 @@ sitemap = do
     body (ref Public.modelConversationAccessUpdate) $
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-    errorResponse Error.convAccessDenied
+    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
     errorResponse Error.invalidTargetAccess
     errorResponse Error.invalidSelfOp
     errorResponse Error.invalidOne2OneOp
@@ -646,7 +646,7 @@ sitemap = do
     body (ref Public.modelConversationReceiptModeUpdate) $
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-    errorResponse Error.convAccessDenied
+    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
 
   -- This endpoint can lead to the following events being sent:
   -- - ConvMessageTimerUpdate event to members
@@ -665,7 +665,7 @@ sitemap = do
     body (ref Public.modelConversationMessageTimerUpdate) $
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-    errorResponse Error.convAccessDenied
+    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
     errorResponse Error.invalidSelfOp
     errorResponse Error.invalidOne2OneOp
     errorResponse Error.invalidConnectOp
@@ -690,7 +690,7 @@ sitemap = do
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse (Error.errorDescriptionToWai Error.notConnected)
-    errorResponse Error.convAccessDenied
+    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
 
   get "/conversations/:cnv/self" (continue Query.getSelfH) $
     zauthUserId

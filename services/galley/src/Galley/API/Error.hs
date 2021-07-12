@@ -94,9 +94,6 @@ unknownRemoteUser = mkError status400 "unknown-remote-user" "Remote user(s) not 
 tooManyMembers :: Error
 tooManyMembers = mkError status403 "too-many-members" "Maximum number of members per conversation reached"
 
-convAccessDenied :: Error
-convAccessDenied = mkError status403 "access-denied" "Conversation access denied"
-
 accessDenied :: Error
 accessDenied = mkError status403 "access-denied" "You do not have permission to access this resource"
 
