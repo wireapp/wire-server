@@ -1,0 +1,12 @@
+sender { client: 5 }
+recipients { domain: "01l.s" }
+recipients { domain: "09v.uk" }
+recipients { domain: "2-28q.yda9.m" }
+recipients { domain: "95.pr8" }
+recipients { domain: "b0.l03.821--s5.0t.q7ky62t84r-0" }
+recipients { domain: "q.gy-7.w60zk24.n05" }
+native_push: false
+blob: "\275u"
+native_priority: HIGH_PRIORITY
+transient: true
+ignore_only { }

@@ -17,6 +17,7 @@
 
 module Test.Wire.API.Golden.Runner
   ( testObjects,
+    protoTestObjects,
     testFromJSONFailure,
     testFromJSONObjects,
   )
@@ -26,9 +27,15 @@ import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
+import Data.ProtoLens.Encoding (decodeMessage, encodeMessage)
+import Data.ProtoLens.Message (Message)
+import Data.ProtoLens.TextFormat (pprintMessage, readMessage)
+import qualified Data.Text.Lazy.IO as LText
 import Imports
 import Test.Tasty.HUnit
+import Text.PrettyPrint (render)
 import Type.Reflection (typeRep)
+import Wire.API.ServantProto
 
 testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
 testObjects objs = do
@@ -54,6 +61,44 @@ testObject obj path = do
     (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
     (Success obj)
     (fromJSON actualValue)
+
+  pure exists
+
+protoTestObjects ::
+  forall m a.
+  (Typeable a, ToProto a, FromProto a, Eq a, Show a, Show m, Eq m, Message m) =>
+  [(a, FilePath)] ->
+  IO ()
+protoTestObjects objs = do
+  allFilesExist <- and <$> traverse (uncurry (protoTestObject @m)) objs
+  assertBool "Some golden protobuf files do not exist" allFilesExist
+
+protoTestObject ::
+  forall m a.
+  (Typeable a, ToProto a, FromProto a, Eq a, Show a, Show m, Eq m, Message m) =>
+  a ->
+  FilePath ->
+  IO Bool
+protoTestObject obj path = do
+  let actual = toProto obj
+  msg <- assertRight (decodeMessage @m (LBS.toStrict actual))
+  let pretty = render (pprintMessage msg)
+      dir = "test/golden"
+      fullPath = dir <> "/" <> path
+  createDirectoryIfMissing True dir
+  exists <- doesFileExist fullPath
+  unless exists $ writeFile fullPath pretty
+
+  msgText <- LText.readFile fullPath
+  expected <- assertRight (readMessage @m msgText)
+  assertEqual
+    (show (typeRep @a) <> ": ToProto should match golden file: " <> path)
+    expected
+    msg
+  assertEqual
+    (show (typeRep @a) <> ": FromProto of " <> path <> " should match object")
+    (Right obj)
+    (fromProto (LBS.fromStrict (encodeMessage expected)))
 
   pure exists
 
