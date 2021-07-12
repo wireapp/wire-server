@@ -92,7 +92,7 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
-* Improved Swagger documentation for endpoints with multiple responses (#1649).
+* Improved Swagger documentation for endpoints with multiple responses (#1649, #1645).
 
 ## Bug fixes and other updates
 
