@@ -329,7 +329,8 @@ roleHiddenPermissions role = HiddenPermissions p p
           [ ChangeLegalHoldTeamSettings,
             ChangeLegalHoldUserSettings,
             ChangeTeamSearchVisibility,
-            ChangeTeamFeature TeamFeatureAppLock {- the other features can only be changed in stern -},
+            ChangeTeamFeature TeamFeatureAppLock {- the features not listed here can only be changed in stern -},
+            ChangeTeamFeature TeamFeatureFileSharing,
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
@@ -346,6 +347,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureValidateSAMLEmails,
           ViewTeamFeature TeamFeatureDigitalSignatures,
           ViewTeamFeature TeamFeatureAppLock,
+          ViewTeamFeature TeamFeatureFileSharing,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

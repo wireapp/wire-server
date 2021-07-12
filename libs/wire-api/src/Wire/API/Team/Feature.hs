@@ -60,12 +60,17 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- TeamFeatureName
 
 -- | If you add a constructor here, you need to visit (at least) 4 places that are not caught
--- by ghc errors:
+-- by ghc errors or test failures:
 --
--- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs:198 (calls to 'testRoundTrip')
--- * services/galley/src/Galley/API/Internal.hs:179: (add a field to the 'InternalApi routes' record)
+-- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs (calls to 'testRoundTrip')
+-- * services/galley/src/Galley/API/Internal.hs (add a field to the 'InternalApi routes' record)
 -- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs (add a field to the 'Api routes' record)
--- * services/galley/src/Galley/API/Teams/Features.hs:106: (calls to 'getStatus')
+-- * services/galley/src/Galley/API/Teams/Features.hs (calls to 'getStatus')
+-- * services/galley/schema/src/ (add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs")
+-- * services/galley/test/integration/API/Teams/Feature.hs (add an integration test)
+--
+-- An overview of places to change (including compiler errors and failing tests) can be found
+-- in eg. https://github.com/wireapp/wire-server/pull/1652.
 --
 -- Using something like '[minBound..]' on those expressions would require dependent types.  We
 -- could generate exhaustive lists of those calls using TH, along the lines of:
@@ -88,6 +93,7 @@ data TeamFeatureName
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
   | TeamFeatureAppLock
+  | TeamFeatureFileSharing
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -119,6 +125,10 @@ instance KnownTeamFeatureName 'TeamFeatureAppLock where
   type KnownTeamFeatureNameSymbol 'TeamFeatureAppLock = "appLock"
   knownTeamFeatureName = TeamFeatureAppLock
 
+instance KnownTeamFeatureName 'TeamFeatureFileSharing where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureFileSharing = "fileSharing"
+  knownTeamFeatureName = TeamFeatureFileSharing
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -133,6 +143,7 @@ instance FromByteString TeamFeatureName where
         Right "digitalSignatures" -> pure TeamFeatureDigitalSignatures
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
         Right "appLock" -> pure TeamFeatureAppLock
+        Right "fileSharing" -> pure TeamFeatureFileSharing
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -142,6 +153,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureValidateSAMLEmails = "validateSAMLemails"
   builder TeamFeatureDigitalSignatures = "digitalSignatures"
   builder TeamFeatureAppLock = "appLock"
+  builder TeamFeatureFileSharing = "fileSharing"
 
 class HasDeprecatedFeatureName (a :: TeamFeatureName) where
   type DeprecatedFeatureName a :: Symbol
@@ -207,6 +219,7 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+  TeamFeatureStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
@@ -218,6 +231,7 @@ modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
+modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
