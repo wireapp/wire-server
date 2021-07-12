@@ -327,6 +327,7 @@ data Api routes = Api
     teamFeatureStatusClassifiedDomainsGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureClassifiedDomains,
+    -- Feature Config API below
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,
@@ -353,8 +354,9 @@ data Api routes = Api
 
 type ServantAPI = ToServantApi Api
 
+-- | Deprecated. Use FeatureConfigGet.
 type FeatureStatusGet featureName =
-  Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+  Summary (AppendSymbol "[deprecated, use the feature-config/* endpoint instead]. Get config for " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
     :> "teams"
     :> Capture "tid" TeamId
@@ -372,7 +374,8 @@ type FeatureStatusPut featureName =
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 
--- | A type for a GET endpoint for a feature with a deprecated path
+-- | Deprecated. Use FeatureConfigGet.
+-- A type for a GET endpoint for a feature with a deprecated path
 type FeatureStatusDeprecatedGet featureName =
   Summary (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
@@ -393,6 +396,8 @@ type FeatureStatusDeprecatedPut featureName =
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
 
+-- | Feature Config API. Feature Configs are bound only to the user, and are
+-- more general than TeamFeatures which are bound to a team.
 type FeatureConfigGet featureName =
   Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
