@@ -115,7 +115,7 @@ import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.ErrorDescription (convNotFound, unknownClient)
+import Wire.API.ErrorDescription (codeNotFound, convNotFound, unknownClient)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
@@ -415,7 +415,9 @@ getCode usr cnv = do
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) usr
   key <- mkKey cnv
-  c <- Data.lookupCode key ReusableCode >>= ifNothing codeNotFound
+  c <-
+    Data.lookupCode key ReusableCode
+      >>= ifNothing (errorDescriptionToWai codeNotFound)
   returnCode c
 
 returnCode :: Code -> Galley Public.ConversationCode

@@ -192,3 +192,8 @@ actionDenied :: Show a => a -> ActionDenied
 actionDenied a =
   ErrorDescription $
     "Insufficient authorization (missing " <> Text.pack (show a) <> ")"
+
+type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation code not found"
+
+codeNotFound :: CodeNotFound
+codeNotFound = mkErrorDescription

@@ -542,7 +542,7 @@ sitemap = do
     response 200 "Valid" end
     body (ref Public.modelConversationCode) $
       description "JSON body"
-    errorResponse Error.codeNotFound
+    errorResponse (Error.errorDescriptionToWai Error.codeNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
@@ -556,7 +556,7 @@ sitemap = do
     response 200 "Conversation joined." end
     body (ref Public.modelConversationCode) $
       description "JSON body"
-    errorResponse Error.codeNotFound
+    errorResponse (Error.errorDescriptionToWai Error.codeNotFound)
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse Error.tooManyMembers
 

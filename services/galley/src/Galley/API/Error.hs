@@ -171,9 +171,6 @@ noBindingTeamMembers = mkError status403 "non-binding-team-members" "Both users 
 invalidTeamStatusUpdate :: Error
 invalidTeamStatusUpdate = mkError status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
 
-codeNotFound :: Error
-codeNotFound = mkError status404 "no-conversation-code" "conversation code not found"
-
 cannotEnableLegalHoldServiceLargeTeam :: Error
 cannotEnableLegalHoldServiceLargeTeam = mkError status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members.)"
 
