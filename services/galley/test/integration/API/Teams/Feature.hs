@@ -209,12 +209,7 @@ getClassifiedDomainsInternal tid =
 
 testClassifiedDomainsEnabled :: TestM ()
 testClassifiedDomainsEnabled = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
-  tid <- Util.createNonBindingTeam "classified domains" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
-
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   let expected =
         Public.TeamFeatureStatusWithConfig
           { Public.tfwcStatus = Public.TeamFeatureEnabled,
@@ -226,12 +221,7 @@ testClassifiedDomainsEnabled = do
 
 testClassifiedDomainsDisabled :: TestM ()
 testClassifiedDomainsDisabled = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
-  tid <- Util.createNonBindingTeam "classified domains" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
-
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   let expected =
         Public.TeamFeatureStatusWithConfig
           { Public.tfwcStatus = Public.TeamFeatureDisabled,
