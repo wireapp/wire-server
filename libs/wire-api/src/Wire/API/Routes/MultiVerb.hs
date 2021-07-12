@@ -19,6 +19,7 @@ module Wire.API.Routes.MultiVerb
   ( MultiVerb,
     Respond,
     WithHeaders,
+    DescHeader,
     AsHeaders (..),
     AsUnion (..),
     IsResponse (..),
@@ -27,6 +28,7 @@ module Wire.API.Routes.MultiVerb
 where
 
 import Control.Lens hiding (Context)
+import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.Proxy
 import Data.SOP
 import Data.SOP.NS
@@ -56,6 +58,7 @@ data Respond (cs :: [*]) (s :: Nat) (desc :: Symbol) (a :: *)
 data ResponseSwagger = ResponseSwagger
   { rsDescription :: Text,
     rsStatus :: Status,
+    rsHeaders :: InsOrdHashMap S.HeaderName S.Header,
     rsSchema :: Maybe (S.Referenced S.Schema)
   }
 
@@ -105,7 +108,7 @@ instance
   type ResponseType (Respond cs s desc a) = a
   type ResponseContentTypes (Respond cs s desc a) = cs
 
-  responseSwagger = ResponseSwagger desc status <$> generateSchemaRef @cs @a
+  responseSwagger = ResponseSwagger desc status mempty <$> generateSchemaRef @cs @a
     where
       desc = Text.pack (symbolVal (Proxy @desc))
       status = statusVal (Proxy @s)
@@ -126,17 +129,50 @@ class AsHeaders hs a b where
   fromHeaders :: Headers hs a -> b
   toHeaders :: b -> Headers hs a
 
+data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
+
+-- convert a list of Header to a list of Servant.Header
+type family ServantHeaders (hs :: [*]) :: [*]
+
+type instance ServantHeaders '[] = '[]
+
+type instance
+  ServantHeaders (DescHeader name desc a ': hs) =
+    Header name a ': ServantHeaders hs
+
+type instance
+  ServantHeaders (Header name a ': hs) =
+    Header name a ': ServantHeaders hs
+
 instance
-  (AsHeaders hs (ResponseType r) a, IsResponse r, GetHeaders' hs) =>
+  (KnownSymbol name, KnownSymbol desc, S.ToParamSchema a) =>
+  ToResponseHeader (DescHeader name desc a)
+  where
+  toResponseHeader _ = (name, S.Header (Just desc) sch)
+    where
+      name = Text.pack (symbolVal (Proxy @name))
+      desc = Text.pack (symbolVal (Proxy @desc))
+      sch = S.toParamSchema (Proxy @a)
+
+instance
+  ( AsHeaders (ServantHeaders hs) (ResponseType r) a,
+    GetHeaders' (ServantHeaders hs),
+    AllToResponseHeader hs,
+    IsResponse r
+  ) =>
   IsResponse (WithHeaders hs a r)
   where
   type ResponseType (WithHeaders hs a r) = a
   type ResponseContentTypes (WithHeaders hs a r) = ResponseContentTypes r
 
-  responseSwagger = responseSwagger @r
+  responseSwagger =
+    fmap
+      (\rs -> rs {rsHeaders = toAllResponseHeaders (Proxy @hs)})
+      (responseSwagger @r)
+
   responseRender x = map addHeaders rs
     where
-      h = toHeaders @hs x
+      h = toHeaders @(ServantHeaders hs) x
       rs = responseRender @r (getResponse h)
       addHeaders r = r {roHeaders = roHeaders r ++ getHeaders h}
 
@@ -221,6 +257,7 @@ instance
             ( mempty
                 & S.description .~ rsDescription response
                 & S.schema .~ rsSchema response
+                & S.headers .~ rsHeaders response
             )
 
 roResponse :: RenderOutput -> Response

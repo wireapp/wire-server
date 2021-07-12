@@ -30,8 +30,7 @@ import Data.SOP (I (..), NS (..))
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
-import Servant hiding (Handler, addHeader, contentType, respond)
-import Servant.API (addHeader)
+import Servant
 import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
@@ -47,7 +46,7 @@ import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Feature
 
 instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
-  toHeaders c = addHeader (qUnqualified (Public.cnvQualifiedId c)) c
+  toHeaders c = Headers c (HCons (Header (qUnqualified (Public.cnvQualifiedId c))) HNil)
   fromHeaders = getResponse
 
 instance
@@ -63,15 +62,17 @@ data ConversationResponseFor a
 
 type ConversationResponse = ConversationResponseFor Conversation
 
+type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
+
 type ConversationVerb =
   MultiVerb
     'POST
     '[ WithHeaders
-         '[Header "Location" ConvId]
+         ConversationHeaders
          Conversation
          (Respond '[JSON] 200 "Conversation existed" Conversation),
        WithHeaders
-         '[Header "Location" ConvId]
+         ConversationHeaders
          Conversation
          (Respond '[JSON] 201 "Conversation created" Conversation)
      ]
