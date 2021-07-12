@@ -15,7 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.MultiVerb where
+module Wire.API.Routes.MultiVerb
+  ( MultiVerb,
+    Respond,
+    WithHeaders,
+    AsHeaders (..),
+    AsUnion (..),
+    IsResponse (..),
+    IsResponseList (..),
+  )
+where
 
 import Control.Lens hiding (Context)
 import Data.Proxy
