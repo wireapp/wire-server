@@ -68,6 +68,9 @@ Its functions are:
 Federator
 ~~~~~~~~~
 
+.. warning:: As of July 2021, authentication is not fully implemented. See the
+             section on :ref:`authentication` for more details.
+
 The federator acts as egress point for other backend components. It can be
 configured to use an :ref:`allow list <allow-list>` to authorize incoming and
 outgoing connections, and it keeps an X.509 client certificate for the backend's
@@ -134,6 +137,10 @@ specifically, both backends need to ensure the following:
 
 Authentication
 ^^^^^^^^^^^^^^
+
+.. warning:: As of July 2021, the implementation of mutual backend-to-backend
+             authentication is still work in progress. The behaviour described
+             in this section should be considered a draft specification only.
 
 Authentication between Wire backends is achieved using the mutual authentication
 feature of TLS as defined in `RFC 8556 <https://tools.ietf.org/html/rfc8446>`_.
