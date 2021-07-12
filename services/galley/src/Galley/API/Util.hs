@@ -62,7 +62,7 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
-import Wire.API.ErrorDescription (actionDenied, convNotFound, notATeamMember, notConnected, operationDenied)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient, executeFederated)
@@ -321,9 +321,11 @@ pushConversationEvent conn e users bots = do
 
 verifyReusableCode :: ConversationCode -> Galley DataTypes.Code
 verifyReusableCode convCode = do
-  c <- Data.lookupCode (conversationKey convCode) DataTypes.ReusableCode >>= ifNothing codeNotFound
+  c <-
+    Data.lookupCode (conversationKey convCode) DataTypes.ReusableCode
+      >>= ifNothing (errorDescriptionToWai codeNotFound)
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    throwM codeNotFound
+    throwM (errorDescriptionToWai codeNotFound)
   return c
 
 ensureConversationAccess :: UserId -> ConvId -> Access -> Galley Data.Conversation

@@ -210,6 +210,7 @@ data Api routes = Api
       routes
         :- Summary "Create a new conversation"
         :> CanThrow NotATeamMember
+        :> CanThrow CodeNotFound
         :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
         :> ZUser
         :> ZConn
