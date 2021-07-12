@@ -1,0 +1,10 @@
+sender { client: 8 }
+native_push: true
+blob: "\r\271"
+native_priority: HIGH_PRIORITY
+transient: false
+report_only {
+  user_ids {
+    id: "00000002-0000-0002-0000-000200000000" domain: "142--h.4f.h8"
+  }
+}

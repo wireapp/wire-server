@@ -1,0 +1,6 @@
+sender { client: 7 }
+native_push: true
+blob: "1i\325"
+native_priority: HIGH_PRIORITY
+transient: true
+ignore_all { }

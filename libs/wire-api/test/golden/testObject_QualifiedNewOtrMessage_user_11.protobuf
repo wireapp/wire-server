@@ -1,0 +1,15 @@
+sender { client: 7 }
+native_push: false
+blob: ""
+native_priority: LOW_PRIORITY
+transient: true
+ignore_only {
+  user_ids {
+    id: "00000002-0000-0000-0000-000000000001"
+    domain: "a9z----8fk.aa96.rd67.c-gtj63"
+  }
+  user_ids {
+    id: "00000002-0000-0001-0000-000000000002"
+    domain: "315-o1n.i7sp.s9o"
+  }
+}

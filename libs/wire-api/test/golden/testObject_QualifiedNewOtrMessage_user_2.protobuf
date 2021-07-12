@@ -1,0 +1,6 @@
+sender { client: 7 }
+native_push: true
+blob: ""
+native_priority: LOW_PRIORITY
+transient: false
+report_all { }
