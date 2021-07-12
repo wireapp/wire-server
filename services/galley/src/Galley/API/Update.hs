@@ -636,7 +636,7 @@ data OtrResult
   = OtrSent !Public.ClientMismatch
   | OtrMissingRecipients !Public.ClientMismatch
   | OtrUnknownClient !Public.UnknownClient
-  | OtrConversationNotFound !Public.ConversationNotFound
+  | OtrConversationNotFound !Public.ConvNotFound
 
 handleOtrResult :: OtrResult -> Galley Response
 handleOtrResult = \case

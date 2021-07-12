@@ -92,14 +92,14 @@ type UpdateResponses =
 type PostOtrResponsesUnqualified =
   '[ WithStatus 201 Public.ClientMismatch,
      WithStatus 412 Public.ClientMismatch,
-     ConversationNotFound,
+     ConvNotFound,
      UnknownClient
    ]
 
 type PostOtrResponses =
   '[ WithStatus 201 Public.MessageSendingStatus,
      WithStatus 412 Public.MessageSendingStatus,
-     ConversationNotFound,
+     ConvNotFound,
      UnknownClient
    ]
 
@@ -205,12 +205,13 @@ data Api routes = Api
         :> QueryParam' [Required, Strict] "key" Code.Key
         :> QueryParam' [Required, Strict] "code" Code.Value
         :> Get '[Servant.JSON] Public.ConversationCoverView,
-    -- FUTUREWORK: potential errors: codeNotFound, convNotFound, convAccessDenied
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
         :> CanThrow NotATeamMember
         :> CanThrow CodeNotFound
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
         :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
         :> ZUser
         :> ZConn
