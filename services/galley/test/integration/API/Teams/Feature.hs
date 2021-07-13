@@ -24,11 +24,13 @@ import Bilge
 import Bilge.Assert
 import Control.Lens (over, view)
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON, object, (.=))
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.List1 (list1)
 import Data.Schema (ToSchema)
+import qualified Data.Text.Encoding as TE
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
@@ -37,6 +39,7 @@ import Test.Tasty
 import Test.Tasty.HUnit ((@?=))
 import TestHelpers (test)
 import TestSetup
+import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
@@ -49,7 +52,8 @@ tests s =
       test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
       test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
-      test s "Classified Domains (disabled)" testClassifiedDomainsDisabled
+      test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
+      test s "All features" testAllFeatures
     ]
 
 testSSO :: TestM ()
@@ -285,6 +289,35 @@ testSimpleFlag defaultValue = do
   setFlagInternal otherValue
   getFlag otherValue
   getFlagInternal otherValue
+
+-- | Call 'GET /teams/:tid/features' and check if all features are there
+testAllFeatures :: TestM ()
+testAllFeatures = do
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
+  let res = Util.getAllTeamFeatures member tid
+  res !!! do
+    statusCode === const 200
+    responseJsonMaybe === const (Just expected)
+  where
+    expected =
+      object
+        [ toS TeamFeatureLegalHold .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          toS TeamFeatureSSO .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          toS TeamFeatureSearchVisibility .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          toS TeamFeatureValidateSAMLEmails .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          toS TeamFeatureDigitalSignatures .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          toS TeamFeatureAppLock
+            .= Public.TeamFeatureStatusWithConfig
+              TeamFeatureEnabled
+              (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
+          toS TeamFeatureFileSharing .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
+          toS TeamFeatureClassifiedDomains
+            .= Public.TeamFeatureStatusWithConfig
+              TeamFeatureEnabled
+              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"])
+        ]
+    toS :: TeamFeatureName -> Text
+    toS = TE.decodeUtf8 . toByteString'
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do
