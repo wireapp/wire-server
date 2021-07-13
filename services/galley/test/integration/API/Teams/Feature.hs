@@ -53,8 +53,7 @@ import qualified Wire.API.Team.Feature as Public
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup "Feature Config API and Team Features API" $
-    [ test s "Configs for all features" testGetAllFeature,
-      test s "SSO" testSSO,
+    [ test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
@@ -62,7 +61,8 @@ tests s =
       test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
-      test s "All features" testAllFeatures
+      test s "All features" testAllFeatures,
+      test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency
     ]
 
 testSSO :: TestM ()
@@ -334,6 +334,49 @@ testAllFeatures = do
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'
 
+testFeatureConfigConsistency :: TestM ()
+testFeatureConfigConsistency = do
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
+  allFeaturesRes <- Util.getAllFeatureConfigs member >>= parseObjectKeys
+  liftIO $ allFeaturesRes `shouldBe` allFeatures
+
+  allTeamFeaturesRes <- Util.getAllTeamFeatures member tid >>= parseObjectKeys
+
+  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
+    liftIO $ expectationFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
+
+  pure ()
+  where
+    parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
+    parseObjectKeys res = do
+      case responseJsonEither res of
+        Left err -> liftIO $ assertFailure ("Did not parse as an object" <> err)
+        Right (val :: Aeson.Value) ->
+          case val of
+            (Aeson.Object hm) -> pure (Set.fromList . HashSet.toList . HashMap.keysSet $ hm)
+            x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
+
+    featureKey :: forall (a :: TeamFeatureName). (KnownTeamFeatureName a, KnownSymbol (KnownTeamFeatureNameSymbol a)) => Text
+    featureKey = Text.pack $ symbolVal (Proxy @(KnownTeamFeatureNameSymbol a))
+
+    allFeatures :: Set.Set Text
+    allFeatures =
+      Set.fromList
+        [ featureKey @'TeamFeatureLegalHold,
+          featureKey @'TeamFeatureSSO,
+          featureKey @'TeamFeatureSearchVisibility,
+          featureKey @'TeamFeatureValidateSAMLEmails,
+          featureKey @'TeamFeatureDigitalSignatures,
+          featureKey @'TeamFeatureAppLock,
+          featureKey @'TeamFeatureFileSharing,
+          featureKey @'TeamFeatureClassifiedDomains
+        ]
+
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do
   res !!! do
@@ -379,49 +422,3 @@ assertFlagWithConfig response expected = do
   liftIO $ do
     fmap Public.tfwcStatus rJson @?= (Right . Public.tfwcStatus $ expected)
     fmap Public.tfwcConfig rJson @?= (Right . Public.tfwcConfig $ expected)
-
-testGetAllFeature :: HasCallStack => TestM ()
-testGetAllFeature = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
-
-  allFeaturesRes <- Util.getAllFeatureConfigs member >>= parseObjectKeys
-  liftIO $ allFeaturesRes `shouldBe` allFeatures
-
-  allTeamFeaturesRes <- Util.getAllTeamFeatures member tid >>= parseObjectKeys
-  liftIO $ allTeamFeaturesRes `shouldBe` allTeamFeatures
-
-  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
-    liftIO $ expectationFailure (show allTeamFeatures <> " is not a subset of " <> show allFeaturesRes)
-
-  pure ()
-  where
-    parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
-    parseObjectKeys res = do
-      case responseJsonEither res of
-        Left err -> liftIO $ assertFailure ("Did not parse as an object" <> err)
-        Right (val :: Aeson.Value) ->
-          case val of
-            (Aeson.Object hm) -> pure (Set.fromList . HashSet.toList . HashMap.keysSet $ hm)
-            x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
-
-    featureKey :: forall (a :: TeamFeatureName). (KnownTeamFeatureName a, KnownSymbol (KnownTeamFeatureNameSymbol a)) => Text
-    featureKey = Text.pack $ symbolVal (Proxy @(KnownTeamFeatureNameSymbol a))
-
-    allFeatures :: Set.Set Text
-    allFeatures =
-      Set.fromList
-        [ featureKey @'TeamFeatureLegalHold,
-          featureKey @'TeamFeatureSSO,
-          featureKey @'TeamFeatureSearchVisibility,
-          featureKey @'TeamFeatureValidateSAMLEmails,
-          featureKey @'TeamFeatureDigitalSignatures,
-          featureKey @'TeamFeatureAppLock,
-          featureKey @'TeamFeatureFileSharing
-        ]
-
-    allTeamFeatures :: Set.Set Text
-    allTeamFeatures = allFeatures
