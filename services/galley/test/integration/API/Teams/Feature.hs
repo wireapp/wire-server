@@ -318,9 +318,7 @@ assertFlagWithConfig ::
     ToSchema cfg,
     Show cfg,
     Typeable cfg,
-    HasGalley m,
     MonadIO m,
-    MonadHttp m,
     MonadCatch m
   ) =>
   m ResponseLBS ->
