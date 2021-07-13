@@ -497,7 +497,7 @@ sitemap = do
       .&. capture "tid"
       .&. accept "application" "json"
   document "GET" "getAllFeatures" $ do
-    summary "Deprecated. Use /feature-configs instead. Shows the configuration status of every team feature"
+    summary "Shows the configuration status of every team feature"
     parameter Path "tid" bytes' $
       description "Team ID"
     response 200 "All feature statuses" end
