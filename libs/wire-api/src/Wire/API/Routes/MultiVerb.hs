@@ -317,7 +317,7 @@ instance
         let i = index_NS output
             cs = responseListContentTypes @as !! i
         resp <- case matchContentType cs (getAcceptHeader req) of
-          Nothing -> RouteResultT . pure $ Fail err406
+          Nothing -> RouteResultT . pure $ FailFatal err406
           Just (j, c) -> pure (roAddContentType c (responseListRender @as output !! j))
         let resp'
               | allowedMethodHead method req = resp {roBody = mempty}
