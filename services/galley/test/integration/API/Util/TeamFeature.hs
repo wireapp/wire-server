@@ -122,7 +122,7 @@ getFeatureConfigWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.T
 getFeatureConfigWithGalley feature galley uid = do
   get $
     galley
-      . paths ["feature-config", toByteString' feature]
+      . paths ["feature-configs", toByteString' feature]
       . zUser uid
 
 getAllFeatureConfigs :: HasCallStack => UserId -> TestM ResponseLBS

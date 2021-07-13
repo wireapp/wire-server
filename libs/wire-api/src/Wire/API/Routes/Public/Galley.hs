@@ -402,7 +402,7 @@ type FeatureStatusDeprecatedPut featureName =
 type FeatureConfigGet featureName =
   Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
     :> ZUser
-    :> "feature-config"
+    :> "feature-configs"
     :> KnownTeamFeatureNameSymbol featureName
     :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
 
