@@ -22,6 +22,7 @@ import Data.Attoparsec.ByteString.Lazy (parseOnly)
 import Data.ByteString.Conversion (FromByteString (..), toByteString')
 import Data.Csv (DefaultOrdered (..), FromNamedRecord (..), Parser, ToNamedRecord (..), namedRecord, (.:))
 import Data.Handle (Handle)
+import Data.Id (UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Misc (HttpsUrl)
 import Data.String.Conversions (cs)
@@ -46,7 +47,8 @@ data TeamExportUser = TeamExportUser
     tExportManagedBy :: ManagedBy,
     tExportSAMLNamedId :: Text, -- If SAML IdP and SCIM peer are set up correctly, 'tExportSAMLNamedId' and 'tExportSCIMExternalId' always align.
     tExportSCIMExternalId :: Text,
-    tExportSCIMRichInfo :: Maybe RichInfo
+    tExportSCIMRichInfo :: Maybe RichInfo,
+    tExportUserId :: UserId
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TeamExportUser)
@@ -64,7 +66,8 @@ instance ToNamedRecord TeamExportUser where
         ("managed_by", toByteString' (tExportManagedBy row)),
         ("saml_name_id", toByteString' (tExportSAMLNamedId row)),
         ("scim_external_id", toByteString' (tExportSCIMExternalId row)),
-        ("scim_rich_info", maybe "" (cs . Aeson.encode) (tExportSCIMRichInfo row))
+        ("scim_rich_info", maybe "" (cs . Aeson.encode) (tExportSCIMRichInfo row)),
+        ("user_id", toByteString' (tExportUserId row))
       ]
 
 instance DefaultOrdered TeamExportUser where
@@ -81,7 +84,8 @@ instance DefaultOrdered TeamExportUser where
           "managed_by",
           "saml_name_id",
           "scim_external_id",
-          "scim_rich_info"
+          "scim_rich_info",
+          "user_id"
         ]
 
 allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
@@ -108,3 +112,4 @@ instance FromNamedRecord TeamExportUser where
       <*> (nrec .: "saml_name_id" >>= parseByteString)
       <*> (nrec .: "scim_external_id" >>= parseByteString)
       <*> (nrec .: "scim_rich_info" >>= allowEmpty (maybe (fail "failed to decode RichInfo") pure . Aeson.decode . cs))
+      <*> (nrec .: "user_id" >>= parseByteString)
