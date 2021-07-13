@@ -33,7 +33,12 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.ErrorDescription (ClientNotFound, ErrorDescription, HandleNotFound)
+import Wire.API.ErrorDescription
+  ( ClientNotFound,
+    EmptyErrorForLegacyReasons,
+    ErrorDescription,
+    HandleNotFound,
+  )
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.User
@@ -56,7 +61,7 @@ type UserExistsVerb =
      ]
     Bool
 
-type UserGetVerb =
+type GetUserVerb =
   MultiVerb
     'GET
     '[ ErrorDescription 404 "user-not-found" "User not found",
@@ -103,7 +108,7 @@ data Api routes = Api
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> UserGetVerb,
+        :> GetUserVerb,
     -- See Note [ephemeral user sideeffect]
     getUserQualified ::
       routes
@@ -112,7 +117,7 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> UserGetVerb,
+        :> GetUserVerb,
     getSelf ::
       routes
         :- Summary "Get your own profile"
@@ -312,11 +317,16 @@ data Api routes = Api
         :> "clients"
         :> Get '[JSON] [Client],
     getClient ::
-      routes :- Summary "Get a register client by ID"
+      routes :- Summary "Get a registered client by ID"
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"
-        :> UVerb 'GET '[JSON] GetClientResponse,
+        :> MultiVerb
+             'GET
+             '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                Respond '[JSON] 200 "Client found" Client
+              ]
+             (Maybe Client),
     getClientCapabilities ::
       routes :- Summary "Read back what the client has been posting about itself"
         :> ZUser

@@ -25,6 +25,8 @@ module Wire.API.Routes.MultiVerb
     AsHeaders (..),
     AsUnion (..),
     IsResponse (..),
+    RenderOutput (..),
+    ResponseSwagger (..),
     IsResponseList (..),
   )
 where

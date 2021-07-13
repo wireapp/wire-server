@@ -797,12 +797,8 @@ listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClient :: UserId -> ClientId -> Handler (Union BrigAPI.GetClientResponse)
-getClient zusr clientId = do
-  mc <- lift $ API.lookupLocalClient zusr clientId
-  case mc of
-    Nothing -> throwEmptyForLegacyReasons status404
-    Just c -> Servant.respond (WithStatus @200 c)
+getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
+getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
 
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
 getUserClientsUnqualified uid = do

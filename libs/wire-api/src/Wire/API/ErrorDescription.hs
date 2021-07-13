@@ -12,7 +12,7 @@ import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
 import Servant hiding (Handler, addHeader, contentType, respond)
-import Servant.API.Status (KnownStatus)
+import Servant.API.Status (KnownStatus, statusVal)
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
 import Wire.API.ServantSwagger
@@ -176,6 +176,43 @@ instance
     (Maybe a)
   where
   asUnion Nothing = Z (I mkErrorDescription)
+  asUnion (Just x) = S (Z (I x))
+
+-- * Empty errors for legacy reasons
+
+data EmptyErrorForLegacyReasons s desc
+
+instance
+  ( KnownStatus s,
+    KnownSymbol desc
+  ) =>
+  IsResponse (EmptyErrorForLegacyReasons s desc)
+  where
+  type ResponseContentTypes (EmptyErrorForLegacyReasons s desc) = '[PlainText]
+  type ResponseType (EmptyErrorForLegacyReasons s desc) = ()
+
+  responseRender () = [RenderOutput (statusVal (Proxy @s)) mempty mempty]
+  responseSwagger =
+    pure $
+      ResponseSwagger
+        { rsDescription =
+            Text.pack (symbolVal (Proxy @desc)) <> "\n\n"
+              <> "**Note**: This error has an empty body for legacy reasons",
+          rsStatus = statusVal (Proxy @s),
+          rsHeaders = mempty,
+          rsSchema = Nothing
+        }
+
+instance
+  ( ResponseType r ~ a,
+    KnownStatus s,
+    KnownSymbol desc
+  ) =>
+  AsUnion
+    '[EmptyErrorForLegacyReasons s desc, r]
+    (Maybe a)
+  where
+  asUnion Nothing = Z (I ())
   asUnion (Just x) = S (Z (I x))
 
 -- * Errors
