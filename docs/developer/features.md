@@ -12,13 +12,21 @@ feature itself, e.g:
 - Customer support via the backoffice tool
 - Site administrators by changing a configuration file on the server
 
-Depending on the feature the configuration is defined for all users on the
-server (per-instance), per-team, or per-user.
+Depending on the feature the configuration can be defined
 
-## Feature configurations API
+1. for all users on the server (per-instance)
+2. per-team
+3. or per-user
 
-The Feature configurations API uniformly exposes all features with their
-configuration per user:
+or a combination of all three levels, where configuration on a per-user level
+may override configuration defined for the the team, which may override
+configuration defined at the instance level.
+
+## Feature Configuration API
+
+The Feature configurations API exposes the feature configuration that results
+from combining the settings (per-instance, per-team, per-user) for the user that
+queries the endpoint:
 
 `GET /feature-configs/:feature-name`
 
@@ -26,13 +34,14 @@ configuration per user:
 {
   "status": "enabled" /* or "disabled" */
   "config": {
-    /* this object depends on the feature */
+    /* ... */
   }
 }
 ```
 where the optional `config` field contains settings that are specific to the feature.
 
-The configurations for all features are exposed via `GET /feature-configs`
+The configurations for all features can be obtained all at once via `GET
+/feature-configs`
 
 ```javascript
 {
@@ -53,15 +62,14 @@ The configurations for all features are exposed via `GET /feature-configs`
 }
 ```
 
-Note: The implemenation of these endpoints is re-using the types from
-`Wire.API.Team.Feature` (Team Features API).
+Note: The implemenation of the Feature Configuration API is re-using the types
+from `Wire.API.Team.Feature` (Team Features API).
 
 ## Team Features API
 
 The Team features API preceedes the notion of the feature configuration API. The
-endpoints of the form `GET /teams/:tid/features/:feature-name` are deprecated in
-favor of `GET /feature-config/:feature-name`. Features that are defined per-team
-are be configured via `PUT /teams/:tid/features/:feature-name` endpoint. The
-motivation for introducing the Feature configurations API was to generalize team
-features to features that may be defined per-instance or per-user, which
-wouldn't fit the notion of team feature.
+endpoints of the form `GET /teams/:tid/features/:feature-name` and `PUT
+/teams/:tid/features/:feature-name` can be used to get and set the feature
+configuration on a per-team level. Features that cannot be get and set on a
+per-team level may be missing from the Team Features API. See the Swagger
+documentation on what endpoints are available.
