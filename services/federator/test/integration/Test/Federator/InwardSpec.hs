@@ -86,6 +86,17 @@ spec env =
         bdy <- asInwardBody =<< inwardBrigCall "federation/get-user-by-handle" (encode hdl)
         liftIO $ bdy `shouldBe` expectedProfile
 
+    it "should be able to call brig via ingress" $
+      runTestFederator env $ do
+        brig <- view teBrig <$> ask
+        user <- randomUser brig
+        hdl <- randomHandle
+        _ <- putHandle brig (userId user) hdl
+
+        let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        bdy <- asInwardBody =<< inwardBrigCallViaIngress "federation/get-user-by-handle" (encode hdl)
+        liftIO $ bdy `shouldBe` expectedProfile
+
     it "should give an InvalidEndpoint error on a 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
         err <- asInwardError =<< inwardBrigCall "federation/this-endpoint-does-not-exist" (encode Aeson.emptyObject)

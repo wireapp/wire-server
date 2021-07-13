@@ -42,7 +42,7 @@ nginz:
 # federator@B ---> load balancer ---> nginx-ingress (TLS termination) ----> federator@A ---> brig@A
 # (for local integration tests, we (ab)use nginz as a stand-in kube-ingress for TLS-aware tests)
 nginxIngress:
-  host: 127.0.0.1
+  host: localhost
   port: 8443
 
 federatorInternal:
