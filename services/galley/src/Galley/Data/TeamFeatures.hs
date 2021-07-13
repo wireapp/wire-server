@@ -62,6 +62,8 @@ instance HasStatusCol 'TeamFeatureDigitalSignatures where statusCol = "digital_s
 
 instance HasStatusCol 'TeamFeatureAppLock where statusCol = "app_lock_status"
 
+instance HasStatusCol 'TeamFeatureFileSharing where statusCol = "file_sharing"
+
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,

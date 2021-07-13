@@ -28,7 +28,12 @@
 
 ## Features
 
+* `fileSharing` feature config (#1652)
+
 ## Bug fixes and other updates
+
+* New, hardened end-point for changing email
+* Remove old end-point for changing email
 
 ## Documentation
 

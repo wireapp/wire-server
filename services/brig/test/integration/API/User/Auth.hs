@@ -38,7 +38,7 @@ import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
 import Control.Lens (set, (^.))
 import Control.Retry
-import Data.Aeson
+import Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -130,6 +130,11 @@ tests conf m z b g n =
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
           test m "suspend-inactive" (testSuspendInactiveUsers conf b)
+        ],
+      testGroup
+        "update /access/self/email"
+        [ test m "valid token (idempotency case)" (testAccessSelfEmailAllowed n b),
+          test m "invalid or missing token" (testAccessSelfEmailDenied z n b)
         ],
       testGroup
         "cookies"
@@ -367,33 +372,6 @@ testLoginFailure brig = do
   let badmail = Email "wrong" "wire.com"
   login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing) PersistentCookie
     !!! const 403 === statusCode
-  -- Create user with only phone number
-  p <- randomPhone
-  let newUser =
-        RequestBodyLBS . encode $
-          object
-            [ "name" .= ("Alice" :: Text),
-              "phone" .= fromPhone p
-            ]
-  res <-
-    post (brig . path "/i/users" . contentJson . Http.body newUser)
-      <!! const 201 === statusCode
-  uid <- userId <$> responseJsonError res
-  eml <- randomEmail
-  -- Add email
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . Http.body emailUpdate)
-    !!! (const 202 === statusCode)
-  -- Activate
-  act <- getActivationCode brig (Left eml)
-  case act of
-    Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> do
-      activate brig kc !!! const 200 === statusCode
-      -- Attempt to log in without having set a password
-      login brig (defEmailLogin eml) PersistentCookie !!! do
-        const 403 === statusCode
-        const (Just "invalid-credentials") === errorLabel
 
 testThrottleLogins :: Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
@@ -661,6 +639,70 @@ testTokenMismatchLegalhold z brig galley = do
   post (brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
+
+-- | This only tests access; the logic is tested in 'testEmailUpdate' in `Account.hs`.
+testAccessSelfEmailAllowed :: Nginz -> Brig -> Http ()
+testAccessSelfEmailAllowed nginz brig = do
+  -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
+  forM_ [True, False] $ \withCookie -> do
+    usr <- randomUser brig
+    let Just email = userEmail usr
+    (mbCky, tok) <- do
+      rsp <-
+        login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
+          <!! const 200 === statusCode
+      pure
+        ( if withCookie then Just (decodeCookie rsp) else Nothing,
+          decodeToken rsp
+        )
+    let req =
+          nginz
+            . path "/access/self/email"
+            . maybe id cookie mbCky
+            . header "Authorization" ("Bearer " <> toByteString' tok)
+
+    put (req . Bilge.json ())
+      !!! const (if withCookie then 400 else 403) === statusCode
+    put (req . Bilge.json (EmailUpdate email))
+      !!! const (if withCookie then 204 else 403) === statusCode
+
+testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Http ()
+testAccessSelfEmailDenied zenv nginz brig = do
+  -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
+  forM_ [True, False] $ \withCookie -> do
+    mbCky <-
+      if withCookie
+        then do
+          usr <- randomUser brig
+          let Just email = userEmail usr
+          rsp <-
+            login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
+              <!! const 200 === statusCode
+          pure
+            (if withCookie then Just (decodeCookie rsp) else Nothing)
+        else do
+          pure Nothing
+    tok <- runZAuth zenv (randomAccessToken @ZAuth.User @ZAuth.Access)
+    let req =
+          nginz
+            . path "/access/self/email"
+            . Bilge.json ()
+            . maybe id cookie mbCky
+
+    put req
+      !!! errResponse withCookie "invalid-credentials" "Missing access token"
+    put (req . header "Authorization" "xxx")
+      !!! errResponse withCookie "invalid-credentials" "Missing access token"
+    put (req . header "Authorization" "Bearer xxx")
+      !!! errResponse withCookie "client-error" "invalid: Invalid access token"
+    put (req . header "Authorization" ("Bearer " <> toByteString' tok))
+      !!! errResponse withCookie "invalid-credentials" "Invalid token"
+  where
+    errResponse withCookie label msg = do
+      const 403 === statusCode
+      when withCookie $ do
+        const (Just label) =~= responseBody
+        const (Just msg) =~= responseBody
 
 -- | We are a little bit nasty on this test. For most cases, one can use brig and nginz interchangeably.
 --   In this case, the issue relates to the usage of `getAndTestDBSupersededCookieAndItsValidSuccessor`.

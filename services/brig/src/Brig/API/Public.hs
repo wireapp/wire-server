@@ -269,21 +269,6 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
 
-  put "/self/email" (continue changeSelfEmailH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.EmailUpdate
-  document "PUT" "changeEmail" $ do
-    Doc.summary "Change your email address"
-    Doc.body (Doc.ref Public.modelEmailUpdate) $
-      Doc.description "JSON body"
-    Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
-    Doc.response 204 "No update, current and new email address are the same." Doc.end
-    Doc.errorResponse invalidEmail
-    Doc.errorResponse userKeyExists
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
-
   put "/self/phone" (continue changePhoneH) $
     zauthUserId
       .&. zauthConnId
@@ -1159,13 +1144,6 @@ customerExtensionCheckBlockedDomains email = do
       Right domain ->
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
-
-changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
-changeSelfEmailH (u ::: _ ::: req) = do
-  email <- Public.euEmail <$> parseJsonBody req
-  API.changeSelfEmail u email API.ForbidSCIMUpdates >>= \case
-    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
-    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
 createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.ConnectionRequest -> Handler Response
 createConnectionH (_ ::: self ::: conn ::: req) = do

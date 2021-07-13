@@ -131,6 +131,10 @@ servantSitemap =
         GalleyAPI.teamFeatureStatusAppLockPut =
           setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal
             . DoAuth,
+        GalleyAPI.teamFeatureStatusFileSharingGet =
+          getFeatureStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusFileSharingPut =
+          setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth,
         GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
           getFeatureStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
             . DoAuth

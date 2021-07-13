@@ -37,7 +37,7 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Lens ((^.), (^?), (^?!))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
@@ -799,6 +799,12 @@ retryWhileN n f m =
   retrying
     (constantDelay 1000000 <> limitRetries n)
     (const (return . f))
+    (const m)
+
+recoverN :: (MonadIO m, MonadMask m) => Int -> m a -> m a
+recoverN n m =
+  recoverAll
+    (constantDelay 1000000 <> limitRetries n)
     (const m)
 
 -- | This allows you to run requests against a brig instantiated using the given options.

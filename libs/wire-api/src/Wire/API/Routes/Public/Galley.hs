@@ -318,6 +318,12 @@ data Api routes = Api
     teamFeatureStatusAppLockPut ::
       routes
         :- FeatureStatusPut 'TeamFeatureAppLock,
+    teamFeatureStatusFileSharingGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureFileSharing,
+    teamFeatureStatusFileSharingPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureFileSharing,
     teamFeatureStatusClassifiedDomainsGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureClassifiedDomains

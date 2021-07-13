@@ -45,8 +45,9 @@ tests s =
     [ test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
-      test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures,
-      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails,
+      test s "DigitalSignatures" $ testSimpleFlag @'Public.TeamFeatureDigitalSignatures Public.TeamFeatureDisabled,
+      test s "ValidateSAMLEmails" $ testSimpleFlag @'Public.TeamFeatureValidateSAMLEmails Public.TeamFeatureDisabled,
+      test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled
     ]
@@ -247,8 +248,9 @@ testSimpleFlag ::
     FromJSON (Public.TeamFeatureStatus a),
     ToJSON (Public.TeamFeatureStatus a)
   ) =>
+  Public.TeamFeatureStatusValue ->
   TestM ()
-testSimpleFlag = do
+testSimpleFlag defaultValue = do
   let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
   member <- Util.randomUser
@@ -271,14 +273,18 @@ testSimpleFlag = do
 
   assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
-  -- Disabled by default
-  getFlag Public.TeamFeatureDisabled
-  getFlagInternal Public.TeamFeatureDisabled
+  let otherValue = case defaultValue of
+        Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
+        Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
 
-  -- Settting should work
-  setFlagInternal Public.TeamFeatureEnabled
-  getFlag Public.TeamFeatureEnabled
-  getFlagInternal Public.TeamFeatureEnabled
+  -- Disabled by default
+  getFlag defaultValue
+  getFlagInternal defaultValue
+
+  -- Setting should work
+  setFlagInternal otherValue
+  getFlag otherValue
+  getFlagInternal otherValue
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do
