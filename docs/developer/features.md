@@ -14,9 +14,9 @@ feature itself, e.g:
 
 Depending on the feature the configuration can be defined
 
-1. for all users on the server (per-instance)
-2. per-team
-3. or per-user
+- for all users on the server (per-instance)
+- per-team
+- or per-user
 
 or a combination of all three levels, where configuration on a per-user level
 may override configuration defined for the the team, which may override
