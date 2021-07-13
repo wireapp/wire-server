@@ -22,6 +22,7 @@ module Federator.Remote where
 import Data.Default (def)
 import Data.Domain (Domain, domainText)
 import Data.String.Conversions (cs)
+import Data.X509.CertificateStore
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply)
@@ -31,10 +32,12 @@ import Network.GRPC.Client.Helpers
 import Network.TLS
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
+import Paths_federator
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
+import System.X509
 import Wire.API.Federation.GRPC.Client
 import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
@@ -93,10 +96,20 @@ mkGrpcClient target@(SrvTarget host port) = do
           TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
           TLS.cipher_ECDHE_RSA_AES128CBC_SHA256
         ]
+
+  -- TODO: read this path from config file
+  let caPath = "../../deploy/services-demo/conf/nginz/integration-ca.pem" :: FilePath
+  -- FUTUREWORK: review if a fallback to system trust store is a good idea
+  customTrustStore <-
+    embed $
+      readCertificateStore caPath
+        >>= maybe getSystemCertificateStore pure
+
   let betterTLSConfig =
         (defaultParamsClient (cs host) (cs $ show port))
           { TLS.clientSupported = def {TLS.supportedCiphers = blessed_ciphers},
-            TLS.clientHooks = def -- FUTUREWORK: use onCertificateRequest to provide client certificates
+            TLS.clientHooks = def, -- FUTUREWORK: use onCertificateRequest to provide client certificates
+            TLS.clientShared = def {TLS.sharedCAStore = customTrustStore}
           }
   let cfg' = cfg {_grpcClientConfigTLS = Just betterTLSConfig}
   eitherClient <- createGrpcClient cfg'

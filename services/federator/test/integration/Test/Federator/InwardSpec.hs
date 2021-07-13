@@ -122,13 +122,6 @@ spec env =
         err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/../i/users" (encode o)
         expectErr IForbiddenEndpoint err
 
--- it "can connect?" $
---   runTestFederator env $ do
---     ingress <- viewIngress
---     undefined
--- err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/../i/users" (encode o)
--- expectErr IForbiddenEndpoint err
-
 -- Utility functions
 --
 expectErr :: InwardErrorType -> InwardError -> TestFederator IO ()
