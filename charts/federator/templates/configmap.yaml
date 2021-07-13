@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: "federator"
   labels:
-    wireService: fedrator
+    wireService: federator
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -40,6 +40,11 @@ data:
 
     {{- with .optSettings }}
     optSettings:
+      # Filepath to one or more PEM-encoded server certificates to use as a trust
+      # store when making grpc requests to remote backends
+      {{- if $.Values.remoteCAContents }}
+      remoteCAStore: {{ .remoteCAStore }}
+      {{- end }}
       setFederationStrategy:
         {{- if .setFederationStrategy.allowAll }}
         allowAll:

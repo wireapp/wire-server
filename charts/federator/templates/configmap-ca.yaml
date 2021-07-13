@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "federator-ca"
+  labels:
+    wireService: federator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  # TODO: add validation and fail early during templating: either contents should be provided; or explicitly system trust store enabled
+  {{- if .Values.remoteCAContents }}
+  remote-ca.pem: {{ .Values.remoteCAContents | b64enc | quote }}
+  {{- end }}
