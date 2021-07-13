@@ -47,7 +47,7 @@ Caveats:
    Pending:
      * Server2server authentication
      * Other conversation features (removing users, archived/muted, ...)
-     * 1on1 connections and true 1on1 conversations
+     * connections
      * federation API versioning strategy
 
 M(N) | N >1
@@ -63,4 +63,4 @@ M(N) | N >1
 * support better message delivery guarantees
 * support more platforms (Android)
 * support for wire-server installations to federate with wire.com
-* support for better encryption primitives (MLS)
+* MLS support
