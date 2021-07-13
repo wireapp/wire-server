@@ -24,6 +24,7 @@ import Data.Domain (Domain, domainText)
 import Data.String.Conversions (cs)
 import Data.X509.CertificateStore
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
+import Federator.Options
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply)
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
@@ -32,8 +33,8 @@ import Network.GRPC.Client.Helpers
 import Network.TLS
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
-import Paths_federator
 import Polysemy
+import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
@@ -52,7 +53,7 @@ data Remote m a where
 
 makeSem ''Remote
 
-interpretRemote :: (Members [Embed IO, DiscoverFederator, TinyLog] r) => Sem (Remote ': r) a -> Sem r a
+interpretRemote :: (Members [Embed IO, DiscoverFederator, TinyLog, Polysemy.Reader RunSettings] r) => Sem (Remote ': r) a -> Sem r a
 interpretRemote = interpret $ \case
   DiscoverAndCall ValidatedFederatedRequest {..} -> do
     eitherTarget <- discoverFederator vDomain
@@ -78,7 +79,7 @@ callInward client request =
 -- FUTUREWORK(federation): Allow a configurable trust store to be used in TLS certificate validation
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
-mkGrpcClient :: Members '[Embed IO, TinyLog] r => SrvTarget -> Sem r (Either RemoteError GrpcClient)
+mkGrpcClient :: Members '[Embed IO, TinyLog, Polysemy.Reader RunSettings] r => SrvTarget -> Sem r (Either RemoteError GrpcClient)
 mkGrpcClient target@(SrvTarget host port) = do
   -- FUTUREWORK(federation): grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates and there's no way
   -- to change that (at least not when using the default functions from mu or http2-grpc-client)
@@ -97,9 +98,9 @@ mkGrpcClient target@(SrvTarget host port) = do
           TLS.cipher_ECDHE_RSA_AES128CBC_SHA256
         ]
 
-  -- TODO: read this path from config file
-  let caPath = "../../deploy/services-demo/conf/nginz/integration-ca.pem" :: FilePath
+  caPath <- Polysemy.asks remoteCAStore
   -- FUTUREWORK: review if a fallback to system trust store is a good idea
+  -- TODO: read config at startup and fail early if the path is wrong
   customTrustStore <-
     embed $
       readCertificateStore caPath

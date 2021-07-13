@@ -36,11 +36,13 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Federator.Options
 import Federator.Remote (mkGrpcClient)
 import Imports
 import Mu.GRpc.Client.TyApps
 import Polysemy (Sem)
 import qualified Polysemy
+import qualified Polysemy.Reader as Polysemy
 import qualified Polysemy.TinyLog as Polysemy
 import System.Random
 import Test.Federator.Util
@@ -177,7 +179,8 @@ inwardBrigCallViaIngress :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasC
 inwardBrigCallViaIngress requestPath payload = do
   Endpoint ingressHost ingressPort <- viewIngress
   let target = SrvTarget (cs ingressHost) ingressPort
-  c <- discardLogging $ mkGrpcClient target
+  runSettings <- optSettings . view teOpts <$> ask
+  c <- discardLogging . Polysemy.runReader runSettings $ mkGrpcClient target
   client <- case c of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli
