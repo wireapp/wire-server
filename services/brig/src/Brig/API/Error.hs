@@ -217,7 +217,7 @@ propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
 
 clientDataError :: ClientDataError -> Error
-clientDataError TooManyClients = StdError tooManyClients
+clientDataError TooManyClients = StdError (errorDescriptionToWai tooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError missingAuthError
 clientDataError MalformedPrekeys = StdError malformedPrekeys
@@ -258,9 +258,6 @@ connectionLimitReached = Wai.mkError status403 "connection-limit" "Too many sent
 
 missingAuthError :: Wai.Error
 missingAuthError = Wai.mkError status403 "missing-auth" "Re-authentication via password required."
-
-tooManyClients :: Wai.Error
-tooManyClients = Wai.mkError status403 "too-many-clients" "Too many clients"
 
 malformedPrekeys :: Wai.Error
 malformedPrekeys = Wai.mkError status400 "bad-request" "Malformed prekeys uploaded."

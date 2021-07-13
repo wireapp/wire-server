@@ -34,10 +34,11 @@ import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.ErrorDescription
-  ( ClientNotFound,
+  ( CanThrow,
     EmptyErrorForLegacyReasons,
     ErrorDescription,
     HandleNotFound,
+    TooManyClients,
   )
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
@@ -49,8 +50,6 @@ import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
-
-type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
 
 type UserExistsVerb =
   MultiVerb
@@ -75,16 +74,8 @@ type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
-type GetClientResponse = [WithStatus 200 Client, ClientNotFound]
-
 data Api routes = Api
-  { -- Note [document responses]
-    --
-    -- Ideally we want to document responses with UVerb and swagger, but this is
-    -- currently not possible due to this issue:
-    -- https://github.com/haskell-servant/servant/issues/1369
-
-    -- See Note [ephemeral user sideeffect]
+  { -- See Note [ephemeral user sideeffect]
     checkUserExistsUnqualified ::
       routes
         :- Summary "Check if a user ID exists (deprecated)"
@@ -282,11 +273,11 @@ data Api routes = Api
     -- This endpoint can lead to the following events being sent:
     -- - ClientAdded event to self
     -- - ClientRemoved event to self, if removing old clients due to max number
-    --   Doc.errorResponse tooManyClients
     --   Doc.errorResponse missingAuthError
     --   Doc.errorResponse malformedPrekeys
     addClient ::
       routes :- Summary "Register a new client"
+        :> CanThrow TooManyClients
         :> ZUser
         :> ZConn
         :> "clients"
