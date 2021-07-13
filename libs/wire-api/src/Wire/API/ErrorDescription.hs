@@ -13,7 +13,6 @@ import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import Servant.API.Status (KnownStatus)
 import Servant.Swagger.Internal
-import Wire.API.ServantSwagger
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
