@@ -28,6 +28,7 @@ module Wire.API.Routes.MultiVerb
 where
 
 import Control.Lens hiding (Context)
+import Data.Containers.ListUtils
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.Proxy
 import Data.SOP
@@ -242,7 +243,7 @@ instance
         ?~ ( mempty
                & method
                  ?~ ( mempty
-                        & S.produces ?~ S.MimeList cs
+                        & S.produces ?~ S.MimeList (nubOrd cs)
                         & S.responses .~ foldr addResponse mempty responses
                     )
            )
