@@ -658,6 +658,8 @@ testMissingClient brig = do
     const 404 === statusCode
     -- This is unfortunate, but fixing this breaks clients.
     const Nothing === responseBody
+    const ["text/plain;charset=utf-8"]
+      === map snd . filter ((== "Content-Type") . fst) . responseHeaders
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
