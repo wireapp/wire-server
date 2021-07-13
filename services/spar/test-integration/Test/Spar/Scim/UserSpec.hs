@@ -41,6 +41,7 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
@@ -49,6 +50,7 @@ import Data.Id (UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
@@ -1665,16 +1667,29 @@ specSCIMManaged = do
     it "cannot manually update their email, handle or name" $ do
       env <- ask
       let brig = env ^. teBrig
+      let nginz = env ^. teNginz
 
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
+      (tok, (_ownerid, teamid, idp, (_, privCreds))) <- registerIdPAndScimTokenWithMeta
+      enableSamlEmailValidation teamid
+      (user, oldEmail) <- randomScimUserWithEmail
       storedUser <- createUser tok user
-      let uid = Scim.id . Scim.thing $ storedUser
+      let uid :: UserId = Scim.id . Scim.thing $ storedUser
+      call $ activateEmail brig oldEmail
+      let Right nameid = SAML.emailNameID $ fromEmail oldEmail
+      (_, cky) <- loginCreatedSsoUser nameid idp privCreds
+      sessiontok <- do
+        let decodeToken :: HasCallStack => ResponseLBS -> ZAuth.Token ZAuth.Access
+            decodeToken r = fromMaybe (error "invalid access_token") $ do
+              x <- responseBody r
+              t <- x ^? key "access_token" . _String
+              fromByteString (encodeUtf8 t)
+        resp <- call $ post (nginz . path "/access" . cookie cky) <!! const 200 === statusCode
+        pure $ decodeToken resp
 
       do
-        email <- randomEmail
+        newEmail <- randomEmail
         call $
-          changeEmailBrig brig uid email !!! do
+          changeEmailBrigCreds brig cky sessiontok newEmail !!! do
             (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
 

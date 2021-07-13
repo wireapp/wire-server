@@ -26,3 +26,10 @@ data:
       cert: /etc/wire/integration-secrets/provider-publiccert.pem
       botHost: https://galley-integration
       botPort: 9000
+
+    nginz:
+      # Full URL is set so that there can be a common cookiedomain between nginz and brig
+      # needed by some integration tests
+      host: nginz-integration-http.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+

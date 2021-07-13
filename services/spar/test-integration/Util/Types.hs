@@ -28,6 +28,7 @@ module Util.Types
     teBrig,
     teGalley,
     teSpar,
+    teNginz,
     teSparEnv,
     teOpts,
     teTstOpts,
@@ -60,6 +61,8 @@ type GalleyReq = Request -> Request
 
 type SparReq = Request -> Request
 
+type NginzReq = Request -> Request
+
 type TestSpar = ReaderT TestEnv IO
 
 instance MonadRandom TestSpar where
@@ -72,6 +75,7 @@ data TestEnv = TestEnv
     _teBrig :: BrigReq,
     _teGalley :: GalleyReq,
     _teSpar :: SparReq,
+    _teNginz :: NginzReq,
     _teSparEnv :: Spar.Env,
     -- | spar config
     _teOpts :: Opts,
@@ -85,6 +89,7 @@ data IntegrationConfig = IntegrationConfig
   { cfgBrig :: Endpoint,
     cfgGalley :: Endpoint,
     cfgSpar :: Endpoint,
+    cfgNginz :: Endpoint,
     cfgBrigSettingsTeamInvitationTimeout :: Int
   }
   deriving (Show, Generic)
