@@ -209,10 +209,15 @@ def main():
 
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
 
-    # packages_topo_order = ['services/brig', 'services/galley']
-    packages_topo_order = read_dep_dag(exceptions=['wire-message-proto-lens'])
+    # NOTE: wire-message-proto-lens cant be merged because of non-trivial Setup.hs
+    # removing it from the dag doesn't work.
+    #
+    # TODO: Find a way to exclude packages from the merge.
+    packages_topo_order = read_dep_dag(exceptions=[''])
 
-    for package in packages_topo_order:
+    for package in packages_topo_order[:20]:
+        if package == 'libs/wire-message-proto-lens':
+            break
         print(package)
         merge_projects(package, 'wire-server')
 
