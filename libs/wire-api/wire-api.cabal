@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2251f880e3249b06818d681ec80ae01c91a9221da3ba0c4211a73a2d4e221e2
+-- hash: 7d12ceb951b318f962720427f6d9719519170e7acaca31ef012e1bee0c470f56
 
 name:           wire-api
 version:        0.1.0
@@ -139,6 +139,8 @@ library
     , saml2-web-sso
     , schema-profunctor
     , servant
+    , servant-client
+    , servant-client-core
     , servant-multipart
     , servant-server
     , servant-swagger

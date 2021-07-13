@@ -59,6 +59,8 @@ library:
   - resourcet
   - saml2-web-sso
   - servant
+  - servant-client
+  - servant-client-core
   - servant-multipart
   - servant-server
   - servant-swagger

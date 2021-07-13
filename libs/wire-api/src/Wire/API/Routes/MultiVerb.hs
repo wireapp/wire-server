@@ -34,6 +34,7 @@ import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.Proxy
 import Data.SOP
 import Data.SOP.NS
+import qualified Data.Sequence as Seq
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as Text
@@ -42,11 +43,13 @@ import Imports
 import qualified Network.HTTP.Media as M
 import Network.HTTP.Types (HeaderName, hContentType)
 import Network.HTTP.Types.Status
-import Network.Wai (Response, responseLBS)
+import qualified Network.Wai as Wai
 import Servant.API
 import Servant.API.ContentTypes
 import Servant.API.ResponseHeaders
 import Servant.API.Status (KnownStatus (..))
+import Servant.Client
+import Servant.Client.Core
 import Servant.Server
 import Servant.Server.Internal
 import Servant.Swagger as S
@@ -88,9 +91,22 @@ instance Render '[] () where
 class IsResponse a where
   type ResponseType a :: *
   type ResponseContentTypes a :: [*]
+  type ResponseStatus a :: Nat
 
   responseRender :: ResponseType a -> [RenderOutput]
   responseSwagger :: Declare ResponseSwagger
+
+responseContentTypes ::
+  forall a.
+  AllMime (ResponseContentTypes a) =>
+  [M.MediaType]
+responseContentTypes = allMime (Proxy @(ResponseContentTypes a))
+
+responseStatus ::
+  forall a.
+  KnownStatus (ResponseStatus a) =>
+  Status
+responseStatus = statusVal (Proxy @(ResponseStatus a))
 
 class GenerateSchemaRef (cs :: [*]) a where
   generateSchemaRef :: Declare (Maybe (S.Referenced S.Schema))
@@ -112,6 +128,7 @@ instance
   where
   type ResponseType (Respond cs s desc a) = a
   type ResponseContentTypes (Respond cs s desc a) = cs
+  type ResponseStatus (Respond cs s desc a) = s
 
   responseSwagger = ResponseSwagger desc status mempty <$> generateSchemaRef @cs @a
     where
@@ -181,6 +198,7 @@ instance
   where
   type ResponseType (WithHeaders hs a r) = a
   type ResponseContentTypes (WithHeaders hs a r) = ResponseContentTypes r
+  type ResponseStatus (WithHeaders hs a r) = ResponseStatus r
 
   responseSwagger =
     fmap
@@ -199,6 +217,7 @@ class IsResponseList as where
   responseListContentTypes :: [[M.MediaType]]
   responseListRender :: Union (ResponseTypes as) -> [RenderOutput]
   responseListSwagger :: Declare [ResponseSwagger]
+  responseListStatuses :: [Status]
 
 instance IsResponseList '[] where
   type ResponseTypes '[] = '[]
@@ -209,16 +228,29 @@ instance IsResponseList '[] where
 
   responseListSwagger = pure []
 
-instance (AllMime (ResponseContentTypes a), IsResponse a, IsResponseList as) => IsResponseList (a ': as) where
+  responseListStatuses = []
+
+instance
+  ( AllMime (ResponseContentTypes a),
+    IsResponse a,
+    IsResponseList as,
+    KnownStatus (ResponseStatus a)
+  ) =>
+  IsResponseList (a ': as)
+  where
   type ResponseTypes (a ': as) = ResponseType a ': ResponseTypes as
 
-  responseListContentTypes = allMime (Proxy @(ResponseContentTypes a)) : responseListContentTypes @as
+  responseListContentTypes = responseContentTypes @a : responseListContentTypes @as
 
   responseListRender :: Union (ResponseType a ': ResponseTypes as) -> [RenderOutput]
   responseListRender (Z (I x)) = responseRender @a x
   responseListRender (S xs) = responseListRender @as xs
 
   responseListSwagger = (:) <$> responseSwagger @a <*> responseListSwagger @as
+
+  responseListStatuses =
+    responseStatus @a :
+    responseListStatuses @as
 
 -- | This type can be used in Servant to produce an endpoint which can return
 -- multiple values with various content types and status codes. It is similar to
@@ -238,10 +270,12 @@ data MultiVerb (method :: StdMethod) (as :: [*]) (r :: *)
 -- | This class is used to convert a handler return type to a union type
 -- including all possible responses of a 'MultiVerb' endpoint.
 class AsUnion (as :: [*]) (r :: *) where
-  asUnion :: r -> Union (ResponseTypes as)
+  toUnion :: r -> Union (ResponseTypes as)
+  fromUnion :: Union (ResponseTypes as) -> r
 
 instance (IsResponseList as, rs ~ ResponseTypes as) => AsUnion as (Union rs) where
-  asUnion = id
+  toUnion = id
+  fromUnion = id
 
 instance
   AsUnion
@@ -250,8 +284,12 @@ instance
      ]
     Bool
   where
-  asUnion False = Z (I ())
-  asUnion True = S (Z (I ()))
+  toUnion False = Z (I ())
+  toUnion True = S (Z (I ()))
+
+  fromUnion (Z (I ())) = False
+  fromUnion (S (Z (I ()))) = True
+  fromUnion (S (S x)) = case x of
 
 instance
   (ResponseType r2 ~ a) =>
@@ -259,8 +297,12 @@ instance
     '[Respond '[] s1 desc1 (), r2]
     (Maybe a)
   where
-  asUnion Nothing = Z (I ())
-  asUnion (Just x) = S (Z (I x))
+  toUnion Nothing = Z (I ())
+  toUnion (Just x) = S (Z (I x))
+
+  fromUnion (Z (I ())) = Nothing
+  fromUnion (S (Z (I x))) = Just x
+  fromUnion (S (S x)) = case x of
 
 instance
   (SwaggerMethod method, IsResponseList as) =>
@@ -292,8 +334,8 @@ instance
                 & S.headers .~ rsHeaders response
             )
 
-roResponse :: RenderOutput -> Response
-roResponse ro = responseLBS (roStatus ro) (roHeaders ro) (roBody ro)
+roResponse :: RenderOutput -> Wai.Response
+roResponse ro = Wai.responseLBS (roStatus ro) (roHeaders ro) (roBody ro)
 
 roAddContentType :: M.MediaType -> RenderOutput -> RenderOutput
 roAddContentType c ro = ro {roHeaders = (hContentType, M.renderHeader c) : roHeaders ro}
@@ -330,7 +372,7 @@ instance
     -- FUTUREWORK: add eager content type check here?
     (>>= k) . runRouteResultT . hoistRouteResult runResourceT $ do
       handler <- RouteResultT $ runDelayed action' env req
-      output <- asUnion @as <$> handlerToRouteResult handler
+      output <- toUnion @as <$> handlerToRouteResult handler
       let i = index_NS output
           cs = responseListContentTypes @as !! i
       resp <- case matchContentType cs (getAcceptHeader req) of
@@ -348,3 +390,70 @@ instance
         c <- M.matchAccept cs h
         i <- elemIndex c cs
         pure (i, c)
+
+-- copied from Servant.Client.Core.HasClient
+getResponseContentType :: RunClient m => Response -> m M.MediaType
+getResponseContentType response =
+  case lookup "Content-Type" $ toList $ responseHeaders response of
+    Nothing -> return $ "application" M.// "octet-stream"
+    Just t -> case M.parseAccept t of
+      Nothing -> throwClientError $ InvalidContentTypeHeader response
+      Just t' -> return t'
+
+-- pick the first response from as that has the specified content type and
+-- status
+class DeconstructResponse (as :: [*]) where
+  deconstructResponse ::
+    M.MediaType ->
+    Status ->
+    LByteString ->
+    Either String (Union (ResponseTypes as))
+
+instance DeconstructResponse '[] where
+  deconstructResponse _ _ _ =
+    Left "Unexpected status and/or content type"
+
+instance
+  ( AllMimeUnrender (ResponseContentTypes a) (ResponseType a),
+    KnownStatus (ResponseStatus a),
+    DeconstructResponse as
+  ) =>
+  DeconstructResponse (a ': as)
+  where
+  deconstructResponse c s b = case elemIndex c (responseContentTypes @a) of
+    Just i
+      | s == responseStatus @a ->
+        fmap (Z . I) (snd (allMimeUnrender (Proxy @(ResponseContentTypes a)) !! i) b)
+    _ -> fmap S (deconstructResponse @as c s b)
+
+-- FUTUREWORK: add tests for client support
+instance
+  ( IsResponseList as,
+    DeconstructResponse as,
+    ReflectMethod method,
+    AsUnion as r,
+    RunClient m
+  ) =>
+  HasClient m (MultiVerb method as r)
+  where
+  type Client m (MultiVerb method as r) = m r
+
+  clientWithRoute _ _ req = do
+    response <-
+      runRequestAcceptStatus
+        (Just (responseListStatuses @as))
+        req
+          { requestMethod = method,
+            requestAccept = Seq.fromList accept
+          }
+
+    c <- getResponseContentType response
+    either (throwClientError . err response) (pure . fromUnion @as) $
+      deconstructResponse @as c (responseStatusCode response) (responseBody response)
+    where
+      accept = mconcat (responseListContentTypes @as)
+      method = reflectMethod (Proxy :: Proxy method)
+      err :: Response -> String -> ClientError
+      err response e = DecodeFailure (Text.pack e) response
+
+  hoistClientMonad _ _ f = f

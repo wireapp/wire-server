@@ -53,8 +53,12 @@ instance
   (ResponseType r1 ~ a, ResponseType r2 ~ a) =>
   AsUnion '[r1, r2] (ConversationResponseFor a)
   where
-  asUnion (ConversationExisted x) = Z (I x)
-  asUnion (ConversationCreated x) = S (Z (I x))
+  toUnion (ConversationExisted x) = Z (I x)
+  toUnion (ConversationCreated x) = S (Z (I x))
+
+  fromUnion (Z (I x)) = ConversationExisted x
+  fromUnion (S (Z (I x))) = ConversationCreated x
+  fromUnion (S (S x)) = case x of
 
 data ConversationResponseFor a
   = ConversationExisted !a
