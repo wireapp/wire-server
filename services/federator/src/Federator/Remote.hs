@@ -19,6 +19,7 @@
 
 module Federator.Remote where
 
+import Data.Default (def)
 import Data.Domain (Domain, domainText)
 import Data.String.Conversions (cs)
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
@@ -27,6 +28,9 @@ import Mu.GRpc.Client.Optics (GRpcReply)
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
 import Mu.GRpc.Client.TyApps (gRpcCall)
 import Network.GRPC.Client.Helpers
+import Network.TLS
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
@@ -77,8 +81,25 @@ mkGrpcClient target@(SrvTarget host port) = do
   -- to change that (at least not when using the default functions from mu or http2-grpc-client)
   -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
   -- While early testing, this is "convenient" but needs to be fixed!
+  --
+  -- FUTUREWORK: load client certificate and client key from disk
+  -- and use it when making a request
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
-  eitherClient <- createGrpcClient cfg
+
+  -- FUTUREWORK: get review on blessed ciphers
+  let blessed_ciphers =
+        [ TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
+          TLS.cipher_ECDHE_RSA_AES256CBC_SHA384,
+          TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
+          TLS.cipher_ECDHE_RSA_AES128CBC_SHA256
+        ]
+  let betterTLSConfig =
+        (defaultParamsClient (cs host) (cs $ show port))
+          { TLS.clientSupported = def {TLS.supportedCiphers = blessed_ciphers},
+            TLS.clientHooks = def -- FUTUREWORK: use onCertificateRequest to provide client certificates
+          }
+  let cfg' = cfg {_grpcClientConfigTLS = Just betterTLSConfig}
+  eitherClient <- createGrpcClient cfg'
   case eitherClient of
     Left err -> do
       Log.debug $
