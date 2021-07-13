@@ -16,7 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Routes.MultiVerb
-  ( MultiVerb,
+  ( -- * MultiVerb types
+    MultiVerb,
     Respond,
     WithHeaders,
     DescHeader,
@@ -54,6 +55,9 @@ import UnliftIO.Resource (runResourceT)
 
 type Declare = S.Declare (S.Definitions S.Schema)
 
+-- | A type to describe a 'MultiVerb' response.
+--
+-- Includes a list of content types, status code, description, and a return type.
 data Respond (cs :: [*]) (s :: Nat) (desc :: Symbol) (a :: *)
 
 data ResponseSwagger = ResponseSwagger
@@ -124,11 +128,23 @@ instance
             roHeaders = []
           }
 
+-- | This type adds response headers to a 'MultiVerb' response.
+--
+-- Type variables:
+--  * @hs@: type-level list of headers
+--  * @a@: return type (with headers)
+--  * @r@: underlying response (without headers)
 data WithHeaders (hs :: [*]) (a :: *) (r :: *)
 
+-- | This is used to convert a response containing headers to a custom type
+-- including the information in the headers.
 class AsHeaders hs a b where
   fromHeaders :: Headers hs a -> b
   toHeaders :: b -> Headers hs a
+
+instance AsHeaders hs a (Headers hs a) where
+  fromHeaders = id
+  toHeaders = id
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
@@ -204,8 +220,23 @@ instance (AllMime (ResponseContentTypes a), IsResponse a, IsResponseList as) => 
 
   responseListSwagger = (:) <$> responseSwagger @a <*> responseListSwagger @as
 
+-- | This type can be used in Servant to produce an endpoint which can return
+-- multiple values with various content types and status codes. It is similar to
+-- 'UVerb', but it has some important differences:
+--
+--  * Content types are established dynamically based on the return type of the
+--    handler. In case of a content type mismatch with the Accept header, a 406
+--    is returned and no other endpoint is tried.
+--  * Descriptions and statuses can be attached to individual responses without
+--    using wrapper types and without affecting the handler return type.
+--  * The return type of the handler can be decoupled from the types of the
+--    individual responses. One can use a 'Union' type just like for 'UVerb',
+--    but 'MultiVerb' also supports using an arbitrary type with an 'AsUnion'
+--    instance.
 data MultiVerb (method :: StdMethod) (as :: [*]) (r :: *)
 
+-- | This class is used to convert a handler return type to a union type
+-- including all possible responses of a 'MultiVerb' endpoint.
 class AsUnion (as :: [*]) (r :: *) where
   asUnion :: r -> Union (ResponseTypes as)
 
@@ -301,6 +332,7 @@ instance
       route' env req k = do
         let action' :: Delayed env (Handler r)
             action' = action `addMethodCheck` methodCheck method req
+        -- FUTUREWORK: add eager content type check here?
         (>>= k) . runRouteResultT . hoistRouteResult runResourceT $ do
           handler <- RouteResultT $ runDelayed action' env req
           (output :: r) <- handlerToRouteResult handler
