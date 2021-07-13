@@ -44,7 +44,8 @@ import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
 tests s =
-  testGroup "Team Features API" $
+  testGroup
+    "Team Features API"
     [ test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
