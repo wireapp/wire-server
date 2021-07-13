@@ -351,7 +351,10 @@ data Api routes = Api
         :- FeatureConfigGet 'TeamFeatureAppLock,
     featureConfigFileSharingGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureFileSharing
+        :- FeatureConfigGet 'TeamFeatureFileSharing,
+    featureConfigClassifiedDomainsGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 

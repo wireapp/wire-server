@@ -145,7 +145,8 @@ servantSitemap =
         GalleyAPI.featureConfigValidateSAMLEmailsGet = Features.getFeatureConfig @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
         GalleyAPI.featureConfigDigitalSignaturesGet = Features.getFeatureConfig @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
         GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.TeamFeatureAppLock Features.getAppLockInternal,
-        GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.TeamFeatureFileSharing Features.getFileSharingInternal
+        GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
       }
 
 sitemap :: Routes ApiBuilder Galley ()
