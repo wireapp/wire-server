@@ -42,7 +42,7 @@ import Imports
 import qualified Network.HTTP.Media as M
 import Network.HTTP.Types (HeaderName, hContentType)
 import Network.HTTP.Types.Status
-import Network.Wai (Request, Response, ResponseReceived, responseLBS)
+import Network.Wai (Response, responseLBS)
 import Servant.API
 import Servant.API.ContentTypes
 import Servant.API.ResponseHeaders
@@ -324,34 +324,27 @@ instance
     Context ctx ->
     Delayed env (Handler r) ->
     Router env
-  route _ _ action = leafRouter route'
+  route _ _ action = leafRouter $ \env req k -> do
+    let action' :: Delayed env (Handler r)
+        action' = action `addMethodCheck` methodCheck method req
+    -- FUTUREWORK: add eager content type check here?
+    (>>= k) . runRouteResultT . hoistRouteResult runResourceT $ do
+      handler <- RouteResultT $ runDelayed action' env req
+      output <- asUnion @as <$> handlerToRouteResult handler
+      let i = index_NS output
+          cs = responseListContentTypes @as !! i
+      resp <- case matchContentType cs (getAcceptHeader req) of
+        Nothing -> RouteResultT . pure $ FailFatal err406
+        Just (j, c) -> pure (roAddContentType c (responseListRender @as output !! j))
+      let resp'
+            | allowedMethodHead method req = resp {roBody = mempty}
+            | otherwise = resp
+      pure $ roResponse resp'
     where
       method = reflectMethod (Proxy @method)
-
-      route' :: env -> Request -> (RouteResult Response -> IO ResponseReceived) -> IO ResponseReceived
-      route' env req k = do
-        let action' :: Delayed env (Handler r)
-            action' = action `addMethodCheck` methodCheck method req
-        -- FUTUREWORK: add eager content type check here?
-        (>>= k) . runRouteResultT . hoistRouteResult runResourceT $ do
-          handler <- RouteResultT $ runDelayed action' env req
-          (output :: r) <- handlerToRouteResult handler
-          mkResponse req (asUnion @as output :: Union (ResponseTypes as))
 
       matchContentType :: [M.MediaType] -> AcceptHeader -> Maybe (Int, M.MediaType)
       matchContentType cs (AcceptHeader h) = do
         c <- M.matchAccept cs h
         i <- elemIndex c cs
         pure (i, c)
-
-      mkResponse :: Monad m => Request -> Union (ResponseTypes as) -> RouteResultT m Response
-      mkResponse req output = do
-        let i = index_NS output
-            cs = responseListContentTypes @as !! i
-        resp <- case matchContentType cs (getAcceptHeader req) of
-          Nothing -> RouteResultT . pure $ FailFatal err406
-          Just (j, c) -> pure (roAddContentType c (responseListRender @as output !! j))
-        let resp'
-              | allowedMethodHead method req = resp {roBody = mempty}
-              | otherwise = resp
-        pure $ roResponse resp'
