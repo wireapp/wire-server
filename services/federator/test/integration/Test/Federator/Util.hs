@@ -77,7 +77,8 @@ type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
   { cfgBrig :: Endpoint,
-    cfgFederatorExternal :: Endpoint
+    cfgFederatorExternal :: Endpoint,
+    cfgNginxIngress :: Endpoint
   }
   deriving (Show, Generic)
 
