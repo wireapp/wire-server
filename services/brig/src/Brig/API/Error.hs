@@ -186,7 +186,7 @@ authError AuthEphemeral = StdError accountEphemeral
 authError AuthPendingInvitation = StdError accountPending
 
 reauthError :: ReAuthError -> Error
-reauthError ReAuthMissingPassword = StdError missingAuthError
+reauthError ReAuthMissingPassword = StdError (errorDescriptionToWai missingAuthError)
 reauthError (ReAuthError e) = authError e
 
 zauthError :: ZAuth.Failure -> Error
@@ -219,14 +219,14 @@ propDataError TooManyProperties = StdError tooManyProperties
 clientDataError :: ClientDataError -> Error
 clientDataError TooManyClients = StdError (errorDescriptionToWai tooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
-clientDataError ClientMissingAuth = StdError missingAuthError
+clientDataError ClientMissingAuth = StdError (errorDescriptionToWai missingAuthError)
 clientDataError MalformedPrekeys = StdError malformedPrekeys
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError invalidUser
 deleteUserError DeleteUserInvalidCode = StdError invalidCode
 deleteUserError DeleteUserInvalidPassword = StdError badCredentials
-deleteUserError DeleteUserMissingPassword = StdError missingAuthError
+deleteUserError DeleteUserMissingPassword = StdError (errorDescriptionToWai missingAuthError)
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
 deleteUserError DeleteUserOwnerDeletingSelf = StdError ownerDeletingSelf
 
@@ -255,9 +255,6 @@ propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The pr
 
 connectionLimitReached :: Wai.Error
 connectionLimitReached = Wai.mkError status403 "connection-limit" "Too many sent/accepted connections."
-
-missingAuthError :: Wai.Error
-missingAuthError = Wai.mkError status403 "missing-auth" "Re-authentication via password required."
 
 malformedPrekeys :: Wai.Error
 malformedPrekeys = Wai.mkError status400 "bad-request" "Malformed prekeys uploaded."

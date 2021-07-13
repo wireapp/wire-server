@@ -278,3 +278,12 @@ type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
 
 tooManyClients :: TooManyClients
 tooManyClients = mkErrorDescription
+
+type MissingAuth =
+  ErrorDescription
+    403
+    "missing-auth"
+    "Re-authentication via password required"
+
+missingAuthError :: MissingAuth
+missingAuthError = mkErrorDescription

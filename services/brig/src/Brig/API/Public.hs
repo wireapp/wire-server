@@ -373,7 +373,7 @@ sitemap o = do
     Doc.response 202 "Deletion is pending verification with a code." Doc.end
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse badCredentials
-    Doc.errorResponse missingAuthError
+    Doc.errorResponse (errorDescriptionToWai missingAuthError)
 
   -- TODO put  where?
 

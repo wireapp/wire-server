@@ -38,6 +38,7 @@ import Wire.API.ErrorDescription
     EmptyErrorForLegacyReasons,
     ErrorDescription,
     HandleNotFound,
+    MissingAuth,
     TooManyClients,
   )
 import Wire.API.Routes.MultiVerb
@@ -273,11 +274,11 @@ data Api routes = Api
     -- This endpoint can lead to the following events being sent:
     -- - ClientAdded event to self
     -- - ClientRemoved event to self, if removing old clients due to max number
-    --   Doc.errorResponse missingAuthError
     --   Doc.errorResponse malformedPrekeys
     addClient ::
       routes :- Summary "Register a new client"
         :> CanThrow TooManyClients
+        :> CanThrow MissingAuth
         :> ZUser
         :> ZConn
         :> "clients"
