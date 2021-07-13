@@ -455,7 +455,8 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
             tExportManagedBy = U.userManagedBy user,
             tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
             tExportSCIMExternalId = fromMaybe "" (scimExtId user),
-            tExportSCIMRichInfo = richInfos uid
+            tExportSCIMRichInfo = richInfos uid,
+            tExportUserId = U.userId user
           }
 
     lookupInviterHandle :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
