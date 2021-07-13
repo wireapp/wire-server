@@ -416,3 +416,11 @@ kind-restart-%: .local/kind-kubeconfig
 	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*) && \
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
 
+# This target can be used to template a helm chart with values filled in from
+# hack/helm_vars (what CI uses) as overrrides, if available. This allows debugging helm
+# templating issues without actually installing anything, and without needing
+# access to a kubernetes cluster. e.g.:
+#   make helm-template-wire-server
+helm-template-%: clean-charts charts-integration
+	./hack/bin/helm-template.sh $(*)
+
