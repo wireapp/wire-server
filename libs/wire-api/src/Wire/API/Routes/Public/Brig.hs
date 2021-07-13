@@ -38,6 +38,7 @@ import Wire.API.ErrorDescription
     EmptyErrorForLegacyReasons,
     ErrorDescription,
     HandleNotFound,
+    MalformedPrekeys,
     MissingAuth,
     TooManyClients,
   )
@@ -274,20 +275,20 @@ data Api routes = Api
     -- This endpoint can lead to the following events being sent:
     -- - ClientAdded event to self
     -- - ClientRemoved event to self, if removing old clients due to max number
-    --   Doc.errorResponse malformedPrekeys
     addClient ::
       routes :- Summary "Register a new client"
         :> CanThrow TooManyClients
         :> CanThrow MissingAuth
+        :> CanThrow MalformedPrekeys
         :> ZUser
         :> ZConn
         :> "clients"
         :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
         :> Verb 'POST 201 '[JSON] NewClientResponse,
-    --   Doc.errorResponse malformedPrekeys
     updateClient ::
       routes :- Summary "Update a registered client"
+        :> CanThrow MalformedPrekeys
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"

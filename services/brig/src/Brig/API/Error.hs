@@ -220,7 +220,7 @@ clientDataError :: ClientDataError -> Error
 clientDataError TooManyClients = StdError (errorDescriptionToWai tooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorDescriptionToWai missingAuthError)
-clientDataError MalformedPrekeys = StdError malformedPrekeys
+clientDataError MalformedPrekeys = StdError (errorDescriptionToWai malformedPrekeys)
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError invalidUser
@@ -255,9 +255,6 @@ propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The pr
 
 connectionLimitReached :: Wai.Error
 connectionLimitReached = Wai.mkError status403 "connection-limit" "Too many sent/accepted connections."
-
-malformedPrekeys :: Wai.Error
-malformedPrekeys = Wai.mkError status400 "bad-request" "Malformed prekeys uploaded."
 
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."

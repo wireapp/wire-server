@@ -287,3 +287,8 @@ type MissingAuth =
 
 missingAuthError :: MissingAuth
 missingAuthError = mkErrorDescription
+
+type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys uploaded"
+
+malformedPrekeys :: MalformedPrekeys
+malformedPrekeys = mkErrorDescription
