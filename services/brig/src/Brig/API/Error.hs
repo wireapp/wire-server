@@ -411,6 +411,9 @@ phoneBudgetExhausted =
 authMissingCookie :: Wai.Error
 authMissingCookie = Wai.mkError status403 "invalid-credentials" "Missing cookie"
 
+authInvalidCookie :: Wai.Error
+authInvalidCookie = Wai.mkError status403 "invalid-credentials" "Invalid cookie"
+
 authMissingToken :: Wai.Error
 authMissingToken = Wai.mkError status403 "invalid-credentials" "Missing token"
 
@@ -422,6 +425,9 @@ invalidUserToken = Wai.mkError status403 "invalid-credentials" "Invalid user tok
 
 invalidAccessToken :: Wai.Error
 invalidAccessToken = Wai.mkError status403 "invalid-credentials" "Invalid access token"
+
+missingAccessToken :: Wai.Error
+missingAccessToken = Wai.mkError status403 "invalid-credentials" "Missing access token"
 
 authTokenMismatch :: Wai.Error
 authTokenMismatch = Wai.mkError status403 "invalid-credentials" "Token mismatch"

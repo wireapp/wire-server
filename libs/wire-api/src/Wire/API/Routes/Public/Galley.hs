@@ -351,7 +351,13 @@ data Api routes = Api
         :- FeatureStatusGet 'TeamFeatureAppLock,
     teamFeatureStatusAppLockPut ::
       routes
-        :- FeatureStatusPut 'TeamFeatureAppLock
+        :- FeatureStatusPut 'TeamFeatureAppLock,
+    teamFeatureStatusFileSharingGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureFileSharing,
+    teamFeatureStatusFileSharingPut ::
+      routes
+        :- FeatureStatusPut 'TeamFeatureFileSharing
   }
   deriving (Generic)
 

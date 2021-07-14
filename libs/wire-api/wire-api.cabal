@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7d12ceb951b318f962720427f6d9719519170e7acaca31ef012e1bee0c470f56
+-- hash: 16bcd50ba3b32e049e75bf36d2b25b3d2bcccd3d9aefa8b309dd20e9349d48bc
 
 name:           wire-api
 version:        0.1.0
@@ -305,6 +305,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user
       Test.Wire.API.Golden.Generated.PushToken_user
       Test.Wire.API.Golden.Generated.PushTokenList_user
+      Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user
       Test.Wire.API.Golden.Generated.QueuedNotification_user
       Test.Wire.API.Golden.Generated.QueuedNotificationList_user
       Test.Wire.API.Golden.Generated.ReceiptMode_user
@@ -399,6 +400,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+      Test.Wire.API.Golden.Protobuf
       Test.Wire.API.Golden.Runner
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
@@ -414,7 +416,8 @@ test-suite wire-api-tests
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      aeson >=0.6
+      QuickCheck
+    , aeson >=0.6
     , aeson-pretty
     , aeson-qq
     , base
@@ -430,12 +433,15 @@ test-suite wire-api-tests
     , lens
     , mime
     , pem
+    , pretty
+    , proto-lens
     , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
+    , text
     , time
     , types-common >=0.16
     , unordered-containers
@@ -443,4 +449,5 @@ test-suite wire-api-tests
     , uuid
     , vector
     , wire-api
+    , wire-message-proto-lens
   default-language: Haskell2010

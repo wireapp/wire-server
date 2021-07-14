@@ -45,6 +45,7 @@ toCol TeamFeatureSearchVisibility = "search_visibility_status"
 toCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
 toCol TeamFeatureDigitalSignatures = "digital_signatures"
 toCol TeamFeatureAppLock = "app_lock_status"
+toCol TeamFeatureFileSharing = "file_sharing"
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.

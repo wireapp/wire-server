@@ -141,7 +141,13 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusGet 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusAppLockPut ::
       routes
-        :- IFeatureStatusPut 'Public.TeamFeatureAppLock
+        :- IFeatureStatusPut 'Public.TeamFeatureAppLock,
+    iTeamFeatureStatusFileSharingGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureFileSharing,
+    iTeamFeatureStatusFileSharingPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureFileSharing
   }
   deriving (Generic)
 
@@ -210,7 +216,9 @@ servantSitemap =
         iTeamFeatureStatusDigitalSignaturesDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
         iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
         iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
-        iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal
+        iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
+        iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal
       }
 
 iGetTeamFeature ::

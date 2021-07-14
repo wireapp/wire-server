@@ -99,7 +99,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
       test' aws p "post /list-users - 200" $ testMultipleUsers b,
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
-      test' aws p "put /self/email - 2xx" $ testEmailUpdate b aws,
+      test' aws p "put /access/self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
@@ -276,9 +276,10 @@ testCreateUserNoEmailNoPassword brig = do
       <!! const 201 === statusCode
   let Just uid = userId <$> responseJsonMaybe rs
   e <- randomEmail
-  let setEmail = RequestBodyLBS . encode $ EmailUpdate e
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "conn" . body setEmail)
-    !!! const 202 === statusCode
+  Just code <- do
+    sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
+    getPhoneLoginCode brig p
+  initiateEmailUpdateLogin brig e (SmsLogin p code Nothing) uid !!! (const 202 === statusCode)
 
 -- | email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
@@ -643,6 +644,9 @@ testUserUpdate brig cannon aws = do
   Search.refreshIndex brig
   Search.assertCanFind brig suid aliceQ "dogbert"
 
+-- This tests the behavior of `/i/self/email` instead of `/self/email` or
+-- `/access/self/email`.  tests for session token handling under `/access/self/email` are in
+-- `services/brig/test/integration/API/User/Auth.hs`.
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
   usr <- randomUser brig
@@ -650,13 +654,14 @@ testEmailUpdate brig aws = do
   let uid = userId usr
   eml <- randomEmail
   -- update email
-  initiateEmailUpdate brig eml uid !!! const 202 === statusCode
+  let Just oldeml = userEmail usr
+  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid !!! const 202 === statusCode
   -- activate
   activateEmail brig eml
   checkEmail brig uid eml
   liftIO $ Util.assertUserJournalQueue "user update" aws (userEmailUpdateJournaled uid eml)
-  -- update email, which is exactly the same as before
-  initiateEmailUpdate brig eml uid !!! const 204 === statusCode
+  -- update email, which is exactly the same as before (idempotency)
+  initiateEmailUpdateLogin brig eml (emailLogin eml defPassword Nothing) uid !!! const 204 === statusCode
   -- ensure no other user has "test+<uuid>@example.com"
   -- if there is such a user, let's delete it first.  otherwise
   -- this test fails since there can be only one user with "test+...@example.com"
@@ -665,12 +670,15 @@ testEmailUpdate brig aws = do
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   where
+    ensureNoOtherUserWithEmail :: Email -> Http ()
     ensureNoOtherUserWithEmail eml = do
       tk :: Maybe AccessToken <-
         responseJsonMaybe <$> login brig (defEmailLogin eml) SessionCookie
       for_ tk $ \t -> do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
+
+    initiateUpdateAndActivate :: Email -> UserId -> Http ()
     initiateUpdateAndActivate eml uid = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml
@@ -926,6 +934,11 @@ testEmailPhoneDelete brig cannon = do
   user <- randomUser brig
   let uid = userId user
   let Just email = userEmail user
+  (cky, tok) <- do
+    rsp <-
+      login brig (emailLogin email defPassword Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    pure (decodeCookie rsp, decodeToken rsp)
   -- Cannot remove the only identity
   delete (brig . path "/self/email" . zUser uid . zConn "c")
     !!! const 403 === statusCode
@@ -958,9 +971,7 @@ testEmailPhoneDelete brig cannon = do
     !!! const 403 === statusCode
   -- Add back a new email address
   eml <- randomEmail
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . body emailUpdate)
-    !!! const 202 === statusCode
+  initiateEmailUpdateCreds brig eml (cky, tok) uid !!! (const 202 === statusCode)
   act' <- getActivationCode brig (Left eml)
   case act' of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
@@ -990,9 +1001,8 @@ testDeleteUserByPassword brig cannon aws = do
   -- Initiate a change of email address, to verify that activation
   -- does not work after the account has been deleted.
   eml <- randomEmail
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid1 . zConn "c" . body emailUpdate)
-    !!! const 202 === statusCode
+  let Just oldeml = userEmail u
+  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid1 !!! (const 202 === statusCode)
   -- Establish some connections
   usr2 <- randomUser brig
   let uid2 = userId usr2
