@@ -31,11 +31,13 @@ import Data.Id
 import Data.List1 (list1)
 import Data.Schema (ToSchema)
 import qualified Data.Text.Encoding as TE
+import Data.Timeout (TimeoutUnit (Second), (#))
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
 import Test.Tasty
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit ((@?=))
 import TestHelpers (test)
 import TestSetup
@@ -365,3 +367,50 @@ assertFlagWithConfig response expected = do
   liftIO $ do
     fmap Public.tfwcStatus rJson @?= (Right . Public.tfwcStatus $ expected)
     fmap Public.tfwcConfig rJson @?= (Right . Public.tfwcConfig $ expected)
+
+testSimpleFlagEvent ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Typeable a,
+    Public.FeatureHasNoConfig a,
+    Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus a),
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  Public.TeamFeatureStatusValue ->
+  TestM ()
+testSimpleFlagEvent defaultValue = do
+  let feature = Public.knownTeamFeatureName @a
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  nonMember <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
+  let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getFlag expected =
+        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
+
+      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal statusValue =
+        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+
+  cannon <- view tsCannon
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal defaultValue
+
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
+
+    pure ()
+
+-- wsAssertMemberJoinWithRole :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
+-- wsAssertMemberJoinWithRole conv usr new role n = do
+--   let e = List1.head (WS.unpackPayload n)
+--   ntfTransient n @?= False
+--   evtConv e @?= conv
+--   evtType e @?= Conv.MemberJoin
+--   evtFrom e @?= usr
+--   evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
