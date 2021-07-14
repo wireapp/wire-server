@@ -147,7 +147,10 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusGet 'Public.TeamFeatureFileSharing,
     iTeamFeatureStatusFileSharingPut ::
       routes
-        :- IFeatureStatusPut 'Public.TeamFeatureFileSharing
+        :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
+    iTeamFeatureStatusClassifiedDomainsGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 
@@ -218,7 +221,8 @@ servantSitemap =
         iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
         iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
-        iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal
+        iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
+        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
       }
 
 iGetTeamFeature ::

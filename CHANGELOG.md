@@ -50,6 +50,9 @@ This release requires a manual change in your galley configuration: `settings.co
 
 ## API Changes
 
+* A new team feature for classified domains is available (#1626):
+  - a public endpoint is at `GET /teams/:tid/features/classifiedDomains`
+  - an internal endpoint is at `GET /i/teams/:tid/features/classifiedDomains`
 * Several public team feature endpoints are removed (their internal and
   Stern-based counterparts remain available):
   - `PUT /teams/:tid/features/sso`

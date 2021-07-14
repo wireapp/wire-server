@@ -29,7 +29,7 @@ production.
 ## Feature flags
 
 Feature flags can be used to turn features on or off, or determine the
-behavior of the features.  Example:
+behavior of the features. Example:
 
 ```
 # [galley.yaml]
@@ -101,6 +101,25 @@ pull-down-menu "body":
 
 [Allowd values](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306) and their [description](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299).
 
+### Classified domains
+
+To enable classified domains, the following needs to be in galley.yaml or wire-server/values.yaml under `settings` / `featureFlags`:
+
+```yaml
+classifiedDomains:
+  status: enabled
+  config:
+    domains: ["example.com", "example2.com"]
+```
+
+To disable, either omit the entry entirely (it is disabled by default), or provide the following:
+
+```yaml
+classifiedDomains:
+  status: disabled
+  config:
+    domains: []
+```
 
 ### Federation Domain
 

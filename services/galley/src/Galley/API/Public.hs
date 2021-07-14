@@ -129,11 +129,15 @@ servantSitemap =
           getFeatureStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusAppLockPut =
-          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal . DoAuth,
+          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal
+            . DoAuth,
         GalleyAPI.teamFeatureStatusFileSharingGet =
           getFeatureStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal . DoAuth,
         GalleyAPI.teamFeatureStatusFileSharingPut =
-          setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth
+          setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
+          getFeatureStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
+            . DoAuth
       }
 
 sitemap :: Routes ApiBuilder Galley ()

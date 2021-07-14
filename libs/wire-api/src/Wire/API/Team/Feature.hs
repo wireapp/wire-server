@@ -22,6 +22,7 @@ module Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus,
     TeamFeatureAppLockConfig (..),
+    TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
     FeatureHasNoConfig,
     EnforceAppLock (..),
@@ -30,6 +31,7 @@ module Wire.API.Team.Feature
     TeamFeatureStatusWithConfig (..),
     HasDeprecatedFeatureName (..),
     defaultAppLockStatus,
+    defaultClassifiedDomains,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -37,12 +39,14 @@ module Wire.API.Team.Feature
     modelTeamFeatureStatusNoConfig,
     modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
+    modelTeamFeatureClassifiedDomainsConfig,
     modelForTeamFeature,
   )
 where
 
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.Domain (Domain)
 import Data.Kind (Constraint)
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -94,6 +98,7 @@ data TeamFeatureName
   | TeamFeatureDigitalSignatures
   | TeamFeatureAppLock
   | TeamFeatureFileSharing
+  | TeamFeatureClassifiedDomains
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -129,6 +134,10 @@ instance KnownTeamFeatureName 'TeamFeatureFileSharing where
   type KnownTeamFeatureNameSymbol 'TeamFeatureFileSharing = "fileSharing"
   knownTeamFeatureName = TeamFeatureFileSharing
 
+instance KnownTeamFeatureName 'TeamFeatureClassifiedDomains where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureClassifiedDomains = "classifiedDomains"
+  knownTeamFeatureName = TeamFeatureClassifiedDomains
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -144,6 +153,7 @@ instance FromByteString TeamFeatureName where
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
         Right "appLock" -> pure TeamFeatureAppLock
         Right "fileSharing" -> pure TeamFeatureFileSharing
+        Right "classifiedDomains" -> pure TeamFeatureClassifiedDomains
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -154,6 +164,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureDigitalSignatures = "digitalSignatures"
   builder TeamFeatureAppLock = "appLock"
   builder TeamFeatureFileSharing = "fileSharing"
+  builder TeamFeatureClassifiedDomains = "classifiedDomains"
 
 class HasDeprecatedFeatureName (a :: TeamFeatureName) where
   type DeprecatedFeatureName a :: Symbol
@@ -220,6 +231,7 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
   TeamFeatureStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
@@ -232,6 +244,7 @@ modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConf
 modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
 modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
+modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -282,6 +295,31 @@ instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
       TeamFeatureStatusWithConfig
         <$> tfwcStatus .= field "status" schema
         <*> tfwcConfig .= field "config" schema
+
+----------------------------------------------------------------------
+-- TeamFeatureClassifiedDomainsConfig
+
+newtype TeamFeatureClassifiedDomainsConfig = TeamFeatureClassifiedDomainsConfig
+  { classifiedDomainsDomains :: [Domain]
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamFeatureClassifiedDomainsConfig)
+
+deriving via (GenericUniform TeamFeatureClassifiedDomainsConfig) instance Arbitrary TeamFeatureClassifiedDomainsConfig
+
+instance ToSchema TeamFeatureClassifiedDomainsConfig where
+  schema =
+    object "TeamFeatureClassifiedDomainsConfig" $
+      TeamFeatureClassifiedDomainsConfig
+        <$> classifiedDomainsDomains .= field "domains" (array schema)
+
+modelTeamFeatureClassifiedDomainsConfig :: Doc.Model
+modelTeamFeatureClassifiedDomainsConfig =
+  Doc.defineModel "TeamFeatureClassifiedDomainsConfig" $ do
+    Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
+
+defaultClassifiedDomains :: TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
+defaultClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureDisabled (TeamFeatureClassifiedDomainsConfig [])
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig

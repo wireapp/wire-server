@@ -323,7 +323,10 @@ data Api routes = Api
         :- FeatureStatusGet 'TeamFeatureFileSharing,
     teamFeatureStatusFileSharingPut ::
       routes
-        :- FeatureStatusPut 'TeamFeatureFileSharing
+        :- FeatureStatusPut 'TeamFeatureFileSharing,
+    teamFeatureStatusClassifiedDomainsGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 
