@@ -29,6 +29,7 @@
 ## Features
 
 * `fileSharing` feature config (#1652)
+* Add user_id to csv export (#1663)
 
 ## Bug fixes and other updates
 
