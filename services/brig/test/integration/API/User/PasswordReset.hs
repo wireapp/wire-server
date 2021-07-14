@@ -38,7 +38,7 @@ tests _cl _at _conf p b _c _g =
   testGroup
     "password-reset"
     [ test p "post /password-reset[/complete] - 201[/200]" $ testPasswordReset b,
-      test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b
+      test p "post /password-reset & put /self/email - 400" $ testPasswordResetAfterEmailUpdate b
     ]
 
 testPasswordReset :: Brig -> Http ()
@@ -69,7 +69,7 @@ testPasswordResetAfterEmailUpdate brig = do
   let uid = userId u
   let Just email = userEmail u
   eml <- randomEmail
-  initiateEmailUpdateLogin brig eml (emailLogin email defPassword Nothing) uid !!! const 202 === statusCode
+  initiateEmailUpdate brig eml uid !!! const 202 === statusCode
   initiatePasswordReset brig email !!! const 201 === statusCode
   passwordResetData <- preparePasswordReset brig email uid (PlainTextPassword "newsecret")
   -- activate new email
