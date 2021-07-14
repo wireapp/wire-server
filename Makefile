@@ -367,9 +367,13 @@ echo-release-charts:
 	@echo ${CHARTS_RELEASE}
 
 .PHONY: buildah-docker
-buildah-docker:
+buildah-docker: buildah-docker-nginz
 	./hack/bin/buildah-compile.sh
 	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images.sh
+
+.PHONY: buildah-docker-nginz
+buildah-docker-nginz:
+	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images-nginz.sh
 
 .PHONY: buildah-docker-%
 buildah-docker-%:
@@ -393,10 +397,34 @@ kind-delete:
 kind-reset: kind-delete kind-cluster
 
 .local/kind-kubeconfig:
+	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
 
+# This guard is a fail-early way to save needing to debug nginz container not
+# starting up in the second namespace of the kind cluster in some cases. Error
+# message was:
+#     nginx PID: 8
+#     Couldn't initialize inotify: No file descriptors available
+#     Try increasing the value of /proc/sys/fs/inotify/max_user_instances
+#     inotifywait failed, killing nginx
+.PHONY: guard-inotify
+guard-inotify:
+	@if [[ $$(cat /proc/sys/fs/inotify/max_user_instances) -lt 200 ]]; then \
+		echo "Your /proc/sys/fs/inotify/max_user_instances value is most likely too low to run two full environments of wire-server in kind/kubernetes"; \
+		echo "You can run: "; \
+		echo ""; \
+		echo "  echo \"1000\" | sudo tee /proc/sys/fs/inotify/max_user_instances"; \
+		echo ""; \
+		echo "(or, to make that change permanent across reboots, you can run: )"; \
+		echo ""; \
+		echo "  echo 'fs.inotify.max_user_instances = 1000' | sudo tee /etc/sysctl.d/99-whatever.conf;"; \
+		echo "  sudo sysctl -p --system"; \
+		echo ""; \
+		exit 1; \
+	fi
+
 .PHONY: kind-integration-setup
-kind-integration-setup: .local/kind-kubeconfig
+kind-integration-setup: guard-inotify .local/kind-kubeconfig
 	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test

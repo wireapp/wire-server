@@ -39,6 +39,8 @@
 
 ## Internal changes
 
+* improvements to local integration test setup when using buildah and kind (#1667)
+
 ## Federation changes (alpha feature, do not use yet)
 
 
