@@ -2,15 +2,15 @@
 
 set -ex
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema spar-migrate-data"}
 CONTAINER_NAME="output"
 DOCKER_TAG=${DOCKER_TAG:-$USER}
 
-buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
-    || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-deps:develop
+buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" ||
+    buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-deps:develop
 
 # Only brig needs these templates, but for simplicity we add them to all resulting images (optimization FUTUREWORK)
 buildah run "$CONTAINER_NAME" -- sh -c 'mkdir -p /usr/share/wire/ && cp -r "/src/services/brig/deb/opt/brig/templates/." "/usr/share/wire/templates"'
@@ -47,4 +47,21 @@ if [[ "$BUILDAH_KIND_LOAD" -eq "1" ]]; then
     rm -rf "$archiveDir"
 fi
 
+# special case nginz
+EXECUTABLES=${EXECUTABLES:-"nginz nginz_disco"}
+for EX in $EXECUTABLES; do
+    CONTAINER_NAME=$EX
+    buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" ||
+        buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/$CONTAINER_NAME:latest
+    if [[ "$BUILDAH_KIND_LOAD" -eq "1" ]]; then
+        archiveDir=$(mktemp -d)
+        imgPath="$archiveDir/${EX}_${DOCKER_TAG}.tar"
+        imgName="quay.io/wire/$EX:$DOCKER_TAG"
+        buildah push "$imgName" "docker-archive:$imgPath:$imgName"
+        kind load image-archive --name "$KIND_CLUSTER_NAME" "$imgPath"
+        rm -rf "$archiveDir"
+    fi
+done
+
+# general cleanup
 "$DIR/buildah-purge-untagged.sh"
