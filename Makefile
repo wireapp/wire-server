@@ -367,9 +367,12 @@ echo-release-charts:
 	@echo ${CHARTS_RELEASE}
 
 .PHONY: buildah-docker
-buildah-docker:
+buildah-docker: buildah-docker-nginz
 	./hack/bin/buildah-compile.sh
 	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images.sh
+
+.PHONY: buildah-docker-nginz
+buildah-docker-nginz:
 	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images-nginz.sh
 
 .PHONY: buildah-docker-%
