@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 12fc6293357c3ba08044d346991fa814c362c6e21a62896dd943feb218c09d02
+-- hash: a605218fea87d467ca6a777dc118b2305c538a7dd3ffc701851d87998ca5444d
 
 name:           wire-api
 version:        0.1.0
@@ -35,6 +35,7 @@ library
       Wire.API.CustomBackend
       Wire.API.ErrorDescription
       Wire.API.Event.Conversation
+      Wire.API.Event.FeatureConfig
       Wire.API.Event.Team
       Wire.API.Message
       Wire.API.Message.Proto
