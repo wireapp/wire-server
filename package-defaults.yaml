@@ -1,5 +1,7 @@
 ghc-options:
 - -O2
+- -fwrite-ide-info
+- -hiedir=.hie
 - -Wall
 - -Wincomplete-uni-patterns
 - -Wincomplete-record-updates

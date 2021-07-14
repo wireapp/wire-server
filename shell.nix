@@ -63,6 +63,7 @@ in pkgs.mkShell {
     pkgs.docker-compose
     pkgs.gnumake
     pkgs.haskell-language-server
+    pkgs.haskell.packages.ghc884.stan
     pkgs.telepresence
     pkgs.jq
     pkgs.grpcurl
