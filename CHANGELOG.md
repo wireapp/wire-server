@@ -52,6 +52,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * Refactored Proteus endpoint to work with qualified users (#1634).
 * Change `settings.conversationCodeURI` in galley.yaml (#1643).
 * Refactored Federator InternalServer (#1637)
+* Introduced `MultiVerb` endpoints in Servant API (#1649).
 
 ### Internal Federation API changes
 
@@ -61,6 +62,7 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
+* Improved Swagger documentation for endpoints with multiple responses (#1649).
 
 ## Bug fixes and other updates
 
