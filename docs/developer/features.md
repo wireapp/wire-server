@@ -20,7 +20,9 @@ Depending on the feature the configuration can be defined
 
 or a combination of all three levels, where configuration on a per-user level
 may override configuration defined for the the team, which may override
-configuration defined at the instance level.
+configuration defined at the instance level.  or instance may override team
+(eg. when security settings are enforced so team admins do not have the
+power to break security policy).  details depend on the individual feature.
 
 ## Feature Configuration API
 
@@ -30,7 +32,7 @@ queries the endpoint:
 
 `GET /feature-configs/:feature-name`
 
-```javascript
+```json
 {
   "status": "enabled" /* or "disabled" */
   "config": {
@@ -43,7 +45,7 @@ where the optional `config` field contains settings that are specific to the fea
 The configurations for all features can be obtained all at once via `GET
 /feature-configs`
 
-```javascript
+```json
 {
    "sso": {
       "status": "enabled"
