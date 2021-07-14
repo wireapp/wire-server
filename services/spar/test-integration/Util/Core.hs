@@ -91,8 +91,6 @@ module Util.Core
     submitAuthnResponse,
     submitAuthnResponse',
     loginSsoUserFirstTime,
-    loginSsoUserFirstTime',
-    loginCreatedSsoUser,
     callAuthnReqPrecheck',
     callAuthnReq,
     callAuthnReq',
@@ -131,7 +129,6 @@ module Util.Core
 where
 
 import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
-import qualified Bilge
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
 import qualified Brig.Types.Activation as Brig
 import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
@@ -252,7 +249,6 @@ mkEnv _teTstOpts _teOpts = do
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
       _teGalley = endpointToReq (cfgGalley _teTstOpts)
       _teSpar = endpointToReq (cfgSpar _teTstOpts)
-      _teNginz = endpointToReq (cfgNginz _teTstOpts)
       _teSparEnv = Spar.Env {..}
       sparCtxOpts = _teOpts
       sparCtxCas = _teCql
@@ -915,46 +911,21 @@ submitAuthnResponse' reqmod (SignedAuthnResponse authnresp) = do
     formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
   call $ post' req (reqmod . (env ^. teSpar) . path "/sso/finalize-login/")
 
-loginSsoUserFirstTime ::
-  (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
-  IdP ->
-  SAML.SignPrivCreds ->
-  m UserId
-loginSsoUserFirstTime idp privCreds = loginSsoUserFirstTime' idp privCreds <&> fst
-
-loginSsoUserFirstTime' ::
-  (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
-  IdP ->
-  SAML.SignPrivCreds ->
-  m (UserId, Cookie)
-loginSsoUserFirstTime' idp privCreds = do
-  nameid <- unspecifiedNameID . UUID.toText <$> liftIO UUID.nextRandom
-  loginCreatedSsoUser nameid idp privCreds
-
-loginCreatedSsoUser ::
-  (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
-  NameID ->
-  IdP ->
-  SAML.SignPrivCreds ->
-  m (UserId, Cookie)
-loginCreatedSsoUser nameid idp privCreds = do
+loginSsoUserFirstTime :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => IdP -> SAML.SignPrivCreds -> m UserId
+loginSsoUserFirstTime idp privCreds = do
   env <- ask
   authnReq <- negotiateAuthnRequest idp
   spmeta <- getTestSPMetadata
-  authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta authnReq True
+  authnResp <- runSimpleSP $ mkAuthnResponse privCreds idp spmeta authnReq True
   sparAuthnResp <- submitAuthnResponse authnResp
-
   let wireCookie = maybe (error (show sparAuthnResp)) id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
   accessResp :: ResponseLBS <-
     call $
       post ((env ^. teBrig) . path "/access" . header "Cookie" wireCookie . expect2xx)
-
   let uid :: UserId
       uid = Id . fromMaybe (error "bad user field in /access response body") . UUID.fromText $ uidRaw
-
       uidRaw :: HasCallStack => ST
       uidRaw = accessToken ^?! Aeson.key "user" . _String
-
       accessToken :: HasCallStack => Aeson.Value
       accessToken = tok
         where
@@ -964,11 +935,7 @@ loginCreatedSsoUser nameid idp privCreds = do
           raw =
             fromMaybe (error "no body in /access response") $
               responseBody accessResp
-
-      decodeCookie :: ResponseLBS -> Cookie
-      decodeCookie = fromMaybe (error "missing zuid cookie") . Bilge.getCookie "zuid"
-
-  pure (uid, decodeCookie sparAuthnResp)
+  pure uid
 
 callAuthnReq ::
   forall m.

@@ -18,9 +18,3 @@ data:
 
     # Keep this in sync with brigs setTeamInvitationTimeout
     brigSettingsTeamInvitationTimeout: 10
-
-    nginz:
-      # Full URL is set so that there can be a common cookiedomain between nginz and brig
-      # needed by some integration tests
-      host: nginz-integration-http.{{ .Release.Namespace }}.svc.cluster.local
-      port: 8080
