@@ -36,7 +36,7 @@ module Galley.API.Update
 
     -- * Managing Members
     Galley.API.Update.addMembersH,
-    Galley.API.Update.addMembersQH,
+    addMembers,
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
@@ -44,6 +44,7 @@ module Galley.API.Update
 
     -- * Servant
     UpdateResponses,
+    mapUpdateToServant,
 
     -- * Talking
     postProteusMessage,
@@ -108,7 +109,6 @@ import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
 import qualified Servant
-import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
@@ -118,6 +118,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResponses)
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -468,38 +469,24 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   (Invite u r) <- fromJsonBody req
   domain <- viewFederationDomain
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
-  handleUpdateResult <$> addMembers zusr zcon cid qInvite
+  handleUpdateResult <$> addMembers zusr zcon (Qualified cid domain) qInvite
 
-addMembersQH :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (Union UpdateResponses)
-addMembersQH zusr zcon convId invite = mapUpdateToServant =<< addMembers zusr zcon convId invite
-
-mapUpdateToServant :: UpdateResult -> Galley (Union UpdateResponses)
+mapUpdateToServant :: UpdateResult -> Galley (Union GalleyAPI.UpdateResponses)
 mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
-mapUpdateToServant Unchanged = Servant.respond NoContent
+mapUpdateToServant Unchanged = Servant.respond Servant.NoContent
 
--- FUTUREWORK(federation): we need the following checks/implementation:
---  - (1) [DONE] Remote qualified users must exist before they can be added (a
---  call to the respective backend should be made): Avoid clients making up random
---  Ids, and increase the chances that the updateConversationMemberships call
---  suceeds
---  - (2) [DONE] A call must be made to the remote backend informing it that this user is
---  now part of that conversation. Use and implement 'updateConversationMemberships'.
---    - that call should probably be made *after* inserting the conversation membership
---    happens in this backend.
---    - 'updateConversationMemberships' should send an event to the affected
---    users informing them they have joined a remote conversation.
---  - (3) Events should support remote / qualified users, too.
---  These checks need tests :)
-addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
-addMembers zusr zcon convId invite = do
+addMembers :: UserId -> ConnId -> Qualified ConvId -> Public.InviteQualified -> Galley UpdateResult
+addMembers zusr zcon (Qualified convId domain) invite = do
+  localDomain <- viewFederationDomain
+  when (localDomain /= domain) $
+    throwM federationNotImplemented
   conv <- Data.conversation convId >>= ifNothing convNotFound
   let mems = botsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
   self <- getSelfMember zusr (snd mems)
   ensureActionAllowed AddConversationMember self
   let invitedUsers = toList $ Public.invQUsers invite
-  domain <- viewFederationDomain
-  let (invitedRemotes, invitedLocals) = partitionRemoteOrLocalIds' domain invitedUsers
+  let (invitedRemotes, invitedLocals) = partitionRemoteOrLocalIds' localDomain invitedUsers
   let newLocals = filter (notIsMember conv) invitedLocals
   let newRemotes = filter (notIsMember' conv) invitedRemotes
   ensureMemberLimit (toList $ Data.convLocalMembers conv) newLocals newRemotes

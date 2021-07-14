@@ -200,13 +200,24 @@ data Api routes = Api
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
     addMembersToUnqualifiedConversation ::
       routes
-        :- Summary "Add qualified members to an existing conversation (deprecated)"
+        :- Summary "Add qualified members to an existing local conversation (deprecated)"
         :> ZUser
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "members"
         :> "v2"
+        :> ReqBody '[Servant.JSON] Public.InviteQualified
+        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
+    addMembersToQualifiedConversation ::
+      routes
+        :- Summary "Add qualified members to an existing conversation"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture "domain" Domain
+        :> Capture "cnv" ConvId
+        :> "members"
         :> ReqBody '[Servant.JSON] Public.InviteQualified
         :> UVerb 'POST '[Servant.JSON] UpdateResponses,
     -- Team Conversations
