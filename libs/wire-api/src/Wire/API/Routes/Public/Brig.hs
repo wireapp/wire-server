@@ -50,8 +50,9 @@ type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
 type UserExistVerb =
   MultiVerb
     'HEAD
-    '[ Respond '[] 404 "User not found" (),
-       Respond '[] 200 "User exists" ()
+    '[]
+    '[ RespondEmpty 404 "User not found",
+       RespondEmpty 200 "User exists"
      ]
     Bool
 
@@ -101,8 +102,9 @@ data Api routes = Api
         :> CaptureUserId "uid"
         :> MultiVerb
              'GET
-             [ Respond '[] 404 "User not found" (),
-               Respond '[JSON] 200 "User exists" UserProfile
+             '[JSON]
+             [ RespondEmpty 404 "User not found",
+               Respond 200 "User exists" UserProfile
              ]
              (Maybe UserProfile),
     -- See Note [ephemeral user sideeffect]
@@ -120,8 +122,9 @@ data Api routes = Api
         :> CaptureUserId "uid"
         :> MultiVerb
              'GET
-             [ Respond '[] 404 "User not found" (),
-               Respond '[JSON] 200 "User exists" UserProfile
+             '[JSON]
+             [ RespondEmpty 404 "User not found",
+               Respond 200 "User exists" UserProfile
              ]
              (Maybe UserProfile),
     getSelf ::

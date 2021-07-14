@@ -46,6 +46,7 @@ import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Feature
 
 instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
+  -- FUTUREWORK: use addHeader
   toHeaders c = Headers c (HCons (Header (qUnqualified (Public.cnvQualifiedId c))) HNil)
   fromHeaders = getResponse
 
@@ -71,14 +72,15 @@ type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 type ConversationVerb =
   MultiVerb
     'POST
+    '[JSON]
     '[ WithHeaders
          ConversationHeaders
          Conversation
-         (Respond '[JSON] 200 "Conversation existed" Conversation),
+         (Respond 200 "Conversation existed" Conversation),
        WithHeaders
          ConversationHeaders
          Conversation
-         (Respond '[JSON] 201 "Conversation created" Conversation)
+         (Respond 201 "Conversation created" Conversation)
      ]
     ConversationResponse
 
