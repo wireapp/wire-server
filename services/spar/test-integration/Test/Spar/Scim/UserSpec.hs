@@ -1683,7 +1683,14 @@ specSCIMManaged = do
               x <- responseBody r
               t <- x ^? key "access_token" . _String
               fromByteString (encodeUtf8 t)
-        resp <- call $ post (nginz . path "/access" . cookie cky) <!! const 200 === statusCode
+
+            -- (the proper way to do this is via 'Bilge.Request.cookie', but in our CI setup,
+            -- there is some issue with the cookie domain setup, and 'Bilge.cookie' adds it
+            -- only to the cookie jar, where it gets dropped during request compilation.)
+            forceCookieHeader :: Request -> Request
+            forceCookieHeader = header "Cookie" $ cookie_name cky <> "=" <> cookie_value cky
+
+        resp <- call $ post (nginz . path "/access" . forceCookieHeader) <!! const 200 === statusCode
         pure $ decodeToken resp
 
       do
