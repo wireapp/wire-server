@@ -198,9 +198,9 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
-    addMembersToConversationV2 ::
+    addMembersToUnqualifiedConversation ::
       routes
-        :- Summary "Add qualified members to an existing conversation."
+        :- Summary "Add qualified members to an existing conversation (deprecated)"
         :> ZUser
         :> ZConn
         :> "conversations"
