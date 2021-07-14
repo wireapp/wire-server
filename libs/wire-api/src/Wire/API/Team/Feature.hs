@@ -159,6 +159,8 @@ instance FromByteString TeamFeatureName where
         Right "classifiedDomains" -> pure TeamFeatureClassifiedDomains
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
+-- TODO: how do we make this consistent with 'KnownTeamFeatureNameSymbol'?  add a test for
+-- that?  anyway do we really need both?
 instance ToByteString TeamFeatureName where
   builder TeamFeatureLegalHold = "legalhold"
   builder TeamFeatureSSO = "sso"

@@ -32,12 +32,10 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.Id
 import Data.List1 (list1)
-import Data.Proxy (Proxy (Proxy))
 import Data.Schema (ToSchema)
 import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as TE
-import GHC.TypeLits (KnownSymbol, symbolVal)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
@@ -47,7 +45,7 @@ import Test.Tasty
 import Test.Tasty.HUnit (assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
-import Wire.API.Team.Feature (KnownTeamFeatureName (..), TeamFeatureName (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
@@ -418,21 +416,8 @@ testFeatureConfigConsistency = do
             (Aeson.Object hm) -> pure (Set.fromList . HashSet.toList . HashMap.keysSet $ hm)
             x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
 
-    featureKey :: forall (a :: TeamFeatureName). (KnownTeamFeatureName a, KnownSymbol (KnownTeamFeatureNameSymbol a)) => Text
-    featureKey = Text.pack $ symbolVal (Proxy @(KnownTeamFeatureNameSymbol a))
-
     allFeatures :: Set.Set Text
-    allFeatures =
-      Set.fromList
-        [ featureKey @'TeamFeatureLegalHold,
-          featureKey @'TeamFeatureSSO,
-          featureKey @'TeamFeatureSearchVisibility,
-          featureKey @'TeamFeatureValidateSAMLEmails,
-          featureKey @'TeamFeatureDigitalSignatures,
-          featureKey @'TeamFeatureAppLock,
-          featureKey @'TeamFeatureFileSharing,
-          featureKey @'TeamFeatureClassifiedDomains
-        ]
+    allFeatures = Set.fromList $ cs . toByteString' @TeamFeatureName <$> [minBound ..]
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do
