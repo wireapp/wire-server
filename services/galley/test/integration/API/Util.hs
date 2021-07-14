@@ -834,13 +834,23 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
-postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
-postQualifiedMembers zusr invitees conv = do
-  g <- view tsGalley
-  postQualifiedMembers' g zusr invitees conv
+postQualifiedMembers ::
+  (MonadIO m, MonadHttp m, HasGalley m) => UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> m ResponseLBS
+postQualifiedMembers zusr invitees (Qualified conv domain) = do
+  g <- viewGalley
+  let invite = Public.InviteQualified invitees roleNameWireAdmin
+  post $
+    g
+      . paths ["conversations", toByteString' domain, toByteString' conv, "members"]
+      . zUser zusr
+      . zConn "conn"
+      . zType "access"
+      . json invite
 
-postQualifiedMembers' :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> NonEmpty (Qualified UserId) -> ConvId -> m ResponseLBS
-postQualifiedMembers' g zusr invitees conv = do
+postQualifiedMembersLegacy ::
+  (MonadIO m, MonadHttp m, HasGalley m) => UserId -> NonEmpty (Qualified UserId) -> ConvId -> m ResponseLBS
+postQualifiedMembersLegacy zusr invitees conv = do
+  g <- viewGalley
   let invite = Public.InviteQualified invitees roleNameWireAdmin
   post $
     g

@@ -147,6 +147,7 @@ tests s =
           test s "add past members" postMembersOk3,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
+          test s "add remote members (legacy endpoint)" testAddRemoteMemberUnqualified,
           test s "add remote members" testAddRemoteMember,
           test s "get and list remote conversations" testGetRemoteConversations,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
@@ -1625,6 +1626,49 @@ leaveConnectConversation = do
 
 -- FUTUREWORK: Add more tests for scenarios of federation.
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
+testAddRemoteMemberUnqualified :: TestM ()
+testAddRemoteMemberUnqualified = do
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  let localDomain = qDomain qalice
+  bobId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      remoteBob = Qualified bobId remoteDomain
+  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
+  opts <- view tsGConf
+  (resp, reqs) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (respond remoteBob)
+      (postQualifiedMembersLegacy alice (remoteBob :| []) convId)
+  liftIO $ do
+    map F.domain reqs @?= replicate 2 (domainText remoteDomain)
+    map (fmap F.path . F.request) reqs
+      @?= [ Just "/federation/get-users-by-ids",
+            Just "/federation/update-conversation-memberships"
+          ]
+
+  e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
+  let bobMember = SimpleMember remoteBob roleNameWireAdmin
+  liftIO $ do
+    evtConv e @?= qconvId
+    evtType e @?= MemberJoin
+    evtData e @?= EdMembersJoin (SimpleMembers [bobMember])
+    evtFrom e @?= qalice
+  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
+  liftIO $ do
+    let actual = cmOthers $ cnvMembers conv
+    let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
+    assertEqual "other members should include remoteBob" expected actual
+  where
+    respond :: Qualified UserId -> F.FederatedRequest -> Value
+    respond bob req
+      | fmap F.component (F.request req) == Just F.Brig =
+        toJSON [mkProfile bob (Name "bob")]
+      | otherwise = toJSON ()
+
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
   qalice <- randomQualifiedUser
@@ -1636,13 +1680,12 @@ testAddRemoteMember = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   let qconvId = Qualified convId localDomain
   opts <- view tsGConf
-  g <- view tsGalley
   (resp, reqs) <-
     withTempMockFederator
       opts
       remoteDomain
       (respond remoteBob)
-      (postQualifiedMembers' g alice (remoteBob :| []) convId)
+      (postQualifiedMembers alice (remoteBob :| []) qconvId)
   liftIO $ do
     map F.domain reqs @?= replicate 2 (domainText remoteDomain)
     map (fmap F.path . F.request) reqs
@@ -1750,13 +1793,12 @@ testAddRemoteMemberFailure = do
       remoteCharlie = Qualified charlieId remoteDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   opts <- view tsGConf
-  g <- view tsGalley
   (resp, _) <-
     withTempMockFederator
       opts
       remoteDomain
       (const [mkProfile remoteCharlie (Name "charlie")])
-      (postQualifiedMembers' g alice (remoteBob :| [remoteCharlie]) convId)
+      (postQualifiedMembersLegacy alice (remoteBob :| [remoteCharlie]) convId)
   liftIO $ statusCode resp @?= 400
   let err = responseJsonUnsafe resp :: Object
   liftIO $ (err ^. at "label") @?= Just "unknown-remote-user"
@@ -1769,13 +1811,12 @@ testAddDeletedRemoteUser = do
       remoteBob = Qualified bobId remoteDomain
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   opts <- view tsGConf
-  g <- view tsGalley
   (resp, _) <-
     withTempMockFederator
       opts
       remoteDomain
       (const [(mkProfile remoteBob (Name "bob")) {profileDeleted = True}])
-      (postQualifiedMembers' g alice (remoteBob :| []) convId)
+      (postQualifiedMembersLegacy alice (remoteBob :| []) convId)
   liftIO $ statusCode resp @?= 400
   let err = responseJsonUnsafe resp :: Object
   liftIO $ (err ^. at "label") @?= Just "unknown-remote-user"
@@ -1786,7 +1827,7 @@ testAddRemoteMemberInvalidDomain = do
   bobId <- randomId
   let remoteBob = Qualified bobId (Domain "invalid.example.com")
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  postQualifiedMembers alice (remoteBob :| []) convId
+  postQualifiedMembersLegacy alice (remoteBob :| []) convId
     !!! do
       const 422 === statusCode
       const (Just "/federation/get-users-by-ids")
@@ -1798,7 +1839,6 @@ testAddRemoteMemberInvalidDomain = do
 -- on environments where federation isn't configured (such as our production as of May 2021)
 testAddRemoteMemberFederationDisabled :: TestM ()
 testAddRemoteMemberFederationDisabled = do
-  g <- view tsGalley
   alice <- randomUser
   remoteBob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
@@ -1807,7 +1847,7 @@ testAddRemoteMemberFederationDisabled = do
   -- This is the case on staging/production in May 2021.
   let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
-    postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
+    postQualifiedMembersLegacy alice (remoteBob :| []) convId !!! do
       const 400 === statusCode
       const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
   -- federator endpoint being configured in brig and/or galley, but not being
@@ -1816,7 +1856,7 @@ testAddRemoteMemberFederationDisabled = do
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable :: Opts = opts & optFederator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $ do
-    postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
+    postQualifiedMembersLegacy alice (remoteBob :| []) convId !!! do
       const 500 === statusCode
       const (Just "federation-not-available") === fmap label . responseJsonUnsafe
 

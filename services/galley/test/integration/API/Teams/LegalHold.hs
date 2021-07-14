@@ -1084,7 +1084,7 @@ testNoConsentCannotBeInvited = do
       >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
     localdomain <- viewFederationDomain
-    API.Util.postQualifiedMembers userLHNotActivated ((Qualified peer2 localdomain) :| []) convId
+    API.Util.postQualifiedMembersLegacy userLHNotActivated ((Qualified peer2 localdomain) :| []) convId
       >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
 
 testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
