@@ -26,27 +26,67 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import qualified Data.Misc as Misc
 import qualified Data.Text.Ascii as Ascii
+import Data.Text.Encoding (encodeUtf8)
+import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Test.Tasty.HUnit
 import Util.Core
 import Util.Types
 import qualified Wire.API.Team.Feature as Feature
+import qualified Wire.API.User.Auth as Auth
 
 changeEmailBrig ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   BrigReq ->
-  UserId ->
+  User ->
   Email ->
   m ResponseLBS
-changeEmailBrig brig uid email = do
+changeEmailBrig brig usr newEmail = do
+  -- most of this code is stolen from brig integration tests
+  let oldEmail = fromJust (userEmail usr)
+  (cky, tok) <- do
+    rsp <-
+      login (emailLogin oldEmail defPassword Nothing) Auth.PersistentCookie
+        <!! const 200 === statusCode
+    pure (decodeCookie rsp, decodeToken rsp)
+  changeEmailBrigCreds brig cky tok newEmail
+  where
+    emailLogin :: Email -> Misc.PlainTextPassword -> Maybe Auth.CookieLabel -> Auth.Login
+    emailLogin e = Auth.PasswordLogin (Auth.LoginByEmail e)
+
+    login :: Auth.Login -> Auth.CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS
+    login l t =
+      post $
+        brig
+          . path "/login"
+          . (if t == Auth.PersistentCookie then queryItem "persist" "true" else id)
+          . json l
+
+    decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
+    decodeCookie = fromMaybe (error "missing zuid cookie") . Bilge.getCookie "zuid"
+
+    decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
+    decodeToken r = fromMaybe (error "invalid access_token") $ do
+      x <- responseBody r
+      t <- x ^? key "access_token" . _String
+      fromByteString (encodeUtf8 t)
+
+changeEmailBrigCreds ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  BrigReq ->
+  Cookie ->
+  ZAuth.Token ZAuth.Access ->
+  Email ->
+  m ResponseLBS
+changeEmailBrigCreds brig cky tok newEmail = do
   put
     ( brig
-        . path "/self/email"
-        . zUser uid
-        . zConn "user"
-        . contentJson
-        . json (EmailUpdate email)
+        . path "/access/self/email"
+        . cookie cky
+        . header "Authorization" ("Bearer " <> toByteString' tok)
+        . json (EmailUpdate newEmail)
     )
 
 activateEmail ::
