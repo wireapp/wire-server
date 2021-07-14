@@ -24,11 +24,82 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart version 2.110.0
+=====================
+
+Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-07-09
+
+.. warning::
+
+   This release requires a manual change in your galley configuration: `galley.settings.conversationCodeURI` in `values/wire-server/values.yaml` was had to be set to `${WEBAPP}/join` before this release, and must be set to `${ACCOUNTS}/conversation-join` from now on, where `${WEBAPP}` is the url to the webapp and `${ACCOUNTS}` is the url to the account pages.
+
+API Changes
+-----------
+
+* Several public team feature endpoints are removed (their internal and
+  Stern-based counterparts remain available):
+  - `PUT /teams/:tid/features/sso`
+  - `PUT /teams/:tid/features/validateSAMLemails`
+  - `PUT /teams/:tid/features/digitalSignatures`
+* All endpoints that fetch conversation details now also include a new key
+  `qualified_id` for a qualified conversation ID (#1640)
+* New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
+
+Features
+--------
+
+* Change `settings.conversationCodeURI` in galley.yaml (#1643).
+* [Federation] RPC to propagate messages to other backends (#1596).
+* [Federation] Fetch remote user's clients when sending messages (#1635).
+* [Federation] Actually propagate messages to other backends (#1638).
+* [Federation] Support sending messages to remote conversations (#1609).
+* [Federation] Guard against path traversal attacks (#1646).
+
+Internal changes
+----------------
+
+* Feature endpoints are rewritten in Servant (#1642).
+* Internal federation endpoints using the publicly-facing conversation data type
+  now also include a qualified conversation ID under the `qualified_id` key
+  (#1640)
+* schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
+* [Federation] Let a receiving backend decide conversation attribute specifics of its users
+  added to a new conversation via `POST /federation/register-conversation` (#1622).
+* [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
+* Refactored Proteus endpoint to work with qualified users (#1634).
+* Refactored Federator InternalServer (#1637)
+
+Internal Federation API changes
+-------------------------------
+
+* Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
+  * Note: federation should not be in use anywhere yet, so this should not have any impact
+* Added golden tests for protobuf serialisation / deserialisation (#1644).
+
+Documentation
+-------------
+
+* Fix validation errors in Swagger documentation (#1625).
+
+Bug fixes and other updates
+---------------------------
+
+* Restore old behaviour for parse errors in request bodies (#1628, #1629).
+* Allow to change IdP Issuer name to previous name (#1615).
+
+
 Chart version 2.109.0
 =====================
 
+See https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-06-23 
+
 Release notes
 -------------
+
+.. warning::
+
+   This release went out with a bug that makes breaks certain error messages in the log in process.
+   This has been rectified in 2.110.0
 
 API Changes
 ------------
@@ -42,6 +113,48 @@ Security fixes
 Bug fixes
 ----------
 * [helm] Allow sending messages upto 40 MB by default (#1614)
+* Fix for https://github.com/wireapp/wire-webapp/security/advisories/GHSA-382j-mmc8-m5rw  (#1613)
+* Update wire-webapp version (#1613)
+* Update team-settings version (#1598)
+* Allow optional password field in RmClient (#1604, #1607)
+* Add endpoint: Get name, id with for CodeAccess conversations (#1592)
+* demote logging failed invitations to a warning, rather than an error. Server operators can't act on these errors in any way (#1586)
+
+
+Documentation
+-------------
+
+* Add descriptive comments to `ConversationMemberUpdate` (#1578)
+* initial few anti-patterns and links about cassandra (#1599)
+
+Internal changes
+----------------
+
+* Rename a local members field in the Conversation data type (#1580)
+* Servantify Protobuf endpoint to send messages (#1583)
+* Servantify own client API (#1584, #1603)
+* Remove resource requests (#1581)
+* Import http2 fix (#1582)
+* Remove stale FUTUREWORK comment (#1587)
+* Reorganise helper functions for conversation notifications (#1588)
+* Extract origin domain header name for use in API (#1597)
+* Merge Empty200, Empty404 and EmptyResult (#1589)
+* Set content-type header for JSON errors in Servant (#1600)
+* Add golden tests for ClientCapability(List) (#1590)
+* Add checklist for PRs (#1601, #1610)
+* Remove outdated TODO (#1606)
+* submodules (#1612)
+
+More federation changes (inactive code)
+---------------------------------------
+
+* Add getUserClients RPC (and thereby allow remote clients lookup) (#1500)
+* minor refactor: runFederated (#1575)
+* Notify remote backends when users join (#1556)
+* end2end test getting remote conversation and complete its implementation (#1585)
+* Federation: Notify Remote Users of Being Added to a New Conversation (#1594)
+* Add qualified endpoint for sending messages (#1593, #1614)
+* Galley/int: Expect remote call when creating conv with remotes (#1611)
 
 
 
