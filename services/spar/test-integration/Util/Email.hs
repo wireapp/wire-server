@@ -84,10 +84,16 @@ changeEmailBrigCreds brig cky tok newEmail = do
   put
     ( brig
         . path "/access/self/email"
-        . cookie cky
+        . forceCookie cky
         . header "Authorization" ("Bearer " <> toByteString' tok)
         . json (EmailUpdate newEmail)
     )
+
+-- (the proper way to do this is via 'Bilge.Request.cookie', but in our CI setup,
+-- there is some issue with the cookie domain setup, and 'Bilge.cookie' adds it
+-- only to the cookie jar, where it gets dropped during request compilation.)
+forceCookie :: Cookie -> Request -> Request
+forceCookie cky = header "Cookie" $ cookie_name cky <> "=" <> cookie_value cky
 
 activateEmail ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
