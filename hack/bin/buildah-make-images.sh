@@ -46,22 +46,3 @@ if [[ "$BUILDAH_KIND_LOAD" -eq "1" ]]; then
     done
     rm -rf "$archiveDir"
 fi
-
-# special case nginz
-EXECUTABLES=${EXECUTABLES:-"nginz nginz_disco"}
-for EX in $EXECUTABLES; do
-    CONTAINER_NAME=$EX
-    buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" ||
-        buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/$CONTAINER_NAME:latest
-    if [[ "$BUILDAH_KIND_LOAD" -eq "1" ]]; then
-        archiveDir=$(mktemp -d)
-        imgPath="$archiveDir/${EX}_${DOCKER_TAG}.tar"
-        imgName="quay.io/wire/$EX:$DOCKER_TAG"
-        buildah push "$imgName" "docker-archive:$imgPath:$imgName"
-        kind load image-archive --name "$KIND_CLUSTER_NAME" "$imgPath"
-        rm -rf "$archiveDir"
-    fi
-done
-
-# general cleanup
-"$DIR/buildah-purge-untagged.sh"
