@@ -213,35 +213,35 @@ createUser new = do
 
   let uid = userId (accountUser account)
 
-  activatedTeam <- lift $ do
-    case (tid, newTeam) of
-      (Just tid', Just nt) -> do
-        created <- Intra.createTeam uid (bnuTeam nt) tid'
-        let activating = isJust (newUserEmailCode new)
-        pure $
-          if activating
-            then Just created
-            else Nothing
+  createUserTeam <- do
+    activatedTeam <- lift $ do
+      case (tid, newTeam) of
+        (Just tid', Just nt) -> do
+          created <- Intra.createTeam uid (bnuTeam nt) tid'
+          let activating = isJust (newUserEmailCode new)
+          pure $
+            if activating
+              then Just created
+              else Nothing
+        _ -> pure Nothing
+
+    joinedTeamInvite <- case teamInvitation of
+      Just (inv, invInfo) -> do
+        let em = Team.inInviteeEmail inv
+        acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
+        Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
+        pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
+      Nothing -> pure Nothing
+
+    joinedTeamSSO <- case (ident, tid) of
+      (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
       _ -> pure Nothing
 
-  (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
-    Just (inv, invInfo) -> do
-      let em = Team.inInviteeEmail inv
-      acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
-      Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
-      return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
-    Nothing -> return (False, Nothing)
-
-  joinedTeamSSO <- case (ident, tid) of
-    (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
-    _ -> pure Nothing
-
-  let joinedTeam :: Maybe CreateUserTeam
-      joinedTeam = joinedTeamInvite <|> joinedTeamSSO
+    pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
 
   -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
   edata <-
-    if teamEmailInvited
+    if isJust teamInvitation
       then return Nothing
       else fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
@@ -272,7 +272,7 @@ createUser new = do
       void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
       return Nothing
 
-  return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
+  return $! CreateUserResult account edata pdata createUserTeam
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
