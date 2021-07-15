@@ -182,13 +182,12 @@ createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
-  let ident = newIdentity email phone (newUserSSOId new)
-
-  -- team user registration
+  -- get invitation and existing account
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) (userEmailKey <$> email)
-
   let mbInv = Team.inInvitation . fst <$> teamInvitation
   mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
+
+  let ident = newIdentity email phone (newUserSSOId new)
   let new' =
         new
           { newUserManagedBy = case mbExistingAccount of
@@ -196,10 +195,10 @@ createUser new = do
               Just acc -> Just . userManagedBy . accountUser $ acc,
             newUserIdentity = ident
           }
+  let mbHandle = userHandle . accountUser =<< mbExistingAccount
 
   -- Create account
-  (account, pw) <- lift $ do
-    newAccount new' mbInv tid (userHandle . accountUser =<< mbExistingAccount)
+  (account, pw) <- lift $ newAccount new' mbInv tid mbHandle
 
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
