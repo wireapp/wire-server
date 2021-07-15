@@ -158,9 +158,10 @@ data Api routes = Api
     getConversationByReusableCode ::
       routes
         :- Summary "Get limited conversation information by key/code pair"
-        :> CanThrow NotConnected
-        :> CanThrow OperationDenied
         :> CanThrow NotATeamMember
+        :> CanThrow CodeNotFound
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
         :> ZUser
         :> "conversations"
         :> "join"
@@ -170,10 +171,9 @@ data Api routes = Api
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
+        :> CanThrow NotConnected
+        :> CanThrow OperationDenied
         :> CanThrow NotATeamMember
-        :> CanThrow CodeNotFound
-        :> CanThrow ConvNotFound
-        :> CanThrow ConvAccessDenied
         :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
         :> ZUser
         :> ZConn
