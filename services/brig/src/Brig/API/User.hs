@@ -183,7 +183,16 @@ createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
   -- get invitation and existing account
-  (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) (userEmailKey <$> email)
+  (newTeam, teamInvitation, tid) <-
+    case (newUserTeam new, userEmailKey <$> email) of
+      (Just (NewTeamMember i), e) ->
+        findTeamInvitation e i
+        >>= return . \case
+          Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
+          Nothing -> (Nothing, Nothing, Nothing)
+      (Just (NewTeamCreator t), _) -> (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
+      (Just (NewTeamMemberSSO tid), _) -> pure (Nothing, Nothing, Just tid)
+      (Nothing, _) -> return (Nothing, Nothing, Nothing)
   let mbInv = Team.inInvitation . fst <$> teamInvitation
   mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
 
@@ -270,25 +279,6 @@ createUser new = do
         verifyUniquenessAndCheckBlacklist
 
       pure (email, phone)
-
-    handleTeam ::
-      Maybe NewTeamUser ->
-      Maybe UserKey ->
-      ExceptT
-        CreateUserError
-        AppIO
-        ( Maybe BindingNewTeamUser,
-          Maybe (Team.Invitation, Team.InvitationInfo),
-          Maybe TeamId
-        )
-    handleTeam (Just (NewTeamMember i)) e =
-      findTeamInvitation e i
-        >>= return . \case
-          Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
-          Nothing -> (Nothing, Nothing, Nothing)
-    handleTeam (Just (NewTeamCreator t)) _ = (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
-    handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
-    handleTeam Nothing _ = return (Nothing, Nothing, Nothing)
 
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE MissingIdentity
