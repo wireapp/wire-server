@@ -239,23 +239,10 @@ createUser new = do
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
 
-  -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
   edata <-
     if isJust teamInvitation
-      then return Nothing
-      else fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
-        Nothing -> do
-          timeout <- setActivationTimeout <$> view settings
-          edata <- lift $ Data.newActivation ek timeout (Just uid)
-          Log.info $
-            field "user" (toByteString uid)
-              . field "activation.key" (toByteString $ activationKey edata)
-              . msg (val "Created email activation key/code pair")
-          return $ Just edata
-        Just c -> do
-          ak <- liftIO $ Data.mkActivationKey ek
-          void $ activateWithCurrency (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
-          return Nothing
+      then handleEmailActivation email uid newTeam
+      else pure Nothing
 
   -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
   pdata <- fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
@@ -386,6 +373,23 @@ createUser new = do
             . msg (val "Added via SSO")
       Team.TeamName nm <- lift $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
+
+    -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
+    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT CreateUserError (AppT IO) (Maybe Activation)
+    handleEmailActivation email uid newTeam = do
+      fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
+        Nothing -> do
+          timeout <- setActivationTimeout <$> view settings
+          edata <- lift $ Data.newActivation ek timeout (Just uid)
+          Log.info $
+            field "user" (toByteString uid)
+              . field "activation.key" (toByteString $ activationKey edata)
+              . msg (val "Created email activation key/code pair")
+          return $ Just edata
+        Just c -> do
+          ak <- liftIO $ Data.mkActivationKey ek
+          void $ activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam) !>> EmailActivationError
+          return Nothing
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
