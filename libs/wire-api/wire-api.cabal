@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c12b754866b74213ac22c8738621201c6645b85c5afcf7535ff3bf8a86365e13
+-- hash: 24c5eb2b4353fddaca4086feb9b363c3df6bbba33db1f7a8b7faffa8f46efac8
 
 name:           wire-api
 version:        0.1.0
@@ -53,6 +53,7 @@ library
       Wire.API.Routes.Public.Galley
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
+      Wire.API.Routes.QualifiedCapture
       Wire.API.ServantProto
       Wire.API.Swagger
       Wire.API.Team
@@ -137,6 +138,7 @@ library
     , saml2-web-sso
     , schema-profunctor
     , servant
+    , servant-client-core
     , servant-multipart
     , servant-server
     , servant-swagger
