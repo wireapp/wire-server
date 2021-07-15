@@ -456,7 +456,14 @@ unsetTeamLegalholdWhitelistedH tid = do
     error
       "FUTUREWORK: if we remove entries from the list, that means removing an unknown \
       \number of LH devices as well, and possibly other things.  think this through \
-      \before you enable the end-point."
+      \before you enable the end-point. \
+      \\
+      \POSSIBLE SHORTCUT: check if the team has any LH devices, and if not, go ahead \
+      \with the de-whitelisting.  If this check still takes too long, we could store \
+      \a LH device count per team in a table, and increment and decrement it as we \
+      \add and remove LH devices.  this would still leave the question of migrating \
+      \a state where all teams have this count stored, but that can be done \
+      \asynchronously."
   setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
 
 getTeamLegalholdWhitelistedH :: TeamId -> Galley Response
