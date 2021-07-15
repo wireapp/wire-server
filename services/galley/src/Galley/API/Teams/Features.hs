@@ -217,7 +217,8 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
 
 getFileSharingInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
-getFileSharingInternal = getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ pure Public.TeamFeatureEnabled
+getFileSharingInternal = getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ do
+  view (options . optSettings . setFeatureFlags . flagFileSharing) <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
 setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_ _ -> pure ()
