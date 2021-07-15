@@ -180,21 +180,7 @@ verifyUniquenessAndCheckBlacklist uk = do
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new = do
-  -- Validate e-mail
-  email <- for (newUserEmail new) $ \e ->
-    either
-      (throwE . InvalidEmail e)
-      return
-      (validateEmail e)
-
-  -- Validate phone
-  phone <- for (newUserPhone new) $ \p ->
-    maybe
-      (throwE (InvalidPhone p))
-      return
-      =<< lift (validatePhone p)
-
-  for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ verifyUniquenessAndCheckBlacklist
+  (email, phone) <- validateEmailAndPhone new
 
   let ident = newIdentity email phone (newUserSSOId new)
 
@@ -278,6 +264,27 @@ createUser new = do
   return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
+
+    validateEmailAndPhone :: NewUser -> ExceptT CreateUserError (AppT IO) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone newUser = do
+      -- Validate e-mail
+      email <- for (newUserEmail newUser) $ \e ->
+        either
+          (throwE . InvalidEmail e)
+          return
+          (validateEmail e)
+
+      -- Validate phone
+      phone <- for (newUserPhone newUser) $ \p ->
+        maybe
+          (throwE (InvalidPhone p))
+          return
+          =<< lift (validatePhone p)
+
+      for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ do
+        verifyUniquenessAndCheckBlacklist
+
+      pure (email, phone)
 
     createTeam :: (UserId -> Bool -> Team.BindingNewTeam -> TeamId -> AppT IO (Maybe CreateUserTeam))
     createTeam uid activating t tid = do
