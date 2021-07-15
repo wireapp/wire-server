@@ -186,10 +186,9 @@ createUser new = do
   (newTeam, teamInvitation, tid) <-
     case (newUserTeam new, userEmailKey <$> email) of
       (Just (NewTeamMember i), e) ->
-        findTeamInvitation e i
-        >>= return . \case
+        findTeamInvitation e i <&> (\case
           Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
-          Nothing -> (Nothing, Nothing, Nothing)
+          Nothing -> (Nothing, Nothing, Nothing))
       (Just (NewTeamCreator t), _) -> (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       (Just (NewTeamMemberSSO tid), _) -> pure (Nothing, Nothing, Just tid)
       (Nothing, _) -> return (Nothing, Nothing, Nothing)
