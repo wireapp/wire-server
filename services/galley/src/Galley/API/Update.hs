@@ -36,7 +36,7 @@ module Galley.API.Update
 
     -- * Managing Members
     Galley.API.Update.addMembersH,
-    addMembersQualifiedConvId,
+    addMembersQualifiedConv,
     addMembersLocalConv,
     updateSelfMemberH,
     updateOtherMemberH,
@@ -476,15 +476,18 @@ mapUpdateToServant :: UpdateResult -> Galley (Union GalleyAPI.UpdateResponses)
 mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
 mapUpdateToServant Unchanged = Servant.respond Servant.NoContent
 
-addMembersQualifiedConvId :: UserId -> ConnId -> Qualified ConvId -> Public.InviteQualified -> Galley UpdateResult
-addMembersQualifiedConvId zusr zcon conv@(Qualified convId convDomain) invite = do
+addMembersQualifiedConv :: UserId -> ConnId -> Qualified ConvId -> Public.InviteQualified -> Galley UpdateResult
+addMembersQualifiedConv zusr zcon conv@(Qualified convId convDomain) invite = do
   localDomain <- viewFederationDomain
   let requester = Qualified zusr localDomain
   if localDomain /= convDomain
-    then addMembersRemoteConv requester conv invite
+    then addMembersRemoteConv requester (toRemote conv) invite
     else addMembersLocalConv zusr (Just zcon) convId invite
 
-addMembersRemoteConv :: Qualified UserId -> Qualified ConvId -> Public.InviteQualified -> Galley UpdateResult
+-- | Add members to a remote conversation. An assertion that the user and the
+-- conversation are not on the same backend was already done in the
+-- 'addMembersQualifiedConv' function.
+addMembersRemoteConv :: Qualified UserId -> Remote ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembersRemoteConv _requester _conv _invite = do
   -- TODO: make a federated RPC call to the remote Galley
 

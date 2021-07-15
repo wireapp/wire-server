@@ -148,7 +148,7 @@ servantSitemap =
 
     addMembersToQualifiedConversation :: UserId -> ConnId -> Domain -> ConvId -> Public.InviteQualified -> Galley (Union GalleyAPI.UpdateResponses)
     addMembersToQualifiedConversation zusr zcon domain convId invite =
-      Update.mapUpdateToServant =<< Update.addMembersQualifiedConvId zusr zcon (Qualified convId domain) invite
+      Update.mapUpdateToServant =<< Update.addMembersQualifiedConv zusr zcon (Qualified convId domain) invite
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
