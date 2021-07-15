@@ -214,10 +214,15 @@ createUser new = do
   let uid = userId (accountUser account)
 
   activatedTeam <- lift $ do
-    -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
     case (tid, newTeam) of
-      (Just t, Just nt) -> createTeam (userId (accountUser account)) (isJust (newUserEmailCode new)) (bnuTeam nt) t
-      _ -> return Nothing
+      (Just tid', Just nt) -> do
+        created <- Intra.createTeam uid (bnuTeam nt) tid'
+        let activating = isJust (newUserEmailCode new)
+        pure $
+          if activating
+            then Just created
+            else Nothing
+      _ -> pure Nothing
 
   (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
     Just (inv, invInfo) -> do
@@ -291,14 +296,6 @@ createUser new = do
         verifyUniquenessAndCheckBlacklist
 
       pure (email, phone)
-
-    createTeam :: (UserId -> Bool -> Team.BindingNewTeam -> TeamId -> AppT IO (Maybe CreateUserTeam))
-    createTeam uid activating t tid = do
-      created <- Intra.createTeam uid t tid
-      return $
-        if activating
-          then Just created
-          else Nothing
 
     handleTeam ::
       Maybe NewTeamUser ->
