@@ -187,17 +187,18 @@ createUser new = do
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) (userEmailKey <$> email)
 
+  let mbInv = Team.inInvitation . fst <$> teamInvitation
+  mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
+  let new' =
+        new
+          { newUserManagedBy = case mbExistingAccount of
+              Nothing -> newUserManagedBy new
+              Just acc -> Just . userManagedBy . accountUser $ acc,
+            newUserIdentity = ident
+          }
+
   -- Create account
   (account, pw) <- lift $ do
-    let mbInv = Team.inInvitation . fst <$> teamInvitation
-    mbExistingAccount <- join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
-    let new' =
-          new
-            { newUserManagedBy = case mbExistingAccount of
-                Nothing -> newUserManagedBy new
-                Just acc -> Just . userManagedBy . accountUser $ acc,
-              newUserIdentity = ident
-            }
     newAccount new' mbInv tid (userHandle . accountUser =<< mbExistingAccount)
 
   let uid = userId (accountUser account)
