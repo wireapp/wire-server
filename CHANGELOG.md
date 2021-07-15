@@ -50,6 +50,7 @@ settings:
 ## Internal changes
 
 * The servant-swagger dependency now points to the current upstream master (#1656).
+* Added a `QualifiedCapture` type to Servant for qualified paths (#1669).
 
 ## Federation changes (alpha feature, do not use yet)
 
