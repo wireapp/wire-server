@@ -13,7 +13,6 @@ import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import Servant.API.Status (KnownStatus)
 import Servant.Swagger.Internal
-import Wire.API.ServantSwagger
 
 -- This can be added to an endpoint to document a possible failure
 -- case outside its return type (usually through an exception).
