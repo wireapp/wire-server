@@ -93,6 +93,7 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
+* Document more error responses (#1645).
 
 ## Bug fixes and other updates
 
