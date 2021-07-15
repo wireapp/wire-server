@@ -186,16 +186,19 @@ createUser new = do
       (throwE . InvalidEmail e)
       return
       (validateEmail e)
+
   -- Validate phone
   phone <- for (newUserPhone new) $ \p ->
     maybe
       (throwE (InvalidPhone p))
       return
       =<< lift (validatePhone p)
+
   let ident = newIdentity email phone (newUserSSOId new)
   let emKey = userEmailKey <$> email
   let phKey = userPhoneKey <$> phone
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
+
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
 
@@ -215,6 +218,7 @@ createUser new = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
+
   activatedTeam <- lift $ do
     Data.insertAccount account Nothing pw False
     Intra.createSelfConv uid
@@ -223,6 +227,7 @@ createUser new = do
     case (tid, newTeam) of
       (Just t, Just nt) -> createTeam uid (isJust (newUserEmailCode new)) (bnuTeam nt) t
       _ -> return Nothing
+
   (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
     Just (inv, invInfo) -> do
       let em = Team.inInviteeEmail inv
@@ -230,11 +235,14 @@ createUser new = do
       Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
       return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
     Nothing -> return (False, Nothing)
+
   joinedTeamSSO <- case (ident, tid) of
     (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
     _ -> pure Nothing
+
   let joinedTeam :: Maybe CreateUserTeam
       joinedTeam = joinedTeamInvite <|> joinedTeamSSO
+
   -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
   edata <-
     if teamEmailInvited
@@ -252,6 +260,7 @@ createUser new = do
           ak <- liftIO $ Data.mkActivationKey ek
           void $ activateWithCurrency (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
           return Nothing
+
   -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
   pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode new of
     Nothing -> do
@@ -266,6 +275,7 @@ createUser new = do
       ak <- liftIO $ Data.mkActivationKey pk
       void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
       return Nothing
+
   return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
