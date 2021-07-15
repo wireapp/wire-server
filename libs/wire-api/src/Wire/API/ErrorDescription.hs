@@ -3,6 +3,7 @@ module Wire.API.ErrorDescription where
 import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as LBS
 import Data.SOP (I (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
@@ -12,6 +13,8 @@ import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
 import Servant hiding (Handler, addHeader, contentType, respond)
+import Servant.API (contentType)
+import Servant.API.ContentTypes (AllMimeRender, AllMimeUnrender)
 import Servant.API.Status (KnownStatus, statusVal)
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
@@ -154,19 +157,27 @@ instance KnownStatus status => HasStatus (ErrorDescription status label desc) wh
 -- * MultiVerb errors
 
 type RespondWithErrorDescription s label desc =
-  Respond '[JSON] s desc (ErrorDescription s label desc)
+  Respond s desc (ErrorDescription s label desc)
 
 instance
-  ( KnownStatus s,
+  ( AllMimeRender cs (ErrorDescription s label desc),
+    AllMimeUnrender cs (ErrorDescription s label desc),
+    KnownStatus s,
     KnownSymbol label,
     KnownSymbol desc
   ) =>
-  IsResponse (ErrorDescription s label desc)
+  IsResponse cs (ErrorDescription s label desc)
   where
-  type ResponseContentTypes (ErrorDescription s label desc) = '[JSON]
   type ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
+  type ResponseStatus (ErrorDescription s label desc) = s
 
-  responseRender = responseRender @(RespondWithErrorDescription s label desc)
+  responseRender = responseRender @cs @(RespondWithErrorDescription s label desc)
+  responseUnrender = responseUnrender @cs @(RespondWithErrorDescription s label desc)
+
+instance
+  (KnownStatus s, KnownSymbol label, KnownSymbol desc) =>
+  IsSwaggerResponse (ErrorDescription s label desc)
+  where
   responseSwagger = responseSwagger @(RespondWithErrorDescription s label desc)
 
 instance
@@ -175,23 +186,39 @@ instance
     '[ErrorDescription s label desc, r]
     (Maybe a)
   where
-  asUnion Nothing = Z (I mkErrorDescription)
-  asUnion (Just x) = S (Z (I x))
+  toUnion Nothing = Z (I mkErrorDescription)
+  toUnion (Just x) = S (Z (I x))
+  fromUnion (Z (I _)) = Nothing
+  fromUnion (S (Z (I x))) = Just x
+  fromUnion (S (S x)) = case x of
 
 -- * Empty errors for legacy reasons
 
 data EmptyErrorForLegacyReasons s desc
 
 instance
-  ( KnownStatus s,
-    KnownSymbol desc
-  ) =>
-  IsResponse (EmptyErrorForLegacyReasons s desc)
+  KnownStatus s =>
+  IsResponse cs (EmptyErrorForLegacyReasons s desc)
   where
-  type ResponseContentTypes (EmptyErrorForLegacyReasons s desc) = '[PlainText]
   type ResponseType (EmptyErrorForLegacyReasons s desc) = ()
+  type ResponseStatus (EmptyErrorForLegacyReasons s desc) = s
 
-  responseRender () = [RenderOutput (statusVal (Proxy @s)) mempty mempty]
+  responseRender _ () =
+    pure $
+      roAddContentType
+        (contentType (Proxy @PlainText))
+        (RenderOutput (statusVal (Proxy @s)) mempty mempty)
+
+  responseUnrender _ output =
+    guard
+      ( LBS.null (roBody output)
+          && roStatus output == statusVal (Proxy @s)
+      )
+
+instance
+  (KnownStatus s, KnownSymbol desc) =>
+  IsSwaggerResponse (EmptyErrorForLegacyReasons s desc)
+  where
   responseSwagger =
     pure $
       ResponseSwagger
@@ -212,8 +239,11 @@ instance
     '[EmptyErrorForLegacyReasons s desc, r]
     (Maybe a)
   where
-  asUnion Nothing = Z (I ())
-  asUnion (Just x) = S (Z (I x))
+  toUnion Nothing = Z (I ())
+  toUnion (Just x) = S (Z (I x))
+  fromUnion (Z (I ())) = Nothing
+  fromUnion (S (Z (I x))) = Just x
+  fromUnion (S (S x)) = case x of
 
 -- * Errors
 

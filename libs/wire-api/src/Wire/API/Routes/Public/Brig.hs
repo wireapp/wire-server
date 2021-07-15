@@ -65,8 +65,9 @@ type UserExistsVerb =
 type GetUserVerb =
   MultiVerb
     'GET
+    '[JSON]
     '[ ErrorDescription 404 "user-not-found" "User not found",
-       Respond '[JSON] 200 "User found" UserProfile
+       Respond 200 "User found" UserProfile
      ]
     (Maybe UserProfile)
 
@@ -126,8 +127,9 @@ data Api routes = Api
         :> Capture' '[Description "The user handle"] "handle" Handle
         :> MultiVerb
              'GET
+             '[JSON]
              '[ HandleNotFound,
-                Respond '[JSON] 200 "User found" UserHandleInfo
+                Respond 200 "User found" UserHandleInfo
               ]
              (Maybe UserHandleInfo),
     getUserByHandleQualified ::
@@ -140,8 +142,9 @@ data Api routes = Api
         :> Capture' '[Description "The user handle"] "handle" Handle
         :> MultiVerb
              'GET
+             '[JSON]
              '[ HandleNotFound,
-                Respond '[JSON] 200 "User found" UserProfile
+                Respond 200 "User found" UserProfile
               ]
              (Maybe UserProfile),
     -- See Note [ephemeral user sideeffect]
@@ -316,8 +319,9 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> MultiVerb
              'GET
+             '[JSON]
              '[ EmptyErrorForLegacyReasons 404 "Client not found",
-                Respond '[JSON] 200 "Client found" Client
+                Respond 200 "Client found" Client
               ]
              (Maybe Client),
     getClientCapabilities ::
