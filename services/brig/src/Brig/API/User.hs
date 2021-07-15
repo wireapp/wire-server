@@ -244,20 +244,7 @@ createUser new = do
       then handleEmailActivation email uid newTeam
       else pure Nothing
 
-  -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-  pdata <- fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
-    Nothing -> do
-      timeout <- setActivationTimeout <$> view settings
-      pdata <- lift $ Data.newActivation pk timeout (Just uid)
-      Log.info $
-        field "user" (toByteString uid)
-          . field "activation.key" (toByteString $ activationKey pdata)
-          . msg (val "Created phone activation key/code pair")
-      return $ Just pdata
-    Just c -> do
-      ak <- liftIO $ Data.mkActivationKey pk
-      void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
-      return Nothing
+  pdata <- handlePhoneActivation phone uid
 
   return $! CreateUserResult account edata pdata createUserTeam
   where
@@ -390,6 +377,24 @@ createUser new = do
           ak <- liftIO $ Data.mkActivationKey ek
           void $ activateWithCurrency (ActivateKey ak) c (Just uid) (bnuCurrency =<< newTeam) !>> EmailActivationError
           return Nothing
+
+    -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
+    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT CreateUserError (AppT IO) (Maybe Activation)
+    handlePhoneActivation phone uid = do
+      pdata <- fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
+        Nothing -> do
+          timeout <- setActivationTimeout <$> view settings
+          pdata <- lift $ Data.newActivation pk timeout (Just uid)
+          Log.info $
+            field "user" (toByteString uid)
+              . field "activation.key" (toByteString $ activationKey pdata)
+              . msg (val "Created phone activation key/code pair")
+          return $ Just pdata
+        Just c -> do
+          ak <- liftIO $ Data.mkActivationKey pk
+          void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
+          return Nothing
+      pure pdata
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
