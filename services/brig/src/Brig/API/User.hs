@@ -194,8 +194,9 @@ createUser new = do
       return
       =<< lift (validatePhone p)
 
-  let ident = newIdentity email phone (newUserSSOId new)
   for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ verifyUniquenessAndCheckBlacklist
+
+  let ident = newIdentity email phone (newUserSSOId new)
 
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) (userEmailKey <$> email)
