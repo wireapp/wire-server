@@ -198,19 +198,25 @@ createUser new = do
   let mbHandle = userHandle . accountUser =<< mbExistingAccount
 
   -- Create account
-  (account, pw) <- lift $ newAccount new' mbInv tid mbHandle
+  account <- lift $ do
+    (account, pw) <- newAccount new' mbInv tid mbHandle
 
-  let uid = userId (accountUser account)
-  Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
-  Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
+    let uid = userId (accountUser account)
+    Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
+    Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
-  activatedTeam <- lift $ do
     Data.insertAccount account Nothing pw False
     Intra.createSelfConv uid
     Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+
+    pure account
+
+  let uid = userId (accountUser account)
+
+  activatedTeam <- lift $ do
     -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
     case (tid, newTeam) of
-      (Just t, Just nt) -> createTeam uid (isJust (newUserEmailCode new)) (bnuTeam nt) t
+      (Just t, Just nt) -> createTeam (userId (accountUser account)) (isJust (newUserEmailCode new)) (bnuTeam nt) t
       _ -> return Nothing
 
   (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
