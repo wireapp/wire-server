@@ -35,6 +35,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.ErrorDescription (ClientNotFound)
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -47,6 +48,8 @@ type MaxUsersForListClientsBulk = 500
 type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
+
+type QualifiedCaptureUserId name = QualifiedCapture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
@@ -85,8 +88,7 @@ data Api routes = Api
         :- Summary "Check if a user ID exists"
         :> ZUser
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> UVerb 'HEAD '[] CheckUserExistsResponse,
     -- See Note [ephemeral user sideeffect]
     --
@@ -112,8 +114,7 @@ data Api routes = Api
         :- Summary "Get a user by Domain and UserId"
         :> ZUser
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> Get '[JSON] UserProfile,
     getSelf ::
       routes
@@ -145,8 +146,7 @@ data Api routes = Api
         :> ZUser
         :> "users"
         :> "by-handle"
-        :> Capture "domain" Domain
-        :> Capture' '[Description "The user handle"] "handle" Handle
+        :> QualifiedCapture' '[Description "The user handle"] "handle" Handle
         :> Get '[JSON] UserProfile,
     -- See Note [ephemeral user sideeffect]
     listUsersByUnqualifiedIdsOrHandles ::
@@ -178,8 +178,7 @@ data Api routes = Api
       routes
         :- Summary "Get all of a user's clients."
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "clients"
         :> Get '[JSON] [PubClient],
     getUserClientUnqualified ::
@@ -194,8 +193,7 @@ data Api routes = Api
       routes
         :- Summary "Get a specific client of a user."
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "clients"
         :> CaptureClientId "client"
         :> Get '[JSON] PubClient,
@@ -230,8 +228,7 @@ data Api routes = Api
         :- Summary "Get a prekey for a specific client of a user."
         :> ZUser
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "prekeys"
         :> CaptureClientId "client"
         :> Get '[JSON] ClientPrekey,
@@ -248,8 +245,7 @@ data Api routes = Api
         :- Summary "Get a prekey for each client of a user."
         :> ZUser
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "prekeys"
         :> Get '[JSON] PrekeyBundle,
     getMultiUserPrekeyBundleUnqualified ::
