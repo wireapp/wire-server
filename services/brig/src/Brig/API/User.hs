@@ -179,7 +179,7 @@ verifyUniquenessAndCheckBlacklist uk = do
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
-createUser new@NewUser {..} = do
+createUser new = do
   -- Validate e-mail
   email <- for (newUserEmail new) $ \e ->
     either
@@ -206,7 +206,7 @@ createUser new@NewUser {..} = do
     let new' =
           new
             { newUserManagedBy = case mbExistingAccount of
-                Nothing -> newUserManagedBy
+                Nothing -> newUserManagedBy new
                 Just acc -> Just . userManagedBy . accountUser $ acc,
               newUserIdentity = ident
             }
@@ -221,7 +221,7 @@ createUser new@NewUser {..} = do
     Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
     -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
     case (tid, newTeam) of
-      (Just t, Just nt) -> createTeam uid (isJust newUserEmailCode) (bnuTeam nt) t
+      (Just t, Just nt) -> createTeam uid (isJust (newUserEmailCode new)) (bnuTeam nt) t
       _ -> return Nothing
   (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
     Just (inv, invInfo) -> do
@@ -239,7 +239,7 @@ createUser new@NewUser {..} = do
   edata <-
     if teamEmailInvited
       then return Nothing
-      else fmap join . for emKey $ \ek -> case newUserEmailCode of
+      else fmap join . for emKey $ \ek -> case newUserEmailCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           edata <- lift $ Data.newActivation ek timeout (Just uid)
@@ -253,7 +253,7 @@ createUser new@NewUser {..} = do
           void $ activateWithCurrency (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
           return Nothing
   -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-  pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode of
+  pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode new of
     Nothing -> do
       timeout <- setActivationTimeout <$> view settings
       pdata <- lift $ Data.newActivation pk timeout (Just uid)
