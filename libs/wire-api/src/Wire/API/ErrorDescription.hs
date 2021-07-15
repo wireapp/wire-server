@@ -55,17 +55,23 @@ errorDescriptionAddToSwagger =
     addRef Nothing =
       Just . Swagger.Inline $
         mempty
-          & Swagger.description .~ Text.pack (symbolVal (Proxy @desc))
+          & Swagger.description .~ desc
           & Swagger.schema ?~ Swagger.Inline (Swagger.toSchema (Proxy @(ErrorDescription code label desc)))
     addRef (Just response) =
       Just $
         response
           -- add the description of this error to the response description
           & Swagger._Inline . Swagger.description
-            <>~ ("\n\n" <> Text.pack (symbolVal (Proxy @desc)))
+            <>~ ("\n\n" <> desc)
           -- add the label of this error to the possible values of the corresponding enum
           & Swagger._Inline . Swagger.schema . _Just . Swagger._Inline . Swagger.properties . ix "label" . Swagger._Inline . Swagger.enum_ . _Just
             <>~ [A.toJSON (symbolVal (Proxy @label))]
+
+    desc =
+      Text.pack (symbolVal (Proxy @desc))
+        <> " (label: `"
+        <> Text.pack (symbolVal (Proxy @label))
+        <> "`)"
 
     overridePathItem :: Swagger.PathItem -> Swagger.PathItem
     overridePathItem =
