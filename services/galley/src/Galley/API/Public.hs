@@ -42,7 +42,6 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatus)
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (viewFederationDomain)
 import Galley.App
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -145,13 +144,11 @@ servantSitemap =
       }
   where
     addMembersToUnqualifiedConversation :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (Union GalleyAPI.UpdateResponses)
-    addMembersToUnqualifiedConversation zusr zcon convId invite = do
-      localDomain <- viewFederationDomain
-      Update.mapUpdateToServant =<< Update.addMembers zusr zcon (Qualified convId localDomain) invite
+    addMembersToUnqualifiedConversation zusr zcon convId invite = Update.mapUpdateToServant =<< Update.addMembersLocalConv zusr (Just zcon) convId invite
 
     addMembersToQualifiedConversation :: UserId -> ConnId -> Domain -> ConvId -> Public.InviteQualified -> Galley (Union GalleyAPI.UpdateResponses)
     addMembersToQualifiedConversation zusr zcon domain convId invite =
-      Update.mapUpdateToServant =<< Update.addMembers zusr zcon (Qualified convId domain) invite
+      Update.mapUpdateToServant =<< Update.addMembersQualifiedConvId zusr zcon (Qualified convId domain) invite
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do

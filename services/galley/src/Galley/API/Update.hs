@@ -36,7 +36,8 @@ module Galley.API.Update
 
     -- * Managing Members
     Galley.API.Update.addMembersH,
-    addMembers,
+    addMembersQualifiedConvId,
+    addMembersLocalConv,
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
@@ -462,24 +463,39 @@ joinConversation zusr zcon cnv access = do
   -- where there is no way to control who joins, etc.
   let mems = botsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
-  addToConversation mems rMems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) [] conv
+  addToConversation mems rMems (zusr, roleNameWireMember) (Just zcon) ((,roleNameWireMember) <$> newUsers) [] conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
   (Invite u r) <- fromJsonBody req
   domain <- viewFederationDomain
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
-  handleUpdateResult <$> addMembers zusr zcon (Qualified cid domain) qInvite
+  handleUpdateResult <$> addMembersLocalConv zusr (Just zcon) cid qInvite
 
 mapUpdateToServant :: UpdateResult -> Galley (Union GalleyAPI.UpdateResponses)
 mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
 mapUpdateToServant Unchanged = Servant.respond Servant.NoContent
 
-addMembers :: UserId -> ConnId -> Qualified ConvId -> Public.InviteQualified -> Galley UpdateResult
-addMembers zusr zcon (Qualified convId domain) invite = do
+addMembersQualifiedConvId :: UserId -> ConnId -> Qualified ConvId -> Public.InviteQualified -> Galley UpdateResult
+addMembersQualifiedConvId zusr zcon conv@(Qualified convId convDomain) invite = do
   localDomain <- viewFederationDomain
-  when (localDomain /= domain) $
-    throwM federationNotImplemented
+  let requester = Qualified zusr localDomain
+  if localDomain /= convDomain
+    then addMembersRemoteConv requester conv invite
+    else addMembersLocalConv zusr (Just zcon) convId invite
+
+addMembersRemoteConv :: Qualified UserId -> Qualified ConvId -> Public.InviteQualified -> Galley UpdateResult
+addMembersRemoteConv _requester _conv _invite = do
+  -- TODO: make a federated RPC call to the remote Galley
+
+  -- TODO: Add an argument to addMembersLocalConv for the requester. Make sure
+  -- to check its role and make that user 'self', and not the currently local
+  -- user zusr
+  throwM federationNotImplemented
+
+addMembersLocalConv :: UserId -> Maybe ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
+addMembersLocalConv zusr zcon convId invite = do
+  localDomain <- viewFederationDomain
   conv <- Data.conversation convId >>= ifNothing convNotFound
   let mems = botsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
@@ -954,7 +970,7 @@ addToConversation ::
   -- | The originating user and their role
   (UserId, RoleName) ->
   -- | The connection ID of the originating user
-  ConnId ->
+  Maybe ConnId ->
   -- | New local users to be added and their roles
   [(UserId, RoleName)] ->
   -- | New remote users to be added and their roles
@@ -971,7 +987,7 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
   updateRemoteConversationMemberships existingRemotes usr now c lmm rmm
   let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
-  pushConversationEvent (Just conn) e localsToNotify bots
+  pushConversationEvent conn e localsToNotify bots
   pure $ Updated e
 
 ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
