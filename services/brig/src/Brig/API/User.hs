@@ -184,14 +184,16 @@ createUser new = do
 
   -- get invitation and existing account
   (newTeam, teamInvitation, tid) <-
-    case (newUserTeam new, userEmailKey <$> email) of
-      (Just (NewTeamMember i), e) ->
-        findTeamInvitation e i <&> (\case
-          Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
-          Nothing -> (Nothing, Nothing, Nothing))
-      (Just (NewTeamCreator t), _) -> (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
-      (Just (NewTeamMemberSSO tid), _) -> pure (Nothing, Nothing, Just tid)
-      (Nothing, _) -> return (Nothing, Nothing, Nothing)
+    case newUserTeam new of
+      Just (NewTeamMember i) ->
+        findTeamInvitation (userEmailKey <$> email) i
+          <&> ( \case
+                  Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
+                  Nothing -> (Nothing, Nothing, Nothing)
+              )
+      Just (NewTeamCreator t) -> (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
+      Just (NewTeamMemberSSO tid) -> pure (Nothing, Nothing, Just tid)
+      Nothing -> return (Nothing, Nothing, Nothing)
   let mbInv = Team.inInvitation . fst <$> teamInvitation
   mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
 
