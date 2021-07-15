@@ -62,5 +62,7 @@ data:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
         teamSearchVisibility: {{ .settings.featureFlags.teamSearchVisibility }}
+        classifiedDomains:
+          {{- toYaml .settings.featureFlags.classifiedDomains | nindent 10 }}
       {{- end }}
   {{- end }}

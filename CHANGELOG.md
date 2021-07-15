@@ -24,21 +24,34 @@
 
 ## Release Notes
 
+If you want to set the default for file sharing in all teams to `disabled`, add the following to `galley.yaml` (default is "enabled"):
+
+```
+settings:
+  featureFlags:
+    fileSharing:
+      defaults:
+        status: disabled
+```
+
 ## API Changes
 
 ## Features
 
-* `fileSharing` feature config (#1652)
+* `fileSharing` feature config (#1652, #1654)
 * Add user_id to csv export (#1663)
 
 ## Bug fixes and other updates
 
 * New, hardened end-point for changing email
-* Remove old end-point for changing email
 
 ## Documentation
 
+* Improved Swagger documentation for endpoints with multiple responses (#1649).
+
 ## Internal changes
+
+* The servant-swagger dependency now points to the current upstream master (#1656).
 
 ## Federation changes (alpha feature, do not use yet)
 
@@ -51,6 +64,9 @@ This release requires a manual change in your galley configuration: `settings.co
 
 ## API Changes
 
+* A new team feature for classified domains is available (#1626):
+  - a public endpoint is at `GET /teams/:tid/features/classifiedDomains`
+  - an internal endpoint is at `GET /i/teams/:tid/features/classifiedDomains`
 * Several public team feature endpoints are removed (their internal and
   Stern-based counterparts remain available):
   - `PUT /teams/:tid/features/sso`
@@ -92,7 +108,7 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
-* Improved Swagger documentation for endpoints with multiple responses (#1649).
+* Document more error responses (#1645).
 
 ## Bug fixes and other updates
 

@@ -27,8 +27,11 @@ module Galley.Types.Teams
     flagSSO,
     flagLegalHold,
     flagTeamSearchVisibility,
+    flagFileSharing,
     flagAppLockDefaults,
+    flagClassifiedDomains,
     Defaults (..),
+    unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
     FeatureTeamSearchVisibility (..),
@@ -194,7 +197,9 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock))
+    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
+    _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing))
   }
   deriving (Eq, Show, Generic)
 
@@ -237,14 +242,18 @@ instance FromJSON FeatureFlags where
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
+      <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
+      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
         "teamSearchVisibility" .= searchVisibility,
-        "appLock" .= appLock
+        "appLock" .= appLock,
+        "classifiedDomains" .= classifiedDomains,
+        "fileSharing" .= fileSharing
       ]
 
 instance FromJSON FeatureSSO where
@@ -278,12 +287,16 @@ instance ToJSON FeatureTeamSearchVisibility where
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags
+makeLenses ''Defaults
 
 -- Note [hidden team roles]
 --
 -- The problem: the mapping between 'Role' and 'Permissions' is fixed by external contracts:
 -- client apps treat permission bit matrices as opaque role identifiers, so if we add new
 -- permission flags, things will break there.
+--
+-- "Hidden" in "HiddenPerm", therefore, refers to a permission hidden from
+-- clients, thereby making it internal to the backend.
 --
 -- The solution: add new permission bits to 'HiddenPerm', 'HiddenPermissions', and make
 -- 'hasPermission', 'mayGrantPermission' polymorphic.  Now you can check both for the hidden
@@ -329,8 +342,9 @@ roleHiddenPermissions role = HiddenPermissions p p
           [ ChangeLegalHoldTeamSettings,
             ChangeLegalHoldUserSettings,
             ChangeTeamSearchVisibility,
-            ChangeTeamFeature TeamFeatureAppLock {- the features not listed here can only be changed in stern -},
+            ChangeTeamFeature TeamFeatureAppLock,
             ChangeTeamFeature TeamFeatureFileSharing,
+            ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
             ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
@@ -348,6 +362,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureDigitalSignatures,
           ViewTeamFeature TeamFeatureAppLock,
           ViewTeamFeature TeamFeatureFileSharing,
+          ViewTeamFeature TeamFeatureClassifiedDomains,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

@@ -46,9 +46,8 @@ import Servant.Server.Internal
     runAction,
   )
 import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal (SwaggerMethod)
+import Servant.Swagger.Internal (SwaggerMethod, combineSwagger)
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.ServantSwagger
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the

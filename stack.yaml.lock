@@ -522,14 +522,14 @@ packages:
 - completed:
     name: servant-swagger
     version: 1.1.11
-    git: https://github.com/wireapp/servant-swagger.git
+    git: https://github.com/haskell-servant/servant-swagger
     pantry-tree:
-      size: 1896
-      sha256: e7764ff7696d462222887e366b94f8c7a34d2509043a80d911327c1eda8989ff
-    commit: ce92103bc31ec9e7678b25c702ea55e7fb8d46c0
+      size: 1965
+      sha256: 8fd0d018aee725fa475a408d17a54ae8d190518e96453b304687bccafe4cddac
+    commit: bb0a84faa073fa9530f60337610d7da3d5b9393c
   original:
-    git: https://github.com/wireapp/servant-swagger.git
-    commit: ce92103bc31ec9e7678b25c702ea55e7fb8d46c0
+    git: https://github.com/haskell-servant/servant-swagger
+    commit: bb0a84faa073fa9530f60337610d7da3d5b9393c
 - completed:
     subdir: servant
     name: servant
