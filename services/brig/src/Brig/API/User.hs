@@ -268,6 +268,9 @@ createUser new@NewUser {..} = do
       return Nothing
   return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
   where
+    -- NOTE: all functions in the where block don't use any arguments of createUser
+
+    createTeam :: (UserId -> Bool -> Team.BindingNewTeam -> TeamId -> AppT IO (Maybe CreateUserTeam))
     createTeam uid activating t tid = do
       created <- Intra.createTeam uid t tid
       return $
