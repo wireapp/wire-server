@@ -64,7 +64,8 @@ tests =
       testNonEmptySchema,
       testRefField,
       testRmClientWrong,
-      testRmClient
+      testRmClient,
+      testEnumType
     ]
 
 testFooToJSON :: TestTree
@@ -317,6 +318,25 @@ testRmClient =
           "fromJSON error should mention password too short"
           "password too short"
           err
+
+testEnumType :: TestTree
+testEnumType =
+  testCase "Enum Swagger schema has the correct type" $ do
+    let e1 :: ValueSchema NamedSwaggerDoc Text
+        e1 = enum @Text "TextEnum" (element "hello" "hello")
+        (_, s1) = S.runDeclare (declareSwaggerSchema e1) mempty
+    assertEqual
+      "Text enum has Swagger type \"string\""
+      (s1 ^. S.type_)
+      (Just S.SwaggerString)
+
+    let e2 :: ValueSchema NamedSwaggerDoc Integer
+        e2 = enum @Integer "IntEnum" (element (3 :: Integer) (3 :: Integer))
+        (_, s2) = S.runDeclare (declareSwaggerSchema e2) mempty
+    assertEqual
+      "Integer enum has Swagger type \"integer\""
+      (s2 ^. S.type_)
+      (Just S.SwaggerInteger)
 
 ---
 

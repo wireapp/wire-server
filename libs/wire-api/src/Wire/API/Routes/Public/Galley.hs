@@ -36,7 +36,7 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (ConversationNotFound, UnknownClient)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.MultiVerb
@@ -85,27 +85,35 @@ type ConversationVerb =
     ConversationResponse
 
 type UpdateResponses =
-  '[ WithStatus 200 Public.Event,
-     NoContent
+  '[ RespondEmpty 204 "Conversation unchanged",
+     Respond 200 "Conversation updated" Public.Event
    ]
+
+data UpdateResult
+  = Unchanged
+  | Updated Public.Event
+
+instance AsUnion UpdateResponses UpdateResult where
+  toUnion Unchanged = inject (I ())
+  toUnion (Updated e) = inject (I e)
+
+  fromUnion (Z (I ())) = Unchanged
+  fromUnion (S (Z (I e))) = Updated e
+  fromUnion (S (S x)) = case x of
 
 type PostOtrResponsesUnqualified =
   '[ WithStatus 201 Public.ClientMismatch,
      WithStatus 412 Public.ClientMismatch,
-     ConversationNotFound,
+     ConvNotFound,
      UnknownClient
    ]
 
 type PostOtrResponses =
   '[ WithStatus 201 Public.MessageSendingStatus,
      WithStatus 412 Public.MessageSendingStatus,
-     ConversationNotFound,
+     ConvNotFound,
      UnknownClient
    ]
-
--- FUTUREWORK: Make a PR to the servant-swagger package with this instance
-instance Swagger.ToSchema Servant.NoContent where
-  declareNamedSchema _ = Swagger.declareNamedSchema (Proxy @())
 
 data Api routes = Api
   { -- Conversations
@@ -193,22 +201,25 @@ data Api routes = Api
         :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
-    -- FUTUREWORK: errorResponse Error.notConnected
-    --             errorResponse Error.notATeamMember
-    --             errorResponse (Error.operationDenied Public.CreateConversation)
     getConversationByReusableCode ::
       routes
         :- Summary "Get limited conversation information by key/code pair"
+        :> CanThrow NotConnected
+        :> CanThrow OperationDenied
+        :> CanThrow NotATeamMember
         :> ZUser
         :> "conversations"
         :> "join"
         :> QueryParam' [Required, Strict] "key" Code.Key
         :> QueryParam' [Required, Strict] "code" Code.Value
         :> Get '[Servant.JSON] Public.ConversationCoverView,
-    -- FUTUREWORK: potential errors: codeNotFound, convNotFound, notATeamMember, convAccessDenied
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
+        :> CanThrow NotATeamMember
+        :> CanThrow CodeNotFound
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
         :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
         :> ZUser
         :> ZConn
@@ -244,43 +255,43 @@ data Api routes = Api
         :> "members"
         :> "v2"
         :> ReqBody '[Servant.JSON] Public.InviteQualified
-        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
+        :> MultiVerb 'POST '[Servant.JSON] UpdateResponses UpdateResult,
     -- Team Conversations
 
     getTeamConversationRoles ::
-      -- FUTUREWORK: errorResponse Error.notATeamMember
       routes
         :- Summary "Get existing roles available for the given team"
+        :> CanThrow NotATeamMember
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
         :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
     getTeamConversations ::
       routes
         :- Summary "Get team conversations"
+        :> CanThrow OperationDenied
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
         :> Get '[Servant.JSON] Public.TeamConversationList,
-    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
     getTeamConversation ::
       routes
         :- Summary "Get one team conversation"
+        :> CanThrow OperationDenied
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
         :> Get '[Servant.JSON] Public.TeamConversation,
-    -- FUTUREWORK: errorResponse (Error.actionDenied Public.DeleteConversation)
-    --             errorResponse Error.notATeamMember
     deleteTeamConversation ::
       routes
         :- Summary "Remove a team conversation"
+        :> CanThrow NotATeamMember
+        :> CanThrow ActionDenied
         :> ZUser
         :> ZConn
         :> "teams"

@@ -38,6 +38,7 @@ module Data.Schema
     SwaggerDoc,
     swaggerDoc,
     NamedSwaggerDoc,
+    declareSwaggerSchema,
     getName,
     object,
     objectWithDocModifier,
@@ -90,6 +91,7 @@ import Data.Proxy (Proxy (..))
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
+import qualified Data.Swagger.Internal as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Imports hiding (Product)
@@ -493,13 +495,14 @@ element label value = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- This is used to convert a combination of schemas obtained using
 -- 'element' into a single schema for a JSON string.
 enum ::
-  (With v, HasEnum doc) =>
+  forall v doc a b.
+  (With v, HasEnum v doc) =>
   Text ->
   SchemaP [A.Value] v (Alt Maybe v) a b ->
   SchemaP doc A.Value A.Value a b
 enum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
   where
-    d = mkEnum name (schemaDoc sch)
+    d = mkEnum @v name (schemaDoc sch)
     i x =
       with (T.unpack name) (schemaIn sch) x
         <|> fail ("Unexpected value for enum " <> T.unpack name)
@@ -691,7 +694,7 @@ class Monoid doc => HasMap ndoc doc | ndoc -> doc where
 class HasOpt doc where
   mkOpt :: doc -> doc
 
-class HasEnum doc where
+class HasEnum a doc where
   mkEnum :: Text -> [A.Value] -> doc
 
 instance HasSchemaRef doc => HasField doc SwaggerDoc where
@@ -731,12 +734,22 @@ class HasMinItems s a where
 instance HasMinItems SwaggerDoc (Maybe Integer) where
   minItems = declared . S.minItems
 
-instance HasEnum NamedSwaggerDoc where
-  mkEnum name labels =
-    pure . S.NamedSchema (Just name) $
-      mempty
-        & S.type_ ?~ S.SwaggerString
-        & S.enum_ ?~ labels
+instance HasEnum Text NamedSwaggerDoc where
+  mkEnum = mkSwaggerEnum S.SwaggerString
+
+instance HasEnum Integer NamedSwaggerDoc where
+  mkEnum = mkSwaggerEnum S.SwaggerInteger
+
+mkSwaggerEnum ::
+  S.SwaggerType 'S.SwaggerKindSchema ->
+  Text ->
+  [A.Value] ->
+  NamedSwaggerDoc
+mkSwaggerEnum ty name labels =
+  pure . S.NamedSchema (Just name) $
+    mempty
+      & S.type_ ?~ ty
+      & S.enum_ ?~ labels
 
 instance HasOpt SwaggerDoc where
   mkOpt = (S.schema . S.required) .~ []
@@ -802,6 +815,9 @@ instance ToSchema Char where schema = genericToSchema
 instance ToSchema String where schema = genericToSchema
 
 instance ToSchema Bool where schema = genericToSchema
+
+declareSwaggerSchema :: SchemaP (WithDeclare d) v w a b -> Declare d
+declareSwaggerSchema = runDeclare . schemaDoc
 
 swaggerDoc :: forall a. S.ToSchema a => NamedSwaggerDoc
 swaggerDoc = unrunDeclare (S.declareNamedSchema (Proxy @a))

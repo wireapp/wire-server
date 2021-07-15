@@ -114,6 +114,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
+import Wire.API.ErrorDescription (convNotFound, notATeamMember, operationDenied)
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Team as Public
@@ -368,7 +369,7 @@ getTeamConversationRoles :: UserId -> TeamId -> Galley Public.ConversationRolesL
 getTeamConversationRoles zusr tid = do
   mem <- Data.teamMember tid zusr
   case mem of
-    Nothing -> throwM notATeamMember
+    Nothing -> throwErrorDescription notATeamMember
     Just _ -> do
       -- NOTE: If/when custom roles are added, these roles should
       --       be merged with the team roles (if they exist)
@@ -382,7 +383,7 @@ getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
 getTeamMembers :: UserId -> TeamId -> Range 1 Public.HardTruncationLimit Int32 -> Galley (Public.TeamMemberList, Public.TeamMember -> Bool)
 getTeamMembers zusr tid maxResults = do
   Data.teamMember tid zusr >>= \case
-    Nothing -> throwM notATeamMember
+    Nothing -> throwErrorDescription notATeamMember
     Just m -> do
       mems <- Data.teamMembersWithLimit tid maxResults
       let withPerms = (m `canSeePermsOf`)
@@ -517,7 +518,7 @@ bulkGetTeamMembers zusr tid maxResults uids = do
   unless (length uids <= fromIntegral (fromRange maxResults)) $
     throwM bulkGetMemberLimitExceeded
   Data.teamMember tid zusr >>= \case
-    Nothing -> throwM notATeamMember
+    Nothing -> throwErrorDescription notATeamMember
     Just m -> do
       mems <- Data.teamMembersLimited tid uids
       let withPerms = (m `canSeePermsOf`)
@@ -533,7 +534,7 @@ getTeamMember :: UserId -> TeamId -> UserId -> Galley (Public.TeamMember, Public
 getTeamMember zusr tid uid = do
   zusrMembership <- Data.teamMember tid zusr
   case zusrMembership of
-    Nothing -> throwM notATeamMember
+    Nothing -> throwErrorDescription notATeamMember
     Just m -> do
       let withPerms = (m `canSeePermsOf`)
       Data.teamMember tid uid >>= \case
@@ -762,17 +763,17 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
 
 getTeamConversations :: UserId -> TeamId -> Galley Public.TeamConversationList
 getTeamConversations zusr tid = do
-  tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
+  tm <- Data.teamMember tid zusr >>= ifNothing (errorDescriptionToWai notATeamMember)
   unless (tm `hasPermission` GetTeamConversations) $
-    throwM (operationDenied GetTeamConversations)
+    throwErrorDescription (operationDenied GetTeamConversations)
   Public.newTeamConversationList <$> Data.teamConversations tid
 
 getTeamConversation :: UserId -> TeamId -> ConvId -> Galley Public.TeamConversation
 getTeamConversation zusr tid cid = do
-  tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
+  tm <- Data.teamMember tid zusr >>= ifNothing (errorDescriptionToWai notATeamMember)
   unless (tm `hasPermission` GetTeamConversations) $
-    throwM (operationDenied GetTeamConversations)
-  Data.teamConversation tid cid >>= maybe (throwM convNotFound) pure
+    throwErrorDescription (operationDenied GetTeamConversations)
+  Data.teamConversation tid cid >>= maybe (throwErrorDescription convNotFound) pure
 
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley (EmptyResult 200)
 deleteTeamConversation zusr zcon tid cid = do

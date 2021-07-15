@@ -25,6 +25,7 @@
 module Data.Id where
 
 import Cassandra hiding (S)
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Encoding as A
@@ -108,7 +109,7 @@ instance ToSchema (Id a) where
       uuid :: ValueSchema NamedSwaggerDoc UUID
       uuid =
         mkSchema
-          (swaggerDoc @UUID)
+          (addExample (swaggerDoc @UUID))
           ( A.withText
               "UUID"
               ( maybe (fail "Invalid UUID") pure
@@ -116,6 +117,10 @@ instance ToSchema (Id a) where
               )
           )
           (pure . A.toJSON . UUID.toText)
+
+      addExample =
+        S.schema . S.example
+          ?~ toJSON ("99db9768-04e3-4b5d-9268-831b6a25c4ab" :: Text)
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
