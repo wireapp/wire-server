@@ -753,10 +753,10 @@ listPropertyKeysAndValuesH (u ::: _) = do
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
-  getPrekeyH zusr domain user client
+  getPrekeyH zusr (Qualified user domain) client
 
-getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyH zusr domain user client = do
+getPrekeyH :: UserId -> Qualified UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
@@ -765,8 +765,8 @@ getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleH zusr domain uid =
+getPrekeyBundleH :: UserId -> Qualified UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler Public.UserClientPrekeyMap
@@ -823,9 +823,8 @@ getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
   API.lookupPubClients (Qualified uid localdomain) !>> clientError
 
-getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
-getUserClientsQualified domain uid = do
-  API.lookupPubClients (Qualified uid domain) !>> clientError
+getUserClientsQualified :: Qualified UserId -> Handler [Public.PubClient]
+getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
 
 getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
 getUserClientUnqualified uid cid = do
@@ -840,9 +839,9 @@ listClientsBulk _zusr limitedUids =
 listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
-getUserClientQualified domain uid cid = do
-  x <- API.lookupPubClient (Qualified uid domain) cid !>> clientError
+getUserClientQualified :: Qualified UserId -> ClientId -> Handler Public.PubClient
+getUserClientQualified quid cid = do
+  x <- API.lookupPubClient quid cid !>> clientError
   ifNothing (notFound "client not found") x
 
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
@@ -947,11 +946,11 @@ createUser (Public.NewUserPublic new) = do
 checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
 checkUserExistsUnqualifiedH self uid = do
   domain <- viewFederationDomain
-  checkUserExistsH self domain uid
+  checkUserExistsH self (Qualified uid domain)
 
-checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsH self domain uid = do
-  exists <- checkUserExists self (Qualified uid domain)
+checkUserExistsH :: UserId -> Qualified UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
+checkUserExistsH self user = do
+  exists <- checkUserExists self user
   if exists
     then Servant.respond (EmptyResult @200)
     else Servant.respond (EmptyResult @404)
@@ -967,11 +966,10 @@ getSelf self =
 getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
-  getUserH self domain uid
+  getUserH self (Qualified uid domain)
 
-getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
-getUserH self domain uid =
-  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+getUserH :: UserId -> Qualified UserId -> Handler Public.UserProfile
+getUserH self quid = ifNothing userNotFound =<< getUser self quid
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
@@ -1093,13 +1091,14 @@ checkHandlesH (_ ::: _ ::: req) = do
 getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
-  Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
+  Public.UserHandleInfo . Public.profileQualifiedId
+    <$> getUserByHandleH self (Qualified handle domain)
 
 -- | This endpoint returns UserProfile instead of UserHandleInfo to reduce
 -- traffic between backends in a federated scenario.
-getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
-getUserByHandleH self domain handle = do
-  maybeProfile <- Handle.getHandleInfo self (Qualified handle domain)
+getUserByHandleH :: UserId -> Qualified Handle -> Handler Public.UserProfile
+getUserByHandleH self qhandle = do
+  maybeProfile <- Handle.getHandleInfo self qhandle
   case maybeProfile of
     Nothing -> throwStd handleNotFound
     Just u -> pure u
