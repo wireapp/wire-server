@@ -195,12 +195,10 @@ createUser new = do
       =<< lift (validatePhone p)
 
   let ident = newIdentity email phone (newUserSSOId new)
-  let emKey = userEmailKey <$> email
-  let phKey = userPhoneKey <$> phone
-  for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
+  for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ verifyUniquenessAndCheckBlacklist
 
   -- team user registration
-  (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
+  (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) (userEmailKey <$> email)
 
   -- Create account
   (account, pw) <- lift $ do
@@ -247,7 +245,7 @@ createUser new = do
   edata <-
     if teamEmailInvited
       then return Nothing
-      else fmap join . for emKey $ \ek -> case newUserEmailCode new of
+      else fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           edata <- lift $ Data.newActivation ek timeout (Just uid)
@@ -262,7 +260,7 @@ createUser new = do
           return Nothing
 
   -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-  pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode new of
+  pdata <- fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
     Nothing -> do
       timeout <- setActivationTimeout <$> view settings
       pdata <- lift $ Data.newActivation pk timeout (Just uid)
