@@ -85,12 +85,12 @@ getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
 
-getConversation :: UserId -> Domain -> ConvId -> Galley Public.Conversation
-getConversation zusr domain cnv = do
+getConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
+getConversation zusr cnv = do
   localDomain <- viewFederationDomain
-  if domain == localDomain
-    then getUnqualifiedConversation zusr cnv
-    else getRemoteConversation zusr (toRemote $ Qualified cnv domain)
+  if qDomain cnv == localDomain
+    then getUnqualifiedConversation zusr (qUnqualified cnv)
+    else getRemoteConversation zusr (toRemote cnv)
 
 getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
 getRemoteConversation zusr remoteConvId = do
