@@ -387,11 +387,8 @@ testSimpleFlagEvent ::
   TestM ()
 testSimpleFlagEvent defaultValue newValue = do
   let feature = Public.knownTeamFeatureName @a
-  owner <- Util.randomUser
-  member <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+  (tid, _owner, [member]) <- Util.createBindingTeamWithMembers 1
+  cannon <- view tsCannon
 
   let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlag expected =
@@ -403,16 +400,17 @@ testSimpleFlagEvent defaultValue newValue = do
 
   getFlag defaultValue
 
-  cannon <- view tsCannon
   WS.bracketR cannon member $ \ws -> do
     setFlagInternal newValue
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate feature newValue
 
-  -- clean up
-  setFlagInternal defaultValue
-  getFlag defaultValue
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal defaultValue
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate feature defaultValue
 
 wsAssertFeatureConfigUpdate :: Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Notification -> IO ()
 wsAssertFeatureConfigUpdate teamFeature status notification = do
