@@ -35,7 +35,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), Remote, partitionQualified)
+import Data.Qualified (Qualified (..), Remote, partitionQualified, toRemote)
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -263,22 +263,51 @@ membersToRecipients Nothing = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
 -- | Note that we use 2 nearly identical functions but slightly different
--- semantics; when using `getSelfMember`, if that user is _not_ part of
--- the conversation, we don't want to disclose that such a conversation
--- with that id exists.
-getSelfMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getSelfMember = getMember convNotFound
+-- semantics; when using `getSelfMemberFromLocals`, if that user is _not_ part
+-- of the conversation, we don't want to disclose that such a conversation with
+-- that id exists.
+getSelfMemberFromLocals :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
+getSelfMemberFromLocals = getLocalMember convNotFound
 
 getOtherMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getOtherMember = getMember convMemberNotFound
+getOtherMember = getLocalMember convMemberNotFound
+
+-- | Note that we use 2 nearly identical functions but slightly different
+-- semantics; when using `getSelfMemberQualified`, if that user is _not_ part of
+-- the conversation, we don't want to disclose that such a conversation with
+-- that id exists.
+getSelfMemberQualified :: Foldable t => Qualified UserId -> t LocalMember -> t RemoteMember -> Galley (Either LocalMember RemoteMember)
+getSelfMemberQualified qusr@(Qualified usr userDomain) lmems rmems = do
+  localDomain <- viewFederationDomain
+  if localDomain == userDomain
+    then Left <$> getSelfMemberFromLocals usr lmems
+    else Right <$> getSelfMemberFromRemotes (toRemote qusr) rmems
+
+getSelfMemberFromRemotes :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
+getSelfMemberFromRemotes = getRemoteMember convNotFound
 
 -- | Since we search by local user ID, we know that the member must be local.
-getMember :: Foldable t => Error -> UserId -> t LocalMember -> Galley LocalMember
-getMember ex u ms = do
-  let member = find ((u ==) . memId) ms
-  case member of
-    Just m -> return (m {memId = u})
-    Nothing -> throwM ex
+getLocalMember :: Foldable t => Error -> UserId -> t LocalMember -> Galley LocalMember
+getLocalMember = getMember memId
+
+-- | Since we search by remote user ID, we know that the member must be remote.
+getRemoteMember :: Foldable t => Error -> Remote UserId -> t RemoteMember -> Galley RemoteMember
+getRemoteMember = getMember rmId
+
+getMember ::
+  (Foldable t, Eq userId) =>
+  -- | A projection from a member type to its user ID
+  (mem -> userId) ->
+  -- | An error to throw in case the user is not in the list
+  Error ->
+  -- | The member to be found by its user ID
+  userId ->
+  -- | A list of members to search
+  t mem ->
+  Galley mem
+getMember p ex u ms = case find ((u ==) . p) ms of
+  Just m -> return m
+  Nothing -> throwM ex
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied

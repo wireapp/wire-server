@@ -194,7 +194,7 @@ updateConversationAccess usr zcon cnv update = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   -- The conversation has to be a group conversation
   ensureGroupConv conv
-  self <- getSelfMember usr users
+  self <- getSelfMemberFromLocals usr users
   ensureActionAllowed ModifyConversationAccess self
   -- Team conversations incur another round of checks
   case Data.convTeam conv of
@@ -305,7 +305,7 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.Conversatio
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMember usr users
+  ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMemberFromLocals usr users
   current <- Data.lookupReceiptMode cnv
   if current == Just target
     then pure Unchanged
@@ -331,7 +331,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
       qusr = Qualified usr localDomain
   -- checks and balances
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
+  ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMemberFromLocals usr users
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureGroupConv conv
   let currentTimer = Data.convMessageTimer conv
@@ -502,7 +502,7 @@ addMembersLocalConv zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing convNotFound
   let lMems = localBotsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
-  self <- getSelfMember zusr (snd lMems)
+  self <- getSelfMemberFromLocals zusr (snd lMems)
   ensureActionAllowed AddConversationMember self
   let invitedUsers = toList $ Public.invQUsers invite
   let (invitedRemotes, invitedLocals) = partitionRemoteOrLocalIds' localDomain invitedUsers
@@ -575,7 +575,7 @@ updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
 updateSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
 updateSelfMember zusr zcon cid update = do
   conv <- getConversationAndCheckMembership zusr cid
-  m <- getSelfMember zusr (Data.convLocalMembers conv)
+  m <- getSelfMemberFromLocals zusr (Data.convLocalMembers conv)
   -- Ensure no self role upgrades
   for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
   void $ processUpdateMemberEvent zusr zcon cid [m] m update
@@ -592,7 +592,7 @@ updateOtherMember zusr zcon cid victim update = do
     throwM invalidTargetUserOp
   conv <- getConversationAndCheckMembership zusr cid
   let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
-  ensureActionAllowed ModifyOtherConversationMember =<< getSelfMember zusr users
+  ensureActionAllowed ModifyOtherConversationMember =<< getSelfMemberFromLocals zusr users
   memTarget <- getOtherMember victim users
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
@@ -626,8 +626,8 @@ removeMember zusr zcon convId victim = do
     genConvChecks conv usrs = do
       ensureGroupConv conv
       if zusr == victim
-        then ensureActionAllowed LeaveConversation =<< getSelfMember zusr usrs
-        else ensureActionAllowed RemoveConversationMember =<< getSelfMember zusr usrs
+        then ensureActionAllowed LeaveConversation =<< getSelfMemberFromLocals zusr usrs
+        else ensureActionAllowed RemoveConversationMember =<< getSelfMemberFromLocals zusr usrs
     teamConvChecks tid = do
       tcv <- Data.teamConversation tid convId
       when (maybe False (view managedConversation) tcv) $
@@ -857,7 +857,7 @@ updateConversationName zusr zcon cnv convRename = do
     Data.deleteConversation cnv
     throwM convNotFound
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationName =<< getSelfMember zusr users
+  ensureActionAllowed ModifyConversationName =<< getSelfMemberFromLocals zusr users
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
@@ -926,7 +926,7 @@ addBot zusr zcon b = do
       unless (zusr `isMember` users) $
         throwM convNotFound
       ensureGroupConv c
-      ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
+      ensureActionAllowed AddConversationMember =<< getSelfMemberFromLocals zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
         ensureMemberLimit (toList $ Data.convLocalMembers c) [botUserId (b ^. addBotId)] []
       return (bots, users)
