@@ -42,10 +42,6 @@ import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.OpenSSL as HTTP
-import OpenSSL.Session
-import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
 import UnliftIO (bracket)
@@ -103,18 +99,10 @@ closeEnv e = do
 -- FUTUREWORK(federation): review certificate and protocol security setting for this TLS
 -- manager
 initHttpManager :: IO HTTP.Manager
-initHttpManager = do
+initHttpManager =
   -- See Note [SSL context]
-  ctx <- SSL.context
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_TLSv1
-  SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextSetVerificationMode ctx $
-    SSL.VerifyPeer True True Nothing
-  SSL.contextLoadSystemCerts ctx
   HTTP.newManager
-    (HTTP.opensslManagerSettings (pure ctx))
+    HTTP.defaultManagerSettings
       { HTTP.managerConnCount = 1024,
         HTTP.managerIdleConnectionCount = 4096,
         HTTP.managerResponseTimeout = HTTP.responseTimeoutMicro 10000000
