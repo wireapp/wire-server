@@ -387,7 +387,7 @@ testSimpleFlagEvent ::
   TestM ()
 testSimpleFlagEvent defaultValue newValue = do
   let feature = Public.knownTeamFeatureName @a
-  (tid, _owner, [member]) <- Util.createBindingTeamWithMembers 1
+  (tid, _owner, [member]) <- Util.createBindingTeamWithMembers 2
   cannon <- view tsCannon
 
   let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
