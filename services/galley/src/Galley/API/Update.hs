@@ -100,6 +100,7 @@ import Galley.Types
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
+import Galley.Types.Conversations.Members (rmConvRoleName)
 import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Validation
@@ -195,10 +196,10 @@ updateConversationAccess usr zcon cnv update = do
   -- The conversation has to be a group conversation
   ensureGroupConv conv
   self <- getSelfMemberFromLocals usr users
-  ensureActionAllowed ModifyConversationAccess self
+  ensureActionAllowed ModifyConversationAccess (memConvRoleName self)
   -- Team conversations incur another round of checks
   case Data.convTeam conv of
-    Just tid -> checkTeamConv tid self
+    Just tid -> checkTeamConv tid (memConvRoleName self)
     Nothing -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
   -- When there is no update to be done, we return 204; otherwise we go
   -- with 'uncheckedUpdateConversationAccess', which will potentially kick
@@ -305,7 +306,7 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.Conversatio
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationReceiptMode =<< getSelfMemberFromLocals usr users
+  ensureActionAllowed ModifyConversationReceiptMode . memConvRoleName =<< getSelfMemberFromLocals usr users
   current <- Data.lookupReceiptMode cnv
   if current == Just target
     then pure Unchanged
@@ -331,7 +332,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
       qusr = Qualified usr localDomain
   -- checks and balances
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMemberFromLocals usr users
+  ensureActionAllowed ModifyConversationMessageTimer . memConvRoleName =<< getSelfMemberFromLocals usr users
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   ensureGroupConv conv
   let currentTimer = Data.convMessageTimer conv
@@ -470,7 +471,7 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   (Invite u r) <- fromJsonBody req
   domain <- viewFederationDomain
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
-  handleUpdateResult <$> addMembersLocalConv zusr (Just zcon) cid qInvite
+  handleUpdateResult <$> addMembersLocalConv (Qualified zusr domain) (Just zcon) cid qInvite
 
 mapUpdateToServant :: UpdateResult -> Galley (Union GalleyAPI.UpdateResponses)
 mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
@@ -482,7 +483,7 @@ addMembersQualifiedConv zusr zcon conv@(Qualified convId convDomain) invite = do
   let requester = Qualified zusr localDomain
   if localDomain /= convDomain
     then addMembersRemoteConv requester (toRemote conv) invite
-    else addMembersLocalConv zusr (Just zcon) convId invite
+    else addMembersLocalConv (Qualified zusr localDomain) (Just zcon) convId invite
 
 -- | Add members to a remote conversation. An assertion that the user and the
 -- conversation are not on the same backend was already done in the
@@ -496,26 +497,27 @@ addMembersRemoteConv _requester _conv _invite = do
   -- user zusr
   throwM federationNotImplemented
 
-addMembersLocalConv :: UserId -> Maybe ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
-addMembersLocalConv zusr zcon convId invite = do
+addMembersLocalConv :: Qualified UserId -> Maybe ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
+addMembersLocalConv adder@(Qualified zusr _userDomain) zcon convId invite = do
+  -- TODO: fix all references to zusr to make them remote - aware
   localDomain <- viewFederationDomain
   conv <- Data.conversation convId >>= ifNothing convNotFound
   let lMems = localBotsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
-  self <- getSelfMemberFromLocals zusr (snd lMems)
-  ensureActionAllowed AddConversationMember self
+  self <- getSelfMemberQualified adder (snd lMems) rMems
+  ensureActionAllowed AddConversationMember (roleName self)
   let invitedUsers = toList $ Public.invQUsers invite
   let (invitedRemotes, invitedLocals) = partitionRemoteOrLocalIds' localDomain invitedUsers
   let newLocals = filter (notIsMember conv) invitedLocals
   let newRemotes = filter (notIsMember' conv) invitedRemotes
   ensureMemberLimit (toList $ Data.convLocalMembers conv) newLocals newRemotes
   ensureAccess conv InviteAccess
-  ensureConvRoleNotElevated self (invQRoleName invite)
+  ensureConvRoleNotElevated (roleName self) (invQRoleName invite)
   checkLocals conv (Data.convTeam conv) newLocals
   checkRemoteUsersExist newRemotes
   checkLHPolicyConflictsLocal conv newLocals
   checkLHPolicyConflictsRemote (FutureWork newRemotes)
-  addToConversation lMems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
+  addToConversation lMems rMems (zusr, roleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
 
@@ -566,6 +568,9 @@ addMembersLocalConv zusr zcon convId invite = do
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
 
+    roleName :: Either LocalMember RemoteMember -> RoleName
+    roleName = either memConvRoleName rmConvRoleName
+
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
   update <- fromJsonBody req
@@ -577,7 +582,7 @@ updateSelfMember zusr zcon cid update = do
   conv <- getConversationAndCheckMembership zusr cid
   m <- getSelfMemberFromLocals zusr (Data.convLocalMembers conv)
   -- Ensure no self role upgrades
-  for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
+  for_ (mupConvRoleName update) $ ensureConvRoleNotElevated (memConvRoleName m)
   void $ processUpdateMemberEvent zusr zcon cid [m] m update
 
 updateOtherMemberH :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest Public.OtherMemberUpdate -> Galley Response
@@ -592,7 +597,7 @@ updateOtherMember zusr zcon cid victim update = do
     throwM invalidTargetUserOp
   conv <- getConversationAndCheckMembership zusr cid
   let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
-  ensureActionAllowed ModifyOtherConversationMember =<< getSelfMemberFromLocals zusr users
+  ensureActionAllowed ModifyOtherConversationMember . memConvRoleName =<< getSelfMemberFromLocals zusr users
   memTarget <- getOtherMember victim users
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
@@ -626,8 +631,8 @@ removeMember zusr zcon convId victim = do
     genConvChecks conv usrs = do
       ensureGroupConv conv
       if zusr == victim
-        then ensureActionAllowed LeaveConversation =<< getSelfMemberFromLocals zusr usrs
-        else ensureActionAllowed RemoveConversationMember =<< getSelfMemberFromLocals zusr usrs
+        then ensureActionAllowed LeaveConversation . memConvRoleName =<< getSelfMemberFromLocals zusr usrs
+        else ensureActionAllowed RemoveConversationMember . memConvRoleName =<< getSelfMemberFromLocals zusr usrs
     teamConvChecks tid = do
       tcv <- Data.teamConversation tid convId
       when (maybe False (view managedConversation) tcv) $
@@ -857,7 +862,7 @@ updateConversationName zusr zcon cnv convRename = do
     Data.deleteConversation cnv
     throwM convNotFound
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowed ModifyConversationName =<< getSelfMemberFromLocals zusr users
+  ensureActionAllowed ModifyConversationName . memConvRoleName =<< getSelfMemberFromLocals zusr users
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
@@ -926,7 +931,7 @@ addBot zusr zcon b = do
       unless (zusr `isMember` users) $
         throwM convNotFound
       ensureGroupConv c
-      ensureActionAllowed AddConversationMember =<< getSelfMemberFromLocals zusr users
+      ensureActionAllowed AddConversationMember . memConvRoleName =<< getSelfMemberFromLocals zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
         ensureMemberLimit (toList $ Data.convLocalMembers c) [botUserId (b ^. addBotId)] []
       return (bots, users)

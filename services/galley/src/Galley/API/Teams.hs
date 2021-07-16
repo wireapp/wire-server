@@ -99,7 +99,7 @@ import Galley.Intra.User
 import Galley.Options
 import qualified Galley.Options as Opts
 import qualified Galley.Queue as Q
-import Galley.Types (UserIdList (UserIdList))
+import Galley.Types (InternalMember (memConvRoleName), UserIdList (UserIdList))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
@@ -780,7 +780,7 @@ deleteTeamConversation zusr zcon tid cid = do
   let qconvId = Qualified cid localDomain
       qusr = Qualified zusr localDomain
   (bots, cmems) <- localBotsAndUsers <$> Data.members cid
-  ensureActionAllowed Roles.DeleteConversation =<< getSelfMemberFromLocals zusr cmems
+  ensureActionAllowed Roles.DeleteConversation . memConvRoleName =<< getSelfMemberFromLocals zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete

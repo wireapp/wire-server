@@ -125,12 +125,12 @@ ensureReAuthorised u secret = do
   unless reAuthed $
     throwM reAuthFailed
 
--- | Given a member in a conversation, check if the given action
+-- | Given a member's role in a conversation, check if the given action
 -- is permitted.
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-ensureActionAllowed :: Action -> InternalMember a -> Galley ()
-ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
+ensureActionAllowed :: Action -> RoleName -> Galley ()
+ensureActionAllowed action roleName = case isActionAllowed action roleName of
   Just True -> return ()
   Just False -> throwM (actionDenied action)
   Nothing -> throwM (badRequest "Custom roles not supported")
@@ -140,11 +140,11 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
---   This function needs to be review when custom roles are introduced since only
+--   This function needs to be reviewed when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
-ensureConvRoleNotElevated :: InternalMember a -> RoleName -> Galley ()
-ensureConvRoleNotElevated origMember targetRole = do
-  case (roleNameToActions targetRole, roleNameToActions (memConvRoleName origMember)) of
+ensureConvRoleNotElevated :: RoleName -> RoleName -> Galley ()
+ensureConvRoleNotElevated origRole targetRole = do
+  case (roleNameToActions targetRole, roleNameToActions origRole) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
         throwM invalidActions
