@@ -604,7 +604,15 @@ createConversation localDomain usr name acc role others tinfo mtimer recpt other
       addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
   let (remoteUsers, localUsers) = fromConvSize others
-  (_, mems, rMems) <- addMembersUncheckedWithRole localDomain now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> localUsers)) ((,othersConversationRole) <$> remoteUsers)
+      qusr = Qualified usr localDomain
+  (_, mems, rMems) <-
+    addMembersUncheckedWithRole
+      localDomain
+      now
+      conv
+      (qusr, roleNameWireAdmin)
+      (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> localUsers))
+      ((,othersConversationRole) <$> remoteUsers)
   return $ newConv conv RegularConv usr mems rMems acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => Domain -> UserId -> Maybe (Range 1 256 Text) -> m Conversation
@@ -613,7 +621,7 @@ createSelfConversation localDomain usr name = do
   now <- liftIO getCurrentTime
   retry x5 $
     write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
-  mems <- snd <$> addLocalMembersUnchecked localDomain now conv usr (singleton usr)
+  mems <- snd <$> addLocalMembersUnchecked localDomain now conv (Qualified usr localDomain) (singleton usr)
   return $ newConv conv SelfConv usr (toList mems) [] [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation ::
@@ -634,7 +642,7 @@ createConnectConversation localDomain a b name conn = do
     write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
-  mems <- snd <$> addLocalMembersUnchecked localDomain now conv a' (singleton a')
+  mems <- snd <$> addLocalMembersUnchecked localDomain now conv qa' (singleton a')
   let e = Event ConvConnect qconv qa' now (EdConnect conn)
   let remoteMembers = [] -- FUTUREWORK: federated connections
   return (newConv conv ConnectConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
@@ -659,7 +667,7 @@ createOne2OneConversation localDomain a b name ti = do
       setConsistency Quorum
       addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv, False)
-  mems <- snd <$> addLocalMembersUnchecked localDomain now conv a' (list1 a' [b'])
+  mems <- snd <$> addLocalMembersUnchecked localDomain now conv (Qualified a' localDomain) (list1 a' [b'])
   let remoteMembers = [] -- FUTUREWORK: federated one2one
   return $ newConv conv One2OneConv a' (toList mems) remoteMembers [PrivateAccess] privateRole name ti Nothing Nothing
 
@@ -805,27 +813,38 @@ lookupRemoteMembers :: (MonadClient m) => ConvId -> m [RemoteMember]
 lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
 
 -- | Add a member to a local conversation, as an admin.
-addMember :: MonadClient m => Domain -> UTCTime -> ConvId -> UserId -> m (Event, [LocalMember])
-addMember localDomain t c u = addLocalMembersUnchecked localDomain t c u (singleton u)
+addMember :: MonadClient m => Domain -> UTCTime -> ConvId -> Qualified UserId -> m (Event, [LocalMember], [RemoteMember])
+-- addMember localDomain t c u = addLocalMembersUnchecked localDomain t c u (singleton u)
+addMember localDomain t c u = addQualifiedMembersUnchecked localDomain t c u (singleton u)
 
 -- | Add members to a local conversation.
-addMembersWithRole :: MonadClient m => Domain -> UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked -> m (Event, [LocalMember], [RemoteMember])
+addMembersWithRole :: MonadClient m => Domain -> UTCTime -> ConvId -> (Qualified UserId, RoleName) -> ConvMemberAddSizeChecked -> m (Event, [LocalMember], [RemoteMember])
 addMembersWithRole localDomain t c orig mems = addMembersUncheckedWithRole localDomain t c orig (sizeCheckedLocals mems) (sizeCheckedRemotes mems)
 
 -- | Add members to a local conversation, all as admins.
 -- Please make sure the conversation doesn't exceed the maximum size!
-addLocalMembersUnchecked :: MonadClient m => Domain -> UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, [LocalMember])
+addLocalMembersUnchecked :: MonadClient m => Domain -> UTCTime -> ConvId -> Qualified UserId -> List1 UserId -> m (Event, [LocalMember])
 addLocalMembersUnchecked localDomain t conv orig usrs = addLocalMembersUncheckedWithRole localDomain t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
+
+-- partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remote a], [a])
+-- partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemote) $ partitionRemoteOrLocalIds localDomain xs
+
+-- | Add members to a local conversation, all as admins.
+-- Please make sure the conversation doesn't exceed the maximum size!
+addQualifiedMembersUnchecked :: MonadClient m => Domain -> UTCTime -> ConvId -> Qualified UserId -> List1 (Qualified UserId) -> m (Event, [LocalMember], [RemoteMember])
+addQualifiedMembersUnchecked localDomain t conv orig usrs = do
+  let (rusrs, lusrs) = partitionRemoteOrLocalIds' localDomain usrs
+  addMembersUncheckedWithRole localDomain t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> lusrs) ((,roleNameWireAdmin) <$> rusrs)
 
 -- | Add only local members to a local conversation.
 -- Please make sure the conversation doesn't exceed the maximum size!
-addLocalMembersUncheckedWithRole :: MonadClient m => Domain -> UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, [LocalMember])
+addLocalMembersUncheckedWithRole :: MonadClient m => Domain -> UTCTime -> ConvId -> (Qualified UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, [LocalMember])
 addLocalMembersUncheckedWithRole localDomain t conv orig lusers = (\(a, b, _) -> (a, b)) <$> addMembersUncheckedWithRole localDomain t conv orig (toList lusers) []
 
 -- | Add members to a local conversation.
 -- Conversation is local, so we can add any member to it (including remote ones).
 -- Please make sure the conversation doesn't exceed the maximum size!
-addMembersUncheckedWithRole :: MonadClient m => Domain -> UTCTime -> ConvId -> (UserId, RoleName) -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> m (Event, [LocalMember], [RemoteMember])
+addMembersUncheckedWithRole :: MonadClient m => Domain -> UTCTime -> ConvId -> (Qualified UserId, RoleName) -> [(UserId, RoleName)] -> [(Remote UserId, RoleName)] -> m (Event, [LocalMember], [RemoteMember])
 addMembersUncheckedWithRole localDomain t conv (orig, _origRole) lusrs rusrs = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
@@ -858,10 +877,9 @@ addMembersUncheckedWithRole localDomain t conv (orig, _origRole) lusrs rusrs = d
         let remoteDomain = qDomain (unTagged u)
         addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser, role)
   let qconv = Qualified conv localDomain
-      qorig = Qualified orig localDomain
       lmems = map (uncurry SimpleMember . first (`Qualified` localDomain)) lusrs
       rmems = map (uncurry SimpleMember . first unTagged) rusrs
-      e = Event MemberJoin qconv qorig t (EdMembersJoin (SimpleMembers (lmems <> rmems)))
+      e = Event MemberJoin qconv orig t (EdMembersJoin (SimpleMembers (lmems <> rmems)))
   return (e, fmap (uncurry newMemberWithRole) lusrs, fmap (uncurry RemoteMember) rusrs)
 
 -- | Set local users as belonging to a remote conversation. This is invoked by a

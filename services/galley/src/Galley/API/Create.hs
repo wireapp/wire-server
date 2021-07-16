@@ -273,6 +273,7 @@ createConnectConversation usr conn j = do
     update n conv = do
       localDomain <- viewFederationDomain
       let mems = Data.convLocalMembers conv
+          qusr = Qualified usr localDomain
        in conversationExisted usr
             =<< if
                 | usr `isMember` mems ->
@@ -280,7 +281,7 @@ createConnectConversation usr conn j = do
                   connect n conv
                 | otherwise -> do
                   now <- liftIO getCurrentTime
-                  mm <- snd <$> Data.addMember localDomain now (Data.convId conv) usr
+                  mm <- (\(_, b, _) -> b) <$> Data.addMember localDomain now (Data.convId conv) qusr
                   let conv' =
                         conv
                           { Data.convLocalMembers = Data.convLocalMembers conv <> toList mm

@@ -189,13 +189,14 @@ permissionCheckTeamConv zusr cnv perm =
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = do
   localDomain <- viewFederationDomain
+  let qusr = Qualified usr localDomain
   case Data.convType conv of
     One2OneConv ->
       if usr `isMember` mems
         then return conv
         else do
           now <- liftIO getCurrentTime
-          mm <- snd <$> Data.addMember localDomain now cid usr
+          mm <- (\(_, b, _) -> b) <$> Data.addMember localDomain now cid qusr
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> promote
@@ -204,7 +205,7 @@ acceptOne2One usr conv conn = do
         when (length mems > 2) $
           throwM badConvState
         now <- liftIO getCurrentTime
-        (e, mm) <- Data.addMember localDomain now cid usr
+        (e, mm) <- (\(a, b, _) -> (a, b)) <$> Data.addMember localDomain now cid qusr
         conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
@@ -540,12 +541,11 @@ registerRemoteConversationMemberships now localDomain c = do
       runFederated domain rpc
 
 -- | Notify remote users of being added to an existing conversation
-updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
-updateRemoteConversationMemberships existingRemotes usr now c lmm rmm = do
+updateRemoteConversationMemberships :: [RemoteMember] -> Qualified UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
+updateRemoteConversationMemberships existingRemotes qusr now c lmm rmm = do
   localDomain <- viewFederationDomain
   let mm = catMembers localDomain lmm rmm
       qcnv = Qualified (Data.convId c) localDomain
-      qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
   traverse_ (uncurry (updateRemoteConversations now mm qusr qcnv))
     . Map.assocs

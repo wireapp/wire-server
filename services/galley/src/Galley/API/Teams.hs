@@ -914,7 +914,7 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
   now <- liftIO getCurrentTime
   localDomain <- viewFederationDomain
   for_ cc $ \c ->
-    Data.addMember localDomain now (c ^. conversationId) (new ^. userId)
+    Data.addMember localDomain now (c ^. conversationId) (Qualified (new ^. userId) localDomain)
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e

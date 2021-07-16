@@ -455,8 +455,10 @@ joinConversationById zusr zcon cnv =
 
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
 joinConversation zusr zcon cnv access = do
+  localDomain <- viewFederationDomain
   conv <- ensureConversationAccess zusr cnv access
   let newUsers = filter (notIsMember conv) [zusr]
+      qzusr = Qualified zusr localDomain
   -- FUTUREWORK: remote users?
   ensureMemberLimit (toList $ Data.convLocalMembers conv) newUsers []
   -- NOTE: When joining conversations, all users become members
@@ -464,7 +466,7 @@ joinConversation zusr zcon cnv access = do
   -- where there is no way to control who joins, etc.
   let mems = localBotsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
-  addToConversation mems rMems (zusr, roleNameWireMember) (Just zcon) ((,roleNameWireMember) <$> newUsers) [] conv
+  addToConversation mems rMems (qzusr, roleNameWireMember) (Just zcon) ((,roleNameWireMember) <$> newUsers) [] conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
@@ -517,7 +519,7 @@ addMembersLocalConv adder@(Qualified zusr _userDomain) zcon convId invite = do
   checkRemoteUsersExist newRemotes
   checkLHPolicyConflictsLocal conv newLocals
   checkLHPolicyConflictsRemote (FutureWork newRemotes)
-  addToConversation lMems rMems (zusr, roleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
+  addToConversation lMems rMems (adder, roleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
 
@@ -976,7 +978,7 @@ addToConversation ::
   -- | The existing remote users
   [RemoteMember] ->
   -- | The originating user and their role
-  (UserId, RoleName) ->
+  (Qualified UserId, RoleName) ->
   -- | The connection ID of the originating user
   Maybe ConnId ->
   -- | New local users to be added and their roles
