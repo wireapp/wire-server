@@ -29,6 +29,7 @@ module Galley.API.Teams.Features
     setValidateSAMLEmailsInternal,
     getDigitalSignaturesInternal,
     setDigitalSignaturesInternal,
+    getClassifiedDomainsInternal,
     getAppLockInternal,
     setAppLockInternal,
     getFileSharingInternal,
@@ -108,7 +109,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
-        getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal
+        getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
+        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal
       ]
   where
     getStatus ::
@@ -125,7 +127,7 @@ getAllFeatures uid tid = do
 
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName).
-  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a) =>
+  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a, TeamFeatures.HasStatusCol a) =>
   Galley Public.TeamFeatureStatusValue ->
   TeamId ->
   Galley (Public.TeamFeatureStatus a)
@@ -135,7 +137,7 @@ getFeatureStatusNoConfig getDefault tid = do
 
 setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName).
-  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a) =>
+  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a, TeamFeatures.HasStatusCol a) =>
   (Public.TeamFeatureStatusValue -> TeamId -> Galley ()) ->
   TeamId ->
   Public.TeamFeatureStatus a ->
@@ -215,7 +217,8 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid status
 
 getFileSharingInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
-getFileSharingInternal = getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ pure Public.TeamFeatureEnabled
+getFileSharingInternal = getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ do
+  view (options . optSettings . setFeatureFlags . flagFileSharing) <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
 setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_ _ -> pure ()
@@ -231,3 +234,12 @@ setAppLockInternal tid status = do
   when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
     throwM inactivityTimeoutTooLow
   TeamFeatures.setApplockFeatureStatus tid status
+
+getClassifiedDomainsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains)
+getClassifiedDomainsInternal _tid = do
+  globalConfig <- view (options . optSettings . setFeatureFlags . flagClassifiedDomains)
+  let config = globalConfig
+  pure $ case Public.tfwcStatus config of
+    Public.TeamFeatureDisabled ->
+      Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
+    Public.TeamFeatureEnabled -> config

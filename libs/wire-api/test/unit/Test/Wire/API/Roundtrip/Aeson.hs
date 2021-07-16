@@ -203,6 +203,7 @@ tests =
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureDigitalSignatures),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureAppLock),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureFileSharing),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.TeamFeatureClassifiedDomains),
       testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
