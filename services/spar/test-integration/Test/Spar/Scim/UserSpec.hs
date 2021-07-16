@@ -256,6 +256,7 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+    liftIO $ userSSOId brigUser `shouldBe` Nothing
 
   -- searching user in brig should fail
   -- >>> searchUser brig owner userName False
