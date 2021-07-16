@@ -193,8 +193,7 @@ createUser new = do
           Nothing ->
             pure (Nothing, Nothing, Nothing)
       Just (NewTeamCreator t) -> do
-        tid' <- Id <$> liftIO nextRandom
-        pure (Just t, Nothing, Just tid')
+        (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
       Nothing ->
