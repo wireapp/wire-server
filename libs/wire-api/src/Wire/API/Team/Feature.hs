@@ -66,15 +66,27 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 ----------------------------------------------------------------------
 -- TeamFeatureName
 
--- | If you add a constructor here, you need to visit (at least) 4 places that are not caught
--- by ghc errors or test failures:
+-- | If you add a constructor here, you need extend multiple defintions, which
+--   aren't checked by GHC.
 --
--- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs (calls to 'testRoundTrip')
--- * services/galley/src/Galley/API/Internal.hs (add a field to the 'InternalApi routes' record)
--- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs (add a field to the 'Api routes' record)
--- * services/galley/src/Galley/API/Teams/Features.hs (calls to 'getStatus')
--- * services/galley/schema/src/ (add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs")
--- * services/galley/test/integration/API/Teams/Feature.hs (add an integration test)
+--   Follow this Checklist:
+--
+-- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs
+--   * add call to 'testRoundTrip'
+-- * services/galley/src/Galley/API/Internal.hs
+--   * add a field to the 'InternalApi routes' record)
+-- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs
+--   * add a GET (and possible PUT) route with name prefix teamFeature<FEATURE_NAME>
+--   * add a GET route with name prefix featureConfig<FEATURE_NAME>
+-- * services/galley/src/Galley/API/Teams/Features.hs
+--   * extend getAllFeatureConfigs
+--   * extend getAllFeatures
+-- * services/galley/schema/src/
+--   * add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs"
+-- * services/galley/test/integration/API/Teams/Feature.hs
+--   * add an integration test for the feature
+--   * extend testAllFeatures
+--
 --
 -- An overview of places to change (including compiler errors and failing tests) can be found
 -- in eg. https://github.com/wireapp/wire-server/pull/1652.
