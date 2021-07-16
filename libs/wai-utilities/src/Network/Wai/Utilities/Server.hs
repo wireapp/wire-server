@@ -299,17 +299,17 @@ rethrow5xx logger app req k = app req k'
       if statusCode st < 500
         then k resp
         else do
-          rsbody :: LText <- liftIO $ cs <$> lazyResponseBody resp
+          rsbody <- liftIO (lazyResponseBody resp)
           throwM $ wrapError st rsbody
 
 -- | Wrap the body of an HTTP error into a Wai.Error structure.
 --
 -- If the error is already a JSON serialisation of a Wai.Error, avoid creating
 -- an unnecessary wrapper.
-wrapError :: Status -> LText -> Wai.Error
+wrapError :: Status -> LByteString -> Wai.Error
 wrapError st body =
-  decode (LT.encodeUtf8 body)
-    ?: Wai.mkError st "server-error" body
+  decode body
+    ?: Wai.mkError st "server-error" (cs body)
 
 -- | This flushes the response!  If you want to keep using the response, you need to construct
 -- a new one with a fresh body stream.
