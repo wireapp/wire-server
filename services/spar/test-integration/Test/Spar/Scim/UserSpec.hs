@@ -755,7 +755,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     veidToText :: MonadError String m => ValidExternalId -> m Text
     veidToText veid =
       runValidExternalId
-        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") pure $ SAML.shortShowNameID subj)
+        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") pure . undefined $ SAML.shortShowNameID subj)
         (pure . fromEmail)
         veid
 

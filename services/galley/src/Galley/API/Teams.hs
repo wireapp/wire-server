@@ -496,7 +496,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     userSSOId (FullIdentity _ _) = Nothing
 
     ssoIdNameId :: UserSSOId -> Maybe Text
-    ssoIdNameId (UserSSOId _idp nameId) = SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
+    ssoIdNameId (UserSSOId _idp nameId) = undefined . SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
     ssoIdNameId (UserScimExternalId _) = Nothing
 
     scimExtId :: User -> Maybe Text
