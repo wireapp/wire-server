@@ -500,9 +500,9 @@ addMembersLocalConv :: UserId -> Maybe ConnId -> ConvId -> Public.InviteQualifie
 addMembersLocalConv zusr zcon convId invite = do
   localDomain <- viewFederationDomain
   conv <- Data.conversation convId >>= ifNothing convNotFound
-  let mems = botsAndUsers (Data.convLocalMembers conv)
+  let lMems = botsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
-  self <- getSelfMember zusr (snd mems)
+  self <- getSelfMember zusr (snd lMems)
   ensureActionAllowed AddConversationMember self
   let invitedUsers = toList $ Public.invQUsers invite
   let (invitedRemotes, invitedLocals) = partitionRemoteOrLocalIds' localDomain invitedUsers
@@ -515,7 +515,7 @@ addMembersLocalConv zusr zcon convId invite = do
   checkRemoteUsersExist newRemotes
   checkLHPolicyConflictsLocal conv newLocals
   checkLHPolicyConflictsRemote (FutureWork newRemotes)
-  addToConversation mems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
+  addToConversation lMems rMems (zusr, memConvRoleName self) zcon ((,invQRoleName invite) <$> newLocals) ((,invQRoleName invite) <$> newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
 
