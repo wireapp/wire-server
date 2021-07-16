@@ -44,6 +44,7 @@ settings:
 ## Bug fixes and other updates
 
 * New, hardened end-point for changing email
+* Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
 
 ## Documentation
 

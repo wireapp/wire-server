@@ -44,23 +44,28 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
+import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
+import qualified Data.Csv as Csv
 import Data.Handle (Handle (Handle), fromHandle)
-import Data.Id (UserId, randomId)
+import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
+import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
+import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
-import qualified SAML2.WebSSO.Types as SAML
 import Spar.Data (lookupScimExternalId)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
 import qualified Text.XML.DSig as SAML
+import qualified URI.ByteString as URI
 import Util
 import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
 import qualified Web.Scim.Class.User as Scim.UserC
@@ -69,6 +74,7 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
+import qualified Wire.API.Team.Export as CsvExport
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.IdentityProvider (IdP)
 import Wire.API.User.RichInfo
@@ -217,6 +223,53 @@ specCreateUser = describe "POST /Users" $ do
   it "writes all the stuff to all the places" $
     pendingWith "factor this out of the PUT tests we already wrote."
 
+testCsvData ::
+  HasCallStack =>
+  TeamId ->
+  UserId ->
+  UserId ->
+  Maybe Text {- externalId -} ->
+  Maybe UserSSOId ->
+  TestSpar ()
+testCsvData tid owner uid mbeid mbsaml = do
+  usersInCsv <- do
+    g <- view teGalley
+    resp <-
+      call $
+        get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser owner) <!! do
+          const 200 === statusCode
+          const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
+    let rbody = fromMaybe (error "no body") . responseBody $ resp
+    pure (decodeCSV @CsvExport.TeamExportUser rbody)
+
+  liftIO $ do
+    any (== uid) (CsvExport.tExportUserId <$> usersInCsv) `shouldBe` True
+    forM_ usersInCsv $ \export -> when (CsvExport.tExportUserId export == uid) $ do
+      ('e', CsvExport.tExportSCIMExternalId export)
+        `shouldBe` ('e', fromMaybe "" mbeid)
+
+      let haveIssuer :: Maybe HttpsUrl
+          haveIssuer = case mbsaml of
+            Just (UserSSOId issuer _) ->
+              either (const Nothing) Just
+                . (mkHttpsUrl <=< Bifunctor.first show . (URI.parseURI URI.laxURIParserOptions))
+                $ cs issuer
+            Just (UserScimExternalId _) -> Nothing
+            Nothing -> Nothing
+      ('i', CsvExport.tExportIdpIssuer export) `shouldBe` ('i', haveIssuer)
+
+      let haveSubject :: Text
+          haveSubject = case mbsaml of
+            Just (UserSSOId _ subject) -> either (error . show) SAML.unsafeShowNameID $ SAML.decodeElem (cs subject)
+            Just (UserScimExternalId _) -> ""
+            Nothing -> ""
+      ('n', CsvExport.tExportSAMLNamedId export) `shouldBe` ('n', haveSubject)
+  where
+    decodeCSV :: Csv.FromNamedRecord a => LByteString -> [a]
+    decodeCSV bstr =
+      either (error "could not decode csv") id $
+        Csv.decodeByName bstr <&> (V.toList . snd)
+
 testCreateUserWithPass :: TestSpar ()
 testCreateUserWithPass = do
   env <- ask
@@ -301,6 +354,11 @@ testCreateUserNoIdP = do
 
   -- searching user in brig should succeed
   searchUser brig owner userName True
+
+  -- csv download should work
+  let eid = Scim.User.externalId scimUser
+      sml = Nothing
+   in testCsvData tid owner userid eid sml
   where
     -- cloned from brig's integration tests
 
@@ -350,7 +408,7 @@ testCreateUserWithSamlIdP = do
   env <- ask
   -- Create a user via SCIM
   user <- randomScimUser
-  (tok, _) <- registerIdPAndScimToken
+  (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
   -- Check that this user is present in Brig and that Brig's view of the user
@@ -366,6 +424,12 @@ testCreateUserWithSamlIdP = do
   accStatus <- aFewTimes (runSpar $ Intra.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
   liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+
+  let uid = userId brigUser
+      eid = Scim.User.externalId user
+      sml :: HasCallStack => UserSSOId
+      sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
+   in testCsvData tid owner uid eid (Just sml)
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
