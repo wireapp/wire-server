@@ -316,11 +316,11 @@ wrapError st body =
 lazyResponseBody :: Response -> IO LByteString
 lazyResponseBody rs = case responseToStream rs of
   (_, _, cont :: (StreamingBody -> IO ()) -> IO ()) -> do
-    tvar <- atomically $ newTVar mempty
-    let pushstream builder = atomically $ modifyTVar tvar (<> builder)
+    bref <- newIORef mempty
+    let pushstream builder = modifyIORef bref (<> builder)
     cont $ \streamingBody ->
       streamingBody pushstream (pure ())
-    atomically $ toLazyByteString <$> readTVar tvar
+    toLazyByteString <$> readIORef bref
 
 --------------------------------------------------------------------------------
 -- Utilities
