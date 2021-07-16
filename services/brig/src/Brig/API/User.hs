@@ -211,12 +211,12 @@ createUser new = do
             newUserIdentity = ident
           }
   let mbHandle = userHandle . accountUser =<< mbExistingAccount
+  let uid = userId (accountUser account)
 
   -- Create account
   account <- lift $ do
     (account, pw) <- newAccount new' mbInv tid mbHandle
 
-    let uid = userId (accountUser account)
     Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
@@ -225,8 +225,6 @@ createUser new = do
     Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
-
-  let uid = userId (accountUser account)
 
   createUserTeam <- do
     activatedTeam <- lift $ do
