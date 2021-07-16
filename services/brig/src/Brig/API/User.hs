@@ -201,15 +201,17 @@ createUser new = do
   let mbInv = Team.inInvitation . fst <$> teamInvitation
   mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
 
-  let ident = newIdentity email phone (newUserSSOId new)
-  let new' =
-        new
-          { newUserManagedBy = case mbExistingAccount of
-              Nothing -> newUserManagedBy new
-              Just acc -> Just . userManagedBy . accountUser $ acc,
-            newUserIdentity = ident
-          }
-  let mbHandle = userHandle . accountUser =<< mbExistingAccount
+  let (new', mbHandle) = case mbExistingAccount of
+        Nothing ->
+          ( new {newUserIdentity = newIdentity email phone (newUserSSOId new)},
+            Nothing
+          )
+        Just existingAccount ->
+          let ident = newIdentity email phone (newUserSSOId new)
+              existingUser = accountUser existingAccount
+           in ( new {newUserManagedBy = Just (userManagedBy existingUser), newUserIdentity = ident},
+                userHandle existingUser
+              )
 
   -- Create account
   account <- lift $ do
@@ -247,7 +249,7 @@ createUser new = do
         pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
       Nothing -> pure Nothing
 
-    joinedTeamSSO <- case (ident, tid) of
+    joinedTeamSSO <- case (newUserIdentity new', tid) of
       (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
       _ -> pure Nothing
 
