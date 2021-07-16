@@ -207,9 +207,16 @@ createUser new = do
             Nothing
           )
         Just existingAccount ->
-          let ident = newIdentity email phone (newUserSSOId new)
-              existingUser = accountUser existingAccount
-           in ( new {newUserManagedBy = Just (userManagedBy existingUser), newUserIdentity = ident},
+          let existingUser = accountUser existingAccount
+              mbSSOid =
+                case (teamInvitation, email, userManagedBy existingUser) of
+                  (Just _, Just em, ManagedByScim) ->
+                    Just $ UserScimExternalId (fromEmail em)
+                  _ -> newUserSSOId new
+           in ( new
+                  { newUserManagedBy = Just (userManagedBy existingUser),
+                    newUserIdentity = newIdentity email phone mbSSOid
+                  },
                 userHandle existingUser
               )
 
@@ -250,7 +257,7 @@ createUser new = do
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
-      (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
+      (Just ident@(SSOIdentity (UserSSOId _ _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
       _ -> pure Nothing
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
