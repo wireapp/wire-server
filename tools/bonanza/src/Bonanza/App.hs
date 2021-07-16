@@ -42,7 +42,6 @@ import Data.Time
 import Data.Version (showVersion)
 import Imports
 import Options.Applicative
-import Paths_bonanza (version)
 import System.CPUTime
 
 data Opts = Opts CommonOpts Command
@@ -179,7 +178,7 @@ optInfo =
   info
     (helper <*> opts)
     ( fullDesc
-        <> header ("bonanza v" ++ showVersion version)
+        <> header "bonanza"
         <> progDesc "Parse and encode log formats."
     )
 

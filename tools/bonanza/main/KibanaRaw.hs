@@ -38,7 +38,6 @@ import Data.Time.Clock.POSIX
 import Data.Version (showVersion)
 import Imports
 import Options.Applicative hiding (action)
-import Paths_bonanza (version)
 import System.Clock
 
 data Opts = Opts
@@ -53,7 +52,7 @@ parseOpts = execParser $ info (helper <*> parser) desc
   where
     desc =
       fullDesc
-        <> header ("kibana-raw v" ++ showVersion version)
+        <> header ("kibana-raw")
         <> progDesc "Read raw logs and output Elasticsearch bulk records"
     parser =
       Opts

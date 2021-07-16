@@ -40,7 +40,6 @@ import Network.HTTP.Client
 import Network.HTTP.Client.Conduit (requestBodySourceChunked)
 import Network.HTTP.Client.TLS
 import Options.Applicative
-import Paths_bonanza (version)
 
 data Opts = Opts
   { url :: String,
@@ -93,7 +92,7 @@ optInfo =
   info
     (helper <*> parseOpts)
     ( fullDesc
-        <> header ("kibanana v" ++ showVersion version)
+        <> header "kibanana"
         <> progDesc "Read null-delimited bulk API input from stdin and shove it into elasticsearch"
     )
 
