@@ -258,7 +258,8 @@ pushFeatureConfigEvent tid event = do
       Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
         . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
         . Log.field "team" (Log.val (cs . show $ tid))
-        . Log.msg @Text "Fanout limit exceeded. No events will be sent."
+        . Log.msg @Text "Fanout limit exceeded. Some events will not be sent."
   let recipients = membersToRecipients Nothing (memList ^. teamMembers)
-  for_ (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients) $ \push ->
-    push1 push
+  for_
+    (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
+    push1
