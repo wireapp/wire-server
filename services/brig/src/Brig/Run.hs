@@ -112,9 +112,9 @@ mkApp o = do
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
       Metrics.servantPlusWAIPrometheusMiddleware (sitemap o) (Proxy @ServantCombinedAPI)
-        . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . GZip.gunzip
         . GZip.gzip GZip.def
+        . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
 

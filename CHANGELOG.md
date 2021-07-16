@@ -50,6 +50,7 @@ settings:
 ## Internal changes
 
 * The servant-swagger dependency now points to the current upstream master (#1656).
+* Improved error handling middleware (#1671).
 
 ## Federation changes (alpha feature, do not use yet)
 

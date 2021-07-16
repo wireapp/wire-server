@@ -61,9 +61,9 @@ run o = do
     middleware :: Env -> Wai.Middleware
     middleware e =
       waiPrometheusMiddleware sitemap
-        . catchErrors (e ^. applog) [Right $ e ^. monitor]
         . GZip.gunzip
         . GZip.gzip GZip.def
+        . catchErrors (e ^. applog) [Right $ e ^. monitor]
     app :: Env -> Wai.Application
     app e r k = runGundeck e r (route routes r k)
     routes = compile sitemap
