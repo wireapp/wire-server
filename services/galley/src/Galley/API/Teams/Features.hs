@@ -290,7 +290,9 @@ getFileSharingInternal =
     (Public.TeamFeatureStatusNoConfig <$> getDef)
     (getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing getDef)
   where
-    getDef = pure Public.TeamFeatureEnabled
+    getDef =
+      view (options . optSettings . setFeatureFlags . flagFileSharing)
+        <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
 setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_ _ -> pure ()

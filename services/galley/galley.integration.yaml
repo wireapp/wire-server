@@ -56,6 +56,9 @@ settings:
       status: enabled
       config:
         domains: ["example.com"]
+    fileSharing:
+      defaults:
+        status: enabled
 
 logLevel: Info
 logNetStrings: false

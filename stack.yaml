@@ -174,8 +174,10 @@ extra-deps:
 - splitmix-0.0.4 # needed for QuickCheck
 - servant-mock-0.8.7
 - servant-swagger-ui-0.3.4.3.36.1
-- git: https://github.com/wireapp/servant-swagger.git
-  commit: 23e9afafadaade29d21181b935286087457171e3
+
+# For changes from #128 and #135, not released to hackage yet
+- git: https://github.com/haskell-servant/servant-swagger
+  commit: bb0a84faa073fa9530f60337610d7da3d5b9393c
 
 # For changes from https://github.com/haskell-servant/servant/pull/1420
 # Not released to hackage yet

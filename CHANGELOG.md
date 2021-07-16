@@ -24,6 +24,16 @@
 
 ## Release Notes
 
+If you want to set the default for file sharing in all teams to `disabled`, add the following to `galley.yaml` (default is "enabled"):
+
+```
+settings:
+  featureFlags:
+    fileSharing:
+      defaults:
+        status: disabled
+```
+
 ## Release Notes for Wire.com Cloud operators
 
 Upgrade nginz (#1658)
@@ -33,16 +43,20 @@ Upgrade nginz (#1658)
 ## Features
 
 * Extend feature config API (#1658)
-* `fileSharing` feature config (#1652)
+* `fileSharing` feature config (#1652, #1654)
 * Add user_id to csv export (#1663)
 
 ## Bug fixes and other updates
 
 * New, hardened end-point for changing email
+* Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
 
 ## Documentation
 
 ## Internal changes
+
+* The servant-swagger dependency now points to the current upstream master (#1656).
+* Refactor function createUser for readability (#1670)
 
 ## Federation changes (alpha feature, do not use yet)
 
@@ -98,6 +112,7 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
+* Document more error responses (#1645).
 
 ## Bug fixes and other updates
 
