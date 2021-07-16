@@ -254,8 +254,8 @@ createUser new = do
 
   edata <-
     if isJust teamInvitation
-      then handleEmailActivation email uid newTeam
-      else pure Nothing
+      then pure Nothing
+      else handleEmailActivation email uid newTeam
 
   pdata <- handlePhoneActivation phone uid
 
