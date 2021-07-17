@@ -1,0 +1,7 @@
+{
+    "data": {
+        "status": "disabled"
+    },
+    "name": "sso",
+    "type": "feature-config.update"
+}

@@ -166,6 +166,13 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureFileSharing = "fileSharing"
   builder TeamFeatureClassifiedDomains = "classifiedDomains"
 
+instance ToSchema TeamFeatureName where
+  schema =
+    enum @Text
+      "TeamFeatureName"
+      $ mconcat
+        (map (\feat -> element (cs . toByteString' $ feat) feat) [minBound .. maxBound])
+
 class HasDeprecatedFeatureName (a :: TeamFeatureName) where
   type DeprecatedFeatureName a :: Symbol
 

@@ -29,16 +29,22 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.List1 (list1)
+import qualified Data.List1 as List1
 import Data.Schema (ToSchema)
 import qualified Data.Text.Encoding as TE
+import Data.Timeout (TimeoutUnit (Second), (#))
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
+import Gundeck.Types (Notification)
 import Imports
 import Network.Wai.Utilities (label)
 import Test.Tasty
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit ((@?=))
 import TestHelpers (test)
 import TestSetup
+import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
+import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
@@ -54,7 +60,8 @@ tests s =
       test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
-      test s "All features" testAllFeatures
+      test s "All features" testAllFeatures,
+      test s "FileSharing - event" $ testSimpleFlagEvent @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.TeamFeatureDisabled
     ]
 
 testSSO :: TestM ()
@@ -365,3 +372,49 @@ assertFlagWithConfig response expected = do
   liftIO $ do
     fmap Public.tfwcStatus rJson @?= (Right . Public.tfwcStatus $ expected)
     fmap Public.tfwcConfig rJson @?= (Right . Public.tfwcConfig $ expected)
+
+testSimpleFlagEvent ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Typeable a,
+    Public.FeatureHasNoConfig a,
+    Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus a),
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  Public.TeamFeatureStatusValue ->
+  Public.TeamFeatureStatusValue ->
+  TestM ()
+testSimpleFlagEvent defaultValue newValue = do
+  let feature = Public.knownTeamFeatureName @a
+  (tid, _owner, [member]) <- Util.createBindingTeamWithMembers 2
+  cannon <- view tsCannon
+
+  let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getFlag expected =
+        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
+
+      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal statusValue =
+        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+
+  getFlag defaultValue
+
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal newValue
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate feature newValue
+
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal defaultValue
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate feature defaultValue
+
+wsAssertFeatureConfigUpdate :: Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Notification -> IO ()
+wsAssertFeatureConfigUpdate teamFeature status notification = do
+  let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
+  FeatureConfig._eventType e @?= FeatureConfig.Update
+  FeatureConfig._eventFeatureName e @?= teamFeature
+  FeatureConfig._eventData e @?= EdFeatureWithoutConfigChanged (Public.TeamFeatureStatusNoConfig status)
