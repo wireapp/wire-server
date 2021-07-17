@@ -23,6 +23,7 @@ import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.ConversationCoverView
+import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Runner
@@ -31,7 +32,7 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testCase ("UserClientPrekeyMap") $
+    [ testCase "UserClientPrekeyMap" $
         testObjects
           [ (testObject_UserClientPrekeyMap_1, "testObject_UserClientPrekeyMap_1.json"),
             (testObject_UserClientPrekeyMap_2, "testObject_UserClientPrekeyMap_2.json"),
@@ -42,7 +43,7 @@ tests =
             (testObject_UserClientPrekeyMap_7, "testObject_UserClientPrekeyMap_7.json"),
             (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_8.json")
           ],
-      testCase ("QualifiedUserClientPrekeyMap") $
+      testCase "QualifiedUserClientPrekeyMap" $
         testObjects
           [ (testObject_QualifiedUserClientPrekeyMap_1, "testObject_QualifiedUserClientPrekeyMap_1.json"),
             (testObject_QualifiedUserClientPrekeyMap_2, "testObject_QualifiedUserClientPrekeyMap_2.json")
@@ -53,12 +54,19 @@ tests =
             (testObject_ConversationCoverView_2, "testObject_ConversationCoverView_2.json"),
             (testObject_ConversationCoverView_3, "testObject_ConversationCoverView_3.json")
           ],
-      testCase ("ClientCapability") $
+      testCase "ClientCapability" $
         testObjects
           [(testObject_ClientCapability_1, "testObject_ClientCapability_1.json")],
-      testCase ("ClientCapabilityList") $
+      testCase "ClientCapabilityList" $
         testObjects
           [ (testObject_ClientCapabilityList_1, "testObject_ClientCapabilityList_1.json"),
             (testObject_ClientCapabilityList_2, "testObject_ClientCapabilityList_2.json")
+          ],
+      testCase
+        "Event.FeatureConfig.Event"
+        $ testObjects
+          [ (testObject_FeatureConfigEvent_1, "testObject_FeatureConfigEvent_1.json"),
+            (testObject_FeatureConfigEvent_2, "testObject_FeatureConfigEvent_2.json"),
+            (testObject_FeatureConfigEvent_3, "testObject_FeatureConfigEvent_3.json")
           ]
     ]

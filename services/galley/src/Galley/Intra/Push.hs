@@ -82,14 +82,17 @@ import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
 import UnliftIO (mapConcurrently)
 import Util.Options
+import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 
 data PushEvent
   = ConvEvent Event
   | TeamEvent Teams.Event
+  | FeatureConfigEvent FeatureConfig.Event
 
 pushEventJson :: PushEvent -> Object
 pushEventJson (ConvEvent e) = toJSONObject e
 pushEventJson (TeamEvent e) = toJSONObject e
+pushEventJson (FeatureConfigEvent e) = toJSONObject e
 
 type Recipient = RecipientBy UserId
 

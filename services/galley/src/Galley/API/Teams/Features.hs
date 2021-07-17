@@ -55,12 +55,16 @@ import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.TeamFeatures as TeamFeatures
+import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush, push1)
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities
+import qualified System.Logger.Class as Log
+import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
+import qualified Wire.API.Event.FeatureConfig as Event
 import Wire.API.Team.Feature (AllFeatureConfigs (..))
 import qualified Wire.API.Team.Feature as Public
 
@@ -295,7 +299,9 @@ getFileSharingInternal =
         <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
-setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_ _ -> pure ()
+setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \status tid -> do
+  let event = Event.Event Event.Update Public.TeamFeatureFileSharing (EdFeatureWithoutConfigChanged (Public.TeamFeatureStatusNoConfig status))
+  pushFeatureConfigEvent tid event
 
 getAppLockInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal mbtid = do
@@ -317,3 +323,17 @@ getClassifiedDomainsInternal _mbtid = do
     Public.TeamFeatureDisabled ->
       Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
     Public.TeamFeatureEnabled -> config
+
+pushFeatureConfigEvent :: TeamId -> Event.Event -> Galley ()
+pushFeatureConfigEvent tid event = do
+  memList <- Data.teamMembersForFanout tid
+  when ((memList ^. teamMemberListType) == ListTruncated) $ do
+    Log.warn $
+      Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
+        . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
+        . Log.field "team" (Log.val (cs . show $ tid))
+        . Log.msg @Text "Fanout limit exceeded. Some events will not be sent."
+  let recipients = membersToRecipients Nothing (memList ^. teamMembers)
+  for_
+    (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
+    push1

@@ -43,13 +43,14 @@ Upgrade nginz (#1658)
 ## Features
 
 * Extend feature config API (#1658)
-* `fileSharing` feature config (#1652, #1654)
+* `fileSharing` feature config (#1652, #1654, #1655)
 * Add user_id to csv export (#1663)
 
 ## Bug fixes and other updates
 
 * New, hardened end-point for changing email
 * Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
+* Fix: sso_id field in user record (brig) was not always filled correctly in cassandra (#1334)
 
 ## Documentation
 
