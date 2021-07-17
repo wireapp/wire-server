@@ -944,17 +944,13 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
+checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler Bool
 checkUserExistsUnqualifiedH self uid = do
   domain <- viewFederationDomain
   checkUserExistsH self domain uid
 
-checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsH self domain uid = do
-  exists <- checkUserExists self (Qualified uid domain)
-  if exists
-    then Servant.respond (EmptyResult @200)
-    else Servant.respond (EmptyResult @404)
+checkUserExistsH :: UserId -> Domain -> UserId -> Handler Bool
+checkUserExistsH self domain uid = checkUserExists self (Qualified uid domain)
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
@@ -964,14 +960,13 @@ getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
+getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
   getUserH self domain uid
 
-getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
-getUserH self domain uid =
-  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+getUserH :: UserId -> Domain -> UserId -> Handler (Maybe Public.UserProfile)
+getUserH self domain uid = getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError

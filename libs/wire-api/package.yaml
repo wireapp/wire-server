@@ -56,8 +56,11 @@ library:
   - proto-lens
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
+  - resourcet
   - saml2-web-sso
   - servant
+  - servant-client
+  - servant-client-core
   - servant-multipart
   - servant-server
   - servant-swagger

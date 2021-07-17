@@ -97,7 +97,7 @@ instance
   where
   getRoutes = [Node (Left (cs (":" <> symbolVal (Proxy @capture)))) (getRoutes @segs)]
 
--- route :> routes
+-- route :<|> routes
 instance
   {-# OVERLAPPING #-}
   ( RoutesToPaths route,
@@ -107,75 +107,6 @@ instance
   where
   getRoutes = getRoutes @route <> getRoutes @routes
 
--- stuff to ignore
-instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'HEAD status ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'GET status ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'POST status ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'PUT status ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'DELETE status ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'PATCH status ctypes content) where
-  getRoutes = []
-
-instance RoutesToPaths (NoContentVerb 'DELETE) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'HEAD ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'GET ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'POST ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'PUT ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'DELETE ctypes content) where
-  getRoutes = []
-
-instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'PATCH ctypes content) where
-  getRoutes = []
-
-instance RoutesToPaths Raw where
-  getRoutes = []
-
-instance
-  {-# OVERLAPPING #-}
-  ( RoutesToPaths segs
-  ) =>
-  RoutesToPaths (ReqBody ctypes content :> segs)
-  where
-  getRoutes = getRoutes @segs
-
-instance
-  {-# OVERLAPPING #-}
-  ( KnownSymbol sym,
-    RoutesToPaths segs
-  ) =>
-  RoutesToPaths (Header sym content :> segs)
-  where
-  getRoutes = getRoutes @segs
-
-instance
-  {-# OVERLAPPING #-}
-  ( KnownSymbol sym,
-    RoutesToPaths segs
-  ) =>
-  RoutesToPaths (QueryParam sym content :> segs)
-  where
-  getRoutes = getRoutes @segs
-
 instance
   {-# OVERLAPPABLE #-}
   ( RoutesToPaths segs
@@ -183,3 +114,6 @@ instance
   RoutesToPaths (anything :> segs)
   where
   getRoutes = getRoutes @segs
+
+instance {-# OVERLAPPABLE #-} RoutesToPaths anything where
+  getRoutes = []
