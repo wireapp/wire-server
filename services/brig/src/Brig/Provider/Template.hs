@@ -26,8 +26,6 @@ module Brig.Provider.Template
 
     -- * Re-exports
     Template,
-    renderText,
-    renderHtml,
   )
 where
 

@@ -25,10 +25,10 @@ module Brig.Template
     readLocalesDir,
     readTemplateWithDefault,
     readTextWithDefault,
+    slowForceTemplates,
 
     -- * Rendering templates
     renderText,
-    renderHtml,
     renderTextWithBranding,
     renderHtmlWithBranding,
     genTemplateBranding,
@@ -62,6 +62,7 @@ data Localised a = Localised
   { locDefault :: !(Locale, a),
     locOther :: !(Map Locale a)
   }
+  deriving (Show)
 
 readLocalesDir ::
   -- | Default locale.
@@ -157,7 +158,6 @@ renderHtmlWithBranding tpl replace branding = renderHtml tpl (replace . branding
 renderText :: Template -> (Text -> Text) -> Lazy.Text
 renderText = Template.render
 
--- TODO: Do not export this function
 renderHtml :: Template -> (Text -> Text) -> Lazy.Text
 renderHtml tpl replace = renderText tpl (HTML.text . replace)
 
@@ -201,3 +201,10 @@ genTemplateBranding BrandingOpts {..} = fn
     fn "forgot" = forgot
     fn "support" = support
     fn other = other
+
+-- | This is to find out more about a memory leak, see
+-- https://github.com/zinfra/backend-issues/issues/813#issuecomment-517265212 for details.
+-- It's horribly inefficient, but it's ok to use it in some cases, like forcing all templates
+-- at boot time.  (The 'Template' type is not strict.)
+slowForceTemplates :: Show a => a -> a
+slowForceTemplates a = length (show a) `seq` a
