@@ -3,15 +3,21 @@
 ${brand_label_url} [${brand_url}]
 
 EINLADUNG ZUM TEAM
-${inviter} hat Sie auf ${brand} zu einem Team eingeladen. Klicken Sie bitte auf
-den unteren Button, um die Einladung anzunehmen.
+${inviter} hat Sie eingeladen, dem Team ${team_name} auf ${brand} beizutreten.
+Klicken Sie bitte auf den unteren Button, um die Einladung anzunehmen.
 
-Einladung annehmen [${url}]Falls du nicht auf den Button klicken kannst, kopiere
-den Link und füge ihn in deinem Browser ein:
+Team beitreten [${url}]Falls Sie nicht auf den Button klicken können, kopieren
+Sie diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 
-Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
+Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
+
+Was ist Wire?
+Wire ist die sicherste Plattform für Ihre Kommunikation. Wo auch immer Sie sind,
+arbeiten Sie mit Ihrem Team und externen Partnern zusammen – mittels
+Nachrichten, Videokonferenzen und Dateiaustausch, alles mit
+Ende-zu-Ende-Verschlüsselung. Mehr erfahren [https://wire.com/].
 
 
 --------------------------------------------------------------------------------

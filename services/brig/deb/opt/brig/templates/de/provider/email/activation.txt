@@ -9,22 +9,22 @@ Serviceanbieter zu registrieren.
 Um die Registrierung abzuschließen, bestätigen Sie bitte Ihre E-Mail-Adresse,
 indem Sie auf den unteren Button klicken.
 
-Bitte beachten Sie, dass das ${brand_service} nach der Bestätigung der
+Bitte beachten Sie, dass das Service-Provider-Konto nach der Bestätigung der
 E-Mail-Adresse noch durch uns freigeschaltet werden muss. Dies geschieht
 üblicherweise innerhalb von 24 Stunden. Sie werden in einer separaten E-Mail
 über die Freischaltung informiert.
 
-Bestätigen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
-Link und füge ihn in deinem Browser ein:
+Bestätigen [${url}]Falls Sie nicht auf den Button klicken können, kopieren Sie
+diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 
-Solltest du dich nicht für eine ${brand} Service-Provider-Konto mit dieser
-E-Mail-Adresse registriert haben, kannst du diese Meldung ignorieren. Falls du
-einen Missbrauch deiner E-Mail-Adresse melden möchtest kontaktiere uns bitte.
+Wenn Sie sich nicht mit dieser E-Mail-Adresse für ein ${brand}-Benutzerkonto
+registriert haben, können Sie diese Nachricht ignorieren. Wenn Sie den
+Missbrauch Ihrer E-Mail-Adresse melden möchten, kontaktiere Sie uns bitte.
 [${support}]
 
-Bitte antworte nicht auf diese E-Mail.
+Bitte antworten Sie nicht auf diese Nachricht.
 
 
 --------------------------------------------------------------------------------

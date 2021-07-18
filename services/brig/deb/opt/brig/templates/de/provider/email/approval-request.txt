@@ -2,13 +2,13 @@
 
 ${brand_label_url} [${brand_url}]
 
-ANFRAGE GENEHMIGEN
+GENEHMIGUNGSANFRAGE
 Ein neuer ${brand_service} ist registriert und wartet auf die Genehmigung. Bitte
 lesen Sie die unten angegebenen Informationen.
 
 Name: ${name}
 
-E-mail: ${email}
+E-Mail: ${email}
 
 Website: ${url}
 
@@ -22,12 +22,12 @@ Unterhaltungen hinzufügen können.
 Falls die Anfrage zweifelhaft scheint, wenden Sie sich bitte an den Anbieter zur
 Klärung, bevor Sie fortfahren.
 
-Genehmigen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
-Link und füge ihn in deinem Browser ein:
+Genehmigen [${url}]Falls Sie nicht auf den Button klicken können, kopieren Sie
+diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 
-Bitte antworte nicht auf diese E-Mail.
+Bitte antworten Sie nicht auf diese Nachricht.
 
 
 --------------------------------------------------------------------------------
