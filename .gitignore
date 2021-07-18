@@ -59,7 +59,6 @@ spar.yaml
 spar.integration-aws.yaml
 integration-aws.yaml
 DOCKER_ID*
-swagger-ui
 deploy/services-demo/resources/templates/*
 deploy/services-demo/conf/nginz/zwagger-ui/*
 
