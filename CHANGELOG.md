@@ -34,10 +34,15 @@ settings:
         status: disabled
 ```
 
+## Release Notes for Wire.com Cloud operators
+
+Upgrade nginz (#1658)
+
 ## API Changes
 
 ## Features
 
+* Extend feature config API (#1658)
 * `fileSharing` feature config (#1652, #1654, #1655)
 * Add user_id to csv export (#1663)
 
