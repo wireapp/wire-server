@@ -114,8 +114,8 @@ zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
 $(SWAGGER_BUNDLE):
 	curl -L https://github.com/swagger-api/swagger-ui/archive/v$(SWAGGER_VERSION).tar.gz -o $(SWAGGER_BUNDLE)
 
-src: $(NGINX_BUNDLE)
-	#Find keys on https://nginx.org/en/pgp_keys.html
+src: $(NGINX_BUNDLE) keys-downloaded
+	#Find keys on https://nginx.org/en/pgp_keys.html or run 'make download-gpg-keys'
 	gpg --verify $(NGINX_BUNDLE).asc $(NGINX_BUNDLE)
 	tar zxf $(NGINX_BUNDLE)
 	rm -rf src && mv nginx-$(NGINX_VERSION) src
@@ -141,3 +141,10 @@ libzauth:
 .PHONY: docker-run-demo-local
 docker-run-demo:
 	docker run --network=host -it -v $$(pwd)/../../deploy/services-demo:/configs --entrypoint /usr/sbin/nginx quay.io/wire/nginz:local -p /configs -c /configs/conf/nginz/nginx-docker.conf
+
+keys-downloaded:
+	make download-gpg-keys
+
+.PHONY: download-gpg-keys
+download-gpg-keys:
+	./download-gpg-keys.sh && touch keys-downloaded
