@@ -67,8 +67,8 @@ run o = do
       middleware :: Wai.Middleware
       middleware =
         waiPrometheusMiddleware sitemap
-          . catchErrors g [Right m]
           . Gzip.gzip Gzip.def
+          . catchErrors g [Right m]
       start = middleware app
   runSettings s start `finally` do
     Async.cancel refreshMetricsThread

@@ -35,6 +35,9 @@ dependencies:
 - servant-server
 - string-conversions
 - text
+- tls
+- x509-store
+- x509-system
 - tinylog
 - types-common
 - uuid

@@ -89,9 +89,9 @@ mkApp o = do
         Log.close l
       middlewares =
         servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
-          . catchErrors l [Right m]
           . GZip.gunzip
           . GZip.gzip GZip.def
+          . catchErrors l [Right m]
   return (middlewares $ servantApp e, e, finalizer)
   where
     rtree = compile API.sitemap

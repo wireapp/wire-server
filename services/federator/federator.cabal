@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c8d8d4810804d66206f0409a7239d3961d39ff18d757b13e15917b52ec2dfb08
+-- hash: c0fa14fcc8de193a5a256a3c145a8b3a60196f151787ead79ba62bc48e948fee
 
 name:           federator
 version:        1.0.0
@@ -70,6 +70,7 @@ library
     , string-conversions
     , text
     , tinylog
+    , tls
     , types-common
     , unliftio
     , uri-bytestring
@@ -77,6 +78,8 @@ library
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , x509-store
+    , x509-system
   default-language: Haskell2010
 
 executable federator
@@ -123,6 +126,7 @@ executable federator
     , string-conversions
     , text
     , tinylog
+    , tls
     , types-common
     , unliftio
     , uri-bytestring
@@ -130,6 +134,8 @@ executable federator
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , x509-store
+    , x509-system
   default-language: Haskell2010
 
 executable federator-integration
@@ -185,6 +191,7 @@ executable federator-integration
     , tasty-hunit
     , text
     , tinylog
+    , tls
     , types-common
     , unliftio
     , uri-bytestring
@@ -192,6 +199,8 @@ executable federator-integration
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , x509-store
+    , x509-system
     , yaml
   default-language: Haskell2010
 
@@ -247,6 +256,7 @@ test-suite federator-tests
     , tasty-hunit
     , text
     , tinylog
+    , tls
     , types-common
     , unliftio
     , uri-bytestring
@@ -254,5 +264,7 @@ test-suite federator-tests
     , wai-utilities
     , wire-api
     , wire-api-federation
+    , x509-store
+    , x509-system
     , yaml
   default-language: Haskell2010

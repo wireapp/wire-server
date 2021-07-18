@@ -46,6 +46,6 @@ run o = do
     middleware :: Env -> Wai.Middleware
     middleware e =
       waiPrometheusMiddleware sitemap
-        . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
         . GZip.gzip GZip.def
+        . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
     serve e r k = runHandler e r (Server.route rtree r k) k

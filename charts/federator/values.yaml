@@ -20,5 +20,13 @@ config:
   logLevel: Debug
   logFormat: JSON
   optSettings:
+    # Filepath to one or more PEM-encoded server certificates to use as a trust
+    # store when making grpc requests to remote backends
+    # This path should not need to be changed; instead; change the contents by specifying
+    #   federator.remoteCAContents
+    # e.g. from a pem file myca.pem:
+    #   { echo "federator:"; echo "  remoteCAContents: |"; sed -e 's/^/    /' myca.pem; } > myca.yaml
+    # then use '-f myca.yaml' as additional flag to your helm commands.
+    remoteCAStore: "/etc/wire/federator/ca/remote-ca.pem"
     setFederationStrategy:
       allowedDomains: []

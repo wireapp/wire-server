@@ -367,9 +367,13 @@ echo-release-charts:
 	@echo ${CHARTS_RELEASE}
 
 .PHONY: buildah-docker
-buildah-docker:
+buildah-docker: buildah-docker-nginz
 	./hack/bin/buildah-compile.sh
 	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images.sh
+
+.PHONY: buildah-docker-nginz
+buildah-docker-nginz:
+	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images-nginz.sh
 
 .PHONY: buildah-docker-%
 buildah-docker-%:
@@ -393,6 +397,7 @@ kind-delete:
 kind-reset: kind-delete kind-cluster
 
 .local/kind-kubeconfig:
+	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
 
 .PHONY: kind-integration-setup

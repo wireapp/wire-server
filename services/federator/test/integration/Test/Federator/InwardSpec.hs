@@ -32,11 +32,18 @@ import Data.Handle
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Misc
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Federator.Options
+import Federator.Remote (mkGrpcClient)
 import Imports
 import Mu.GRpc.Client.TyApps
+import Polysemy (Sem)
+import qualified Polysemy
+import qualified Polysemy.Reader as Polysemy
+import qualified Polysemy.TinyLog as Polysemy
 import System.Random
 import Test.Federator.Util
 import Test.Hspec
@@ -47,6 +54,7 @@ import Wire.API.Federation.GRPC.Types hiding (body, path)
 import qualified Wire.API.Federation.GRPC.Types as GRPC
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.Network.DNS.SRV
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
 
@@ -78,6 +86,17 @@ spec env =
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
         bdy <- asInwardBody =<< inwardBrigCall "federation/get-user-by-handle" (encode hdl)
+        liftIO $ bdy `shouldBe` expectedProfile
+
+    it "should be able to call brig via ingress" $
+      runTestFederator env $ do
+        brig <- view teBrig <$> ask
+        user <- randomUser brig
+        hdl <- randomHandle
+        _ <- putHandle brig (userId user) hdl
+
+        let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        bdy <- asInwardBody =<< inwardBrigCallViaIngress "federation/get-user-by-handle" (encode hdl)
         liftIO $ bdy `shouldBe` expectedProfile
 
     it "should give an InvalidEndpoint error on a 404 'no-endpoint' response from Brig" $
@@ -156,13 +175,40 @@ inwardBrigCall requestPath payload = do
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
+inwardBrigCallViaIngress :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
+inwardBrigCallViaIngress requestPath payload = do
+  Endpoint ingressHost ingressPort <- viewIngress
+  let target = SrvTarget (cs ingressHost) ingressPort
+  runSettings <- optSettings . view teOpts <$> ask
+  c <- discardLogging . Polysemy.runReader runSettings $ mkGrpcClient target
+  client <- case c of
+    Left clientErr -> liftIO $ assertFailure (show clientErr)
+    Right cli -> pure cli
+  let brigCall =
+        GRPC.Request
+          { GRPC.component = Brig,
+            GRPC.path = requestPath,
+            GRPC.body = LBS.toStrict payload,
+            GRPC.originDomain = "foo.example.com"
+          }
+  liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client brigCall
+
+discardLogging :: MonadIO m => Sem '[Polysemy.TinyLog, Polysemy.Embed IO] a -> m a
+discardLogging = liftIO . Polysemy.runM . Polysemy.interpret discardLogAction
+  where
+    discardLogAction :: Applicative n => Polysemy.TinyLog m a -> n a
+    discardLogAction (Polysemy.Polylog _ _) = pure ()
+
 viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
 viewFederatorExternalClient = do
   Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
   client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
   case client of
-    Left err -> liftIO $ assertFailure (show err)
+    Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli
+
+viewIngress :: (MonadReader TestEnv m, HasCallStack) => m Endpoint
+viewIngress = cfgNginxIngress . view teTstOpts <$> ask
 
 -- All the code below is copied from brig-integration tests
 -- FUTUREWORK: This should live in another package and shared by all the integration tests
@@ -289,13 +335,13 @@ randomNameWithMaxLen maxLen = liftIO $ do
   chars <- fill len []
   return $ Name (Text.pack chars)
   where
-    fill 0 cs = return cs
-    fill 1 cs = (: cs) <$> randLetter
-    fill n cs = do
+    fill 0 characters = return characters
+    fill 1 characters = (: characters) <$> randLetter
+    fill n characters = do
       c <- randChar
       if isLetter c || isNumber c || isPunctuation c || isSymbol c
-        then fill (n - 1) (c : cs)
-        else fill n cs
+        then fill (n - 1) (c : characters)
+        else fill n characters
     randChar = chr <$> randomRIO (0x0000, 0xFFFF)
     randLetter = do
       c <- randChar
