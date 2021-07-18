@@ -83,7 +83,12 @@ spec:
               else
                 ACCESS_ARGS="-A ${EXTERNAL_IP}"
               fi
-              exec sftd  -I "${POD_IP}" -M "${POD_IP}" ${ACCESS_ARGS} -u "https://{{ required "must specify host" .Values.host }}/sfts/${POD_NAME}"
+              exec sftd \
+                      -I "${POD_IP}" \
+                      -M "${POD_IP}" \
+                      ${ACCESS_ARGS} \
+                      {{ if .Values.turnDiscoveryEnabled }}-T{{ end }} \
+                      -u "https://{{ required "must specify host" .Values.host }}/sfts/${POD_NAME}"
           ports:
             - name: sft
               containerPort: 8585
