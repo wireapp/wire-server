@@ -494,14 +494,10 @@ addMembersRemoteConv :: Qualified UserId -> Remote ConvId -> Public.InviteQualif
 addMembersRemoteConv _requester _conv _invite = do
   -- TODO: make a federated RPC call to the remote Galley
 
-  -- TODO: Add an argument to addMembersLocalConv for the requester. Make sure
-  -- to check its role and make that user 'self', and not the currently local
-  -- user zusr
   throwM federationNotImplemented
 
 addMembersLocalConv :: Qualified UserId -> Maybe ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
-addMembersLocalConv adder@(Qualified zusr _userDomain) zcon convId invite = do
-  -- TODO: fix all references to zusr to make them remote - aware
+addMembersLocalConv adder zcon convId invite = do
   localDomain <- viewFederationDomain
   conv <- Data.conversation convId >>= ifNothing convNotFound
   let lMems = localBotsAndUsers (Data.convLocalMembers conv)
@@ -531,10 +527,10 @@ addMembersLocalConv adder@(Qualified zusr _userDomain) zcon convId invite = do
       tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
-      ensureConnectedOrSameTeam zusr newUsers
+      ensureConnectedOrSameTeam adder newUsers
     checkLocals conv Nothing newUsers = do
       ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
-      ensureConnectedOrSameTeam zusr newUsers
+      ensureConnectedOrSameTeam adder newUsers
 
     checkLHPolicyConflictsLocal :: Data.Conversation -> [UserId] -> Galley ()
     checkLHPolicyConflictsLocal conv newUsers = do
