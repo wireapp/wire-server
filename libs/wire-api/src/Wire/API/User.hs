@@ -30,6 +30,7 @@ module Wire.API.User
     userEmail,
     userPhone,
     userSSOId,
+    userSCIMExternalId,
     connectedProfile,
     publicProfile,
 
@@ -117,11 +118,13 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
+import qualified Data.Text.Lazy as TL
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
 import Deriving.Swagger
 import GHC.TypeLits (KnownNat, Nat)
 import Imports
+import qualified SAML2.WebSSO as SAML
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
@@ -388,6 +391,15 @@ userPhone = phoneIdentity <=< userIdentity
 
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
+
+userSCIMExternalId :: User -> Maybe Text
+userSCIMExternalId usr = userSSOId >=> ssoIdExtId $ usr
+  where
+    ssoIdExtId :: UserSSOId -> Maybe Text
+    ssoIdExtId (UserSSOId _ nameIdXML) = case userManagedBy usr of
+      ManagedByWire -> Nothing
+      ManagedByScim -> SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (TL.fromStrict nameIdXML))
+    ssoIdExtId (UserScimExternalId extId) = pure extId
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
 connectedProfile u legalHoldStatus =

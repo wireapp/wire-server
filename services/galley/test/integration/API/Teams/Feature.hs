@@ -25,27 +25,38 @@ import Bilge.Assert
 import Control.Lens (over, view)
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON, object, (.=))
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import Data.Id
 import Data.List1 (list1)
+import qualified Data.List1 as List1
 import Data.Schema (ToSchema)
+import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as TE
+import Data.Timeout (TimeoutUnit (Second), (#))
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
+import Gundeck.Types (Notification)
 import Imports
 import Network.Wai.Utilities (label)
+import Test.Hspec (expectationFailure, shouldBe)
 import Test.Tasty
-import Test.Tasty.HUnit ((@?=))
+import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.HUnit (assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
+import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
+import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
 tests s =
-  testGroup
-    "Team Features API"
+  testGroup "Feature Config API and Team Features API" $
     [ test s "SSO" testSSO,
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
@@ -54,7 +65,9 @@ tests s =
       test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
-      test s "All features" testAllFeatures
+      test s "All features" testAllFeatures,
+      test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
+      test s "FileSharing - event" $ testSimpleFlagEvent @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.TeamFeatureDisabled
     ]
 
 testSSO :: TestM ()
@@ -68,6 +81,8 @@ testSSO = do
 
   let getSSO :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getSSO = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
+      getSSOFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getSSOFeatureConfig = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getFeatureConfig Public.TeamFeatureSSO member
       getSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getSSOInternal = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
@@ -81,16 +96,19 @@ testSSO = do
       -- Test default
       getSSO Public.TeamFeatureDisabled
       getSSOInternal Public.TeamFeatureDisabled
+      getSSOFeatureConfig Public.TeamFeatureDisabled
 
       -- Test override
       setSSOInternal Public.TeamFeatureEnabled
       getSSO Public.TeamFeatureEnabled
       getSSOInternal Public.TeamFeatureEnabled
+      getSSOFeatureConfig Public.TeamFeatureEnabled
     FeatureSSOEnabledByDefault -> do
       -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
       -- much here.  (disable failure is covered in "enable/disable SSO" above.)
       getSSO Public.TeamFeatureEnabled
       getSSOInternal Public.TeamFeatureEnabled
+      getSSOFeatureConfig Public.TeamFeatureEnabled
 
 testLegalHold :: TestM ()
 testLegalHold = do
@@ -105,6 +123,7 @@ testLegalHold = do
       getLegalHold = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
       getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getLegalHoldInternal = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
+      getLegalHoldFeatureConfig = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getFeatureConfig Public.TeamFeatureLegalHold member
 
       setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       setLegalHoldInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
@@ -120,11 +139,13 @@ testLegalHold = do
       -- Test default
       getLegalHold Public.TeamFeatureDisabled
       getLegalHoldInternal Public.TeamFeatureDisabled
+      getLegalHoldFeatureConfig Public.TeamFeatureDisabled
 
       -- Test override
       setLegalHoldInternal Public.TeamFeatureEnabled
       getLegalHold Public.TeamFeatureEnabled
       getLegalHoldInternal Public.TeamFeatureEnabled
+      getLegalHoldFeatureConfig Public.TeamFeatureEnabled
 
     -- turned off for instance
     FeatureLegalHoldDisabledPermanently -> do
@@ -164,6 +185,16 @@ testSearchVisibility = do
           statusCode === const 200
           responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfig expected))
 
+  let getTeamSearchVisibilityFeatureConfig ::
+        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+        UserId ->
+        Public.TeamFeatureStatusValue ->
+        m ()
+      getTeamSearchVisibilityFeatureConfig uid expected =
+        Util.getFeatureConfigWithGalley Public.TeamFeatureSearchVisibility g uid !!! do
+          statusCode === const 200
+          responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfig expected))
+
   let setTeamSearchVisibilityInternal ::
         (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
         TeamId ->
@@ -174,25 +205,44 @@ testSearchVisibility = do
   assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureSearchVisibility nonMember tid
 
   tid2 <- Util.createNonBindingTeam "foo" owner []
+  team2member <- Util.randomUser
+  Util.connectUsers owner (list1 team2member [])
+  Util.addTeamMember owner tid2 team2member (rolePermissions RoleMember) Nothing
+
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
     getTeamSearchVisibility tid2 Public.TeamFeatureDisabled
     getTeamSearchVisibilityInternal tid2 Public.TeamFeatureDisabled
+    getTeamSearchVisibilityFeatureConfig team2member Public.TeamFeatureDisabled
+
     setTeamSearchVisibilityInternal tid2 Public.TeamFeatureEnabled
     getTeamSearchVisibility tid2 Public.TeamFeatureEnabled
     getTeamSearchVisibilityInternal tid2 Public.TeamFeatureEnabled
+    getTeamSearchVisibilityFeatureConfig team2member Public.TeamFeatureEnabled
+
     setTeamSearchVisibilityInternal tid2 Public.TeamFeatureDisabled
     getTeamSearchVisibility tid2 Public.TeamFeatureDisabled
     getTeamSearchVisibilityInternal tid2 Public.TeamFeatureDisabled
+    getTeamSearchVisibilityFeatureConfig team2member Public.TeamFeatureDisabled
+
   tid3 <- Util.createNonBindingTeam "foo" owner []
+  team3member <- Util.randomUser
+  Util.connectUsers owner (list1 team3member [])
+  Util.addTeamMember owner tid3 team3member (rolePermissions RoleMember) Nothing
+
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
     getTeamSearchVisibility tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
+    getTeamSearchVisibilityFeatureConfig team3member Public.TeamFeatureEnabled
+
     setTeamSearchVisibilityInternal tid3 Public.TeamFeatureDisabled
     getTeamSearchVisibility tid3 Public.TeamFeatureDisabled
     getTeamSearchVisibilityInternal tid3 Public.TeamFeatureDisabled
+    getTeamSearchVisibilityFeatureConfig team3member Public.TeamFeatureDisabled
+
     setTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibility tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
+    getTeamSearchVisibilityFeatureConfig team3member Public.TeamFeatureEnabled
 
 getClassifiedDomains ::
   (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
@@ -222,8 +272,18 @@ testClassifiedDomainsEnabled = do
             Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]
           }
 
+  let getClassifiedDomainsFeatureConfig ::
+        (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+        UserId ->
+        Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+        m ()
+      getClassifiedDomainsFeatureConfig uid = do
+        assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
+          Util.getFeatureConfig Public.TeamFeatureClassifiedDomains uid
+
   getClassifiedDomains member tid expected
   getClassifiedDomainsInternal tid expected
+  getClassifiedDomainsFeatureConfig member expected
 
 testClassifiedDomainsDisabled :: TestM ()
 testClassifiedDomainsDisabled = do
@@ -234,6 +294,15 @@ testClassifiedDomainsDisabled = do
             Public.tfwcConfig = Public.TeamFeatureClassifiedDomainsConfig []
           }
 
+  let getClassifiedDomainsFeatureConfig ::
+        (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+        UserId ->
+        Public.TeamFeatureStatus 'Public.TeamFeatureClassifiedDomains ->
+        m ()
+      getClassifiedDomainsFeatureConfig uid = do
+        assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
+          Util.getFeatureConfig Public.TeamFeatureClassifiedDomains uid
+
   opts <- view tsGConf
   let classifiedDomainsDisabled =
         opts
@@ -243,6 +312,7 @@ testClassifiedDomainsDisabled = do
   withSettingsOverrides classifiedDomainsDisabled $ do
     getClassifiedDomains member tid expected
     getClassifiedDomainsInternal tid expected
+    getClassifiedDomainsFeatureConfig member expected
 
 testSimpleFlag ::
   forall (a :: Public.TeamFeatureName).
@@ -268,6 +338,10 @@ testSimpleFlag defaultValue = do
       getFlag expected =
         flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
 
+      getFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getFeatureConfig expected =
+        flip (assertFlagNoConfig @a) expected $ Util.getFeatureConfig feature member
+
       getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getFlagInternal expected =
         flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlagInternal feature tid
@@ -285,10 +359,12 @@ testSimpleFlag defaultValue = do
   -- Disabled by default
   getFlag defaultValue
   getFlagInternal defaultValue
+  getFeatureConfig defaultValue
 
   -- Setting should work
   setFlagInternal otherValue
   getFlag otherValue
+  getFeatureConfig otherValue
   getFlagInternal otherValue
 
 -- | Call 'GET /teams/:tid/features' and check if all features are there
@@ -319,6 +395,36 @@ testAllFeatures = do
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'
+
+testFeatureConfigConsistency :: TestM ()
+testFeatureConfigConsistency = do
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
+  allFeaturesRes <- Util.getAllFeatureConfigs member >>= parseObjectKeys
+  liftIO $ allFeaturesRes `shouldBe` allFeatures
+
+  allTeamFeaturesRes <- Util.getAllTeamFeatures member tid >>= parseObjectKeys
+
+  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
+    liftIO $ expectationFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
+
+  pure ()
+  where
+    parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
+    parseObjectKeys res = do
+      case responseJsonEither res of
+        Left err -> liftIO $ assertFailure ("Did not parse as an object" <> err)
+        Right (val :: Aeson.Value) ->
+          case val of
+            (Aeson.Object hm) -> pure (Set.fromList . HashSet.toList . HashMap.keysSet $ hm)
+            x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
+
+    allFeatures :: Set.Set Text
+    allFeatures = Set.fromList $ cs . toByteString' @TeamFeatureName <$> [minBound ..]
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do
@@ -365,3 +471,49 @@ assertFlagWithConfig response expected = do
   liftIO $ do
     fmap Public.tfwcStatus rJson @?= (Right . Public.tfwcStatus $ expected)
     fmap Public.tfwcConfig rJson @?= (Right . Public.tfwcConfig $ expected)
+
+testSimpleFlagEvent ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Typeable a,
+    Public.FeatureHasNoConfig a,
+    Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus a),
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  Public.TeamFeatureStatusValue ->
+  Public.TeamFeatureStatusValue ->
+  TestM ()
+testSimpleFlagEvent defaultValue newValue = do
+  let feature = Public.knownTeamFeatureName @a
+  (tid, _owner, [member]) <- Util.createBindingTeamWithMembers 2
+  cannon <- view tsCannon
+
+  let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getFlag expected =
+        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
+
+      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal statusValue =
+        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+
+  getFlag defaultValue
+
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal newValue
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate feature newValue
+
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal defaultValue
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate feature defaultValue
+
+wsAssertFeatureConfigUpdate :: Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Notification -> IO ()
+wsAssertFeatureConfigUpdate teamFeature status notification = do
+  let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
+  FeatureConfig._eventType e @?= FeatureConfig.Update
+  FeatureConfig._eventFeatureName e @?= teamFeature
+  FeatureConfig._eventData e @?= EdFeatureWithoutConfigChanged (Public.TeamFeatureStatusNoConfig status)

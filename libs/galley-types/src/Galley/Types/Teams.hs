@@ -27,9 +27,11 @@ module Galley.Types.Teams
     flagSSO,
     flagLegalHold,
     flagTeamSearchVisibility,
+    flagFileSharing,
     flagAppLockDefaults,
     flagClassifiedDomains,
     Defaults (..),
+    unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
     FeatureTeamSearchVisibility (..),
@@ -196,7 +198,8 @@ data FeatureFlags = FeatureFlags
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
     _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
-    _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains)
+    _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing))
   }
   deriving (Eq, Show, Generic)
 
@@ -240,15 +243,17 @@ instance FromJSON FeatureFlags where
       <*> obj .: "teamSearchVisibility"
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
       <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
+      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
         "teamSearchVisibility" .= searchVisibility,
         "appLock" .= appLock,
-        "classifiedDomains" .= classifiedDomains
+        "classifiedDomains" .= classifiedDomains,
+        "fileSharing" .= fileSharing
       ]
 
 instance FromJSON FeatureSSO where
@@ -282,6 +287,7 @@ instance ToJSON FeatureTeamSearchVisibility where
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags
+makeLenses ''Defaults
 
 -- Note [hidden team roles]
 --
