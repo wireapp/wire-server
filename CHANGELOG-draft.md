@@ -18,6 +18,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Documentation
 
+* Added documentation of federation errors (#1674)
+
 ## Internal changes
 
 * Rewrite the `POST /connections` endpoint to Servant (#1726)
