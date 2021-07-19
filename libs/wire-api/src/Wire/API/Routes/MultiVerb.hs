@@ -194,7 +194,7 @@ instance AsHeaders hs a (Headers hs a) where
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
--- convert a list of Header to a list of Servant.Header
+-- convert a list of 'Header's to a list of 'Servant.Header's
 type family ServantHeaders (hs :: [*]) :: [*]
 
 type instance ServantHeaders '[] = '[]
