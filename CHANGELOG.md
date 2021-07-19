@@ -34,16 +34,23 @@ settings:
         status: disabled
 ```
 
+## Release Notes for Wire.com Cloud operators
+
+Upgrade nginz (#1658)
+
 ## API Changes
 
 ## Features
 
-* `fileSharing` feature config (#1652, #1654)
+* Extend feature config API (#1658)
+* `fileSharing` feature config (#1652, #1654, #1655)
 * Add user_id to csv export (#1663)
 
 ## Bug fixes and other updates
 
 * New, hardened end-point for changing email
+* Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
+* Fix: sso_id field in user record (brig) was not always filled correctly in cassandra (#1334)
 
 ## Documentation
 
@@ -52,6 +59,7 @@ settings:
 ## Internal changes
 
 * The servant-swagger dependency now points to the current upstream master (#1656).
+* Refactor function createUser for readability (#1670)
 
 ## Federation changes (alpha feature, do not use yet)
 

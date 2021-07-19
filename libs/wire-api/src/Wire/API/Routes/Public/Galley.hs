@@ -365,7 +365,34 @@ data Api routes = Api
         :- FeatureStatusPut 'TeamFeatureFileSharing,
     teamFeatureStatusClassifiedDomainsGet ::
       routes
-        :- FeatureStatusGet 'TeamFeatureClassifiedDomains
+        :- FeatureStatusGet 'TeamFeatureClassifiedDomains,
+    featureAllFeatureConfigsGet ::
+      routes
+        :- AllFeatureConfigsGet,
+    featureConfigLegalHoldGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureLegalHold,
+    featureConfigSSOGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureSSO,
+    featureConfigSearchVisibilityGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureSearchVisibility,
+    featureConfigValidateSAMLEmailsGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureValidateSAMLEmails,
+    featureConfigDigitalSignaturesGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureDigitalSignatures,
+    featureConfigAppLockGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureAppLock,
+    featureConfigFileSharingGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureFileSharing,
+    featureConfigClassifiedDomainsGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 
@@ -410,6 +437,19 @@ type FeatureStatusDeprecatedPut featureName =
     :> DeprecatedFeatureName featureName
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type FeatureConfigGet featureName =
+  Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "feature-configs"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type AllFeatureConfigsGet =
+  Summary "Get configurations of all features"
+    :> ZUser
+    :> "feature-configs"
+    :> Get '[Servant.JSON] AllFeatureConfigs
 
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
