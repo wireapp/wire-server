@@ -102,6 +102,7 @@ instance Alternative UnrenderResult where
 instance MonadPlus UnrenderResult where
   mzero = Mismatch
   mplus Mismatch m = m
+  mplus (UnrenderError e) Mismatch = UnrenderError e
   mplus (UnrenderError _) m = m
   mplus m@(UnrenderSuccess _) _ = m
 
