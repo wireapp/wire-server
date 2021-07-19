@@ -64,12 +64,12 @@ tests s =
       test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
       test
         s
-        "POST /federation/update-conversation-memberships : Add local user to remote conversation"
-        addLocalUser,
+        "POST /federation/update-conversation-memberships : Notify local user of being added to remote conversation"
+        notifyAddLocalUserToRemoteConv,
       test
         s
         "POST /federation/update-conversation-memberships : Notify local user about other members joining"
-        notifyLocalUser,
+        notifyLocalUserOfNewMembersInRemoteConv,
       test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
     ]
@@ -137,8 +137,8 @@ getConversationsNotPartOf = do
       (GetConversationsRequest randoQualified [qUnqualified . cnvQualifiedId $ cnv1])
   liftIO $ assertEqual "conversation list not empty" [] cs
 
-addLocalUser :: TestM ()
-addLocalUser = do
+notifyAddLocalUserToRemoteConv :: TestM ()
+notifyAddLocalUserToRemoteConv = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   alice <- randomUser
@@ -171,8 +171,8 @@ addLocalUser = do
       $ Cql.params Cql.Quorum (Identity alice)
   liftIO $ [(dom, conv)] @?= convs
 
-notifyLocalUser :: TestM ()
-notifyLocalUser = do
+notifyLocalUserOfNewMembersInRemoteConv :: TestM ()
+notifyLocalUserOfNewMembersInRemoteConv = do
   c <- view tsCannon
   alice <- randomUser
   bob <- randomId
