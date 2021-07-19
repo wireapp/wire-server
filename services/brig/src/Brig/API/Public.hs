@@ -960,13 +960,14 @@ getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
+getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
   getUserH self domain uid
 
-getUserH :: UserId -> Domain -> UserId -> Handler (Maybe Public.UserProfile)
-getUserH self domain uid = getUser self (Qualified uid domain)
+getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
+getUserH self domain uid =
+  ifNothing userNotFound =<< getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError

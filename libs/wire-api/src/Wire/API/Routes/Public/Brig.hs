@@ -100,13 +100,7 @@ data Api routes = Api
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             [ RespondEmpty 404 "User not found",
-               Respond 200 "User exists" UserProfile
-             ]
-             (Maybe UserProfile),
+        :> Get '[JSON] UserProfile,
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
@@ -120,13 +114,7 @@ data Api routes = Api
         :> "users"
         :> Capture "domain" Domain
         :> CaptureUserId "uid"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             [ RespondEmpty 404 "User not found",
-               Respond 200 "User exists" UserProfile
-             ]
-             (Maybe UserProfile),
+        :> Get '[JSON] UserProfile,
     getSelf ::
       routes
         :- Summary "Get your own profile"
