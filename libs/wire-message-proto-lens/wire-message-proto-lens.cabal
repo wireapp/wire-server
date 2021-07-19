@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6340f0411146156e837457d65bb4936309fac1b9b2706bc99013fbc7b146c821
+-- hash: 9a586240c75756ba6902ce50f6e5a069cf0d4958ec5bf9e4e51e0c646d94a9ee
 
 name:           wire-message-proto-lens
 version:        0.1.0
@@ -31,8 +31,6 @@ library
       Proto.Otr_Fields
   other-modules:
       Paths_wire_message_proto_lens
-  hs-source-dirs:
-      ./.
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fno-warn-redundant-constraints
   ghc-prof-options: -fprof-auto-exported

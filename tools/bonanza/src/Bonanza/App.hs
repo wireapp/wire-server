@@ -39,7 +39,6 @@ import qualified Data.Conduit.List as Conduit
 import qualified Data.Conduit.Zlib as Conduit
 import qualified Data.Text as T
 import Data.Time
-import Data.Version (showVersion)
 import Imports
 import Options.Applicative
 import System.CPUTime

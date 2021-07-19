@@ -17,7 +17,6 @@ dependencies:
 - base
 - proto-lens-runtime
 library:
-  source-dirs: .
   ghc-prof-options: -fprof-auto-exported
   exposed-modules:
   # do not remove this list!  stack won't be able to generate it from the protobuf source files!

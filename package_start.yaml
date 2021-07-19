@@ -12,3 +12,9 @@ dependencies: []
 library:
   source-dirs: []
   dependencies: []
+  exposed-modules: []
+custom-setup:
+  dependencies:
+  - base
+  - Cabal
+  - proto-lens-setup

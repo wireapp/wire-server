@@ -35,7 +35,6 @@ import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Data.Version (showVersion)
 import Imports
 import Options.Applicative hiding (action)
 import System.Clock

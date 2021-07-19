@@ -34,7 +34,6 @@ import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
-import Data.Version (showVersion)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.Conduit (requestBodySourceChunked)

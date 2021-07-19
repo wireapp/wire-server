@@ -50,7 +50,6 @@ packages:
 - tools/makedeb
 - tools/rex
 - tools/stern
-- wire-server
 
 nix:
   shell-file: stack-deps.nix

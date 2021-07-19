@@ -102,6 +102,8 @@ def get_all_dependencies(package):
 
     all_deps.extend([parse_simple_dep(d) for d in (get_path(package, ['dependencies']) or [])])
 
+    all_deps.extend([parse_simple_dep(d) for d in get_list(package, ['library', 'dependencies'])])
+
     executables = list(package.get('executables', {}).items()) + \
         list(package.get('tests', {}).items())
 
@@ -129,6 +131,9 @@ def merge_projects(dir_source, dir_target):
     package_target['library']['dependencies'] = remove_source(
         merge_deps(package_target['library']['dependencies'], 
             get_dependencies(package_source, ['library'])))
+
+    # if 'brig-types' in package_target['library']['dependencies']:
+    #     print(f"brig-types dependency when merging {prefix}")
 
     executables = \
         [('executables', name, exe) \
@@ -161,6 +166,15 @@ def merge_projects(dir_source, dir_target):
         if name in package_target['flags']:
             print(f"WARNING: duplicated flag {name}")
         package_target['flags'][name] = flag
+
+    for path in get_list(package_source, ['library', 'exposed-modules']):
+        package_target['library']['exposed-modules'].append(path)
+
+    for path in package_source.get('extra-source-files', []):
+        if 'extra-source-files' not in package_target:
+            package_target['extra-source-files'] = []
+        package_target['extra-source-files'].append(
+            os.path.join(prefix, path))
 
     prefixed_source_dirs = [os.path.join(prefix, d) for d in get_list(package_source, ['library', 'source-dirs'])]
     package_target['library']['source-dirs'].extend(prefixed_source_dirs)
@@ -208,16 +222,11 @@ def main():
     os.makedirs('wire-server', exist_ok=True)
 
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
+    shutil.copyfile('Setup_start.hs', 'wire-server/Setup.hs')
 
-    # NOTE: wire-message-proto-lens cant be merged because of non-trivial Setup.hs
-    # removing it from the dag doesn't work.
-    #
-    # TODO: Find a way to exclude packages from the merge.
     packages_topo_order = read_dep_dag(exceptions=[''])
 
-    for package in packages_topo_order[:20]:
-        if package == 'libs/wire-message-proto-lens':
-            break
+    for package in packages_topo_order:
         print(package)
         merge_projects(package, 'wire-server')
 
