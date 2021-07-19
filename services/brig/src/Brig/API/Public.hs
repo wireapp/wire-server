@@ -163,6 +163,60 @@ Okta will ask you to provide two URLs when you set it up for talking to wireapp:
 #### centrify.com
 
 Centrify allows you to upload the metadata xml document that you get from the `/sso/metadata` end-point.  You can also enter the metadata url and have centrify retrieve the xml, but to guarantee integrity of the setup, the metadata should be copied from the team settings page and pasted into the centrify setup page without any URL indirections.
+
+## Federation errors
+
+Endpoints involving federated calls to other domains can return some extra failure responses, common to all endpoints. Instead of listing them as possible responses for each endpoint, we document them here.
+
+**Note**: when a failure occurs as a result of making a federated RPC to another backend, the error response contains the following extra fields:
+
+ - `domain`: the target backend of the RPC that failed;
+ - `path`: the path of the RPC that failed.
+
+### Local federation errors
+
+An error in this category indicates an issue with configuration of federation on the local backend or with the federation-related content of the current client request.
+
+ - **Federation not enabled** (status: 400, label: `federation-not-enabled`): Federation has not been configured for this backend.
+ - **Federation unavailable** (status: 500, label: `federation-not-available`): Federation is configured for this backend, but the local federator cannot be reached.
+ - **Federation not implemented** (status: 403, label: `federation-not-implemented`): Federated behaviour for a certain endpoint is not yet implemented.
+ - **Remote backend not found** (status: 422, label: `srv-record-not-found`): This backend attempted to contact a backend which does not exist or is not properly configured.
+ - **Federation denied locally** (status: 400, label: `federation-not-allowed`): This backend attempted an RPC to a non-whitelisted backend.
+ - **Federator discovery failed** (status: 500, label: `srv-lookup-dns-error`): A DNS error occurred during discovery of a remote backend.
+
+### Remote federation errors
+
+Errors in this category are returned in case of communication issues between the local backend and a remote one, or if the remote side encountered an error while processing an RPC.
+
+ - **RPC error with code** (status: 533, label: `grpc-error-code`): An RPC to a remote federator resulted in an error. The RPC error code can be found in the error message.
+ - **RPC error with string** (status: 533, label: `grpc-error-string`): An RPC to a remote federator resulted in an error. A description of the error can be found in the error message.
+ - **RPC error** (status: 500, label: `federation-rpc-error`): There was a non-specified error in the RPC from this backend to another backend. Check the error message for more details.
+ - **Connection refused** (status: 521, label: `cannot-connect-to-remote-federator`): The local federator could not connect to a remote one.
+ - **Too much concurrency** (status: 533, label: `too-much-concurrency`): Too many concurrent requests on a remote backend.
+ - **Unknown remote error** (status: 500, label: `unknown-federation-error`): An RPC failed but no specific error was returned by the remote side. Check the error message for more details.
+
+### Backend compatibility errors
+
+An error in this category will be returned when this backend makes an invalid or unsupported RPC to another backend. This can indicate some incompatibility between backends or a backend bug.
+
+ - **Version mismatch** (status: 531): A remote backend is running an unsupported version of the federator.
+ - **Invalid method** / **Streaming not supported** (status: 500, label: `federation-invalid-call`): This backend attempted an invalid RPC to another backend.
+ - **Invalid request** (status: 500, label: `invalid-request-to-federator`): The local federator made an invalid request to a remote one. Check the error message for more details.
+ - **RPC client error** (status: 533, label: `grpc-client-error`): The current federator encountered an error when making an RPC to a remote one.
+ - **Invalid content type** (status: 503, label: `federation-invalid-content-type-header`): An RPC to another backend returned an invalid content type.
+ - **Unsupported content type** (status: 503, label: `federation-unsupported-content-type`): An RPC to another backend returned an unsupported content type.
+ - **Invalid origin domain** (status: 533, label: `invalid-origin-domain`): The current backend attempted an RPC with an invalid origin domain field.
+ - **Forbidden endpoint** (status: 533, label: `forbidden-endpoint`): The current backend attempted an RPC to a forbidden or inaccessible remote endpoint.
+ - **Unknown federation error** (status: 503, label: `unknown-federation-error): The target of an RPC returned an unexpected reponse. Check the error message for more details.
+
+### Authentication errors
+
+The errors in this category relate to authentication or authorization issues between backends.
+
+ - **TLS failure**: (status: 525): An error occurred during the TLS handshake between the local federator and a remote one.
+ - **Invalid certificate** (status: 526): The TLS certificate on the remote end of an RPC is invalid.
+ - **Federation denied remotely** (status: 532): The current backend made an unauthorised request to a remote one.
+
 |]
 
 servantSitemap :: ServerT ServantAPI Handler
