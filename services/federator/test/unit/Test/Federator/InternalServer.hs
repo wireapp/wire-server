@@ -51,8 +51,12 @@ tests =
         ]
     ]
 
+settingsWithAllowList :: [Domain] -> RunSettings
+settingsWithAllowList domains =
+  RunSettings (AllowList (AllowedDomains domains)) Nothing Nothing
+
 allowAllSettings :: RunSettings
-allowAllSettings = RunSettings AllowAll ""
+allowAllSettings = RunSettings AllowAll Nothing Nothing
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
@@ -150,9 +154,8 @@ federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $
     runM . evalMock @Remote @IO $ do
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "hello.world"])) ""
-
-      res <- mock @Remote @IO . Polysemy.runReader allowList $ callOutward federatedRequest
+      let settings = settingsWithAllowList [Domain "hello.world"]
+      res <- mock @Remote @IO . Polysemy.runReader settings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       embed $ do

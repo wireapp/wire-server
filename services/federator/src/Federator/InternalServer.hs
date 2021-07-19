@@ -29,7 +29,7 @@ import Federator.App (Federator, runAppT)
 import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable), runFederatorDiscovery)
 import Federator.Env (Env, applog, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
-import Federator.Remote (Remote, RemoteError (RemoteErrorClientFailure, RemoteErrorDiscoveryFailure), discoverAndCall, interpretRemote)
+import Federator.Remote (Remote, RemoteError (..), discoverAndCall, interpretRemote)
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Federator.Validation
 import Imports
@@ -81,6 +81,8 @@ mkRemoteResponse reply =
           mkOutwardErr DiscoveryFailed "srv-lookup-dns-error" ("domain=" <> domainText domain <> "error=" <> Text.decodeUtf8 dnsErr)
     Left (RemoteErrorClientFailure cltErr srvTarget) ->
       mkOutwardErr RemoteFederatorError "cannot-connect-to-remote-federator" ("target=" <> Text.pack (show srvTarget) <> "error=" <> Text.pack (show cltErr))
+    Left (RemoteErrorInvalidCAStore path) ->
+      mkOutwardErr TLSFailure "invalid-ca-store" ("CA store missing or invalid: " <> Text.pack path)
 
 mkOutwardErr :: OutwardErrorType -> Text -> Text -> OutwardResponse
 mkOutwardErr typ label msg = OutwardResponseError $ OutwardError typ (Just $ ErrorPayload label msg)

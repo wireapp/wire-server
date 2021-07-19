@@ -34,6 +34,7 @@ import Network.TLS
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import Polysemy
+import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
@@ -46,6 +47,7 @@ import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
 data RemoteError
   = RemoteErrorDiscoveryFailure LookupError Domain
   | RemoteErrorClientFailure GrpcClientErr SrvTarget
+  | RemoteErrorInvalidCAStore FilePath
   deriving (Show, Eq)
 
 data Remote m a where
@@ -80,7 +82,7 @@ callInward client request =
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
 mkGrpcClient :: Members '[Embed IO, TinyLog, Polysemy.Reader RunSettings] r => SrvTarget -> Sem r (Either RemoteError GrpcClient)
-mkGrpcClient target@(SrvTarget host port) = do
+mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
   -- FUTUREWORK(federation): grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates and there's no way
   -- to change that (at least not when using the default functions from mu or http2-grpc-client)
   -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
@@ -98,19 +100,27 @@ mkGrpcClient target@(SrvTarget host port) = do
           TLS.cipher_ECDHE_RSA_AES128CBC_SHA256
         ]
 
-  caPath <- Polysemy.asks remoteCAStore
+  (customCAStore :: CertificateStore) <-
+    fmap (fromRight mempty)
+      . Polysemy.runError @()
+      $ do
+        path <- Polysemy.asks remoteCAStore >>= maybe (Polysemy.throw ()) pure
+        embed (readCertificateStore path)
+          >>= maybe (Polysemy.throw (RemoteErrorInvalidCAStore path)) pure
   -- FUTUREWORK: review if a fallback to system trust store is a good idea
-  -- TODO: read config at startup and fail early if the path is wrong
-  customTrustStore <-
-    embed $
-      readCertificateStore caPath
-        >>= maybe getSystemCertificateStore pure
+  (systemCAStore :: CertificateStore) <- do
+    use <- fromMaybe True <$> Polysemy.asks useSystemCAStore
+    if use
+      then embed getSystemCertificateStore
+      else pure mempty
+
+  let caStore = customCAStore <> systemCAStore
 
   let betterTLSConfig =
         (defaultParamsClient (cs host) (cs $ show port))
           { TLS.clientSupported = def {TLS.supportedCiphers = blessed_ciphers},
             TLS.clientHooks = def, -- FUTUREWORK: use onCertificateRequest to provide client certificates
-            TLS.clientShared = def {TLS.sharedCAStore = customTrustStore}
+            TLS.clientShared = def {TLS.sharedCAStore = caStore}
           }
   let cfg' = cfg {_grpcClientConfigTLS = Just betterTLSConfig}
   eitherClient <- createGrpcClient cfg'
@@ -121,5 +131,5 @@ mkGrpcClient target@(SrvTarget host port) = do
           . Log.field "host" host
           . Log.field "port" port
           . Log.field "error" (show err)
-      pure $ Left (RemoteErrorClientFailure err target)
-    Right client -> pure $ Right client
+      Polysemy.throw $ RemoteErrorClientFailure err target
+    Right client -> pure client

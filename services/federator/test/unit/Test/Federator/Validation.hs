@@ -60,32 +60,32 @@ federateWithAllowListSuccess =
     -- removing evalMock @Remote doesn't seem to work, but why?
     runM . evalMock @Remote @IO $ do
       -- TODO: helper function for creating RunSettings
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "hello.world"])) ""
-      res <- Polysemy.runReader allowList $ federateWith (Domain "hello.world")
+      let settings = settingsWithAllowList [Domain "hello.world"]
+      res <- Polysemy.runReader settings $ federateWith (Domain "hello.world")
       embed $ assertBool "federating should be allowed" res
 
 federateWithAllowListFail :: TestTree
 federateWithAllowListFail =
   testCase "should give False when target domain is not in the list" $
     runM . evalMock @Remote @IO $ do
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"])) ""
-      res <- Polysemy.runReader allowList $ federateWith (Domain "hello.world")
+      let settings = settingsWithAllowList [Domain "only.other.domain"]
+      res <- Polysemy.runReader settings $ federateWith (Domain "hello.world")
       embed $ assertBool "federating should not be allowed" (not res)
 
 validateDomainAllowListFailSemantic :: TestTree
 validateDomainAllowListFailSemantic =
   testCase "semantic validation" $
     runM . evalMock @Remote @IO $ do
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"])) ""
-      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("invalid//.><-semantic-&@-domain" :: Text)
+      let settings = settingsWithAllowList [Domain "only.other.domain"]
+      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader settings $ validateDomain ("invalid//.><-semantic-&@-domain" :: Text)
       embed $ assertEqual "semantic parse failure" (Left IInvalidDomain) (mapLeft inwardErrorType res)
 
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $
     runM . evalMock @Remote @IO $ do
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"])) ""
-      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("hello.world" :: Text)
+      let settings = settingsWithAllowList [Domain "only.other.domain"]
+      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader settings $ validateDomain ("hello.world" :: Text)
       embed $ assertEqual "allow list:" (Left IFederationDeniedByRemote) (mapLeft inwardErrorType res)
 
 validateDomainAllowListSuccess :: TestTree
@@ -94,8 +94,8 @@ validateDomainAllowListSuccess =
     -- removing evalMock @Remote doesn't seem to work, but why?
     runM . evalMock @Remote @IO $ do
       let domain = Domain "hello.world"
-      let allowList = RunSettings (AllowList (AllowedDomains [domain])) ""
-      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader allowList $ validateDomain ("hello.world" :: Text)
+      let settings = settingsWithAllowList [domain]
+      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader settings $ validateDomain ("hello.world" :: Text)
       embed $ assertEqual "validateDomain should give 'hello.world' as domain" (Right domain) res
 
 validatePathSuccess :: [TestTree]
@@ -175,3 +175,7 @@ expectErr expectedType (Left err) =
   unless (inwardErrorType err == expectedType)
     . liftIO
     $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
+
+settingsWithAllowList :: [Domain] -> RunSettings
+settingsWithAllowList domains =
+  RunSettings (AllowList (AllowedDomains domains)) Nothing Nothing
