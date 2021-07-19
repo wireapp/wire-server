@@ -130,11 +130,24 @@ servantSitemap =
           getFeatureStatus @'Public.TeamFeatureAppLock Features.getAppLockInternal
             . DoAuth,
         GalleyAPI.teamFeatureStatusAppLockPut =
-          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal . DoAuth,
+          setFeatureStatus @'Public.TeamFeatureAppLock Features.setAppLockInternal
+            . DoAuth,
         GalleyAPI.teamFeatureStatusFileSharingGet =
           getFeatureStatus @'Public.TeamFeatureFileSharing Features.getFileSharingInternal . DoAuth,
         GalleyAPI.teamFeatureStatusFileSharingPut =
-          setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth
+          setFeatureStatus @'Public.TeamFeatureFileSharing Features.setFileSharingInternal . DoAuth,
+        GalleyAPI.teamFeatureStatusClassifiedDomainsGet =
+          getFeatureStatus @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
+            . DoAuth,
+        GalleyAPI.featureAllFeatureConfigsGet = Features.getAllFeatureConfigs,
+        GalleyAPI.featureConfigLegalHoldGet = Features.getFeatureConfig @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal,
+        GalleyAPI.featureConfigSSOGet = Features.getFeatureConfig @'Public.TeamFeatureSSO Features.getSSOStatusInternal,
+        GalleyAPI.featureConfigSearchVisibilityGet = Features.getFeatureConfig @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal,
+        GalleyAPI.featureConfigValidateSAMLEmailsGet = Features.getFeatureConfig @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal,
+        GalleyAPI.featureConfigDigitalSignaturesGet = Features.getFeatureConfig @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
+        GalleyAPI.featureConfigAppLockGet = Features.getFeatureConfig @'Public.TeamFeatureAppLock Features.getAppLockInternal,
+        GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
       }
 
 sitemap :: Routes ApiBuilder Galley ()

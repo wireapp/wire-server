@@ -175,9 +175,9 @@ extra-deps:
 - servant-mock-0.8.7
 - servant-swagger-ui-0.3.4.3.36.1
 
-# For PR #128 and capture 400 fix
-- git: https://github.com/wireapp/servant-swagger.git
-  commit: ce92103bc31ec9e7678b25c702ea55e7fb8d46c0
+# For changes from #128 and #135, not released to hackage yet
+- git: https://github.com/haskell-servant/servant-swagger
+  commit: bb0a84faa073fa9530f60337610d7da3d5b9393c
 
 # For changes from https://github.com/haskell-servant/servant/pull/1420
 # Not released to hackage yet

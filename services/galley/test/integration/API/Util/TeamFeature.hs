@@ -17,7 +17,7 @@
 
 module API.Util.TeamFeature where
 
-import API.Util (zUser)
+import API.Util (HasGalley (viewGalley), zUser)
 import qualified API.Util as Util
 import Bilge
 import qualified Bilge.TestSession as BilgeTest
@@ -70,30 +70,71 @@ putLegalHoldEnabledInternal' g tid statusValue =
 --------------------------------------------------------------------------------
 
 getTeamFeatureFlagInternal ::
-  (HasCallStack) =>
+  (HasGalley m, MonadIO m, MonadHttp m) =>
   Public.TeamFeatureName ->
   TeamId ->
-  TestM ResponseLBS
+  m ResponseLBS
 getTeamFeatureFlagInternal feature tid = do
-  g <- view tsGalley
+  g <- viewGalley
   getTeamFeatureFlagInternalWithGalley feature g tid
 
-getTeamFeatureFlagInternalWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> HasCallStack => TeamId -> m ResponseLBS
+getTeamFeatureFlagInternalWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> m ResponseLBS
 getTeamFeatureFlagInternalWithGalley feature g tid = do
   get $
     g
       . paths ["i", "teams", toByteString' tid, "features", toByteString' feature]
 
-getTeamFeatureFlag :: HasCallStack => Public.TeamFeatureName -> UserId -> TeamId -> TestM ResponseLBS
+getTeamFeatureFlag ::
+  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Public.TeamFeatureName ->
+  UserId ->
+  TeamId ->
+  m ResponseLBS
 getTeamFeatureFlag feature uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   getTeamFeatureFlagWithGalley feature g uid tid
+
+getAllTeamFeatures ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  TeamId ->
+  m ResponseLBS
+getAllTeamFeatures uid tid = do
+  g <- viewGalley
+  get $
+    g
+      . paths ["teams", toByteString' tid, "features"]
+      . zUser uid
 
 getTeamFeatureFlagWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> UserId -> TeamId -> m ResponseLBS
 getTeamFeatureFlagWithGalley feature galley uid tid = do
   get $
     galley
       . paths ["teams", toByteString' tid, "features", toByteString' feature]
+      . zUser uid
+
+getFeatureConfig :: (HasCallStack, HasGalley m, MonadIO m, MonadHttp m) => Public.TeamFeatureName -> UserId -> m ResponseLBS
+getFeatureConfig feature uid = do
+  g <- viewGalley
+  getFeatureConfigWithGalley feature g uid
+
+getFeatureConfigWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> UserId -> m ResponseLBS
+getFeatureConfigWithGalley feature galley uid = do
+  get $
+    galley
+      . paths ["feature-configs", toByteString' feature]
+      . zUser uid
+
+getAllFeatureConfigs :: HasCallStack => UserId -> TestM ResponseLBS
+getAllFeatureConfigs uid = do
+  g <- view tsGalley
+  getAllFeatureConfigsWithGalley g uid
+
+getAllFeatureConfigsWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
+getAllFeatureConfigsWithGalley galley uid = do
+  get $
+    galley
+      . paths ["feature-configs"]
       . zUser uid
 
 putTeamFeatureFlagInternal ::

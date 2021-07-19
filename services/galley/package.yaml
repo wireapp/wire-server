@@ -186,6 +186,7 @@ executables:
     - quickcheck-instances
     - random
     - retry
+    - schema-profunctor
     - servant
     - servant-server
     - servant-swagger
