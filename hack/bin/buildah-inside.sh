@@ -3,7 +3,7 @@
 # This script is meant to be run from inside a buildah container. See buildah-compile.sh for details.
 
 set -e
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 cd "$TOP_LEVEL"

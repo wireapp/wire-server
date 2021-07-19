@@ -56,6 +56,7 @@ Upgrade nginz (#1658)
 
 ## Internal changes
 
+* Improvements to local integration test setup when using buildah and kind (#1667)
 * The servant-swagger dependency now points to the current upstream master (#1656).
 * Refactor function createUser for readability (#1670)
 
