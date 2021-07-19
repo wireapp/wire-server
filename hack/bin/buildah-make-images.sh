@@ -9,7 +9,7 @@ EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-
 CONTAINER_NAME="output"
 DOCKER_TAG=${DOCKER_TAG:-$USER}
 
-buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" ||
+buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" || \
     buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-deps:develop
 
 # Only brig needs these templates, but for simplicity we add them to all resulting images (optimization FUTUREWORK)
