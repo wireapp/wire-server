@@ -48,7 +48,7 @@ type ConversationResponses =
      WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
    ]
 
-type UpdateResponses =
+type UpdateConversationResponses =
   '[ WithStatus 200 Public.Event,
      NoContent
    ]
@@ -201,7 +201,9 @@ data Api routes = Api
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
         :> UVerb 'POST '[Servant.JSON] ConversationResponses,
-    addMembersToUnqualifiedConversation ::
+    -- TODO: servantify unqualified endpoint
+    -- TODO: add CanThrow's for the qualified endpoint
+    addQualifiedMembersToLocalConversation ::
       routes
         :- Summary "Add qualified members to an existing local conversation (deprecated)"
         :> ZUser
@@ -211,8 +213,9 @@ data Api routes = Api
         :> "members"
         :> "v2"
         :> ReqBody '[Servant.JSON] Public.InviteQualified
-        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
-    addMembersToQualifiedConversation ::
+        :> UVerb 'POST '[Servant.JSON] UpdateConversationResponses,
+    -- TODO: add CanThrow's for the qualified endpoint
+    addMembersToConversation ::
       routes
         :- Summary "Add qualified members to an existing conversation"
         :> ZUser
@@ -222,7 +225,7 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "members"
         :> ReqBody '[Servant.JSON] Public.InviteQualified
-        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
+        :> UVerb 'POST '[Servant.JSON] UpdateConversationResponses,
     -- Team Conversations
 
     getTeamConversationRoles ::

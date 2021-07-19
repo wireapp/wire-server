@@ -24,10 +24,8 @@ where
 
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
-import Data.Domain (Domain)
-import Data.Id (ConnId, ConvId, UserId)
+import Data.Id (UserId)
 import qualified Data.Predicate as P
-import Data.Qualified (Qualified (..))
 import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
@@ -42,7 +40,6 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..), getFeatureStatus, setFeatureStatus)
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (viewFederationDomain)
 import Galley.App
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -90,8 +87,8 @@ servantSitemap =
         GalleyAPI.createGroupConversation = Create.createGroupConversation,
         GalleyAPI.createSelfConversation = Create.createSelfConversation,
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
-        GalleyAPI.addMembersToUnqualifiedConversation = addMembersToUnqualifiedConversation,
-        GalleyAPI.addMembersToQualifiedConversation = addMembersToQualifiedConversation,
+        GalleyAPI.addQualifiedMembersToLocalConversation = Update.addQualifiedMembersToLocalConversation,
+        GalleyAPI.addMembersToConversation = Update.addMembersToConversation,
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
@@ -153,15 +150,6 @@ servantSitemap =
         GalleyAPI.featureConfigFileSharingGet = Features.getFeatureConfig @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         GalleyAPI.featureConfigClassifiedDomainsGet = Features.getFeatureConfig @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
       }
-  where
-    addMembersToUnqualifiedConversation :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (Union GalleyAPI.UpdateResponses)
-    addMembersToUnqualifiedConversation zusr zcon convId invite = do
-      localDomain <- viewFederationDomain
-      Update.mapUpdateToServant =<< Update.addMembersLocalConv (Qualified zusr localDomain) (Just zcon) convId invite
-
-    addMembersToQualifiedConversation :: UserId -> ConnId -> Domain -> ConvId -> Public.InviteQualified -> Galley (Union GalleyAPI.UpdateResponses)
-    addMembersToQualifiedConversation zusr zcon domain convId invite =
-      Update.mapUpdateToServant =<< Update.addMembersQualifiedConv zusr zcon (Qualified convId domain) invite
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do

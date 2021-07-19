@@ -31,9 +31,10 @@ import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
+import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, InviteQualified, ReceiptMode)
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
+import qualified Wire.API.Event.Conversation as Conversation
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (DomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
@@ -85,7 +86,16 @@ data Api routes = Api
         :> "send-message"
         :> DomainHeader
         :> ReqBody '[JSON] MessageSendRequest
-        :> Post '[JSON] MessageSendResponse
+        :> Post '[JSON] MessageSendResponse,
+    -- | Used by a remote backend to add members to a conversation owned by
+    -- this backend
+    addMembers ::
+      routes
+        :- "federation"
+        :> "add-members"
+        :> DomainHeader
+        :> ReqBody '[JSON] AddMembersRequest
+        :> Post '[JSON] ConversationUpdateResult
   }
   deriving (Generic)
 
@@ -195,6 +205,25 @@ data MessageNotSent
   | MessageNotSentUnknownClient
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MessageNotSent)
+
+data AddMembersRequest = AddMembersRequest
+  { -- | The conversation is assumed to be owned by the target domain, which
+    -- allows us to protect against relay attacks
+    amrConvId :: ConvId,
+    -- | The adder is assumed to be owned by the origin domain, which allows us
+    -- to protect against spoofing attacks
+    amrAdder :: UserId,
+    amrInvite :: InviteQualified
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded AddMembersRequest)
+
+-- TODO: Add golden tests
+data ConversationUpdateResult
+  = ConversationUpdated Conversation.Event
+  | ConversationUnchanged
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationUpdateResult)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

@@ -14,6 +14,8 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
+
 module Galley.API.Federation where
 
 import Control.Monad.Catch (throwM)
@@ -38,7 +40,9 @@ import Servant.Server.Generic (genericServerT)
 import Wire.API.Conversation.Member (OtherMember (..), memId)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-  ( ConversationMemberUpdate (..),
+  ( AddMembersRequest (..),
+    ConversationMemberUpdate (..),
+    ConversationUpdateResult,
     GetConversationsRequest (..),
     GetConversationsResponse (..),
     MessageSendRequest (..),
@@ -57,7 +61,8 @@ federationSitemap =
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
         FederationAPIGalley.receiveMessage = receiveMessage,
-        FederationAPIGalley.sendMessage = sendMessage
+        FederationAPIGalley.sendMessage = sendMessage,
+        FederationAPIGalley.addMembers = addMembers
       }
 
 registerConversation :: RegisterConversation -> Galley ()
@@ -122,3 +127,8 @@ sendMessage originDomain msr = do
   MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
   where
     err = throwM . invalidPayload . LT.pack
+
+addMembers :: Domain -> AddMembersRequest -> Galley ConversationUpdateResult
+addMembers originDomain AddMembersRequest {..} = do
+  let adder = Qualified amrAdder originDomain
+  API.addMembersLocalConv adder Nothing amrConvId amrInvite
