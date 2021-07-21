@@ -82,7 +82,18 @@ data RenderOutput = RenderOutput
     roHeaders :: [(HeaderName, ByteString)]
   }
 
-data UnrenderResult a = Mismatch | UnrenderError String | UnrenderSuccess a
+-- | The result of parsing a response as a union alternative of type 'a'.
+--
+-- 'StatusMismatch' indicates that the response does not refer to the given
+-- alternative, because the status code does not match the one produced by that
+-- alternative.
+--
+-- 'UnrenderError' and 'UnrenderSuccess' represent respectively a failing and
+-- successful parse of the response body as a value of type 'a'.
+--
+-- The 'UnrenderResult' type constructor has monad and alternative instances
+-- corresponding to those of 'Either (Maybe (Last String)) a'.
+data UnrenderResult a = StatusMismatch | UnrenderError String | UnrenderSuccess a
   deriving (Eq, Show, Functor)
 
 instance Applicative UnrenderResult where
@@ -91,7 +102,7 @@ instance Applicative UnrenderResult where
 
 instance Monad UnrenderResult where
   return = pure
-  Mismatch >>= _ = Mismatch
+  StatusMismatch >>= _ = StatusMismatch
   UnrenderError e >>= _ = UnrenderError e
   UnrenderSuccess x >>= f = f x
 
@@ -100,9 +111,9 @@ instance Alternative UnrenderResult where
   (<|>) = mplus
 
 instance MonadPlus UnrenderResult where
-  mzero = Mismatch
-  mplus Mismatch m = m
-  mplus (UnrenderError e) Mismatch = UnrenderError e
+  mzero = StatusMismatch
+  mplus StatusMismatch m = m
+  mplus (UnrenderError e) StatusMismatch = UnrenderError e
   mplus (UnrenderError _) m = m
   mplus m@(UnrenderSuccess _) _ = m
 
@@ -455,7 +466,7 @@ instance
     unless (any (M.matches c) accept) $ do
       throwClientError $ UnsupportedContentType c response
     case responseListUnrender @cs @as c output of
-      Mismatch -> throwClientError (DecodeFailure "Status mismatch" response)
+      StatusMismatch -> throwClientError (DecodeFailure "Status mismatch" response)
       UnrenderError e -> throwClientError (DecodeFailure (Text.pack e) response)
       UnrenderSuccess x -> pure (fromUnion @as x)
     where
