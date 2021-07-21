@@ -29,12 +29,14 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id (ConvId, Id (..), newClientId, randomId)
 import Data.Json.Util (Base64ByteString (..), toBase64Text)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Protolens
 import Data.Qualified (Qualified (..))
 import qualified Data.Set as Set
+import Data.Time.Calendar.OrdinalDate (fromMondayStartWeek)
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
@@ -48,6 +50,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation (InviteQualified (..))
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
@@ -71,7 +74,8 @@ tests s =
         "POST /federation/update-conversation-memberships : Notify local user about other members joining"
         notifyLocalUserOfNewMembersInRemoteConv,
       test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage,
-      test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
+      test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
+      test s "POST /federation/add-members : Post a message sent from another backend" addMembers
     ]
 
 getConversationsAllFound :: TestM ()
@@ -371,3 +375,77 @@ sendMessage = do
     FedGalley.rmSender rm @?= bob
     Map.keysSet (userClientMap (FedGalley.rmRecipients rm))
       @?= Set.singleton chadId
+
+addMembers :: TestM ()
+addMembers = do
+  cannon <- view tsCannon
+  let remoteDomain = Domain "far-away.example.com"
+  localDomain <- viewFederationDomain
+
+  -- users and clients
+  aliceId <- randomId
+  bobId <- randomId
+  let bob = Qualified bobId remoteDomain
+      bobProfile = mkProfile bob (Name "Bob")
+  chadId <- randomId
+  -- chadClient <- liftIO $ generate arbitrary
+  let chad = Qualified chadId remoteDomain
+  --     chadProfile = mkProfile chad (Name "Chad")
+
+  -- conversation
+  opts <- view tsGConf
+  let responses1 req
+        | fmap F.component (F.request req) == Just F.Brig =
+          toJSON [bobProfile]
+        | otherwise = toJSON ()
+  (convId, requests1) <-
+    withTempMockFederator opts remoteDomain responses1 $
+      fmap decodeConvId $
+        postConvQualified aliceId [bob] Nothing [] Nothing Nothing
+          <!! const 201 === statusCode
+
+  liftIO $ do
+    [brigReq, galleyReq] <- case requests1 of
+      xs@[_, _] -> pure xs
+      _ -> assertFailure "unexpected number of requests"
+    fmap F.component (F.request brigReq) @?= Just F.Brig
+    fmap F.path (F.request brigReq) @?= Just "/federation/get-users-by-ids"
+    fmap F.component (F.request galleyReq) @?= Just F.Galley
+    fmap F.path (F.request galleyReq) @?= Just "/federation/register-conversation"
+  let conv = Qualified convId localDomain
+
+  let invite =
+        InviteQualified
+          { invQUsers = chad :| [],
+            invQRoleName = roleNameWireMember
+          }
+      amr = FedGalley.AddMembersRequest convId bobId invite
+      event =
+        Event
+          { evtType = MemberJoin,
+            evtConv = conv,
+            evtFrom = Qualified bobId remoteDomain,
+            evtTime = UTCTime (fromMondayStartWeek 1990 5 1) 0,
+            evtData = EdMembersJoin (SimpleMembers [SimpleMember chad roleNameWireMember])
+          }
+
+  let responses2 req
+        | fmap F.component (F.request req) == Just F.Galley =
+          toJSON (FedGalley.ConversationUpdated event)
+        | otherwise = toJSON ()
+  (_, _requests2) <- withTempMockFederator opts remoteDomain responses2 $ do
+    WS.bracketR cannon aliceId $ \_ws -> do
+      g <- viewGalley
+      amresp <-
+        post
+          ( g
+              . paths ["federation", "add-members"]
+              . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' remoteDomain)
+              . json amr
+          )
+          <!! do
+            const 200 === statusCode
+      _respDeserialized :: FedGalley.ConversationUpdateResult <- responseJsonError amresp
+      liftIO $ pure ()
+  pure ()
