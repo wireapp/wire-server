@@ -14,7 +14,7 @@ data:
       location /healthz { return 204; }
 
       location ~ ^/sfts/([a-z0-9\-]+)/(.*) {
-        proxy_pass http://$1.sftd.${POD_NAMESPACE}.svc.cluster.local:8585/$2;
+        proxy_pass http://$1.{{ include "sftd.fullname" . }}.${POD_NAMESPACE}.svc.cluster.local:8585/$2;
       }
 
     }
