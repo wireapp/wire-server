@@ -328,14 +328,23 @@ data MultiVerb (method :: StdMethod) (cs :: [*]) (as :: [*]) (r :: *)
 
 -- | This class is used to convert a handler return type to a union type
 -- including all possible responses of a 'MultiVerb' endpoint.
+--
+-- Any glue code necessary to convert application types to and from the
+-- canonical 'Union' type corresponding to a 'MultiVerb' endpoint should be
+-- packaged into an 'AsUnion' instance.
 class AsUnion (as :: [*]) (r :: *) where
   toUnion :: r -> Union (ResponseTypes as)
   fromUnion :: Union (ResponseTypes as) -> r
 
+-- | Unions can be used directly as handler return types using this trivial
+-- instance.
 instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
   toUnion = id
   fromUnion = id
 
+-- | A handler for a pair of empty responses can be implemented simply by
+-- returning a boolean value. The convention is that the "failure" case, normally
+-- represented by 'False', corresponds to the /first/ response.
 instance
   AsUnion
     '[ RespondEmpty s1 desc1,
@@ -350,6 +359,10 @@ instance
   fromUnion (S (Z (I ()))) = True
   fromUnion (S (S x)) = case x of
 
+-- | A handler for a pair of responses where the first is empty can be
+-- implemented simply by returning a 'Maybe' value. The convention is that the
+-- "failure" case, normally represented by 'Nothing', corresponds to the /first/
+-- response.
 instance
   (ResponseType r2 ~ a) =>
   AsUnion
