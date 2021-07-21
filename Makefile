@@ -416,6 +416,11 @@ kind-restart-all: .local/kind-kubeconfig
 	kubectl delete pod -n $(NAMESPACE) -l release=$(NAMESPACE)-wire-server && \
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l release=$(NAMESPACE)-fed2-wire-server
 
+kind-restart-nginx-ingress: .local/kind-kubeconfig
+	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
+	kubectl delete pod -n $(NAMESPACE) -l app=nginx-ingress && \
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=nginx-ingress
+
 kind-restart-%: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
 	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*) && \
