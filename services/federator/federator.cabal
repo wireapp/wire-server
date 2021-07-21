@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 03d3817129a07a93fda81c87a4890ab0edb14b3f83ac378bb6cfb808259f86ce
+-- hash: e6526f61df1d846d4b46185d5216b89f772d6977852b8c8c12ce1b9d1fa14d60
 
 name:           federator
 version:        1.0.0
@@ -218,6 +218,7 @@ test-suite federator-tests
       Test.Federator.ExternalServer
       Test.Federator.InternalServer
       Test.Federator.Options
+      Test.Federator.Remote
       Test.Federator.Validation
       Paths_federator
   hs-source-dirs:
@@ -258,6 +259,7 @@ test-suite federator-tests
     , retry
     , servant
     , servant-server
+    , streaming-commons
     , string-conversions
     , tasty
     , tasty-hunit
@@ -268,7 +270,10 @@ test-suite federator-tests
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
+    , warp-tls
     , wire-api
     , wire-api-federation
     , x509

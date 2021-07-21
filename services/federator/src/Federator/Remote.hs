@@ -88,7 +88,7 @@ callInward client request =
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
 mkGrpcClient ::
-  Members '[Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader CertificateStore] r =>
+  Members '[Embed IO, TinyLog, Polysemy.Reader CertificateStore] r =>
   SrvTarget ->
   Sem r (Either RemoteError GrpcClient)
 mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
@@ -102,31 +102,42 @@ mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
 
   -- FUTUREWORK: get review on blessed ciphers
-  let blessed_ciphers =
-        [ TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
-          TLS.cipher_ECDHE_RSA_AES256CBC_SHA384,
-          TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
-          TLS.cipher_ECDHE_RSA_AES128CBC_SHA256
-        ]
+  -- TODO: Figure out if these are the really blessed ciphers now, they seem to require TLS 1.2:
+  --     [ TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
+  --       TLS.cipher_ECDHE_RSA_AES256CBC_SHA384,
+  --       TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
+  --       TLS.cipher_ECDHE_RSA_AES128CBC_SHA256,
+  --     ]
+  -- Maybe these are TLS 1.3 versions:
+  --   TLS.cipher_TLS13_AES128GCM_SHA256
+  -- , TLS.cipher_TLS13_AES256GCM_SHA384
+  -- , TLS.cipher_TLS13_AES128CCM_SHA256
+  -- , TLS.cipher_TLS13_AES128CCM8_SHA256
+  -- Until then, we use the "strong" suite
+  let blessed_ciphers = TLS.ciphersuite_strong
 
   caStore <- Polysemy.ask
 
   -- strip trailing dot to workaround issue in tls domain verification
   let stripDot hostname
-        | isSuffixOf "." hostname = take (length hostname - 1) hostname
+        | "." `isSuffixOf` hostname = take (length hostname - 1) hostname
         | otherwise = hostname
   -- try validating the hostname without a trailing dot, and if that fails, try
   -- again with the original hostname
   let validateName hostname cert
         | null validation = []
-        | isSuffixOf "." hostname = TLS.hookValidateName X509.defaultHooks hostname cert
+        | "." `isSuffixOf` hostname = TLS.hookValidateName X509.defaultHooks hostname cert
         | otherwise = validation
         where
           validation = TLS.hookValidateName X509.defaultHooks (stripDot hostname) cert
 
   let betterTLSConfig =
         (defaultParamsClient (cs host) (cs $ show port))
-          { TLS.clientSupported = def {TLS.supportedCiphers = blessed_ciphers},
+          { TLS.clientSupported =
+              def
+                { TLS.supportedCiphers = blessed_ciphers,
+                  TLS.supportedVersions = [TLS.TLS12]
+                },
             TLS.clientHooks =
               def
                 { TLS.onServerCertificate =

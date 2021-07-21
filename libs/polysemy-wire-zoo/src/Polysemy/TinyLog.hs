@@ -30,6 +30,12 @@ makeSem ''TinyLog
 runTinyLog :: Member (Embed IO) r => Log.Logger -> Sem (TinyLog ': r) a -> Sem r a
 runTinyLog logger = interpret $ \(Polylog lvl msg) -> Log.log logger lvl msg
 
+discardLogs :: Sem (TinyLog ': r) a -> Sem r a
+discardLogs = interpret f
+  where
+    f :: Applicative n => TinyLog m x -> n x
+    f (Polylog _ _) = pure ()
+
 -- | Abbreviation of 'log' using the corresponding log level.
 trace, debug, info, warn, err, fatal :: Member TinyLog r => (Log.Msg -> Log.Msg) -> Sem r ()
 trace = polylog Trace

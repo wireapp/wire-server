@@ -95,9 +95,13 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
+    - bytestring
     - federator
+    - polysemy-mocks
+    - streaming-commons
     - tasty
     - tasty-hunit
+    - wai
+    - warp
+    - warp-tls
     - yaml
-    - bytestring
-    - polysemy-mocks
