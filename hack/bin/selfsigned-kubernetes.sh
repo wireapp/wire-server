@@ -43,11 +43,9 @@ else
 fi
 
 # For federation end2end tests, only the
-# 'federation-test-helper.$NAMESPACE.svc.cluster.local' is necessary for
+# 'federation-test-helper.$FEDERATION_DOMAIN_BASE' is necessary for
 # ingress->federator traffic. For other potential traffic in the integration
 # tests of the future, we use a wildcard certificate here.
-HOSTNAME_DOMAIN="*.$FEDERATION_DOMAIN_BASE"
-
 echo '{
     "key": {
         "algo": "rsa",
@@ -55,7 +53,7 @@ echo '{
     }
 }' >"$CSR"
 # generate cert and key based on CA given comma-separated hostnames as SANs
-cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="$HOSTNAME_DOMAIN" "$CSR" | cfssljson -bare "$OUTPUTNAME_LEAF_CERT"
+cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="*.$FEDERATION_DOMAIN_BASE" "$CSR" | cfssljson -bare "$OUTPUTNAME_LEAF_CERT"
 
 # the following yaml override file is needed as an override to
 # nginx-ingress-services helm chart

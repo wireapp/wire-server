@@ -53,6 +53,8 @@ dependencies:
 - wai-utilities
 - network-uri
 - uri-bytestring
+- x509
+- x509-validation
 
 library:
   source-dirs: src

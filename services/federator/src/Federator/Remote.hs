@@ -22,7 +22,9 @@ module Federator.Remote where
 import Data.Default (def)
 import Data.Domain (Domain, domainText)
 import Data.String.Conversions (cs)
+import qualified Data.X509 as X509
 import Data.X509.CertificateStore
+import qualified Data.X509.Validation as X509
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
 import Federator.Options
 import Imports
@@ -77,7 +79,9 @@ callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
 callInward client request =
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
--- FUTUREWORK(federation): Make this use TLS with real certificate validation
+-- FUTUREWORK(federation): Consider using HsOpenSSL instead of tls for better
+-- security and to avoid having to depend on cryptonite and override validation
+-- hooks. This might involve forking http2-client: https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Allow a configurable trust store to be used in TLS certificate validation
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
@@ -116,10 +120,31 @@ mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
 
   let caStore = customCAStore <> systemCAStore
 
+  -- strip trailing dot to workaround issue in tls domain verification
+  let stripDot hostname
+        | isSuffixOf "." hostname = take (length hostname - 1) hostname
+        | otherwise = hostname
+  -- try validating the hostname without a trailing dot, and if that fails, try
+  -- again with the original hostname
+  let validateName hostname cert
+        | null validation = []
+        | isSuffixOf "." hostname = TLS.hookValidateName X509.defaultHooks hostname cert
+        | otherwise = validation
+        where
+          validation = TLS.hookValidateName X509.defaultHooks (stripDot hostname) cert
+
   let betterTLSConfig =
         (defaultParamsClient (cs host) (cs $ show port))
           { TLS.clientSupported = def {TLS.supportedCiphers = blessed_ciphers},
-            TLS.clientHooks = def, -- FUTUREWORK: use onCertificateRequest to provide client certificates
+            TLS.clientHooks =
+              def
+                { TLS.onServerCertificate =
+                    X509.validate
+                      X509.HashSHA256
+                      (X509.defaultHooks {TLS.hookValidateName = validateName})
+                      X509.defaultChecks
+                },
+            -- FUTUREWORK: use onCertificateRequest to provide client certificates
             TLS.clientShared = def {TLS.sharedCAStore = caStore}
           }
   let cfg' = cfg {_grpcClientConfigTLS = Just betterTLSConfig}
