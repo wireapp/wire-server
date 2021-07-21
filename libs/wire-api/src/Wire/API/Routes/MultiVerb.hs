@@ -131,6 +131,10 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
   type ResponseType (Respond s desc a) = a
   type ResponseStatus (Respond s desc a) = s
 
+  -- Note: here it seems like we are rendering for all possible content types,
+  -- only to choose the correct one afterwards. However, render results besides the
+  -- one picked by 'M.mapAcceptMedia' are not evaluated, and therefore nor are the
+  -- corresponding rendering functions.
   responseRender (AcceptHeader acc) x =
     M.mapAcceptMedia (map (uncurry mkRenderOutput) (allMimeRender (Proxy @cs) x)) acc
     where
