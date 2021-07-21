@@ -180,7 +180,8 @@ inwardBrigCallViaIngress requestPath payload = do
   Endpoint ingressHost ingressPort <- viewIngress
   let target = SrvTarget (cs ingressHost) ingressPort
   runSettings <- optSettings . view teOpts <$> ask
-  c <- discardLogging . Polysemy.runReader runSettings $ mkGrpcClient target
+  caStore <- view teCAStore <$> ask
+  c <- discardLogging . Polysemy.runReader caStore . Polysemy.runReader runSettings $ mkGrpcClient target
   client <- case c of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli

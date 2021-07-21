@@ -41,7 +41,6 @@ import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
-import System.X509
 import Wire.API.Federation.GRPC.Client
 import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
@@ -57,7 +56,10 @@ data Remote m a where
 
 makeSem ''Remote
 
-interpretRemote :: (Members [Embed IO, DiscoverFederator, TinyLog, Polysemy.Reader RunSettings] r) => Sem (Remote ': r) a -> Sem r a
+interpretRemote ::
+  (Members [Embed IO, DiscoverFederator, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader CertificateStore] r) =>
+  Sem (Remote ': r) a ->
+  Sem r a
 interpretRemote = interpret $ \case
   DiscoverAndCall ValidatedFederatedRequest {..} -> do
     eitherTarget <- discoverFederator vDomain
@@ -85,7 +87,10 @@ callInward client request =
 -- FUTUREWORK(federation): Allow a configurable trust store to be used in TLS certificate validation
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
-mkGrpcClient :: Members '[Embed IO, TinyLog, Polysemy.Reader RunSettings] r => SrvTarget -> Sem r (Either RemoteError GrpcClient)
+mkGrpcClient ::
+  Members '[Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader CertificateStore] r =>
+  SrvTarget ->
+  Sem r (Either RemoteError GrpcClient)
 mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
   -- FUTUREWORK(federation): grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates and there's no way
   -- to change that (at least not when using the default functions from mu or http2-grpc-client)
@@ -104,21 +109,7 @@ mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
           TLS.cipher_ECDHE_RSA_AES128CBC_SHA256
         ]
 
-  (customCAStore :: CertificateStore) <-
-    fmap (fromRight mempty)
-      . Polysemy.runError @()
-      $ do
-        path <- Polysemy.asks remoteCAStore >>= maybe (Polysemy.throw ()) pure
-        embed (readCertificateStore path)
-          >>= maybe (Polysemy.throw (RemoteErrorInvalidCAStore path)) pure
-  -- FUTUREWORK: review if a fallback to system trust store is a good idea
-  (systemCAStore :: CertificateStore) <- do
-    use <- fromMaybe True <$> Polysemy.asks useSystemCAStore
-    if use
-      then embed getSystemCertificateStore
-      else pure mempty
-
-  let caStore = customCAStore <> systemCAStore
+  caStore <- Polysemy.ask
 
   -- strip trailing dot to workaround issue in tls domain verification
   let stripDot hostname

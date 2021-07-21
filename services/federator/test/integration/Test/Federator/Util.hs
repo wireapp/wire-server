@@ -30,8 +30,10 @@ import Control.Monad.Except
 import Crypto.Random.Types (MonadRandom, getRandomBytes)
 import Data.Aeson.TH
 import Data.String.Conversions
+import Data.X509.CertificateStore
 import qualified Data.Yaml as Yaml
 import Federator.Options
+import Federator.Run (mkCAStore)
 import Imports hiding (head)
 import qualified Options.Applicative as OPA
 import Test.Federator.JSON
@@ -66,6 +68,7 @@ runTestFederator env = flip runReaderT env . unwrapTestFederator
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
   { _teMgr :: Manager,
+    _teCAStore :: CertificateStore,
     _teBrig :: BrigReq,
     -- | federator config
     _teOpts :: Opts,
@@ -122,6 +125,7 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
+  _teCAStore <- mkCAStore (optSettings _teOpts)
   pure TestEnv {..}
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()

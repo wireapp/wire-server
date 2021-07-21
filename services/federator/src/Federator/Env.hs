@@ -24,6 +24,7 @@ import Bilge (RequestId)
 import qualified Bilge as RPC
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
+import Data.X509.CertificateStore
 import Federator.Options (RunSettings)
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
@@ -37,7 +38,8 @@ data Env = Env
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
     _service :: Component -> RPC.Request,
-    _httpManager :: HTTP.Manager
+    _httpManager :: HTTP.Manager,
+    _caStore :: CertificateStore
   }
 
 makeLenses ''Env
