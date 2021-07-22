@@ -20,13 +20,16 @@ config:
   logLevel: Debug
   logFormat: JSON
   optSettings:
-    # Filepath to one or more PEM-encoded server certificates to use as a trust
-    # store when making grpc requests to remote backends
-    # This path should not need to be changed; instead; change the contents by specifying
+    # Defaults to using system CA store in the federator image for making
+    # connections to remote federators.
+    # A custom CA certificate can be provided by specifying
     #   federator.remoteCAContents
     # e.g. from a pem file myca.pem:
     #   { echo "federator:"; echo "  remoteCAContents: |"; sed -e 's/^/    /' myca.pem; } > myca.yaml
     # then use '-f myca.yaml' as additional flag to your helm commands.
-    remoteCAStore: "/etc/wire/federator/ca/remote-ca.pem"
+    #
+    # Using custom CA doesn't automatically disable system CA store, it should
+    # be disabled explicitly by setting useSystemCAStore to false.
+    useSystemCAStore: true
     setFederationStrategy:
       allowedDomains: []

@@ -43,7 +43,7 @@ data:
       # Filepath to one or more PEM-encoded server certificates to use as a trust
       # store when making grpc requests to remote backends
       {{- if $.Values.remoteCAContents }}
-      remoteCAStore: {{ .remoteCAStore }}
+      remoteCAStore: "/etc/wire/federator/ca/remote-ca.pem"
       {{- end }}
       setFederationStrategy:
         {{- if .setFederationStrategy.allowAll }}

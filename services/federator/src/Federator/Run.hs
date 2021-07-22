@@ -107,9 +107,8 @@ mkCAStore settings = do
   customCAStore <- fmap (fromRight mempty) . Polysemy.runM . Polysemy.runError @() $ do
     path <- maybe (Polysemy.throw ()) pure $ remoteCAStore settings
     Polysemy.embed $ readCertificateStore path >>= maybe (throw $ InvalidCAStore path) pure
-  -- FUTUREWORK: review if a fallback to system trust store is a good idea
   systemCAStore <-
-    if fromMaybe True (useSystemCAStore settings)
+    if useSystemCAStore settings
       then getSystemCertificateStore
       else pure mempty
   pure (customCAStore <> systemCAStore)
