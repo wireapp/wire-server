@@ -240,5 +240,5 @@ federator:
   imagePullPolicy: Always
   config:
     optSettings:
-      setFederationStrategy:
+      federationStrategy:
         allowAll: true

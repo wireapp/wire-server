@@ -158,7 +158,7 @@ As of 2021-02, federation (whatever is implemented by the time you read this) is
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     allowedDomains: []
 ```
 
@@ -168,7 +168,7 @@ You can choose to federate with a specific list of allowed servers:
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     allowedDomains:
       - server1.example.com
       - server2.example.com
@@ -179,7 +179,7 @@ or, you can federate with everyone:
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     # note the 'empty' value after 'allowAll'
     allowAll:
 
@@ -187,6 +187,6 @@ optSettings:
 # inside helm_vars/wire-server:
 federator:
   optSettings:
-    setFederationStrategy:
+    federationStrategy:
       allowAll: true
 ```

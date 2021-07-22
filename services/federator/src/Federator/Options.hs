@@ -21,7 +21,6 @@
 
 module Federator.Options where
 
-import qualified Control.Lens as Lens
 import Data.Aeson
 import Data.Domain (Domain ())
 import Imports
@@ -62,7 +61,7 @@ instance FromJSON FederationStrategy where
 -- | Options that persist as runtime settings.
 data RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
-    setFederationStrategy :: FederationStrategy,
+    federationStrategy :: FederationStrategy,
     useSystemCAStore :: Bool,
     remoteCAStore :: Maybe FilePath
   }
@@ -93,8 +92,3 @@ data Opts = Opts
   deriving (Show, Generic)
 
 instance FromJSON Opts
-
-Lens.makeLensesFor
-  [ ("setFederationStrategy", "federationStrategy")
-  ]
-  ''RunSettings

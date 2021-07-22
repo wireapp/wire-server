@@ -31,5 +31,5 @@ config:
     # Using custom CA doesn't automatically disable system CA store, it should
     # be disabled explicitly by setting useSystemCAStore to false.
     useSystemCAStore: true
-    setFederationStrategy:
+    federationStrategy:
       allowedDomains: []

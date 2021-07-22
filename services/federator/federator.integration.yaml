@@ -21,12 +21,14 @@ optSettings:
 
   # Would you like to federate with every wire-server installation ?
   #
-  setFederationStrategy:
+  federationStrategy:
     allowAll:
   #
   # or only with a select set of other wire-server installations?
   #
-  # setFederationStrategy:
+  # federationStrategy:
   #   allowedDomains:
   #     - wire.com
   #     - example.com
+
+  useSystemCAStore: true

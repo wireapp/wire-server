@@ -45,12 +45,12 @@ data:
       {{- if $.Values.remoteCAContents }}
       remoteCAStore: "/etc/wire/federator/ca/remote-ca.pem"
       {{- end }}
-      setFederationStrategy:
-        {{- if .setFederationStrategy.allowAll }}
+      federationStrategy:
+        {{- if .federationStrategy.allowAll }}
         allowAll:
-        {{- else if .setFederationStrategy.allowedDomains }}
+        {{- else if .federationStrategy.allowedDomains }}
         allowedDomains:
-        {{- range $domain := .setFederationStrategy.allowedDomains }}
+        {{- range $domain := .federationStrategy.allowedDomains }}
           - {{ $domain | quote }}
         {{- end }}
         {{- else }}

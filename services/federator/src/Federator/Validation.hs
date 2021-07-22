@@ -23,7 +23,6 @@ module Federator.Validation
   )
 where
 
-import Control.Lens (view)
 import qualified Data.ByteString as BS
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.String.Conversions (cs)
@@ -39,7 +38,7 @@ import Wire.API.Federation.GRPC.Types
 -- startup configuration.
 federateWith :: Members '[Polysemy.Reader RunSettings] r => Domain -> Sem r Bool
 federateWith targetDomain = do
-  strategy <- view federationStrategy <$> Polysemy.ask
+  strategy <- federationStrategy <$> Polysemy.ask
   pure $ case strategy of
     AllowAll -> True
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains
