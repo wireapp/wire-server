@@ -87,7 +87,18 @@ data RenderOutput = RenderOutput
     roHeaders :: [(HeaderName, ByteString)]
   }
 
-data UnrenderResult a = Mismatch | UnrenderError String | UnrenderSuccess a
+-- | The result of parsing a response as a union alternative of type 'a'.
+--
+-- 'StatusMismatch' indicates that the response does not refer to the given
+-- alternative, because the status code does not match the one produced by that
+-- alternative.
+--
+-- 'UnrenderError' and 'UnrenderSuccess' represent respectively a failing and
+-- successful parse of the response body as a value of type 'a'.
+--
+-- The 'UnrenderResult' type constructor has monad and alternative instances
+-- corresponding to those of 'Either (Maybe (Last String)) a'.
+data UnrenderResult a = StatusMismatch | UnrenderError String | UnrenderSuccess a
   deriving (Eq, Show, Functor)
 
 instance Applicative UnrenderResult where
@@ -96,7 +107,7 @@ instance Applicative UnrenderResult where
 
 instance Monad UnrenderResult where
   return = pure
-  Mismatch >>= _ = Mismatch
+  StatusMismatch >>= _ = StatusMismatch
   UnrenderError e >>= _ = UnrenderError e
   UnrenderSuccess x >>= f = f x
 
@@ -105,8 +116,9 @@ instance Alternative UnrenderResult where
   (<|>) = mplus
 
 instance MonadPlus UnrenderResult where
-  mzero = Mismatch
-  mplus Mismatch m = m
+  mzero = StatusMismatch
+  mplus StatusMismatch m = m
+  mplus (UnrenderError e) StatusMismatch = UnrenderError e
   mplus (UnrenderError _) m = m
   mplus m@(UnrenderSuccess _) _ = m
 
@@ -124,6 +136,10 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
   type ResponseType (Respond s desc a) = a
   type ResponseStatus (Respond s desc a) = s
 
+  -- Note: here it seems like we are rendering for all possible content types,
+  -- only to choose the correct one afterwards. However, render results besides the
+  -- one picked by 'M.mapAcceptMedia' are not evaluated, and therefore nor are the
+  -- corresponding rendering functions.
   responseRender (AcceptHeader acc) x =
     M.mapAcceptMedia (map (uncurry mkRenderOutput) (allMimeRender (Proxy @cs) x)) acc
     where
@@ -198,7 +214,7 @@ instance AsHeaders hs a (Headers hs a) where
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
--- convert a list of Header to a list of Servant.Header
+-- convert a list of 'Header's and 'HeaderDesc' to a list of 'Header's
 type family ServantHeaders (hs :: [*]) :: [*]
 
 type instance ServantHeaders '[] = '[]
@@ -317,14 +333,23 @@ data MultiVerb (method :: StdMethod) (cs :: [*]) (as :: [*]) (r :: *)
 
 -- | This class is used to convert a handler return type to a union type
 -- including all possible responses of a 'MultiVerb' endpoint.
+--
+-- Any glue code necessary to convert application types to and from the
+-- canonical 'Union' type corresponding to a 'MultiVerb' endpoint should be
+-- packaged into an 'AsUnion' instance.
 class AsUnion (as :: [*]) (r :: *) where
   toUnion :: r -> Union (ResponseTypes as)
   fromUnion :: Union (ResponseTypes as) -> r
 
+-- | Unions can be used directly as handler return types using this trivial
+-- instance.
 instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
   toUnion = id
   fromUnion = id
 
+-- | A handler for a pair of empty responses can be implemented simply by
+-- returning a boolean value. The convention is that the "failure" case, normally
+-- represented by 'False', corresponds to the /first/ response.
 instance
   AsUnion
     '[ RespondEmpty s1 desc1,
@@ -339,6 +364,10 @@ instance
   fromUnion (S (Z (I ()))) = True
   fromUnion (S (S x)) = case x of
 
+-- | A handler for a pair of responses where the first is empty can be
+-- implemented simply by returning a 'Maybe' value. The convention is that the
+-- "failure" case, normally represented by 'Nothing', corresponds to the /first/
+-- response.
 instance
   (ResponseType r2 ~ a) =>
   AsUnion
@@ -459,7 +488,7 @@ instance
     unless (any (M.matches c) accept) $ do
       throwClientError $ UnsupportedContentType c response
     case responseListUnrender @cs @as c output of
-      Mismatch -> throwClientError (DecodeFailure "Status mismatch" response)
+      StatusMismatch -> throwClientError (DecodeFailure "Status mismatch" response)
       UnrenderError e -> throwClientError (DecodeFailure (Text.pack e) response)
       UnrenderSuccess x -> pure (fromUnion @as x)
     where
