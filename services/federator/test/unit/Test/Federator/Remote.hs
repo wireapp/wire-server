@@ -2,12 +2,6 @@
 
 module Test.Federator.Remote where
 
--- type Effects = '[Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader CertificateStore]
--- mkGrpcClient ::
---   Members '[Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader CertificateStore] r =>
---   SrvTarget ->
--- Sem r (Either RemoteError GrpcClient)
-
 import Data.Streaming.Network (bindRandomPortTCP)
 import Federator.Options
 import Federator.Remote
