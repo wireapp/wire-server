@@ -178,4 +178,4 @@ expectErr expectedType (Left err) =
 
 settingsWithAllowList :: [Domain] -> RunSettings
 settingsWithAllowList domains =
-  RunSettings (AllowList (AllowedDomains domains)) Nothing Nothing
+  RunSettings (AllowList (AllowedDomains domains)) False Nothing

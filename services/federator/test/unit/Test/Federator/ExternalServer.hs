@@ -89,7 +89,7 @@ requestGalleySuccess =
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
 allowAllSettings :: RunSettings
-allowAllSettings = RunSettings AllowAll Nothing Nothing
+allowAllSettings = RunSettings AllowAll True Nothing
 
 exampleDomain :: Text
 exampleDomain = "some.example.com"

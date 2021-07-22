@@ -53,10 +53,10 @@ tests =
 
 settingsWithAllowList :: [Domain] -> RunSettings
 settingsWithAllowList domains =
-  RunSettings (AllowList (AllowedDomains domains)) Nothing Nothing
+  RunSettings (AllowList (AllowedDomains domains)) True Nothing
 
 allowAllSettings :: RunSettings
-allowAllSettings = RunSettings AllowAll Nothing Nothing
+allowAllSettings = RunSettings AllowAll True Nothing
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =

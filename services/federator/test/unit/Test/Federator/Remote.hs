@@ -43,14 +43,14 @@ testValidatesCertificateSuccess =
     "can get response with valid certificate"
     [ testCase "when hostname=localhost and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          caStore <- mkCAStore (RunSettings AllowAll False (Just "test/resources/unit/unit-ca.pem"))
           eitherClient <- Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port))
           case eitherClient of
             Left err -> assertFailure $ "Unexpected error: " <> show err
             Right _ -> pure (),
       testCase "when hostname=localhost. and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          caStore <- mkCAStore (RunSettings AllowAll False (Just "test/resources/unit/unit-ca.pem"))
           eitherClient <- Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
           case eitherClient of
             Left err -> assertFailure $ "Unexpected error: " <> show err
@@ -58,7 +58,7 @@ testValidatesCertificateSuccess =
       -- This is a limitation of the TLS library, this test just exists to document that.
       testCase "when hostname=localhost. and certificate-for=localhost." $ do
         bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          caStore <- mkCAStore (RunSettings AllowAll False (Just "test/resources/unit/unit-ca.pem"))
           eitherClient <-
             Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $
               mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
@@ -73,7 +73,7 @@ testValidatesCertificateWrongHostname =
     "refuses to connect with server"
     [ testCase "when the server's certificate doesn't match the hostname" $
         bracket (startMockServer certForWrongDomain) (Async.cancel . fst) $ \(_, port) -> do
-          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          caStore <- mkCAStore (RunSettings AllowAll False (Just "test/resources/unit/unit-ca.pem"))
           eitherClient <-
             Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $
               mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
