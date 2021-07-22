@@ -168,8 +168,8 @@ servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   genericServerT $
     BrigAPI.Api
-      { BrigAPI.checkUserExistsUnqualified = checkUserExistsUnqualifiedH,
-        BrigAPI.checkUserExistsQualified = checkUserExistsH,
+      { BrigAPI.checkUserExistsUnqualified = checkUserExistsUnqualified,
+        BrigAPI.checkUserExistsQualified = checkUserExists,
         BrigAPI.getUserUnqualified = getUserUnqualifiedH,
         BrigAPI.getUserQualified = getUserH,
         BrigAPI.getSelf = getSelf,
@@ -943,17 +943,10 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsUnqualifiedH self uid = do
+checkUserExistsUnqualified :: UserId -> UserId -> Handler Bool
+checkUserExistsUnqualified self uid = do
   domain <- viewFederationDomain
-  checkUserExistsH self (Qualified uid domain)
-
-checkUserExistsH :: UserId -> Qualified UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsH self user = do
-  exists <- checkUserExists self user
-  if exists
-    then Servant.respond (EmptyResult @200)
-    else Servant.respond (EmptyResult @404)
+  checkUserExists self (Qualified uid domain)
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
