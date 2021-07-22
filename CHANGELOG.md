@@ -60,6 +60,7 @@ Upgrade nginz (#1658)
 
 * Improvements to local integration test setup when using buildah and kind (#1667)
 * The servant-swagger dependency now points to the current upstream master (#1656).
+* Improved error handling middleware (#1671).
 * Refactor function createUser for readability (#1670)
 
 ## Federation changes (alpha feature, do not use yet)
