@@ -54,6 +54,9 @@ Upgrade nginz (#1658)
 
 ## Documentation
 
+- A clarification is added about listing your own domain as a classified domain
+  (#1678).
+
 ## Internal changes
 
 * Improvements to local integration test setup when using buildah and kind (#1667)
