@@ -108,7 +108,7 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
           TLS.cipher_TLS13_CHACHA20POLY1305_SHA256,
           -- For TLS 1.2 (copied from default nginx ingress config):
           TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
-          TLS.cipher_ECDHE_RSA_AES256GCM_SHA384 ,
+          TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
           TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
           TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
           TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
