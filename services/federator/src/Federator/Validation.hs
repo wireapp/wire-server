@@ -38,7 +38,7 @@ import Wire.API.Federation.GRPC.Types
 -- startup configuration.
 federateWith :: Members '[Polysemy.Reader RunSettings] r => Domain -> Sem r Bool
 federateWith targetDomain = do
-  strategy <- federationStrategy <$> Polysemy.ask
+  strategy <- Polysemy.asks federationStrategy
   pure $ case strategy of
     AllowAll -> True
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains
