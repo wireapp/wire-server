@@ -354,6 +354,9 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+    - path: ~* ^/feature-configs(.*)
+      envs:
+      - all
     - path: /galley-api/swagger-ui
       disable_zauth: true
       envs:

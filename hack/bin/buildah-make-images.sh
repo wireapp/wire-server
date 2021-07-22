@@ -46,3 +46,6 @@ if [[ "$BUILDAH_KIND_LOAD" -eq "1" ]]; then
     done
     rm -rf "$archiveDir"
 fi
+
+# general cleanup
+"$DIR/buildah-purge-untagged.sh"

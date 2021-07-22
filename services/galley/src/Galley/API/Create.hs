@@ -21,7 +21,6 @@ module Galley.API.Create
     createSelfConversation,
     createOne2OneConversation,
     createConnectConversationH,
-    ConversationResponses,
   )
 where
 
@@ -49,22 +48,12 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
-import Servant (WithStatus (..))
-import qualified Servant
-import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
-import Wire.API.Routes.Public.Galley (ConversationResponses)
+import Wire.API.Routes.Public.Galley
+  ( ConversationResponse,
+    ConversationResponseFor (..),
+  )
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
-
--- Servant helpers ------------------------------------------------------
-
-conversationResponse :: ConversationResponse -> Galley (Union ConversationResponses)
-conversationResponse (ConversationExisted c) =
-  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
-conversationResponse (ConversationCreated c) =
-  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
-
--------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -76,9 +65,9 @@ createGroupConversation ::
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
-  Galley (Union ConversationResponses)
+  Galley ConversationResponse
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
-  conversationResponse =<< case newConvTeam body of
+  case newConvTeam body of
     Nothing -> createRegularGroupConv user conn wrapped
     Just tinfo -> createTeamGroupConv user conn tinfo body
 
@@ -199,18 +188,17 @@ createTeamGroupConv zusr zcon tinfo body = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversation :: UserId -> Galley (Union ConversationResponses)
+createSelfConversation :: UserId -> Galley ConversationResponse
 createSelfConversation zusr = do
   c <- Data.conversation (Id . toUUID $ zusr)
-  conversationResponse
-    =<< maybe create (conversationExisted zusr) c
+  maybe create (conversationExisted zusr) c
   where
     create = do
       localDomain <- viewFederationDomain
       c <- Data.createSelfConversation localDomain zusr Nothing
       conversationCreated zusr c
 
-createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley (Union ConversationResponses)
+createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   otherUserId <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
   (x, y) <- toUUIDs zusr otherUserId
@@ -226,8 +214,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
-  resp <- maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
-  conversationResponse resp
+  maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u
@@ -317,10 +304,6 @@ createConnectConversation usr conn j = do
 
 -------------------------------------------------------------------------------
 -- Helpers
-
-data ConversationResponse
-  = ConversationCreated !Public.Conversation
-  | ConversationExisted !Public.Conversation
 
 conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
 conversationCreated usr cnv = ConversationCreated <$> conversationView usr cnv
