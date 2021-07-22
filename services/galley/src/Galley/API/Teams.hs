@@ -123,7 +123,7 @@ import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
-import Wire.API.User (User, UserIdentity (..), UserSSOId (UserScimExternalId))
+import Wire.API.User (User, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
 import qualified Wire.API.User as Public (UserIdList)
 import qualified Wire.API.User as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
@@ -455,7 +455,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
             tExportIdpIssuer = userToIdPIssuer user,
             tExportManagedBy = U.userManagedBy user,
             tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
-            tExportSCIMExternalId = fromMaybe "" (scimExtId user),
+            tExportSCIMExternalId = fromMaybe "" (userSCIMExternalId user),
             tExportSCIMRichInfo = richInfos uid,
             tExportUserId = U.userId user
           }
@@ -487,24 +487,10 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     lookupRichInfo pairs = (`M.lookup` M.fromList pairs)
 
     samlNamedId :: User -> Maybe Text
-    samlNamedId = U.userIdentity >=> userSSOId >=> ssoIdNameId
-
-    userSSOId :: UserIdentity -> Maybe UserSSOId
-    userSSOId (SSOIdentity ssoId _ _) = Just ssoId
-    userSSOId (EmailIdentity _) = Nothing
-    userSSOId (PhoneIdentity _) = Nothing
-    userSSOId (FullIdentity _ _) = Nothing
-
-    ssoIdNameId :: UserSSOId -> Maybe Text
-    ssoIdNameId (UserSSOId _idp nameId) = SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
-    ssoIdNameId (UserScimExternalId _) = Nothing
-
-    scimExtId :: User -> Maybe Text
-    scimExtId = U.userIdentity >=> userSSOId >=> ssoIdExtId
-
-    ssoIdExtId :: UserSSOId -> Maybe Text
-    ssoIdExtId (UserSSOId _ _) = Nothing
-    ssoIdExtId (UserScimExternalId extId) = pure extId
+    samlNamedId =
+      userSSOId >=> \case
+        (UserSSOId _idp nameId) -> SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
+        (UserScimExternalId _) -> Nothing
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do

@@ -24,29 +24,65 @@ import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Domain
 import Data.Id (ConvId, TeamId)
+import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, contentType, respond)
-import qualified Servant
+import Servant
 import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
-import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Feature
 
-type ConversationResponses =
-  '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
-     WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
-   ]
+instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
+  -- FUTUREWORK: use addHeader
+  toHeaders c = Headers c (HCons (Header (qUnqualified (Public.cnvQualifiedId c))) HNil)
+  fromHeaders = getResponse
+
+instance
+  (ResponseType r1 ~ a, ResponseType r2 ~ a) =>
+  AsUnion '[r1, r2] (ConversationResponseFor a)
+  where
+  toUnion (ConversationExisted x) = Z (I x)
+  toUnion (ConversationCreated x) = S (Z (I x))
+
+  fromUnion (Z (I x)) = ConversationExisted x
+  fromUnion (S (Z (I x))) = ConversationCreated x
+  fromUnion (S (S x)) = case x of
+
+data ConversationResponseFor a
+  = ConversationExisted !a
+  | ConversationCreated !a
+
+type ConversationResponse = ConversationResponseFor Conversation
+
+type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
+
+type ConversationVerb =
+  MultiVerb
+    'POST
+    '[JSON]
+    '[ WithHeaders
+         ConversationHeaders
+         Conversation
+         (Respond 200 "Conversation existed" Conversation),
+       WithHeaders
+         ConversationHeaders
+         Conversation
+         (Respond 201 "Conversation created" Conversation)
+     ]
+    ConversationResponse
 
 type UpdateResponses =
   '[ WithStatus 200 Public.Event,
@@ -181,14 +217,14 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ConversationVerb,
     createSelfConversation ::
       routes
         :- Summary "Create a self-conversation"
         :> ZUser
         :> "conversations"
         :> "self"
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ConversationVerb,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"
@@ -200,7 +236,7 @@ data Api routes = Api
         :> "conversations"
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ConversationVerb,
     addMembersToConversationV2 ::
       routes
         :- Summary "Add qualified members to an existing conversation."
@@ -329,7 +365,34 @@ data Api routes = Api
         :- FeatureStatusPut 'TeamFeatureFileSharing,
     teamFeatureStatusClassifiedDomainsGet ::
       routes
-        :- FeatureStatusGet 'TeamFeatureClassifiedDomains
+        :- FeatureStatusGet 'TeamFeatureClassifiedDomains,
+    featureAllFeatureConfigsGet ::
+      routes
+        :- AllFeatureConfigsGet,
+    featureConfigLegalHoldGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureLegalHold,
+    featureConfigSSOGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureSSO,
+    featureConfigSearchVisibilityGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureSearchVisibility,
+    featureConfigValidateSAMLEmailsGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureValidateSAMLEmails,
+    featureConfigDigitalSignaturesGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureDigitalSignatures,
+    featureConfigAppLockGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureAppLock,
+    featureConfigFileSharingGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureFileSharing,
+    featureConfigClassifiedDomainsGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureClassifiedDomains
   }
   deriving (Generic)
 
@@ -374,6 +437,19 @@ type FeatureStatusDeprecatedPut featureName =
     :> DeprecatedFeatureName featureName
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type FeatureConfigGet featureName =
+  Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
+    :> ZUser
+    :> "feature-configs"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> Get '[Servant.JSON] (TeamFeatureStatus featureName)
+
+type AllFeatureConfigsGet =
+  Summary "Get configurations of all features"
+    :> ZUser
+    :> "feature-configs"
+    :> Get '[Servant.JSON] AllFeatureConfigs
 
 type PostOtrDescriptionUnqualified =
   "This endpoint ensures that the list of clients is correct and only sends the message if the list is correct.\n\
