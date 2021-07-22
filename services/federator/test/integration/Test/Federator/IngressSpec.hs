@@ -30,6 +30,7 @@ import Imports
 import Mu.GRpc.Client.TyApps
 import qualified Polysemy
 import qualified Polysemy.Reader as Polysemy
+import Polysemy.TinyLog (discardLogs)
 import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
@@ -38,7 +39,6 @@ import Wire.API.Federation.GRPC.Types hiding (body, path)
 import qualified Wire.API.Federation.GRPC.Types as GRPC
 import Wire.API.User
 import Wire.Network.DNS.SRV
-import Polysemy.TinyLog (discardLogs)
 
 spec :: TestEnv -> Spec
 spec env =
