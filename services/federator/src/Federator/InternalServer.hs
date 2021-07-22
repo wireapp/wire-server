@@ -74,16 +74,16 @@ mkRemoteResponse reply =
       mkOutwardErr RemoteFederatorError "grpc-error-string" ("error=" <> Text.pack grpcErr)
     Right (GRpcClientError clientErr) ->
       mkOutwardErr RemoteFederatorError "grpc-client-error" ("error=" <> Text.pack (show clientErr))
-    Left (RemoteErrorDiscoveryFailure err domain) ->
+    Left (RemoteErrorDiscoveryFailure domain err) ->
       case err of
         LookupErrorSrvNotAvailable _srvDomain ->
           mkOutwardErr RemoteNotFound "srv-record-not-found" ("domain=" <> domainText domain)
         LookupErrorDNSError dnsErr ->
-          mkOutwardErr DiscoveryFailed "srv-lookup-dns-error" ("domain=" <> domainText domain <> "error=" <> Text.decodeUtf8 dnsErr)
-    Left (RemoteErrorClientFailure cltErr srvTarget) ->
-      mkOutwardErr RemoteFederatorError "cannot-connect-to-remote-federator" ("target=" <> Text.pack (show srvTarget) <> "error=" <> Text.pack (show cltErr))
-    Left (RemoteErrorInvalidCAStore path) ->
-      mkOutwardErr TLSFailure "invalid-ca-store" ("CA store missing or invalid: " <> Text.pack path)
+          mkOutwardErr DiscoveryFailed "srv-lookup-dns-error" ("domain=" <> domainText domain <> "; error=" <> Text.decodeUtf8 dnsErr)
+    Left (RemoteErrorClientFailure srvTarget cltErr) ->
+      mkOutwardErr RemoteFederatorError "cannot-connect-to-remote-federator" ("target=" <> Text.pack (show srvTarget) <> "; error=" <> Text.pack (show cltErr))
+    Left (RemoteErrorTLSException srvTarget exc) ->
+      mkOutwardErr TLSFailure "tls-failure" ("Failed to establish TLS session with remote:  target=" <> Text.pack (show srvTarget) <> "; exception=" <> Text.pack (show exc))
 
 mkOutwardErr :: OutwardErrorType -> Text -> Text -> OutwardResponse
 mkOutwardErr typ label msg = OutwardResponseError $ OutwardError typ (Just $ ErrorPayload label msg)

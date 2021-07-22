@@ -78,7 +78,7 @@ testValidatesCertificateWrongHostname =
             Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $
               mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
           case eitherClient of
-            Left (RemoteErrorTLSException _) -> pure ()
+            Left (RemoteErrorTLSException _ _) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]

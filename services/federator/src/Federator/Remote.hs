@@ -46,10 +46,9 @@ import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
 
 data RemoteError
-  = RemoteErrorDiscoveryFailure LookupError Domain
-  | RemoteErrorClientFailure GrpcClientErr SrvTarget
-  | RemoteErrorInvalidCAStore FilePath
-  | RemoteErrorTLSException TLSException
+  = RemoteErrorDiscoveryFailure Domain LookupError
+  | RemoteErrorClientFailure SrvTarget GrpcClientErr
+  | RemoteErrorTLSException SrvTarget TLSException
   deriving (Show, Eq)
 
 data Remote m a where
@@ -70,7 +69,7 @@ interpretRemote = interpret $ \case
           Log.msg ("Failed to find remote federator" :: ByteString)
             . Log.field "domain" (domainText vDomain)
             . Log.field "error" (show err)
-        pure $ Left (RemoteErrorDiscoveryFailure err vDomain)
+        pure $ Left (RemoteErrorDiscoveryFailure vDomain err)
       Right target -> do
         eitherClient <- mkGrpcClient target
         case eitherClient of
@@ -145,9 +144,9 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
             TLS.clientShared = def {TLS.sharedCAStore = caStore}
           }
   let cfg' = cfg {_grpcClientConfigTLS = Just tlsConfig}
-  Polysemy.mapError (`RemoteErrorClientFailure` target)
+  Polysemy.mapError (RemoteErrorClientFailure target)
     . Polysemy.fromEither
-    =<< Polysemy.fromExceptionVia RemoteErrorTLSException (createGrpcClient cfg')
+    =<< Polysemy.fromExceptionVia (RemoteErrorTLSException target) (createGrpcClient cfg')
 
 logAndReturn :: Members '[TinyLog] r => SrvTarget -> Sem (Polysemy.Error RemoteError ': r) a -> Sem r (Either RemoteError a)
 logAndReturn (SrvTarget host port) action = do
