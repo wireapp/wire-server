@@ -10,11 +10,10 @@ module Test.Federator.Remote where
 
 import Data.Streaming.Network (bindRandomPortTCP)
 import Federator.Options
-import Federator.Remote (mkGrpcClient)
+import Federator.Remote
 import Federator.Run (mkCAStore)
 import Imports
 import Network.HTTP.Types (status200)
-import qualified Network.TLS.Extra.Cipher as TLS
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as WarpTLS
@@ -31,21 +30,70 @@ tests :: TestTree
 tests =
   testGroup
     "Federator.Remote"
-    [ testGroup "mkGrpcClient" [testValidatesCertificateSuccess]
+    [ testGroup
+        "mkGrpcClient"
+        [ testValidatesCertificateSuccess,
+          testValidatesCertificateWrongHostname
+        ]
     ]
 
 testValidatesCertificateSuccess :: TestTree
-testValidatesCertificateSuccess = testCase "can get response from a server with a valid certificate" $ do
-  bracket startMockServer (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-    -- threadDelay 1000_000_000
-    caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
-    eitherClient <- Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port))
-    case eitherClient of
-      Left err -> assertFailure $ "Unexpected error: " <> show err
-      Right _ -> pure ()
+testValidatesCertificateSuccess =
+  testGroup
+    "can get response with valid certificate"
+    [ testCase "when hostname=localhost and certificate-for=localhost" $ do
+        bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
+          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          eitherClient <- Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port))
+          case eitherClient of
+            Left err -> assertFailure $ "Unexpected error: " <> show err
+            Right _ -> pure (),
+      testCase "when hostname=localhost. and certificate-for=localhost" $ do
+        bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
+          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          eitherClient <- Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
+          case eitherClient of
+            Left err -> assertFailure $ "Unexpected error: " <> show err
+            Right _ -> pure (),
+      -- This is a limitation of the TLS library, this test just exists to document that.
+      testCase "when hostname=localhost. and certificate-for=localhost." $ do
+        bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
+          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          eitherClient <-
+            Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $
+              mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
+          case eitherClient of
+            Left _ -> pure ()
+            Right _ -> assertFailure "Congratulations, you fixed a known issue!"
+    ]
 
-startMockServer :: MonadIO m => m (Async.Async (), Warp.Port)
-startMockServer = liftIO $ do
+testValidatesCertificateWrongHostname :: TestTree
+testValidatesCertificateWrongHostname =
+  testGroup
+    "refuses to connect with server"
+    [ testCase "when the server's certificate doesn't match the hostname" $
+        bracket (startMockServer certForWrongDomain) (Async.cancel . fst) $ \(_, port) -> do
+          caStore <- mkCAStore (RunSettings AllowAll (Just False) (Just "test/resources/unit/unit-ca.pem"))
+          eitherClient <-
+            Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader caStore $
+              mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
+          case eitherClient of
+            Left (RemoteErrorTLSException _) -> pure ()
+            Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
+            Right _ -> assertFailure "Expected connection with the server to fail"
+    ]
+
+certForLocalhost :: WarpTLS.TLSSettings
+certForLocalhost = WarpTLS.tlsSettings "test/resources/unit/localhost.pem" "test/resources/unit/localhost-key.pem"
+
+certForLocalhostDot :: WarpTLS.TLSSettings
+certForLocalhostDot = WarpTLS.tlsSettings "test/resources/unit/localhost-dot.pem" "test/resources/unit/localhost-dot-key.pem"
+
+certForWrongDomain :: WarpTLS.TLSSettings
+certForWrongDomain = WarpTLS.tlsSettings "test/resources/unit/localhost.example.com.pem" "test/resources/unit/localhost.example.com-key.pem"
+
+startMockServer :: MonadIO m => WarpTLS.TLSSettings -> m (Async.Async (), Warp.Port)
+startMockServer tlsSettings = liftIO $ do
   (port, sock) <- bindRandomPortTCP "*6"
   serverStarted <- newEmptyMVar
   let settings =
@@ -53,15 +101,6 @@ startMockServer = liftIO $ do
           & Warp.setPort port
           & Warp.setGracefulCloseTimeout2 0 -- Defaults to 2 seconds, causes server stop to take very long
           & Warp.setBeforeMainLoop (putMVar serverStarted ())
-      tlsSettings =
-        (WarpTLS.tlsSettings "test/resources/unit/localhost.pem" "test/resources/unit/localhost-key.pem")
-          { WarpTLS.tlsCiphers =
-              [ TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
-                TLS.cipher_ECDHE_RSA_AES256CBC_SHA384,
-                TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
-                TLS.cipher_ECDHE_RSA_AES128CBC_SHA256
-              ]
-          }
       app _req respond = respond $ responseLBS status200 [] "dragons be here"
 
   serverThread <- Async.async $ WarpTLS.runTLSSocket tlsSettings settings sock app

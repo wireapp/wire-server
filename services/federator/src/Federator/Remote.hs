@@ -49,6 +49,7 @@ data RemoteError
   = RemoteErrorDiscoveryFailure LookupError Domain
   | RemoteErrorClientFailure GrpcClientErr SrvTarget
   | RemoteErrorInvalidCAStore FilePath
+  | RemoteErrorTLSException TLSException
   deriving (Show, Eq)
 
 data Remote m a where
@@ -91,11 +92,9 @@ mkGrpcClient ::
   Members '[Embed IO, TinyLog, Polysemy.Reader CertificateStore] r =>
   SrvTarget ->
   Sem r (Either RemoteError GrpcClient)
-mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
-  -- FUTUREWORK(federation): grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates and there's no way
-  -- to change that (at least not when using the default functions from mu or http2-grpc-client)
+mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
+  -- grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates
   -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
-  -- While early testing, this is "convenient" but needs to be fixed!
   --
   -- FUTUREWORK: load client certificate and client key from disk
   -- and use it when making a request
@@ -118,25 +117,21 @@ mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
 
   caStore <- Polysemy.ask
 
-  -- strip trailing dot to workaround issue in tls domain verification
+  -- validate the hostname without a trailing dot as the certificate is not
+  -- expected to have the trailing dot.
   let stripDot hostname
         | "." `isSuffixOf` hostname = take (length hostname - 1) hostname
         | otherwise = hostname
-  -- try validating the hostname without a trailing dot, and if that fails, try
-  -- again with the original hostname
-  let validateName hostname cert
-        | null validation = []
-        | "." `isSuffixOf` hostname = TLS.hookValidateName X509.defaultHooks hostname cert
-        | otherwise = validation
-        where
-          validation = TLS.hookValidateName X509.defaultHooks (stripDot hostname) cert
+  let validateName hostname cert =
+        TLS.hookValidateName X509.defaultHooks (stripDot hostname) cert
 
-  let betterTLSConfig =
+  let tlsConfig =
         (defaultParamsClient (cs host) (cs $ show port))
           { TLS.clientSupported =
               def
                 { TLS.supportedCiphers = blessed_ciphers,
-                  TLS.supportedVersions = [TLS.TLS12]
+                  -- FUTUREWORK: Figure out if we need to be more lenient
+                  TLS.supportedVersions = [TLS.TLS13]
                 },
             TLS.clientHooks =
               def
@@ -149,8 +144,14 @@ mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
             -- FUTUREWORK: use onCertificateRequest to provide client certificates
             TLS.clientShared = def {TLS.sharedCAStore = caStore}
           }
-  let cfg' = cfg {_grpcClientConfigTLS = Just betterTLSConfig}
-  eitherClient <- createGrpcClient cfg'
+  let cfg' = cfg {_grpcClientConfigTLS = Just tlsConfig}
+  Polysemy.mapError (`RemoteErrorClientFailure` target)
+    . Polysemy.fromEither
+    =<< Polysemy.fromExceptionVia RemoteErrorTLSException (createGrpcClient cfg')
+
+logAndReturn :: Members '[TinyLog] r => SrvTarget -> Sem (Polysemy.Error RemoteError ': r) a -> Sem r (Either RemoteError a)
+logAndReturn (SrvTarget host port) action = do
+  eitherClient <- Polysemy.runError action
   case eitherClient of
     Left err -> do
       Log.debug $
@@ -158,5 +159,6 @@ mkGrpcClient target@(SrvTarget host port) = Polysemy.runError $ do
           . Log.field "host" host
           . Log.field "port" port
           . Log.field "error" (show err)
-      Polysemy.throw $ RemoteErrorClientFailure err target
-    Right client -> pure client
+      pure ()
+    _ -> pure ()
+  pure eitherClient
