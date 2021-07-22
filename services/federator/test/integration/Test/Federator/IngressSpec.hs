@@ -28,10 +28,8 @@ import Federator.Options
 import Federator.Remote (mkGrpcClient)
 import Imports
 import Mu.GRpc.Client.TyApps
-import Polysemy (Sem)
 import qualified Polysemy
 import qualified Polysemy.Reader as Polysemy
-import qualified Polysemy.TinyLog as Polysemy
 import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
@@ -40,6 +38,7 @@ import Wire.API.Federation.GRPC.Types hiding (body, path)
 import qualified Wire.API.Federation.GRPC.Types as GRPC
 import Wire.API.User
 import Wire.Network.DNS.SRV
+import Polysemy.TinyLog (discardLogs)
 
 spec :: TestEnv -> Spec
 spec env =
@@ -61,7 +60,7 @@ inwardBrigCallViaIngress requestPath payload = do
   let target = SrvTarget (cs ingressHost) ingressPort
   runSettings <- optSettings . view teOpts <$> ask
   caStore <- view teCAStore <$> ask
-  c <- discardLogging . Polysemy.runReader caStore . Polysemy.runReader runSettings $ mkGrpcClient target
+  c <- liftIO . Polysemy.runM . discardLogs . Polysemy.runReader caStore . Polysemy.runReader runSettings $ mkGrpcClient target
   client <- case c of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli
@@ -73,9 +72,3 @@ inwardBrigCallViaIngress requestPath payload = do
             GRPC.originDomain = "foo.example.com"
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client brigCall
-
-discardLogging :: MonadIO m => Sem '[Polysemy.TinyLog, Polysemy.Embed IO] a -> m a
-discardLogging = liftIO . Polysemy.runM . Polysemy.interpret discardLogAction
-  where
-    discardLogAction :: Applicative n => Polysemy.TinyLog m a -> n a
-    discardLogAction (Polysemy.Polylog _ _) = pure ()
