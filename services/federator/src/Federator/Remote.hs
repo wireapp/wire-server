@@ -100,19 +100,20 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
 
   -- FUTUREWORK: get review on blessed ciphers
-  -- TODO: Figure out if these are the really blessed ciphers now, they seem to require TLS 1.2:
-  --     [ TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
-  --       TLS.cipher_ECDHE_RSA_AES256CBC_SHA384,
-  --       TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
-  --       TLS.cipher_ECDHE_RSA_AES128CBC_SHA256,
-  --     ]
-  -- Maybe these are TLS 1.3 versions:
-  --   TLS.cipher_TLS13_AES128GCM_SHA256
-  -- , TLS.cipher_TLS13_AES256GCM_SHA384
-  -- , TLS.cipher_TLS13_AES128CCM_SHA256
-  -- , TLS.cipher_TLS13_AES128CCM8_SHA256
-  -- Until then, we use the "strong" suite
-  let blessed_ciphers = TLS.ciphersuite_strong
+  let blessed_ciphers =
+        [ TLS.cipher_TLS13_AES128CCM8_SHA256,
+          TLS.cipher_TLS13_AES128CCM_SHA256,
+          TLS.cipher_TLS13_AES128GCM_SHA256,
+          TLS.cipher_TLS13_AES256GCM_SHA384,
+          TLS.cipher_TLS13_CHACHA20POLY1305_SHA256,
+          -- For TLS 1.2 (copied from default nginx ingress config):
+          TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
+          TLS.cipher_ECDHE_RSA_AES256GCM_SHA384 ,
+          TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
+          TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
+          TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
+          TLS.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256
+        ]
 
   caStore <- Polysemy.ask
 
@@ -129,8 +130,8 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
           { TLS.clientSupported =
               def
                 { TLS.supportedCiphers = blessed_ciphers,
-                  -- FUTUREWORK: Figure out if we need to be more lenient
-                  TLS.supportedVersions = [TLS.TLS13]
+                  -- FUTUREWORK: Figure out if we can drop TLS 1.2
+                  TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
                 },
             TLS.clientHooks =
               def
