@@ -100,3 +100,6 @@ b.yaml
 telepresence.log
 
 /.ghci
+
+# Allow pem files for federator unit tests
+!/services/federator/test/resources/unit/*.pem

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e6526f61df1d846d4b46185d5216b89f772d6977852b8c8c12ce1b9d1fa14d60
+-- hash: 7ae942605e2cd7ddc1fc423b068b429970064332a02e90994295385a0722d1b9
 
 name:           federator
 version:        1.0.0
@@ -15,6 +15,17 @@ maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2020 Wire Swiss GmbH
 license:        AGPL-3
 build-type:     Simple
+extra-source-files:
+    test/resources/integration-ca.pem
+    test/resources/unit/gen-certs.sh
+    test/resources/unit/localhost-dot-key.pem
+    test/resources/unit/localhost-dot.pem
+    test/resources/unit/localhost-key.pem
+    test/resources/unit/localhost.example.com-key.pem
+    test/resources/unit/localhost.example.com.pem
+    test/resources/unit/localhost.pem
+    test/resources/unit/unit-ca-key.pem
+    test/resources/unit/unit-ca.pem
 
 library
   exposed-modules:
