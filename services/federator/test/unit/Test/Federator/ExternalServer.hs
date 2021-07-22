@@ -28,12 +28,12 @@ import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
+import qualified Polysemy.TinyLog as TinyLog
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Wire.API.Federation.GRPC.Types
-import qualified Polysemy.TinyLog as TinyLog
 import qualified Wire.API.Federation.GRPC.Types as InwardError
 
 genMock ''Service

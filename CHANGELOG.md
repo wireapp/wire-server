@@ -45,6 +45,7 @@ Upgrade nginz (#1658)
 * Extend feature config API (#1658)
 * `fileSharing` feature config (#1652, #1654, #1655)
 * Add user_id to csv export (#1663)
+* Validate server TLS certificate between federators (#1662)
 
 ## Bug fixes and other updates
 
