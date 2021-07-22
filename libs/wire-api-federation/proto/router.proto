@@ -37,12 +37,11 @@ message OutwardError {
     DiscoveryFailed = 1;
     ConnectionRefused = 2;
     TLSFailure = 3;
-    InvalidCertificate = 4;
-    VersionMismatch = 5;
-    FederationDeniedByRemote = 6;
-    FederationDeniedLocally = 7;
-    RemoteFederatorError = 8;
-    InvalidRequest = 9;
+    VersionMismatch = 4;
+    FederationDeniedByRemote = 5;
+    FederationDeniedLocally = 6;
+    RemoteFederatorError = 7;
+    InvalidRequest = 8;
   }
 
   ErrorType type = 1;

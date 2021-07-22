@@ -58,8 +58,6 @@ testOutwardError =
             assertOutwardErrorStatus Proto.ConnectionRefused 521,
           testCase "when TLS fails" $
             assertOutwardErrorStatus Proto.TLSFailure 525,
-          testCase "when remote certificate is invalid" $
-            assertOutwardErrorStatus Proto.InvalidCertificate 526,
           testCase "when remote returns version mismatch" $
             assertOutwardErrorStatus Proto.VersionMismatch 531,
           testCase "when remote denies federation" $

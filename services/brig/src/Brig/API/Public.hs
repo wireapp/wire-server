@@ -213,8 +213,7 @@ An error in this category will be returned when this backend makes an invalid or
 
 The errors in this category relate to authentication or authorization issues between backends.
 
- - **TLS failure**: (status: 525): An error occurred during the TLS handshake between the local federator and a remote one.
- - **Invalid certificate** (status: 526): The TLS certificate on the remote end of an RPC is invalid.
+ - **TLS failure**: (status: 525): An error occurred during the TLS handshake between the local federator and a remote one. This is most likely due to an issue with the certificate on the remote end.
  - **Federation denied remotely** (status: 532): The current backend made an unauthorised request to a remote one.
 
 |]

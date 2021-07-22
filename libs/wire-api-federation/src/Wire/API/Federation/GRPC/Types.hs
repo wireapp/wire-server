@@ -119,7 +119,6 @@ data OutwardErrorType
   | DiscoveryFailed
   | ConnectionRefused
   | TLSFailure
-  | InvalidCertificate
   | VersionMismatch
   | FederationDeniedByRemote
   | FederationDeniedLocally

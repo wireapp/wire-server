@@ -157,7 +157,6 @@ federationRemoteError err = Wai.mkError status (LT.fromStrict label) (LT.fromStr
       Proto.DiscoveryFailed -> HTTP.status500
       Proto.ConnectionRefused -> HTTP.Status 521 "Web Server Is Down"
       Proto.TLSFailure -> HTTP.Status 525 "SSL Handshake Failure"
-      Proto.InvalidCertificate -> HTTP.Status 526 "Invalid SSL Certificate"
       Proto.VersionMismatch -> HTTP.Status 531 "Version Mismatch"
       Proto.FederationDeniedByRemote -> HTTP.Status 532 "Federation Denied"
       Proto.FederationDeniedLocally -> HTTP.status400
