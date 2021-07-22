@@ -63,6 +63,7 @@ instance FromJSON FederationStrategy where
 data RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
     setFederationStrategy :: FederationStrategy,
+    -- | TODO: Why is this maybe bool?
     useSystemCAStore :: Maybe Bool,
     remoteCAStore :: Maybe FilePath
   }
