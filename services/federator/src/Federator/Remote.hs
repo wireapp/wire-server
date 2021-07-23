@@ -33,7 +33,7 @@ import Data.Domain (Domain, domainText)
 import Data.String.Conversions (cs)
 import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
-import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
+import Federator.Discovery
 import Federator.Env (TLSSettings, caStore, creds)
 import Federator.Options
 import Federator.Validation
@@ -66,25 +66,23 @@ data Remote m a where
 makeSem ''Remote
 
 interpretRemote ::
-  (Members [Embed IO, DiscoverFederator, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader TLSSettings] r) =>
+  Members
+    '[ Embed IO,
+       DiscoverFederator,
+       TinyLog,
+       Polysemy.Reader RunSettings,
+       Polysemy.Reader TLSSettings
+     ]
+    r =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall ValidatedFederatedRequest {..} -> do
-    eitherTarget <- discoverFederator vDomain
-    case eitherTarget of
-      Left err -> do
-        Log.debug $
-          Log.msg ("Failed to find remote federator" :: ByteString)
-            . Log.field "domain" (domainText vDomain)
-            . Log.field "error" (show err)
-        pure $ Left (RemoteErrorDiscoveryFailure vDomain err)
-      Right target -> do
-        eitherClient <- mkGrpcClient target
-        case eitherClient of
-          Right client ->
-            Right <$> callInward client vRequest
-          Left err -> pure $ Left err
+  DiscoverAndCall ValidatedFederatedRequest {..} -> Polysemy.runError . logRemoteErrors $ do
+    target <-
+      Polysemy.mapError (RemoteErrorDiscoveryFailure vDomain) $
+        discoverFederatorWithError vDomain
+    client <- mkGrpcClient target
+    callInward client vRequest
 
 callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
 callInward client request =
@@ -114,10 +112,16 @@ blessedCiphers =
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
 mkGrpcClient ::
-  Members '[Embed IO, TinyLog, Polysemy.Reader TLSSettings] r =>
+  Members
+    '[ Embed IO,
+       TinyLog,
+       Polysemy.Error RemoteError,
+       Polysemy.Reader TLSSettings
+     ]
+    r =>
   SrvTarget ->
-  Sem r (Either RemoteError GrpcClient)
-mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
+  Sem r GrpcClient
+mkGrpcClient target@(SrvTarget host port) = do
   -- grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates
   -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
   --
@@ -151,16 +155,24 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
     . Polysemy.fromEither
     =<< Polysemy.fromExceptionVia (RemoteErrorTLSException target) (createGrpcClient cfg')
 
-logAndReturn :: Members '[TinyLog] r => SrvTarget -> Sem (Polysemy.Error RemoteError ': r) a -> Sem r (Either RemoteError a)
-logAndReturn (SrvTarget host port) action = do
-  eitherClient <- Polysemy.runError action
-  case eitherClient of
-    Left err -> do
-      Log.debug $
-        Log.msg ("Failed to connect to remote federator" :: ByteString)
-          . Log.field "host" host
-          . Log.field "port" port
-          . Log.field "error" (show err)
-      pure ()
-    _ -> pure ()
-  pure eitherClient
+logRemoteErrors ::
+  Members '[Polysemy.Error RemoteError, TinyLog] r =>
+  Sem r x ->
+  Sem r x
+logRemoteErrors action = Polysemy.catch action $ \err -> do
+  Log.debug $
+    Log.msg ("Failed to connect to remote federator" :: ByteString)
+      . addFields err
+  Polysemy.throw err
+  where
+    addFields (RemoteErrorDiscoveryFailure domain err) =
+      Log.field "domain" (domainText domain)
+        . Log.field "error" (show err)
+    addFields (RemoteErrorClientFailure (SrvTarget host port) err) =
+      Log.field "host" host
+        . Log.field "port" port
+        . Log.field "error" (show err)
+    addFields (RemoteErrorTLSException (SrvTarget host port) err) =
+      Log.field "host" host
+        . Log.field "port" port
+        . Log.field "error" (show err)
