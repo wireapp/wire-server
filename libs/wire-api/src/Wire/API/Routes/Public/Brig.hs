@@ -36,11 +36,11 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.ErrorDescription
   ( CanThrow,
     EmptyErrorForLegacyReasons,
-    ErrorDescription,
     HandleNotFound,
     MalformedPrekeys,
     MissingAuth,
     TooManyClients,
+    UserNotFound,
   )
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
@@ -66,7 +66,7 @@ type GetUserVerb =
   MultiVerb
     'GET
     '[JSON]
-    '[ ErrorDescription 404 "user-not-found" "User not found",
+    '[ UserNotFound,
        Respond 200 "User found" UserProfile
      ]
     (Maybe UserProfile)

@@ -240,7 +240,7 @@ phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudge
 
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError (ProfileNotFound _) = StdError userNotFound
+updateProfileError (ProfileNotFound _) = StdError (errorDescriptionToWai userNotFound)
 
 -- WAI Errors -----------------------------------------------------------------
 
@@ -345,9 +345,6 @@ newPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For provid
 
 notFound :: LText -> Wai.Error
 notFound = Wai.mkError status404 "not-found"
-
-userNotFound :: Wai.Error
-userNotFound = notFound "User not found."
 
 invalidCode :: Wai.Error
 invalidCode = Wai.mkError status403 "invalid-code" "Invalid verification code"
