@@ -4,8 +4,6 @@ metadata:
   name: nginx-ingress
   annotations:
     kubernetes.io/ingress.class: "nginx"
-    # nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
-    # nginx.ingress.kubernetes.io/auth-tls-secret: "tlsClientCA"
 spec:
   # This assumes you have created the given cert (see secret.yaml)
   # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates
