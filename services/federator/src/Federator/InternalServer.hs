@@ -28,7 +28,7 @@ import qualified Data.Text.Encoding as Text
 import Data.X509.CertificateStore
 import Federator.App (Federator, runAppT)
 import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable), runFederatorDiscovery)
-import Federator.Env (Env, applog, caStore, dnsResolver, runSettings)
+import Federator.Env (Env, applog, caStore, dnsResolver, runSettings, tls)
 import Federator.Options (RunSettings)
 import Federator.Remote (Remote, RemoteError (..), discoverAndCall, interpretRemote)
 import Federator.Utils.PolysemyServerError (absorbServerError)
@@ -112,7 +112,7 @@ serveOutward env port = do
     transformer action =
       runAppT env
         . runM -- Embed Federator
-        . Polysemy.runReader (view caStore env) -- Reader CertificateStore
+        . Polysemy.runReader (view (tls . caStore) env) -- Reader CertificateStore
         . Polysemy.runReader (view runSettings env) -- Reader RunSettings
         . embedToMonadIO @Federator -- Embed IO
         . absorbServerError

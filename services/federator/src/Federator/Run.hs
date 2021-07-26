@@ -98,6 +98,7 @@ newEnv o _dnsResolver = do
       _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
   _caStore <- mkCAStore _runSettings
+  let _tls = TLSSettings {..}
   return Env {..}
   where
     mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
