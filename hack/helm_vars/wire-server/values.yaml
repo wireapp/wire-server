@@ -242,3 +242,4 @@ federator:
     optSettings:
       federationStrategy:
         allowAll: true
+      useSystemCAStore: false
