@@ -22,4 +22,7 @@ spec:
       mountPath: "/etc/wire/integration"
     - name: "federator-config"
       mountPath: "/etc/wire/federator/conf"
+    # integration tests need access to the CA
+    - name: "federator-ca"
+      mountPath: "/etc/wire/federator/ca"
   restartPolicy: Never
