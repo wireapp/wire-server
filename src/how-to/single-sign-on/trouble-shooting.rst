@@ -53,6 +53,18 @@ No.  This is a feature we never fully implemented.  Details / latest
 updates: https://github.com/wireapp/wire-server/issues/1151
 
 
+Can the SSO feature be disabled for a team?
+-------------------------------------------
+
+No, this is `not implemented <https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215>`_.
+
+
+Can you remove a SAML connection?
+---------------------------------
+
+It is not possible to delete a SAML connection in the Team Settings app, however it can be overwritten with a new connection.
+It is possible do delete a SAML connection directly via the API endpoint ``DELETE /identity-providers/{id}``. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from Team Settings.
+
 If you get an error when returning from your IdP
 ------------------------------------------------
 
