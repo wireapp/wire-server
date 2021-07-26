@@ -30,6 +30,9 @@ config:
     #
     # Using custom CA doesn't automatically disable system CA store, it should
     # be disabled explicitly by setting useSystemCAStore to false.
+    #
+    # A client certificate and corresponding private key can be specified
+    # similarly to a custom CA store.
     useSystemCAStore: true
     federationStrategy:
       allowedDomains: []

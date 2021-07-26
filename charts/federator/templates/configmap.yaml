@@ -43,7 +43,12 @@ data:
       # Filepath to one or more PEM-encoded server certificates to use as a trust
       # store when making grpc requests to remote backends
       {{- if $.Values.remoteCAContents }}
-      remoteCAStore: "/etc/wire/federator/ca/remote-ca.pem"
+      remoteCAStore: "/etc/wire/federator/conf/remote-ca.pem"
+      {{- end }}
+      useSystemCAStore: false
+      {{- if $.Values.clientCertificateContents }}
+      clientCertificate: "/etc/wire/federator/conf/client.pem"
+      clientPrivateKey: "/etc/wire/federator/secrets/client-key.pem"
       {{- end }}
       useSystemCAStore: {{ .useSystemCAStore }}
       federationStrategy:
@@ -61,3 +66,11 @@ data:
         {{- end}}
     {{- end }}
     {{- end }}
+
+  # TODO: add validation and fail early during templating: either contents should be provided; or explicitly system trust store enabled
+  {{- if .Values.remoteCAContents }}
+  remote-ca.pem: {{ .Values.remoteCAContents | quote }}
+  {{- end }}
+  {{- if .Values.clientCertificateContents }}
+  client.pem: {{ .Values.clientCertificateContents | quote }}
+  {{- end }}
