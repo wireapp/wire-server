@@ -32,7 +32,7 @@ module Federator.Run
 where
 
 import qualified Bilge as RPC
-import Control.Exception (throw)
+import Control.Exception (handle, throw)
 import Control.Lens ((^.))
 import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Default (def)
@@ -118,12 +118,15 @@ mkCAStore settings = do
   pure (customCAStore <> systemCAStore)
 
 mkCreds :: RunSettings -> IO (Maybe TLS.Credential)
-mkCreds settings = runMaybeT $ do
+mkCreds settings = handle h . runMaybeT $ do
   cert <- maybe mzero pure (clientCertificate settings)
   key <- maybe mzero pure (clientPrivateKey settings)
   lift (TLS.credentialLoadX509 cert key) >>= \case
     Left e -> lift (throw (InvalidClientCertificate e))
     Right x -> pure x
+  where
+    h :: IOException -> IO a
+    h = throw . InvalidClientCertificate . show
 
 mkTLSSettings :: RunSettings -> IO TLSSettings
 mkTLSSettings settings =

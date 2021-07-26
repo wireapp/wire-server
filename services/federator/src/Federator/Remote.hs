@@ -33,7 +33,7 @@ import Data.String.Conversions (cs)
 import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
-import Federator.Env (TLSSettings, caStore)
+import Federator.Env (TLSSettings, caStore, creds)
 import Federator.Options
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply)
@@ -47,7 +47,6 @@ import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
-import System.IO (hPutStrLn)
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.GRPC.Client
 import Wire.API.Federation.GRPC.Types
@@ -147,9 +146,7 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
                       X509.HashSHA256
                       (X509.defaultHooks {TLS.hookValidateName = validateName})
                       X509.defaultChecks,
-                  TLS.onCertificateRequest = \_ -> do
-                    hPutStrLn stderr "***** CERTIFICATE REQUEST *****"
-                    pure Nothing
+                  TLS.onCertificateRequest = \_ -> pure (settings ^. creds)
                 },
             TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
           }
