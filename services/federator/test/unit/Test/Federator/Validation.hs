@@ -59,7 +59,6 @@ federateWithAllowListSuccess =
   testCase "should give True when target domain is in the list" $
     -- removing evalMock @Remote doesn't seem to work, but why?
     runM . evalMock @Remote @IO $ do
-      -- TODO: helper function for creating RunSettings
       let settings = settingsWithAllowList [Domain "hello.world"]
       res <- Polysemy.runReader settings $ federateWith (Domain "hello.world")
       embed $ assertBool "federating should be allowed" res
