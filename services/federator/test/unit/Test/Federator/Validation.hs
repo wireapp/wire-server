@@ -177,4 +177,4 @@ expectErr expectedType (Left err) =
 
 settingsWithAllowList :: [Domain] -> RunSettings
 settingsWithAllowList domains =
-  RunSettings (AllowList (AllowedDomains domains)) False Nothing
+  defRunSettings {federationStrategy = AllowList (AllowedDomains domains)}

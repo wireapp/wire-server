@@ -34,6 +34,7 @@ where
 import qualified Bilge as RPC
 import Control.Exception (throw)
 import Control.Lens ((^.))
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
@@ -45,6 +46,7 @@ import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
+import qualified Network.TLS as TLS
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import qualified System.Logger.Class as Log
@@ -83,10 +85,12 @@ run opts =
 -------------------------------------------------------------------------------
 -- Environment
 
-newtype InvalidCAStore = InvalidCAStore FilePath
+data FederationSetupError
+  = InvalidCAStore FilePath
+  | InvalidClientCertificate String
   deriving (Show)
 
-instance Exception InvalidCAStore
+instance Exception FederationSetupError
 
 newEnv :: Opts -> DNS.Resolver -> IO Env
 newEnv o _dnsResolver = do
@@ -98,6 +102,7 @@ newEnv o _dnsResolver = do
       _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
   _caStore <- mkCAStore _runSettings
+  _creds <- mkCreds _runSettings
   let _tls = TLSSettings {..}
   return Env {..}
   where
@@ -114,17 +119,21 @@ mkCAStore settings = do
       else pure mempty
   pure (customCAStore <> systemCAStore)
 
+mkCreds :: RunSettings -> IO (Maybe TLS.Credential)
+mkCreds settings = runMaybeT $ do
+  cert <- maybe mzero pure (clientCertificate settings)
+  key <- maybe mzero pure (clientPrivateKey settings)
+  lift (TLS.credentialLoadX509 cert key) >>= \case
+    Left e -> lift (throw (InvalidClientCertificate e))
+    Right x -> pure x
+
 closeEnv :: Env -> IO ()
 closeEnv e = do
   Log.flush $ e ^. applog
   Log.close $ e ^. applog
 
--- | Copied (and adjusted) from brig, do we want to put this somehwere common?
--- FUTUREWORK(federation): review certificate and protocol security setting for this TLS
--- manager
 initHttpManager :: IO HTTP.Manager
 initHttpManager =
-  -- See Note [SSL context]
   HTTP.newManager
     HTTP.defaultManagerSettings
       { HTTP.managerConnCount = 1024,

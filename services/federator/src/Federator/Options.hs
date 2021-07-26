@@ -62,9 +62,21 @@ data RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
     federationStrategy :: FederationStrategy,
     useSystemCAStore :: Bool,
-    remoteCAStore :: Maybe FilePath
+    remoteCAStore :: Maybe FilePath,
+    clientCertificate :: Maybe FilePath,
+    clientPrivateKey :: Maybe FilePath
   }
   deriving (Show, Generic)
+
+defRunSettings :: RunSettings
+defRunSettings =
+  RunSettings
+    { federationStrategy = AllowAll,
+      useSystemCAStore = True,
+      remoteCAStore = Nothing,
+      clientCertificate = Nothing,
+      clientPrivateKey = Nothing
+    }
 
 instance FromJSON RunSettings
 

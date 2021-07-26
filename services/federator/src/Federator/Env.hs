@@ -26,13 +26,17 @@ import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Data.X509.CertificateStore
 import Federator.Options (RunSettings)
+import Imports
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
+import qualified Network.TLS as TLS
 import qualified System.Logger.Class as LC
 import Wire.API.Federation.GRPC.Types
 
 data TLSSettings = TLSSettings
-  {_caStore :: CertificateStore}
+  { _caStore :: CertificateStore,
+    _creds :: Maybe TLS.Credential
+  }
 
 data Env = Env
   { _metrics :: Metrics,
