@@ -62,6 +62,7 @@ Upgrade nginz (#1658)
 * The servant-swagger dependency now points to the current upstream master (#1656).
 * Improved error handling middleware (#1671).
 * Refactor function createUser for readability (#1670)
+* Improved test coverage for error responses (#1680)
 
 ## Federation changes (alpha feature, do not use yet)
 
