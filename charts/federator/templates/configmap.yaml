@@ -45,6 +45,7 @@ data:
       {{- if $.Values.remoteCAContents }}
       remoteCAStore: "/etc/wire/federator/ca/remote-ca.pem"
       {{- end }}
+      useSystemCAStore: {{ .useSystemCAStore }}
       federationStrategy:
         {{- if .federationStrategy.allowAll }}
         allowAll:
