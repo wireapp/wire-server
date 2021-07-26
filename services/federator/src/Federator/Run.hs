@@ -26,7 +26,7 @@ module Federator.Run
 
     -- * App Environment
     newEnv,
-    mkCAStore,
+    mkTLSSettings,
     closeEnv,
   )
 where
@@ -101,9 +101,7 @@ newEnv o _dnsResolver = do
   let _service Brig = mkEndpoint (Opt.brig o)
       _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
-  _caStore <- mkCAStore _runSettings
-  _creds <- mkCreds _runSettings
-  let _tls = TLSSettings {..}
+  _tls <- mkTLSSettings _runSettings
   return Env {..}
   where
     mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
@@ -126,6 +124,12 @@ mkCreds settings = runMaybeT $ do
   lift (TLS.credentialLoadX509 cert key) >>= \case
     Left e -> lift (throw (InvalidClientCertificate e))
     Right x -> pure x
+
+mkTLSSettings :: RunSettings -> IO TLSSettings
+mkTLSSettings settings =
+  TLSSettings
+    <$> mkCAStore settings
+    <*> mkCreds settings
 
 closeEnv :: Env -> IO ()
 closeEnv e = do
