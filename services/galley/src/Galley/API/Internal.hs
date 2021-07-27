@@ -150,7 +150,13 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
     iTeamFeatureStatusClassifiedDomainsGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains
+        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains,
+    iTeamFeatureStatusConferenceCallingPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
+    iTeamFeatureStatusConferenceCallingGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling
   }
   deriving (Generic)
 
@@ -222,7 +228,9 @@ servantSitemap =
         iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
         iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
         iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
-        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal
+        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
+        iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
+        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
       }
 
 iGetTeamFeature ::

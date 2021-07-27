@@ -147,7 +147,8 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
-        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal
+        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
       ]
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -165,7 +166,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
-        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal
+        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
       ]
   where
     getStatus ::
