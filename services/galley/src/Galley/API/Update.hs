@@ -554,9 +554,11 @@ addMembers zusr zcon convId invite = do
           )
           convUsersLHStatus
           then do
+            localDomain <- viewFederationDomain
+            let qconvId = Qualified (Data.convId conv) localDomain
             for_ convUsersLHStatus $ \(mem, status) -> do
               when (consentGiven status == ConsentNotGiven) $
-                void $ removeMember (memId mem) Nothing (Data.convId conv) (memId mem)
+                void $ removeMember (memId mem) Nothing qconvId (memId mem)
           else do
             throwM missingLegalholdConsent
 
@@ -596,10 +598,11 @@ updateOtherMember zusr zcon cid victim update = do
 
 removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
-  handleUpdateResult <$> removeMember zusr (Just zcon) cid victim
+  localDomain <- viewFederationDomain
+  handleUpdateResult <$> removeMember zusr (Just zcon) (Qualified cid localDomain) victim
 
-removeMember :: UserId -> Maybe ConnId -> ConvId -> UserId -> Galley UpdateResult
-removeMember zusr zcon convId victim = do
+removeMember :: UserId -> Maybe ConnId -> Qualified ConvId -> UserId -> Galley UpdateResult
+removeMember zusr zcon (Qualified convId _convDomain) victim = do
   localDomain <- viewFederationDomain
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
