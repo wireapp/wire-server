@@ -240,6 +240,7 @@ getValidateSAMLEmailsInternal =
   where
     -- FUTUREWORK: we may also want to get a default from the server config file here, like for
     -- sso, and team search visibility.
+    -- Use getFeatureStatusWithDefault
     getDef = pure Public.TeamFeatureDisabled
 
 setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
@@ -253,6 +254,7 @@ getDigitalSignaturesInternal =
   where
     -- FUTUREWORK: we may also want to get a default from the server config file here, like for
     -- sso, and team search visibility.
+    -- Use getFeatureStatusWithDefault
     getDef = pure Public.TeamFeatureDisabled
 
 setDigitalSignaturesInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
@@ -290,12 +292,22 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
 
 getFileSharingInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
 getFileSharingInternal =
+  getFeatureStatusWithDefaultConfig @'Public.TeamFeatureFileSharing flagFileSharing
+
+getFeatureStatusWithDefaultConfig ::
+  forall (a :: TeamFeatureName).
+  (KnownTeamFeatureName a, TeamFeatures.HasStatusCol a, FeatureHasNoConfig a) =>
+  Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus a)) ->
+  Maybe TeamId ->
+  Galley (Public.TeamFeatureStatus a)
+getFeatureStatusWithDefaultConfig lens' =
   maybe
     (Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing getDef)
+    (getFeatureStatusNoConfig @a getDef)
   where
+    getDef :: Galley Public.TeamFeatureStatusValue
     getDef =
-      view (options . optSettings . setFeatureFlags . flagFileSharing)
+      view (options . optSettings . setFeatureFlags . lens')
         <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
