@@ -53,15 +53,6 @@ import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
 
-type UserExistsVerb =
-  MultiVerb
-    'HEAD
-    '[]
-    '[ RespondEmpty 404 "User not found",
-       RespondEmpty 200 "User exists"
-     ]
-    Bool
-
 type GetUserVerb =
   MultiVerb
     'GET
@@ -79,23 +70,6 @@ type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
 data Api routes = Api
   { -- See Note [ephemeral user sideeffect]
-    checkUserExistsUnqualified ::
-      routes
-        :- Summary "Check if a user ID exists (deprecated)"
-        :> ZUser
-        :> "users"
-        :> CaptureUserId "uid"
-        :> UserExistsVerb,
-    -- See Note [ephemeral user sideeffect]
-    checkUserExistsQualified ::
-      routes
-        :- Summary "Check if a user ID exists"
-        :> ZUser
-        :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
-        :> UserExistsVerb,
-    -- See Note [ephemeral user sideeffect]
     getUserUnqualified ::
       routes
         :- Summary "Get a user by UserId (deprecated)"
