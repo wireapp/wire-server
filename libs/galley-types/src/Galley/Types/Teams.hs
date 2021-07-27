@@ -30,6 +30,7 @@ module Galley.Types.Teams
     flagFileSharing,
     flagAppLockDefaults,
     flagClassifiedDomains,
+    flagConferenceCalling,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -199,7 +200,8 @@ data FeatureFlags = FeatureFlags
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
     _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
     _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
-    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing))
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing)),
+    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'TeamFeatureConferenceCalling))
   }
   deriving (Eq, Show, Generic)
 
@@ -244,16 +246,18 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
       <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
+      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
         "teamSearchVisibility" .= searchVisibility,
         "appLock" .= appLock,
         "classifiedDomains" .= classifiedDomains,
-        "fileSharing" .= fileSharing
+        "fileSharing" .= fileSharing,
+        "conferenceCalling" .= conferenceCalling
       ]
 
 instance FromJSON FeatureSSO where
@@ -363,6 +367,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureAppLock,
           ViewTeamFeature TeamFeatureFileSharing,
           ViewTeamFeature TeamFeatureClassifiedDomains,
+          ViewTeamFeature TeamFeatureConferenceCalling,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]
