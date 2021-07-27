@@ -54,16 +54,17 @@ Upgrade nginz (#1658)
 
 ## Documentation
 
+* Improved Swagger documentation for endpoints with multiple responses (#1649)
 * A clarification is added about listing your own domain as a classified domain
-  (#1678).
-* Improved Swagger documentation for endpoints with multiple responses (#1649).
+  (#1678)
 
 ## Internal changes
 
 * Improvements to local integration test setup when using buildah and kind (#1667)
-* The servant-swagger dependency now points to the current upstream master (#1656).
-* Improved error handling middleware (#1671).
+* The servant-swagger dependency now points to the current upstream master (#1656)
+* Improved error handling middleware (#1671)
 * Refactor function createUser for readability (#1670)
+* Removed explicit implementation for user HEAD endpoints (#1679)
 * Improved test coverage for error responses (#1680)
 
 ## Federation changes (alpha feature, do not use yet)

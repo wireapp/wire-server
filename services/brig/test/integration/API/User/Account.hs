@@ -62,7 +62,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
-import Imports
+import Imports hiding (head)
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -97,6 +97,10 @@ tests _ at opts p b c ch g aws =
       test' aws p "get /users/:uid - 200" $ testExistingUserUnqualified b,
       test' aws p "get /users/<localdomain>/:uid - 200" $ testExistingUser b,
       test' aws p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
+      test' aws p "head /users/:uid - 200" $ testUserExistsUnqualified b,
+      test' aws p "head /users/:uid - 404" $ testUserDoesNotExistUnqualified b,
+      test' aws p "head /users/:domain/:uid - 200" $ testUserExists b,
+      test' aws p "head /users/:domain/:uid - 404" $ testUserDoesNotExist b,
       test' aws p "post /list-users - 200" $ testMultipleUsers b,
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
       test' aws p "put /self/email - 2xx" $ testEmailUpdate b aws,
@@ -496,6 +500,58 @@ testExistingUser brig = do
                 b <- responseBody r
                 b ^? key "id" >>= maybeFromJSON
             )
+
+testUserExistsUnqualified :: Brig -> Http ()
+testUserExistsUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExistUnqualified :: Brig -> Http ()
+testUserDoesNotExistUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
+
+testUserExists :: Brig -> Http ()
+testUserExists brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain quser), toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExist :: Brig -> Http ()
+testUserDoesNotExist brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain qself), toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
 
 testMultipleUsersUnqualified :: Brig -> Http ()
 testMultipleUsersUnqualified brig = do

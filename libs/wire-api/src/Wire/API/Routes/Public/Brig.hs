@@ -34,7 +34,6 @@ import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.ErrorDescription (ClientNotFound)
-import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.User
 import Wire.API.User.Client
@@ -44,17 +43,6 @@ import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
-
-type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
-
-type UserExistVerb =
-  MultiVerb
-    'HEAD
-    '[]
-    '[ RespondEmpty 404 "User not found",
-       RespondEmpty 200 "User exists"
-     ]
-    Bool
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -71,23 +59,6 @@ data Api routes = Api
     -- currently not possible due to this issue:
     -- https://github.com/haskell-servant/servant/issues/1369
 
-    -- See Note [ephemeral user sideeffect]
-    checkUserExistsUnqualified ::
-      routes
-        :- Summary "Check if a user ID exists (deprecated)"
-        :> ZUser
-        :> "users"
-        :> CaptureUserId "uid"
-        :> UserExistVerb,
-    -- See Note [ephemeral user sideeffect]
-    checkUserExistsQualified ::
-      routes
-        :- Summary "Check if a user ID exists"
-        :> ZUser
-        :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
-        :> UserExistVerb,
     -- See Note [ephemeral user sideeffect]
     --
     -- See Note [document responses]
