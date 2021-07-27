@@ -197,7 +197,10 @@ setFeatureStatusNoConfig ::
   Galley (Public.TeamFeatureStatus a)
 setFeatureStatusNoConfig applyState tid status = do
   applyState (Public.tfwoStatus status) tid
-  TeamFeatures.setFeatureStatusNoConfig @a tid status
+  newStatus <- TeamFeatures.setFeatureStatusNoConfig @a tid status
+  pushFeatureConfigEvent tid $
+    Event.Event Event.Update (Public.knownTeamFeatureName @a) (EdFeatureWithoutConfigChanged newStatus)
+  pure newStatus
 
 getSSOStatusInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 getSSOStatusInternal =
@@ -311,9 +314,7 @@ getFeatureStatusWithDefaultConfig lens' =
         <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
-setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \status tid -> do
-  let event = Event.Event Event.Update Public.TeamFeatureFileSharing (EdFeatureWithoutConfigChanged (Public.TeamFeatureStatusNoConfig status))
-  pushFeatureConfigEvent tid event
+setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_status _tid -> pure ()
 
 getAppLockInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal mbtid = do
