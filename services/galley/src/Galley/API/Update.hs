@@ -114,6 +114,7 @@ import Wire.API.ErrorDescription (codeNotFound, convNotFound, unknownClient)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -542,7 +543,8 @@ addMembers zusr zcon convId invite = do
             let qconvId = Qualified (Data.convId conv) localDomain
             for_ convUsersLHStatus $ \(mem, status) -> do
               when (consentGiven status == ConsentNotGiven) $
-                void $ removeMember (memId mem) Nothing qconvId (memId mem)
+                let qvictim = Qualified (memId mem) localDomain
+                 in void $ removeMember (memId mem) Nothing qconvId qvictim
           else do
             throwM missingLegalholdConsent
 
@@ -583,11 +585,13 @@ updateOtherMember zusr zcon cid victim update = do
 removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
   localDomain <- viewFederationDomain
-  handleUpdateResult <$> removeMember zusr (Just zcon) (Qualified cid localDomain) victim
+  handleUpdateResult <$> removeMember zusr (Just zcon) (Qualified cid localDomain) (Qualified victim localDomain)
 
-removeMember :: UserId -> Maybe ConnId -> Qualified ConvId -> UserId -> Galley UpdateResult
-removeMember zusr zcon (Qualified convId _convDomain) victim = do
+removeMember :: UserId -> Maybe ConnId -> Qualified ConvId -> Qualified UserId -> Galley UpdateResult
+removeMember zusr zcon (Qualified convId convDomain) victim = do
   localDomain <- viewFederationDomain
+  when (localDomain /= convDomain) $
+    throwM federationNotImplemented
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let (bots, users) = botsAndUsers (Data.convLocalMembers conv)
@@ -595,10 +599,10 @@ removeMember zusr zcon (Qualified convId _convDomain) victim = do
   case Data.convTeam conv of
     Nothing -> pure ()
     Just ti -> teamConvChecks ti
-  if victim `isMember` users
+  if qUnqualified victim `isMember` users
     then do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
-      event <- Data.removeLocalMembers localDomain conv zusr (singleton victim)
+      event <- Data.removeLocalMembers localDomain conv zusr (singleton (qUnqualified victim))
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
       for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
@@ -609,7 +613,7 @@ removeMember zusr zcon (Qualified convId _convDomain) victim = do
   where
     genConvChecks conv usrs = do
       ensureGroupConv conv
-      if zusr == victim
+      if zusr == qUnqualified victim
         then ensureActionAllowed LeaveConversation =<< getSelfMember zusr usrs
         else ensureActionAllowed RemoveConversationMember =<< getSelfMember zusr usrs
     teamConvChecks tid = do
