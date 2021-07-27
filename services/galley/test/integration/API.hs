@@ -1851,7 +1851,9 @@ postMembersOk2 = do
   connectUsers alice (list1 bob [chuck])
   connectUsers bob (singleton chuck)
   conv <- decodeConvId <$> postConv alice [bob, chuck] Nothing [] Nothing Nothing
-  postMembers bob (singleton chuck) conv !!! const 204 === statusCode
+  postMembers bob (singleton chuck) conv !!! do
+    const 204 === statusCode
+    const Nothing === responseBody
   chuck' <- responseJsonUnsafe <$> (getSelfMember chuck conv <!! const 200 === statusCode)
   liftIO $
     assertEqual "wrong self member" (Just chuck) (memId <$> chuck')

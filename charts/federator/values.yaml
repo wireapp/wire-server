@@ -20,5 +20,16 @@ config:
   logLevel: Debug
   logFormat: JSON
   optSettings:
-    setFederationStrategy:
+    # Defaults to using system CA store in the federator image for making
+    # connections to remote federators.
+    # A custom CA certificate can be provided by specifying
+    #   federator.remoteCAContents
+    # e.g. from a pem file myca.pem:
+    #   { echo "federator:"; echo "  remoteCAContents: |"; sed -e 's/^/    /' myca.pem; } > myca.yaml
+    # then use '-f myca.yaml' as additional flag to your helm commands.
+    #
+    # Using custom CA doesn't automatically disable system CA store, it should
+    # be disabled explicitly by setting useSystemCAStore to false.
+    useSystemCAStore: true
+    federationStrategy:
       allowedDomains: []

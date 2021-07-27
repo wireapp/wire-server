@@ -15,14 +15,20 @@ logLevel: Debug
 logNetStrings: false
 
 optSettings:
+  # Filepath to one or more PEM-encoded server certificates to use as a trust
+  # store when making grpc requests to remote backends
+  remoteCAStore: "test/resources/integration-ca.pem"
+
   # Would you like to federate with every wire-server installation ?
   #
-  setFederationStrategy:
+  federationStrategy:
     allowAll:
   #
   # or only with a select set of other wire-server installations?
   #
-  # setFederationStrategy:
+  # federationStrategy:
   #   allowedDomains:
   #     - wire.com
   #     - example.com
+
+  useSystemCAStore: true

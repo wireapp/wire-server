@@ -35,7 +35,7 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
-import Data.Qualified (Qualified (qDomain))
+import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Notification hiding (target)
@@ -59,8 +59,10 @@ tests _cl _at conf p b c g =
       test p "handles/query" $ testHandleQuery conf b,
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
       test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
-      test p "GET /users/handles/<handle>" $ testGetUserByUnqualifiedHandle b,
+      test p "GET /users/handles/<handle> 200" $ testGetUserByUnqualifiedHandle b,
+      test p "GET /users/handles/<handle> 404" $ testGetUserByUnqualifiedHandleFailure b,
       test p "GET /users/by-handle/<domain>/<handle> : 200" $ testGetUserByQualifiedHandle b,
+      test p "GET /users/by-handle/<domain>/<handle> : 404" $ testGetUserByQualifiedHandleFailure b,
       test p "GET /users/by-handle/<domain>/<handle> : no federation" $ testGetUserByQualifiedHandleNoFederation conf b
     ]
 
@@ -234,6 +236,19 @@ testGetUserByUnqualifiedHandle brig = do
       const 200 === statusCode
       const (Right (UserHandleInfo (userQualifiedId user))) === responseJsonEither
 
+testGetUserByUnqualifiedHandleFailure :: Brig -> Http ()
+testGetUserByUnqualifiedHandleFailure brig = do
+  handle <- randomHandle
+  requestingUser <- randomId
+  get
+    ( brig
+        . paths ["users", "handles", toByteString' handle]
+        . zUser requestingUser
+    )
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
 testGetUserByQualifiedHandle :: Brig -> Http ()
 testGetUserByQualifiedHandle brig = do
   user <- randomUser brig
@@ -262,6 +277,24 @@ testGetUserByQualifiedHandle brig = do
       "Email shouldn't be shown to unconnected user"
       Nothing
       (profileEmail profileForUnconnectedUser)
+
+testGetUserByQualifiedHandleFailure :: Brig -> Http ()
+testGetUserByQualifiedHandleFailure brig = do
+  handle <- randomHandle
+  qself <- userQualifiedId <$> randomUser brig
+  get
+    ( brig
+        . paths
+          [ "users",
+            "by-handle",
+            toByteString' (qDomain qself),
+            toByteString' handle
+          ]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testGetUserByQualifiedHandleNoFederation :: Opt.Opts -> Brig -> Http ()
 testGetUserByQualifiedHandleNoFederation opt brig = do

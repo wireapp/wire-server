@@ -33,7 +33,15 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.ErrorDescription (ClientNotFound)
+import Wire.API.ErrorDescription
+  ( CanThrow,
+    EmptyErrorForLegacyReasons,
+    HandleNotFound,
+    MalformedPrekeys,
+    MissingAuth,
+    TooManyClients,
+    UserNotFound,
+  )
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.Routes.QualifiedCapture
@@ -46,16 +54,14 @@ import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
 
-type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
-
-type UserExistVerb =
+type GetUserVerb =
   MultiVerb
-    'HEAD
-    '[]
-    '[ RespondEmpty 404 "User not found",
-       RespondEmpty 200 "User exists"
+    'GET
+    '[JSON]
+    '[ UserNotFound,
+       Respond 200 "User found" UserProfile
      ]
-    Bool
+    (Maybe UserProfile)
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -65,68 +71,29 @@ type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
-type GetClientResponse = [WithStatus 200 Client, ClientNotFound]
-
 data Api routes = Api
-  { -- Note [document responses]
-    --
-    -- Ideally we want to document responses with UVerb and swagger, but this is
-    -- currently not possible due to this issue:
-    -- https://github.com/haskell-servant/servant/issues/1369
-
-    -- See Note [ephemeral user sideeffect]
-    checkUserExistsUnqualified ::
-      routes
-        :- Summary "Check if a user ID exists (deprecated)"
-        :> ZUser
-        :> "users"
-        :> CaptureUserId "uid"
-        :> UserExistVerb,
-    -- See Note [ephemeral user sideeffect]
-    checkUserExistsQualified ::
-      routes
-        :- Summary "Check if a user ID exists"
-        :> ZUser
-        :> "users"
-        :> QualifiedCaptureUserId "uid"
-        :> UserExistVerb,
-    -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User" Doc.end
-    --   Doc.errorResponse userNotFound
+  { -- See Note [ephemeral user sideeffect]
     getUserUnqualified ::
       routes
         :- Summary "Get a user by UserId (deprecated)"
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> Get '[JSON] UserProfile,
+        :> GetUserVerb,
     -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User" Doc.end
-    --   Doc.errorResponse userNotFound
     getUserQualified ::
       routes
         :- Summary "Get a user by Domain and UserId"
         :> ZUser
         :> "users"
         :> QualifiedCaptureUserId "uid"
-        :> Get '[JSON] UserProfile,
+        :> GetUserVerb,
     getSelf ::
       routes
         :- Summary "Get your own profile"
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile,
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.returns (Doc.ref modelUserHandleInfo)
-    --   Doc.response 200 "Handle info" Doc.end
-    --   Doc.errorResponse handleNotFound
     getHandleInfoUnqualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
@@ -134,20 +101,27 @@ data Api routes = Api
         :> "users"
         :> "handles"
         :> Capture' '[Description "The user handle"] "handle" Handle
-        :> Get '[JSON] UserHandleInfo,
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.returns (Doc.ref modelUserHandleInfo)
-    --   Doc.response 200 "Handle info" Doc.end
-    --   Doc.errorResponse handleNotFound
-    getUserByHandleQualfied ::
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ HandleNotFound,
+                Respond 200 "User found" UserHandleInfo
+              ]
+             (Maybe UserHandleInfo),
+    getUserByHandleQualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
         :> ZUser
         :> "users"
         :> "by-handle"
         :> QualifiedCapture' '[Description "The user handle"] "handle" Handle
-        :> Get '[JSON] UserProfile,
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ HandleNotFound,
+                Respond 200 "User found" UserProfile
+              ]
+             (Maybe UserProfile),
     -- See Note [ephemeral user sideeffect]
     listUsersByUnqualifiedIdsOrHandles ::
       routes
@@ -275,20 +249,20 @@ data Api routes = Api
     -- This endpoint can lead to the following events being sent:
     -- - ClientAdded event to self
     -- - ClientRemoved event to self, if removing old clients due to max number
-    --   Doc.errorResponse tooManyClients
-    --   Doc.errorResponse missingAuthError
-    --   Doc.errorResponse malformedPrekeys
     addClient ::
       routes :- Summary "Register a new client"
+        :> CanThrow TooManyClients
+        :> CanThrow MissingAuth
+        :> CanThrow MalformedPrekeys
         :> ZUser
         :> ZConn
         :> "clients"
         :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
         :> Verb 'POST 201 '[JSON] NewClientResponse,
-    --   Doc.errorResponse malformedPrekeys
     updateClient ::
       routes :- Summary "Update a registered client"
+        :> CanThrow MalformedPrekeys
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"
@@ -310,11 +284,17 @@ data Api routes = Api
         :> "clients"
         :> Get '[JSON] [Client],
     getClient ::
-      routes :- Summary "Get a register client by ID"
+      routes :- Summary "Get a registered client by ID"
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"
-        :> UVerb 'GET '[JSON] GetClientResponse,
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                Respond 200 "Client found" Client
+              ]
+             (Maybe Client),
     getClientCapabilities ::
       routes :- Summary "Read back what the client has been posting about itself"
         :> ZUser

@@ -3,6 +3,8 @@ module Wire.API.ErrorDescription where
 import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as LBS
+import Data.SOP (I (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
 import qualified Data.Swagger as Swagger
@@ -10,9 +12,12 @@ import qualified Data.Text as Text
 import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, contentType, respond)
-import Servant.API.Status (KnownStatus)
+import Servant hiding (Handler, addHeader, contentType, respond)
+import Servant.API (contentType)
+import Servant.API.ContentTypes (AllMimeRender, AllMimeUnrender)
+import Servant.API.Status (KnownStatus, statusVal)
 import Servant.Swagger.Internal
+import Wire.API.Routes.MultiVerb
 
 -- This can be added to an endpoint to document a possible failure
 -- case outside its return type (usually through an exception).
@@ -154,6 +159,97 @@ instance
 instance KnownStatus status => HasStatus (ErrorDescription status label desc) where
   type StatusOf (ErrorDescription status label desc) = status
 
+-- * MultiVerb errors
+
+type RespondWithErrorDescription s label desc =
+  Respond s desc (ErrorDescription s label desc)
+
+instance
+  ( AllMimeRender cs (ErrorDescription s label desc),
+    AllMimeUnrender cs (ErrorDescription s label desc),
+    KnownStatus s,
+    KnownSymbol label,
+    KnownSymbol desc
+  ) =>
+  IsResponse cs (ErrorDescription s label desc)
+  where
+  type ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
+  type ResponseStatus (ErrorDescription s label desc) = s
+
+  responseRender = responseRender @cs @(RespondWithErrorDescription s label desc)
+  responseUnrender = responseUnrender @cs @(RespondWithErrorDescription s label desc)
+
+instance
+  (KnownStatus s, KnownSymbol label, KnownSymbol desc) =>
+  IsSwaggerResponse (ErrorDescription s label desc)
+  where
+  responseSwagger = responseSwagger @(RespondWithErrorDescription s label desc)
+
+instance
+  (ResponseType r ~ a, KnownSymbol desc) =>
+  AsUnion
+    '[ErrorDescription s label desc, r]
+    (Maybe a)
+  where
+  toUnion Nothing = Z (I mkErrorDescription)
+  toUnion (Just x) = S (Z (I x))
+  fromUnion (Z (I _)) = Nothing
+  fromUnion (S (Z (I x))) = Just x
+  fromUnion (S (S x)) = case x of
+
+-- * Empty errors for legacy reasons
+
+data EmptyErrorForLegacyReasons s desc
+
+instance
+  KnownStatus s =>
+  IsResponse cs (EmptyErrorForLegacyReasons s desc)
+  where
+  type ResponseType (EmptyErrorForLegacyReasons s desc) = ()
+  type ResponseStatus (EmptyErrorForLegacyReasons s desc) = s
+
+  responseRender _ () =
+    pure $
+      roAddContentType
+        (contentType (Proxy @PlainText))
+        (RenderOutput (statusVal (Proxy @s)) mempty mempty)
+
+  responseUnrender _ output =
+    guard
+      ( LBS.null (roBody output)
+          && roStatus output == statusVal (Proxy @s)
+      )
+
+instance
+  (KnownStatus s, KnownSymbol desc) =>
+  IsSwaggerResponse (EmptyErrorForLegacyReasons s desc)
+  where
+  responseSwagger =
+    pure $
+      ResponseSwagger
+        { rsDescription =
+            Text.pack (symbolVal (Proxy @desc)) <> "\n\n"
+              <> "**Note**: This error has an empty body for legacy reasons",
+          rsStatus = statusVal (Proxy @s),
+          rsHeaders = mempty,
+          rsSchema = Nothing
+        }
+
+instance
+  ( ResponseType r ~ a,
+    KnownStatus s,
+    KnownSymbol desc
+  ) =>
+  AsUnion
+    '[EmptyErrorForLegacyReasons s desc, r]
+    (Maybe a)
+  where
+  toUnion Nothing = Z (I ())
+  toUnion (Just x) = S (Z (I x))
+  fromUnion (Z (I ())) = Nothing
+  fromUnion (S (Z (I x))) = Just x
+  fromUnion (S (S x)) = case x of
+
 -- * Errors
 
 mkErrorDescription :: forall code label desc. KnownSymbol desc => ErrorDescription code label desc
@@ -207,3 +303,32 @@ type ConvAccessDenied = ErrorDescription 403 "access-denied" "Conversation acces
 
 convAccessDenied :: ConvAccessDenied
 convAccessDenied = mkErrorDescription
+
+type UserNotFound = ErrorDescription 404 "not-found" "User not found"
+
+userNotFound :: UserNotFound
+userNotFound = mkErrorDescription
+
+type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
+
+handleNotFound :: HandleNotFound
+handleNotFound = mkErrorDescription
+
+type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
+
+tooManyClients :: TooManyClients
+tooManyClients = mkErrorDescription
+
+type MissingAuth =
+  ErrorDescription
+    403
+    "missing-auth"
+    "Re-authentication via password required"
+
+missingAuthError :: MissingAuth
+missingAuthError = mkErrorDescription
+
+type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys uploaded"
+
+malformedPrekeys :: MalformedPrekeys
+malformedPrekeys = mkErrorDescription

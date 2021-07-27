@@ -25,11 +25,12 @@ import Data.Domain (domainText)
 import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.X509.CertificateStore
 import Federator.App (Federator, runAppT)
 import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable), runFederatorDiscovery)
-import Federator.Env (Env, applog, dnsResolver, runSettings)
+import Federator.Env (Env, applog, caStore, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
-import Federator.Remote (Remote, RemoteError (RemoteErrorClientFailure, RemoteErrorDiscoveryFailure), discoverAndCall, interpretRemote)
+import Federator.Remote (Remote, RemoteError (..), discoverAndCall, interpretRemote)
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Federator.Validation
 import Imports
@@ -73,14 +74,16 @@ mkRemoteResponse reply =
       mkOutwardErr RemoteFederatorError "grpc-error-string" ("error=" <> Text.pack grpcErr)
     Right (GRpcClientError clientErr) ->
       mkOutwardErr RemoteFederatorError "grpc-client-error" ("error=" <> Text.pack (show clientErr))
-    Left (RemoteErrorDiscoveryFailure err domain) ->
+    Left (RemoteErrorDiscoveryFailure domain err) ->
       case err of
         LookupErrorSrvNotAvailable _srvDomain ->
           mkOutwardErr RemoteNotFound "srv-record-not-found" ("domain=" <> domainText domain)
         LookupErrorDNSError dnsErr ->
-          mkOutwardErr DiscoveryFailed "srv-lookup-dns-error" ("domain=" <> domainText domain <> "error=" <> Text.decodeUtf8 dnsErr)
-    Left (RemoteErrorClientFailure cltErr srvTarget) ->
-      mkOutwardErr RemoteFederatorError "cannot-connect-to-remote-federator" ("target=" <> Text.pack (show srvTarget) <> "error=" <> Text.pack (show cltErr))
+          mkOutwardErr DiscoveryFailed "srv-lookup-dns-error" ("domain=" <> domainText domain <> "; error=" <> Text.decodeUtf8 dnsErr)
+    Left (RemoteErrorClientFailure srvTarget cltErr) ->
+      mkOutwardErr RemoteFederatorError "cannot-connect-to-remote-federator" ("target=" <> Text.pack (show srvTarget) <> "; error=" <> Text.pack (show cltErr))
+    Left (RemoteErrorTLSException srvTarget exc) ->
+      mkOutwardErr TLSFailure "tls-failure" ("Failed to establish TLS session with remote:  target=" <> Text.pack (show srvTarget) <> "; exception=" <> Text.pack (show exc))
 
 mkOutwardErr :: OutwardErrorType -> Text -> Text -> OutwardResponse
 mkOutwardErr typ label msg = OutwardResponseError $ OutwardError typ (Just $ ErrorPayload label msg)
@@ -92,10 +95,24 @@ serveOutward :: Env -> Int -> IO ()
 serveOutward env port = do
   runGRpcAppTrans msgProtoBuf port transformer outward
   where
-    transformer :: Sem '[Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Embed IO, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
+    transformer ::
+      Sem
+        '[ Remote,
+           DiscoverFederator,
+           TinyLog,
+           DNSLookup,
+           Polysemy.Error ServerError,
+           Embed IO,
+           Polysemy.Reader RunSettings,
+           Polysemy.Reader CertificateStore,
+           Embed Federator
+         ]
+        a ->
+      ServerErrorIO a
     transformer action =
       runAppT env
         . runM -- Embed Federator
+        . Polysemy.runReader (view caStore env) -- Reader CertificateStore
         . Polysemy.runReader (view runSettings env) -- Reader RunSettings
         . embedToMonadIO @Federator -- Embed IO
         . absorbServerError

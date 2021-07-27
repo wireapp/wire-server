@@ -35,15 +35,12 @@ module Galley.API.Update
     updateConversationMessageTimerH,
 
     -- * Managing Members
-    Galley.API.Update.addMembersH,
-    Galley.API.Update.addMembersQH,
+    addMembersH,
+    addMembers,
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
     removeMember,
-
-    -- * Servant
-    UpdateResponses,
 
     -- * Talking
     postProteusMessage,
@@ -106,8 +103,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import qualified Servant
-import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
@@ -119,7 +114,7 @@ import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Message as Public
-import Wire.API.Routes.Public.Galley (UpdateResponses)
+import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -162,10 +157,6 @@ unblockConv usr conn cnv = do
   conversationView usr conv'
 
 -- conversation updates
-
-data UpdateResult
-  = Updated Public.Event
-  | Unchanged
 
 handleUpdateResult :: UpdateResult -> Response
 handleUpdateResult = \case
@@ -471,13 +462,6 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   domain <- viewFederationDomain
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
-
-addMembersQH :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (Union UpdateResponses)
-addMembersQH zusr zcon convId invite = mapUpdateToServant =<< addMembers zusr zcon convId invite
-
-mapUpdateToServant :: UpdateResult -> Galley (Union UpdateResponses)
-mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
-mapUpdateToServant Unchanged = Servant.respond NoContent
 
 -- FUTUREWORK(federation): we need the following checks/implementation:
 --  - (1) [DONE] Remote qualified users must exist before they can be added (a

@@ -45,6 +45,7 @@ Upgrade nginz (#1658)
 * Extend feature config API (#1658)
 * `fileSharing` feature config (#1652, #1654, #1655)
 * Add user_id to csv export (#1663)
+* Validate server TLS certificate between federators (#1662)
 
 ## Bug fixes and other updates
 
@@ -54,14 +55,19 @@ Upgrade nginz (#1658)
 
 ## Documentation
 
-* Improved Swagger documentation for endpoints with multiple responses (#1649).
+* Improved Swagger documentation for endpoints with multiple responses (#1649, #1645)
+* A clarification is added about listing your own domain as a classified domain
+  (#1678)
 
 ## Internal changes
 
 * Improvements to local integration test setup when using buildah and kind (#1667)
-* The servant-swagger dependency now points to the current upstream master (#1656).
+* The servant-swagger dependency now points to the current upstream master (#1656)
+* Improved error handling middleware (#1671)
 * Refactor function createUser for readability (#1670)
-* Added a `QualifiedCapture` type to Servant for qualified paths (#1669).
+* Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
+* Removed explicit implementation for user HEAD endpoints (#1679)
+* Improved test coverage for error responses (#1680)
 
 ## Federation changes (alpha feature, do not use yet)
 
@@ -118,7 +124,6 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
-* Document more error responses (#1645).
 
 ## Bug fixes and other updates
 
