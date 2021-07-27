@@ -55,7 +55,7 @@ Upgrade nginz (#1658)
 
 ## Documentation
 
-* Improved Swagger documentation for endpoints with multiple responses (#1649)
+* Improved Swagger documentation for endpoints with multiple responses (#1649, #1645)
 * A clarification is added about listing your own domain as a classified domain
   (#1678)
 
@@ -123,7 +123,6 @@ This release requires a manual change in your galley configuration: `settings.co
 ## Documentation
 
 * Fix validation errors in Swagger documentation (#1625).
-* Document more error responses (#1645).
 
 ## Bug fixes and other updates
 

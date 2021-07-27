@@ -27,31 +27,42 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Proxy
 import Data.String.Conversions (cs)
+import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
+import GHC.TypeLits
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
+import Servant.API.Status
+import Wire.API.ErrorDescription
 import Wire.API.Federation.Client (FederationError (..))
 import Wire.API.Federation.Error
+
+errorDescriptionToWai ::
+  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  (KnownStatus code, KnownSymbol lbl) =>
+  ErrorDescription code lbl desc ->
+  Wai.Error
+errorDescriptionToWai (ErrorDescription msg) =
+  Wai.mkError
+    (statusVal (Proxy @code))
+    (LT.pack (symbolVal (Proxy @lbl)))
+    (LT.fromStrict msg)
 
 data Error where
   StdError :: !Wai.Error -> Error
   RichError :: ToJSON a => !Wai.Error -> !a -> [Header] -> Error
-  -- | This is to support clients that rely on the error body to not have the
-  -- usual "code", "message" and "label" fields.
-  EmptyErrorForLegacyReasons :: Status -> Error
 
 errorLabel :: Error -> LText
 errorLabel (StdError e) = Wai.label e
 errorLabel (RichError e _ _) = Wai.label e
-errorLabel (EmptyErrorForLegacyReasons _) = "empty for legacy reasons"
 
 errorStatus :: Error -> Status
 errorStatus (StdError e) = Wai.code e
 errorStatus (RichError e _ _) = Wai.code e
-errorStatus (EmptyErrorForLegacyReasons st) = st
 
 throwStd :: MonadError Error m => Wai.Error -> m a
 throwStd = throwError . StdError
@@ -59,22 +70,24 @@ throwStd = throwError . StdError
 throwRich :: (MonadError Error m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
 throwRich e x h = throwError (RichError e x h)
 
-throwEmptyForLegacyReasons :: MonadError Error m => Status -> m a
-throwEmptyForLegacyReasons = throwError . EmptyErrorForLegacyReasons
+throwErrorDescription ::
+  (KnownStatus code, KnownSymbol lbl, MonadError Error m) =>
+  ErrorDescription code lbl desc ->
+  m a
+throwErrorDescription = throwStd . errorDescriptionToWai
 
 instance ToJSON Error where
   toJSON (StdError e) = toJSON e
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of
     (Object o1, Object o2) -> Object (HashMap.union o1 o2)
     (j, _) -> j
-  toJSON (EmptyErrorForLegacyReasons _) = String ""
 
 -- Error Mapping ----------------------------------------------------------
 
 connError :: ConnectionError -> Error
 connError TooManyConnections {} = StdError connectionLimitReached
 connError InvalidTransition {} = StdError invalidTransition
-connError NotConnected {} = StdError notConnected
+connError NotConnected {} = StdError (errorDescriptionToWai notConnected)
 connError InvalidUser {} = StdError invalidUser
 connError ConnectNoIdentity {} = StdError (noIdentity 0)
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
@@ -173,7 +186,7 @@ authError AuthEphemeral = StdError accountEphemeral
 authError AuthPendingInvitation = StdError accountPending
 
 reauthError :: ReAuthError -> Error
-reauthError ReAuthMissingPassword = StdError missingAuthError
+reauthError ReAuthMissingPassword = StdError (errorDescriptionToWai missingAuthError)
 reauthError (ReAuthError e) = authError e
 
 zauthError :: ZAuth.Failure -> Error
@@ -183,7 +196,7 @@ zauthError ZAuth.Invalid = StdError authTokenInvalid
 zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
 clientError :: ClientError -> Error
-clientError ClientNotFound = StdError clientNotFound
+clientError ClientNotFound = StdError (errorDescriptionToWai clientNotFound)
 clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
@@ -204,16 +217,16 @@ propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
 
 clientDataError :: ClientDataError -> Error
-clientDataError TooManyClients = StdError tooManyClients
+clientDataError TooManyClients = StdError (errorDescriptionToWai tooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
-clientDataError ClientMissingAuth = StdError missingAuthError
-clientDataError MalformedPrekeys = StdError malformedPrekeys
+clientDataError ClientMissingAuth = StdError (errorDescriptionToWai missingAuthError)
+clientDataError MalformedPrekeys = StdError (errorDescriptionToWai malformedPrekeys)
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError invalidUser
 deleteUserError DeleteUserInvalidCode = StdError invalidCode
 deleteUserError DeleteUserInvalidPassword = StdError badCredentials
-deleteUserError DeleteUserMissingPassword = StdError missingAuthError
+deleteUserError DeleteUserMissingPassword = StdError (errorDescriptionToWai missingAuthError)
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
 deleteUserError DeleteUserOwnerDeletingSelf = StdError ownerDeletingSelf
 
@@ -227,7 +240,7 @@ phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudge
 
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError (ProfileNotFound _) = StdError userNotFound
+updateProfileError (ProfileNotFound _) = StdError (errorDescriptionToWai userNotFound)
 
 -- WAI Errors -----------------------------------------------------------------
 
@@ -243,18 +256,6 @@ propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The pr
 connectionLimitReached :: Wai.Error
 connectionLimitReached = Wai.mkError status403 "connection-limit" "Too many sent/accepted connections."
 
-missingAuthError :: Wai.Error
-missingAuthError = Wai.mkError status403 "missing-auth" "Re-authentication via password required."
-
-clientNotFound :: Wai.Error
-clientNotFound = Wai.mkError status404 "client-not-found" "Client not found"
-
-tooManyClients :: Wai.Error
-tooManyClients = Wai.mkError status403 "too-many-clients" "Too many clients"
-
-malformedPrekeys :: Wai.Error
-malformedPrekeys = Wai.mkError status400 "bad-request" "Malformed prekeys uploaded."
-
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
 
@@ -263,9 +264,6 @@ invalidUser = Wai.mkError status400 "invalid-user" "Invalid user."
 
 invalidTransition :: Wai.Error
 invalidTransition = Wai.mkError status403 "bad-conn-update" "Invalid status transition."
-
-notConnected :: Wai.Error
-notConnected = Wai.mkError status403 "no-connection" "No connection exists between users."
 
 noIdentity :: Int -> Wai.Error
 noIdentity i = Wai.mkError status403 "no-identity" ("The user has no verified identity (email or phone number). [code: " <> cs (show i) <> "]")
@@ -347,12 +345,6 @@ newPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For provid
 
 notFound :: LText -> Wai.Error
 notFound = Wai.mkError status404 "not-found"
-
-userNotFound :: Wai.Error
-userNotFound = notFound "User not found."
-
-handleNotFound :: Wai.Error
-handleNotFound = notFound "Handle not found."
 
 invalidCode :: Wai.Error
 invalidCode = Wai.mkError status403 "invalid-code" "Invalid verification code"
