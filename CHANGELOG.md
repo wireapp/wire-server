@@ -54,7 +54,9 @@ Upgrade nginz (#1658)
 
 ## Documentation
 
-* Improved Swagger documentation for endpoints with multiple responses (#1649, #1645).
+* Improved Swagger documentation for endpoints with multiple responses (#1649, #1645)
+* A clarification is added about listing your own domain as a classified domain
+  (#1678)
 
 ## Internal changes
 
