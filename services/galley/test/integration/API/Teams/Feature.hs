@@ -67,7 +67,8 @@ tests s =
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
-      test s "FileSharing - event" $ testSimpleFlagEvent @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.TeamFeatureDisabled
+      test s "FileSharing - event" $ testSimpleFlagEvent @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.TeamFeatureDisabled,
+      test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled
     ]
 
 testSSO :: TestM ()
@@ -366,6 +367,10 @@ testSimpleFlag defaultValue = do
   getFlag otherValue
   getFeatureConfig otherValue
   getFlagInternal otherValue
+
+  -- Clean up
+  setFlagInternal defaultValue
+  getFlag defaultValue
 
 -- | Call 'GET /teams/:tid/features' and check if all features are there
 testAllFeatures :: TestM ()
