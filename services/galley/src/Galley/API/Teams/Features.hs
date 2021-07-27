@@ -36,6 +36,8 @@ module Galley.API.Teams.Features
     setAppLockInternal,
     getFileSharingInternal,
     setFileSharingInternal,
+    getConferenceCallingInternal,
+    setConferenceCallingInternal,
     DoAuth (..),
   )
 where
@@ -65,7 +67,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
 import qualified Wire.API.Event.FeatureConfig as Event
-import Wire.API.Team.Feature (AllFeatureConfigs (..))
+import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
 data DoAuth = DoAuth UserId | DontDoAuth
@@ -336,6 +338,12 @@ getClassifiedDomainsInternal _mbtid = do
     Public.TeamFeatureDisabled ->
       Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
     Public.TeamFeatureEnabled -> config
+
+getConferenceCallingInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
+getConferenceCallingInternal = getFeatureStatusWithDefaultConfig @'Public.TeamFeatureConferenceCalling flagConferenceCalling
+
+setConferenceCallingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
+setConferenceCallingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
 
 pushFeatureConfigEvent :: TeamId -> Event.Event -> Galley ()
 pushFeatureConfigEvent tid event = do
