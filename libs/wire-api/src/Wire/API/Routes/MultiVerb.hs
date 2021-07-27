@@ -25,6 +25,11 @@ module Wire.API.Routes.MultiVerb
     AsHeaders (..),
     AsUnion (..),
     IsResponse (..),
+    IsSwaggerResponse (..),
+    RenderOutput (..),
+    roAddContentType,
+    roResponse,
+    ResponseSwagger (..),
     IsResponseList (..),
   )
 where
@@ -209,7 +214,7 @@ instance AsHeaders hs a (Headers hs a) where
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
--- convert a list of 'Header's to a list of 'Servant.Header's
+-- convert a list of 'Header's and 'HeaderDesc' to a list of 'Header's
 type family ServantHeaders (hs :: [*]) :: [*]
 
 type instance ServantHeaders '[] = '[]

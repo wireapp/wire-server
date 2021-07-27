@@ -72,6 +72,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
+import Wire.API.ErrorDescription (userNotFound)
 import Wire.API.User
 import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
@@ -389,7 +390,9 @@ deleteUserNoVerifyH uid = do
 
 deleteUserNoVerify :: UserId -> Handler ()
 deleteUserNoVerify uid = do
-  void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
+  void $
+    lift (API.lookupAccount uid)
+      >>= ifNothing (errorDescriptionToWai userNotFound)
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response

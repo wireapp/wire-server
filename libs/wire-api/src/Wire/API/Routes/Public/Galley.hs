@@ -85,9 +85,21 @@ type ConversationVerb =
     ConversationResponse
 
 type UpdateResponses =
-  '[ WithStatus 200 Public.Event,
-     NoContent
+  '[ RespondEmpty 204 "Conversation unchanged",
+     Respond 200 "Conversation updated" Public.Event
    ]
+
+data UpdateResult
+  = Unchanged
+  | Updated Public.Event
+
+instance AsUnion UpdateResponses UpdateResult where
+  toUnion Unchanged = inject (I ())
+  toUnion (Updated e) = inject (I e)
+
+  fromUnion (Z (I ())) = Unchanged
+  fromUnion (S (Z (I e))) = Updated e
+  fromUnion (S (S x)) = case x of
 
 type PostOtrResponsesUnqualified =
   '[ WithStatus 201 Public.ClientMismatch,
@@ -102,10 +114,6 @@ type PostOtrResponses =
      ConvNotFound,
      UnknownClient
    ]
-
--- FUTUREWORK: Make a PR to the servant-swagger package with this instance
-instance Swagger.ToSchema Servant.NoContent where
-  declareNamedSchema _ = Swagger.declareNamedSchema (Proxy @())
 
 data Api routes = Api
   { -- Conversations
@@ -247,7 +255,7 @@ data Api routes = Api
         :> "members"
         :> "v2"
         :> ReqBody '[Servant.JSON] Public.InviteQualified
-        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
+        :> MultiVerb 'POST '[Servant.JSON] UpdateResponses UpdateResult,
     -- Team Conversations
 
     getTeamConversationRoles ::
