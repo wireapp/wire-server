@@ -66,7 +66,7 @@ data RunSettings = RunSettings
     clientCertificate :: Maybe FilePath,
     clientPrivateKey :: Maybe FilePath
   }
-  deriving (Show, Generic)
+  deriving (Eq, Show, Generic)
 
 defRunSettings :: RunSettings
 defRunSettings =

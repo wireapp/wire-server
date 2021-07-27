@@ -27,6 +27,7 @@ module Federator.Run
     -- * App Environment
     newEnv,
     mkTLSSettings,
+    FederationSetupError (..),
     closeEnv,
   )
 where
@@ -34,10 +35,10 @@ where
 import qualified Bilge as RPC
 import Control.Exception (handle, throw)
 import Control.Lens ((^.))
-import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.X509 as X509
 import Data.X509.CertificateStore
 import Federator.Env
 import Federator.ExternalServer (serveInward)
@@ -117,13 +118,31 @@ mkCAStore settings = do
       else pure mempty
   pure (customCAStore <> systemCAStore)
 
+getClientCredentials :: RunSettings -> Either String (Maybe (FilePath, FilePath))
+getClientCredentials settings = case clientCertificate settings of
+  Nothing -> noCreds1 $> Nothing
+  Just cert -> Just . (cert,) <$> getCreds1
+  where
+    noCreds1 :: Either String ()
+    noCreds1
+      | isNothing (clientPrivateKey settings) = pure ()
+      | otherwise = Left "invalid client credentials: no certificate"
+
+    getCreds1 :: Either String FilePath
+    getCreds1 =
+      maybe (Left "invalid client credentials: no private key") pure $
+        clientPrivateKey settings
+
 mkCreds :: RunSettings -> IO (Maybe TLS.Credential)
-mkCreds settings = handle h . runMaybeT $ do
-  cert <- maybe mzero pure (clientCertificate settings)
-  key <- maybe mzero pure (clientPrivateKey settings)
-  lift (TLS.credentialLoadX509 cert key) >>= \case
-    Left e -> lift (throw (InvalidClientCertificate e))
-    Right x -> pure x
+mkCreds settings = handle h $ case getClientCredentials settings of
+  Left e -> throw (InvalidClientCertificate e)
+  Right Nothing -> pure Nothing
+  Right (Just (cert, key)) ->
+    TLS.credentialLoadX509 cert key >>= \case
+      Left e -> throw (InvalidClientCertificate e)
+      Right (X509.CertificateChain [], _) ->
+        throw (InvalidClientCertificate "could not read client certificate")
+      Right x -> pure (Just x)
   where
     h :: IOException -> IO a
     h = throw . InvalidClientCertificate . show

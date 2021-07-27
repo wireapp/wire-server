@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cdb6771f196b12f78bb882147d96fd428eee25077be318520b83679ed05d5db9
+-- hash: 2683ce1fbc5506e8987313d9d20b3b5aecf2e1edfcc3d5b0165a391a0f5a1c7c
 
 name:           federator
 version:        1.0.0
@@ -18,6 +18,7 @@ build-type:     Simple
 extra-source-files:
     test/resources/integration-ca.pem
     test/resources/unit/gen-certs.sh
+    test/resources/unit/invalid.pem
     test/resources/unit/localhost-dot-key.pem
     test/resources/unit/localhost-dot.pem
     test/resources/unit/localhost-key.pem
@@ -82,7 +83,6 @@ library
     , text
     , tinylog
     , tls
-    , transformers
     , types-common
     , unliftio
     , uri-bytestring
@@ -141,7 +141,6 @@ executable federator
     , text
     , tinylog
     , tls
-    , transformers
     , types-common
     , unliftio
     , uri-bytestring
@@ -210,7 +209,6 @@ executable federator-integration
     , text
     , tinylog
     , tls
-    , transformers
     , types-common
     , unliftio
     , uri-bytestring
@@ -280,7 +278,6 @@ test-suite federator-tests
     , text
     , tinylog
     , tls
-    , transformers
     , types-common
     , unliftio
     , uri-bytestring

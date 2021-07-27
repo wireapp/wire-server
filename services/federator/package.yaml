@@ -45,7 +45,6 @@ dependencies:
 - text
 - tinylog
 - tls
-- transformers
 - types-common
 - unliftio
 - uri-bytestring
