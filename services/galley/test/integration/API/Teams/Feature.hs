@@ -391,7 +391,9 @@ testAllFeatures = do
           toS TeamFeatureClassifiedDomains
             .= Public.TeamFeatureStatusWithConfig
               TeamFeatureEnabled
-              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"])
+              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
+          toS TeamFeatureConferenceCalling
+            .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'
