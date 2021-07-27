@@ -26,7 +26,7 @@ import Control.Lens
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Lazy (toStrict)
-import Data.Domain (mkDomain)
+import Data.Domain (Domain (..), mkDomain)
 import qualified Data.Yaml as Yaml
 import Federator.Env
 import Federator.Options
@@ -40,7 +40,7 @@ tests =
   testGroup
     "Options"
     [ parseFederationStrategy,
-      testTLSSettings
+      testSettings
     ]
 
 parseFederationStrategy :: TestTree
@@ -68,11 +68,35 @@ parseFederationStrategy =
     withAllowList =
       AllowList . AllowedDomains . map (either error id . mkDomain)
 
-testTLSSettings :: TestTree
-testTLSSettings =
+testSettings :: TestTree
+testSettings =
   testGroup
-    "TLS settings"
-    [ testCase "succefully read client credentials" $ do
+    "settings"
+    [ testCase "parse configuration example (open federation)" $ do
+        assertParsesAs
+          defRunSettings
+          "federationStrategy:\n\
+          \  allowAll:\n\
+          \useSystemCAStore: true",
+      testCase "parse configuration example (closed federation)" $ do
+        let settings =
+              defRunSettings
+                { federationStrategy =
+                    AllowList
+                      ( AllowedDomains [Domain "server2.example.com"]
+                      ),
+                  useSystemCAStore = False,
+                  clientCertificate = Just "client.pem",
+                  clientPrivateKey = Just "client-key.pem"
+                }
+        assertParsesAs settings $
+          "federationStrategy:\n\
+          \  allowedDomains:\n\
+          \    - server2.example.com\n\
+          \useSystemCAStore: false\n\
+          \clientCertificate: client.pem\n\
+          \clientPrivateKey: client-key.pem",
+      testCase "succefully read client credentials" $ do
         let settings =
               defRunSettings
                 { clientCertificate = Just "test/resources/unit/localhost.pem",
