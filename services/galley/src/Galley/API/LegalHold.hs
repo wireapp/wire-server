@@ -46,6 +46,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
+import Data.Qualified (Qualified (Qualified))
 import Data.Range (toRange)
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
@@ -486,6 +487,8 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
   void $
     iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
+        localDomain <- viewFederationDomain
+        let qconvId = Qualified (Data.convId conv) localDomain
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
         membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
@@ -507,7 +510,7 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
           (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (memId memberNoConsent) Nothing (Data.convId conv) (memId memberNoConsent)
+              removeMember (memId memberNoConsent) Nothing qconvId (memId memberNoConsent)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember (memId legalholder) Nothing (Data.convId conv) (memId legalholder)
+              removeMember (memId legalholder) Nothing qconvId (memId legalholder)
