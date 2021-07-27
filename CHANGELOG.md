@@ -54,14 +54,17 @@ Upgrade nginz (#1658)
 
 ## Documentation
 
-- A clarification is added about listing your own domain as a classified domain
+* A clarification is added about listing your own domain as a classified domain
   (#1678).
+* Improved Swagger documentation for endpoints with multiple responses (#1649).
 
 ## Internal changes
 
 * Improvements to local integration test setup when using buildah and kind (#1667)
 * The servant-swagger dependency now points to the current upstream master (#1656).
+* Improved error handling middleware (#1671).
 * Refactor function createUser for readability (#1670)
+* Improved test coverage for error responses (#1680)
 
 ## Federation changes (alpha feature, do not use yet)
 
@@ -107,6 +110,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
 * Refactored Federator InternalServer (#1637)
+* Introduced `MultiVerb` endpoints in Servant API (#1649).
 
 ### Internal Federation API changes
 

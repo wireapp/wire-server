@@ -19,10 +19,7 @@ module Galley.API.Error where
 
 import Control.Monad.Catch (MonadThrow (..))
 import Data.Domain (Domain, domainText)
-import Data.Id (Id)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Proxy
-import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
@@ -32,7 +29,6 @@ import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Servant.API.Status (KnownStatus (..))
-import Type.Reflection (typeRep)
 import Wire.API.ErrorDescription
 
 errorDescriptionToWai ::
@@ -247,16 +243,3 @@ invalidTeamNotificationId = mkError status400 "invalid-notification-id" "Could n
 
 inactivityTimeoutTooLow :: Error
 inactivityTimeoutTooLow = mkError status400 "inactivity-timeout-too-low" "applock inactivity timeout must be at least 30 seconds"
-
---------------------------------------------------------------------------------
--- Federation
-
-federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id a)) -> Error
-federationNotEnabled qualifiedIds =
-  mkError
-    status403
-    "federation-not-enabled"
-    ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
