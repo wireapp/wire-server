@@ -357,7 +357,7 @@ testSimpleFlag defaultValue = do
         Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
         Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
 
-  -- Disabled by default
+  -- Initial value should be the default value
   getFlag defaultValue
   getFlagInternal defaultValue
   getFeatureConfig defaultValue
