@@ -71,15 +71,6 @@ type GetUserVerb =
      ]
     (Maybe UserProfile)
 
-type UserExistVerb =
-  MultiVerb
-    'HEAD
-    '[]
-    '[ RespondEmpty 404 "User not found",
-       RespondEmpty 200 "User exists"
-     ]
-    Bool
-
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
