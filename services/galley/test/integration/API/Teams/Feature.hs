@@ -67,7 +67,6 @@ tests s =
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
-      test s "FileSharing - event" $ testSimpleFlagEvent @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled Public.TeamFeatureDisabled,
       test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled
     ]
 
@@ -363,7 +362,13 @@ testSimpleFlag defaultValue = do
   getFeatureConfig defaultValue
 
   -- Setting should work
-  setFlagInternal otherValue
+  cannon <- view tsCannon
+  -- should receive an event
+  WS.bracketR cannon member $ \ws -> do
+    setFlagInternal otherValue
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate feature otherValue
   getFlag otherValue
   getFeatureConfig otherValue
   getFlagInternal otherValue
@@ -478,45 +483,6 @@ assertFlagWithConfig response expected = do
   liftIO $ do
     fmap Public.tfwcStatus rJson @?= (Right . Public.tfwcStatus $ expected)
     fmap Public.tfwcConfig rJson @?= (Right . Public.tfwcConfig $ expected)
-
-testSimpleFlagEvent ::
-  forall (a :: Public.TeamFeatureName).
-  ( HasCallStack,
-    Typeable a,
-    Public.FeatureHasNoConfig a,
-    Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus a),
-    ToJSON (Public.TeamFeatureStatus a)
-  ) =>
-  Public.TeamFeatureStatusValue ->
-  Public.TeamFeatureStatusValue ->
-  TestM ()
-testSimpleFlagEvent defaultValue newValue = do
-  let feature = Public.knownTeamFeatureName @a
-  (tid, _owner, [member]) <- Util.createBindingTeamWithMembers 2
-  cannon <- view tsCannon
-
-  let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getFlag expected =
-        flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
-
-      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
-      setFlagInternal statusValue =
-        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
-
-  getFlag defaultValue
-
-  WS.bracketR cannon member $ \ws -> do
-    setFlagInternal newValue
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate feature newValue
-
-  WS.bracketR cannon member $ \ws -> do
-    setFlagInternal defaultValue
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate feature defaultValue
 
 wsAssertFeatureConfigUpdate :: Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Notification -> IO ()
 wsAssertFeatureConfigUpdate teamFeature status notification = do
