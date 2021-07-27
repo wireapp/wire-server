@@ -235,8 +235,11 @@ spar:
 
 federator:
   replicaCount: 1
+  resources:
+    requests: {}
   imagePullPolicy: Always
   config:
     optSettings:
-      setFederationStrategy:
+      federationStrategy:
         allowAll: true
+      useSystemCAStore: false

@@ -25,12 +25,18 @@ spec:
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/configmap-ca: {{ include (print .Template.BasePath "/configmap-ca.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
       volumes:
         - name: "federator-config"
           configMap:
             name: "federator"
+        # federator-ca holds CA certificates to use as a trust store
+        # when making requests to remote backends
+        - name: "federator-ca"
+          secret:
+            secretName: "federator-ca"
       containers:
         - name: federator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -38,6 +44,8 @@ spec:
           volumeMounts:
             - name: "federator-config"
               mountPath: "/etc/wire/federator/conf"
+            - name: "federator-ca"
+              mountPath: "/etc/wire/federator/ca"
           ports:
             - name: internal
               containerPort: {{ .Values.service.internalFederatorPort }}

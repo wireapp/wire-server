@@ -156,12 +156,12 @@ optSettings:
 
 ### Federation allow list
 
-As of 2021-02, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
+As of 2021-07, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
 
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     allowedDomains: []
 ```
 
@@ -171,7 +171,7 @@ You can choose to federate with a specific list of allowed servers:
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     allowedDomains:
       - server1.example.com
       - server2.example.com
@@ -182,7 +182,7 @@ or, you can federate with everyone:
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     # note the 'empty' value after 'allowAll'
     allowAll:
 
@@ -190,6 +190,21 @@ optSettings:
 # inside helm_vars/wire-server:
 federator:
   optSettings:
-    setFederationStrategy:
+    federationStrategy:
       allowAll: true
 ```
+
+### Federation TLS Config
+
+When a federator connects with another federator, it does so over HTTPS. There
+are two options to configure the CA for this:
+1. `useSystemCAStore`: Boolean. If set to `True` it will use the system CA.
+1. `remoteCAStore`: Maybe Filepath. This config option can be used to specify
+   multiple certificates from either a single file (multiple PEM formatted
+   certificates concatenated) or directory (one certificate per file, file names
+   are hashes from certificate).
+
+Both of these options can be specified, in this case the stores are concatenated
+and used for verifying certificates. When `useSystemCAStore` is `False` and
+`remoteCAStore` is not set, then all outbound connections will fail with TLS
+error as there will be no CA to verify.

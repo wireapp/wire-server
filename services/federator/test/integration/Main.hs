@@ -23,6 +23,7 @@ where
 import Data.String.Conversions
 import Imports
 import System.Environment (withArgs)
+import qualified Test.Federator.IngressSpec
 import qualified Test.Federator.InwardSpec
 import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
@@ -49,3 +50,4 @@ mkspec env = do
   -- describe "Metrics" Test.MetricsSpec.spec
   describe "Federator.API" $ do
     Test.Federator.InwardSpec.spec env
+    Test.Federator.IngressSpec.spec env

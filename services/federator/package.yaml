@@ -8,6 +8,7 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
+extra-source-files: test/resources/**/*
 dependencies:
 - aeson
 - http-types
@@ -35,6 +36,9 @@ dependencies:
 - servant-server
 - string-conversions
 - text
+- tls
+- x509-store
+- x509-system
 - tinylog
 - types-common
 - uuid
@@ -50,6 +54,8 @@ dependencies:
 - wai-utilities
 - network-uri
 - uri-bytestring
+- x509
+- x509-validation
 
 library:
   source-dirs: src
@@ -90,9 +96,13 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
+    - bytestring
     - federator
+    - polysemy-mocks
+    - streaming-commons
     - tasty
     - tasty-hunit
+    - wai
+    - warp
+    - warp-tls
     - yaml
-    - bytestring
-    - polysemy-mocks

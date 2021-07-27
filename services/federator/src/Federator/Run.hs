@@ -26,15 +26,18 @@ module Federator.Run
 
     -- * App Environment
     newEnv,
+    mkCAStore,
     closeEnv,
   )
 where
 
 import qualified Bilge as RPC
+import Control.Exception (throw)
 import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
+import Data.X509.CertificateStore
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
@@ -42,12 +45,11 @@ import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.OpenSSL as HTTP
-import OpenSSL.Session
-import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
+import qualified Polysemy
+import qualified Polysemy.Error as Polysemy
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
+import System.X509
 import UnliftIO (bracket)
 import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
@@ -81,6 +83,11 @@ run opts =
 -------------------------------------------------------------------------------
 -- Environment
 
+newtype InvalidCAStore = InvalidCAStore FilePath
+  deriving (Show)
+
+instance Exception InvalidCAStore
+
 newEnv :: Opts -> DNS.Resolver -> IO Env
 newEnv o _dnsResolver = do
   _metrics <- Metrics.metrics
@@ -90,9 +97,21 @@ newEnv o _dnsResolver = do
   let _service Brig = mkEndpoint (Opt.brig o)
       _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
+  _caStore <- mkCAStore _runSettings
   return Env {..}
   where
     mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
+
+mkCAStore :: RunSettings -> IO CertificateStore
+mkCAStore settings = do
+  customCAStore <- fmap (fromRight mempty) . Polysemy.runM . Polysemy.runError @() $ do
+    path <- maybe (Polysemy.throw ()) pure $ remoteCAStore settings
+    Polysemy.embed $ readCertificateStore path >>= maybe (throw $ InvalidCAStore path) pure
+  systemCAStore <-
+    if useSystemCAStore settings
+      then getSystemCertificateStore
+      else pure mempty
+  pure (customCAStore <> systemCAStore)
 
 closeEnv :: Env -> IO ()
 closeEnv e = do
@@ -103,18 +122,10 @@ closeEnv e = do
 -- FUTUREWORK(federation): review certificate and protocol security setting for this TLS
 -- manager
 initHttpManager :: IO HTTP.Manager
-initHttpManager = do
+initHttpManager =
   -- See Note [SSL context]
-  ctx <- SSL.context
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_TLSv1
-  SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextSetVerificationMode ctx $
-    SSL.VerifyPeer True True Nothing
-  SSL.contextLoadSystemCerts ctx
   HTTP.newManager
-    (HTTP.opensslManagerSettings (pure ctx))
+    HTTP.defaultManagerSettings
       { HTTP.managerConnCount = 1024,
         HTTP.managerIdleConnectionCount = 4096,
         HTTP.managerResponseTimeout = HTTP.responseTimeoutMicro 10000000

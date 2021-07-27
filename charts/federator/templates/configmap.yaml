@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: "federator"
   labels:
-    wireService: fedrator
+    wireService: federator
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -40,12 +40,18 @@ data:
 
     {{- with .optSettings }}
     optSettings:
-      setFederationStrategy:
-        {{- if .setFederationStrategy.allowAll }}
+      # Filepath to one or more PEM-encoded server certificates to use as a trust
+      # store when making grpc requests to remote backends
+      {{- if $.Values.remoteCAContents }}
+      remoteCAStore: "/etc/wire/federator/ca/remote-ca.pem"
+      {{- end }}
+      useSystemCAStore: {{ .useSystemCAStore }}
+      federationStrategy:
+        {{- if .federationStrategy.allowAll }}
         allowAll:
-        {{- else if .setFederationStrategy.allowedDomains }}
+        {{- else if .federationStrategy.allowedDomains }}
         allowedDomains:
-        {{- range $domain := .setFederationStrategy.allowedDomains }}
+        {{- range $domain := .federationStrategy.allowedDomains }}
           - {{ $domain | quote }}
         {{- end }}
         {{- else }}
