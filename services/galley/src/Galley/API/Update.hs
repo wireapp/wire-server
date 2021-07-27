@@ -617,11 +617,14 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
       pure $ Updated event
     else pure Unchanged
   where
+    genConvChecks :: Data.Conversation -> [LocalMember] -> Galley ()
     genConvChecks conv usrs = do
+      localDomain <- viewFederationDomain
       ensureGroupConv conv
-      if zusr == victim
+      if Qualified zusr localDomain == qvictim
         then ensureActionAllowed LeaveConversation =<< getSelfMember zusr usrs
         else ensureActionAllowed RemoveConversationMember =<< getSelfMember zusr usrs
+    teamConvChecks :: TeamId -> Galley ()
     teamConvChecks tid = do
       tcv <- Data.teamConversation tid convId
       when (maybe False (view managedConversation) tcv) $
