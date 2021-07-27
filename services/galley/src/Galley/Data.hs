@@ -921,10 +921,10 @@ filterRemoteConvMembers users (Qualified conv dom) =
       let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
       map runIdentity <$> retry x1 q
 
-removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> m Event
+removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> [UserId] -> m Event
 removeLocalMembers localDomain conv orig localVictims = removeMembers localDomain conv orig localVictims []
 
-removeMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> [Remote UserId] -> m Event
+removeMembers :: MonadClient m => Domain -> Conversation -> UserId -> [UserId] -> [Remote UserId] -> m Event
 removeMembers localDomain conv orig localVictims remoteVictims = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
@@ -933,7 +933,7 @@ removeMembers localDomain conv orig localVictims remoteVictims = do
     for_ remoteVictims $ \u -> do
       let rUser = unTagged u
       addPrepQuery Cql.removeRemoteMember (convId conv, qDomain rUser, qUnqualified rUser)
-    for_ (toList localVictims) $ \u -> do
+    for_ localVictims $ \u -> do
       addPrepQuery Cql.removeMember (convId conv, u)
       addPrepQuery Cql.deleteUserConv (u, convId conv)
 
@@ -943,7 +943,7 @@ removeMembers localDomain conv orig localVictims remoteVictims = do
   return $ Event MemberLeave qconvId qorig t (EdMembersLeave leavingMembers)
   where
     -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
-    leavingMembers = UserIdList . toList $ localVictims
+    leavingMembers = UserIdList localVictims
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 . batch $ do

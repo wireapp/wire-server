@@ -235,8 +235,8 @@ isRemoteMember u = isJust . find ((u ==) . rmId)
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convLocalMembers c)
 
-botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
-botsAndUsers = foldMap botOrUser
+localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
+localBotsAndUsers = foldMap botOrUser
   where
     botOrUser m = case memService m of
       -- we drop invalid bots here, which shouldn't happen
