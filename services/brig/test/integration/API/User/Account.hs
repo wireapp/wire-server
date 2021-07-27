@@ -432,9 +432,13 @@ testNonExistingUserUnqualified brig = do
   findingOne <- liftIO $ Id <$> UUID.nextRandom
   foundOne <- liftIO $ Id <$> UUID.nextRandom
   get (brig . paths ["users", pack $ show foundOne] . zUser findingOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
   get (brig . paths ["users", pack $ show foundOne] . zUser foundOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testNonExistingUser :: Brig -> Http ()
 testNonExistingUser brig = do
@@ -444,9 +448,13 @@ testNonExistingUser brig = do
   let uid = qUnqualified qself
       domain = qDomain qself
   get (brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
   get (brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testUserInvalidDomain :: Brig -> Http ()
 testUserInvalidDomain brig = do

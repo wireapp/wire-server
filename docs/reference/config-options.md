@@ -112,6 +112,9 @@ classifiedDomains:
     domains: ["example.com", "example2.com"]
 ```
 
+Note that when enabling this feature, it is important to provide your own domain
+too in the list of domains. In the example above, `example.com` or `example2.com` is your domain.
+
 To disable, either omit the entry entirely (it is disabled by default), or provide the following:
 
 ```yaml
