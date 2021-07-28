@@ -21,12 +21,14 @@ import Bilge
 import Control.Lens (view)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import qualified Data.Text as Text
 import Imports
 import Mu.GRpc.Client.TyApps
+import Network.GRPC.Client.Helpers
 import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
@@ -109,14 +111,19 @@ inwardBrigCall requestPath payload = do
           { GRPC.component = Brig,
             GRPC.path = requestPath,
             GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = "foo.example.com"
+            GRPC.originDomain = "localhost.example.com"
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
 viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
 viewFederatorExternalClient = do
   Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
-  client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+  exampleCert <- liftIO $ BS.readFile "test/resources/unit/localhost.pem"
+  let cfg =
+        (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+          { _grpcClientConfigHeaders = [("X-SSL-Certificate", exampleCert)]
+          }
+  client <- createGrpcClient cfg
   case client of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli
