@@ -834,6 +834,15 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
+getConvIdsV2 :: UserId -> Public.GetPaginatedConversationIds -> TestM ResponseLBS
+getConvIdsV2 u paginationOpts = do
+  g <- view tsGalley
+  post $
+    g
+      . path "/conversations/ids/v2"
+      . zUser u
+      . json paginationOpts
+
 postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
 postQualifiedMembers zusr invitees conv = do
   g <- view tsGalley
@@ -1285,6 +1294,9 @@ decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
 
 decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
+
+decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
+decodeQualifiedConvIdList = fmap convList . responseJsonEither
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'

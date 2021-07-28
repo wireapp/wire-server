@@ -26,6 +26,7 @@ module Wire.API.Conversation
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
+    GetPaginatedConversationIds (..),
 
     -- * Conversation properties
     Access (..),
@@ -79,7 +80,7 @@ import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
-import Data.Range (Range)
+import Data.Range (Range, toRange)
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -225,6 +226,9 @@ instance ConversationListItem ConvId where
 instance ConversationListItem Conversation where
   convListItemName _ = "conversations"
 
+instance ConversationListItem (Qualified ConvId) where
+  convListItemName _ = "qualified Conversation IDs"
+
 instance (ConversationListItem a, S.ToSchema a) => S.ToSchema (ConversationList a) where
   declareNamedSchema _ = do
     listSchema <- S.declareSchemaRef (Proxy @[a])
@@ -251,6 +255,27 @@ instance FromJSON a => FromJSON (ConversationList a) where
     ConversationList
       <$> o A..: "conversations"
       <*> o A..: "has_more"
+
+data GetPaginatedConversationIds = GetPaginatedConversationIds
+  { gpciStartingPoint :: Maybe (Qualified ConvId),
+    gpciSize :: Range 1 1000 Int32
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetPaginatedConversationIds
+
+instance ToSchema GetPaginatedConversationIds where
+  schema =
+    let addStartingPointDoc =
+          description
+            ?~ "starting conversation id, this conversation id will not be included in the response. \
+               \The conversations are ordered lexicographically by domain and then by id using UUID ordering."
+        addSizeDoc = description ?~ "optional, must be <= 1000, defaults to 1000."
+     in objectWithDocModifier
+          "GetPaginatedConversationIds"
+          (description ?~ "A request to list some or all of a user's conversation ids, including remote ones")
+          $ GetPaginatedConversationIds
+            <$> gpciStartingPoint .= optFieldWithDocModifier "starting_point" Nothing addStartingPointDoc schema
+            <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
 
 -- | Used on the POST /list-conversations endpoint
 -- FUTUREWORK: add to golden tests (how to generate them?)

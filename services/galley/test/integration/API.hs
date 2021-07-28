@@ -50,6 +50,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -116,7 +117,9 @@ tests s =
           test s "list-conversations by ids" listConvsOk2,
           test s "fail to get >500 conversations" getConvsFailMaxSize,
           test s "get conversation ids" getConvIdsOk,
+          test s "get conversation ids v2" getConvIdsV2Ok,
           test s "paginate through conversation ids" paginateConvIds,
+          test s "paginate through conversation ids v2" paginateConvIdsV2,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "page through list-conversations (local conversations only)" listConvsPagingOk,
@@ -667,12 +670,12 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       let expectedRedundant =
             QualifiedUserClients . Map.fromList $
               [ ( owningDomain,
-                  Map.fromList $
+                  Map.fromList
                     [ (nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient)
                     ]
                 ),
                 ( remoteDomain,
-                  Map.fromList $
+                  Map.fromList
                     [ (nonMemberRemoteUnqualified, Set.singleton nonMemberRemoteClient)
                     ]
                 )
@@ -1239,6 +1242,38 @@ getConvIdsFailMaxSize = do
   getConvIds usr Nothing (Just 1001)
     !!! const 400 === statusCode
 
+getConvIdsV2Ok :: TestM ()
+getConvIdsV2Ok = do
+  [alice, bob] <- randomUsers 2
+  connectUsers alice (singleton bob)
+  void $ postO2OConv alice bob (Just "gossip")
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  getConvIdsV2 alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Right 2) === fmap length . decodeQualifiedConvIdList
+  getConvIdsV2 bob paginationOpts !!! do
+    const 200 === statusCode
+    const (Right 2) === fmap length . decodeQualifiedConvIdList
+
+paginateConvIdsV2 :: TestM ()
+paginateConvIdsV2 = do
+  [alice, bob, eve] <- randomUsers 3
+  connectUsers alice (singleton bob)
+  connectUsers alice (singleton eve)
+  replicateM_ 256 $
+    postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+      !!! const 201 === statusCode
+  foldM_ (getChunk 16 alice) Nothing [15 .. 0 :: Int]
+  where
+    getChunk size alice start n = do
+      let paginationOpts = GetPaginatedConversationIds start (unsafeRange size)
+      resp <- getConvIdsV2 alice paginationOpts <!! const 200 === statusCode
+      let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
+      liftIO $ do
+        length (convList c) @?= fromIntegral size
+        convHasMore c @?= n > 0
+      return $ last (convList c)
+
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
   [ally, bill, carl] <- randomUsers 3
@@ -1290,6 +1325,32 @@ listConvsPagingOk = do
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
       return $ ids1 >>= listToMaybe . reverse
 
+-- listConvsRemotePagingOk :: TestM ()
+-- listConvsRemotePagingOk = do
+--   [ally, bill, carl] <- randomUsers 3
+--   connectUsers ally (list1 bill [carl])
+--   replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
+--   walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
+--   walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+--   walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+--   where
+--     walk :: Foldable t => UserId -> t Int -> TestM ()
+--     walk u = foldM_ (next u 3) Nothing
+--     next :: UserId -> Int32 -> Maybe ConvId -> Int -> TestM (Maybe ConvId)
+--     next u step start n = do
+--       -- FUTUREWORK: support an endpoint to get qualified conversation IDs
+--       -- (without all the conversation metadata)
+--       r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
+--       let ids1 = convList <$> responseJsonUnsafe r1
+--       liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
+--       localDomain <- viewFederationDomain
+--       let requestBody = ListConversations Nothing (flip Qualified localDomain <$> start) (Just (unsafeRange step))
+--       r2 <- listConvs u requestBody <!! const 200 === statusCode
+--       let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
+--       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
+--       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
+--       return $ ids1 >>= listToMaybe . reverse
+
 postConvFailNotConnected :: TestM ()
 postConvFailNotConnected = do
   alice <- randomUser
@@ -1312,7 +1373,7 @@ postConvFailNumMembers :: TestM ()
 postConvFailNumMembers = do
   n <- fromIntegral <$> view tsMaxConvSize
   alice <- randomUser
-  bob : others <- replicateM n (randomUser)
+  bob : others <- replicateM n randomUser
   connectUsers alice (list1 bob others)
   postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
     const 400 === statusCode
@@ -1504,7 +1565,7 @@ postRepeatConnectConvCancel = do
   let cnv = responseJsonUnsafeWithMsg "conversation" rsp1
   liftIO $ do
     ConnectConv @=? cnvType cnv
-    (Just "A") @=? cnvName cnv
+    Just "A" @=? cnvName cnv
     [] @=? cmOthers (cnvMembers cnv)
     privateAccess @=? cnvAccess cnv
   -- Alice blocks / cancels
@@ -1514,7 +1575,7 @@ postRepeatConnectConvCancel = do
   let cnv2 = responseJsonUnsafeWithMsg "conversation" rsp2
   liftIO $ do
     ConnectConv @=? cnvType cnv2
-    (Just "A2") @=? cnvName cnv2
+    Just "A2" @=? cnvName cnv2
     [] @=? cmOthers (cnvMembers cnv2)
     privateAccess @=? cnvAccess cnv2
   -- Alice blocks / cancels again
@@ -1524,7 +1585,7 @@ postRepeatConnectConvCancel = do
   let cnv3 = responseJsonUnsafeWithMsg "conversation" rsp3
   liftIO $ do
     ConnectConv @=? cnvType cnv3
-    (Just "B") @=? cnvName cnv3
+    Just "B" @=? cnvName cnv3
     privateAccess @=? cnvAccess cnv3
   -- Bob accepting is a no-op, since he is already a member
   let convId = qUnqualified . cnvQualifiedId $ cnv
@@ -1532,14 +1593,14 @@ postRepeatConnectConvCancel = do
   cnvX <- responseJsonUnsafeWithMsg "conversation" <$> getConv bob convId
   liftIO $ do
     ConnectConv @=? cnvType cnvX
-    (Just "B") @=? cnvName cnvX
+    Just "B" @=? cnvName cnvX
     privateAccess @=? cnvAccess cnvX
   -- Alice accepts, finally turning it into a 1-1
   putConvAccept alice convId !!! const 200 === statusCode
   cnv4 <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
   liftIO $ do
     One2OneConv @=? cnvType cnv4
-    (Just "B") @=? cnvName cnv4
+    Just "B" @=? cnvName cnv4
     privateAccess @=? cnvAccess cnv4
   where
     cancel u c = do
@@ -1620,7 +1681,7 @@ leaveConnectConversation = do
   alice <- randomUser
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
-  let c = fromMaybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId <$> responseJsonUnsafe bdy)
+  let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
   deleteMember alice alice c !!! const 403 === statusCode
 
 -- FUTUREWORK: Add more tests for scenarios of federation.
@@ -1806,7 +1867,7 @@ testAddRemoteMemberFederationDisabled = do
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
   let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
-  withSettingsOverrides federatorNotConfigured $ do
+  withSettingsOverrides federatorNotConfigured $
     postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
       const 400 === statusCode
       const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
@@ -1815,7 +1876,7 @@ testAddRemoteMemberFederationDisabled = do
   -- misconfiguration of federator. That should give a 500.
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable :: Opts = opts & optFederator ?~ Endpoint "127.0.0.1" 1
-  withSettingsOverrides federatorUnavailable $ do
+  withSettingsOverrides federatorUnavailable $
     postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
       const 500 === statusCode
       const (Just "federation-not-available") === fmap label . responseJsonUnsafe
@@ -2002,12 +2063,12 @@ putMemberOk update = do
         Member
           { memId = bob,
             memService = Nothing,
-            memOtrMuted = fromMaybe False (mupOtrMute update),
+            memOtrMuted = Just True == (mupOtrMute update),
             memOtrMutedStatus = mupOtrMuteStatus update,
             memOtrMutedRef = mupOtrMuteRef update,
-            memOtrArchived = fromMaybe False (mupOtrArchive update),
+            memOtrArchived = Just True == (mupOtrArchive update),
             memOtrArchivedRef = mupOtrArchiveRef update,
-            memHidden = fromMaybe False (mupHidden update),
+            memHidden = Just True == (mupHidden update),
             memHiddenRef = mupHiddenRef update,
             memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
           }

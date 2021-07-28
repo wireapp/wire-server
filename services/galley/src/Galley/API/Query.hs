@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Query
   ( getBotConversationH,
@@ -21,6 +22,7 @@ module Galley.API.Query
     getConversation,
     getConversationRoles,
     getConversationIds,
+    getConversationIdsV2,
     getConversations,
     listConversations,
     iterateConversations,
@@ -125,6 +127,15 @@ getConversationIds zusr start msize = do
   pure $
     Public.ConversationList
       (Data.resultSetResult ids)
+      (Data.resultSetType ids == Data.ResultSetTruncated)
+
+getConversationIdsV2 :: UserId -> Public.GetPaginatedConversationIds -> Galley (Public.ConversationList (Qualified ConvId))
+getConversationIdsV2 zusr Public.GetPaginatedConversationIds {..} = do
+  ids <- Data.conversationIdsFrom zusr Nothing gpciSize
+  localDomain <- viewFederationDomain
+  pure $
+    Public.ConversationList
+      (map (`Qualified` localDomain) $ Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
 
 getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)

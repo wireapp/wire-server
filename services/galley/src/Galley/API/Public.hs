@@ -81,6 +81,7 @@ servantSitemap =
         GalleyAPI.getConversation = Query.getConversation,
         GalleyAPI.getConversationRoles = Query.getConversationRoles,
         GalleyAPI.getConversationIds = Query.getConversationIds,
+        GalleyAPI.getConversationIdsV2 = Query.getConversationIdsV2,
         GalleyAPI.getConversations = Query.getConversations,
         GalleyAPI.getConversationByReusableCode = Query.getConversationByReusableCode,
         GalleyAPI.listConversations = Query.listConversations,
