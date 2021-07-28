@@ -59,7 +59,6 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
-    conversationIdRowsFrom,
     conversationIdRowsForPagination,
     conversationIdsOf,
     conversationMeta,
@@ -545,15 +544,7 @@ conversationIdsFrom ::
   Maybe ConvId ->
   Range 1 1000 Int32 ->
   m (ResultSet ConvId)
-conversationIdsFrom usr start max = conversationIdRowsFrom usr start max -- TODO: remove function?
-
-conversationIdRowsFrom ::
-  (MonadClient m) =>
-  UserId ->
-  Maybe ConvId ->
-  Range 1 1000 Int32 ->
-  m (ResultSet ConvId)
-conversationIdRowsFrom usr start (fromRange -> max) =
+conversationIdsFrom usr start (fromRange -> max) =
   mkResultSet . strip . fmap runIdentity <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
