@@ -104,8 +104,9 @@ validateDomain (Just encodedCertificate) unparsedDomain = do
   SrvTarget hostname _ <-
     Polysemy.mapError (InwardError IDiscoveryFailed . errDiscovery) $
       discoverFederatorWithError targetDomain
-  unless (null (validateName (B8.unpack hostname) certificate)) $
-    throwInward IInvalidDomain "domain name does not match certificate"
+  let validationErrors = validateName (B8.unpack hostname) certificate
+  unless (null validationErrors) $
+    throwInward IInvalidDomain ("domain name does not match certificate: " <> Text.pack (show validationErrors))
 
   passAllowList <- federateWith targetDomain
   if passAllowList

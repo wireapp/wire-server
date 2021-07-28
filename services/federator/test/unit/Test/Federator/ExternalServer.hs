@@ -19,6 +19,7 @@
 
 module Test.Federator.ExternalServer where
 
+import qualified Data.ByteString as BS
 import Data.Domain (Domain (..), domainText)
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
@@ -61,12 +62,13 @@ requestBrigSuccess =
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
       let request = Request Brig "/federation/get-user-by-handle" "\"foo\"" exampleDomain
 
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
       res :: InwardResponse <-
         mock @Service @IO
           . TinyLog.discardLogs
           . mockDiscoveryTrivial
           . Polysemy.runReader noClientCertSettings
-          $ callLocal Nothing request
+          $ callLocal (Just exampleCert) request
       actualCalls <- mockServiceCallCalls @IO
       let expectedCall = (Brig, "federation/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
@@ -79,12 +81,13 @@ requestBrigFailure =
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.notFound404, Just "response body"))
       let request = Request Brig "/federation/get-user-by-handle" "\"foo\"" exampleDomain
 
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
       res <-
         mock @Service @IO
           . TinyLog.discardLogs
           . mockDiscoveryTrivial
           . Polysemy.runReader noClientCertSettings
-          $ callLocal Nothing request
+          $ callLocal (Just exampleCert) request
 
       actualCalls <- mockServiceCallCalls @IO
       let expectedCall = (Brig, "federation/get-user-by-handle", "\"foo\"", aValidDomain)
@@ -100,19 +103,20 @@ requestGalleySuccess =
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
       let request = Request Galley "federation/get-conversations" "{}" exampleDomain
 
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
       res :: InwardResponse <-
         mock @Service @IO
           . TinyLog.discardLogs
           . mockDiscoveryTrivial
           . Polysemy.runReader noClientCertSettings
-          $ callLocal Nothing request
+          $ callLocal (Just exampleCert) request
       actualCalls <- mockServiceCallCalls @IO
       let expectedCall = (Galley, "federation/get-conversations", "{}", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
 
 exampleDomain :: Text
-exampleDomain = "some.example.com"
+exampleDomain = "localhost.example.com"
 
 aValidDomain :: Domain
 aValidDomain = Domain exampleDomain

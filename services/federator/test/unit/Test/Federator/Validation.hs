@@ -21,7 +21,6 @@ module Test.Federator.Validation where
 
 import qualified Data.ByteString as BS
 import Data.Domain (Domain (..), domainText)
-import Data.Either.Combinators (mapLeft)
 import Data.String.Conversions
 import qualified Data.Text.Encoding as Text
 import Federator.Discovery (DiscoverFederator (..))
@@ -85,38 +84,45 @@ validateDomainAllowListFailSemantic =
   testCase "semantic validation" $
     runM . evalMock @Remote @IO $ do
       let settings = settingsWithAllowList [Domain "only.other.domain"]
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.pem"
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryTrivial
           . Polysemy.runReader settings
-          $ validateDomain Nothing ("invalid//.><-semantic-&@-domain" :: Text)
-      embed $ assertEqual "semantic parse failure" (Left IInvalidDomain) (mapLeft inwardErrorType res)
+          $ validateDomain (Just exampleCert) ("invalid//.><-semantic-&@-domain" :: Text)
+      case res of
+        Left (InwardError IInvalidDomain _) -> pure ()
+        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
 
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
   testCase "allow list validation" $
     runM . evalMock @Remote @IO $ do
       let settings = settingsWithAllowList [Domain "only.other.domain"]
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryTrivial
           . Polysemy.runReader settings
-          $ validateDomain Nothing ("hello.world" :: Text)
-      embed $ assertEqual "allow list:" (Left IFederationDeniedByRemote) (mapLeft inwardErrorType res)
+          $ validateDomain (Just exampleCert) ("localhost.example.com" :: Text)
+      case res of
+        Left (InwardError IFederationDeniedByRemote _) -> pure ()
+        x -> embed $ assertFailure $ "expected IFederationDeniedByRemote error, got " <> show x
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
   testCase "should give parsed domain if in the allow list" $
     -- removing evalMock @Remote doesn't seem to work, but why?
     runM . evalMock @Remote @IO $ do
-      let domain = Domain "hello.world"
+      let domain = Domain "localhost.example.com"
       let settings = settingsWithAllowList [domain]
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryTrivial
           . Polysemy.runReader settings
-          $ validateDomain Nothing ("hello.world" :: Text)
-      embed $ assertEqual "validateDomain should give 'hello.world' as domain" (Right domain) res
+          $ validateDomain (Just exampleCert) (domainText domain)
+      embed $ assertEqual "validateDomain should give 'localhost.example.com' as domain" (Right domain) res
 
 validatePathSuccess :: [TestTree]
 validatePathSuccess = do
