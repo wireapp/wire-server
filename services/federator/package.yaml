@@ -36,6 +36,7 @@ dependencies:
 - mu-grpc-server
 - mu-rpc
 - network-uri
+- pem
 - polysemy
 - polysemy-wire-zoo
 - retry

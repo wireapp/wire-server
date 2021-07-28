@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f1d32a4c0c79a70c22cd6fd83b753a638f5d8fc7de8ff8a20ef793860e2cfda2
+-- hash: 254fb7b98efd9bf9aec0222db46cb2549afe4430b259d89564ebfa45cc999e3c
 
 name:           federator
 version:        1.0.0
@@ -76,6 +76,7 @@ library
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -136,6 +137,7 @@ executable federator
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -203,6 +205,7 @@ executable federator-integration
     , mu-rpc
     , network-uri
     , optparse-applicative
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , random
@@ -274,6 +277,7 @@ test-suite federator-tests
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-mocks
     , polysemy-wire-zoo

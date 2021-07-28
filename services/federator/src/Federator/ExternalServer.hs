@@ -23,7 +23,9 @@ module Federator.ExternalServer where
 
 import Control.Lens (view)
 import Data.Aeson (decode)
+import Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as LBS
+-- import Data.PEM as X509
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -58,8 +60,8 @@ import Wire.API.Federation.GRPC.Types
 --
 -- FUTUREWORK(federation): implement server2server authentication!
 -- (current validation only checks parsing and compares to allowList)
-callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Maybe Text -> Request -> Sem r InwardResponse
-callLocal subject = runInwardError . callLocal' subject
+callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Maybe ByteString -> Request -> Sem r InwardResponse
+callLocal cert = runInwardError . callLocal' cert
   where
     runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
     runInwardError action = toResponse <$> Polysemy.runError action
@@ -70,14 +72,14 @@ callLocal subject = runInwardError . callLocal' subject
 
 callLocal' ::
   (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Error InwardError] r) =>
-  Maybe Text ->
+  Maybe ByteString ->
   Request ->
   Sem r ByteString
-callLocal' msubject req@Request {..} = do
+callLocal' mcert req@Request {..} = do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "request" (show req)
-      . maybe id (\subject -> Log.field "subject" (Text.unpack subject)) msubject
+      . maybe id (\cert -> Log.field "certificate" (Text.decodeUtf8 cert)) mcert
 
   validatedDomain <- validateDomain originDomain
   validatedPath <- sanitizePath path
@@ -101,16 +103,19 @@ callLocal' msubject req@Request {..} = do
 
 routeToInternal ::
   (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) =>
-  Maybe Text ->
+  Maybe ByteString ->
   SingleServerT info Inward (Sem r) _
-routeToInternal subject = singleService (Mu.method @"call" (callLocal subject))
+routeToInternal cert = singleService (Mu.method @"call" (callLocal cert))
 
-requestSubject :: Wai.Request -> Maybe Text
-requestSubject req = Text.decodeUtf8 <$> lookup "X-SSL-Subject" (Wai.requestHeaders req)
+lookupCertificate :: Wai.Request -> Maybe ByteString
+lookupCertificate req = B8.map unescape <$> lookup "X-SSL-Certificate" (Wai.requestHeaders req)
+  where
+    unescape '\t' = '\n'
+    unescape x = x
 
 serveInward :: Env -> Int -> IO ()
 serveInward env port = do
-  let app req = gRpcAppTrans msgProtoBuf transformer (routeToInternal (requestSubject req)) req
+  let app req = gRpcAppTrans msgProtoBuf transformer (routeToInternal (lookupCertificate req)) req
   Wai.run port app
   where
     transformer :: Sem '[TinyLog, Embed IO, Polysemy.Error ServerError, Service, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
