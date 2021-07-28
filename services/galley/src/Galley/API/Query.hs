@@ -121,7 +121,7 @@ getConversationRoles zusr cnv = do
 getConversationIds :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
 getConversationIds zusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
-  ids <- Data.conversationIdRowsFrom zusr start size
+  ids <- Data.conversationIdsFrom zusr start size
   pure $
     Public.ConversationList
       (Data.resultSetResult ids)
