@@ -34,11 +34,13 @@ import Federator.Service (Service, interpretService, serviceCall)
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Federator.Validation
 import Imports
-import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
+import Mu.GRpc.Server (gRpcAppTrans, msgProtoBuf)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
 import qualified Network.HTTP.Types.Status as HTTP
-import qualified Network.Wai.Utilities.Error as WaiError
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Wai
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
@@ -56,8 +58,8 @@ import Wire.API.Federation.GRPC.Types
 --
 -- FUTUREWORK(federation): implement server2server authentication!
 -- (current validation only checks parsing and compares to allowList)
-callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Request -> Sem r InwardResponse
-callLocal = runInwardError . callLocal'
+callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Maybe Text -> Request -> Sem r InwardResponse
+callLocal subject = runInwardError . callLocal' subject
   where
     runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
     runInwardError action = toResponse <$> Polysemy.runError action
@@ -66,11 +68,16 @@ callLocal = runInwardError . callLocal'
     toResponse (Left err) = InwardResponseError err
     toResponse (Right bs) = InwardResponseBody bs
 
-callLocal' :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Error InwardError] r) => Request -> Sem r ByteString
-callLocal' req@Request {..} = do
+callLocal' ::
+  (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Error InwardError] r) =>
+  Maybe Text ->
+  Request ->
+  Sem r ByteString
+callLocal' msubject req@Request {..} = do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "request" (show req)
+      . maybe id (\subject -> Log.field "subject" (Text.unpack subject)) msubject
 
   validatedDomain <- validateDomain originDomain
   validatedPath <- sanitizePath path
@@ -85,19 +92,26 @@ callLocal' req@Request {..} = do
   case HTTP.statusCode resStatus of
     200 -> pure $ maybe mempty LBS.toStrict resBody
     404 ->
-      case WaiError.label <$> (decode =<< resBody) of
+      case Wai.label <$> (decode =<< resBody) of
         Just "no-endpoint" -> throwInward IInvalidEndpoint (cs $ "component " <> show component <> "does not have an endpoint " <> cs validatedPath)
         _ -> throwInward IOther (cs $ show resStatus)
     code -> do
       let description = "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus) <> " Response body: " <> maybe mempty cs resBody
       throwInward IOther description
 
-routeToInternal :: (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) => SingleServerT info Inward (Sem r) _
-routeToInternal = singleService (Mu.method @"call" callLocal)
+routeToInternal ::
+  (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) =>
+  Maybe Text ->
+  SingleServerT info Inward (Sem r) _
+routeToInternal subject = singleService (Mu.method @"call" (callLocal subject))
+
+requestSubject :: Wai.Request -> Maybe Text
+requestSubject req = Text.decodeUtf8 <$> lookup "X-SSL-Subject" (Wai.requestHeaders req)
 
 serveInward :: Env -> Int -> IO ()
 serveInward env port = do
-  runGRpcAppTrans msgProtoBuf port transformer routeToInternal
+  let app req = gRpcAppTrans msgProtoBuf transformer (routeToInternal (requestSubject req)) req
+  Wai.run port app
   where
     transformer :: Sem '[TinyLog, Embed IO, Polysemy.Error ServerError, Service, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
     transformer action =

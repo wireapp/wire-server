@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e2fb4c3ece84a865c43c0a7b1afb561dbe57b3d45bf71269a45cffe320a1ad67
+-- hash: f1d32a4c0c79a70c22cd6fd83b753a638f5d8fc7de8ff8a20ef793860e2cfda2
 
 name:           federator
 version:        1.0.0
@@ -89,7 +89,9 @@ library
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
     , x509
@@ -147,7 +149,9 @@ executable federator
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
     , x509
@@ -215,7 +219,9 @@ executable federator-integration
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
     , x509

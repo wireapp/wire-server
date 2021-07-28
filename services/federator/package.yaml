@@ -49,7 +49,9 @@ dependencies:
 - unliftio
 - uri-bytestring
 - uuid
+- wai
 - wai-utilities
+- warp
 - wire-api
 - wire-api-federation
 - x509
