@@ -23,6 +23,7 @@ import Data.String.Conversions (cs)
 import Imports
 import qualified Network.DNS as DNS
 import Polysemy
+import qualified Polysemy.Error as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger.Class as Log
@@ -39,6 +40,12 @@ data DiscoverFederator m a where
   DiscoverFederator :: Domain -> DiscoverFederator m (Either LookupError SrvTarget)
 
 makeSem ''DiscoverFederator
+
+discoverFederatorWithError ::
+  Members '[DiscoverFederator, Polysemy.Error LookupError] r =>
+  Domain ->
+  Sem r SrvTarget
+discoverFederatorWithError = Polysemy.fromEither <=< discoverFederator
 
 runFederatorDiscovery :: Members '[DNSLookup, TinyLog] r => Sem (DiscoverFederator ': r) a -> Sem r a
 runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->

@@ -23,9 +23,17 @@ module Federator.Validation
   )
 where
 
+import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as B8
 import Data.Domain (Domain, domainText, mkDomain)
+import qualified Data.PEM as X509
 import Data.String.Conversions (cs)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.X509 as X509
+import qualified Data.X509.Validation as X509
+import Federator.Discovery
 import Federator.Options
 import Imports
 import Polysemy (Members, Sem)
@@ -33,6 +41,7 @@ import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import URI.ByteString
 import Wire.API.Federation.GRPC.Types
+import Wire.Network.DNS.SRV (SrvTarget (..))
 
 -- | Validates an already-parsed domain against the allowList using the federator
 -- startup configuration.
@@ -43,12 +52,61 @@ federateWith targetDomain = do
     AllowAll -> True
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains
 
--- | Validates an unknown domain string against the allowList using the federator startup configuration
-validateDomain :: Members '[Polysemy.Reader RunSettings, Polysemy.Error InwardError] r => Text -> Sem r Domain
-validateDomain unparsedDomain = do
+decodeCertificate ::
+  Members '[Polysemy.Error InwardError] r =>
+  ByteString ->
+  Sem r X509.Certificate
+decodeCertificate =
+  Polysemy.fromEither
+    . first (InwardError IInvalidDomain . Text.pack)
+    . ( (pure . X509.getCertificate)
+          <=< X509.decodeSignedCertificate
+          <=< (pure . X509.pemContent)
+          <=< expectOne "certificate"
+          <=< X509.pemParseBS
+      )
+  where
+    expectOne :: String -> [a] -> Either String a
+    expectOne label [] = Left $ "no " <> label <> " found"
+    expectOne _ [x] = pure x
+    expectOne label _ = Left $ "found multiple " <> label <> "s"
+
+-- | Validates an unknown domain string against the allowList using the
+-- federator startup configuration and checks that it matches the names reported
+-- by the client certificate
+validateDomain ::
+  Members
+    '[ Polysemy.Reader RunSettings,
+       Polysemy.Error InwardError,
+       DiscoverFederator
+     ]
+    r =>
+  Maybe ByteString ->
+  Text ->
+  Sem r Domain
+validateDomain Nothing _ = throwInward IInvalidDomain "no client certificate provided"
+validateDomain (Just encodedCertificate) unparsedDomain = do
   targetDomain <- case mkDomain unparsedDomain of
     Left parseErr -> throwInward IInvalidDomain (errDomainParsing parseErr)
     Right d -> pure d
+
+  -- TODO: extract this to a separate module
+  -- validate the hostname without a trailing dot as the certificate is not
+  -- expected to have the trailing dot.
+  let stripDot hostname
+        | "." `isSuffixOf` hostname = take (length hostname - 1) hostname
+        | otherwise = hostname
+  let validateName hostname cert =
+        X509.hookValidateName X509.defaultHooks (stripDot hostname) cert
+
+  -- run discovery to find the hostname of the client federator
+  certificate <- decodeCertificate encodedCertificate
+  SrvTarget hostname _ <-
+    Polysemy.mapError (InwardError IDiscoveryFailed . errDiscovery) $
+      discoverFederatorWithError targetDomain
+  unless (null (validateName (B8.unpack hostname) certificate)) $
+    throwInward IInvalidDomain "domain name does not match certificate"
+
   passAllowList <- federateWith targetDomain
   if passAllowList
     then pure targetDomain
@@ -59,6 +117,10 @@ validateDomain unparsedDomain = do
 
     errAllowList :: Domain -> Text
     errAllowList domain = "Origin domain [" <> domainText domain <> "] not in the federation allow list"
+
+    errDiscovery :: LookupError -> Text
+    errDiscovery (LookupErrorSrvNotAvailable msg) = "srv record not found: " <> Text.decodeUtf8 msg
+    errDiscovery (LookupErrorDNSError msg) = "DNS error: " <> Text.decodeUtf8 msg
 
 throwInward :: Members '[Polysemy.Error InwardError] r => InwardErrorType -> Text -> Sem r a
 throwInward errType errMsg = Polysemy.throw $ InwardError errType errMsg

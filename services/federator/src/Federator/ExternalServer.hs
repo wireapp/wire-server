@@ -30,7 +30,8 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
-import Federator.Env (Env, applog, runSettings)
+import Federator.Discovery
+import Federator.Env (Env, applog, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
 import Federator.Service (Service, interpretService, serviceCall)
 import Federator.Utils.PolysemyServerError (absorbServerError)
@@ -51,6 +52,7 @@ import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.GRPC.Types
+import Wire.Network.DNS.Effect as Polysemy
 
 -- FUTUREWORK(federation): Versioning of the federation API. See
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
@@ -60,7 +62,19 @@ import Wire.API.Federation.GRPC.Types
 --
 -- FUTUREWORK(federation): implement server2server authentication!
 -- (current validation only checks parsing and compares to allowList)
-callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Maybe ByteString -> Request -> Sem r InwardResponse
+callLocal ::
+  ( Members
+      '[ Service,
+         Embed IO,
+         TinyLog,
+         DiscoverFederator,
+         Polysemy.Reader RunSettings
+       ]
+      r
+  ) =>
+  Maybe ByteString ->
+  Request ->
+  Sem r InwardResponse
 callLocal cert = runInwardError . callLocal' cert
   where
     runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
@@ -71,7 +85,16 @@ callLocal cert = runInwardError . callLocal' cert
     toResponse (Right bs) = InwardResponseBody bs
 
 callLocal' ::
-  (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Error InwardError] r) =>
+  ( Members
+      '[ Service,
+         Embed IO,
+         TinyLog,
+         DiscoverFederator,
+         Polysemy.Reader RunSettings,
+         Polysemy.Error InwardError
+       ]
+      r
+  ) =>
   Maybe ByteString ->
   Request ->
   Sem r ByteString
@@ -81,7 +104,7 @@ callLocal' mcert req@Request {..} = do
       . Log.field "request" (show req)
       . maybe id (\cert -> Log.field "certificate" (Text.decodeUtf8 cert)) mcert
 
-  validatedDomain <- validateDomain originDomain
+  validatedDomain <- validateDomain mcert originDomain
   validatedPath <- sanitizePath path
   Log.debug $
     Log.msg ("Path validation" :: ByteString)
@@ -102,7 +125,7 @@ callLocal' mcert req@Request {..} = do
       throwInward IOther description
 
 routeToInternal ::
-  (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) =>
+  (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, DiscoverFederator, Polysemy.Reader RunSettings] r) =>
   Maybe ByteString ->
   SingleServerT info Inward (Sem r) _
 routeToInternal cert = singleService (Mu.method @"call" (callLocal cert))
@@ -118,7 +141,19 @@ serveInward env port = do
   let app req = gRpcAppTrans msgProtoBuf transformer (routeToInternal (lookupCertificate req)) req
   Wai.run port app
   where
-    transformer :: Sem '[TinyLog, Embed IO, Polysemy.Error ServerError, Service, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
+    transformer ::
+      Sem
+        '[ DiscoverFederator,
+           DNSLookup,
+           TinyLog,
+           Embed IO,
+           Polysemy.Error ServerError,
+           Service,
+           Polysemy.Reader RunSettings,
+           Embed Federator
+         ]
+        a ->
+      ServerErrorIO a
     transformer action =
       runAppT env
         . runM @Federator
@@ -127,4 +162,6 @@ serveInward env port = do
         . absorbServerError
         . embedToMonadIO @Federator
         . Log.runTinyLog (view applog env)
+        . Polysemy.runDNSLookupWithResolver (view dnsResolver env)
+        . runFederatorDiscovery
         $ action

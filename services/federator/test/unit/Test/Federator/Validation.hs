@@ -20,14 +20,17 @@
 module Test.Federator.Validation where
 
 import qualified Data.ByteString as BS
-import Data.Domain (Domain (..))
+import Data.Domain (Domain (..), domainText)
 import Data.Either.Combinators (mapLeft)
 import Data.String.Conversions
+import qualified Data.Text.Encoding as Text
+import Federator.Discovery (DiscoverFederator (..))
 import Federator.Options
 import Federator.Remote (Remote)
 import Federator.Validation
 import Imports
-import Polysemy (runM)
+import Polysemy (Sem, runM)
+import qualified Polysemy
 import Polysemy.Embed
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
@@ -37,6 +40,11 @@ import Test.Polysemy.Mock (evalMock)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.GRPC.Types
+import Wire.Network.DNS.SRV (SrvTarget (..))
+
+mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
+mockDiscoveryTrivial = Polysemy.interpret $ \(DiscoverFederator dom) ->
+  pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443
 
 tests :: TestTree
 tests =
@@ -77,7 +85,11 @@ validateDomainAllowListFailSemantic =
   testCase "semantic validation" $
     runM . evalMock @Remote @IO $ do
       let settings = settingsWithAllowList [Domain "only.other.domain"]
-      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader settings $ validateDomain ("invalid//.><-semantic-&@-domain" :: Text)
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryTrivial
+          . Polysemy.runReader settings
+          $ validateDomain Nothing ("invalid//.><-semantic-&@-domain" :: Text)
       embed $ assertEqual "semantic parse failure" (Left IInvalidDomain) (mapLeft inwardErrorType res)
 
 validateDomainAllowListFail :: TestTree
@@ -85,7 +97,11 @@ validateDomainAllowListFail =
   testCase "allow list validation" $
     runM . evalMock @Remote @IO $ do
       let settings = settingsWithAllowList [Domain "only.other.domain"]
-      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader settings $ validateDomain ("hello.world" :: Text)
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryTrivial
+          . Polysemy.runReader settings
+          $ validateDomain Nothing ("hello.world" :: Text)
       embed $ assertEqual "allow list:" (Left IFederationDeniedByRemote) (mapLeft inwardErrorType res)
 
 validateDomainAllowListSuccess :: TestTree
@@ -95,7 +111,11 @@ validateDomainAllowListSuccess =
     runM . evalMock @Remote @IO $ do
       let domain = Domain "hello.world"
       let settings = settingsWithAllowList [domain]
-      res :: Either InwardError Domain <- Polysemy.runError . Polysemy.runReader settings $ validateDomain ("hello.world" :: Text)
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryTrivial
+          . Polysemy.runReader settings
+          $ validateDomain Nothing ("hello.world" :: Text)
       embed $ assertEqual "validateDomain should give 'hello.world' as domain" (Right domain) res
 
 validatePathSuccess :: [TestTree]
