@@ -11,7 +11,9 @@ The following assume you have a working developer environment with all the depen
         * [(A) Use the latest compiled code from `develop`](#a-use-the-latest-compiled-code-from-develop)
             * [Troubleshooting](#troubleshooting)
         * [(B) Use code from your pull request](#b-use-code-from-your-pull-request)
-        * [(C) Use your local code](#c-use-your-local-code)
+        * [(C) Use your local code and kind](#c-use-your-local-code-and-kind)
+            * [(i) Build images](#i-build-images)
+            * [(ii) Run tests in kind](#ii-run-tests-in-kind)
     * [(3) Run multi-backend tests](#3-run-multi-backend-tests)
         * [Run all integration tests on kubernetes](#run-all-integration-tests-on-kubernetes)
         * [Run only the multi-backend tests](#run-only-the-multi-backend-tests)
@@ -170,3 +172,6 @@ Note that this runs your *locally* compiled `brig-integration`, so this allows t
 1. change code under `services/brig/test/integration/Federation/`
 2. recompile: `make -C services/brig fast`
 3. run `./services/brig/federation-tests.sh test-$USER` again.
+
+
+test for CI
