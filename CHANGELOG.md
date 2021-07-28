@@ -65,6 +65,7 @@ Upgrade nginz (#1658)
 * The servant-swagger dependency now points to the current upstream master (#1656)
 * Improved error handling middleware (#1671)
 * Refactor function createUser for readability (#1670)
+* Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
 * Removed explicit implementation for user HEAD endpoints (#1679)
 * Improved test coverage for error responses (#1680)
 

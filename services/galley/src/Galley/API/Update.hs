@@ -65,7 +65,6 @@ import Control.Monad.Catch
 import Control.Monad.State
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
-import Data.Domain
 import Data.Id
 import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
@@ -642,13 +641,13 @@ postBotMessage zbot zcnv val message = do
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
 -- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
-postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postProteusMessage zusr zcon convDomain conv msg = do
+postProteusMessage :: UserId -> ConnId -> Qualified ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postProteusMessage zusr zcon conv msg = do
   localDomain <- viewFederationDomain
   let sender = Qualified zusr localDomain
-  if localDomain /= convDomain
-    then postRemoteOtrMessage sender (Qualified conv convDomain) (rpRaw msg)
-    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) conv (rpValue msg)
+  if localDomain /= qDomain conv
+    then postRemoteOtrMessage sender conv (rpRaw msg)
+    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) (qUnqualified conv) (rpValue msg)
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do

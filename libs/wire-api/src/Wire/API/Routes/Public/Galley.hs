@@ -22,7 +22,6 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
-import Data.Domain
 import Data.Id (ConvId, TeamId)
 import Data.Qualified (Qualified (..))
 import Data.Range
@@ -41,6 +40,7 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Feature
@@ -130,8 +130,7 @@ data Api routes = Api
         :- Summary "Get a conversation by ID"
         :> ZUser
         :> "conversations"
-        :> Capture "domain" Domain
-        :> Capture "cnv" ConvId
+        :> QualifiedCapture "cnv" ConvId
         :> Get '[Servant.JSON] Public.Conversation,
     getConversationRoles ::
       routes
@@ -320,8 +319,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture "domain" Domain
-        :> Capture "cnv" ConvId
+        :> QualifiedCapture "cnv" ConvId
         :> "proteus"
         :> "messages"
         :> ReqBody '[Proto] (RawProto Public.QualifiedNewOtrMessage)
