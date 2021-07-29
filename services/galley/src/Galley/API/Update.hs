@@ -122,7 +122,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
-acceptConvH (usr ::: conn ::: cnv) = do
+acceptConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> acceptConv usr conn cnv
 
 acceptConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
@@ -132,7 +132,7 @@ acceptConv usr conn cnv = do
   conversationView usr conv'
 
 blockConvH :: UserId ::: ConvId -> Galley Response
-blockConvH (zusr ::: cnv) = do
+blockConvH (zusr ::: cnv) =
   empty <$ blockConv zusr cnv
 
 blockConv :: UserId -> ConvId -> Galley ()
@@ -145,7 +145,7 @@ blockConv zusr cnv = do
   when (zusr `isMember` mems) $ Data.removeMember zusr cnv
 
 unblockConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
-unblockConvH (usr ::: conn ::: cnv) = do
+unblockConvH (usr ::: conn ::: cnv) =
   setStatus status200 . json <$> unblockConv usr conn cnv
 
 unblockConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
@@ -338,7 +338,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
       pure timerEvent
 
 addCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
-addCodeH (usr ::: zcon ::: cnv) = do
+addCodeH (usr ::: zcon ::: cnv) =
   addCode usr zcon cnv <&> \case
     CodeAdded event -> json event & setStatus status201
     CodeAlreadyExisted conversationCode -> json conversationCode & setStatus status200
@@ -377,7 +377,7 @@ addCode usr zcon cnv = do
       return $ mkConversationCode (codeKey code) (codeValue code) urlPrefix
 
 rmCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
-rmCodeH (usr ::: zcon ::: cnv) = do
+rmCodeH (usr ::: zcon ::: cnv) =
   setStatus status200 . json <$> rmCode usr zcon cnv
 
 rmCode :: UserId -> ConnId -> ConvId -> Galley Public.Event
@@ -397,7 +397,7 @@ rmCode usr zcon cnv = do
   pure event
 
 getCodeH :: UserId ::: ConvId -> Galley Response
-getCodeH (usr ::: cnv) = do
+getCodeH (usr ::: cnv) =
   setStatus status200 . json <$> getCode usr cnv
 
 getCode :: UserId -> ConvId -> Galley Public.ConversationCode
@@ -423,7 +423,7 @@ checkReusableCodeH req = do
   pure empty
 
 checkReusableCode :: Public.ConversationCode -> Galley ()
-checkReusableCode convCode = do
+checkReusableCode convCode =
   void $ verifyReusableCode convCode
 
 joinConversationByReusableCodeH :: UserId ::: ConnId ::: JsonRequest Public.ConversationCode -> Galley Response
@@ -540,12 +540,11 @@ addMembers zusr zcon convId invite = do
           then do
             localDomain <- viewFederationDomain
             let qconvId = Qualified (Data.convId conv) localDomain
-            for_ convUsersLHStatus $ \(mem, status) -> do
+            for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $
                 let qvictim = Qualified (memId mem) localDomain
                  in void $ removeMember (memId mem) Nothing qconvId qvictim
-          else do
-            throwM missingLegalholdConsent
+          else throwM missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
@@ -666,7 +665,7 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
   handleOtrResult =<< postBotMessage zbot zcnv val' message
 
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
-postBotMessage zbot zcnv val message = do
+postBotMessage zbot zcnv val message =
   postNewOtrMessage Bot (botUserId zbot) Nothing zcnv val message
 
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
@@ -722,8 +721,7 @@ postOtrBroadcastH (zusr ::: zcon ::: val ::: req) = do
   handleOtrResult =<< postOtrBroadcast zusr zcon val' message
 
 postOtrBroadcast :: UserId -> ConnId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
-postOtrBroadcast zusr zcon val message =
-  postNewOtrBroadcast zusr (Just zcon) val message
+postOtrBroadcast zusr zcon = postNewOtrBroadcast zusr (Just zcon)
 
 -- internal OTR helpers
 
@@ -772,7 +770,7 @@ postRemoteToLocal rm = do
   -- FUTUREWORK(authorization) review whether filtering members is appropriate
   -- at this stage
   (members, allMembers) <- Data.filterRemoteConvMembers (Map.keys rcpts) conv
-  unless allMembers $ do
+  unless allMembers $
     Log.warn $
       Log.field "conversation" (toByteString' (qUnqualified conv))
         Log.~~ Log.field "domain" (toByteString' (qDomain conv))
@@ -834,7 +832,7 @@ newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
       -- use recipient's client's self conversation on broadcast
       -- (with federation, this might not work for remote members)
       -- FUTUREWORK: for remote recipients, set the domain correctly here
-      qconv = fromMaybe ((`Qualified` (qDomain qusr)) . selfConv $ memId m) qcnv
+      qconv = fromMaybe ((`Qualified` qDomain qusr) . selfConv $ memId m) qcnv
       e = Event OtrMessageAdd qconv qusr now (EdOtrMessage o)
       r = recipient m & recipientClients .~ RecipientClientsSome (singleton c)
    in case newBotMember m of
