@@ -30,6 +30,8 @@ module Sodium.Crypto.Sign
   )
 where
 
+import Control.Monad (void)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.ByteString.Base64.URL
 import Data.ByteString.Char8 (pack, unpack)
@@ -37,7 +39,7 @@ import qualified Data.ByteString.Internal as I
 import qualified Data.ByteString.Unsafe as U
 import Foreign hiding (void)
 import Foreign.C
-import Imports
+import Prelude
 
 newtype PublicKey = PublicKey {pubBytes :: ByteString} deriving (Eq, Ord)
 

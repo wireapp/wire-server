@@ -13,7 +13,6 @@ dependencies:
 - base >=4.6 && <5
 - base64-bytestring >=1.0
 - bytestring >=0.10
-- imports
 library:
   source-dirs: src
   pkg-config-dependencies:

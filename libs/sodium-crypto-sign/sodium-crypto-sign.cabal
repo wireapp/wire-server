@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f1ee42f25a00c893e5fa4a2dd1fde6c9aa2b39c8f0b558bfc8e217f21ecc78dd
+-- hash: b685aaf66d3a99b1bbd940f4e4576b2d426862ad79584fb8b78a1aa43920f044
 
 name:           sodium-crypto-sign
 version:        0.1.2
@@ -33,5 +33,4 @@ library
       base >=4.6 && <5
     , base64-bytestring >=1.0
     , bytestring >=0.10
-    , imports
   default-language: Haskell2010
