@@ -64,6 +64,8 @@ instance HasStatusCol 'TeamFeatureAppLock where statusCol = "app_lock_status"
 
 instance HasStatusCol 'TeamFeatureFileSharing where statusCol = "file_sharing"
 
+instance HasStatusCol 'TeamFeatureConferenceCalling where statusCol = "conference_calling"
+
 getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,

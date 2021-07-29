@@ -411,6 +411,7 @@ CREATE TABLE galley_test.team_features (
     app_lock_enforce int,
     app_lock_inactivity_timeout_secs int,
     app_lock_status int,
+    conference_calling int,
     digital_signatures int,
     file_sharing int,
     legalhold_status int,

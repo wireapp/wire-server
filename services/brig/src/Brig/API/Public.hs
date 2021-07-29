@@ -170,10 +170,10 @@ servantSitemap =
   genericServerT $
     BrigAPI.Api
       { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
-        BrigAPI.getUserQualified = getUserH,
+        BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
-        BrigAPI.getUserByHandleQualified = getUserByHandleH,
+        BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
         BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
         BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
@@ -752,10 +752,10 @@ listPropertyKeysAndValuesH (u ::: _) = do
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
-  getPrekeyH zusr domain user client
+  getPrekeyH zusr (Qualified user domain) client
 
-getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyH zusr domain user client = do
+getPrekeyH :: UserId -> Qualified UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
@@ -764,8 +764,8 @@ getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleH zusr domain uid =
+getPrekeyBundleH :: UserId -> Qualified UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler Public.UserClientPrekeyMap
@@ -818,9 +818,8 @@ getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
   API.lookupPubClients (Qualified uid localdomain) !>> clientError
 
-getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
-getUserClientsQualified domain uid = do
-  API.lookupPubClients (Qualified uid domain) !>> clientError
+getUserClientsQualified :: Qualified UserId -> Handler [Public.PubClient]
+getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
 
 getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
 getUserClientUnqualified uid cid = do
@@ -835,9 +834,9 @@ listClientsBulk _zusr limitedUids =
 listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
-getUserClientQualified domain uid cid = do
-  x <- API.lookupPubClient (Qualified uid domain) cid !>> clientError
+getUserClientQualified :: Qualified UserId -> ClientId -> Handler Public.PubClient
+getUserClientQualified quid cid = do
+  x <- API.lookupPubClient quid cid !>> clientError
   ifNothing (notFound "client not found") x
 
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
@@ -951,10 +950,7 @@ getSelf self =
 getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
-  getUserH self domain uid
-
-getUserH :: UserId -> Domain -> UserId -> Handler (Maybe Public.UserProfile)
-getUserH self domain uid = getUser self (Qualified uid domain)
+  getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
@@ -1072,17 +1068,15 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
--- | This endpoint returns UserHandleInfo instead of UserProfile for backwards compatibility.
+-- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
+-- compatibility, whereas the corresponding qualified endpoint (implemented by
+-- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
+-- in a federated scenario.
 getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId
-    <$$> getUserByHandleH self domain handle
-
--- | This endpoint returns UserProfile instead of UserHandleInfo to reduce
--- traffic between backends in a federated scenario.
-getUserByHandleH :: UserId -> Domain -> Handle -> Handler (Maybe Public.UserProfile)
-getUserByHandleH self domain handle = Handle.getHandleInfo self (Qualified handle domain)
+    <$$> Handle.getHandleInfo self (Qualified handle domain)
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) =

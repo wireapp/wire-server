@@ -85,12 +85,12 @@ getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
 
-getConversation :: UserId -> Domain -> ConvId -> Galley Public.Conversation
-getConversation zusr domain cnv = do
+getConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
+getConversation zusr cnv = do
   localDomain <- viewFederationDomain
-  if domain == localDomain
-    then getUnqualifiedConversation zusr cnv
-    else getRemoteConversation zusr (toRemote $ Qualified cnv domain)
+  if qDomain cnv == localDomain
+    then getUnqualifiedConversation zusr (qUnqualified cnv)
+    else getRemoteConversation zusr (toRemote cnv)
 
 getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
 getRemoteConversation zusr remoteConvId = do
@@ -121,7 +121,7 @@ getConversationRoles zusr cnv = do
 getConversationIds :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
 getConversationIds zusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
-  ids <- Data.conversationIdRowsFrom zusr start size
+  ids <- Data.conversationIdsFrom zusr start size
   pure $
     Public.ConversationList
       (Data.resultSetResult ids)
