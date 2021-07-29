@@ -167,9 +167,6 @@ def merge_projects(dir_source, dir_target):
             print(f"WARNING: duplicated flag {name}")
         package_target['flags'][name] = flag
 
-    for path in get_list(package_source, ['library', 'exposed-modules']):
-        package_target['library']['exposed-modules'].append(path)
-
     for path in package_source.get('extra-source-files', []):
         if 'extra-source-files' not in package_target:
             package_target['extra-source-files'] = []
