@@ -224,7 +224,7 @@ def main():
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
     shutil.copyfile('Setup_start.hs', 'wire-server/Setup.hs')
 
-    packages_topo_order = read_dep_dag(exceptions=[''])
+    packages_topo_order = read_dep_dag(exceptions=['sodium-crypto-sign'])
 
     for package in packages_topo_order:
         print(package)
