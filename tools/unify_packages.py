@@ -207,7 +207,10 @@ def read_dep_dag(exceptions):
             continue
         package = read_yaml(fn)
         if package['name'] in exceptions:
+            print(f'  Skipping {package["name"]}')
             continue
+        else:
+            print(package['name'])
         deps = get_all_dependencies(package)
         dag[package['name']] = set(deps)
         package_to_dir[package['name']] = package_dir
@@ -221,7 +224,10 @@ def main():
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
     shutil.copyfile('Setup_start.hs', 'wire-server/Setup.hs')
 
-    packages_topo_order = read_dep_dag(exceptions=['sodium-crypto-sign'])
+    packages_topo_order = read_dep_dag(exceptions=['sodium-crypto-sign',
+                                                   'wire-message-proto-lens',
+                                                   'types-common-journal-proto'
+                                                  ])
 
     for package in packages_topo_order:
         print(package)
