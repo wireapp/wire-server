@@ -54,6 +54,7 @@ import qualified V48_DeleteRemoteIdentifiers
 import qualified V49_ReAddRemoteIdentifiers
 import qualified V50_AddLegalholdWhitelisted
 import qualified V51_FeatureFileSharing
+import qualified V52_FeatureConferenceCalling
 
 main :: IO ()
 main = do
@@ -93,7 +94,8 @@ main = do
       V48_DeleteRemoteIdentifiers.migration,
       V49_ReAddRemoteIdentifiers.migration,
       V50_AddLegalholdWhitelisted.migration,
-      V51_FeatureFileSharing.migration
+      V51_FeatureFileSharing.migration,
+      V52_FeatureConferenceCalling.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
     ]

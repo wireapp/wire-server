@@ -59,6 +59,9 @@ settings:
     fileSharing:
       defaults:
         status: enabled
+    conferenceCalling:
+      defaults:
+        status: enabled
 
 logLevel: Info
 logNetStrings: false

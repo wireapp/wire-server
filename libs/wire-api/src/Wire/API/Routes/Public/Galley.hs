@@ -372,6 +372,9 @@ data Api routes = Api
     teamFeatureStatusClassifiedDomainsGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureClassifiedDomains,
+    teamFeatureStatusConferenceCallingGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureConferenceCalling,
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,
@@ -398,7 +401,10 @@ data Api routes = Api
         :- FeatureConfigGet 'TeamFeatureFileSharing,
     featureConfigClassifiedDomainsGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureClassifiedDomains
+        :- FeatureConfigGet 'TeamFeatureClassifiedDomains,
+    featureConfigConferenceCallingGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureConferenceCalling
   }
   deriving (Generic)
 
