@@ -222,7 +222,6 @@ def main():
     os.makedirs('wire-server', exist_ok=True)
 
     shutil.copyfile('package_start.yaml', 'wire-server/package.yaml')
-    shutil.copyfile('Setup_start.hs', 'wire-server/Setup.hs')
 
     packages_topo_order = read_dep_dag(exceptions=['sodium-crypto-sign',
                                                    'wire-message-proto-lens',
