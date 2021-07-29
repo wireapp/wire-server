@@ -119,7 +119,8 @@ def merge_projects(dir_source, dir_target):
 
     prefix = package_source['name']
 
-    # TODO: remove  from all deps
+    # FIX: test suites are not prefixed by their package name, so in the merge
+    # the overwrite each other
 
     def remove_source(deps):
         return [dep for dep in deps if dep != package_source["name"]]
