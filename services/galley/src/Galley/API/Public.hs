@@ -88,6 +88,7 @@ servantSitemap =
         GalleyAPI.createSelfConversation = Create.createSelfConversation,
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
         GalleyAPI.addMembersToConversationV2 = Update.addMembers,
+        GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
@@ -800,25 +801,6 @@ sitemap = do
     body (ref Public.modelTyping) $
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members
-  delete "/conversations/:cnv/members/:usr" (continue Update.removeMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. capture "usr"
-  document "DELETE" "removeMember" $ do
-    summary "Remove member from conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Path "usr" bytes' $
-      description "Target User ID"
-    returns (ref Public.modelEvent)
-    response 200 "Member removed" end
-    response 204 "No change" end
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-    errorResponse $ Error.invalidOp "Conversation type does not allow removing members"
 
   -- This endpoint can lead to the following events being sent:
   -- - OtrMessageAdd event to recipients
