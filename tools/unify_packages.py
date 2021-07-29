@@ -119,9 +119,6 @@ def merge_projects(dir_source, dir_target):
 
     prefix = package_source['name']
 
-    # FIX: test suites are not prefixed by their package name, so in the merge
-    # the overwrite each other
-
     def remove_source(deps):
         return [dep for dep in deps if dep != package_source["name"]]
 
@@ -133,16 +130,13 @@ def merge_projects(dir_source, dir_target):
         merge_deps(package_target['library']['dependencies'], 
             get_dependencies(package_source, ['library'])))
 
-    # if 'brig-types' in package_target['library']['dependencies']:
-    #     print(f"brig-types dependency when merging {prefix}")
-
     executables = \
-        [('executables', name, exe) \
+        [('executables', name, exe, False) \
             for name, exe in package_source.get('executables', {}).items()] + \
-        [('tests', name, exe) \
+        [('tests', name, exe, True) \
             for name, exe in package_source.get('tests', {}).items()]
 
-    for ty, name, exe in executables:
+    for ty, name, exe, is_test in executables:
         if 'source-dirs' in exe:
             exe['source-dirs'] = [os.path.join(prefix, d)
                 for d in get_list(exe, ['source-dirs'])]
@@ -153,7 +147,11 @@ def merge_projects(dir_source, dir_target):
 
         deps = [parse_simple_dep(dep) for dep in exe.get('dependencies', [])]
         exe['dependencies'] = ['wire-server'] + deps
-        package_target[ty][name] = exe
+
+        if is_test:
+            package_target[ty][prefix + '_' + name] = exe
+        else:
+            package_target[ty][name] = exe
 
     # remove source from all executable and test dependencies
     for exe in package_target.get('executables', {}).values():
