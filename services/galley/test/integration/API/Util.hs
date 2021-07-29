@@ -874,8 +874,8 @@ postMembersWithRole u us c r = do
       . zType "access"
       . json i
 
-deleteMember :: UserId -> UserId -> ConvId -> TestM ResponseLBS
-deleteMember u1 u2 c = do
+deleteMemberUnqualified :: UserId -> UserId -> ConvId -> TestM ResponseLBS
+deleteMemberUnqualified u1 u2 c = do
   g <- view tsGalley
   delete $
     g
