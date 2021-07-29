@@ -37,7 +37,6 @@ module Galley.API.Update
     addMembers,
     updateSelfMemberH,
     updateOtherMemberH,
-    removeMemberH,
     removeMember,
     removeMemberUnqualified,
 
@@ -579,32 +578,27 @@ updateOtherMember zusr zcon cid victim update = do
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
-removeMemberH :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
-removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
-  localDomain <- viewFederationDomain
-  handleUpdateResult <$> removeMember zusr (Just zcon) (Qualified cid localDomain) (Qualified victim localDomain)
+mapUpdateResult :: UpdateResult -> GalleyAPI.RemoveFromConversation
+mapUpdateResult = \case
+  Unchanged -> GalleyAPI.RemoveFromConversationUnchanged
+  Updated e -> GalleyAPI.RemoveFromConversationUpdated e
 
-removeMember :: UserId -> Maybe ConnId -> Qualified ConvId -> Qualified UserId -> Galley UpdateResult
+removeMember :: UserId -> Maybe ConnId -> Qualified ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
 removeMember zusr zcon qconvId@(Qualified convId convDomain) victim = do
   localDomain <- viewFederationDomain
   if localDomain == convDomain
-    then removeMemberFromLocalConv zusr zcon convId victim
+    then -- FUTUREWORK: see how and where 403 and 404 responses are returned in
+    -- 'removeMemberFromLocalConv' and map them to the return value of type
+    -- 'GalleyAPI.RemoveFromConversation'.
+      mapUpdateResult <$> removeMemberFromLocalConv zusr zcon convId victim
     else removeMemberFromRemoteConv zusr (toRemote qconvId) victim
 
-removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley GalleyAPI.RemoveFromConversationResponse
+removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley GalleyAPI.RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
-  let qconvId = Qualified conv localDomain
-      qvictim = Qualified victim localDomain
-  -- FUTUREWORK: see how and where 403 and 404 responses are returned in
-  -- 'removeMember' and map them to the return value of type
-  -- 'GalleyAPI.RemoveFromConversationResponse'.
-  r <- removeMember zusr (Just zcon) qconvId qvictim
-  pure $ case r of
-    Unchanged -> GalleyAPI.RemoveFromConversationUnchanged
-    Updated e -> GalleyAPI.RemoveFromConversationUpdated e
+  removeMember zusr (Just zcon) (Qualified conv localDomain) (Qualified victim localDomain)
 
-removeMemberFromRemoteConv :: UserId -> Remote ConvId -> Qualified UserId -> Galley UpdateResult
+removeMemberFromRemoteConv :: UserId -> Remote ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
 removeMemberFromRemoteConv _zusr _convId _victim =
   throwM federationNotImplemented
 
