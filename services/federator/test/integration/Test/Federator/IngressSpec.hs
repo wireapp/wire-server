@@ -69,6 +69,6 @@ inwardBrigCallViaIngress requestPath payload = do
           { GRPC.component = Brig,
             GRPC.path = requestPath,
             GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = "foo.example.com"
+            GRPC.originDomain = "example.com"
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client brigCall

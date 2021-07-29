@@ -29,6 +29,7 @@ import qualified Data.Text as Text
 import Imports
 import Mu.GRpc.Client.TyApps
 import Network.GRPC.Client.Helpers
+import qualified Network.HTTP.Types as HTTP
 import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
@@ -111,17 +112,17 @@ inwardBrigCall requestPath payload = do
           { GRPC.component = Brig,
             GRPC.path = requestPath,
             GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = "localhost.example.com"
+            GRPC.originDomain = "example.com"
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
 viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
 viewFederatorExternalClient = do
   Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
-  exampleCert <- liftIO $ BS.readFile "test/resources/unit/localhost.pem"
+  exampleCert <- liftIO $ BS.readFile "test/resources/integration-leaf.pem"
   let cfg =
         (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
-          { _grpcClientConfigHeaders = [("X-SSL-Certificate", exampleCert)]
+          { _grpcClientConfigHeaders = [("X-SSL-Certificate", HTTP.urlEncode True exampleCert)]
           }
   client <- createGrpcClient cfg
   case client of

@@ -44,7 +44,9 @@ defRunSettings client key =
       useSystemCAStore = True,
       remoteCAStore = Nothing,
       clientCertificate = client,
-      clientPrivateKey = key
+      clientPrivateKey = key,
+      dnsHost = Nothing,
+      dnsPort = Nothing
     }
 
 noClientCertSettings :: RunSettings

@@ -40,7 +40,7 @@ import Imports
 import Mu.GRpc.Server (gRpcAppTrans, msgProtoBuf)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
-import qualified Network.HTTP.Types.Status as HTTP
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Wai
 import qualified Network.Wai.Utilities.Error as Wai
@@ -102,7 +102,6 @@ callLocal' mcert req@Request {..} = do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "request" (show req)
-      . maybe id (\cert -> Log.field "certificate" (Text.decodeUtf8 cert)) mcert
 
   validatedDomain <- validateDomain mcert originDomain
   validatedPath <- sanitizePath path
@@ -131,10 +130,7 @@ routeToInternal ::
 routeToInternal cert = singleService (Mu.method @"call" (callLocal cert))
 
 lookupCertificate :: Wai.Request -> Maybe ByteString
-lookupCertificate req = B8.map unescape <$> lookup "X-SSL-Certificate" (Wai.requestHeaders req)
-  where
-    unescape '\t' = '\n'
-    unescape x = x
+lookupCertificate req = HTTP.urlDecode True <$> lookup "X-SSL-Certificate" (Wai.requestHeaders req)
 
 serveInward :: Env -> Int -> IO ()
 serveInward env port = do
