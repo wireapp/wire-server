@@ -22,7 +22,7 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
-import Data.Id (ConvId, TeamId)
+import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP (I (..), NS (..))
