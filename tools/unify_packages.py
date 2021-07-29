@@ -176,7 +176,6 @@ def merge_projects(dir_source, dir_target):
     prefixed_source_dirs = [os.path.join(prefix, d) for d in get_list(package_source, ['library', 'source-dirs'])]
     package_target['library']['source-dirs'].extend(prefixed_source_dirs)
 
-    # TODO: executables
     # TODO: tests
 
     package_source_name = package_source['name']
