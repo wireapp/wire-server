@@ -157,9 +157,9 @@ tests s =
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
-          test s "remove members" deleteMembersOk,
-          test s "fail to remove members from self conv." deleteMembersFailSelf,
-          test s "fail to remove members from 1:1 conv." deleteMembersFailO2O,
+          test s "remove members (unqualified conversation)" deleteMembersUnqualifiedOk,
+          test s "fail to remove members from self conv." deleteMembersUnqualifiedFailSelf,
+          test s "fail to remove members from 1:1 conv." deleteMembersUnqualifiedFailO2O,
           test s "rename conversation" putConvRenameOk,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
@@ -1776,8 +1776,8 @@ leaveConnectConversation = do
   alice <- randomUser
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
-  let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
-  deleteMember alice alice c !!! const 403 === statusCode
+  let c = fromMaybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId <$> responseJsonUnsafe bdy)
+  deleteMemberUnqualified alice alice c !!! const 403 === statusCode
 
 -- FUTUREWORK: Add more tests for scenarios of federation.
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
@@ -2022,7 +2022,7 @@ postMembersOk3 = do
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Bob leaves
-  deleteMember bob bob conv !!! const 200 === statusCode
+  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
   -- Fetch bob
   getSelfMember bob conv !!! const 200 === statusCode
   -- Alice re-adds Bob to the conversation
@@ -2064,35 +2064,35 @@ postTooManyMembersFail = do
     const 403 === statusCode
     const (Just "too-many-members") === fmap label . responseJsonUnsafe
 
-deleteMembersOk :: TestM ()
-deleteMembersOk = do
+deleteMembersUnqualifiedOk :: TestM ()
+deleteMembersUnqualifiedOk = do
   alice <- randomUser
   bob <- randomUser
   eve <- randomUser
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-  deleteMember bob bob conv !!! const 200 === statusCode
-  deleteMember bob bob conv !!! const 404 === statusCode
+  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
+  deleteMemberUnqualified bob bob conv !!! const 404 === statusCode
   -- if conversation still exists, don't respond with 404, but with 403.
   getConv bob conv !!! const 403 === statusCode
-  deleteMember alice eve conv !!! const 200 === statusCode
-  deleteMember alice eve conv !!! const 204 === statusCode
-  deleteMember alice alice conv !!! const 200 === statusCode
-  deleteMember alice alice conv !!! const 404 === statusCode
+  deleteMemberUnqualified alice eve conv !!! const 200 === statusCode
+  deleteMemberUnqualified alice eve conv !!! const 204 === statusCode
+  deleteMemberUnqualified alice alice conv !!! const 200 === statusCode
+  deleteMemberUnqualified alice alice conv !!! const 404 === statusCode
 
-deleteMembersFailSelf :: TestM ()
-deleteMembersFailSelf = do
+deleteMembersUnqualifiedFailSelf :: TestM ()
+deleteMembersUnqualifiedFailSelf = do
   alice <- randomUser
   self <- decodeConvId <$> postSelfConv alice
-  deleteMember alice alice self !!! const 403 === statusCode
+  deleteMemberUnqualified alice alice self !!! const 403 === statusCode
 
-deleteMembersFailO2O :: TestM ()
-deleteMembersFailO2O = do
+deleteMembersUnqualifiedFailO2O :: TestM ()
+deleteMembersUnqualifiedFailO2O = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
   o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
-  deleteMember alice bob o2o !!! const 403 === statusCode
+  deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
 
 putConvRenameOk :: TestM ()
 putConvRenameOk = do
