@@ -84,6 +84,31 @@ type ConversationVerb =
      ]
     ConversationResponse
 
+data RemoveFromConversation
+  = RemoveFromConversationUnchanged
+  | RemoveFromConversationUpdated Public.Event
+  | RemoveFromConversationNotAllowed
+  | RemoveFromConversationNotFound
+
+type RemoveFromConversationResponses =
+  '[ RespondEmpty 204 "No change",
+     Respond 200 "Member removed" Public.Event,
+     RespondWithErrorDescription 403 "invalid-op" "Conversation type does not allow removing members",
+     RespondWithErrorDescription 404 "no-conversation" "Conversation not found"
+   ]
+
+instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
+  toUnion RemoveFromConversationUnchanged = Z (I ())
+  toUnion (RemoveFromConversationUpdated e) = S (Z (I e))
+  toUnion RemoveFromConversationNotAllowed = S (S (Z (I (ErrorDescription "Conversation type does not allow removing members"))))
+  toUnion RemoveFromConversationNotFound = S (S (S (Z (I convNotFound))))
+
+  fromUnion (Z (I ())) = RemoveFromConversationUnchanged
+  fromUnion (S (Z (I e))) = RemoveFromConversationUpdated e
+  fromUnion (S (S (Z _))) = RemoveFromConversationNotAllowed
+  fromUnion (S (S (S (Z _)))) = RemoveFromConversationNotFound
+  fromUnion (S (S (S (S x)))) = case x of
+
 type UpdateResponses =
   '[ RespondEmpty 204 "Conversation unchanged",
      Respond 200 "Conversation updated" Public.Event
@@ -250,6 +275,18 @@ data Api routes = Api
         :> "v2"
         :> ReqBody '[Servant.JSON] Public.InviteQualified
         :> MultiVerb 'POST '[Servant.JSON] UpdateResponses UpdateResult,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members
+    removeMemberUnqualified ::
+      routes
+        :- Summary "Remove a member from a conversation (deprecated)"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> Capture' '[Description "Target User ID"] "usr" UserId
+        :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation,
     -- Team Conversations
 
     getTeamConversationRoles ::

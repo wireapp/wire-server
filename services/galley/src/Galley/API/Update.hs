@@ -39,6 +39,7 @@ module Galley.API.Update
     updateOtherMemberH,
     removeMemberH,
     removeMember,
+    removeMemberUnqualified,
 
     -- * Talking
     postProteusMessage,
@@ -593,6 +594,19 @@ removeMember zusr zcon qconvId@(Qualified convId convDomain) victim = do
   if localDomain == convDomain
     then removeMemberFromLocalConv zusr zcon convId victim
     else removeMemberFromRemoteConv zusr (toRemote qconvId) victim
+
+removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley GalleyAPI.RemoveFromConversationResponse
+removeMemberUnqualified zusr zcon conv victim = do
+  localDomain <- viewFederationDomain
+  let qconvId = Qualified conv localDomain
+      qvictim = Qualified victim localDomain
+  -- FUTUREWORK: see how and where 403 and 404 responses are returned in
+  -- 'removeMember' and map them to the return value of type
+  -- 'GalleyAPI.RemoveFromConversationResponse'.
+  r <- removeMember zusr (Just zcon) qconvId qvictim
+  pure $ case r of
+    Unchanged -> GalleyAPI.RemoveFromConversationUnchanged
+    Updated e -> GalleyAPI.RemoveFromConversationUpdated e
 
 removeMemberFromRemoteConv :: UserId -> Remote ConvId -> Qualified UserId -> Galley UpdateResult
 removeMemberFromRemoteConv _zusr _convId _victim =
