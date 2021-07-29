@@ -25,6 +25,7 @@ packages:
 - libs/types-common
 - libs/types-common-aws
 - libs/types-common-journal
+- libs/types-common-journal-proto
 - libs/wai-utilities
 - libs/wire-api
 - libs/wire-api-federation

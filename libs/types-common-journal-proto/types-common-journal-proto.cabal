@@ -1,29 +1,40 @@
-cabal-version: 1.12
+cabal-version: 1.24
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 005889454dd7feb0ff69db2cb5c01c3b25acb348170954264de4aa8a3788eb5b
+-- hash: bae71b0663bce500d85d7c1835c11eab45d2c07e67d7f3c80822c0b171785126
 
-name:           types-common-journal
+name:           types-common-journal-proto
 version:        0.1.0
-synopsis:       Shared protobuf type definitions.
-description:    Shared protobuf type definitions for journaling.
+synopsis:       Proto files for types-common-journal
+description:    Proto files for types-common-journal
 category:       System
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2017 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
-build-type:     Simple
+build-type:     Custom
+extra-source-files:
+    proto/TeamEvents.proto
+    proto/UserEvents.proto
+
+custom-setup
+  setup-depends:
+      Cabal
+    , base
+    , proto-lens-setup
 
 library
   exposed-modules:
-      Data.Proto
-      Data.Proto.Id
+      Proto.TeamEvents
+      Proto.TeamEvents_Fields
+      Proto.UserEvents
+      Proto.UserEvents_Fields
   other-modules:
-      Paths_types_common_journal
+      Paths_types_common_journal_proto
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
@@ -31,11 +42,5 @@ library
   ghc-prof-options: -fprof-auto-exported
   build-depends:
       base ==4.*
-    , bytestring
-    , imports
     , proto-lens-runtime
-    , time
-    , types-common
-    , types-common-journal-proto
-    , uuid
   default-language: Haskell2010
