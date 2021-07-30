@@ -457,7 +457,7 @@ sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.mkError status403 "same-binding-team-users" "Operation not allowed to binding team users."
 
 missingLegalholdConsent :: Wai.Error
-missingLegalholdConsent = Wai.mkError status412 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
+missingLegalholdConsent = Wai.mkError status403 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
 
 ownerDeletingSelf :: Wai.Error
 ownerDeletingSelf =

@@ -210,7 +210,7 @@ legalHoldCouldNotBlockConnections :: Error
 legalHoldCouldNotBlockConnections = mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
 missingLegalholdConsent :: Error
-missingLegalholdConsent = mkError status412 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
+missingLegalholdConsent = mkError status403 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
 
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =
