@@ -16,7 +16,7 @@ spec:
     # integration tests need access to the client certificate private key
     - name: "federator-secrets"
       secret:
-        secretName: "federator-secrets"
+        secretName: "federator-secret"
   containers:
   - name: integration
     command: ["federator-integration"]

@@ -25,7 +25,9 @@ spec:
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secrets: {{ include (print .Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- if not .Values.tls.shareFederatorSecret }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
         fluentbit.io/parser: json
     spec:
       volumes:
@@ -38,7 +40,7 @@ spec:
         # backends, as well as the CA used to verify the server certificate
         # NOTE: if tls.shareFederatorSecret is set, we use the same secret as
         # the one for the federator ingress
-        - name: "federator-secret"
+        - name: "federator-secrets"
           secret:
             secretName: {{ if .Values.tls.useCertManager -}}
               "federator-certificate-secret"
