@@ -1941,8 +1941,7 @@ withTempMockFederator ::
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action =
-  withTempMockFederator' opts targetDomain (pure . oresp) action
+withTempMockFederator opts targetDomain resp = withTempMockFederator' opts targetDomain (pure . oresp)
   where
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
