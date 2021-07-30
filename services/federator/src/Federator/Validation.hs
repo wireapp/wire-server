@@ -36,7 +36,7 @@ import qualified Data.X509.Validation as X509
 import Federator.Discovery
 import Federator.Options
 import Imports
-import Polysemy (Members, Sem)
+import Polysemy (Member, Members, Sem)
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import URI.ByteString
@@ -53,7 +53,7 @@ federateWith targetDomain = do
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains
 
 decodeCertificate ::
-  Members '[Polysemy.Error InwardError] r =>
+  Member (Polysemy.Error InwardError) r =>
   ByteString ->
   Sem r X509.Certificate
 decodeCertificate =
