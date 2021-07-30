@@ -35,6 +35,7 @@ import qualified Data.X509.Validation as X509
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
 import Federator.Env (TLSSettings, caStore, creds)
 import Federator.Options
+import Federator.Validation
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply)
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
@@ -124,14 +125,6 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
 
   settings <- Polysemy.ask
 
-  -- validate the hostname without a trailing dot as the certificate is not
-  -- expected to have the trailing dot.
-  let stripDot hostname
-        | "." `isSuffixOf` hostname = take (length hostname - 1) hostname
-        | otherwise = hostname
-  let validateName hostname cert =
-        TLS.hookValidateName X509.defaultHooks (stripDot hostname) cert
-
   let tlsConfig =
         (defaultParamsClient (cs host) (cs $ show port))
           { TLS.clientSupported =
@@ -145,7 +138,7 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
                 { TLS.onServerCertificate =
                     X509.validate
                       X509.HashSHA256
-                      (X509.defaultHooks {TLS.hookValidateName = validateName})
+                      (X509.defaultHooks {X509.hookValidateName = validateDomainName})
                       X509.defaultChecks,
                   TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds))
                 },

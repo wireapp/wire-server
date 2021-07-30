@@ -20,6 +20,7 @@ module Federator.Validation
     validateDomain,
     throwInward,
     sanitizePath,
+    validateDomainName,
   )
 where
 
@@ -90,21 +91,12 @@ validateDomain (Just encodedCertificate) unparsedDomain = do
     Left parseErr -> throwInward IInvalidDomain (errDomainParsing parseErr)
     Right d -> pure d
 
-  -- TODO: extract this to a separate module
-  -- validate the hostname without a trailing dot as the certificate is not
-  -- expected to have the trailing dot.
-  let stripDot hostname
-        | "." `isSuffixOf` hostname = take (length hostname - 1) hostname
-        | otherwise = hostname
-  let validateName hostname cert =
-        X509.hookValidateName X509.defaultHooks (stripDot hostname) cert
-
   -- run discovery to find the hostname of the client federator
   certificate <- decodeCertificate encodedCertificate
   SrvTarget hostname _ <-
     Polysemy.mapError (InwardError IDiscoveryFailed . errDiscovery) $
       discoverFederatorWithError targetDomain
-  let validationErrors = validateName (B8.unpack hostname) certificate
+  let validationErrors = validateDomainName (B8.unpack hostname) certificate
   unless (null validationErrors) $
     throwInward IInvalidDomain ("domain name does not match certificate: " <> Text.pack (show validationErrors))
 
@@ -170,3 +162,15 @@ sanitizePath originalPath = do
     throwInward IForbiddenEndpoint ("disallowed path: " <> cs originalPath)
 
   pure normalized
+
+-- Match a hostname against the domain names of a certificate.
+--
+-- We strip the trailing dot from the domain, as the certificate is not
+-- expected to have the trailing dot.
+validateDomainName :: String -> X509.Certificate -> [X509.FailedReason]
+validateDomainName hostname cert =
+  X509.hookValidateName X509.defaultHooks (stripDot hostname) cert
+  where
+    stripDot h
+      | "." `isSuffixOf` h = take (length h - 1) h
+      | otherwise = h
