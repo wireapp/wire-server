@@ -68,16 +68,6 @@ data RunSettings = RunSettings
   }
   deriving (Eq, Show, Generic)
 
-defRunSettings :: RunSettings
-defRunSettings =
-  RunSettings
-    { federationStrategy = AllowAll,
-      useSystemCAStore = True,
-      remoteCAStore = Nothing,
-      clientCertificate = Nothing,
-      clientPrivateKey = Nothing
-    }
-
 instance FromJSON RunSettings
 
 data Opts = Opts

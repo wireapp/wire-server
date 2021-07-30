@@ -35,6 +35,16 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 
+defRunSettings :: RunSettings
+defRunSettings =
+  RunSettings
+    { federationStrategy = AllowAll,
+      useSystemCAStore = True,
+      remoteCAStore = Nothing,
+      clientCertificate = Nothing,
+      clientPrivateKey = Nothing
+    }
+
 tests :: TestTree
 tests =
   testGroup

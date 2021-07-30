@@ -32,6 +32,7 @@ import Polysemy.Embed
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Test.Federator.InternalServer ()
+import Test.Federator.Options (defRunSettings)
 import Test.Polysemy.Mock (evalMock)
 import Test.Tasty
 import Test.Tasty.HUnit

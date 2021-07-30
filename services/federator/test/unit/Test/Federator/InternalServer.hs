@@ -22,13 +22,14 @@ module Test.Federator.InternalServer (tests) where
 import Data.Domain (Domain (Domain))
 import Federator.Discovery (LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable))
 import Federator.InternalServer (callOutward)
-import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..), defRunSettings)
+import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
 import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
 import Imports
 import Mu.GRpc.Client.Record
 import Network.HTTP2.Client (TooMuchConcurrency (TooMuchConcurrency))
 import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
+import Test.Federator.Options (defRunSettings)
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)

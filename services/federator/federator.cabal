@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2683ce1fbc5506e8987313d9d20b3b5aecf2e1edfcc3d5b0165a391a0f5a1c7c
+-- hash: 451ccf76c662e1aed949e16099a7c771478e2563768df87b145adf53f4c0f4b8
 
 name:           federator
 version:        1.0.0
@@ -17,6 +17,8 @@ license:        AGPL-3
 build-type:     Simple
 extra-source-files:
     test/resources/integration-ca.pem
+    test/resources/integration-leaf-key.pem
+    test/resources/integration-leaf.pem
     test/resources/unit/gen-certs.sh
     test/resources/unit/invalid.pem
     test/resources/unit/localhost-dot-key.pem

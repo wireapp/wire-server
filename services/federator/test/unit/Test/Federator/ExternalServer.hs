@@ -22,13 +22,13 @@ module Test.Federator.ExternalServer where
 import Data.Domain (Domain (..))
 import Data.String.Conversions (cs)
 import Federator.ExternalServer (callLocal)
-import Federator.Options (defRunSettings)
 import Federator.Service (Service)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
 import qualified Polysemy.TinyLog as TinyLog
+import Test.Federator.Options (defRunSettings)
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)

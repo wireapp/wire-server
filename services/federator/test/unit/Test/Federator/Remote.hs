@@ -14,6 +14,7 @@ import qualified Network.Wai.Handler.WarpTLS as WarpTLS
 import qualified Polysemy
 import qualified Polysemy.Reader as Polysemy
 import qualified Polysemy.TinyLog as TinyLog
+import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO (bracket, timeout)
