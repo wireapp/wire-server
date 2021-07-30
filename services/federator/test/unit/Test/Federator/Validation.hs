@@ -23,7 +23,7 @@ import qualified Data.ByteString as BS
 import Data.Domain (Domain (..), domainText)
 import Data.String.Conversions
 import qualified Data.Text.Encoding as Text
-import Federator.Discovery (DiscoverFederator (..))
+import Federator.Discovery (DiscoverFederator (..), LookupError (..))
 import Federator.Options
 import Federator.Remote (Remote)
 import Federator.Validation
@@ -45,6 +45,17 @@ mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
 mockDiscoveryTrivial = Polysemy.interpret $ \(DiscoverFederator dom) ->
   pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443
 
+mockDiscoveryMapping :: Domain -> Text -> Sem (DiscoverFederator ': r) x -> Sem r x
+mockDiscoveryMapping origin target = Polysemy.interpret $ \(DiscoverFederator dom) ->
+  pure $
+    if dom == origin
+      then Right $ SrvTarget (Text.encodeUtf8 target) 443
+      else Left $ LookupErrorSrvNotAvailable "invalid origin domain"
+
+mockDiscoveryFailure :: Sem (DiscoverFederator ': r) x -> Sem r x
+mockDiscoveryFailure = Polysemy.interpret $ \(DiscoverFederator _) ->
+  pure . Left $ LookupErrorDNSError "mock DNS error"
+
 tests :: TestTree
 tests =
   testGroup "Validation" $
@@ -55,7 +66,13 @@ tests =
       testGroup "validateDomain" $
         [ validateDomainAllowListFailSemantic,
           validateDomainAllowListFail,
-          validateDomainAllowListSuccess
+          validateDomainAllowListSuccess,
+          validateDomainCertMissing,
+          validateDomainCertInvalid,
+          validateDomainCertWrongDomain,
+          validateDomainCertCN,
+          validateDomainDiscoveryFailed,
+          validateDomainNonIdentitySRV
         ],
       testGroup "validatePath - Success" validatePathSuccess,
       testGroup "validatePath - Normalize" validatePathNormalize,
@@ -123,6 +140,86 @@ validateDomainAllowListSuccess =
           . Polysemy.runReader settings
           $ validateDomain (Just exampleCert) (domainText domain)
       embed $ assertEqual "validateDomain should give 'localhost.example.com' as domain" (Right domain) res
+
+validateDomainCertMissing :: TestTree
+validateDomainCertMissing =
+  testCase "should fail if no client certificate is provided" $
+    runM . evalMock @Remote @IO $ do
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryTrivial
+          . Polysemy.runReader defRunSettings
+          $ validateDomain Nothing "foo.example.com"
+      case res of
+        Left (InwardError IInvalidDomain _) -> pure ()
+        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
+
+validateDomainCertInvalid :: TestTree
+validateDomainCertInvalid =
+  testCase "should fail if the client certificate is invalid" $
+    runM . evalMock @Remote @IO $ do
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryTrivial
+          . Polysemy.runReader defRunSettings
+          $ validateDomain (Just "not a certificate") "foo.example.com"
+      case res of
+        Left (InwardError IInvalidDomain _) -> pure ()
+        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
+
+validateDomainCertWrongDomain :: TestTree
+validateDomainCertWrongDomain =
+  testCase "should fail if the client certificate has a wrong domain" $
+    runM . evalMock @Remote @IO $ do
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryTrivial
+          . Polysemy.runReader defRunSettings
+          $ validateDomain (Just exampleCert) "foo.example.com"
+      case res of
+        Left (InwardError IInvalidDomain _) -> pure ()
+        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
+
+validateDomainCertCN :: TestTree
+validateDomainCertCN =
+  testCase "should succeed if the certificate has subject CN but no SAN" $
+    runM . evalMock @Remote @IO $ do
+      exampleCert <- embed $ BS.readFile "test/resources/unit/example.com.pem"
+      let domain = Domain "foo.example.com"
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryTrivial
+          . Polysemy.runReader defRunSettings
+          $ validateDomain (Just exampleCert) (domainText domain)
+      embed $ res @?= Right domain
+
+validateDomainDiscoveryFailed :: TestTree
+validateDomainDiscoveryFailed =
+  testCase "should fail if discovery fails" $
+    runM . evalMock @Remote @IO $ do
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryFailure
+          . Polysemy.runReader defRunSettings
+          $ validateDomain (Just exampleCert) "example.com"
+      case res of
+        Left (InwardError IDiscoveryFailed _) -> pure ()
+        x -> embed $ assertFailure $ "expected IDiscoveryFailed error, got " <> show x
+
+validateDomainNonIdentitySRV :: TestTree
+validateDomainNonIdentitySRV =
+  testCase "should run discovery to look up the federator domain" $
+    runM . evalMock @Remote @IO $ do
+      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
+      let domain = Domain "foo.example.com"
+      res :: Either InwardError Domain <-
+        Polysemy.runError
+          . mockDiscoveryMapping domain "localhost.example.com"
+          . Polysemy.runReader defRunSettings
+          $ validateDomain (Just exampleCert) (domainText domain)
+      embed $ res @?= Right domain
 
 validatePathSuccess :: [TestTree]
 validatePathSuccess = do

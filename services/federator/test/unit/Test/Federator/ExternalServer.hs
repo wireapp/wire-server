@@ -20,32 +20,25 @@
 module Test.Federator.ExternalServer where
 
 import qualified Data.ByteString as BS
-import Data.Domain (Domain (..), domainText)
+import Data.Domain
 import Data.String.Conversions (cs)
-import qualified Data.Text.Encoding as Text
-import Federator.Discovery (DiscoverFederator (..))
 import Federator.ExternalServer (callLocal)
 import Federator.Service (Service)
 import Imports
 import qualified Network.HTTP.Types as HTTP
-import Polysemy (Sem, embed, runM)
-import qualified Polysemy
+import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
 import qualified Polysemy.TinyLog as TinyLog
 import Test.Federator.Options (noClientCertSettings)
+import Test.Federator.Validation (mockDiscoveryTrivial)
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Wire.API.Federation.GRPC.Types
 import qualified Wire.API.Federation.GRPC.Types as InwardError
-import Wire.Network.DNS.SRV (SrvTarget (..))
 
 genMock ''Service
-
-mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
-mockDiscoveryTrivial = Polysemy.interpret $ \(DiscoverFederator dom) ->
-  pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443
 
 tests :: TestTree
 tests =
