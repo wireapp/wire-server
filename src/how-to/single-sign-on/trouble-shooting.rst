@@ -244,6 +244,19 @@ user has accepted the invitation and activated the account.  Please
 contact customer support if this causes any issues.
 
 
+Can I distribute a URL to my users that contains the login code?
+----------------------------------------------------------------
+
+Users may find it awkward to copy and paste the login code into the
+form.  If they are using the webapp, an alternative is to give them
+the following URL (fill in the login code that you can find in your
+team settings):
+
+.. code:: bash
+
+  https://wire-webapp-dev.zinfra.io/auth#sso/3c4f050a-f073-11eb-b4c9-931bceeed13e
+
+
 (Theoretical) name clashes in SAML NameIDs
 ------------------------------------------
 
