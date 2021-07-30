@@ -292,6 +292,18 @@ data Api routes = Api
         :> "members"
         :> Capture' '[Description "Target User ID"] "usr" UserId
         :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members
+    removeMember ::
+      routes
+        :- Summary "Remove a member from a conversation"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
+        :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation,
     -- Team Conversations
 
     getTeamConversationRoles ::

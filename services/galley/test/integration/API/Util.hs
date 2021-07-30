@@ -884,6 +884,28 @@ deleteMemberUnqualified u1 u2 c = do
       . zConn "conn"
       . zType "access"
 
+deleteMemberQualified ::
+  (HasCallStack, Monad m, MonadIO m, MonadHttp m, HasGalley m) =>
+  UserId ->
+  Qualified UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified c cDomain) = do
+  g <- viewGalley
+  delete $
+    g
+      . zUser u1
+      . paths
+        [ "conversations",
+          toByteString' cDomain,
+          toByteString' c,
+          "members",
+          toByteString' u2Domain,
+          toByteString' u2
+        ]
+      . zConn "conn"
+      . zType "access"
+
 getSelfMember :: UserId -> ConvId -> TestM ResponseLBS
 getSelfMember u c = do
   g <- view tsGalley

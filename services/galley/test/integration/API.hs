@@ -154,6 +154,7 @@ tests s =
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
           test s "remove members (unqualified conversation)" deleteMembersUnqualifiedOk,
+          test s "remove members" deleteMembersConvLocalQualifiedOk,
           test s "fail to remove members from self conv." deleteMembersUnqualifiedFailSelf,
           test s "fail to remove members from 1:1 conv." deleteMembersUnqualifiedFailO2O,
           test s "rename conversation" putConvRenameOk,
@@ -1923,6 +1924,29 @@ deleteMembersUnqualifiedOk = do
   deleteMemberUnqualified alice eve conv !!! const 204 === statusCode
   deleteMemberUnqualified alice alice conv !!! const 200 === statusCode
   deleteMemberUnqualified alice alice conv !!! const 404 === statusCode
+
+-- Creates a conversation with three users from the same domain. Then it uses a
+-- qualified endpoint for deleting a conversation member:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+deleteMembersConvLocalQualifiedOk :: TestM ()
+deleteMembersConvLocalQualifiedOk = do
+  localDomain <- viewFederationDomain
+  alice <- randomUser
+  bob <- randomUser
+  eve <- randomUser
+  let [qAlice, qBob, qEve] = (`Qualified` localDomain) <$> [alice, bob, eve]
+  connectUsers alice (list1 bob [eve])
+  conv <- decodeConvId <$> postConvQualified alice [qBob, qEve] (Just "federeated gossip") [] Nothing Nothing
+  let qconv = Qualified conv localDomain
+  deleteMemberQualified bob qBob qconv !!! const 200 === statusCode
+  deleteMemberQualified bob qBob qconv !!! const 404 === statusCode
+  -- if conversation still exists, don't respond with 404, but with 403.
+  getConv bob conv !!! const 403 === statusCode
+  deleteMemberQualified alice qEve qconv !!! const 200 === statusCode
+  deleteMemberQualified alice qEve qconv !!! const 204 === statusCode
+  deleteMemberQualified alice qAlice qconv !!! const 200 === statusCode
+  deleteMemberQualified alice qAlice qconv !!! const 404 === statusCode
 
 deleteMembersUnqualifiedFailSelf :: TestM ()
 deleteMembersUnqualifiedFailSelf = do

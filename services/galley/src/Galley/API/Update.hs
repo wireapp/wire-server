@@ -38,6 +38,7 @@ module Galley.API.Update
     updateSelfMemberH,
     updateOtherMemberH,
     removeMember,
+    removeMemberQualified,
     removeMemberUnqualified,
 
     -- * Talking
@@ -597,6 +598,9 @@ removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley Galley
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
   removeMember zusr (Just zcon) (Qualified conv localDomain) (Qualified victim localDomain)
+
+removeMemberQualified :: UserId -> ConnId -> Qualified ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
+removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
 
 removeMemberFromRemoteConv :: UserId -> Remote ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
 removeMemberFromRemoteConv _zusr _convId _victim =
