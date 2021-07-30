@@ -98,6 +98,7 @@ tests:
     dependencies:
     - bytestring
     - federator
+    - interpolate
     - polysemy-mocks
     - streaming-commons
     - tasty

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 451ccf76c662e1aed949e16099a7c771478e2563768df87b145adf53f4c0f4b8
+-- hash: e2fb4c3ece84a865c43c0a7b1afb561dbe57b3d45bf71269a45cffe320a1ad67
 
 name:           federator
 version:        1.0.0
@@ -259,6 +259,7 @@ test-suite federator-tests
     , http2-client
     , http2-client-grpc
     , imports
+    , interpolate
     , lens
     , metrics-core
     , metrics-wai
