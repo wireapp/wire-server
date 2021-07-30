@@ -36,9 +36,15 @@ spec:
         # federator-secrets contains the client certificate and the
         # corresponding private key to use # when making requests to remote
         # backends, as well as the CA used to verify the server certificate
+        # NOTE: if tls.shareFederatorSecret is set, we use the same secret as
+        # the one for the federator ingress
         - name: "federator-secret"
           secret:
-            secretName: "federator-secrets"
+            secretName: {{ if .Values.tls.useCertManager -}}
+              "federator-certificate-secret"
+              {{- else -}}
+              "federator-secret"
+              {{- end }}
       containers:
         - name: federator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
