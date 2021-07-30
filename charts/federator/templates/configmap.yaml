@@ -45,7 +45,6 @@ data:
       {{- if $.Values.remoteCAContents }}
       remoteCAStore: "/etc/wire/federator/conf/remote-ca.pem"
       {{- end }}
-      useSystemCAStore: false
       {{- if $.Values.clientCertificateContents }}
       clientCertificate: "/etc/wire/federator/conf/client.pem"
       clientPrivateKey: "/etc/wire/federator/secrets/client-key.pem"
