@@ -90,6 +90,7 @@ servantSitemap =
         GalleyAPI.createOne2OneConversation = Create.createOne2OneConversation,
         GalleyAPI.addMembersToConversationV2 = Update.addMembers,
         GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
+        GalleyAPI.removeMember = Update.removeMemberQualified,
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
