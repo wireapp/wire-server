@@ -32,9 +32,11 @@ spec:
         - name: "federator-config"
           configMap:
             name: "federator"
-        # federator-secrets holds the private key for the client certificate to use
-        # when making requests to remote backends
-        - name: "federator-secrets"
+
+        # federator-secrets contains the client certificate and the
+        # corresponding private key to use # when making requests to remote
+        # backends, as well as the CA used to verify the server certificate
+        - name: "federator-secret"
           secret:
             secretName: "federator-secrets"
       containers:
