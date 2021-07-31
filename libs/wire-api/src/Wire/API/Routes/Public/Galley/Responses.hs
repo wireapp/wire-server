@@ -19,16 +19,19 @@
 -- federation endpoints.
 module Wire.API.Routes.Public.Galley.Responses where
 
+import Data.Eq (Eq)
 import Data.SOP (I (..), NS (..))
 import Wire.API.ErrorDescription (ErrorDescription (..), RespondWithErrorDescription, convNotFound)
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Routes.MultiVerb (AsUnion (..), Respond, RespondEmpty)
+import Prelude (Show)
 
 data RemoveFromConversation
   = RemoveFromConversationUnchanged
   | RemoveFromConversationUpdated Public.Event
   | RemoveFromConversationNotAllowed
   | RemoveFromConversationNotFound
+  deriving (Eq, Show)
 
 type RemoveFromConversationResponses =
   '[ RespondEmpty 204 "No change",
