@@ -40,6 +40,7 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
@@ -83,31 +84,6 @@ type ConversationVerb =
          (Respond 201 "Conversation created" Conversation)
      ]
     ConversationResponse
-
-data RemoveFromConversation
-  = RemoveFromConversationUnchanged
-  | RemoveFromConversationUpdated Public.Event
-  | RemoveFromConversationNotAllowed
-  | RemoveFromConversationNotFound
-
-type RemoveFromConversationResponses =
-  '[ RespondEmpty 204 "No change",
-     Respond 200 "Member removed" Public.Event,
-     RespondWithErrorDescription 403 "invalid-op" "Conversation type does not allow removing members",
-     RespondWithErrorDescription 404 "no-conversation" "Conversation not found"
-   ]
-
-instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
-  toUnion RemoveFromConversationUnchanged = Z (I ())
-  toUnion (RemoveFromConversationUpdated e) = S (Z (I e))
-  toUnion RemoveFromConversationNotAllowed = S (S (Z (I (ErrorDescription "Conversation type does not allow removing members"))))
-  toUnion RemoveFromConversationNotFound = S (S (S (Z (I convNotFound))))
-
-  fromUnion (Z (I ())) = RemoveFromConversationUnchanged
-  fromUnion (S (Z (I e))) = RemoveFromConversationUpdated e
-  fromUnion (S (S (Z _))) = RemoveFromConversationNotAllowed
-  fromUnion (S (S (S (Z _)))) = RemoveFromConversationNotFound
-  fromUnion (S (S (S (S x)))) = case x of
 
 type UpdateResponses =
   '[ RespondEmpty 204 "Conversation unchanged",
