@@ -119,6 +119,8 @@ import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.Galley.Responses as GalleyAPI
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
