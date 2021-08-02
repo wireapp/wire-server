@@ -52,13 +52,10 @@ import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
   ( GetConversationsRequest (..),
     GetConversationsResponse (..),
-    RemoveMembersRequest (..),
   )
 import qualified Wire.API.Federation.API.Galley as FedGalley
-import Wire.API.Federation.Domain (domainHeaderName)
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversation (..))
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
@@ -80,15 +77,7 @@ tests s =
       test
         s
         "POST /federation/send-message : Post a message sent from another backend"
-        sendMessage,
-      test
-        s
-        "DELETE /federation/remove-members : Remove members from a conversation from another domain"
-        removeMembers,
-      test
-        s
-        "DELETE /federation/remove-members : Remove members from a non-existing conversation"
-        removeMembersConvNotFound
+        sendMessage
     ]
 
 getConversationsAllFound :: TestM ()
@@ -388,100 +377,3 @@ sendMessage = do
     FedGalley.rmSender rm @?= bob
     Map.keysSet (userClientMap (FedGalley.rmRecipients rm))
       @?= Set.singleton chadId
-
-removeMembersConvNotFound :: TestM ()
-removeMembersConvNotFound = do
-  let remoteDomain = Domain "far-away.example.com"
-  localDomain <- viewFederationDomain
-  cannon <- view tsCannon
-
-  -- users
-  aliceId <- randomUser
-  bobId <- randomUser
-  let alice = Qualified aliceId localDomain
-      bob = Qualified bobId remoteDomain
-      bobProfile = mkProfile bob (Name "Bob")
-
-  -- conversation with Alice on the local domain and Bob on the remote domain
-  opts <- view tsGConf
-  let responses1 req
-        | fmap F.component (F.request req) == Just F.Brig =
-          toJSON [bobProfile]
-        | otherwise = toJSON ()
-  (convId, _requests1) <-
-    withTempMockFederator opts remoteDomain responses1 $
-      fmap decodeConvId $
-        postConvQualified aliceId [bob] Nothing [] Nothing Nothing
-          <!! const 201 === statusCode
-  let _conv = Qualified convId localDomain
-
-  -- an assumption is that a generated conversation ID will differ from 'convId'
-  nonExistingConv <- randomId
-  let rmr = RemoveMembersRequest nonExistingConv bobId (Set.singleton alice)
-  (_, requests2) <- withTempMockFederator opts remoteDomain (const (toJSON ())) $ do
-    WS.bracketR cannon aliceId $ \_ws -> do
-      g <- viewGalley
-      rmRespRaw <-
-        delete
-          ( g
-              . paths ["federation", "remove-members"]
-              . content "application/json"
-              . header domainHeaderName (toByteString' remoteDomain)
-              . json rmr
-          )
-          <!! do
-            const 200 === statusCode
-      -- TODO(md): see if this should be @RemoveFromConversation or something else
-      rmResp <- responseJsonError @_ @RemoveFromConversation rmRespRaw
-      RemoveFromConversationNotFound @?= rmResp
-  print requests2
-  pure ()
-
--- The test submits a POST /federation/remove-members request to another domain
--- hosting a conversation in order to delete a few conversation members
-removeMembers :: TestM ()
-removeMembers = do
-  let remoteDomain = Domain "far-away.example.com"
-  localDomain <- viewFederationDomain
-  cannon <- view tsCannon
-
-  -- users
-  aliceId <- randomUser
-  bobId <- randomUser
-  let bob = Qualified bobId remoteDomain
-  -- bobProfile = mkProfile bob (Name "Bob")
-  chadId <- randomUser
-  let chad = Qualified chadId remoteDomain
-  -- chadProfile = mkProfile chad (Name "Chad")
-
-  -- conversation
-  opts <- view tsGConf
-  -- let responses1 req
-  --       | fmap F.component (F.request req) == Just F.Brig =
-  --         toJSON [bobProfile, chadProfile]
-  --       | otherwise = toJSON ()
-  (convId, _requests1) <-
-    withTempMockFederator opts remoteDomain (const (toJSON ())) $
-      fmap decodeConvId $
-        postConvQualified aliceId [bob, chad] Nothing [] Nothing Nothing
-          <!! const 201 === statusCode
-  let _conv = Qualified convId localDomain
-
-  let rmr = RemoveMembersRequest convId bobId (Set.singleton chad)
-  (_, _requests2) <- withTempMockFederator opts remoteDomain (const (toJSON ())) $ do
-    WS.bracketR cannon aliceId $ \_ws -> do
-      g <- viewGalley
-      rmRespRaw <-
-        delete
-          ( g
-              . paths ["federation", "remove-members"]
-              . content "application/json"
-              . header domainHeaderName (toByteString' remoteDomain)
-              . json rmr
-          )
-          <!! do
-            const 200 === statusCode
-      rmResp <- responseJsonError @_ @RemoveFromConversation rmRespRaw
-      liftIO $ pure ()
-      pure ()
-  pure ()

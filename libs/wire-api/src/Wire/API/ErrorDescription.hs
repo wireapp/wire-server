@@ -332,3 +332,9 @@ type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys up
 
 malformedPrekeys :: MalformedPrekeys
 malformedPrekeys = mkErrorDescription
+
+type RemovalNotAllowed =
+  ErrorDescription 403 "invalid-op" "Conversation type does not allow removing members"
+
+removalNotAllowed :: RemovalNotAllowed
+removalNotAllowed = mkErrorDescription
