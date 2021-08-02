@@ -114,7 +114,6 @@ blessedCiphers =
 mkGrpcClient ::
   Members
     '[ Embed IO,
-       TinyLog,
        Polysemy.Error RemoteError,
        Polysemy.Reader TLSSettings
      ]

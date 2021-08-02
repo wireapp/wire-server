@@ -14,7 +14,6 @@ import qualified Network.Wai.Handler.WarpTLS as WarpTLS
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
-import qualified Polysemy.TinyLog as TinyLog
 import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -60,18 +59,17 @@ testValidatesCertificateSuccess =
     [ testCase "when hostname=localhost and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
           tlsSettings <- mkTLSSettings settings
-          void . Polysemy.runM . assertNoError @RemoteError . TinyLog.discardLogs . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port)),
+          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port)),
       testCase "when hostname=localhost. and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
           tlsSettings <- mkTLSSettings settings
-          void . Polysemy.runM . assertNoError @RemoteError . TinyLog.discardLogs . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port)),
+          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port)),
       -- This is a limitation of the TLS library, this test just exists to document that.
       testCase "when hostname=localhost. and certificate-for=localhost." $ do
         bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
           tlsSettings <- mkTLSSettings settings
           eitherClient <-
             Polysemy.runM
-              . TinyLog.discardLogs
               . Polysemy.runError @RemoteError
               . Polysemy.runReader tlsSettings
               $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
@@ -90,7 +88,6 @@ testValidatesCertificateWrongHostname =
           eitherClient <-
             Polysemy.runM
               . Polysemy.runError
-              . TinyLog.discardLogs
               . Polysemy.runReader tlsSettings
               $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
           case eitherClient of
