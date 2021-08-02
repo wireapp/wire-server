@@ -116,7 +116,6 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
-import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -543,11 +542,10 @@ addMembers zusr zcon convId invite = do
           convUsersLHStatus
           then do
             localDomain <- viewFederationDomain
-            let qconvId = Qualified (Data.convId conv) localDomain
             for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $
                 let qvictim = Qualified (memId mem) localDomain
-                 in void $ removeMember (memId mem) Nothing qconvId qvictim
+                 in void $ removeMember (memId mem) Nothing (Data.convId conv) qvictim
           else throwErrorDescription missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
@@ -589,30 +587,24 @@ mapUpdateResult = \case
   Unchanged -> GalleyAPI.RemoveFromConversationUnchanged
   Updated e -> GalleyAPI.RemoveFromConversationUpdated e
 
-removeMember :: UserId -> Maybe ConnId -> Qualified ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
-removeMember zusr zcon qconvId@(Qualified convId convDomain) victim = do
-  localDomain <- viewFederationDomain
-  if localDomain == convDomain
-    then -- FUTUREWORK: see how and where 403 and 404 responses are returned in
-    -- 'removeMemberFromLocalConv' and map them to the return value of type
-    -- 'GalleyAPI.RemoveFromConversation'.
-      mapUpdateResult <$> removeMemberFromLocalConv zusr zcon convId victim
-    else removeMemberFromRemoteConv zusr (toRemote qconvId) victim
+removeMember :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
+removeMember zusr zcon convId victim = do
+  -- TODO: see how and where 403 and 404 responses are returned in
+  -- 'removeMemberFromLocalConv' and map them to the return value of type
+  -- 'GalleyAPI.RemoveFromConversation'.
+  mapUpdateResult <$> removeMemberFromLocalConv zusr zcon convId victim
 
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley GalleyAPI.RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
-  removeMember zusr (Just zcon) (Qualified conv localDomain) (Qualified victim localDomain)
+  removeMember zusr (Just zcon) conv (Qualified victim localDomain)
 
-removeMemberQualified :: UserId -> ConnId -> Qualified ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
+removeMemberQualified :: UserId -> ConnId -> ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
 removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
-
-removeMemberFromRemoteConv :: UserId -> Remote ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
-removeMemberFromRemoteConv _zusr _convId _victim =
-  throwM federationNotImplemented
 
 removeMemberFromLocalConv :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley UpdateResult
 removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomain) = do
+  -- TODO: Support removing remote users
   localDomain <- viewFederationDomain
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
