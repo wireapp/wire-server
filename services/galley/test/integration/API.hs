@@ -1270,18 +1270,68 @@ paginateConvIdsV2 = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
-  replicateM_ 256 $
+  localDomain <- viewFederationDomain
+  let qAlice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  replicateM_ 197 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
-  foldM_ (getChunk 16 alice) Nothing [15 .. 0 :: Int]
+
+  remoteChad <- randomId
+  let chadDomain = Domain "chad.example.com"
+      qChad = Qualified remoteChad chadDomain
+  replicateM_ 25 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qChad,
+              FederatedGalley.cmuConvId = Qualified conv chadDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  remoteDee <- randomId
+  let deeDomain = Domain "dee.example.com"
+      qDee = Qualified remoteDee deeDomain
+  replicateM_ 31 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qDee,
+              FederatedGalley.cmuConvId = Qualified conv deeDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
+  -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
+  -- should get all them in 16 times.
+  foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
     getChunk size alice start n = do
       let paginationOpts = GetPaginatedConversationIds start (unsafeRange size)
       resp <- getConvIdsV2 alice paginationOpts <!! const 200 === statusCode
       let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
       liftIO $ do
-        length (convList c) @?= fromIntegral size
-        convHasMore c @?= n > 0
+        -- This is because of the way this test is setup, we always get 16
+        -- convs, even on the last one
+        assertEqual
+          ("Number of convs should match the requested size, " <> show n <> " more gets to go")
+          (fromIntegral size)
+          (length (convList c))
+
+        if n > 0
+          then assertEqual "hasMore should be True" True (convHasMore c)
+          else assertEqual ("hasMore should be False, " <> show n <> " more chunks to go") False (convHasMore c)
+
       return $ last (convList c)
 
 getConvsPagingOk :: TestM ()
