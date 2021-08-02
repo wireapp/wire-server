@@ -126,7 +126,7 @@ classifiedDomains:
 
 ### Conference Calling
 
-The `conferenceCalling` feature flag controls whether a user can initiate a conference call. The flag can be toggled between its states `enabled` and `disabled` per team via an internal endpoint. 
+The `conferenceCalling` feature flag controls whether a user can initiate a conference call. The flag can be toggled between its states `enabled` and `disabled` per team via an internal endpoint.
 
 The `conferenceCalling` section in `featureFlags` defines the state of the `conferenceCalling` feature flag for all personal users (users that don't belong to a team). For personal users there is no way to toggle the flag, so the setting of the config section wholly defines the state of `conferenceCalling` flag for all personal users.
 
@@ -140,6 +140,16 @@ conferenceCalling:
 ```
 
 The `conferenceCalling` section is optional in `featureFlags`. If it is omitted then it is assumed to be `enabled`.
+
+### File Sharing
+
+File sharing is enabled by default.  If you want to disable it for all teams, add this to your feature config settings:
+
+```
+fileSharing:
+  defaults:
+    status: enabled
+```
 
 ### Federation Domain
 
