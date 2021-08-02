@@ -604,7 +604,6 @@ removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
 
 removeMemberFromLocalConv :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley UpdateResult
 removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomain) = do
-  -- TODO: Support removing remote users
   localDomain <- viewFederationDomain
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)

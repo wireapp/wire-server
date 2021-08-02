@@ -945,7 +945,6 @@ removeMembers localDomain conv orig localVictims remoteVictims = do
       addPrepQuery Cql.removeMember (convId conv, u)
       addPrepQuery Cql.deleteUserConv (u, convId conv)
 
-  -- FUTUREWORK: the user's conversation has to be deleted on their own backend for federation
   let qconvId = Qualified (convId conv) localDomain
       qorig = Qualified orig localDomain
   return $ Event MemberLeave qconvId qorig t (EdMembersLeave leavingMembers)

@@ -897,16 +897,15 @@ deleteMemberQualified ::
   (HasCallStack, Monad m, MonadIO m, MonadHttp m, HasGalley m) =>
   UserId ->
   Qualified UserId ->
-  Qualified ConvId ->
+  ConvId ->
   m ResponseLBS
-deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified c cDomain) = do
+deleteMemberQualified u1 (Qualified u2 u2Domain) c = do
   g <- viewGalley
   delete $
     g
       . zUser u1
       . paths
         [ "conversations",
-          toByteString' cDomain,
           toByteString' c,
           "members",
           toByteString' u2Domain,
