@@ -2013,7 +2013,7 @@ testBulkGetQualifiedConvs = do
           case F.domain fedReq of
             d | d == domainText remoteDomainA -> success $ GetConversationsResponse [mockConversationA]
             d | d == domainText remoteDomainB -> success $ GetConversationsResponse [mockConversationB]
-            d | d == domainText remoteDomainC -> pure . F.OutwardResponseError $ F.OutwardError F.DiscoveryFailed Nothing
+            d | d == domainText remoteDomainC -> pure . F.OutwardResponseError $ F.OutwardError F.DiscoveryFailed "discovery failed"
             _ -> assertFailure $ "Unrecognized domain: " <> show fedReq
       )
       (listConvsV2 alice req)

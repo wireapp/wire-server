@@ -188,11 +188,10 @@ An error in this category indicates an issue with configuration of federation on
 
 Errors in this category are returned in case of communication issues between the local backend and a remote one, or if the remote side encountered an error while processing an RPC.
 
- - **RPC error with code** (status: 533, label: `grpc-error-code`): An RPC to a remote federator resulted in an error. The RPC error code can be found in the error message.
- - **RPC error with string** (status: 533, label: `grpc-error-string`): An RPC to a remote federator resulted in an error. A description of the error can be found in the error message.
- - **RPC error** (status: 500, label: `federation-rpc-error`): There was a non-specified error in the RPC from this backend to another backend. Check the error message for more details.
- - **Connection refused** (status: 521, label: `cannot-connect-to-remote-federator`): The local federator could not connect to a remote one.
  - **Too much concurrency** (status: 533, label: `too-much-concurrency`): Too many concurrent requests on a remote backend.
+ - **gRPC error** (status: 533, label: `grpc-error`): The current federator encountered an error when making an RPC to a remote one. Check the error message for more details.
+ - **Client RPC error** (status: 500, label: `client-rpc-error`): There was a non-specified error when making a request to another backend. Check the error message for more details.
+ - **Connection refused** (status: 521, label: `cannot-connect-to-remote-federator`): The local federator could not connect to a remote one.
  - **Unknown remote error** (status: 500, label: `unknown-federation-error`): An RPC failed but no specific error was returned by the remote side. Check the error message for more details.
 
 ### Backend compatibility errors
@@ -202,7 +201,6 @@ An error in this category will be returned when this backend makes an invalid or
  - **Version mismatch** (status: 531): A remote backend is running an unsupported version of the federator.
  - **Invalid method** / **Streaming not supported** (status: 500, label: `federation-invalid-call`): This backend attempted an invalid RPC to another backend.
  - **Invalid request** (status: 500, label: `invalid-request-to-federator`): The local federator made an invalid request to a remote one. Check the error message for more details.
- - **RPC client error** (status: 533, label: `grpc-client-error`): The current federator encountered an error when making an RPC to a remote one.
  - **Invalid content type** (status: 503, label: `federation-invalid-content-type-header`): An RPC to another backend returned an invalid content type.
  - **Unsupported content type** (status: 503, label: `federation-unsupported-content-type`): An RPC to another backend returned an unsupported content type.
  - **Invalid origin domain** (status: 533, label: `invalid-origin-domain`): The current backend attempted an RPC with an invalid origin domain field.

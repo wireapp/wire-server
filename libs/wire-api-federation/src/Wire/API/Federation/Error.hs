@@ -38,7 +38,11 @@ federationErrorToWai FederationNotImplemented = federationNotImplemented
 federationErrorToWai FederationNotConfigured = federationNotConfigured
 federationErrorToWai (FederationCallFailure failure) = addErrorData $
   case fedFailError failure of
-    FederationClientRPCError msg -> federationRpcError msg
+    FederationClientRPCError msg ->
+      Wai.mkError
+        HTTP.status500
+        "client-rpc-error"
+        (LT.fromStrict msg)
     FederationClientInvalidMethod mth ->
       federationInvalidCall
         ("Unexpected method: " <> LT.fromStrict (T.decodeUtf8 mth))
@@ -117,13 +121,6 @@ federationNotConfigured =
     "federation-not-enabled"
     "no federator configured"
 
-federationRpcError :: Text -> Wai.Error
-federationRpcError msg =
-  Wai.mkError
-    HTTP.status500
-    "federation-rpc-error"
-    (LT.fromStrict msg)
-
 federationUnavailable :: Text -> Wai.Error
 federationUnavailable err =
   Wai.mkError
@@ -144,24 +141,25 @@ federationRemoteInwardError err = Wai.mkError status (LT.fromStrict label) (LT.f
       Proto.IOther -> (unexpectedFederationResponseStatus, "inward-other")
 
 federationRemoteError :: Proto.OutwardError -> Wai.Error
-federationRemoteError err = Wai.mkError status (LT.fromStrict label) (LT.fromStrict msg)
+federationRemoteError err = case Proto.outwardErrorType err of
+  Proto.RemoteNotFound -> mkErr HTTP.status422 "srv-record-not-found"
+  Proto.DiscoveryFailed -> mkErr HTTP.status500 "srv-lookup-dns-error"
+  Proto.ConnectionRefused ->
+    mkErr
+      (HTTP.Status 521 "Web Server Is Down")
+      "cannot-connect-to-remote-federator"
+  Proto.TLSFailure -> mkErr (HTTP.Status 525 "SSL Handshake Failure") "tls-failure"
+  Proto.VersionMismatch -> mkErr (HTTP.Status 531 "Version Mismatch") "version-mismatch"
+  Proto.FederationDeniedByRemote ->
+    mkErr
+      (HTTP.Status 532 "Federation Denied")
+      "federation-denied-remotely"
+  Proto.FederationDeniedLocally -> mkErr HTTP.status400 "federation-not-allowed"
+  Proto.TooMuchConcurrency -> mkErr unexpectedFederationResponseStatus "too-much-concurrency"
+  Proto.GrpcError -> mkErr unexpectedFederationResponseStatus "grpc-error"
+  Proto.InvalidRequest -> mkErr HTTP.status500 "invalid-request-to-federator"
   where
-    decodeError :: Maybe Proto.ErrorPayload -> (Text, Text)
-    decodeError Nothing = ("unknown-federation-error", "Unknown federation error")
-    decodeError (Just (Proto.ErrorPayload label' msg')) = (label', msg')
-
-    (label, msg) = decodeError (Proto.outwardErrorPayload err)
-
-    status = case Proto.outwardErrorType err of
-      Proto.RemoteNotFound -> HTTP.status422
-      Proto.DiscoveryFailed -> HTTP.status500
-      Proto.ConnectionRefused -> HTTP.Status 521 "Web Server Is Down"
-      Proto.TLSFailure -> HTTP.Status 525 "SSL Handshake Failure"
-      Proto.VersionMismatch -> HTTP.Status 531 "Version Mismatch"
-      Proto.FederationDeniedByRemote -> HTTP.Status 532 "Federation Denied"
-      Proto.FederationDeniedLocally -> HTTP.status400
-      Proto.RemoteFederatorError -> unexpectedFederationResponseStatus
-      Proto.InvalidRequest -> HTTP.status500
+    mkErr status label = Wai.mkError status label (LT.fromStrict (Proto.outwardErrorMessage err))
 
 federationInvalidCall :: LText -> Wai.Error
 federationInvalidCall = Wai.mkError HTTP.status500 "federation-invalid-call"

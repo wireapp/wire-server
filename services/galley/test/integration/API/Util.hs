@@ -2123,7 +2123,7 @@ makeFedRequestToServant originDomain server fedRequest =
       if Test.simpleStatus response == status200
         then pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
         else do
-          pure (F.OutwardResponseError (F.OutwardError F.RemoteFederatorError (Just (F.ErrorPayload "mock-error" (cs (Test.simpleBody response))))))
+          pure (F.OutwardResponseError (F.OutwardError F.GrpcError (cs (Test.simpleBody response))))
 
     toRequestWithoutBody :: F.Request -> Wai.Request
     toRequestWithoutBody req =

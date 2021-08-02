@@ -32,7 +32,7 @@ testFedError =
       testCase "when federation call fails due to requesting streaming" $
         assertFedErrorStatus (mkFailure FederationClientStreamingUnsupported) 500,
       testCase "when federation call fails due to discovery failure" $ do
-        let outwardErr = FederationClientOutwardError (Proto.OutwardError Proto.DiscoveryFailed Nothing)
+        let outwardErr = FederationClientOutwardError (Proto.OutwardError Proto.DiscoveryFailed "discovery failed")
         assertFedErrorStatus (mkFailure outwardErr) 500,
       testCase "when federation call fails due to decode failure" $
         assertFedErrorStatus (mkFailure (FederationClientServantError (Servant.DecodeFailure "some failure" emptyRes))) 533,
@@ -64,23 +64,17 @@ testOutwardError =
             assertOutwardErrorStatus Proto.FederationDeniedByRemote 532,
           testCase "when local federator denies federation" $
             assertOutwardErrorStatus Proto.FederationDeniedLocally 400,
-          testCase "when remote federator errors" $
-            assertOutwardErrorStatus Proto.RemoteFederatorError 533,
+          testCase "when there is too much concurrency" $
+            assertOutwardErrorStatus Proto.TooMuchConcurrency 533,
+          testCase "when gRPC fails" $
+            assertOutwardErrorStatus Proto.GrpcError 533,
           testCase "when federator returns invalid request" $
             assertOutwardErrorStatus Proto.InvalidRequest 500
         ],
-      testGroup "label & message" $
-        [ testCase "when error payload is specified" $ do
-            let outwardErr = Proto.OutwardError Proto.TLSFailure . Just $ Proto.ErrorPayload "an-interesting-label" "very interesting message"
-                waiErr = federationRemoteError outwardErr
-            assertEqual "label should be copied" (Wai.label waiErr) "an-interesting-label"
-            assertEqual "message should be copied" (Wai.message waiErr) "very interesting message",
-          testCase "when error payload is not specified" $ do
-            let outwardErr = Proto.OutwardError Proto.TLSFailure Nothing
-                waiErr = federationRemoteError outwardErr
-            assertEqual "label should be set as unknown" (Wai.label waiErr) "unknown-federation-error"
-            assertEqual "message should be set as unknown" (Wai.message waiErr) "Unknown federation error"
-        ]
+      testCase "error message" $ do
+        let outwardErr = Proto.OutwardError Proto.TLSFailure "something went wrong"
+            waiErr = federationRemoteError outwardErr
+        assertEqual "message should be copied" (Wai.message waiErr) "something went wrong"
     ]
 
 mkFailure :: FederationClientError -> FederationError
@@ -93,7 +87,7 @@ assertFedErrorStatus err sts = assertEqual ("http status should be " <> show sts
 
 assertOutwardErrorStatus :: HasCallStack => Proto.OutwardErrorType -> Int -> IO ()
 assertOutwardErrorStatus errType sts =
-  assertEqual ("http status should be " <> show sts) (HTTP.statusCode . Wai.code . federationRemoteError $ Proto.OutwardError errType Nothing) sts
+  assertEqual ("http status should be " <> show sts) (HTTP.statusCode . Wai.code . federationRemoteError $ Proto.OutwardError errType mempty) sts
 
 statusFor :: FederationError -> Int
 statusFor = HTTP.statusCode . errorStatus . fedError

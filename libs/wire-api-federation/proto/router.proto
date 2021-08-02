@@ -40,12 +40,13 @@ message OutwardError {
     VersionMismatch = 4;
     FederationDeniedByRemote = 5;
     FederationDeniedLocally = 6;
-    RemoteFederatorError = 7;
-    InvalidRequest = 8;
+    TooMuchConcurrency = 7;
+    GrpcError = 8;
+    InvalidRequest = 9;
   }
 
   ErrorType type = 1;
-  ErrorPayload payload = 2;
+  string msg = 2;
 }
 
 message InwardError {
@@ -59,11 +60,6 @@ message InwardError {
   }
 
   ErrorType type = 1;
-  string msg = 2;
-}
-
-message ErrorPayload {
-  string label = 1;
   string msg = 2;
 }
 
