@@ -488,7 +488,6 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
     iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
         localDomain <- viewFederationDomain
-        let qconvId = Qualified (Data.convId conv) localDomain
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
         membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
@@ -510,7 +509,7 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
           (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (memId memberNoConsent) Nothing qconvId (Qualified (memId memberNoConsent) localDomain)
+              removeMember (memId memberNoConsent) Nothing (Data.convId conv) (Qualified (memId memberNoConsent) localDomain)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember (memId legalholder) Nothing qconvId (Qualified (memId legalholder) localDomain)
+              removeMember (memId legalholder) Nothing (Data.convId conv) (Qualified (memId legalholder) localDomain)
