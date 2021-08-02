@@ -279,12 +279,8 @@ type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys up
 malformedPrekeys :: MalformedPrekeys
 malformedPrekeys = mkErrorDescription
 
-type MissingLegalholdConsent =
-  ErrorDescription
-    403
-    "missing-legalhold-consent"
-    "Failed to connect to a user or to invite a user to a group because somebody \
-    \is under legalhold and somebody else has not granted consent."
+type RemovalNotAllowed =
+  ErrorDescription 403 "invalid-op" "Conversation type does not allow removing members"
 
-missingLegalholdConsent :: MissingLegalholdConsent
-missingLegalholdConsent = mkErrorDescription
+removalNotAllowed :: RemovalNotAllowed
+removalNotAllowed = mkErrorDescription

@@ -19,35 +19,34 @@
 -- federation endpoints.
 module Wire.API.Routes.Public.Galley.Responses where
 
-import Data.Eq (Eq)
 import Data.SOP (I (..), NS (..))
-import Wire.API.ErrorDescription (ErrorDescription (..), RespondWithErrorDescription, convNotFound)
+import Imports
+import Wire.API.ErrorDescription (ConvNotFound, RemovalNotAllowed, convNotFound, removalNotAllowed)
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Routes.MultiVerb (AsUnion (..), Respond, RespondEmpty)
-import Prelude (Show)
 
 data RemoveFromConversation
-  = RemoveFromConversationUnchanged
-  | RemoveFromConversationUpdated Public.Event
-  | RemoveFromConversationNotAllowed
+  = RemoveFromConversationNotAllowed
   | RemoveFromConversationNotFound
+  | RemoveFromConversationUnchanged
+  | RemoveFromConversationUpdated Public.Event
   deriving (Eq, Show)
 
-type RemoveFromConversationResponses =
-  '[ RespondEmpty 204 "No change",
-     Respond 200 "Member removed" Public.Event,
-     RespondWithErrorDescription 403 "invalid-op" "Conversation type does not allow removing members",
-     RespondWithErrorDescription 404 "no-conversation" "Conversation not found"
-   ]
-
 instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
-  toUnion RemoveFromConversationUnchanged = Z (I ())
-  toUnion (RemoveFromConversationUpdated e) = S (Z (I e))
-  toUnion RemoveFromConversationNotAllowed = S (S (Z (I (ErrorDescription "Conversation type does not allow removing members"))))
-  toUnion RemoveFromConversationNotFound = S (S (S (Z (I convNotFound))))
+  toUnion RemoveFromConversationNotAllowed = Z (I removalNotAllowed)
+  toUnion RemoveFromConversationNotFound = S (Z (I convNotFound))
+  toUnion RemoveFromConversationUnchanged = S (S (Z (I ())))
+  toUnion (RemoveFromConversationUpdated e) = S (S (S (Z (I e))))
 
-  fromUnion (Z (I ())) = RemoveFromConversationUnchanged
-  fromUnion (S (Z (I e))) = RemoveFromConversationUpdated e
-  fromUnion (S (S (Z _))) = RemoveFromConversationNotAllowed
-  fromUnion (S (S (S (Z _)))) = RemoveFromConversationNotFound
+  fromUnion (Z _) = RemoveFromConversationNotAllowed
+  fromUnion (S (Z _)) = RemoveFromConversationNotFound
+  fromUnion (S (S (Z (I _)))) = RemoveFromConversationUnchanged
+  fromUnion (S (S (S (Z (I e))))) = RemoveFromConversationUpdated e
   fromUnion (S (S (S (S x)))) = case x of
+
+type RemoveFromConversationResponses =
+  '[ RemovalNotAllowed,
+     ConvNotFound,
+     RespondEmpty 204 "No change",
+     Respond 200 "Member removed" Public.Event
+   ]
