@@ -1223,17 +1223,27 @@ paginateConvIds = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
-  replicateM_ 256 $
+  replicateM_ 253 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
-  foldM_ (getChunk 16 alice) Nothing [15 .. 0 :: Int]
+  -- 1 self conv, 2 convs with bob and eve, 253 gossips = 256 convs
+  foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
     getChunk size alice start n = do
       resp <- getConvIds alice start (Just size) <!! const 200 === statusCode
       let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
       liftIO $ do
-        length (convList c) @?= fromIntegral size
-        convHasMore c @?= n > 0
+        -- This is because of the way this test is setup, we always get 16
+        -- convs, even on the last one
+        assertEqual
+          ("Number of convs should match the requested size, " <> show n <> " more gets to go")
+          (fromIntegral size)
+          (length (convList c))
+
+        if n > 0
+          then assertEqual "hasMore should be True" True (convHasMore c)
+          else assertEqual ("hasMore should be False, " <> show n <> " more chunks to go") False (convHasMore c)
+
       return (Just (Right (last (convList c))))
 
 getConvIdsFailMaxSize :: TestM ()
