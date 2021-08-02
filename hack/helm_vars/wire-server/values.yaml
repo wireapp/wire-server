@@ -148,6 +148,10 @@ galley:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
         teamSearchVisibility: disabled-by-default
+        classifiedDomains:
+          status: enabled
+          config:
+            domains: ["example.com"]
     journal:
       endpoint: http://fake-aws-sqs:4568
       queue: integration-team-events.fifo
@@ -231,8 +235,11 @@ spar:
 
 federator:
   replicaCount: 1
+  resources:
+    requests: {}
   imagePullPolicy: Always
   config:
     optSettings:
-      setFederationStrategy:
+      federationStrategy:
         allowAll: true
+      useSystemCAStore: false

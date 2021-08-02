@@ -59,7 +59,6 @@ import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
-import qualified System.Logger as Log
 import System.Logger.Class (Logger)
 
 -------------------------------------------------------------------------------
@@ -96,10 +95,6 @@ toServantHandler env action = do
           Server.logError' logger (Just reqId) werr
           Servant.throwError $
             Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode body) headers
-        EmptyErrorForLegacyReasons code -> do
-          Log.debug logger $ Log.field "request" reqId . Log.msg ("empty error for legacy reasons" :: ByteString)
-          Servant.throwError $
-            Servant.ServerError (statusCode code) (mkPhrase code) "" [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.PlainText)))]
 
 brigErrorHandlers :: [Catch.Handler IO (Either Error a)]
 brigErrorHandlers =
@@ -130,7 +125,6 @@ onError g r k e = do
     (we, hs) = case e of
       StdError x -> (x, [])
       RichError x _ h -> (x, h)
-      EmptyErrorForLegacyReasons code -> (WaiError.mkError code "" "", [])
 
 -------------------------------------------------------------------------------
 -- Utilities

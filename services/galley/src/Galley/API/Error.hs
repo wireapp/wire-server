@@ -17,28 +17,39 @@
 
 module Galley.API.Error where
 
+import Control.Monad.Catch (MonadThrow (..))
 import Data.Domain (Domain, domainText)
-import Data.Id (Id)
-import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (Qualified, renderQualifiedId)
+import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
-import Galley.Types.Conversations.Roles (Action)
-import Galley.Types.Teams (IsPerm, hardTruncationLimit)
+import GHC.TypeLits
+import Galley.Types.Teams (hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import Type.Reflection (typeRep)
+import Servant.API.Status (KnownStatus (..))
+import Wire.API.ErrorDescription
+
+errorDescriptionToWai ::
+  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
+  (KnownStatus code, KnownSymbol lbl) =>
+  ErrorDescription code lbl desc ->
+  Error
+errorDescriptionToWai (ErrorDescription msg) =
+  mkError (statusVal (Proxy @code)) (LT.pack (symbolVal (Proxy @lbl))) (LT.fromStrict msg)
+
+throwErrorDescription ::
+  (KnownStatus code, KnownSymbol lbl, MonadThrow m) =>
+  ErrorDescription code lbl desc ->
+  m a
+throwErrorDescription = throwM . errorDescriptionToWai
 
 internalError :: Error
 internalError = internalErrorWithDescription "internal error"
 
 internalErrorWithDescription :: LText -> Error
 internalErrorWithDescription = mkError status500 "internal-error"
-
-convNotFound :: Error
-convNotFound = mkError status404 "no-conversation" "conversation not found"
 
 convMemberNotFound :: Error
 convMemberNotFound = mkError status404 "no-conversation-member" "conversation member not found"
@@ -73,17 +84,11 @@ invalidPayload = mkError status400 "invalid-payload"
 badRequest :: LText -> Error
 badRequest = mkError status400 "bad-request"
 
-notConnected :: Error
-notConnected = mkError status403 "not-connected" "Users are not connected"
-
 unknownRemoteUser :: Error
 unknownRemoteUser = mkError status400 "unknown-remote-user" "Remote user(s) not found"
 
 tooManyMembers :: Error
 tooManyMembers = mkError status403 "too-many-members" "Maximum number of members per conversation reached"
-
-convAccessDenied :: Error
-convAccessDenied = mkError status403 "access-denied" "Conversation access denied"
 
 accessDenied :: Error
 accessDenied = mkError status403 "access-denied" "You do not have permission to access this resource"
@@ -94,34 +99,14 @@ reAuthFailed = mkError status403 "access-denied" "This operation requires reauth
 invalidUUID4 :: Error
 invalidUUID4 = mkError status400 "client-error" "Invalid UUID v4 format"
 
-unknownClient :: Error
-unknownClient = mkError status403 "unknown-client" "Sending client not known"
-
 invalidRange :: LText -> Error
 invalidRange = mkError status400 "client-error"
-
-operationDenied :: (IsPerm perm, Show perm) => perm -> Error
-operationDenied p =
-  mkError
-    status403
-    "operation-denied"
-    ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
-
-actionDenied :: Action -> Error
-actionDenied a =
-  mkError
-    status403
-    "action-denied"
-    ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
 
 noBindingTeam :: Error
 noBindingTeam = mkError status403 "no-binding-team" "Operation allowed only on binding teams."
 
 notAOneMemberTeam :: Error
 notAOneMemberTeam = mkError status403 "not-one-member-team" "Can only delete teams with a single member."
-
-notATeamMember :: Error
-notATeamMember = mkError status403 "no-team-member" "Requesting user is not a team member."
 
 bulkGetMemberLimitExceeded :: Error
 bulkGetMemberLimitExceeded =
@@ -178,9 +163,6 @@ noBindingTeamMembers = mkError status403 "non-binding-team-members" "Both users 
 
 invalidTeamStatusUpdate :: Error
 invalidTeamStatusUpdate = mkError status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
-
-codeNotFound :: Error
-codeNotFound = mkError status404 "no-conversation-code" "conversation code not found"
 
 cannotEnableLegalHoldServiceLargeTeam :: Error
 cannotEnableLegalHoldServiceLargeTeam = mkError status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members.)"
@@ -261,16 +243,3 @@ invalidTeamNotificationId = mkError status400 "invalid-notification-id" "Could n
 
 inactivityTimeoutTooLow :: Error
 inactivityTimeoutTooLow = mkError status400 "inactivity-timeout-too-low" "applock inactivity timeout must be at least 30 seconds"
-
---------------------------------------------------------------------------------
--- Federation
-
-federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id a)) -> Error
-federationNotEnabled qualifiedIds =
-  mkError
-    status403
-    "federation-not-enabled"
-    ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds

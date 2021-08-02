@@ -2,6 +2,9 @@
 
 # [2021-xx-xx]
 
+[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
+[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
+
 ## Release Notes
 
 ## API Changes
@@ -34,7 +37,56 @@
 
 ## Internal changes
 
+
+# [2021-08-02]
+
+## Release Notes
+
+If you want to set the default for file sharing in all teams to `disabled`, search for "File Sharing" in https://github.com/wireapp/wire-server/tree/develop/docs/reference/config-options.md.
+
+## Release Notes for Wire.com Cloud operators
+
+Upgrade nginz (#1658)
+
+## API Changes
+
+## Features
+
+* A new team feature for classified domains is available (#1626):
+  - a public endpoint is at `GET /teams/:tid/features/classifiedDomains`
+  - an internal endpoint is at `GET /i/teams/:tid/features/classifiedDomains`
+* Extend feature config API (#1658)
+* `fileSharing` feature config (#1652, #1654, #1655)
+* `conferenceCalling` feature flag (#1683)
+* Add user_id to csv export (#1663)
+
+## Bug fixes and other updates
+
+* New, hardened end-point for changing email (68b4db08)
+* Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
+* Fix: sso_id field in user record (brig) was not always filled correctly in cassandra (#1334)
+
+## Documentation
+
+* Improved Swagger documentation for endpoints with multiple responses (#1649, #1645)
+
+## Internal changes
+
+* Improvements to local integration test setup when using buildah and kind (#1667)
+* The servant-swagger dependency now points to the current upstream master (#1656)
+* Improved error handling middleware (#1671)
+* Refactor function createUser for readability (#1670)
+* Removed explicit implementation for user HEAD endpoints (#1679)
+* Improved test coverage for error responses (#1680)
+* Introduced `MultiVerb` endpoints in Servant API (#1649).
+
 ## Federation changes (alpha feature, do not use yet)
+
+* Validate server TLS certificate between federators (#1662)
+* A clarification is added about listing your own domain as a classified domain (#1678)
+* Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
+* Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
+* Added golden tests for protobuf serialisation / deserialisation (#1644).
 
 
 # [2021-07-09]

@@ -35,15 +35,12 @@ module Galley.API.Update
     updateConversationMessageTimerH,
 
     -- * Managing Members
-    Galley.API.Update.addMembersH,
-    Galley.API.Update.addMembersQH,
+    addMembersH,
+    addMembers,
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
     removeMember,
-
-    -- * Servant
-    UpdateResponses,
 
     -- * Talking
     postProteusMessage,
@@ -68,7 +65,6 @@ import Control.Monad.Catch
 import Control.Monad.State
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
-import Data.Domain
 import Data.Id
 import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
@@ -107,19 +103,18 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import qualified Servant
-import Servant.API (NoContent (NoContent))
 import Servant.API.UVerb
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.ErrorDescription (codeNotFound, convNotFound, unknownClient)
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Message as Public
-import Wire.API.Routes.Public.Galley (UpdateResponses)
+import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -131,7 +126,7 @@ acceptConvH (usr ::: conn ::: cnv) = do
 
 acceptConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
 acceptConv usr conn cnv = do
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   conv' <- acceptOne2One usr conv conn
   conversationView usr conv'
 
@@ -141,7 +136,7 @@ blockConvH (zusr ::: cnv) = do
 
 blockConv :: UserId -> ConvId -> Galley ()
 blockConv zusr cnv = do
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwM $
       invalidOp "block: invalid conversation type"
@@ -154,7 +149,7 @@ unblockConvH (usr ::: conn ::: cnv) = do
 
 unblockConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
 unblockConv usr conn cnv = do
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwM $
       invalidOp "unblock: invalid conversation type"
@@ -162,10 +157,6 @@ unblockConv usr conn cnv = do
   conversationView usr conv'
 
 -- conversation updates
-
-data UpdateResult
-  = Updated Public.Event
-  | Unchanged
 
 handleUpdateResult :: UpdateResult -> Response
 handleUpdateResult = \case
@@ -189,7 +180,7 @@ updateConversationAccess usr zcon cnv update = do
   -- The user who initiated access change has to be a conversation member
   (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureConvMember users usr
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   -- The conversation has to be a group conversation
   ensureGroupConv conv
   self <- getSelfMember usr users
@@ -330,7 +321,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
   -- checks and balances
   (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationMessageTimer =<< getSelfMember usr users
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   ensureGroupConv conv
   let currentTimer = Data.convMessageTimer conv
   if currentTimer == target
@@ -360,7 +351,7 @@ addCode usr zcon cnv = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   ensureConvMember (Data.convLocalMembers conv) usr
   ensureAccess conv CodeAccess
   let (bots, users) = botsAndUsers $ Data.convLocalMembers conv
@@ -393,7 +384,7 @@ rmCode usr zcon cnv = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   ensureConvMember (Data.convLocalMembers conv) usr
   ensureAccess conv CodeAccess
   let (bots, users) = botsAndUsers $ Data.convLocalMembers conv
@@ -410,11 +401,13 @@ getCodeH (usr ::: cnv) = do
 
 getCode :: UserId -> ConvId -> Galley Public.ConversationCode
 getCode usr cnv = do
-  conv <- Data.conversation cnv >>= ifNothing convNotFound
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) usr
   key <- mkKey cnv
-  c <- Data.lookupCode key ReusableCode >>= ifNothing codeNotFound
+  c <-
+    Data.lookupCode key ReusableCode
+      >>= ifNothing (errorDescriptionToWai codeNotFound)
   returnCode c
 
 returnCode :: Code -> Galley Public.ConversationCode
@@ -470,13 +463,6 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
-addMembersQH :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (Union UpdateResponses)
-addMembersQH zusr zcon convId invite = mapUpdateToServant =<< addMembers zusr zcon convId invite
-
-mapUpdateToServant :: UpdateResult -> Galley (Union UpdateResponses)
-mapUpdateToServant (Updated e) = Servant.respond $ WithStatus @200 e
-mapUpdateToServant Unchanged = Servant.respond NoContent
-
 -- FUTUREWORK(federation): we need the following checks/implementation:
 --  - (1) [DONE] Remote qualified users must exist before they can be added (a
 --  call to the respective backend should be made): Avoid clients making up random
@@ -492,7 +478,7 @@ mapUpdateToServant Unchanged = Servant.respond NoContent
 --  These checks need tests :)
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
-  conv <- Data.conversation convId >>= ifNothing convNotFound
+  conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let mems = botsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
   self <- getSelfMember zusr (snd mems)
@@ -599,7 +585,7 @@ removeMember :: UserId -> Maybe ConnId -> ConvId -> UserId -> Galley UpdateResul
 removeMember zusr zcon convId victim = do
   localDomain <- viewFederationDomain
   -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
-  conv <- Data.conversation convId >>= ifNothing convNotFound
+  conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let (bots, users) = botsAndUsers (Data.convLocalMembers conv)
   genConvChecks conv users
   case Data.convTeam conv of
@@ -633,14 +619,14 @@ data OtrResult
   = OtrSent !Public.ClientMismatch
   | OtrMissingRecipients !Public.ClientMismatch
   | OtrUnknownClient !Public.UnknownClient
-  | OtrConversationNotFound !Public.ConversationNotFound
+  | OtrConversationNotFound !Public.ConvNotFound
 
 handleOtrResult :: OtrResult -> Galley Response
 handleOtrResult = \case
   OtrSent m -> pure $ json m & setStatus status201
   OtrMissingRecipients m -> pure $ json m & setStatus status412
-  OtrUnknownClient _ -> throwM unknownClient
-  OtrConversationNotFound _ -> throwM convNotFound
+  OtrUnknownClient _ -> throwErrorDescription unknownClient
+  OtrConversationNotFound _ -> throwErrorDescription convNotFound
 
 postBotMessageH :: BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON -> Galley Response
 postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
@@ -655,13 +641,13 @@ postBotMessage zbot zcnv val message = do
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
 -- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
-postProteusMessage :: UserId -> ConnId -> Domain -> ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
-postProteusMessage zusr zcon convDomain conv msg = do
+postProteusMessage :: UserId -> ConnId -> Qualified ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postProteusMessage zusr zcon conv msg = do
   localDomain <- viewFederationDomain
   let sender = Qualified zusr localDomain
-  if localDomain /= convDomain
-    then postRemoteOtrMessage sender (Qualified conv convDomain) (rpRaw msg)
-    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) conv (rpValue msg)
+  if localDomain /= qDomain conv
+    then postRemoteOtrMessage sender conv (rpRaw msg)
+    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) (qUnqualified conv) (rpValue msg)
 
 postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
@@ -849,7 +835,7 @@ updateConversationName zusr zcon cnv convRename = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
     Data.deleteConversation cnv
-    throwM convNotFound
+    throwErrorDescription convNotFound
   (bots, users) <- botsAndUsers <$> Data.members cnv
   ensureActionAllowed ModifyConversationName =<< getSelfMember zusr users
   now <- liftIO getCurrentTime
@@ -874,7 +860,7 @@ isTyping zusr zcon cnv typingData = do
       qusr = Qualified zusr localDomain
   mm <- Data.members cnv
   unless (zusr `isMember` mm) $
-    throwM convNotFound
+    throwErrorDescription convNotFound
   now <- liftIO getCurrentTime
   let e = Event Typing qcnv qusr now (EdTyping typingData)
   for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> mm)) $ \p ->
@@ -903,7 +889,7 @@ addBot :: UserId -> ConnId -> AddBot -> Galley Event
 addBot zusr zcon b = do
   localDomain <- viewFederationDomain
   let qusr = Qualified zusr localDomain
-  c <- Data.conversation (b ^. addBotConv) >>= ifNothing convNotFound
+  c <- Data.conversation (b ^. addBotConv) >>= ifNothing (errorDescriptionToWai convNotFound)
   -- Check some preconditions on adding bots to a conversation
   for_ (Data.convTeam c) $ teamConvChecks (b ^. addBotConv)
   (bots, users) <- regularConvChecks c
@@ -918,7 +904,7 @@ addBot zusr zcon b = do
     regularConvChecks c = do
       let (bots, users) = botsAndUsers (Data.convLocalMembers c)
       unless (zusr `isMember` users) $
-        throwM convNotFound
+        throwErrorDescription convNotFound
       ensureGroupConv c
       ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
@@ -936,12 +922,12 @@ rmBotH (zusr ::: zcon ::: req) = do
 
 rmBot :: UserId -> Maybe ConnId -> RemoveBot -> Galley UpdateResult
 rmBot zusr zcon b = do
-  c <- Data.conversation (b ^. rmBotConv) >>= ifNothing convNotFound
+  c <- Data.conversation (b ^. rmBotConv) >>= ifNothing (errorDescriptionToWai convNotFound)
   localDomain <- viewFederationDomain
   let qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified zusr localDomain
   unless (zusr `isMember` Data.convLocalMembers c) $
-    throwM convNotFound
+    throwErrorDescription convNotFound
   let (bots, users) = botsAndUsers (Data.convLocalMembers c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
     then pure Unchanged
@@ -1010,7 +996,7 @@ notIsMember' cc u = not $ isRemoteMember u (Data.convRemoteMembers cc)
 ensureConvMember :: [LocalMember] -> UserId -> Galley ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $
-    throwM convNotFound
+    throwErrorDescription convNotFound
 
 processUpdateMemberEvent ::
   UserId ->
@@ -1109,7 +1095,7 @@ withValidOtrRecipients utype usr clt cnv rcps val now go = do
   if not alive
     then do
       Data.deleteConversation cnv
-      pure $ OtrConversationNotFound Public.convNotFound
+      pure $ OtrConversationNotFound convNotFound
     else do
       localMembers <- Data.members cnv
       let localMemberIds = memId <$> localMembers
@@ -1146,8 +1132,8 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
       >>= either (const (throwM missingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
-  InvalidOtrSenderUser -> pure $ OtrConversationNotFound Public.convNotFound
-  InvalidOtrSenderClient -> pure $ OtrUnknownClient Public.unknownClient
+  InvalidOtrSenderUser -> pure $ OtrConversationNotFound convNotFound
+  InvalidOtrSenderClient -> pure $ OtrUnknownClient unknownClient
 
 -- | Check OTR sender and recipients for validity and completeness
 -- against a given list of valid members and clients, optionally

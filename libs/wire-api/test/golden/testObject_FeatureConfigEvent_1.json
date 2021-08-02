@@ -1,0 +1,7 @@
+{
+    "data": {
+        "status": "enabled"
+    },
+    "name": "fileSharing",
+    "type": "feature-config.update"
+}

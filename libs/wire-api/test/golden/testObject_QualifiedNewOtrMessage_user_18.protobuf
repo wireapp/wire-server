@@ -1,0 +1,14 @@
+sender { client: 7 }
+recipients { domain: "28d6.q1s.e" }
+recipients { domain: "8.z7q.pfl" }
+recipients { domain: "9ihzlr.16.74.kbz-8p.46.2i-2qd897-lx.f-4" }
+recipients { domain: "c8v77-j.q5l1-u-y9h.0a.8.14.a" }
+recipients { domain: "d2.rt" }
+recipients { domain: "k6u.s.suf" }
+recipients { domain: "kohn-bnoq0.vqi" }
+recipients { domain: "y2-4i9.zq--dg" }
+native_push: true
+blob: "5A"
+native_priority: HIGH_PRIORITY
+transient: true
+report_all { }

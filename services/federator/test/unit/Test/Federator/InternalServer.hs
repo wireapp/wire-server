@@ -51,8 +51,12 @@ tests =
         ]
     ]
 
+settingsWithAllowList :: [Domain] -> RunSettings
+settingsWithAllowList domains =
+  RunSettings (AllowList (AllowedDomains domains)) True Nothing
+
 allowAllSettings :: RunSettings
-allowAllSettings = RunSettings AllowAll
+allowAllSettings = RunSettings AllowAll True Nothing
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
@@ -119,7 +123,7 @@ federatedRequestFailureNoRemote :: TestTree
 federatedRequestFailureNoRemote =
   testCase "should respond with error when SRV record is not found" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorSrvNotAvailable "_something._tcp.example.com") (Domain "example.com")))
+      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (Domain "example.com") (LookupErrorSrvNotAvailable "_something._tcp.example.com")))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
@@ -134,7 +138,7 @@ federatedRequestFailureDNS :: TestTree
 federatedRequestFailureDNS =
   testCase "should respond with error when SRV lookup fails due to DNSError" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorDNSError "No route to 1.1.1.1") (Domain "example.com")))
+      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (Domain "example.com") (LookupErrorDNSError "No route to 1.1.1.1")))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
@@ -150,9 +154,8 @@ federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $
     runM . evalMock @Remote @IO $ do
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "hello.world"]))
-
-      res <- mock @Remote @IO . Polysemy.runReader allowList $ callOutward federatedRequest
+      let settings = settingsWithAllowList [Domain "hello.world"]
+      res <- mock @Remote @IO . Polysemy.runReader settings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       embed $ do

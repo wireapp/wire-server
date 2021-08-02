@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d24222c8fb02d8c5e784e9a6500d10b8e80e59aebbbbc0206916676f324b867b
+-- hash: 2afa3a03f475aac5d63ab87ded5843f404fee3d8506ac70390ee37dde18f22d4
 
 name:           spar
 version:        0.1
@@ -215,6 +215,7 @@ executable spar-integration
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , cassava
     , containers
     , cookie
     , cryptonite
@@ -262,6 +263,7 @@ executable spar-integration
     , unordered-containers
     , uri-bytestring
     , uuid
+    , vector
     , wai
     , wai-extra
     , wai-utilities

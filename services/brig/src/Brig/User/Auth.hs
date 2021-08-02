@@ -22,6 +22,7 @@ module Brig.User.Auth
     login,
     logout,
     renewAccess,
+    validateTokens,
     revokeAccess,
 
     -- * Internal

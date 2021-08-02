@@ -1,0 +1,17 @@
+sender { client: 5 }
+recipients { domain: "0-89.1l.ls" }
+recipients { domain: "0x2.svo" }
+recipients { domain: "3.gq0--73uhk1n" }
+recipients { domain: "7.w95.uj" }
+recipients { domain: "h-o3.fi" }
+recipients { domain: "j3.h2xmcb" }
+recipients { domain: "l.pkx62-e-o2" }
+recipients { domain: "oj.e" }
+recipients { domain: "wh4.f-x3.fiqqx.zm-3q" }
+recipients { domain: "y5.f6" }
+recipients { domain: "yi5c.i-p" }
+native_push: false
+blob: " "
+native_priority: LOW_PRIORITY
+transient: false
+report_all { }

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8cb56552b9f89c25fdb19e0831a4fe68543982a5aaf1dbc3d482434a56a6f31f
+-- hash: 51eb96bf37999a61021ffce3cf4fdb0ac87752f9fe570564d30a06530ec1e844
 
 name:           wire-api
 version:        0.1.0
@@ -35,6 +35,7 @@ library
       Wire.API.CustomBackend
       Wire.API.ErrorDescription
       Wire.API.Event.Conversation
+      Wire.API.Event.FeatureConfig
       Wire.API.Event.Team
       Wire.API.Message
       Wire.API.Message.Proto
@@ -47,13 +48,14 @@ library
       Wire.API.Provider.Service.Tag
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
+      Wire.API.Routes.MultiVerb
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
       Wire.API.Routes.Public.Galley
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
+      Wire.API.Routes.QualifiedCapture
       Wire.API.ServantProto
-      Wire.API.ServantSwagger
       Wire.API.Swagger
       Wire.API.Team
       Wire.API.Team.Conversation
@@ -134,9 +136,12 @@ library
     , proto-lens
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
+    , resourcet
     , saml2-web-sso
     , schema-profunctor
     , servant
+    , servant-client
+    , servant-client-core
     , servant-multipart
     , servant-server
     , servant-swagger
@@ -301,6 +306,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user
       Test.Wire.API.Golden.Generated.PushToken_user
       Test.Wire.API.Golden.Generated.PushTokenList_user
+      Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user
       Test.Wire.API.Golden.Generated.QueuedNotification_user
       Test.Wire.API.Golden.Generated.QueuedNotificationList_user
       Test.Wire.API.Golden.Generated.ReceiptMode_user
@@ -392,9 +398,11 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.ClientCapability
       Test.Wire.API.Golden.Manual.ClientCapabilityList
       Test.Wire.API.Golden.Manual.ConversationCoverView
+      Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+      Test.Wire.API.Golden.Protobuf
       Test.Wire.API.Golden.Runner
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
@@ -410,7 +418,8 @@ test-suite wire-api-tests
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      aeson >=0.6
+      QuickCheck
+    , aeson >=0.6
     , aeson-pretty
     , aeson-qq
     , base
@@ -426,12 +435,15 @@ test-suite wire-api-tests
     , lens
     , mime
     , pem
+    , pretty
+    , proto-lens
     , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
+    , text
     , time
     , types-common >=0.16
     , unordered-containers
@@ -439,4 +451,5 @@ test-suite wire-api-tests
     , uuid
     , vector
     , wire-api
+    , wire-message-proto-lens
   default-language: Haskell2010

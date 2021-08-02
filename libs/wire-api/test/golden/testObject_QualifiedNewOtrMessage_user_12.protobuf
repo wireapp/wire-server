@@ -1,0 +1,17 @@
+sender { client: 6 }
+native_push: false
+blob: "\300\242\311"
+native_priority: LOW_PRIORITY
+transient: true
+report_only {
+  user_ids {
+    id: "00000000-0000-0001-0000-000100000001" domain: "042.d-3.gs-6"
+  }
+  user_ids {
+    id: "00000000-0000-0002-0000-000100000002"
+    domain: "820ea4z19oe.10vbh.gmu7.s78s"
+  }
+  user_ids {
+    id: "00000001-0000-0001-0000-000000000002" domain: "x3q.gd"
+  }
+}

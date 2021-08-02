@@ -19,6 +19,9 @@ data Proto
 class FromProto a where
   fromProto :: LByteString -> Either String a
 
+class ToProto a where
+  toProto :: a -> LByteString
+
 instance Accept Proto where
   contentTypes _ = ("application" // "x-protobuf") :| []
 

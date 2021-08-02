@@ -29,7 +29,7 @@ production.
 ## Feature flags
 
 Feature flags can be used to turn features on or off, or determine the
-behavior of the features.  Example:
+behavior of the features. Example:
 
 ```
 # [galley.yaml]
@@ -101,6 +101,55 @@ pull-down-menu "body":
 
 [Allowd values](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306) and their [description](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299).
 
+### Classified domains
+
+To enable classified domains, the following needs to be in galley.yaml or wire-server/values.yaml under `settings` / `featureFlags`:
+
+```yaml
+classifiedDomains:
+  status: enabled
+  config:
+    domains: ["example.com", "example2.com"]
+```
+
+Note that when enabling this feature, it is important to provide your own domain
+too in the list of domains. In the example above, `example.com` or `example2.com` is your domain.
+
+To disable, either omit the entry entirely (it is disabled by default), or provide the following:
+
+```yaml
+classifiedDomains:
+  status: disabled
+  config:
+    domains: []
+```
+
+### Conference Calling
+
+The `conferenceCalling` feature flag controls whether a user can initiate a conference call. The flag can be toggled between its states `enabled` and `disabled` per team via an internal endpoint.
+
+The `conferenceCalling` section in `featureFlags` defines the state of the `conferenceCalling` feature flag for all personal users (users that don't belong to a team). For personal users there is no way to toggle the flag, so the setting of the config section wholly defines the state of `conferenceCalling` flag for all personal users.
+
+The `conferenceCalling` section in `featureFlags` also defines the _initial_ state of the `conferenceCalling` flag for all teams. After the flag is set for the first time for a team via the internal endpoint the value from the config section will be ignored.
+
+Example value for the config section:
+```yaml
+conferenceCalling:
+  defaults:
+    status: enabled
+```
+
+The `conferenceCalling` section is optional in `featureFlags`. If it is omitted then it is assumed to be `enabled`.
+
+### File Sharing
+
+File sharing is enabled by default.  If you want to disable it for all teams, add this to your feature config settings:
+
+```
+fileSharing:
+  defaults:
+    status: enabled
+```
 
 ### Federation Domain
 
@@ -134,12 +183,12 @@ optSettings:
 
 ### Federation allow list
 
-As of 2021-02, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
+As of 2021-07, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
 
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     allowedDomains: []
 ```
 
@@ -149,7 +198,7 @@ You can choose to federate with a specific list of allowed servers:
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     allowedDomains:
       - server1.example.com
       - server2.example.com
@@ -160,7 +209,7 @@ or, you can federate with everyone:
 ```yaml
 # federator.yaml
 optSettings:
-  setFederationStrategy:
+  federationStrategy:
     # note the 'empty' value after 'allowAll'
     allowAll:
 
@@ -168,6 +217,21 @@ optSettings:
 # inside helm_vars/wire-server:
 federator:
   optSettings:
-    setFederationStrategy:
+    federationStrategy:
       allowAll: true
 ```
+
+### Federation TLS Config
+
+When a federator connects with another federator, it does so over HTTPS. There
+are two options to configure the CA for this:
+1. `useSystemCAStore`: Boolean. If set to `True` it will use the system CA.
+1. `remoteCAStore`: Maybe Filepath. This config option can be used to specify
+   multiple certificates from either a single file (multiple PEM formatted
+   certificates concatenated) or directory (one certificate per file, file names
+   are hashes from certificate).
+
+Both of these options can be specified, in this case the stores are concatenated
+and used for verifying certificates. When `useSystemCAStore` is `False` and
+`remoteCAStore` is not set, then all outbound connections will fail with TLS
+error as there will be no CA to verify.

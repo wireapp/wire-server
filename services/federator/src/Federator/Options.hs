@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -21,7 +20,6 @@
 
 module Federator.Options where
 
-import qualified Control.Lens as Lens
 import Data.Aeson
 import Data.Domain (Domain ())
 import Imports
@@ -60,9 +58,11 @@ instance FromJSON FederationStrategy where
       _ -> fail "invalid FederationStrategy: expected either allowAll or allowedDomains"
 
 -- | Options that persist as runtime settings.
-newtype RunSettings = RunSettings
+data RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
-    setFederationStrategy :: FederationStrategy
+    federationStrategy :: FederationStrategy,
+    useSystemCAStore :: Bool,
+    remoteCAStore :: Maybe FilePath
   }
   deriving (Show, Generic)
 
@@ -91,8 +91,3 @@ data Opts = Opts
   deriving (Show, Generic)
 
 instance FromJSON Opts
-
-Lens.makeLensesFor
-  [ ("setFederationStrategy", "federationStrategy")
-  ]
-  ''RunSettings

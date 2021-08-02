@@ -1,0 +1,23 @@
+sender { client: 0 }
+recipients {
+  domain: "74.w-5v9"
+  entries {
+    user {
+      uuid: "\000\000\000\000\000\000\000\001\000\000\000\004\000\000\000\004"
+    }
+    clients { client { client: 7 } text: "\345" }
+  }
+}
+native_push: false
+blob: "v)"
+native_priority: HIGH_PRIORITY
+transient: false
+report_only {
+  user_ids {
+    id: "00000000-0000-0002-0000-000000000001"
+    domain: "798.c.c-6idf.r88-8i4-7.j"
+  }
+  user_ids {
+    id: "00000001-0000-0001-0000-000000000002" domain: "y9.pt"
+  }
+}

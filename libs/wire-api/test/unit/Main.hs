@@ -26,6 +26,7 @@ import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
 import qualified Test.Wire.API.Golden.Generated as Golden.Generated
 import qualified Test.Wire.API.Golden.Manual as Golden.Manual
+import qualified Test.Wire.API.Golden.Protobuf as Golden.Protobuf
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
@@ -51,5 +52,6 @@ main =
         Roundtrip.CSV.tests,
         Golden.Generated.tests,
         Golden.Manual.tests,
-        Golden.FromJSON.tests
+        Golden.FromJSON.tests,
+        Golden.Protobuf.tests
       ]

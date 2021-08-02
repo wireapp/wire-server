@@ -56,6 +56,7 @@ import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
+import Wire.API.ErrorDescription (convNotFound)
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Error
@@ -67,7 +68,7 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 
 getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
 getBotConversation zbot zcnv = do
-  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) zcnv
+  c <- getConversationAndCheckMembershipWithError (errorDescriptionToWai convNotFound) (botUserId zbot) zcnv
   domain <- viewFederationDomain
   let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
@@ -84,18 +85,18 @@ getUnqualifiedConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView zusr c
 
-getConversation :: UserId -> Domain -> ConvId -> Galley Public.Conversation
-getConversation zusr domain cnv = do
+getConversation :: UserId -> Qualified ConvId -> Galley Public.Conversation
+getConversation zusr cnv = do
   localDomain <- viewFederationDomain
-  if domain == localDomain
-    then getUnqualifiedConversation zusr cnv
-    else getRemoteConversation zusr (toRemote $ Qualified cnv domain)
+  if qDomain cnv == localDomain
+    then getUnqualifiedConversation zusr (qUnqualified cnv)
+    else getRemoteConversation zusr (toRemote cnv)
 
 getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
 getRemoteConversation zusr remoteConvId = do
   conversations <- getRemoteConversations zusr [remoteConvId]
   case conversations of
-    [] -> throwM convNotFound
+    [] -> throwErrorDescription convNotFound
     [conv] -> pure conv
     _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
@@ -120,7 +121,7 @@ getConversationRoles zusr cnv = do
 getConversationIds :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
 getConversationIds zusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
-  ids <- Data.conversationIdRowsFrom zusr start size
+  ids <- Data.conversationIdsFrom zusr start size
   pure $
     Public.ConversationList
       (Data.resultSetResult ids)

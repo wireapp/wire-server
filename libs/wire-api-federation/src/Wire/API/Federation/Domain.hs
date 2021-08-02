@@ -23,9 +23,9 @@ import GHC.TypeLits (Symbol, symbolVal)
 import Imports
 import Servant.API (Header', Required, Strict)
 
-type DomainHeaderName = "Wire-Origin-Domain" :: Symbol
+type OriginDomainHeaderName = "Wire-Origin-Domain" :: Symbol
 
-type DomainHeader = Header' [Strict, Required] DomainHeaderName Domain
+type OriginDomainHeader = Header' [Strict, Required] OriginDomainHeaderName Domain
 
-domainHeaderName :: IsString a => a
-domainHeaderName = fromString $ symbolVal (Proxy @DomainHeaderName)
+originDomainHeaderName :: IsString a => a
+originDomainHeaderName = fromString $ symbolVal (Proxy @OriginDomainHeaderName)

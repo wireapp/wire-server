@@ -1,0 +1,5 @@
+sender { client: 5 }
+native_push: true
+blob: "#\023\205"
+transient: false
+report_all { }

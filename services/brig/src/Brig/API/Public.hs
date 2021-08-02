@@ -92,6 +92,7 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
+import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
 import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
@@ -168,13 +169,11 @@ servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   genericServerT $
     BrigAPI.Api
-      { BrigAPI.checkUserExistsUnqualified = checkUserExistsUnqualifiedH,
-        BrigAPI.checkUserExistsQualified = checkUserExistsH,
-        BrigAPI.getUserUnqualified = getUserUnqualifiedH,
-        BrigAPI.getUserQualified = getUserH,
+      { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
+        BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
-        BrigAPI.getUserByHandleQualfied = getUserByHandleH,
+        BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
         BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
         BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
@@ -230,7 +229,7 @@ sitemap o = do
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
     Doc.errorResponse invalidHandle
-    Doc.errorResponse handleNotFound
+    Doc.errorResponse (errorDescriptionToWai handleNotFound)
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -387,7 +386,7 @@ sitemap o = do
     Doc.response 202 "Deletion is pending verification with a code." Doc.end
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse badCredentials
-    Doc.errorResponse missingAuthError
+    Doc.errorResponse (errorDescriptionToWai missingAuthError)
 
   -- TODO put  where?
 
@@ -475,7 +474,7 @@ sitemap o = do
     Doc.response 204 "No change." Doc.end
     Doc.errorResponse connectionLimitReached
     Doc.errorResponse invalidTransition
-    Doc.errorResponse notConnected
+    Doc.errorResponse (errorDescriptionToWai notConnected)
     Doc.errorResponse invalidUser
 
   get "/connections/:id" (continue getConnectionH) $
@@ -753,10 +752,10 @@ listPropertyKeysAndValuesH (u ::: _) = do
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
-  getPrekeyH zusr domain user client
+  getPrekeyH zusr (Qualified user domain) client
 
-getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyH zusr domain user client = do
+getPrekeyH :: UserId -> Qualified UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
@@ -765,15 +764,15 @@ getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleH zusr domain uid =
+getPrekeyBundleH :: UserId -> Qualified UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
-    throwStd tooManyClients
+    throwErrorDescription tooManyClients
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
@@ -784,7 +783,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
-    throwStd tooManyClients
+    throwErrorDescription tooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
@@ -811,21 +810,16 @@ listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClient :: UserId -> ClientId -> Handler (Union BrigAPI.GetClientResponse)
-getClient zusr clientId = do
-  mc <- lift $ API.lookupLocalClient zusr clientId
-  case mc of
-    Nothing -> throwEmptyForLegacyReasons status404
-    Just c -> Servant.respond (WithStatus @200 c)
+getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
+getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
 
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
   API.lookupPubClients (Qualified uid localdomain) !>> clientError
 
-getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
-getUserClientsQualified domain uid = do
-  API.lookupPubClients (Qualified uid domain) !>> clientError
+getUserClientsQualified :: Qualified UserId -> Handler [Public.PubClient]
+getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
 
 getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
 getUserClientUnqualified uid cid = do
@@ -840,15 +834,15 @@ listClientsBulk _zusr limitedUids =
 listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
-getUserClientQualified domain uid cid = do
-  x <- API.lookupPubClient (Qualified uid domain) cid !>> clientError
+getUserClientQualified :: Qualified UserId -> ClientId -> Handler Public.PubClient
+getUserClientQualified quid cid = do
+  x <- API.lookupPubClient quid cid !>> clientError
   ifNothing (notFound "client not found") x
 
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
-  maybe (throwStd clientNotFound) (pure . Public.clientCapabilities) mclient
+  maybe (throwErrorDescription clientNotFound) (pure . Public.clientCapabilities) mclient
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =
@@ -858,8 +852,12 @@ getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
-  selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations self)
-  otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations user)
+  selfUser <-
+    ifNothing (errorDescriptionToWai userNotFound)
+      =<< lift (Data.lookupUser NoPendingInvitations self)
+  otherUser <-
+    ifNothing (errorDescriptionToWai userNotFound)
+      =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
@@ -944,34 +942,15 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsUnqualifiedH self uid = do
-  domain <- viewFederationDomain
-  checkUserExistsH self domain uid
-
-checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsH self domain uid = do
-  exists <- checkUserExists self (Qualified uid domain)
-  if exists
-    then Servant.respond (EmptyResult @200)
-    else Servant.respond (EmptyResult @404)
-
-checkUserExists :: UserId -> Qualified UserId -> Handler Bool
-checkUserExists self qualifiedUserId =
-  isJust <$> getUser self qualifiedUserId
-
 getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self =
-  lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
+  lift (API.lookupSelfProfile self)
+    >>= ifNothing (errorDescriptionToWai userNotFound)
 
-getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
+getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
-  getUserH self domain uid
-
-getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
-getUserH self domain uid =
-  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+  getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
@@ -1089,20 +1068,15 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
--- | This endpoint returns UserHandleInfo instead of UserProfile for backwards compatibility.
-getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
+-- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
+-- compatibility, whereas the corresponding qualified endpoint (implemented by
+-- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
+-- in a federated scenario.
+getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
-  Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
-
--- | This endpoint returns UserProfile instead of UserHandleInfo to reduce
--- traffic between backends in a federated scenario.
-getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
-getUserByHandleH self domain handle = do
-  maybeProfile <- Handle.getHandleInfo self (Qualified handle domain)
-  case maybeProfile of
-    Nothing -> throwStd handleNotFound
-    Just u -> pure u
+  Public.UserHandleInfo . Public.profileQualifiedId
+    <$$> Handle.getHandleInfo self (Qualified handle domain)
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) =

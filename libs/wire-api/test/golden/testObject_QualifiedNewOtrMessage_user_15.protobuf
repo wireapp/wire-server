@@ -1,0 +1,15 @@
+sender { client: 2 }
+recipients {
+  domain: "32-d.o0t410.de1kn"
+  entries {
+    user {
+      uuid: "\000\000\000\000\000\000\000\004\000\000\000\004\000\000\000\002"
+    }
+    clients { client { client: 1 } text: "" }
+  }
+}
+native_push: true
+blob: "@\366a"
+native_priority: LOW_PRIORITY
+transient: true
+ignore_all { }

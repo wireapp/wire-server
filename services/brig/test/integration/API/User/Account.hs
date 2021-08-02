@@ -62,7 +62,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
-import Imports
+import Imports hiding (head)
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -97,6 +97,10 @@ tests _ at opts p b c ch g aws =
       test' aws p "get /users/:uid - 200" $ testExistingUserUnqualified b,
       test' aws p "get /users/<localdomain>/:uid - 200" $ testExistingUser b,
       test' aws p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
+      test' aws p "head /users/:uid - 200" $ testUserExistsUnqualified b,
+      test' aws p "head /users/:uid - 404" $ testUserDoesNotExistUnqualified b,
+      test' aws p "head /users/:domain/:uid - 200" $ testUserExists b,
+      test' aws p "head /users/:domain/:uid - 404" $ testUserDoesNotExist b,
       test' aws p "post /list-users - 200" $ testMultipleUsers b,
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
       test' aws p "put /self/email - 2xx" $ testEmailUpdate b aws,
@@ -428,9 +432,13 @@ testNonExistingUserUnqualified brig = do
   findingOne <- liftIO $ Id <$> UUID.nextRandom
   foundOne <- liftIO $ Id <$> UUID.nextRandom
   get (brig . paths ["users", pack $ show foundOne] . zUser findingOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
   get (brig . paths ["users", pack $ show foundOne] . zUser foundOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testNonExistingUser :: Brig -> Http ()
 testNonExistingUser brig = do
@@ -440,9 +448,13 @@ testNonExistingUser brig = do
   let uid = qUnqualified qself
       domain = qDomain qself
   get (brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
   get (brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testUserInvalidDomain :: Brig -> Http ()
 testUserInvalidDomain brig = do
@@ -488,6 +500,58 @@ testExistingUser brig = do
                 b <- responseBody r
                 b ^? key "id" >>= maybeFromJSON
             )
+
+testUserExistsUnqualified :: Brig -> Http ()
+testUserExistsUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExistUnqualified :: Brig -> Http ()
+testUserDoesNotExistUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
+
+testUserExists :: Brig -> Http ()
+testUserExists brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain quser), toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExist :: Brig -> Http ()
+testUserDoesNotExist brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain qself), toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
 
 testMultipleUsersUnqualified :: Brig -> Http ()
 testMultipleUsersUnqualified brig = do
@@ -643,6 +707,9 @@ testUserUpdate brig cannon aws = do
   Search.refreshIndex brig
   Search.assertCanFind brig suid aliceQ "dogbert"
 
+-- This tests the behavior of `/i/self/email` instead of `/self/email` or
+-- `/access/self/email`.  tests for session token handling under `/access/self/email` are in
+-- `services/brig/test/integration/API/User/Auth.hs`.
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
   usr <- randomUser brig
@@ -665,12 +732,15 @@ testEmailUpdate brig aws = do
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   where
+    ensureNoOtherUserWithEmail :: Email -> Http ()
     ensureNoOtherUserWithEmail eml = do
       tk :: Maybe AccessToken <-
         responseJsonMaybe <$> login brig (defEmailLogin eml) SessionCookie
       for_ tk $ \t -> do
         deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
         liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
+
+    initiateUpdateAndActivate :: Email -> UserId -> Http ()
     initiateUpdateAndActivate eml uid = do
       initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
       activateEmail brig eml

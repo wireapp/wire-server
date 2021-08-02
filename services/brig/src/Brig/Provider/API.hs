@@ -96,6 +96,7 @@ import qualified Ssl.Util as SSL
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import qualified Wire.API.Conversation.Bot as Public
+import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public (Event)
 import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
@@ -906,11 +907,11 @@ botGetSelfH bot = json <$> botGetSelf bot
 botGetSelf :: BotId -> Handler Public.UserProfile
 botGetSelf bot = do
   p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwStd userNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
+  maybe (throwErrorDescription userNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> Handler Response
 botGetClientH bot = do
-  maybe (throwStd clientNotFound) (pure . json) =<< lift (botGetClient bot)
+  maybe (throwErrorDescription clientNotFound) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> AppIO (Maybe Public.Client)
 botGetClient bot = do
@@ -935,7 +936,7 @@ botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> Handler ()
 botUpdatePrekeys bot upd = do
   clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
   case clt of
-    Nothing -> throwStd clientNotFound
+    Nothing -> throwErrorDescription clientNotFound
     Just c -> do
       let pks = updateBotPrekeyList upd
       User.updatePrekeys (botUserId bot) (clientId c) pks !>> clientDataError
@@ -948,7 +949,7 @@ botClaimUsersPrekeys :: Public.UserClients -> Handler Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
-    throwStd tooManyClients
+    throwErrorDescription tooManyClients
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
 botListUserProfilesH :: List UserId -> Handler Response

@@ -141,7 +141,22 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusGet 'Public.TeamFeatureAppLock,
     iTeamFeatureStatusAppLockPut ::
       routes
-        :- IFeatureStatusPut 'Public.TeamFeatureAppLock
+        :- IFeatureStatusPut 'Public.TeamFeatureAppLock,
+    iTeamFeatureStatusFileSharingGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureFileSharing,
+    iTeamFeatureStatusFileSharingPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureFileSharing,
+    iTeamFeatureStatusClassifiedDomainsGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureClassifiedDomains,
+    iTeamFeatureStatusConferenceCallingPut ::
+      routes
+        :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
+    iTeamFeatureStatusConferenceCallingGet ::
+      routes
+        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling
   }
   deriving (Generic)
 
@@ -210,13 +225,18 @@ servantSitemap =
         iTeamFeatureStatusDigitalSignaturesDeprecatedGet = iGetTeamFeature @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal,
         iTeamFeatureStatusDigitalSignaturesDeprecatedPut = iPutTeamFeature @'Public.TeamFeatureDigitalSignatures Features.setDigitalSignaturesInternal,
         iTeamFeatureStatusAppLockGet = iGetTeamFeature @'Public.TeamFeatureAppLock Features.getAppLockInternal,
-        iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal
+        iTeamFeatureStatusAppLockPut = iPutTeamFeature @'Public.TeamFeatureAppLock Features.setAppLockInternal,
+        iTeamFeatureStatusFileSharingGet = iGetTeamFeature @'Public.TeamFeatureFileSharing Features.getFileSharingInternal,
+        iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
+        iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
+        iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
+        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
       }
 
 iGetTeamFeature ::
   forall a.
   Public.KnownTeamFeatureName a =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley (Public.TeamFeatureStatus a)
 iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth

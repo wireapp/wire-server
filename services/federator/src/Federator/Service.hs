@@ -31,7 +31,7 @@ import Federator.Env (service)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
-import Wire.API.Federation.Domain (domainHeaderName)
+import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.GRPC.Types
 
 newtype ServiceError = ServiceErrorInvalidStatus HTTP.Status
@@ -61,5 +61,5 @@ interpretService = interpret $ \case
           . RPC.path path
           . RPC.body (RPC.RequestBodyBS body)
           . RPC.contentJson
-          . RPC.header domainHeaderName (cs (domainText domain))
+          . RPC.header originDomainHeaderName (cs (domainText domain))
     pure (RPC.responseStatus res, RPC.responseBody res)

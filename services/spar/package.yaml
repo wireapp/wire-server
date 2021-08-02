@@ -134,6 +134,7 @@ executables:
       - hspec-discover:hspec-discover
     dependencies:
       - aeson-qq
+      - cassava
       - galley-types
       - hspec
       - hspec-wai
@@ -145,6 +146,7 @@ executables:
       - spar
       - tasty-hunit
       - tinylog
+      - vector
       - wai
       - wai-extra
       - wire-api
