@@ -52,6 +52,9 @@ Upgrade nginz (#1658)
 
 ## Features
 
+* A new team feature for classified domains is available (#1626):
+  - a public endpoint is at `GET /teams/:tid/features/classifiedDomains`
+  - an internal endpoint is at `GET /i/teams/:tid/features/classifiedDomains`
 * Extend feature config API (#1658)
 * `fileSharing` feature config (#1652, #1654, #1655)
 * `conferenceCalling` feature flag (#1683)
@@ -75,6 +78,7 @@ Upgrade nginz (#1658)
 * Refactor function createUser for readability (#1670)
 * Removed explicit implementation for user HEAD endpoints (#1679)
 * Improved test coverage for error responses (#1680)
+* Introduced `MultiVerb` endpoints in Servant API (#1649).
 
 ## Federation changes (alpha feature, do not use yet)
 
@@ -82,6 +86,7 @@ Upgrade nginz (#1658)
 * A clarification is added about listing your own domain as a classified domain (#1678)
 * Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
 * Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
+* Added golden tests for protobuf serialisation / deserialisation (#1644).
 
 
 # [2021-07-09]
@@ -92,9 +97,6 @@ This release requires a manual change in your galley configuration: `settings.co
 
 ## API Changes
 
-* A new team feature for classified domains is available (#1626):
-  - a public endpoint is at `GET /teams/:tid/features/classifiedDomains`
-  - an internal endpoint is at `GET /i/teams/:tid/features/classifiedDomains`
 * Several public team feature endpoints are removed (their internal and
   Stern-based counterparts remain available):
   - `PUT /teams/:tid/features/sso`
@@ -125,13 +127,11 @@ This release requires a manual change in your galley configuration: `settings.co
 * [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
 * Refactored Proteus endpoint to work with qualified users (#1634).
 * Refactored Federator InternalServer (#1637)
-* Introduced `MultiVerb` endpoints in Servant API (#1649).
 
 ### Internal Federation API changes
 
 * Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
   * Note: federation should not be in use anywhere yet, so this should not have any impact
-* Added golden tests for protobuf serialisation / deserialisation (#1644).
 
 ## Documentation
 
