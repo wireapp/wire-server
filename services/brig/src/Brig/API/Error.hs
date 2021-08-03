@@ -94,7 +94,7 @@ connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedE
 connError (ConnectInvalidEmail _ _) = StdError invalidEmail
 connError ConnectInvalidPhone {} = StdError invalidPhone
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
-connError ConnectMissingLegalholdConsent = StdError missingLegalholdConsent
+connError ConnectMissingLegalholdConsent = StdError (errorDescriptionToWai missingLegalholdConsent)
 
 actError :: ActivationError -> Error
 actError (UserKeyExists _) = StdError userKeyExists
@@ -203,7 +203,7 @@ clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
-clientError ClientMissingLegalholdConsent = StdError missingLegalholdConsent
+clientError ClientMissingLegalholdConsent = StdError (errorDescriptionToWai missingLegalholdConsent)
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
@@ -455,10 +455,6 @@ propertyManagedByScim prop = Wai.mkError status403 "managed-by-scim" $ "Updating
 
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.mkError status403 "same-binding-team-users" "Operation not allowed to binding team users."
-
--- | See 'Galley.API.Error.missingLegalholdConsent'.
-missingLegalholdConsent :: Wai.Error
-missingLegalholdConsent = Wai.mkError status403 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
 
 ownerDeletingSelf :: Wai.Error
 ownerDeletingSelf =

@@ -1,7 +1,6 @@
 module Galley.API.Message where
 
 import Control.Lens
-import Control.Monad.Catch (throwM)
 import Control.Monad.Except (throwError)
 import Control.Monad.Extra (eitherM)
 import Control.Monad.Trans.Except (runExceptT)
@@ -25,7 +24,7 @@ import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
-import Galley.API.Error (missingLegalholdConsent)
+import Galley.API.Error (throwErrorDescription)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
   ( runFederatedBrig,
@@ -223,7 +222,7 @@ mkPostOtrResponsesUnion (Left reason) = case reason of
   MessageNotSentClientMissing mss -> Servant.respond (WithStatus @412 mss)
   MessageNotSentUnknownClient -> Servant.respond ErrorDescription.unknownClient
   MessageNotSentConversationNotFound -> Servant.respond ErrorDescription.convNotFound
-  MessageNotSentLegalhold -> throwM missingLegalholdConsent
+  MessageNotSentLegalhold -> throwErrorDescription missingLegalholdConsent
 
 postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Either MessageNotSent Public.MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do

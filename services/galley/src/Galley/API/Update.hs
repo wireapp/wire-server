@@ -109,7 +109,12 @@ import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.ErrorDescription (codeNotFound, convNotFound, unknownClient)
+import Wire.API.ErrorDescription
+  ( codeNotFound,
+    convNotFound,
+    missingLegalholdConsent,
+    unknownClient,
+  )
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
@@ -520,11 +525,11 @@ addMembers zusr zcon convId invite = do
 
       whenM (anyLegalholdActivated (memId <$> convUsers)) $
         unless allNewUsersGaveConsent $
-          throwM missingLegalholdConsent
+          throwErrorDescription missingLegalholdConsent
 
       whenM (anyLegalholdActivated newUsers) $ do
         unless allNewUsersGaveConsent $
-          throwM missingLegalholdConsent
+          throwErrorDescription missingLegalholdConsent
 
         convUsersLHStatus <- do
           uidsStatus <- getLHStatusForUsers (memId <$> convUsers)
@@ -541,7 +546,7 @@ addMembers zusr zcon convId invite = do
               when (consentGiven status == ConsentNotGiven) $
                 void $ removeMember (memId mem) Nothing (Data.convId conv) (memId mem)
           else do
-            throwM missingLegalholdConsent
+            throwErrorDescription missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
@@ -1130,7 +1135,7 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
-      >>= either (const (throwM missingLegalholdConsent)) pure
+      >>= either (const (throwErrorDescription missingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound convNotFound
   InvalidOtrSenderClient -> pure $ OtrUnknownClient unknownClient
