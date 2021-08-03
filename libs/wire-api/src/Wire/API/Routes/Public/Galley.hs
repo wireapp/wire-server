@@ -140,7 +140,7 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
-    getConversationIds ::
+    listConversationIdsUnqualified ::
       routes
         :- Summary "Get all local conversation IDs."
         -- FUTUREWORK: add bounds to swagger schema for Range
@@ -162,7 +162,7 @@ data Api routes = Api
              "size"
              (Range 1 1000 Int32)
         :> Get '[Servant.JSON] (Public.ConversationList ConvId),
-    getConversationIdsV2 ::
+    listConversationIds ::
       routes
         :- Summary "Get all conversation IDs."
           :> ZUser

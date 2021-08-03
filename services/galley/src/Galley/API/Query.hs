@@ -21,8 +21,8 @@ module Galley.API.Query
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
-    getConversationIds,
-    getConversationIdsV2,
+    listConversationIdsUnqualified,
+    listConversationIds,
     getConversations,
     listConversations,
     iterateConversations,
@@ -120,8 +120,8 @@ getConversationRoles zusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getConversationIds :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
-getConversationIds zusr start msize = do
+listConversationIdsUnqualified :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
+listConversationIdsUnqualified zusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- Data.conversationIdsFrom zusr start size
   pure $
@@ -139,8 +139,8 @@ getConversationIds zusr start msize = do
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
-getConversationIdsV2 :: UserId -> Public.GetPaginatedConversationIds -> Galley (Public.ConversationList (Qualified ConvId))
-getConversationIdsV2 zusr Public.GetPaginatedConversationIds {..} = do
+listConversationIds :: UserId -> Public.GetPaginatedConversationIds -> Galley (Public.ConversationList (Qualified ConvId))
+listConversationIds zusr Public.GetPaginatedConversationIds {..} = do
   localDomain <- viewFederationDomain
   let mStartDomain = qDomain <$> gpciStartingPoint
   case mStartDomain of
