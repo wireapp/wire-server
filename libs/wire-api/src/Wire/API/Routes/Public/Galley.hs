@@ -142,7 +142,7 @@ data Api routes = Api
         :> Get '[Servant.JSON] Public.ConversationRolesList,
     listConversationIdsUnqualified ::
       routes
-        :- Summary "Get all local conversation IDs."
+        :- Summary "[deprecated] Get all local conversation IDs."
         -- FUTUREWORK: add bounds to swagger schema for Range
         :> ZUser
         :> "conversations"
