@@ -29,9 +29,16 @@
 
 ## API Changes
 
+* Add `POST /conversations/list-ids` (#1686)
+* Deprecate `GET /converstations/ids` (#1686)
+
 ## Features
 
 ## Bug fixes and other updates
+
+## Federation changes (alpha feature, do not use yet)
+
+* Add new API to list paginated qualified conversation ids (#1686)
 
 ## Documentation
 
