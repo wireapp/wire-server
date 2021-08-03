@@ -120,6 +120,7 @@ tests s =
           test s "get conversation ids v2" getConvIdsV2Ok,
           test s "paginate through conversation ids" paginateConvIds,
           test s "paginate through conversation ids v2" paginateConvIdsV2,
+          test s "paginate through conversation ids v2 - page ending at locals and remote domain" paginateConvIdsV2PageEndingAtLocalsAndDomain,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "page through list-conversations (local conversations only)" listConvsPagingOk,
@@ -1314,25 +1315,83 @@ paginateConvIdsV2 = do
   -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
   -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
   -- should get all them in 16 times.
-  foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
-  where
-    getChunk size alice start n = do
-      let paginationOpts = GetPaginatedConversationIds start (unsafeRange size)
-      resp <- getConvIdsV2 alice paginationOpts <!! const 200 === statusCode
-      let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
-      liftIO $ do
-        -- This is because of the way this test is setup, we always get 16
-        -- convs, even on the last one
-        assertEqual
-          ("Number of convs should match the requested size, " <> show n <> " more gets to go")
-          (fromIntegral size)
-          (length (convList c))
+  foldM_ (getChunkedConvs 16 alice) Nothing [15, 14 .. 0 :: Int]
 
-        if n > 0
-          then assertEqual "hasMore should be True" True (convHasMore c)
-          else assertEqual ("hasMore should be False, " <> show n <> " more chunks to go") False (convHasMore c)
+-- This test exists
+paginateConvIdsV2PageEndingAtLocalsAndDomain :: TestM ()
+paginateConvIdsV2PageEndingAtLocalsAndDomain = do
+  [alice, bob, eve] <- randomUsers 3
+  connectUsers alice (singleton bob)
+  connectUsers alice (singleton eve)
+  localDomain <- viewFederationDomain
+  let qAlice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
 
-      return $ last (convList c)
+  -- With page size 16, 29 group convs + 3 one-to-one convs, we get 32 convs.
+  -- The 2nd page should end here.
+  replicateM_ 29 $
+    postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+      !!! const 201 === statusCode
+
+  -- We should be able to page through current state in 2 pages exactly
+  foldM_ (getChunkedConvs 16 alice) Nothing [1, 0 :: Int]
+
+  remoteChad <- randomId
+  let chadDomain = Domain "chad.example.com"
+      qChad = Qualified remoteChad chadDomain
+  -- The 3rd page will end with this domain
+  replicateM_ 16 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qChad,
+              FederatedGalley.cmuConvId = Qualified conv chadDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  remoteDee <- randomId
+  let deeDomain = Domain "dee.example.com"
+      qDee = Qualified remoteDee deeDomain
+  -- The 4th and last page will end with this domain
+  replicateM_ 16 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qDee,
+              FederatedGalley.cmuConvId = Qualified conv deeDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  foldM_ (getChunkedConvs 16 alice) Nothing [3, 2, 1, 0 :: Int]
+
+getChunkedConvs :: (Typeable a, FromJSON a) => Int32 -> UserId -> Maybe (Qualified ConvId) -> Int -> TestM a
+getChunkedConvs size alice start n = do
+  let paginationOpts = GetPaginatedConversationIds start (unsafeRange size)
+  print paginationOpts
+  resp <- getConvIdsV2 alice paginationOpts <!! const 200 === statusCode
+  let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
+  liftIO $ do
+    -- This is because of the way this test is setup, we always get 16
+    -- convs, even on the last one
+    assertEqual
+      ("Number of convs should match the requested size, " <> show n <> " more gets to go")
+      (fromIntegral size)
+      (length (convList c))
+
+    if n > 0
+      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (convHasMore c)
+      else assertEqual "hasMore should be False, no more chunks to go" False (convHasMore c)
+
+  return $ last (convList c)
 
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do

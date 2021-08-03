@@ -131,12 +131,29 @@ getConversationIds zusr start msize = do
 
 getConversationIdsV2 :: UserId -> Public.GetPaginatedConversationIds -> Galley (Public.ConversationList (Qualified ConvId))
 getConversationIdsV2 zusr Public.GetPaginatedConversationIds {..} = do
-  ids <- Data.conversationIdsFrom zusr Nothing gpciSize
   localDomain <- viewFederationDomain
-  pure $
-    Public.ConversationList
-      (map (`Qualified` localDomain) $ Data.resultSetResult ids)
-      (Data.resultSetType ids == Data.ResultSetTruncated)
+  let mStartDomain = qDomain <$> gpciStartingPoint
+  case mStartDomain of
+    Nothing -> localsAndRemotes localDomain Nothing gpciSize
+    Just x | x == localDomain -> localsAndRemotes localDomain (qUnqualified <$> gpciStartingPoint) gpciSize
+    Just _ -> remotesOnly gpciStartingPoint $ fromRange gpciSize
+  where
+    localsAndRemotes :: Domain -> Maybe ConvId -> Range 1 1000 Int32 -> Galley (ConversationList (Qualified ConvId))
+    localsAndRemotes localDomain conv size = do
+      localPage <- resultSetToConvList . fmap (`Qualified` localDomain) <$> Data.conversationIdsFrom zusr conv size
+      let remainingSize = fromRange size - fromIntegral (length (Public.convList localPage))
+      if Public.convHasMore localPage
+        then pure localPage
+        else do
+          remotePage <- remotesOnly Nothing remainingSize
+          pure $ remotePage {convList = Public.convList localPage <> Public.convList remotePage}
+
+    remotesOnly :: Maybe (Qualified ConvId) -> Int32 -> Galley (ConversationList (Qualified ConvId))
+    remotesOnly start size =
+      resultSetToConvList <$> Data.remoteConversationIdsFrom zusr start size
+
+    resultSetToConvList :: Data.ResultSet a -> ConversationList a
+    resultSetToConvList res = Public.ConversationList (Data.resultSetResult res) (Data.resultSetType res == Data.ResultSetTruncated)
 
 getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
 getConversations user mids mstart msize = do

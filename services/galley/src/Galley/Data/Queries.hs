@@ -307,8 +307,15 @@ insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, 
 selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
 selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain"
 
+selectUserRemoteConvsForDomainFrom :: PrepQuery R (UserId, Domain, ConvId) (Domain, ConvId)
+selectUserRemoteConvsForDomainFrom = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id > ? order by conv_remote_domain"
+
+selectUserRemoteConvsFromDomain :: PrepQuery R (UserId, Domain) (Domain, ConvId)
+selectUserRemoteConvsFromDomain = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? and conv_remote_domain > ? order by conv_remote_domain"
+
 selectRemoteConvMembership :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
 selectRemoteConvMembership = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+
 
 -- FUTUREWORK: actually make use of these cql statements.
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()

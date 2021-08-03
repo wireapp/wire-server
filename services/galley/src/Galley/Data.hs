@@ -75,6 +75,7 @@ module Galley.Data
     updateConversationMessageTimer,
     deleteConversation,
     lookupReceiptMode,
+    remoteConversationIdsFrom,
 
     -- * Conversation Members
     addMember,
@@ -550,6 +551,23 @@ conversationIdsFrom usr start (fromRange -> max) =
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
+
+remoteConversationIdsFrom :: (MonadClient m, MonadLogger m) => UserId -> Maybe (Qualified ConvId) -> Int32 -> m (ResultSet (Qualified ConvId))
+remoteConversationIdsFrom usr start max =
+  case start of
+    Just (Qualified c d) -> do
+      domainPage <- toResultSet max <$> paginate Cql.selectUserRemoteConvsForDomainFrom (paramsP Quorum (usr, d, c) (max + 1))
+      let remainingMax = max - fromIntegral (length (resultSetResult domainPage))
+      if resultSetType domainPage == ResultSetTruncated
+        then pure domainPage
+        else do
+          nextPage <- toResultSet remainingMax <$> paginate Cql.selectUserRemoteConvsFromDomain (paramsP Quorum (usr, d) (remainingMax + 1))
+          pure $ nextPage {resultSetResult = resultSetResult domainPage <> resultSetResult nextPage}
+    Nothing ->
+      toResultSet max <$> paginate Cql.selectUserRemoteConvs (paramsP Quorum (Identity usr) (max + 1))
+  where
+    toResultSet max' = mkResultSet . strip max' . fmap (uncurry (flip Qualified))
+    strip max' p = p {result = take (fromIntegral max') (result p)}
 
 conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)
 conversationIdRowsForPagination usr start (fromRange -> max) =
