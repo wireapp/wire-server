@@ -35,7 +35,7 @@ import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, Receip
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
-import Wire.API.Federation.Domain (DomainHeader)
+import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (MessageSendingStatus, Priority)
@@ -76,7 +76,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "receive-message"
-        :> DomainHeader
+        :> OriginDomainHeader
         :> ReqBody '[JSON] (RemoteMessage ConvId)
         :> Post '[JSON] (),
     -- used by a remote backend to send a message to a conversation owned by
@@ -85,7 +85,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "send-message"
-        :> DomainHeader
+        :> OriginDomainHeader
         :> ReqBody '[JSON] MessageSendRequest
         :> Post '[JSON] MessageSendResponse,
     removeMembers ::

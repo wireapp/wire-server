@@ -109,7 +109,7 @@ import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, Team
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Domain (domainHeaderName)
+import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
@@ -2002,7 +2002,7 @@ makeFedRequestToServant originDomain server fedRequest =
           Wai.requestHeaders =
             [ (CI.mk "Content-Type", "application/json"),
               (CI.mk "Accept", "application/json"),
-              (domainHeaderName, cs . domainText $ originDomain)
+              (originDomainHeaderName, cs . domainText $ originDomain)
             ]
         }
 
