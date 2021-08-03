@@ -803,9 +803,9 @@ listConvs u req = do
       . zType "access"
       . json req
 
-getConv :: UserId -> ConvId -> TestM ResponseLBS
+getConv :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ConvId -> m ResponseLBS
 getConv u c = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["conversations", toByteString' c]
@@ -813,7 +813,7 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
-getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> Qualified ConvId -> m ResponseLBS
+getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Qualified ConvId -> m ResponseLBS
 getConvQualified u (Qualified conv domain) = do
   g <- viewGalley
   get $
@@ -874,7 +874,7 @@ postMembersWithRole u us c r = do
       . zType "access"
       . json i
 
-deleteMemberUnqualified :: UserId -> UserId -> ConvId -> TestM ResponseLBS
+deleteMemberUnqualified :: HasCallStack => UserId -> UserId -> ConvId -> TestM ResponseLBS
 deleteMemberUnqualified u1 u2 c = do
   g <- view tsGalley
   delete $
