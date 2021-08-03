@@ -583,16 +583,16 @@ updateOtherMember zusr zcon cid victim update = do
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
-mapRemoveFromConversationEither :: Either RemoveFromConversationError Public.Event -> RemoveFromConversation
-mapRemoveFromConversationEither = \case
-  Left RemoveFromConversationErrorNotAllowed -> RemoveFromConversationNotAllowed
-  Left RemoveFromConversationErrorNotFound -> RemoveFromConversationNotFound
-  Left RemoveFromConversationErrorUnchanged -> RemoveFromConversationUnchanged
-  Right e -> RemoveFromConversationUpdated e
-
 removeMember :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
 removeMember zusr zcon convId victim =
-  fmap mapRemoveFromConversationEither . runExceptT $ removeMemberFromLocalConv zusr zcon convId victim
+  fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
+    removeMemberFromLocalConv zusr zcon convId victim
+  where
+    mapError :: RemoveFromConversationError -> RemoveFromConversation
+    mapError = \case
+      RemoveFromConversationErrorNotAllowed -> RemoveFromConversationNotAllowed
+      RemoveFromConversationErrorNotFound -> RemoveFromConversationNotFound
+      RemoveFromConversationErrorUnchanged -> RemoveFromConversationUnchanged
 
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
@@ -602,7 +602,12 @@ removeMemberUnqualified zusr zcon conv victim = do
 removeMemberQualified :: UserId -> ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
 removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
 
-removeMemberFromLocalConv :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> ExceptT RemoveFromConversationError Galley Public.Event
+removeMemberFromLocalConv ::
+  UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  Qualified UserId ->
+  ExceptT RemoveFromConversationError Galley Public.Event
 removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomain) = do
   localDomain <- viewFederationDomain
   conv <-
