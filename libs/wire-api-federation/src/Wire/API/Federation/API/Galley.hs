@@ -171,7 +171,7 @@ data RemoteMessage conv = RemoteMessage
   deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
 
 data MessageSendRequest = MessageSendRequest
-  { -- | Converastion is assumed to be owned by the target domain, this allows
+  { -- | Conversation is assumed to be owned by the target domain, this allows
     -- us to protect against relay attacks
     msrConvId :: ConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
