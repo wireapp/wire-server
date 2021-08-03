@@ -812,7 +812,7 @@ data UserUpdate = UserUpdate
 modelUserUpdate :: Doc.Model
 modelUserUpdate = Doc.defineModel "UserUpdate" $ do
   Doc.description "User Update Data"
-  Doc.property "name" Doc.string' $
+  Doc.property "name" Doc.string' $ do
     Doc.description "Name (1 - 128 characters)"
     Doc.optional
   Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $ do
