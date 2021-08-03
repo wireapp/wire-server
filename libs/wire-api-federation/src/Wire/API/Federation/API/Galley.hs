@@ -92,7 +92,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "remove-members"
-        :> DomainHeader
+        :> OriginDomainHeader
         :> ReqBody '[JSON] RemoveMembersRequest
         :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation
   }
