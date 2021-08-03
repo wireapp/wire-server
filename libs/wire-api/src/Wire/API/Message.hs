@@ -51,6 +51,7 @@ module Wire.API.Message
     ClientMismatch (..),
     ClientMismatchStrategy (..),
     MessageSendingStatus (..),
+    MessageNotSent (..),
     UserClients (..),
     ReportMissing (..),
     IgnoreMissing (..),
@@ -552,6 +553,13 @@ instance ToSchema MessageSendingStatus where
                    \like when some clients are missing."
             )
             schema
+
+data MessageNotSent
+  = MessageNotSentLegalhold
+  | MessageNotSentClientMissing MessageSendingStatus
+  | MessageNotSentConversationNotFound
+  | MessageNotSentUnknownClient
+  deriving stock (Eq, Show, Generic)
 
 -- QueryParams
 

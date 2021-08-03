@@ -217,15 +217,15 @@ postRemoteOtrMessage sender conv rawMsg = do
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
   mkPostOtrResponsesUnion . FederatedGalley.msResponse =<< runFederatedGalley (qDomain conv) rpc
 
-mkPostOtrResponsesUnion :: Either FederatedGalley.MessageNotSent MessageSendingStatus -> Galley (Union Public.PostOtrResponses)
+mkPostOtrResponsesUnion :: Either MessageNotSent MessageSendingStatus -> Galley (Union Public.PostOtrResponses)
 mkPostOtrResponsesUnion (Right mss) = Servant.respond (WithStatus @201 mss)
 mkPostOtrResponsesUnion (Left reason) = case reason of
-  FederatedGalley.MessageNotSentClientMissing mss -> Servant.respond (WithStatus @412 mss)
-  FederatedGalley.MessageNotSentUnknownClient -> Servant.respond ErrorDescription.unknownClient
-  FederatedGalley.MessageNotSentConversationNotFound -> Servant.respond ErrorDescription.convNotFound
-  FederatedGalley.MessageNotSentLegalhold -> throwM missingLegalholdConsent
+  MessageNotSentClientMissing mss -> Servant.respond (WithStatus @412 mss)
+  MessageNotSentUnknownClient -> Servant.respond ErrorDescription.unknownClient
+  MessageNotSentConversationNotFound -> Servant.respond ErrorDescription.convNotFound
+  MessageNotSentLegalhold -> throwM missingLegalholdConsent
 
-postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Either FederatedGalley.MessageNotSent Public.MessageSendingStatus)
+postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Either MessageNotSent Public.MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
@@ -236,7 +236,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   let senderClient = qualifiedNewOtrSender msg
   unless alive $ do
     lift $ Data.deleteConversation convId
-    throwError FederatedGalley.MessageNotSentConversationNotFound
+    throwError MessageNotSentConversationNotFound
 
   -- conversation members
   localMembers <- lift $ Data.members convId
@@ -253,7 +253,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
 
   -- check if the sender is part of the conversation
   unless (Set.member sender members) $
-    throwError FederatedGalley.MessageNotSentConversationNotFound
+    throwError MessageNotSentConversationNotFound
 
   -- get local clients
   localClients <-
@@ -277,7 +277,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
         senderClient
         (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedClients)
     )
-    $ throwError FederatedGalley.MessageNotSentUnknownClient
+    $ throwError MessageNotSentUnknownClient
 
   let (sendMessage, validMessages, mismatch) =
         checkMessageClients
@@ -289,8 +289,8 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   unless sendMessage $ do
     let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
         missingClients = qmMissing mismatch
-        legalholdErr = pure FederatedGalley.MessageNotSentLegalhold
-        clientMissingErr = pure $ FederatedGalley.MessageNotSentClientMissing otrResult
+        legalholdErr = pure MessageNotSentLegalhold
+        clientMissingErr = pure $ MessageNotSentClientMissing otrResult
     guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
       & eitherM (const legalholdErr) (const clientMissingErr)
       & lift
