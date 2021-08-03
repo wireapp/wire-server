@@ -10,7 +10,7 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-http01
     kind: Issuer
   usages:
     - server auth
