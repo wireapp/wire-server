@@ -559,19 +559,19 @@ notifyRemoteOfNewConvMembers existingRemotes usr now c lmm rmm = do
 -- conversation
 notifyRemoteOfRemovedConvMembers ::
   -- | Remote members that stay after others are removed
-  [RemoteMember] ->
+  [Remote UserId] ->
   -- | The originating user that is removing conversation members
   UserId ->
   UTCTime ->
   Data.Conversation ->
   -- | Local members that are being removed
-  [LocalMember] ->
+  [UserId] ->
   -- | Remote members that are being removed
-  [RemoteMember] ->
+  [Remote UserId] ->
   Galley ()
 notifyRemoteOfRemovedConvMembers stayingRemotes usr now c lmm rmm = do
   localDomain <- viewFederationDomain
-  let mm = fst <$> catMembers localDomain lmm rmm
+  let mm = fmap (`Qualified` localDomain) lmm <> fmap unTagged rmm
       qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
@@ -579,7 +579,7 @@ notifyRemoteOfRemovedConvMembers stayingRemotes usr now c lmm rmm = do
     . Map.assocs
     . partitionQualified
     . nubOrd
-    . map (unTagged . rmId)
+    . map unTagged
     $ rmm <> stayingRemotes
   where
     mkUpdate ::
