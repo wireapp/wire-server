@@ -995,7 +995,7 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
   now <- liftIO getCurrentTime
   localDomain <- viewFederationDomain
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
-  updateRemoteConversationMemberships existingRemotes usr now c lmm rmm
+  notifyRemoteOfNewConvMembers existingRemotes usr now c lmm rmm
   let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
   pushConversationEvent (Just conn) e localsToNotify bots
   pure $ Updated e

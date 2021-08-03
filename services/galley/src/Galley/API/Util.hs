@@ -516,38 +516,46 @@ registerRemoteConversationMemberships now localDomain c = do
       runFederated domain rpc
 
 -- | Notify remote users of being added to an existing conversation
-updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
-updateRemoteConversationMemberships existingRemotes usr now c lmm rmm = do
+notifyRemoteOfNewConvMembers ::
+  [RemoteMember] ->
+  UserId ->
+  UTCTime ->
+  Data.Conversation ->
+  [LocalMember] ->
+  [RemoteMember] ->
+  Galley ()
+notifyRemoteOfNewConvMembers existingRemotes usr now c lmm rmm = do
   localDomain <- viewFederationDomain
   let mm = catMembers localDomain lmm rmm
       qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
-  traverse_ (uncurry (updateRemoteConversations now mm qusr qcnv))
+  traverse_ (\(d, uids) -> notifyRemoteOfConvMemUpdate (mkUpdate now mm qusr qcnv uids) d)
     . Map.assocs
     . partitionQualified
     . nubOrd
     . map (unTagged . rmId)
     $ rmm <> existingRemotes
+  where
+    mkUpdate ::
+      UTCTime ->
+      [(Qualified UserId, RoleName)] ->
+      Qualified UserId ->
+      Qualified ConvId ->
+      [UserId] ->
+      ConversationMemberUpdate
+    mkUpdate t uids orig cnv others =
+      ConversationMemberUpdate
+        { cmuTime = t,
+          cmuOrigUserId = orig,
+          cmuConvId = cnv,
+          cmuAlreadyPresentUsers = others,
+          cmuUsersAdd = uids,
+          cmuUsersRemove = []
+        }
 
-updateRemoteConversations ::
-  UTCTime ->
-  [(Qualified UserId, RoleName)] ->
-  Qualified UserId ->
-  Qualified ConvId ->
-  Domain ->
-  [UserId] ->
-  Galley ()
-updateRemoteConversations now uids orig cnv domain others = do
-  let cmu =
-        ConversationMemberUpdate
-          { cmuTime = now,
-            cmuOrigUserId = orig,
-            cmuConvId = cnv,
-            cmuAlreadyPresentUsers = others,
-            cmuUsersAdd = uids,
-            cmuUsersRemove = []
-          }
+notifyRemoteOfConvMemUpdate :: ConversationMemberUpdate -> Domain -> Galley ()
+notifyRemoteOfConvMemUpdate cmu domain = do
   let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
   runFederated domain rpc
 
