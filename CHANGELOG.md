@@ -67,6 +67,7 @@ Upgrade nginz (#1658)
 * New, hardened end-point for changing email (68b4db08)
 * Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
 * Fix: sso_id field in user record (brig) was not always filled correctly in cassandra (#1334)
+* Change http response code for `missing-legalhold-consent` from 412 to 403 (#1688)
 
 ## Documentation
 
