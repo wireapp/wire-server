@@ -62,6 +62,7 @@ import qualified Brig.Types.User as User
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
+import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Id
@@ -115,7 +116,7 @@ import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
-import qualified Wire.API.Routes.Public.Galley.Responses as GalleyAPI
+import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
@@ -578,37 +579,39 @@ updateOtherMember zusr zcon cid victim update = do
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
-mapUpdateResult :: UpdateResult -> GalleyAPI.RemoveFromConversation
-mapUpdateResult = \case
-  Unchanged -> GalleyAPI.RemoveFromConversationUnchanged
-  Updated e -> GalleyAPI.RemoveFromConversationUpdated e
+mapRemoveFromConversationEither :: Either RemoveFromConversationError Public.Event -> RemoveFromConversation
+mapRemoveFromConversationEither = \case
+  Left RemoveFromConversationErrorNotAllowed -> RemoveFromConversationNotAllowed
+  Left RemoveFromConversationErrorNotFound -> RemoveFromConversationNotFound
+  Left RemoveFromConversationErrorUnchanged -> RemoveFromConversationUnchanged
+  Right e -> RemoveFromConversationUpdated e
 
-removeMember :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
-removeMember zusr zcon convId victim = do
-  -- TODO: see how and where 403 and 404 responses are returned in
-  -- 'removeMemberFromLocalConv' and map them to the return value of type
-  -- 'GalleyAPI.RemoveFromConversation'.
-  mapUpdateResult <$> removeMemberFromLocalConv zusr zcon convId victim
+removeMember :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
+removeMember zusr zcon convId victim =
+  fmap mapRemoveFromConversationEither . runExceptT $ removeMemberFromLocalConv zusr zcon convId victim
 
-removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley GalleyAPI.RemoveFromConversation
+removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
   removeMember zusr (Just zcon) conv (Qualified victim localDomain)
 
-removeMemberQualified :: UserId -> ConnId -> ConvId -> Qualified UserId -> Galley GalleyAPI.RemoveFromConversation
+removeMemberQualified :: UserId -> ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
 removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
 
-removeMemberFromLocalConv :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley UpdateResult
+removeMemberFromLocalConv :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> ExceptT RemoveFromConversationError Galley Public.Event
 removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomain) = do
   localDomain <- viewFederationDomain
-  conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
+  conv <-
+    lift (Data.conversation convId)
+      >>= maybe (throwE RemoveFromConversationErrorNotFound) pure
   let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
-  genConvChecks conv users
-  for_ (Data.convTeam conv) teamConvChecks
+  lift $ do
+    genConvChecks conv users
+    for_ (Data.convTeam conv) teamConvChecks
 
   if victimDomain == localDomain && victim `isMember` users
     || toRemote qvictim `isRemoteMember` Data.convRemoteMembers conv
-    then do
+    then lift $ do
       let (remoteVictim, localVictim) = partitionRemoteOrLocalIds' localDomain (singleton qvictim)
       event <- Data.removeMembers localDomain conv zusr localVictim remoteVictim
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify them?
@@ -616,10 +619,9 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
         push1 $ p & pushConn .~ zcon
 
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
-      pure $ Updated event
-    else pure Unchanged
+      pure event
+    else throwE RemoveFromConversationErrorUnchanged
   where
-    genConvChecks :: Data.Conversation -> [LocalMember] -> Galley ()
     genConvChecks conv usrs = do
       localDomain <- viewFederationDomain
       ensureGroupConv conv

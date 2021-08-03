@@ -32,6 +32,14 @@ data RemoveFromConversation
   | RemoveFromConversationUpdated Public.Event
   deriving (Eq, Show)
 
+-- | These are just the "error" outcomes of the 'RemoveFromConversation' type.
+-- This is needed in using ExceptT to differentiate error outcomes from an
+-- outcome reflecting a change.
+data RemoveFromConversationError
+  = RemoveFromConversationErrorNotAllowed
+  | RemoveFromConversationErrorNotFound
+  | RemoveFromConversationErrorUnchanged
+
 instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
   toUnion RemoveFromConversationNotAllowed = Z (I removalNotAllowed)
   toUnion RemoveFromConversationNotFound = S (Z (I convNotFound))
