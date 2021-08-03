@@ -1941,7 +1941,7 @@ deleteMembersConvLocalQualifiedOk = do
   conv <- decodeConvId <$> postConvQualified alice [qBob, qEve] (Just "federated gossip") [] Nothing Nothing
   deleteMemberQualified bob qBob conv !!! const 200 === statusCode
   deleteMemberQualified bob qBob conv !!! const 404 === statusCode
-  -- if conversation still exists, don't respond with 404, but with 403.
+  -- if the conversation still exists, don't respond with 404, but with 403.
   getConv bob conv !!! const 403 === statusCode
   deleteMemberQualified alice qEve conv !!! const 200 === statusCode
   deleteMemberQualified alice qEve conv !!! const 204 === statusCode
