@@ -17,14 +17,11 @@ import Data.Json.Util
 import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Proxy
 import Data.Qualified (Qualified (..), partitionRemote)
-import Data.SOP (I (..), htrans, unI)
 import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Tagged (unTagged)
 import Data.Time.Clock (UTCTime, getCurrentTime)
-import Galley.API.Error (throwErrorDescription)
 import Galley.API.LegalHold.Conflicts (guardQualifiedLegalholdPolicyConflicts)
 import Galley.API.Util
   ( runFederatedBrig,
@@ -43,19 +40,14 @@ import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
-import qualified Servant
-import Servant.API (Union, WithStatus (..))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
-import Wire.API.ErrorDescription as ErrorDescription
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationError, executeFederated)
 import Wire.API.Federation.Error (federationErrorToWai)
 import Wire.API.Message
-import qualified Wire.API.Message as Public
-import Wire.API.Routes.Public.Galley as Public
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
@@ -205,7 +197,7 @@ postRemoteOtrMessage ::
   Qualified UserId ->
   Qualified ConvId ->
   LByteString ->
-  Galley (Union Public.PostOtrResponses)
+  Galley (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         FederatedGalley.MessageSendRequest
@@ -214,17 +206,9 @@ postRemoteOtrMessage sender conv rawMsg = do
             FederatedGalley.msrRawMessage = Base64ByteString rawMsg
           }
       rpc = FederatedGalley.sendMessage FederatedGalley.clientRoutes (qDomain sender) msr
-  mkPostOtrResponsesUnion . FederatedGalley.msResponse =<< runFederatedGalley (qDomain conv) rpc
+  FederatedGalley.msResponse <$> runFederatedGalley (qDomain conv) rpc
 
-mkPostOtrResponsesUnion :: Either MessageNotSent MessageSendingStatus -> Galley (Union Public.PostOtrResponses)
-mkPostOtrResponsesUnion (Right mss) = Servant.respond (WithStatus @201 mss)
-mkPostOtrResponsesUnion (Left reason) = case reason of
-  MessageNotSentClientMissing mss -> Servant.respond (WithStatus @412 mss)
-  MessageNotSentUnknownClient -> Servant.respond ErrorDescription.unknownClient
-  MessageNotSentConversationNotFound -> Servant.respond ErrorDescription.convNotFound
-  MessageNotSentLegalhold -> throwErrorDescription missingLegalholdConsent
-
-postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> Public.QualifiedNewOtrMessage -> Galley (Either MessageNotSent Public.MessageSendingStatus)
+postQualifiedOtrMessage :: UserType -> Qualified UserId -> Maybe ConnId -> ConvId -> QualifiedNewOtrMessage -> Galley (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   alive <- Data.isConvAlive convId
   localDomain <- viewFederationDomain
@@ -486,18 +470,18 @@ data MessageMetadata = MessageMetadata
   }
   deriving (Eq, Ord, Show)
 
-qualifiedNewOtrMetadata :: Public.QualifiedNewOtrMessage -> MessageMetadata
+qualifiedNewOtrMetadata :: QualifiedNewOtrMessage -> MessageMetadata
 qualifiedNewOtrMetadata msg =
   MessageMetadata
-    { mmNativePush = Public.qualifiedNewOtrNativePush msg,
-      mmTransient = Public.qualifiedNewOtrTransient msg,
-      mmNativePriority = Public.qualifiedNewOtrNativePriority msg,
-      mmData = Public.qualifiedNewOtrData msg
+    { mmNativePush = qualifiedNewOtrNativePush msg,
+      mmTransient = qualifiedNewOtrTransient msg,
+      mmNativePriority = qualifiedNewOtrNativePriority msg,
+      mmData = qualifiedNewOtrData msg
     }
 
 -- unqualified
 
-legacyClientMismatchStrategy :: Domain -> Maybe [UserId] -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> ClientMismatchStrategy
+legacyClientMismatchStrategy :: Domain -> Maybe [UserId] -> Maybe IgnoreMissing -> Maybe ReportMissing -> ClientMismatchStrategy
 legacyClientMismatchStrategy localDomain (Just uids) _ _ =
   MismatchReportOnly (Set.fromList (map (`Qualified` localDomain) uids))
 legacyClientMismatchStrategy _ Nothing (Just IgnoreMissingAll) _ = MismatchIgnoreAll
@@ -514,12 +498,6 @@ class Unqualify a b where
 instance Unqualify a a where
   unqualify _ = id
 
-instance
-  Unqualify a b =>
-  Unqualify (WithStatus c a) (WithStatus c b)
-  where
-  unqualify domain (WithStatus x) = WithStatus (unqualify domain x)
-
 instance Unqualify MessageSendingStatus ClientMismatch where
   unqualify domain status =
     ClientMismatch
@@ -535,5 +513,6 @@ instance Unqualify QualifiedUserClients UserClients where
       . Map.findWithDefault mempty domain
       . qualifiedUserClients
 
-instance Unqualify (Union PostOtrResponses) (Union PostOtrResponsesUnqualified) where
-  unqualify domain = htrans (Proxy @Unqualify) $ I . unqualify domain . unI
+instance Unqualify a b => Unqualify (PostOtrResponse a) (PostOtrResponse b) where
+  unqualify domain (Left a) = Left (unqualify domain <$> a)
+  unqualify domain (Right a) = Right (unqualify domain a)

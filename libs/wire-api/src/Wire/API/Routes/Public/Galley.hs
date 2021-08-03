@@ -37,7 +37,7 @@ import Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public
-import qualified Wire.API.Message as Public
+import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
 import Wire.API.Routes.QualifiedCapture
@@ -100,20 +100,6 @@ instance AsUnion UpdateResponses UpdateResult where
   fromUnion (Z (I ())) = Unchanged
   fromUnion (S (Z (I e))) = Updated e
   fromUnion (S (S x)) = case x of
-
-type PostOtrResponsesUnqualified =
-  '[ WithStatus 201 Public.ClientMismatch,
-     WithStatus 412 Public.ClientMismatch,
-     ConvNotFound,
-     UnknownClient
-   ]
-
-type PostOtrResponses =
-  '[ WithStatus 201 Public.MessageSendingStatus,
-     WithStatus 412 Public.MessageSendingStatus,
-     ConvNotFound,
-     UnknownClient
-   ]
 
 data Api routes = Api
   { -- Conversations
@@ -306,12 +292,16 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> QueryParam "ignore_missing" Public.IgnoreMissing
-        :> QueryParam "report_missing" Public.ReportMissing
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
         :> "otr"
         :> "messages"
-        :> ReqBody '[Servant.JSON, Proto] Public.NewOtrMessage
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponsesUnqualified,
+        :> ReqBody '[Servant.JSON, Proto] NewOtrMessage
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses ClientMismatch)
+             (Either (MessageNotSent ClientMismatch) ClientMismatch),
     postProteusMessage ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
@@ -322,8 +312,12 @@ data Api routes = Api
         :> QualifiedCapture "cnv" ConvId
         :> "proteus"
         :> "messages"
-        :> ReqBody '[Proto] (RawProto Public.QualifiedNewOtrMessage)
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponses,
+        :> ReqBody '[Proto] (RawProto QualifiedNewOtrMessage)
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses MessageSendingStatus)
+             (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus),
     teamFeatureStatusSSOGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureSSO,

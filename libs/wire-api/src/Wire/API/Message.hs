@@ -51,6 +51,8 @@ module Wire.API.Message
     ClientMismatch (..),
     ClientMismatchStrategy (..),
     MessageSendingStatus (..),
+    PostOtrResponses,
+    PostOtrResponse,
     MessageNotSent (..),
     UserClients (..),
     ReportMissing (..),
@@ -76,6 +78,7 @@ import qualified Data.ProtoLens as ProtoLens
 import qualified Data.ProtoLens.Field as ProtoLens
 import qualified Data.ProtocolBuffers as Protobuf
 import Data.Qualified (Qualified (..))
+import Data.SOP (I (..), NS (..))
 import Data.Schema
 import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
@@ -88,7 +91,9 @@ import qualified Proto.Otr
 import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (FromHttpApiData (..))
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
+import Wire.API.ErrorDescription
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.MultiVerb
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
 import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), QualifiedUserClients, UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
 
@@ -554,12 +559,36 @@ instance ToSchema MessageSendingStatus where
             )
             schema
 
-data MessageNotSent
-  = MessageNotSentLegalhold
-  | MessageNotSentClientMissing MessageSendingStatus
-  | MessageNotSentConversationNotFound
+data MessageNotSent a
+  = MessageNotSentConversationNotFound
   | MessageNotSentUnknownClient
-  deriving stock (Eq, Show, Generic)
+  | MessageNotSentLegalhold
+  | MessageNotSentClientMissing a
+  deriving stock (Eq, Show, Generic, Functor)
+
+type PostOtrResponses a =
+  '[ ConvNotFound,
+     UnknownClient,
+     MissingLegalholdConsent,
+     Respond 412 "Missing clients" a,
+     Respond 201 "Message sent" a
+   ]
+
+type PostOtrResponse a = Either (MessageNotSent a) a
+
+instance AsUnion (PostOtrResponses a) (PostOtrResponse a) where
+  toUnion (Left MessageNotSentConversationNotFound) = Z (I convNotFound)
+  toUnion (Left MessageNotSentUnknownClient) = S (Z (I unknownClient))
+  toUnion (Left MessageNotSentLegalhold) = S (S (Z (I missingLegalholdConsent)))
+  toUnion (Left (MessageNotSentClientMissing a)) = S (S (S (Z (I a))))
+  toUnion (Right a) = S (S (S (S (Z (I a)))))
+
+  fromUnion (Z (I _)) = Left MessageNotSentConversationNotFound
+  fromUnion (S (Z (I _))) = Left MessageNotSentUnknownClient
+  fromUnion (S (S (Z (I _)))) = Left MessageNotSentLegalhold
+  fromUnion (S (S (S (Z (I a))))) = Left (MessageNotSentClientMissing a)
+  fromUnion (S (S (S (S (Z (I a)))))) = Right a
+  fromUnion (S (S (S (S (S x))))) = case x of
 
 -- QueryParams
 

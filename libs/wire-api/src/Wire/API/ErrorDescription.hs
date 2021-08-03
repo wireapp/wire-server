@@ -117,45 +117,6 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
       codeSchema :: ValueSchema SwaggerDoc Integer
       codeSchema = unnamed $ enum @Integer "Status" (element code code)
 
--- | This instance works with 'UVerb' only because of the following overlapping
--- instance for 'UVerb method cs (ErrorDescription status label desc ': rest))'
-instance
-  (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc, AllAccept cs, SwaggerMethod method) =>
-  HasSwagger (Verb method statusCode cs (ErrorDescription statusCode label desc))
-  where
-  toSwagger _ =
-    mempty
-      & Swagger.paths . at "/"
-        ?~ ( mempty & method
-               ?~ ( mempty
-                      & Swagger.produces ?~ Swagger.MimeList responseContentTypes
-                      & at code
-                        ?~ Swagger.Inline
-                          ( mempty
-                              & Swagger.description .~ desc
-                              & Swagger.schema ?~ schemaRef
-                          )
-                  )
-           )
-    where
-      method = swaggerMethod (Proxy @method)
-      responseContentTypes = allContentType (Proxy @cs)
-      code = fromIntegral (natVal (Proxy @statusCode))
-      desc = Text.pack (symbolVal (Proxy @desc))
-      schemaRef = Swagger.Inline $ Swagger.toSchema (Proxy @(ErrorDescription statusCode label desc))
-
--- | This is a copy of instance for 'UVerb method cs (a:as)', but without this
--- things don't work because the instance defined in the library is already
--- compiled with the now overlapped version of `Verb method cs a` and won't
--- pickup the above instance.
-instance
-  (KnownStatus status, KnownSymbol label, KnownSymbol desc, AllAccept cs, SwaggerMethod method, HasSwagger (UVerb method cs rest)) =>
-  HasSwagger (UVerb method cs (ErrorDescription status label desc ': rest))
-  where
-  toSwagger _ =
-    toSwagger (Proxy @(Verb method status cs (ErrorDescription status label desc)))
-      `combineSwagger` toSwagger (Proxy @(UVerb method cs rest))
-
 instance KnownStatus status => HasStatus (ErrorDescription status label desc) where
   type StatusOf (ErrorDescription status label desc) = status
 

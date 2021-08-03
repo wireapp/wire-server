@@ -38,7 +38,7 @@ import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
-import Wire.API.Message (MessageNotSent, MessageSendingStatus, Priority)
+import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -184,9 +184,14 @@ data MessageSendRequest = MessageSendRequest
   deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
 
 newtype MessageSendResponse = MessageSendResponse
-  {msResponse :: Either MessageNotSent MessageSendingStatus}
+  {msResponse :: PostOtrResponse MessageSendingStatus}
   deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON) via (Either (CustomEncoded MessageNotSent) MessageSendingStatus)
+  deriving
+    (ToJSON, FromJSON)
+    via ( Either
+            (CustomEncoded (MessageNotSent MessageSendingStatus))
+            MessageSendingStatus
+        )
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient
