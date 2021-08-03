@@ -43,7 +43,7 @@ import Wire.API.ErrorDescription
     UserNotFound,
   )
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.User
 import Wire.API.User.Client
@@ -267,7 +267,7 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> ReqBody '[JSON] UpdateClient
-        :> Put '[] (EmptyResult 200),
+        :> MultiVerb 'PUT '[] '[RespondEmpty 200 "Client updated"] (),
     -- This endpoint can lead to the following events being sent:
     -- - ClientRemoved event to self
     deleteClient ::
@@ -277,7 +277,7 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> ReqBody '[JSON] RmClient
-        :> Delete '[] (EmptyResult 200),
+        :> MultiVerb 'DELETE '[] '[RespondEmpty 200 "Client deleted"] (),
     listClients ::
       routes :- Summary "List the registered clients"
         :> ZUser

@@ -25,14 +25,11 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.Swagger
 import GHC.Base (Symbol)
-import GHC.TypeLits (KnownNat, KnownSymbol, natVal)
+import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers (FoldLenient, FoldRequired)
-import Servant.API.Status (KnownStatus)
-import Servant.Server.Internal (noContentRouter)
 import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal (SwaggerMethod)
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
@@ -98,33 +95,6 @@ instance
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
-
---- | Return type of an endpoint with an empty response.
----
---- In principle we could use 'WithStatus n NoContent' instead, but
---- Servant does not support it, so we would need orphan instances.
-data EmptyResult n = EmptyResult
-
-instance
-  (SwaggerMethod method, KnownNat n) =>
-  HasSwagger (Verb method n '[] (EmptyResult n))
-  where
-  toSwagger _ = toSwagger (Proxy @(Verb method n '[] NoContent))
-
-instance
-  (ReflectMethod method, KnownNat n) =>
-  HasServer (Verb method n '[] (EmptyResult n)) context
-  where
-  type ServerT (Verb method n '[] (EmptyResult n)) m = m (EmptyResult n)
-  hoistServerWithContext _ _ nt s = nt s
-
-  route Proxy _ = noContentRouter method status
-    where
-      method = reflectMethod (Proxy :: Proxy method)
-      status = toEnum . fromInteger $ natVal (Proxy @n)
-
-instance KnownStatus n => HasStatus (EmptyResult n) where
-  type StatusOf (EmptyResult n) = n
 
 -- | A type-level tag that lets us omit any branch from Swagger docs.
 --

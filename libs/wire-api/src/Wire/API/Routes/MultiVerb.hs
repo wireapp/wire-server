@@ -347,6 +347,11 @@ instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
   toUnion = id
   fromUnion = id
 
+instance AsUnion '[RespondEmpty code desc] () where
+  toUnion () = Z (I ())
+  fromUnion (Z (I ())) = ()
+  fromUnion (S x) = case x of
+
 -- | A handler for a pair of empty responses can be implemented simply by
 -- returning a boolean value. The convention is that the "failure" case, normally
 -- represented by 'False', corresponds to the /first/ response.

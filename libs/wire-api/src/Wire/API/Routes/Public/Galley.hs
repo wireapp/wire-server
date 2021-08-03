@@ -39,7 +39,7 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
@@ -283,7 +283,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Delete '[] (EmptyResult 200),
+        :> MultiVerb 'DELETE '[] '[RespondEmpty 200 "Conversation deleted"] (),
     postOtrMessageUnqualified ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
