@@ -129,6 +129,16 @@ getConversationIds zusr start msize = do
       (Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
 
+-- | Lists conversation ids for the logged in user. The request can optionally
+-- have a 'startingPoint', this can be used to list conversation ids in a
+-- paginated way.
+--
+-- Pagination requires an order, in this case the order is defined as:
+--
+-- - First all the local conversations are listed orderd by their id
+--
+-- - After local conversations, remote conversations are listed ordered
+-- - lexicographically by their domain and then by their id.
 getConversationIdsV2 :: UserId -> Public.GetPaginatedConversationIds -> Galley (Public.ConversationList (Qualified ConvId))
 getConversationIdsV2 zusr Public.GetPaginatedConversationIds {..} = do
   localDomain <- viewFederationDomain

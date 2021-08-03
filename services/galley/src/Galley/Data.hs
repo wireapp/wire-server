@@ -552,6 +552,13 @@ conversationIdsFrom usr start (fromRange -> max) =
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
+-- | When the 'start' parameter is set to 'Nothing', reads first 'max' records
+-- from 'user_remote_converstaions' table.
+--
+-- Otherwise, reads 'max' records starting from the 'start' parameter. Doing
+-- this is unfortunately not trivial, so this function first gets all the
+-- conversations which match the domain and then if there is still space, gets
+-- the conversations which have domain > domain of start.
 remoteConversationIdsFrom :: (MonadClient m, MonadLogger m) => UserId -> Maybe (Qualified ConvId) -> Int32 -> m (ResultSet (Qualified ConvId))
 remoteConversationIdsFrom usr start max =
   case start of
