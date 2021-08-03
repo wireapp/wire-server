@@ -135,7 +135,7 @@ listConversationIdsUnqualified zusr start msize = do
 --
 -- Pagination requires an order, in this case the order is defined as:
 --
--- - First all the local conversations are listed orderd by their id
+-- - First all the local conversations are listed ordered by their id
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.

@@ -1328,8 +1328,8 @@ pageinateConvListIdsPageEndingAtLocalsAndDomain = do
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
 
-  -- With page size 16, 29 group convs + 3 one-to-one convs, we get 32 convs.
-  -- The 2nd page should end here.
+  -- With page size 16, 29 group convs + 2 one-to-one convs + 1 self conv, we
+  -- get 32 convs. The 2nd page should end here.
   replicateM_ 29 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
@@ -1443,32 +1443,6 @@ listConvsPagingOk = do
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
       return $ ids1 >>= listToMaybe . reverse
-
--- listConvsRemotePagingOk :: TestM ()
--- listConvsRemotePagingOk = do
---   [ally, bill, carl] <- randomUsers 3
---   connectUsers ally (list1 bill [carl])
---   replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
---   walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
---   walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
---   walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
---   where
---     walk :: Foldable t => UserId -> t Int -> TestM ()
---     walk u = foldM_ (next u 3) Nothing
---     next :: UserId -> Int32 -> Maybe ConvId -> Int -> TestM (Maybe ConvId)
---     next u step start n = do
---       -- FUTUREWORK: support an endpoint to get qualified conversation IDs
---       -- (without all the conversation metadata)
---       r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
---       let ids1 = convList <$> responseJsonUnsafe r1
---       liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
---       localDomain <- viewFederationDomain
---       let requestBody = ListConversations Nothing (flip Qualified localDomain <$> start) (Just (unsafeRange step))
---       r2 <- listConvs u requestBody <!! const 200 === statusCode
---       let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
---       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
---       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
---       return $ ids1 >>= listToMaybe . reverse
 
 postConvFailNotConnected :: TestM ()
 postConvFailNotConnected = do
