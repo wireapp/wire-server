@@ -609,18 +609,18 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
   conv <-
     lift (Data.conversation convId)
       >>= maybe (throwE RemoveFromConversationErrorNotFound) pure
-  let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
+  let (bots, locals) = localBotsAndUsers (Data.convLocalMembers conv)
   lift $ do
-    genConvChecks conv users
+    genConvChecks conv locals
     for_ (Data.convTeam conv) teamConvChecks
 
-  if victimDomain == localDomain && victim `isMember` users
+  if victimDomain == localDomain && victim `isMember` locals
     || toRemote qvictim `isRemoteMember` Data.convRemoteMembers conv
     then lift $ do
       let (remoteVictim, localVictim) = partitionRemoteOrLocalIds' localDomain (singleton qvictim)
       event <- Data.removeMembers localDomain conv zusr localVictim remoteVictim
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify them?
-      for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> users)) $ \p ->
+      for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> locals)) $ \p ->
         push1 $ p & pushConn .~ zcon
 
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
