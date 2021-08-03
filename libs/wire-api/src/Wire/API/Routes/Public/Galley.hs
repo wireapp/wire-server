@@ -167,8 +167,7 @@ data Api routes = Api
         :- Summary "Get all conversation IDs."
           :> ZUser
           :> "conversations"
-          :> "ids"
-          :> "v2"
+          :> "list-ids"
           :> ReqBody '[Servant.JSON] Public.GetPaginatedConversationIds
           :> Post '[Servant.JSON] (Public.ConversationList (Qualified ConvId)),
     getConversations ::

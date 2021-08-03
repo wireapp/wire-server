@@ -117,10 +117,10 @@ tests s =
           test s "list-conversations by ids" listConvsOk2,
           test s "fail to get >500 conversations" getConvsFailMaxSize,
           test s "get conversation ids" getConvIdsOk,
-          test s "get conversation ids v2" getConvIdsV2Ok,
+          test s "get conversation ids v2" listConvIdsOk,
           test s "paginate through conversation ids" paginateConvIds,
-          test s "paginate through conversation ids v2" paginateConvIdsV2,
-          test s "paginate through conversation ids v2 - page ending at locals and remote domain" paginateConvIdsV2PageEndingAtLocalsAndDomain,
+          test s "paginate through /converstaions/list-ids" pageinateConvListIds,
+          test s "paginate through /conversations/list-ids - page ending at locals and remote domain" pageinateConvListIdsPageEndingAtLocalsAndDomain,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "page through list-conversations (local conversations only)" listConvsPagingOk,
@@ -1253,21 +1253,21 @@ getConvIdsFailMaxSize = do
   getConvIds usr Nothing (Just 1001)
     !!! const 400 === statusCode
 
-getConvIdsV2Ok :: TestM ()
-getConvIdsV2Ok = do
+listConvIdsOk :: TestM ()
+listConvIdsOk = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
-  getConvIdsV2 alice paginationOpts !!! do
+  listConvIds alice paginationOpts !!! do
     const 200 === statusCode
     const (Right 2) === fmap length . decodeQualifiedConvIdList
-  getConvIdsV2 bob paginationOpts !!! do
+  listConvIds bob paginationOpts !!! do
     const 200 === statusCode
     const (Right 2) === fmap length . decodeQualifiedConvIdList
 
-paginateConvIdsV2 :: TestM ()
-paginateConvIdsV2 = do
+pageinateConvListIds :: TestM ()
+pageinateConvListIds = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
@@ -1318,8 +1318,8 @@ paginateConvIdsV2 = do
   foldM_ (getChunkedConvs 16 alice) Nothing [15, 14 .. 0 :: Int]
 
 -- This test exists
-paginateConvIdsV2PageEndingAtLocalsAndDomain :: TestM ()
-paginateConvIdsV2PageEndingAtLocalsAndDomain = do
+pageinateConvListIdsPageEndingAtLocalsAndDomain :: TestM ()
+pageinateConvListIdsPageEndingAtLocalsAndDomain = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
@@ -1377,7 +1377,7 @@ getChunkedConvs :: (Typeable a, FromJSON a) => Int32 -> UserId -> Maybe (Qualifi
 getChunkedConvs size alice start n = do
   let paginationOpts = GetPaginatedConversationIds start (unsafeRange size)
   print paginationOpts
-  resp <- getConvIdsV2 alice paginationOpts <!! const 200 === statusCode
+  resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
   let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
   liftIO $ do
     -- This is because of the way this test is setup, we always get 16

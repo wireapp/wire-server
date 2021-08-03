@@ -834,12 +834,12 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
-getConvIdsV2 :: UserId -> Public.GetPaginatedConversationIds -> TestM ResponseLBS
-getConvIdsV2 u paginationOpts = do
+listConvIds :: UserId -> Public.GetPaginatedConversationIds -> TestM ResponseLBS
+listConvIds u paginationOpts = do
   g <- view tsGalley
   post $
     g
-      . path "/conversations/ids/v2"
+      . path "/conversations/list-ids"
       . zUser u
       . json paginationOpts
 
