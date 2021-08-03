@@ -94,6 +94,7 @@ import Galley.Types
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
+import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Validation
@@ -623,11 +624,15 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
     then lift $ do
       let (remoteVictim, localVictim) = partitionRemoteOrLocalIds' localDomain (singleton qvictim)
       event <- Data.removeMembers localDomain conv zusr localVictim remoteVictim
-      -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify them?
       for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> locals)) $ \p ->
         push1 $ p & pushConn .~ zcon
 
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
+
+      -- Notify remote backends
+      let stayingRemotes = (rmId <$> Data.convRemoteMembers conv) \\ remoteVictim
+      notifyRemoteOfRemovedConvMembers stayingRemotes zusr (evtTime event) conv localVictim remoteVictim
+
       pure event
     else throwE RemoveFromConversationErrorUnchanged
   where
