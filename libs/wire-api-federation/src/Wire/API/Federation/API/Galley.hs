@@ -154,7 +154,7 @@ data ConversationMemberUpdate = ConversationMemberUpdate
     --
     -- FUTUREWORK: Implement this when supporting removal of remote conversation
     -- members.
-    cmuUsersRemove :: [UserId]
+    cmuUsersRemove :: [Qualified UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
