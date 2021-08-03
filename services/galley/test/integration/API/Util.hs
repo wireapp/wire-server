@@ -1298,7 +1298,7 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event ConvCodeUpdate _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
-decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
+decodeConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = qUnqualified . cnvQualifiedId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
