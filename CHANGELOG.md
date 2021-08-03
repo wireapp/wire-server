@@ -35,6 +35,8 @@
 
 ## Documentation
 
+*  fix swagger: mark name in UserUpdate as optional (#1691)
+
 ## Internal changes
 
 
