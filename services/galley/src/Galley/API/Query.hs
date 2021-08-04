@@ -144,9 +144,8 @@ listConversationIds zusr Public.GetPaginatedConversationIds {..} = do
   localDomain <- viewFederationDomain
   let mStartDomain = qDomain <$> gpciStartingPoint
   case mStartDomain of
-    Nothing -> localsAndRemotes localDomain Nothing gpciSize
-    Just x | x == localDomain -> localsAndRemotes localDomain (qUnqualified <$> gpciStartingPoint) gpciSize
-    Just _ -> remotesOnly gpciStartingPoint $ fromRange gpciSize
+    Just x | x /= localDomain -> remotesOnly gpciStartingPoint $ fromRange gpciSize
+    _ -> localsAndRemotes localDomain (qUnqualified <$> gpciStartingPoint) gpciSize
   where
     localsAndRemotes :: Domain -> Maybe ConvId -> Range 1 1000 Int32 -> Galley (ConversationList (Qualified ConvId))
     localsAndRemotes localDomain conv size = do
