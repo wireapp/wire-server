@@ -119,7 +119,7 @@ tests s =
           test s "get conversation ids" getConvIdsOk,
           test s "get conversation ids v2" listConvIdsOk,
           test s "paginate through conversation ids" paginateConvIds,
-          test s "paginate through /converstaions/list-ids" paginateConvListIds,
+          test s "paginate through /conversations/list-ids" paginateConvListIds,
           test s "paginate through /conversations/list-ids - page ending at locals and remote domain" paginateConvListIdsPageEndingAtLocalsAndDomain,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
