@@ -9,6 +9,8 @@
 
 ## API Changes
 
+* Deprecated `DELETE /conversations/:cnv/members/:usr`
+
 ## Features
 
 ## Bug fixes and other updates
