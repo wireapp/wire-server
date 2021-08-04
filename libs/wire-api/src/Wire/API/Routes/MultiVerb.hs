@@ -565,7 +565,7 @@ instance
     let acc = getAcceptHeader req
         action' =
           action `addMethodCheck` methodCheck method req
-            `addMethodCheck` acceptCheck (Proxy @cs) acc
+            `addAcceptCheck` acceptCheck (Proxy @cs) acc
     runAction action' env req k $ \output -> do
       let mresp = responseListRender @cs @as acc (toUnion @as output)
       resp' <- case mresp of
