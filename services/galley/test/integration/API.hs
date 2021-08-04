@@ -2156,12 +2156,12 @@ putMemberOk update = do
         Member
           { memId = bob,
             memService = Nothing,
-            memOtrMuted = Just True == (mupOtrMute update),
+            memOtrMuted = Just True == mupOtrMute update,
             memOtrMutedStatus = mupOtrMuteStatus update,
             memOtrMutedRef = mupOtrMuteRef update,
-            memOtrArchived = Just True == (mupOtrArchive update),
+            memOtrArchived = Just True == mupOtrArchive update,
             memOtrArchivedRef = mupOtrArchiveRef update,
-            memHidden = Just True == (mupHidden update),
+            memHidden = Just True == mupHidden update,
             memHiddenRef = mupHiddenRef update,
             memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
           }
