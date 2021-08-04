@@ -1374,7 +1374,6 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
 getChunkedConvs :: (Typeable a, FromJSON a) => Int32 -> UserId -> Maybe (Qualified ConvId) -> Int -> TestM a
 getChunkedConvs size alice start n = do
   let paginationOpts = GetPaginatedConversationIds start (unsafeRange size)
-  print paginationOpts
   resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
   let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
   liftIO $ do
