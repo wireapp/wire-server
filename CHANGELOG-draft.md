@@ -31,6 +31,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## API Changes
 
+* Deprecated `DELETE /conversations/:cnv/members/:usr`
+
 ## Features
 
 ## Bug fixes and other updates
