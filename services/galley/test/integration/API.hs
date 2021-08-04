@@ -119,8 +119,8 @@ tests s =
           test s "get conversation ids" getConvIdsOk,
           test s "get conversation ids v2" listConvIdsOk,
           test s "paginate through conversation ids" paginateConvIds,
-          test s "paginate through /converstaions/list-ids" pageinateConvListIds,
-          test s "paginate through /conversations/list-ids - page ending at locals and remote domain" pageinateConvListIdsPageEndingAtLocalsAndDomain,
+          test s "paginate through /converstaions/list-ids" paginateConvListIds,
+          test s "paginate through /conversations/list-ids - page ending at locals and remote domain" paginateConvListIdsPageEndingAtLocalsAndDomain,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "page through list-conversations (local conversations only)" listConvsPagingOk,
@@ -1266,8 +1266,8 @@ listConvIdsOk = do
     const 200 === statusCode
     const (Right 2) === fmap length . decodeQualifiedConvIdList
 
-pageinateConvListIds :: TestM ()
-pageinateConvListIds = do
+paginateConvListIds :: TestM ()
+paginateConvListIds = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
@@ -1318,8 +1318,8 @@ pageinateConvListIds = do
   foldM_ (getChunkedConvs 16 alice) Nothing [15, 14 .. 0 :: Int]
 
 -- This test exists
-pageinateConvListIdsPageEndingAtLocalsAndDomain :: TestM ()
-pageinateConvListIdsPageEndingAtLocalsAndDomain = do
+paginateConvListIdsPageEndingAtLocalsAndDomain :: TestM ()
+paginateConvListIdsPageEndingAtLocalsAndDomain = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
