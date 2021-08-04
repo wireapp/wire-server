@@ -41,6 +41,7 @@ module Galley.Types
     EventType (..),
     EventData (..),
     UserIdList (..),
+    QualifiedUserIdList (..),
     SimpleMember (..),
     SimpleMembers (..),
     MemberUpdateData (..),

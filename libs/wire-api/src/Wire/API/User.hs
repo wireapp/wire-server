@@ -21,6 +21,7 @@
 
 module Wire.API.User
   ( UserIdList (..),
+    QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
     -- Profiles
     UserProfile (..),
@@ -159,6 +160,20 @@ modelUserIdList = Doc.defineModel "UserIdList" $ do
   Doc.description "list of user ids"
   Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "the array of team conversations"
+
+--------------------------------------------------------------------------------
+-- QualifiedUserIdList
+newtype QualifiedUserIdList = QualifiedUserIdList
+  {unQualifiedUserIdList :: [Qualified UserId]}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (ToJSON, S.ToSchema) via Schema QualifiedUserIdList
+
+instance ToSchema QualifiedUserIdList where
+  schema =
+    object "QualifiedUserIdList" $
+      QualifiedUserIdList
+        <$> unQualifiedUserIdList .= field "qualified_ids" (array schema)
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
