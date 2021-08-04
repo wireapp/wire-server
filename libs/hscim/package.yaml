@@ -1,8 +1,8 @@
 name:                hscim
 version:             0.3.4
-synopsis:            ...
-description:         ...
-homepage:            https://github.com/wireapp/hscim/README.md
+synopsis:            hscim json schema and server implementation
+description:         The README file will answer all the questions you might have
+homepage:            https://github.com/wireapp/wire-server/libs/hscim/README.md
 license:             AGPL-3
 license-file:        LICENSE
 author:              Wire Swiss GmbH
@@ -10,7 +10,7 @@ maintainer:          Wire Swiss GmbH <backend@wire.com>
 copyright:           (c) 2018 Wire Swiss GmbH
 category:            Web
 build-type:          Simple
-github:              wireapp/hscim
+github:              wireapp/wire-server/libs/hscim
 
 default-extensions:
   - ConstraintKinds
@@ -32,19 +32,19 @@ default-extensions:
 
 extra-source-files:
   - README.md
-
+  - CHANGELOG
 
 dependencies:
   -  aeson                >= 1.4.5 && < 1.5
   -  attoparsec           >= 0.13.2 && < 0.14
   -  bytestring           >= 0.10.8 && < 0.11
-  -  base                 >= 4.12  && < 4.14
+  -  base                 >= 4.12  && < 4.15
   -  case-insensitive     >= 1.2.1.0 && < 1.3
   -  scientific           >= 0.3.6 && < 0.4
   -  hashable             >= 1.2.7 && < 1.4
   -  text                 >= 1.2.3 && < 1.3
   -  time                 >= 1.8.0 && < 1.10
-  -  template-haskell     >= 2.14.0 && < 2.16
+  -  template-haskell     >= 2.14.0 && < 2.17
   -  unordered-containers >= 0.2.10 && < 0.3
   -  aeson-qq             >= 0.8.2 && < 0.9
   -  mtl                  >= 2.2.2 && < 2.3
