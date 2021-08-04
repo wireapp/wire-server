@@ -898,7 +898,7 @@ guardLegalhold protectee userClients = do
   res <- lift $ galleyRequest PUT req
   case Bilge.statusCode res of
     200 -> pure ()
-    412 -> throwE ClientMissingLegalholdConsent
+    403 -> throwE ClientMissingLegalholdConsent
     404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
     _ -> throwM internalServerError
   where
