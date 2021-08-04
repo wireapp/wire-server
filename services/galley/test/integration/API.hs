@@ -1269,8 +1269,7 @@ listConvIdsOk = do
 paginateConvListIds :: TestM ()
 paginateConvListIds = do
   [alice, bob, eve] <- randomUsers 3
-  connectUsers alice (singleton bob)
-  connectUsers alice (singleton eve)
+  connectUsers alice (list1 bob [eve])
   localDomain <- viewFederationDomain
   let qAlice = Qualified alice localDomain
   now <- liftIO getCurrentTime
