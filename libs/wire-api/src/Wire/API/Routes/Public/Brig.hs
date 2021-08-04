@@ -267,7 +267,7 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> ReqBody '[JSON] UpdateClient
-        :> MultiVerb 'PUT '[] '[RespondEmpty 200 "Client updated"] (),
+        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Client updated"] (),
     -- This endpoint can lead to the following events being sent:
     -- - ClientRemoved event to self
     deleteClient ::
@@ -277,7 +277,7 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> ReqBody '[JSON] RmClient
-        :> MultiVerb 'DELETE '[] '[RespondEmpty 200 "Client deleted"] (),
+        :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] (),
     listClients ::
       routes :- Summary "List the registered clients"
         :> ZUser
