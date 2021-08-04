@@ -41,6 +41,7 @@ module Wire.API.Event.Conversation
     Conversation (..),
     TypingData (..),
     UserIdList (..),
+    QualifiedUserIdList (..),
 
     -- * Swagger
     modelEvent,
@@ -84,7 +85,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
-import Wire.API.User (UserIdList (..))
+import Wire.API.User (QualifiedUserIdList (..), UserIdList (..))
 
 --------------------------------------------------------------------------------
 -- Event
@@ -152,6 +153,7 @@ data EventType
   | ConvReceiptModeUpdate
   | OtrMessageAdd
   | Typing
+  | MemberLeaveQualified
   deriving stock (Eq, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -162,6 +164,7 @@ instance ToSchema EventType where
       mconcat
         [ element "conversation.member-join" MemberJoin,
           element "conversation.member-leave" MemberLeave,
+          element "conversation.member-leave-qualified" MemberLeaveQualified,
           element "conversation.member-update" MemberStateUpdate,
           element "conversation.rename" ConvRename,
           element "conversation.access-update" ConvAccessUpdate,
@@ -182,6 +185,7 @@ typeEventType =
     Doc.enum
       [ "conversation.member-join",
         "conversation.member-leave",
+        "conversation.member-leave-qualified",
         "conversation.member-update",
         "conversation.rename",
         "conversation.access-update",
@@ -199,6 +203,7 @@ typeEventType =
 data EventData
   = EdMembersJoin SimpleMembers
   | EdMembersLeave UserIdList
+  | EdMembersLeaveQualified QualifiedUserIdList
   | EdConnect Connect
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
@@ -272,6 +277,7 @@ genEventData :: EventType -> QC.Gen EventData
 genEventData = \case
   MemberJoin -> EdMembersJoin <$> arbitrary
   MemberLeave -> EdMembersLeave <$> arbitrary
+  MemberLeaveQualified -> EdMembersLeaveQualified <$> arbitrary
   MemberStateUpdate -> EdMemberUpdate <$> arbitrary
   ConvRename -> EdConvRename <$> arbitrary
   ConvAccessUpdate -> EdConvAccessUpdate <$> arbitrary
@@ -504,6 +510,7 @@ taggedEventDataSchema =
     edata = dispatch $ \case
       MemberJoin -> tag _EdMembersJoin (unnamed schema)
       MemberLeave -> tag _EdMembersLeave (unnamed schema)
+      MemberLeaveQualified -> tag _EdMembersLeaveQualified (unnamed schema)
       MemberStateUpdate -> tag _EdMemberUpdate (unnamed schema)
       ConvRename -> tag _EdConvRename (unnamed schema)
       ConvAccessUpdate -> tag _EdConvAccessUpdate (unnamed schema)
