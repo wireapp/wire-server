@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 51eb96bf37999a61021ffce3cf4fdb0ac87752f9fe570564d30a06530ec1e844
+-- hash: c6b3b26309d37316c1e5f29b10e0a9fba3ab066898d161965fd20fa531237a89
 
 name:           wire-api
 version:        0.1.0
@@ -116,6 +116,7 @@ library
     , extended
     , extra
     , generic-random >=1.2
+    , generics-sop
     , ghc-prim
     , hashable
     , hostname-validate

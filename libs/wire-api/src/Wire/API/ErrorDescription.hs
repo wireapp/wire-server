@@ -4,7 +4,7 @@ import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
-import Data.SOP (I (..), NS (..))
+import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
 import qualified Data.Swagger as Swagger
@@ -125,6 +125,8 @@ instance KnownStatus status => HasStatus (ErrorDescription status label desc) wh
 type RespondWithErrorDescription s label desc =
   Respond s desc (ErrorDescription s label desc)
 
+type instance ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
+
 instance
   ( AllMimeRender cs (ErrorDescription s label desc),
     AllMimeUnrender cs (ErrorDescription s label desc),
@@ -134,11 +136,14 @@ instance
   ) =>
   IsResponse cs (ErrorDescription s label desc)
   where
-  type ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
   type ResponseStatus (ErrorDescription s label desc) = s
 
   responseRender = responseRender @cs @(RespondWithErrorDescription s label desc)
   responseUnrender = responseUnrender @cs @(RespondWithErrorDescription s label desc)
+
+instance KnownSymbol desc => AsConstructor '[] (ErrorDescription s label desc) where
+  toConstructor _ = Nil
+  fromConstructor _ = mkErrorDescription
 
 instance
   (KnownStatus s, KnownSymbol label, KnownSymbol desc) =>
@@ -162,11 +167,12 @@ instance
 
 data EmptyErrorForLegacyReasons s desc
 
+type instance ResponseType (EmptyErrorForLegacyReasons s desc) = ()
+
 instance
   KnownStatus s =>
   IsResponse cs (EmptyErrorForLegacyReasons s desc)
   where
-  type ResponseType (EmptyErrorForLegacyReasons s desc) = ()
   type ResponseStatus (EmptyErrorForLegacyReasons s desc) = s
 
   responseRender _ () =

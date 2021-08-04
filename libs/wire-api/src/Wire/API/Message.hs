@@ -78,7 +78,7 @@ import qualified Data.ProtoLens as ProtoLens
 import qualified Data.ProtoLens.Field as ProtoLens
 import qualified Data.ProtocolBuffers as Protobuf
 import Data.Qualified (Qualified (..))
-import Data.SOP (I (..), NS (..))
+import Data.SOP (I (..), NS (..), unI, unZ)
 import Data.Schema
 import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
@@ -86,10 +86,12 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Read as Reader
 import qualified Data.UUID as UUID
+import qualified Generics.SOP as GSOP
 import Imports
 import qualified Proto.Otr
 import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (FromHttpApiData (..))
+import Servant.Server (type (.++))
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.ErrorDescription
 import qualified Wire.API.Message.Proto as Proto
@@ -565,30 +567,40 @@ data MessageNotSent a
   | MessageNotSentLegalhold
   | MessageNotSentClientMissing a
   deriving stock (Eq, Show, Generic, Functor)
+  deriving
+    (AsUnion (MessageNotSentResponses a))
+    via (GenericAsUnion (MessageNotSentResponses a) (MessageNotSent a))
 
-type PostOtrResponses a =
+instance GSOP.Generic (MessageNotSent a)
+
+type MessageNotSentResponses a =
   '[ ConvNotFound,
      UnknownClient,
      MissingLegalholdConsent,
-     Respond 412 "Missing clients" a,
-     Respond 201 "Message sent" a
+     Respond 412 "Missing clients" a
    ]
+
+type PostOtrResponses a =
+  MessageNotSentResponses a
+    .++ '[Respond 201 "Message send" a]
 
 type PostOtrResponse a = Either (MessageNotSent a) a
 
-instance AsUnion (PostOtrResponses a) (PostOtrResponse a) where
-  toUnion (Left MessageNotSentConversationNotFound) = Z (I convNotFound)
-  toUnion (Left MessageNotSentUnknownClient) = S (Z (I unknownClient))
-  toUnion (Left MessageNotSentLegalhold) = S (S (Z (I missingLegalholdConsent)))
-  toUnion (Left (MessageNotSentClientMissing a)) = S (S (S (Z (I a))))
-  toUnion (Right a) = S (S (S (S (Z (I a)))))
+instance
+  ( rs ~ (MessageNotSentResponses a .++ '[r]),
+    a ~ ResponseType r
+  ) =>
+  AsUnion rs (PostOtrResponse a)
+  where
+  toUnion =
+    eitherToUnion
+      (toUnion @(MessageNotSentResponses a))
+      (Z . I)
 
-  fromUnion (Z (I _)) = Left MessageNotSentConversationNotFound
-  fromUnion (S (Z (I _))) = Left MessageNotSentUnknownClient
-  fromUnion (S (S (Z (I _)))) = Left MessageNotSentLegalhold
-  fromUnion (S (S (S (Z (I a))))) = Left (MessageNotSentClientMissing a)
-  fromUnion (S (S (S (S (Z (I a)))))) = Right a
-  fromUnion (S (S (S (S (S x))))) = case x of
+  fromUnion =
+    eitherFromUnion
+      (fromUnion @(MessageNotSentResponses a))
+      (unI . unZ)
 
 -- QueryParams
 

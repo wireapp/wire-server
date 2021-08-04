@@ -36,6 +36,7 @@ library:
   - extended
   - extra
   - generic-random >=1.2
+  - generics-sop
   - ghc-prim
   - hashable
   - hostname-validate
