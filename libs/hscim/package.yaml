@@ -10,7 +10,10 @@ maintainer:          Wire Swiss GmbH <backend@wire.com>
 copyright:           (c) 2018 Wire Swiss GmbH
 category:            Web
 build-type:          Simple
-github:              wireapp/wire-server/libs/hscim
+github:              wireapp/wire-server/hscim
+# TODO: should be `github: wireapp/wire-server/libs/hscim`, but hpack
+# 0.33.0 doesn't allow that: https://github.com/sol/hpack/pull/451.
+# (i think we should just move back to writing cabal files by hand.)
 
 default-extensions:
   - ConstraintKinds

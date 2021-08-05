@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8c442519e006f31473e244593a25197a21bb2a8b74db4164b2d0575a21c97388
+-- hash: 2e0b95d267e0d862fecf234432ad88860a642778490d46ce7ae8ab2b3e297e9a
 
 name:           hscim
 version:        0.3.4
@@ -12,7 +12,7 @@ synopsis:       hscim json schema and server implementation
 description:    The README file will answer all the questions you might have
 category:       Web
 homepage:       https://github.com/wireapp/wire-server/libs/hscim/README.md
-bug-reports:    https://github.com/wireapp/wire-server/libs/hscim/issues
+bug-reports:    https://github.com/wireapp/wire-server/issues
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2018 Wire Swiss GmbH
@@ -25,7 +25,8 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/wireapp/wire-server/libs/hscim
+  location: https://github.com/wireapp/wire-server
+  subdir: hscim
 
 library
   exposed-modules:
