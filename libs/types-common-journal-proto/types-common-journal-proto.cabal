@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bae71b0663bce500d85d7c1835c11eab45d2c07e67d7f3c80822c0b171785126
+-- hash: 95a1a777e48eb34364f4fd8142126e1348fe6476bc9385ad51383a549cbc041d
 
 name:           types-common-journal-proto
 version:        0.1.0
@@ -36,7 +36,7 @@ library
   other-modules:
       Paths_types_common_journal_proto
   hs-source-dirs:
-      src
+      ./.
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fno-warn-redundant-constraints
   ghc-prof-options: -fprof-auto-exported
