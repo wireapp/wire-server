@@ -1,56 +1,10 @@
 resolver: lts-16.14
 
 packages:
-- libs/api-bot
-- libs/api-client
-- libs/bilge
-- libs/brig-types
-- libs/cargohold-types
-- libs/cassandra-util
-- libs/extended
-- libs/dns-util
-- libs/deriving-swagger2
-- libs/galley-types
-- libs/gundeck-types
-- libs/hscim
-- libs/imports
-- libs/metrics-core
-- libs/metrics-wai
-- libs/polysemy-wire-zoo
-- libs/ropes
-- libs/schema-profunctor
+- .
 - libs/sodium-crypto-sign
-- libs/ssl-util
-- libs/tasty-cannon
-- libs/types-common
-- libs/types-common-aws
-- libs/types-common-journal
 - libs/types-common-journal-proto
-- libs/wai-utilities
-- libs/wire-api
-- libs/wire-api-federation
 - libs/wire-message-proto-lens
-- libs/zauth
-- services/brig
-- services/cannon
-- services/cargohold
-- services/federator
-- services/galley
-- services/gundeck
-- services/proxy
-- services/spar
-- tools/api-simulations
-- tools/bonanza
-- tools/db/auto-whitelist
-- tools/db/migrate-sso-feature-flag
-- tools/db/service-backfill
-- tools/db/billing-team-member-backfill
-- tools/db/find-undead
-- tools/db/move-team
-- tools/db/repair-handles
-- tools/makedeb
-- tools/rex
-- tools/stern
 
 nix:
   shell-file: stack-deps.nix
