@@ -582,7 +582,7 @@ type MessageNotSentResponses a =
 
 type PostOtrResponses a =
   MessageNotSentResponses a
-    .++ '[Respond 201 "Message send" a]
+    .++ '[Respond 201 "Message sent" a]
 
 type PostOtrResponse a = Either (MessageNotSent a) a
 
