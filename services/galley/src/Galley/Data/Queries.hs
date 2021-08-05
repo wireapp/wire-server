@@ -310,7 +310,6 @@ selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_rem
 selectRemoteConvMembership :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
 selectRemoteConvMembership = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
 
--- FUTUREWORK: actually make use of these cql statements.
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
 

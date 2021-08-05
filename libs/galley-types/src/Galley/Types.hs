@@ -40,6 +40,7 @@ module Galley.Types
     Event (..),
     EventType (..),
     EventData (..),
+    EventBackwardsCompatibility (..),
     UserIdList (..),
     QualifiedUserIdList (..),
     SimpleMember (..),

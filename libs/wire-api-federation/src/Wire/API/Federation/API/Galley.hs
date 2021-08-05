@@ -154,7 +154,7 @@ data ConversationMemberUpdate = ConversationMemberUpdate
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.
     cmuAlreadyPresentUsers :: [UserId],
-    -- | Users that got either added to the conversation or removed from it.
+    -- | Users that got either added to or removed from the conversation.
     cmuEitherAddOrRemoveUsers :: ConversationMembersAction
   }
   deriving stock (Eq, Show, Generic)
