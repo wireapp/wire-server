@@ -138,6 +138,13 @@ data RegisterConversation = MkRegisterConversation
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
 
+data ConversationMembersAction
+  = ConversationMembersActionAdd [(Qualified UserId, RoleName)]
+  | ConversationMembersActionRemove [Qualified UserId]
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
+
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,
     cmuOrigUserId :: Qualified UserId,
@@ -147,14 +154,8 @@ data ConversationMemberUpdate = ConversationMemberUpdate
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.
     cmuAlreadyPresentUsers :: [UserId],
-    -- | Users that got added to the conversation.
-    cmuUsersAdd :: [(Qualified UserId, RoleName)],
-    -- | Users that got removed from the conversation. This should probably be
-    -- Qualified, but as of now this is a stub.
-    --
-    -- FUTUREWORK: Implement this when supporting removal of remote conversation
-    -- members.
-    cmuUsersRemove :: [Qualified UserId]
+    -- | Users that got either added to the conversation or removed from it.
+    cmuEitherAddOrRemoveUsers :: ConversationMembersAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)

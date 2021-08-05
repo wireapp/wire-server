@@ -94,23 +94,27 @@ getConversations (GetConversationsRequest qUid gcrConvIds) = do
 updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
 updateConversationMemberships cmu = do
   localDomain <- viewFederationDomain
-  let localUsers = filter ((== localDomain) . qDomain . fst) (cmuUsersAdd cmu)
-      localUserIds = map (qUnqualified . fst) localUsers
-  when (not (null localUsers)) $ do
-    Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
-  let mems = SimpleMembers (map (uncurry SimpleMember) (cmuUsersAdd cmu))
-  let event =
-        Event
-          MemberJoin
-          (cmuConvId cmu)
-          (cmuOrigUserId cmu)
-          (cmuTime cmu)
-          (EdMembersJoin mems)
+  case cmuEitherAddOrRemoveUsers cmu of
+    FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
+      let localUsers = filter ((== localDomain) . qDomain . fst) toAdd
+          localUserIds = map (qUnqualified . fst) localUsers
+      unless (null localUsers) $ do
+        Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
+      let mems = SimpleMembers (map (uncurry SimpleMember) toAdd)
+          event =
+            Event
+              MemberJoin
+              (cmuConvId cmu)
+              (cmuOrigUserId cmu)
+              (cmuTime cmu)
+              (EdMembersJoin mems)
 
-  -- send notifications
-  let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
-  -- FUTUREWORK: support bots?
-  pushConversationEvent Nothing event targets []
+      -- send notifications
+      let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
+      -- FUTUREWORK: support bots?
+      pushConversationEvent Nothing event targets []
+    FederationAPIGalley.ConversationMembersActionRemove _toRemove -> do
+      undefined
 
 -- FUTUREWORK: report errors to the originating backend
 receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
