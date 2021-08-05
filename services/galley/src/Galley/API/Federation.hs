@@ -90,7 +90,8 @@ getConversations (GetConversationsRequest qUid gcrConvIds) = do
   let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
   pure $ GetConversationsResponse . catMaybes $ convViews
 
--- FUTUREWORK: also remove users from conversation
+-- | Update the local database with information on conversation members joining
+-- or leaving. Finally, push out notifications to local users.
 updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
 updateConversationMemberships cmu = do
   localDomain <- viewFederationDomain
@@ -98,7 +99,7 @@ updateConversationMemberships cmu = do
     FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
       let localUsers = filter ((== localDomain) . qDomain . fst) toAdd
           localUserIds = map (qUnqualified . fst) localUsers
-      unless (null localUsers) $ do
+      unless (null localUsers) $
         Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
       let mems = SimpleMembers (map (uncurry SimpleMember) toAdd)
           event =
@@ -108,13 +109,22 @@ updateConversationMemberships cmu = do
               (cmuOrigUserId cmu)
               (cmuTime cmu)
               (EdMembersJoin mems)
-
       -- send notifications
       let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
       -- FUTUREWORK: support bots?
       pushConversationEvent Nothing event targets []
-    FederationAPIGalley.ConversationMembersActionRemove _toRemove -> do
-      undefined
+    FederationAPIGalley.ConversationMembersActionRemove toRemove -> do
+      let localUsers = filter ((== localDomain) . qDomain) toRemove
+          localUserIds = qUnqualified <$> localUsers
+      event <-
+        Data.removeLocalMembersFromRemoteConv
+          (cmuConvId cmu)
+          (cmuOrigUserId cmu)
+          localUserIds
+      -- send notifications
+      let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
+      -- FUTUREWORK: support bots?
+      pushConversationEvent Nothing event targets []
 
 -- FUTUREWORK: report errors to the originating backend
 receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()

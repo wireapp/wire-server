@@ -84,8 +84,9 @@ module Galley.Data
     members,
     lookupRemoteMembers,
     removeMember,
-    removeMembers,
-    removeLocalMembers,
+    removeMembersFromLocalConv,
+    removeLocalMembersFromLocalConv,
+    removeLocalMembersFromRemoteConv,
     updateMember,
     filterRemoteConvMembers,
 
@@ -912,11 +913,22 @@ filterRemoteConvMembers users (Qualified conv dom) =
       let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
       map runIdentity <$> retry x1 q
 
-removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> [UserId] -> m Event
-removeLocalMembers localDomain conv orig localVictims = removeMembers localDomain conv orig localVictims []
+removeLocalMembersFromLocalConv :: MonadClient m => Domain -> Conversation -> UserId -> [UserId] -> m Event
+removeLocalMembersFromLocalConv localDomain conv orig localVictims =
+  removeMembersFromLocalConv EventBackwardsCompatibilityUnqualified localDomain conv orig localVictims []
 
-removeMembers :: MonadClient m => Domain -> Conversation -> UserId -> [UserId] -> [Remote UserId] -> m Event
-removeMembers localDomain conv orig localVictims remoteVictims = do
+-- Remove members from a local conversation. Both local and remote users can be
+-- removed from this backend's database.
+removeMembersFromLocalConv ::
+  MonadClient m =>
+  EventBackwardsCompatibility ->
+  Domain ->
+  Conversation ->
+  UserId ->
+  [UserId] ->
+  [Remote UserId] ->
+  m Event
+removeMembersFromLocalConv compatibility localDomain conv orig localVictims remoteVictims = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
@@ -930,10 +942,34 @@ removeMembers localDomain conv orig localVictims remoteVictims = do
 
   let qconvId = Qualified (convId conv) localDomain
       qorig = Qualified orig localDomain
-  return $ Event MemberLeave qconvId qorig t (EdMembersLeave leavingMembers)
-  where
-    -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
-    leavingMembers = UserIdList localVictims
+  return $ case compatibility of
+    EventBackwardsCompatibilityUnqualified ->
+      -- An assumption here is that removeVictims == []
+      Event MemberLeave qconvId qorig t (EdMembersLeave . UserIdList $ localVictims)
+    EventBackwardsCompatibilityQualified ->
+      let allVictims =
+            QualifiedUserIdList $
+              fmap (`Qualified` localDomain) localVictims
+                <> fmap unTagged remoteVictims
+       in Event MemberLeaveQualified qconvId qorig t (EdMembersLeaveQualified allVictims)
+
+removeLocalMembersFromRemoteConv ::
+  MonadClient m =>
+  -- | The conversation to remove members from
+  Qualified ConvId ->
+  -- | The user removing others
+  Qualified UserId ->
+  -- | Members to remove local to this backend
+  [UserId] ->
+  -- | An event about members leaving:8:
+  m Event
+removeLocalMembersFromRemoteConv qconv@(Qualified conv convDomain) qorig victims = do
+  t <- liftIO getCurrentTime
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
+  pure $ Event MemberLeave qconv qorig t (EdMembersLeave . UserIdList $ victims)
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 . batch $ do

@@ -272,7 +272,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     [] -> return ()
     x : xs -> do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
-      e <- Data.removeLocalMembers localDomain conv usr (x : xs)
+      e <- Data.removeLocalMembersFromLocalConv localDomain conv usr (x : xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
       for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
@@ -543,7 +543,7 @@ addMembers zusr zcon convId invite = do
             for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $
                 let qvictim = Qualified (memId mem) localDomain
-                 in void $ removeMember (memId mem) Nothing (Data.convId conv) qvictim
+                 in void $ removeMember EventBackwardsCompatibilityUnqualified (memId mem) Nothing (Data.convId conv) qvictim
           else throwM missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
@@ -580,10 +580,10 @@ updateOtherMember zusr zcon cid victim update = do
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
-removeMember :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
-removeMember zusr zcon convId victim =
+removeMember :: EventBackwardsCompatibility -> UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
+removeMember compatibility zusr zcon convId victim =
   fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
-    removeMemberFromLocalConv zusr zcon convId victim
+    removeMemberFromLocalConv compatibility zusr zcon convId victim
   where
     mapError :: RemoveFromConversationError -> RemoveFromConversation
     mapError = \case
@@ -594,18 +594,19 @@ removeMember zusr zcon convId victim =
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
-  removeMember zusr (Just zcon) conv (Qualified victim localDomain)
+  removeMember EventBackwardsCompatibilityUnqualified zusr (Just zcon) conv (Qualified victim localDomain)
 
 removeMemberQualified :: UserId -> ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
-removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
+removeMemberQualified zusr zcon = removeMember EventBackwardsCompatibilityQualified zusr (Just zcon)
 
 removeMemberFromLocalConv ::
+  EventBackwardsCompatibility ->
   UserId ->
   Maybe ConnId ->
   ConvId ->
   Qualified UserId ->
   ExceptT RemoveFromConversationError Galley Public.Event
-removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomain) = do
+removeMemberFromLocalConv compatibility zusr zcon convId qvictim@(Qualified victim victimDomain) = do
   localDomain <- viewFederationDomain
   conv <-
     lift (Data.conversation convId)
@@ -619,7 +620,7 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
     || toRemote qvictim `isRemoteMember` Data.convRemoteMembers conv
     then lift $ do
       let (remoteVictim, localVictim) = partitionRemoteOrLocalIds' localDomain (singleton qvictim)
-      event <- Data.removeMembers localDomain conv zusr localVictim remoteVictim
+      event <- Data.removeMembersFromLocalConv compatibility localDomain conv zusr localVictim remoteVictim
       for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> locals)) $ \p ->
         push1 $ p & pushConn .~ zcon
 
