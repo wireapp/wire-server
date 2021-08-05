@@ -551,8 +551,7 @@ notifyRemoteOfNewConvMembers existingRemotes usr now c lmm rmm = do
           cmuOrigUserId = orig,
           cmuConvId = cnv,
           cmuAlreadyPresentUsers = others,
-          cmuUsersAdd = toAdd,
-          cmuUsersRemove = []
+          cmuEitherAddOrRemoveUsers = ConversationMembersActionAdd toAdd
         }
 
 -- | Notify remote backends about their users being removed from an existing
@@ -595,8 +594,7 @@ notifyRemoteOfRemovedConvMembers stayingRemotes usr now c lmm rmm = do
           cmuOrigUserId = orig,
           cmuConvId = cnv,
           cmuAlreadyPresentUsers = others,
-          cmuUsersAdd = [],
-          cmuUsersRemove = toRemove
+          cmuEitherAddOrRemoveUsers = ConversationMembersActionRemove toRemove
         }
 
 notifyRemoteOfConvMemUpdate :: ConversationMemberUpdate -> Domain -> Galley ()
