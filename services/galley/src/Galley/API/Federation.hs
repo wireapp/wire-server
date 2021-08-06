@@ -95,36 +95,32 @@ getConversations (GetConversationsRequest qUid gcrConvIds) = do
 updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
 updateConversationMemberships cmu = do
   localDomain <- viewFederationDomain
-  case cmuEitherAddOrRemoveUsers cmu of
+  let users = case cmuEitherAddOrRemoveUsers cmu of
+        FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
+        FederationAPIGalley.ConversationMembersActionRemove toRemove -> toRemove
+      localUsers = filter ((== localDomain) . qDomain) users
+      localUserIds = qUnqualified <$> localUsers
+      targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
+  event <- case cmuEitherAddOrRemoveUsers cmu of
     FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
-      let localUsers = filter ((== localDomain) . qDomain . fst) toAdd
-          localUserIds = map (qUnqualified . fst) localUsers
       unless (null localUsers) $
         Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
       let mems = SimpleMembers (map (uncurry SimpleMember) toAdd)
-          event =
-            Event
-              MemberJoin
-              (cmuConvId cmu)
-              (cmuOrigUserId cmu)
-              (cmuTime cmu)
-              (EdMembersJoin mems)
-      -- send notifications
-      let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
-      -- FUTUREWORK: support bots?
-      pushConversationEvent Nothing event targets []
-    FederationAPIGalley.ConversationMembersActionRemove toRemove -> do
-      let localUsers = filter ((== localDomain) . qDomain) toRemove
-          localUserIds = qUnqualified <$> localUsers
-      event <-
-        Data.removeLocalMembersFromRemoteConv
+      pure $
+        Event
+          MemberJoin
           (cmuConvId cmu)
           (cmuOrigUserId cmu)
-          localUserIds
-      -- send notifications
-      let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
-      -- FUTUREWORK: support bots?
-      pushConversationEvent Nothing event targets []
+          (cmuTime cmu)
+          (EdMembersJoin mems)
+    FederationAPIGalley.ConversationMembersActionRemove _ ->
+      Data.removeLocalMembersFromRemoteConv
+        (cmuConvId cmu)
+        (cmuOrigUserId cmu)
+        localUserIds
+  -- FUTUREWORK: support bots?
+  -- send notifications
+  pushConversationEvent Nothing event targets []
 
 -- FUTUREWORK: report errors to the originating backend
 receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
