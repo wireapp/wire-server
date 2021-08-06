@@ -71,6 +71,10 @@ tests s =
         addLocalUser,
       test
         s
+        "POST /federation/update-conversation-memberships : Remove a local user from a remote conversation"
+        removeLocalUser,
+      test
+        s
         "POST /federation/update-conversation-memberships : Notify local user about other members joining"
         notifyLocalUser,
       test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage,
@@ -174,7 +178,66 @@ addLocalUser = do
     Cql.runClient cassState
       . Cql.query Cql.selectUserRemoteConvs
       $ Cql.params Cql.Quorum (Identity alice)
-  liftIO $ [(dom, conv)] @?= convs
+  liftIO $ convs @?= [(dom, conv)]
+
+-- | This test invokes the federation endpoint:
+--
+--   'POST /federation/update-conversation-memberships'
+--
+-- two times in a row: first adding a remote user to a local conversation, and
+-- then removing them. The test asserts the expected database states in between
+-- the calls, the final database state and that a local conversation member got
+-- notified of the removal.
+removeLocalUser :: TestM ()
+removeLocalUser = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  let qalice = Qualified alice localDomain
+  let dom = Domain "bobland.example.com"
+  bob <- randomId
+  let qbob = Qualified bob dom
+  conv <- randomId
+  let qconv = Qualified conv dom
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  cassState <- view tsCass
+  let cmuAdd =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qbob,
+            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuAlreadyPresentUsers = [],
+            FedGalley.cmuEitherAddOrRemoveUsers =
+              FedGalley.ConversationMembersActionAdd [(qalice, roleNameWireMember)]
+          }
+      cmuRemove =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qbob,
+            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuAlreadyPresentUsers = [bob],
+            FedGalley.cmuEitherAddOrRemoveUsers =
+              FedGalley.ConversationMembersActionRemove [qalice]
+          }
+      aliceConvs :: TestM [Qualified ConvId] =
+        (fmap . fmap)
+          (uncurry Qualified . swap)
+          $ Cql.runClient
+            cassState
+            . Cql.query Cql.selectUserRemoteConvs
+            $ Cql.params Cql.Quorum (Identity alice)
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.updateConversationMemberships fedGalleyClient cmuAdd
+    afterAddition <- aliceConvs
+    FedGalley.updateConversationMemberships fedGalleyClient cmuRemove
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertMembersLeave qconv qbob [alice]
+    afterRemoval <- aliceConvs
+    liftIO $ do
+      afterAddition @?= [qconv]
+      afterRemoval @?= []
 
 notifyLocalUser :: TestM ()
 notifyLocalUser = do
