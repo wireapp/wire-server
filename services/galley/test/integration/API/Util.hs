@@ -1209,10 +1209,10 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 -- | This assumes the default role name
-wsAssertMemberJoin :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
+wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin
 
-wsAssertMemberJoinWithRole :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
+wsAssertMemberJoinWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1235,6 +1235,21 @@ wsAssertMembersLeave conv usr leaving n = do
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
   evtData e @?= EdMembersLeave (UserIdList leaving)
+
+wsAssertMembersLeaveQualified ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Notification ->
+  IO ()
+wsAssertMembersLeaveQualified conv usr leaving n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= conv
+  evtType e @?= Conv.MemberLeaveQualified
+  evtFrom e @?= usr
+  evtData e @?= EdMembersLeaveQualified (QualifiedUserIdList leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do

@@ -33,6 +33,7 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
+import Data.List1 (List1)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), Remote, partitionQualified)
@@ -42,6 +43,7 @@ import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
 import Galley.App
+import Galley.Data (NonEmptyUserList)
 import qualified Galley.Data as Data
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Data.Services (BotMember, newBotMember)
@@ -522,12 +524,16 @@ notifyRemoteOfNewConvMembers ::
   UserId ->
   UTCTime ->
   Data.Conversation ->
-  [LocalMember] ->
-  [RemoteMember] ->
+  NonEmptyUserList LocalMember RemoteMember ->
   Galley ()
-notifyRemoteOfNewConvMembers existingRemotes usr now c lmm rmm = do
+notifyRemoteOfNewConvMembers existingRemotes usr now c mems = do
   localDomain <- viewFederationDomain
-  let mm = catMembers localDomain lmm rmm
+  let rmm = snd . Data.splitNonEmptyUserList $ mems
+  let mm =
+        Data.fromNonEmptyUserList
+          (((`Qualified` localDomain) . memId) &&& memConvRoleName)
+          ((unTagged . rmId) &&& rmConvRoleName)
+          mems
       qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
@@ -540,7 +546,7 @@ notifyRemoteOfNewConvMembers existingRemotes usr now c lmm rmm = do
   where
     mkUpdate ::
       UTCTime ->
-      [(Qualified UserId, RoleName)] ->
+      List1 (Qualified UserId, RoleName) ->
       Qualified UserId ->
       Qualified ConvId ->
       [UserId] ->
@@ -554,23 +560,24 @@ notifyRemoteOfNewConvMembers existingRemotes usr now c lmm rmm = do
           cmuEitherAddOrRemoveUsers = ConversationMembersActionAdd toAdd
         }
 
--- | Notify remote backends about their users being removed from an existing
+-- | Notify remote backends about users being removed from an existing
 -- conversation
 notifyRemoteOfRemovedConvMembers ::
   -- | Remote members that stay after others are removed
   [Remote UserId] ->
   -- | The originating user that is removing conversation members
   UserId ->
+  -- | The current time
   UTCTime ->
+  -- | The conversation form which members are being removed
   Data.Conversation ->
-  -- | Local members that are being removed
-  [UserId] ->
-  -- | Remote members that are being removed
-  [Remote UserId] ->
+  -- | Conversation members that are being removed
+  NonEmptyUserList UserId (Remote UserId) ->
   Galley ()
-notifyRemoteOfRemovedConvMembers stayingRemotes usr now c lmm rmm = do
+notifyRemoteOfRemovedConvMembers stayingRemotes usr now c memsToRemove = do
   localDomain <- viewFederationDomain
-  let mm = fmap (`Qualified` localDomain) lmm <> fmap unTagged rmm
+  let rmm = snd . Data.splitNonEmptyUserList $ memsToRemove
+  let mm = Data.nonEmptyUserListToQualified localDomain memsToRemove
       qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
@@ -583,7 +590,7 @@ notifyRemoteOfRemovedConvMembers stayingRemotes usr now c lmm rmm = do
   where
     mkUpdate ::
       UTCTime ->
-      [Qualified UserId] ->
+      List1 (Qualified UserId) ->
       Qualified UserId ->
       Qualified ConvId ->
       [UserId] ->
@@ -601,15 +608,6 @@ notifyRemoteOfConvMemUpdate :: ConversationMemberUpdate -> Domain -> Galley ()
 notifyRemoteOfConvMemUpdate cmu domain = do
   let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
   runFederated domain rpc
-
-catMembers ::
-  Domain ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  [(Qualified UserId, RoleName)]
-catMembers localDomain ls rs =
-  map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
-    <> map ((unTagged . rmId) &&& rmConvRoleName) rs
 
 --------------------------------------------------------------------------------
 -- Legalhold
