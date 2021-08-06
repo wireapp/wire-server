@@ -42,7 +42,7 @@ spec:
         # the one for the federator ingress
         - name: "federator-secrets"
           secret:
-            secretName: {{ if .Values.tls.useCertManager -}}
+            secretName: {{ if .Values.tls.shareFederatorSecret -}}
               "federator-certificate-secret"
               {{- else -}}
               "federator-secret"
