@@ -169,7 +169,7 @@ addLocalUser = do
     Cql.runClient cassState
       . Cql.query Cql.selectUserRemoteConvs
       $ Cql.params Cql.Quorum (Identity alice)
-  liftIO $ [(dom, conv)] @?= convs
+  liftIO $ convs @?= [(dom, conv)]
 
 notifyLocalUser :: TestM ()
 notifyLocalUser = do
