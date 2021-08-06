@@ -13,7 +13,7 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
-    nginx.ingress.kubernetes.io/auth-tls-secret: "{{ .Release.Namespace }}/federator-certificate-secret"
+    nginx.ingress.kubernetes.io/auth-tls-secret: "{{ .Release.Namespace }}/federator-ca-secret"
 spec:
   tls:
   - hosts:

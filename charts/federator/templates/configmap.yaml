@@ -43,7 +43,7 @@ data:
       # Filepath to one or more PEM-encoded server certificates to use as a trust
       # store when making grpc requests to remote backends
       {{- if $.Values.remoteCAContents }}
-      remoteCAStore: "/etc/wire/federator/secrets/ca.crt"
+      remoteCAStore: "/etc/wire/federator/ca/ca.crt"
       {{- end }}
       {{- if $.Values.clientCertificateContents }}
       clientCertificate: "/etc/wire/federator/secrets/tls.crt"
@@ -65,4 +65,3 @@ data:
         {{- end}}
     {{- end }}
     {{- end }}
-

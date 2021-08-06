@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "federator-ca"
+  labels:
+    wireService: federator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+{{- if .Values.remoteCAContents }}
+  ca.crt: {{ .Values.remoteCAContents | quote }}
+{{- else -}}
+  {}
+{{- end }}
