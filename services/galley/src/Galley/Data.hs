@@ -961,7 +961,7 @@ removeMembersFromLocalConv compatibility localDomain conv orig localVictims remo
       qorig = Qualified orig localDomain
   return $ case compatibility of
     EventBackwardsCompatibilityUnqualified ->
-      -- An assumption here is that removeVictims == []
+      -- An assumption here is that remoteVictims == []
       Event MemberLeave qconvId qorig t (EdMembersLeave . UserIdList $ localVictims)
     EventBackwardsCompatibilityQualified ->
       let allVictims =
@@ -978,7 +978,7 @@ removeLocalMembersFromRemoteConv ::
   Qualified UserId ->
   -- | Members to remove local to this backend
   [UserId] ->
-  -- | An event about members leaving:8:
+  -- | An event about members leaving
   m Event
 removeLocalMembersFromRemoteConv qconv@(Qualified conv convDomain) qorig victims = do
   t <- liftIO getCurrentTime
