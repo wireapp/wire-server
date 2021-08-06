@@ -87,11 +87,19 @@ module Galley.Data
     members,
     lookupRemoteMembers,
     removeMember,
-    removeMembersFromLocalConv,
     removeLocalMembersFromLocalConv,
+    removeRemoteMembersFromLocalConv,
+    removeMembersFromLocalConv,
     removeLocalMembersFromRemoteConv,
     updateMember,
     filterRemoteConvMembers,
+
+    -- * Non-empty user list
+    NonEmptyUserList (..),
+    mkNonEmptyUserList,
+    splitNonEmptyUserList,
+    nonEmptyUserListToQualified,
+    fromNonEmptyUserList,
 
     -- * Conversation Codes
     lookupCode,
@@ -930,9 +938,20 @@ filterRemoteConvMembers users (Qualified conv dom) =
       let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
       map runIdentity <$> retry x1 q
 
-removeLocalMembersFromLocalConv :: MonadClient m => Domain -> Conversation -> UserId -> [UserId] -> m Event
-removeLocalMembersFromLocalConv localDomain conv orig localVictims =
-  removeMembersFromLocalConv EventBackwardsCompatibilityUnqualified localDomain conv orig localVictims []
+removeLocalMembersFromLocalConv ::
+  MonadClient m =>
+  EventBackwardsCompatibility ->
+  Domain ->
+  Conversation ->
+  UserId ->
+  List1 UserId ->
+  m Event
+removeLocalMembersFromLocalConv compatibility localDomain conv orig =
+  removeMembersFromLocalConv compatibility localDomain conv orig . OnlyFirstList
+
+removeRemoteMembersFromLocalConv :: MonadClient m => Domain -> Conversation -> UserId -> List1 (Remote UserId) -> m Event
+removeRemoteMembersFromLocalConv localDomain conv orig =
+  removeMembersFromLocalConv EventBackwardsCompatibilityQualified localDomain conv orig . OnlySecondList
 
 -- Remove members from a local conversation. Both local and remote users can be
 -- removed from this backend's database.
@@ -942,10 +961,9 @@ removeMembersFromLocalConv ::
   Domain ->
   Conversation ->
   UserId ->
-  [UserId] ->
-  [Remote UserId] ->
+  NonEmptyUserList UserId (Remote UserId) ->
   m Event
-removeMembersFromLocalConv compatibility localDomain conv orig localVictims remoteVictims = do
+removeMembersFromLocalConv compatibility localDomain conv orig (splitNonEmptyUserList -> (localVictims, remoteVictims)) = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
@@ -974,19 +992,14 @@ removeLocalMembersFromRemoteConv ::
   MonadClient m =>
   -- | The conversation to remove members from
   Qualified ConvId ->
-  -- | The user removing others
-  Qualified UserId ->
   -- | Members to remove local to this backend
-  [UserId] ->
-  -- | An event about members leaving
-  m Event
-removeLocalMembersFromRemoteConv qconv@(Qualified conv convDomain) qorig victims = do
-  t <- liftIO getCurrentTime
+  List1 UserId ->
+  m ()
+removeLocalMembersFromRemoteConv (Qualified conv convDomain) victims =
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
-  pure $ Event MemberLeave qconv qorig t (EdMembersLeave . UserIdList $ victims)
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 . batch $ do
@@ -1126,3 +1139,43 @@ withTeamMembersWithChunks tid action = do
       when (hasMore mems) $
         handleMembers =<< liftClient (nextPage mems)
 {-# INLINE withTeamMembersWithChunks #-}
+
+-- Conversation Member Utilities --------------------------------------------
+
+-- | This data type is useful in conversation member adding and removal. It
+-- ensures there will be at least one member to work with.
+data NonEmptyUserList a b
+  = OnlyFirstList (List1 a)
+  | OnlySecondList (List1 b)
+  | BothLists (List1 a) (List1 b)
+
+mkNonEmptyUserList :: [a] -> [b] -> Maybe (NonEmptyUserList a b)
+mkNonEmptyUserList [] [] = Nothing
+mkNonEmptyUserList [] (h : t) = Just $ OnlySecondList (list1 h t)
+mkNonEmptyUserList (h : t) [] = Just $ OnlyFirstList (list1 h t)
+mkNonEmptyUserList (hl : tl) (hr : tr) =
+  Just $
+    BothLists (list1 hl tl) (list1 hr tr)
+
+splitNonEmptyUserList :: NonEmptyUserList a b -> ([a], [b])
+splitNonEmptyUserList = \case
+  OnlyFirstList ls -> (toList ls, [])
+  OnlySecondList rs -> ([], toList rs)
+  BothLists ls rs -> (toList ls, toList rs)
+
+nonEmptyUserListToQualified ::
+  Domain ->
+  NonEmptyUserList UserId (Remote UserId) ->
+  List1 (Qualified UserId)
+nonEmptyUserListToQualified domain =
+  fromNonEmptyUserList (`Qualified` domain) unTagged
+
+fromNonEmptyUserList ::
+  (a -> c) ->
+  (b -> c) ->
+  NonEmptyUserList a b ->
+  List1 c
+fromNonEmptyUserList f g = \case
+  OnlyFirstList ls -> fmap f ls
+  OnlySecondList rs -> fmap g rs
+  BothLists ls rs -> fmap f ls <> fmap g rs

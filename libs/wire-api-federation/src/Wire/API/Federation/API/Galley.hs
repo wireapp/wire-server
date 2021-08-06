@@ -23,6 +23,7 @@ import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
+import Data.List1 (List1)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -139,8 +140,8 @@ data RegisterConversation = MkRegisterConversation
   deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
 
 data ConversationMembersAction
-  = ConversationMembersActionAdd [(Qualified UserId, RoleName)]
-  | ConversationMembersActionRemove [Qualified UserId]
+  = ConversationMembersActionAdd (List1 (Qualified UserId, RoleName))
+  | ConversationMembersActionRemove (List1 (Qualified UserId))
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)

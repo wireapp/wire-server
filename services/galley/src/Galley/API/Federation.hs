@@ -21,6 +21,7 @@ import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.Id (ConvId)
 import Data.Json.Util (Base64ByteString (..))
+import Data.List1 (list1)
 import Data.Qualified (Qualified (..))
 import Data.Tagged
 import qualified Data.Text.Lazy as LT
@@ -98,14 +99,14 @@ updateConversationMemberships cmu = do
   let users = case cmuEitherAddOrRemoveUsers cmu of
         FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
         FederationAPIGalley.ConversationMembersActionRemove toRemove -> toRemove
-      localUsers = filter ((== localDomain) . qDomain) users
+      localUsers = filter ((== localDomain) . qDomain) . toList $ users
       localUserIds = qUnqualified <$> localUsers
       targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
   event <- case cmuEitherAddOrRemoveUsers cmu of
     FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
       unless (null localUsers) $
         Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
-      let mems = SimpleMembers (map (uncurry SimpleMember) toAdd)
+      let mems = SimpleMembers (map (uncurry SimpleMember) . toList $ toAdd)
       pure $
         Event
           MemberJoin
@@ -113,11 +114,20 @@ updateConversationMemberships cmu = do
           (cmuOrigUserId cmu)
           (cmuTime cmu)
           (EdMembersJoin mems)
-    FederationAPIGalley.ConversationMembersActionRemove _ ->
-      Data.removeLocalMembersFromRemoteConv
-        (cmuConvId cmu)
-        (cmuOrigUserId cmu)
-        localUserIds
+    FederationAPIGalley.ConversationMembersActionRemove toRemove -> do
+      case localUserIds of
+        [] -> pure ()
+        (h : t) ->
+          Data.removeLocalMembersFromRemoteConv
+            (cmuConvId cmu)
+            (list1 h t)
+      pure $
+        Event
+          MemberLeaveQualified
+          (cmuConvId cmu)
+          (cmuOrigUserId cmu)
+          (cmuTime cmu)
+          (EdMembersLeaveQualified . QualifiedUserIdList . toList $ toRemove)
   -- FUTUREWORK: support bots?
   -- send notifications
   pushConversationEvent Nothing event targets []
