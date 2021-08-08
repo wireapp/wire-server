@@ -132,6 +132,8 @@ If `setRestrictUserCreation` is `true`, creating new personal users or new teams
 
 If you operate an instance with restricted user creation, you can still create new teams (and, if you really want to, personal users): see https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/deploy/services-demo/create_test_team_admins.sh for examples.
 
+.. note::
+    Once the creation of new users and teams has been disabled, it will still be possible to use the `team creation process <https://support.wire.com/hc/en-us/articles/115003858905-Create-a-team>`__ (enter the new team name, email, password, etc), but it will fail/refuse creation late in the creation process (after the «Create team» button is clicked).
 
 You may want
 --------------
