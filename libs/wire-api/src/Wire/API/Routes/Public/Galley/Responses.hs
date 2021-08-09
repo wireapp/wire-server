@@ -28,10 +28,16 @@ import Wire.API.ErrorDescription
     ConvNotFound,
     CustomRolesNotSupported,
     ErrorDescription (..),
+    InvalidOpConnectConv,
+    InvalidOpOne2OneConv,
+    InvalidOpSelfConv,
     ManagedRemovalNotAllowed,
     actionDenied,
     convNotFound,
     customRolesNotSupported,
+    invalidOpConnectConv,
+    invalidOpOne2OneConv,
+    invalidOpSelfConv,
     managedRemovalNotAllowed,
   )
 import qualified Wire.API.Event.Conversation as Public
@@ -42,6 +48,9 @@ data RemoveFromConversation
   | RemoveFromConversationManagedConvNotAllowed
   | RemoveFromConversationNotFound
   | RemoveFromConversationCustomRolesNotSupported
+  | RemoveFromConversationSelfConv
+  | RemoveFromConversationOne2OneConv
+  | RemoveFromConversationConnectConv
   | RemoveFromConversationUnchanged
   | RemoveFromConversationUpdated Public.Event
   deriving (Eq, Show)
@@ -54,6 +63,9 @@ data RemoveFromConversationError
   | RemoveFromConversationErrorManagedConvNotAllowed
   | RemoveFromConversationErrorNotFound
   | RemoveFromConversationErrorCustomRolesNotSupported
+  | RemoveFromConversationErrorSelfConv
+  | RemoveFromConversationErrorOne2OneConv
+  | RemoveFromConversationErrorConnectConv
   | RemoveFromConversationErrorUnchanged
 
 instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
@@ -61,8 +73,11 @@ instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
   toUnion RemoveFromConversationManagedConvNotAllowed = S (Z (I managedRemovalNotAllowed))
   toUnion RemoveFromConversationNotFound = S (S (Z (I convNotFound)))
   toUnion RemoveFromConversationCustomRolesNotSupported = S (S (S (Z (I customRolesNotSupported))))
-  toUnion RemoveFromConversationUnchanged = S (S (S (S (Z (I ())))))
-  toUnion (RemoveFromConversationUpdated e) = S (S (S (S (S (Z (I e))))))
+  toUnion RemoveFromConversationSelfConv = S (S (S (S (Z (I invalidOpSelfConv)))))
+  toUnion RemoveFromConversationOne2OneConv = S (S (S (S (S (Z (I invalidOpOne2OneConv))))))
+  toUnion RemoveFromConversationConnectConv = S (S (S (S (S (S (Z (I invalidOpConnectConv)))))))
+  toUnion RemoveFromConversationUnchanged = S (S (S (S (S (S (S (Z (I ()))))))))
+  toUnion (RemoveFromConversationUpdated e) = S (S (S (S (S (S (S (S (Z (I e)))))))))
 
   fromUnion (Z (I (ErrorDescription e))) = RemoveFromConversationNotAllowed . parse $ e
     where
@@ -73,15 +88,21 @@ instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
   fromUnion (S (Z _)) = RemoveFromConversationManagedConvNotAllowed
   fromUnion (S (S (Z _))) = RemoveFromConversationNotFound
   fromUnion (S (S (S (Z _)))) = RemoveFromConversationCustomRolesNotSupported
-  fromUnion (S (S (S (S (Z (I _)))))) = RemoveFromConversationUnchanged
-  fromUnion (S (S (S (S (S (Z (I e))))))) = RemoveFromConversationUpdated e
-  fromUnion (S (S (S (S (S (S x)))))) = case x of
+  fromUnion (S (S (S (S (Z _))))) = RemoveFromConversationSelfConv
+  fromUnion (S (S (S (S (S (Z _)))))) = RemoveFromConversationOne2OneConv
+  fromUnion (S (S (S (S (S (S (Z _))))))) = RemoveFromConversationConnectConv
+  fromUnion (S (S (S (S (S (S (S (Z (I _))))))))) = RemoveFromConversationUnchanged
+  fromUnion (S (S (S (S (S (S (S (S (Z (I e)))))))))) = RemoveFromConversationUpdated e
+  fromUnion (S (S (S (S (S (S (S (S (S x))))))))) = case x of
 
 type RemoveFromConversationResponses =
   '[ ActionDenied,
      ManagedRemovalNotAllowed,
      ConvNotFound,
      CustomRolesNotSupported,
+     InvalidOpSelfConv,
+     InvalidOpOne2OneConv,
+     InvalidOpConnectConv,
      RespondEmpty 204 "No change",
      Respond 200 "Member removed" Public.Event
    ]

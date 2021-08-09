@@ -184,7 +184,7 @@ updateConversationAccess usr zcon cnv update = do
   ensureConvMember users usr
   conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
   -- The conversation has to be a group conversation
-  ensureGroupConv conv
+  ensureGroupConvThrowing conv
   self <- getSelfMember usr users
   ensureActionAllowedThrowing ModifyConversationAccess self
   -- Team conversations incur another round of checks
@@ -324,7 +324,7 @@ updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMess
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
   ensureActionAllowedThrowing ModifyConversationMessageTimer =<< getSelfMember usr users
   conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
-  ensureGroupConv conv
+  ensureGroupConvThrowing conv
   let currentTimer = Data.convMessageTimer conv
   if currentTimer == target
     then pure Unchanged
@@ -598,6 +598,9 @@ removeMember compatibility zusr zcon convId victim =
       RemoveFromConversationErrorManagedConvNotAllowed -> RemoveFromConversationManagedConvNotAllowed
       RemoveFromConversationErrorNotFound -> RemoveFromConversationNotFound
       RemoveFromConversationErrorCustomRolesNotSupported -> RemoveFromConversationCustomRolesNotSupported
+      RemoveFromConversationErrorSelfConv -> RemoveFromConversationSelfConv
+      RemoveFromConversationErrorOne2OneConv -> RemoveFromConversationOne2OneConv
+      RemoveFromConversationErrorConnectConv -> RemoveFromConversationConnectConv
       RemoveFromConversationErrorUnchanged -> RemoveFromConversationUnchanged
 
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
@@ -654,7 +657,11 @@ removeMemberFromLocalConv compatibility zusr zcon convId qvictim@(Qualified vict
       ExceptT RemoveFromConversationError Galley ()
     genConvChecks conv usrs = do
       localDomain <- viewFederationDomain
-      lift $ ensureGroupConv conv
+      case ensureGroupConv (Data.convType conv) of
+        Left GroupConvInvalidOpSelfConv -> throwE RemoveFromConversationErrorSelfConv
+        Left GroupConvInvalidOpOne2OneConv -> throwE RemoveFromConversationErrorOne2OneConv
+        Left GroupConvInvalidOpConnectConv -> throwE RemoveFromConversationErrorConnectConv
+        Right () -> pure ()
       selfMember <- lift $ getSelfMember zusr usrs
       let action
             | Qualified zusr localDomain == qvictim = LeaveConversation
@@ -960,7 +967,7 @@ addBot zusr zcon b = do
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
       unless (zusr `isMember` users) $
         throwErrorDescription convNotFound
-      ensureGroupConv c
+      ensureGroupConvThrowing c
       ensureActionAllowedThrowing AddConversationMember =<< getSelfMember zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
         ensureMemberLimit (toList $ Data.convLocalMembers c) [botUserId (b ^. addBotId)] []
@@ -1016,7 +1023,7 @@ addToConversation ::
   Galley UpdateResult
 addToConversation _ _ _ _ Nothing _ = pure Unchanged
 addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn (Just newUsers) c = do
-  ensureGroupConv c
+  ensureGroupConvThrowing c
   let (newLocals, newRemotes) = Data.splitNonEmptyUserList newUsers
   mems <- checkedMemberAddSize newLocals newRemotes
   now <- liftIO getCurrentTime
@@ -1028,12 +1035,24 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn (Ju
   pushConversationEvent (Just conn) e localsToNotify bots
   pure $ Updated e
 
-ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
-ensureGroupConv c = case Data.convType c of
-  SelfConv -> throwM invalidSelfOp
-  One2OneConv -> throwM invalidOne2OneOp
-  ConnectConv -> throwM invalidConnectOp
-  _ -> return ()
+data GroupConvInvalidOp
+  = GroupConvInvalidOpSelfConv
+  | GroupConvInvalidOpOne2OneConv
+  | GroupConvInvalidOpConnectConv
+
+ensureGroupConv :: ConvType -> Either GroupConvInvalidOp ()
+ensureGroupConv = \case
+  SelfConv -> Left GroupConvInvalidOpSelfConv
+  One2OneConv -> Left GroupConvInvalidOpOne2OneConv
+  ConnectConv -> Left GroupConvInvalidOpConnectConv
+  _ -> Right ()
+
+ensureGroupConvThrowing :: MonadThrow m => Data.Conversation -> m ()
+ensureGroupConvThrowing c = case ensureGroupConv (Data.convType c) of
+  Left GroupConvInvalidOpSelfConv -> throwM invalidSelfOp
+  Left GroupConvInvalidOpOne2OneConv -> throwM invalidOne2OneOp
+  Left GroupConvInvalidOpConnectConv -> throwM invalidConnectOp
+  Right () -> return ()
 
 ensureMemberLimit :: [LocalMember] -> [UserId] -> [Remote UserId] -> Galley ()
 ensureMemberLimit old newLocals newRemotes = do
