@@ -54,6 +54,7 @@ class Package:
             for name, exe in package.get('executables', {}).items()]
         self.tests = [Component('test', name, test) \
             for name, test in package.get('tests', {}).items()]
+        self.flags = package.get('flags', {})
 
         main_libs = [lib for lib in self.libraries if lib.name is None]
         if len(main_libs) == 1:
@@ -80,6 +81,11 @@ class Package:
         if self.main is None:
             raise ValueError("can only merge into package with a main library")
 
+        # add flags
+        for name, flag in other.flags.items():
+            if name not in self.flags:
+                self.flags[name] = flag
+
         # add library source directory
         for lib in other.libraries:
             self.main.source_dirs += [os.path.join(other.directory, d)
@@ -90,13 +96,45 @@ class Package:
         for lib in other.libraries:
             self.dependencies |= lib.dependencies - internal
 
+        def process_exe(exe):
+            exe.dependencies -= internal
+            exe.dependencies.add(self.name)
+            if 'main' in exe.meta and len(exe.source_dirs) == 0:
+                # if there are no source dirs, the path for the main module is
+                # relative to the package root
+                exe.meta['main'] = os.path.join(other.directory,
+                    exe.meta['main'])
+            exe.source_dirs = [os.path.join(other.directory, d)
+                for d in exe.source_dirs]
+
+        # add executables
+        exe_names = set(exe.name for exe in self.executables)
+        for exe in other.executables:
+            if exe.name in exe_names:
+                raise ValueError(f"conflicting executable: {exe.name}")
+            process_exe(exe)
+            self.executables.append(exe)
+
+        # add tests
+        test_names = set(test.name for test in self.tests)
+        for test in other.tests:
+            if test.name in test_names:
+                name = other.name + "-" + test.name
+                if name in test_names:
+                    raise ValueError("conflict test: {test.name} and {name} both exist")
+                warning(f"renaming conflicting test {test.name} to {name}")
+                test.name = name
+            process_exe(test)
+            self.tests.append(test)
+
     def to_yaml(self):
         package = {
             'dependencies': list(self.dependencies),
             'executables' : dict((exe.name, exe.to_yaml()) for
                 exe in self.executables),
             'tests' : dict((test.name, test.to_yaml()) for
-                test in self.tests)
+                test in self.tests),
+            'flags' : self.flags
         }
 
         for lib in self.libraries:
