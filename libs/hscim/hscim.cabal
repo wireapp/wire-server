@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2e0b95d267e0d862fecf234432ad88860a642778490d46ce7ae8ab2b3e297e9a
+-- hash: b8d0589f22bc168d16fa3a2b2800d9cc3b14b4d94bb911fe973ccf2a2025e5e5
 
 name:           hscim
 version:        0.3.4
@@ -40,6 +40,7 @@ library
       Web.Scim.Class.Auth
       Web.Scim.Class.Group
       Web.Scim.Class.User
+      Web.Scim.Client
       Web.Scim.ContentType
       Web.Scim.Filter
       Web.Scim.Handler
@@ -95,6 +96,8 @@ library
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.19
+    , servant-client >=0.16.2 && <0.19
+    , servant-client-core >=0.16.2 && <0.19
     , servant-server >=0.16.2 && <0.19
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
@@ -143,6 +146,8 @@ executable hscim-server
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.19
+    , servant-client >=0.16.2 && <0.19
+    , servant-client-core >=0.16.2 && <0.19
     , servant-server >=0.16.2 && <0.19
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
@@ -168,6 +173,7 @@ test-suite spec
       Test.Class.UserSpec
       Test.FilterSpec
       Test.MiscSpec
+      Test.Schema.MetaSchemaSpec
       Test.Schema.PatchOpSpec
       Test.Schema.UserSpec
       Paths_hscim
@@ -203,6 +209,8 @@ test-suite spec
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.19
+    , servant-client >=0.16.2 && <0.19
+    , servant-client-core >=0.16.2 && <0.19
     , servant-server >=0.16.2 && <0.19
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
