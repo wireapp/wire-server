@@ -1314,7 +1314,7 @@ paginateConvListIds = do
   -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
   -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
   -- should get all them in 16 times.
-  foldM_ (getChunkedConvs 16 alice) Nothing [15, 14 .. 0 :: Int]
+  foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
 
 -- This test exists
 paginateConvListIdsPageEndingAtLocalsAndDomain :: TestM ()
@@ -1333,7 +1333,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
       !!! const 201 === statusCode
 
   -- We should be able to page through current state in 2 pages exactly
-  foldM_ (getChunkedConvs 16 alice) Nothing [1, 0 :: Int]
+  foldM_ (getChunkedConvs 16 0 alice) Nothing [2, 1, 0 :: Int]
 
   remoteChad <- randomId
   let chadDomain = Domain "chad.example.com"
@@ -1369,26 +1369,23 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
-  foldM_ (getChunkedConvs 16 alice) Nothing [3, 2, 1, 0 :: Int]
+  foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
-getChunkedConvs :: (Typeable a, FromJSON a) => Int32 -> UserId -> Maybe (Qualified ConvId) -> Int -> TestM a
-getChunkedConvs size alice start n = do
-  let paginationOpts = GetPaginatedConversationIds start (unsafeRange size)
+getChunkedConvs :: HasCallStack  => Int32 -> Int -> UserId -> Maybe ConversationPagingState -> Int -> TestM (Maybe ConversationPagingState)
+getChunkedConvs size lastSize alice pagingState n = do
+  let paginationOpts = GetPaginatedConversationIds pagingState (unsafeRange size)
   resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
-  let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
+  let c = responseJsonUnsafeWithMsg "failed to parse ConvIdsPage" resp
   liftIO $ do
-    -- This is because of the way this test is setup, we always get 16
-    -- convs, even on the last one
-    assertEqual
-      ("Number of convs should match the requested size, " <> show n <> " more gets to go")
-      (fromIntegral size)
-      (length (convList c))
+    if n > 0
+      then assertEqual ("Number of convs should match the requested size, " <> show n <> " more chunks to go") (fromIntegral size) (length (pageConvIds c))
+      else assertEqual "Number of convs should match the last size, no more chunks to go" lastSize (length (pageConvIds c))
 
     if n > 0
-      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (convHasMore c)
-      else assertEqual "hasMore should be False, no more chunks to go" False (convHasMore c)
+      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (pageHasMore c)
+      else assertEqual "hasMore should be False, no more chunks to go" False (pageHasMore c)
 
-  return $ last (convList c)
+  return . Just $ pagePagingState c
 
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do

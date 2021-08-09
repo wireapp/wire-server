@@ -169,7 +169,7 @@ data Api routes = Api
           :> "conversations"
           :> "list-ids"
           :> ReqBody '[Servant.JSON] Public.GetPaginatedConversationIds
-          :> Post '[Servant.JSON] (Public.ConversationList (Qualified ConvId)),
+          :> Post '[Servant.JSON] Public.ConvIdsPage,
     getConversations ::
       routes
         :- Summary "Get all *local* conversations."

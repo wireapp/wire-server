@@ -34,6 +34,7 @@ module Galley.API.Query
 where
 
 import Control.Monad.Catch (throwM)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
@@ -41,6 +42,7 @@ import Data.Id as Id
 import Data.Proxy
 import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
 import Data.Range
+import qualified Database.CQL.Protocol as C
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
@@ -139,30 +141,37 @@ listConversationIdsUnqualified zusr start msize = do
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
-listConversationIds :: UserId -> Public.GetPaginatedConversationIds -> Galley (Public.ConversationList (Qualified ConvId))
+listConversationIds :: UserId -> Public.GetPaginatedConversationIds -> Galley Public.ConvIdsPage
 listConversationIds zusr Public.GetPaginatedConversationIds {..} = do
   localDomain <- viewFederationDomain
-  let mStartDomain = qDomain <$> gpciStartingPoint
-  case mStartDomain of
-    Just x | x /= localDomain -> remotesOnly gpciStartingPoint $ fromRange gpciSize
-    _ -> localsAndRemotes localDomain (qUnqualified <$> gpciStartingPoint) gpciSize
+  case gpciStartingPoint of
+    Just (Public.ConversationPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gpciSize)
+    _ -> localsAndRemotes localDomain (fmap mkState . Public.cpsPagingState =<< gpciStartingPoint) gpciSize
   where
-    localsAndRemotes :: Domain -> Maybe ConvId -> Range 1 1000 Int32 -> Galley (ConversationList (Qualified ConvId))
-    localsAndRemotes localDomain conv size = do
-      localPage <- resultSetToConvList . fmap (`Qualified` localDomain) <$> Data.conversationIdsFrom zusr conv size
-      let remainingSize = fromRange size - fromIntegral (length (Public.convList localPage))
-      if Public.convHasMore localPage
+    mkState :: ByteString -> C.PagingState
+    mkState = C.PagingState . LBS.fromStrict
+
+    localsAndRemotes :: Domain -> Maybe C.PagingState -> Range 1 1000 Int32 -> Galley Public.ConvIdsPage
+    localsAndRemotes localDomain pagingState size = do
+      localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.conversationIdsPageFrom zusr pagingState size
+      let remainingSize = fromRange size - fromIntegral (length (Public.pageConvIds localPage))
+      if Public.pageHasMore localPage
         then pure localPage
         else do
           remotePage <- remotesOnly Nothing remainingSize
-          pure $ remotePage {convList = Public.convList localPage <> Public.convList remotePage}
+          pure $ remotePage {Public.pageConvIds = Public.pageConvIds localPage <> Public.pageConvIds remotePage}
 
-    remotesOnly :: Maybe (Qualified ConvId) -> Int32 -> Galley (ConversationList (Qualified ConvId))
-    remotesOnly start size =
-      resultSetToConvList <$> Data.remoteConversationIdsFrom zusr start size
+    remotesOnly :: Maybe C.PagingState -> Int32 -> Galley Public.ConvIdsPage
+    remotesOnly pagingState size =
+      pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsFrom zusr pagingState size
 
-    resultSetToConvList :: Data.ResultSet a -> ConversationList a
-    resultSetToConvList res = Public.ConversationList (Data.resultSetResult res) (Data.resultSetType res == Data.ResultSetTruncated)
+    pageToConvIdPage :: Public.ConversationPagingTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
+    pageToConvIdPage table Data.PageWithState {..} =
+      Public.ConvIdsPage
+        { pageConvIds = pwsResults,
+          pageHasMore = isJust pwsState,
+          pagePagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+        }
 
 getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
 getConversations user mids mstart msize = do

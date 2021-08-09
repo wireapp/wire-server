@@ -32,6 +32,8 @@ library:
   - bytestring >=0.9
   - bytestring-conversion >=0.2
   - cassandra-util >=0.16.2
+  - cql
+  - cql-io
   - cassava >= 0.5.2
   - cereal >=0.4
   - containers >=0.5

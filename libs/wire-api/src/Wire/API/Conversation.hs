@@ -27,6 +27,9 @@ module Wire.API.Conversation
     ConversationList (..),
     ListConversations (..),
     GetPaginatedConversationIds (..),
+    ConversationPagingState (..),
+    ConversationPagingTable (..),
+    ConvIdsPage (..),
 
     -- * Conversation properties
     Access (..),
@@ -75,6 +78,7 @@ import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Id
+import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
@@ -256,8 +260,56 @@ instance FromJSON a => FromJSON (ConversationList a) where
       <$> o A..: "conversations"
       <*> o A..: "has_more"
 
+data ConvIdsPage = ConvIdsPage
+  { pageConvIds :: [Qualified ConvId],
+    pageHasMore :: Bool,
+    pagePagingState :: ConversationPagingState
+  }
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvIdsPage
+
+instance ToSchema ConvIdsPage where
+  schema =
+    object "ConvIdsPage" $
+      ConvIdsPage
+        <$> pageConvIds .= field "qualified_conversations" (array schema)
+        <*> pageHasMore .= field "has_more" schema
+        <*> pagePagingState .= field "paging_state" schema
+
+-- | TODO: Would be nice to not expose these details to clients
+data ConversationPagingState = ConversationPagingState
+  { cpsTable :: ConversationPagingTable,
+    cpsPagingState :: Maybe ByteString
+  }
+  deriving (Show, Eq)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationPagingState
+
+instance ToSchema ConversationPagingState where
+  schema =
+    objectWithDocModifier
+      "ConversationPagingState"
+      (description ?~ "Clients should treat this object as opque and not try to parse it.")
+      $ ConversationPagingState
+        <$> cpsTable .= field "table" schema
+        <*> (fmap toBase64Text . cpsPagingState) .= optField "paging_state" Nothing (parsedText "PagingState" fromBase64Text)
+
+data ConversationPagingTable
+  = PagingLocals
+  | PagingRemotes
+  deriving (Show, Eq)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationPagingTable
+
+instance ToSchema ConversationPagingTable where
+  schema =
+    (S.schema . description ?~ "Used getting PagedConv") $
+      enum @Text "ConversationTable" $
+        mconcat
+          [ element "paging_locals" PagingLocals,
+            element "paging_remotes" PagingRemotes
+          ]
+
 data GetPaginatedConversationIds = GetPaginatedConversationIds
-  { gpciStartingPoint :: Maybe (Qualified ConvId),
+  { gpciStartingPoint :: Maybe ConversationPagingState,
     gpciSize :: Range 1 1000 Int32
   }
   deriving stock (Eq, Show, Generic)

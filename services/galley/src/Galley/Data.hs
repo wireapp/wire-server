@@ -20,6 +20,7 @@
 module Galley.Data
   ( ResultSet,
     ResultSetType (..),
+    PageWithState (..),
     mkResultSet,
     resultSetType,
     resultSetResult,
@@ -59,6 +60,7 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
+    conversationIdsPageFrom,
     conversationIdRowsForPagination,
     conversationIdsOf,
     conversationMeta,
@@ -136,6 +138,10 @@ import Data.Tagged
 import Data.Time.Clock
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
+import Database.CQL.IO (RunQ)
+import qualified Database.CQL.IO as C
+import Database.CQL.Protocol (Tuple)
+import qualified Database.CQL.Protocol as C
 import Galley.App
 import Galley.Data.Instances ()
 import Galley.Data.LegalHold (isTeamLegalholdWhitelisted)
@@ -552,29 +558,36 @@ conversationIdsFrom usr start (fromRange -> max) =
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
--- | When the 'start' parameter is set to 'Nothing', reads first 'max' records
--- from 'user_remote_converstaions' table.
---
--- Otherwise, reads 'max' records starting from the 'start' parameter. Doing
--- this is unfortunately not trivial, so this function first gets all the
--- conversations which match the domain and then if there is still space, gets
--- the conversations which have domain > domain of start.
-remoteConversationIdsFrom :: (MonadClient m, MonadLogger m) => UserId -> Maybe (Qualified ConvId) -> Int32 -> m (ResultSet (Qualified ConvId))
-remoteConversationIdsFrom usr start max =
-  case start of
-    Just (Qualified c d) -> do
-      domainPage <- toResultSet max <$> paginate Cql.selectUserRemoteConvsForDomainFrom (paramsP Quorum (usr, d, c) (max + 1))
-      let remainingMax = max - fromIntegral (length (resultSetResult domainPage))
-      if resultSetType domainPage == ResultSetTruncated
-        then pure domainPage
-        else do
-          nextPage <- toResultSet remainingMax <$> paginate Cql.selectUserRemoteConvsFromDomain (paramsP Quorum (usr, d) (remainingMax + 1))
-          pure $ nextPage {resultSetResult = resultSetResult domainPage <> resultSetResult nextPage}
-    Nothing ->
-      toResultSet max <$> paginate Cql.selectUserRemoteConvs (paramsP Quorum (Identity usr) (max + 1))
-  where
-    toResultSet max' = mkResultSet . strip max' . fmap (uncurry (flip Qualified))
-    strip max' p = p {result = take (fromIntegral max') (result p)}
+conversationIdsPageFrom ::
+  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  UserId ->
+  Maybe C.PagingState ->
+  Range 1 1000 Int32 ->
+  m (PageWithState ConvId)
+conversationIdsPageFrom usr pagingState (fromRange -> max) =
+  fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPWithState Quorum (Identity usr) max pagingState)
+
+paramsPWithState :: Consistency -> a -> Int32 -> Maybe C.PagingState -> QueryParams a
+paramsPWithState c p n state = QueryParams c False p (Just n) state Nothing Nothing
+
+data PageWithState a = PageWithState
+  { pwsResults :: [a],
+    pwsState :: Maybe C.PagingState
+  }
+  deriving (Functor)
+
+paginateWithState :: (MonadClient m, Tuple a, Tuple b, RunQ q) => q R a b -> QueryParams a -> m (PageWithState b)
+paginateWithState q p = do
+  let p' = p {C.pageSize = C.pageSize p <|> Just 10000}
+  r <- C.runQ q p'
+  C.getResult r >>= \case
+    C.RowsResult m b ->
+      return $ PageWithState b (C.pagingState m)
+    _ -> throwM $ C.UnexpectedResponse (C.hrHost r) (C.hrResponse r)
+
+remoteConversationIdsFrom :: (MonadClient m, MonadLogger m) => UserId -> Maybe C.PagingState -> Int32 -> m (PageWithState (Qualified ConvId))
+remoteConversationIdsFrom usr pagingState max =
+  uncurry (flip Qualified) <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPWithState Quorum (Identity usr) max pagingState)
 
 conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)
 conversationIdRowsForPagination usr start (fromRange -> max) =
