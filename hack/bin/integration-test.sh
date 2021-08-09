@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -o pipefail
 
 NAMESPACE=${NAMESPACE:-test-integration}
 
