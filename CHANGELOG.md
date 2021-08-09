@@ -31,11 +31,13 @@
 
 ## Features
 
+* Client functions for the hscim library (#1699)
+
 ## Bug fixes and other updates
 
 ## Documentation
 
-*  fix swagger: mark name in UserUpdate as optional (#1691)
+* fix swagger: mark name in UserUpdate as optional (#1691)
 
 ## Internal changes
 
