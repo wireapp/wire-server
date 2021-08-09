@@ -20,14 +20,28 @@
 module Wire.API.Routes.Public.Galley.Responses where
 
 import Data.SOP (I (..), NS (..))
+import qualified Data.Text as T
 import Imports
-import Wire.API.ErrorDescription (ConvNotFound, RemovalNotAllowed, convNotFound, removalNotAllowed)
+import Wire.API.Conversation.Role (Action)
+import Wire.API.ErrorDescription
+  ( ActionDenied,
+    ConvNotFound,
+    CustomRolesNotSupported,
+    ErrorDescription (..),
+    ManagedRemovalNotAllowed,
+    actionDenied,
+    convNotFound,
+    customRolesNotSupported,
+    managedRemovalNotAllowed,
+  )
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Routes.MultiVerb (AsUnion (..), Respond, RespondEmpty)
 
 data RemoveFromConversation
-  = RemoveFromConversationNotAllowed
+  = RemoveFromConversationNotAllowed Action
+  | RemoveFromConversationManagedConvNotAllowed
   | RemoveFromConversationNotFound
+  | RemoveFromConversationCustomRolesNotSupported
   | RemoveFromConversationUnchanged
   | RemoveFromConversationUpdated Public.Event
   deriving (Eq, Show)
@@ -36,25 +50,38 @@ data RemoveFromConversation
 -- This is needed in using ExceptT to differentiate error outcomes from an
 -- outcome reflecting a change.
 data RemoveFromConversationError
-  = RemoveFromConversationErrorNotAllowed
+  = RemoveFromConversationErrorNotAllowed Action
+  | RemoveFromConversationErrorManagedConvNotAllowed
   | RemoveFromConversationErrorNotFound
+  | RemoveFromConversationErrorCustomRolesNotSupported
   | RemoveFromConversationErrorUnchanged
 
 instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
-  toUnion RemoveFromConversationNotAllowed = Z (I removalNotAllowed)
-  toUnion RemoveFromConversationNotFound = S (Z (I convNotFound))
-  toUnion RemoveFromConversationUnchanged = S (S (Z (I ())))
-  toUnion (RemoveFromConversationUpdated e) = S (S (S (Z (I e))))
+  toUnion (RemoveFromConversationNotAllowed a) = Z (I (actionDenied a))
+  toUnion RemoveFromConversationManagedConvNotAllowed = S (Z (I managedRemovalNotAllowed))
+  toUnion RemoveFromConversationNotFound = S (S (Z (I convNotFound)))
+  toUnion RemoveFromConversationCustomRolesNotSupported = S (S (S (Z (I customRolesNotSupported))))
+  toUnion RemoveFromConversationUnchanged = S (S (S (S (Z (I ())))))
+  toUnion (RemoveFromConversationUpdated e) = S (S (S (S (S (Z (I e))))))
 
-  fromUnion (Z _) = RemoveFromConversationNotAllowed
-  fromUnion (S (Z _)) = RemoveFromConversationNotFound
-  fromUnion (S (S (Z (I _)))) = RemoveFromConversationUnchanged
-  fromUnion (S (S (S (Z (I e))))) = RemoveFromConversationUpdated e
-  fromUnion (S (S (S (S x)))) = case x of
+  fromUnion (Z (I (ErrorDescription e))) = RemoveFromConversationNotAllowed . parse $ e
+    where
+      -- The input is from the error description given in
+      -- 'Wire.API.ErrorDescription.actionDenied'.
+      parse :: Text -> Action
+      parse = read . T.unpack . (!! 3) . T.words
+  fromUnion (S (Z _)) = RemoveFromConversationManagedConvNotAllowed
+  fromUnion (S (S (Z _))) = RemoveFromConversationNotFound
+  fromUnion (S (S (S (Z _)))) = RemoveFromConversationCustomRolesNotSupported
+  fromUnion (S (S (S (S (Z (I _)))))) = RemoveFromConversationUnchanged
+  fromUnion (S (S (S (S (S (Z (I e))))))) = RemoveFromConversationUpdated e
+  fromUnion (S (S (S (S (S (S x)))))) = case x of
 
 type RemoveFromConversationResponses =
-  '[ RemovalNotAllowed,
+  '[ ActionDenied,
+     ManagedRemovalNotAllowed,
      ConvNotFound,
+     CustomRolesNotSupported,
      RespondEmpty 204 "No change",
      Respond 200 "Member removed" Public.Event
    ]
