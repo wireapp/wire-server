@@ -19,8 +19,8 @@ spec:
         secretName: "federator-secret"
     # integration tests need access to the CA
     - name: "federator-ca"
-      secret:
-        secretName: "federator-ca"
+      configMap:
+        name: "federator-ca"
   containers:
   - name: integration
     command: ["federator-integration"]
