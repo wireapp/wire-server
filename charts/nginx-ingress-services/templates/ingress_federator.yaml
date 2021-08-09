@@ -14,6 +14,8 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
     nginx.ingress.kubernetes.io/auth-tls-secret: "{{ .Release.Namespace }}/federator-ca-secret"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      grpc_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
 spec:
   tls:
   - hosts:
