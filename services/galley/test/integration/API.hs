@@ -1371,6 +1371,11 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
+-- | Gets chucked conversation ids given size of each chunk, size of the last
+-- chunk, requesting user and @n@ which represents how many chunks are remaining
+-- to go, when this is 0, it is assumed that this chunk is last and the response
+-- must set @has_more@ to 'False' and the number of conv ids returned should
+-- match @lastSize@.
 getChunkedConvs :: HasCallStack => Int32 -> Int -> UserId -> Maybe ConversationPagingState -> Int -> TestM (Maybe ConversationPagingState)
 getChunkedConvs size lastSize alice pagingState n = do
   let paginationOpts = GetPaginatedConversationIds pagingState (unsafeRange size)
