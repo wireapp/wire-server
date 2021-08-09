@@ -246,16 +246,15 @@ removeLocalUser = do
       afterAddition @?= [qconv]
       afterRemoval @?= []
 
--- TODO(md): Update the Haddock of this test once done with the test
-
 -- | This test invokes the federation endpoint:
 --
 --   'POST /federation/update-conversation-memberships'
 --
--- two times in a row: first adding a remote user to a remote conversation, and
--- then removing them. The test asserts the expected database states in between
--- the calls, the final database state and that a local conversation member got
--- notified of the removal.
+-- two times in a row: first adding a local and a remote user to a remote
+-- conversation, and then removing the remote user. The test asserts the
+-- expected database states in between the calls from the point of view of the
+-- local user, the final database state and that the local conversation member
+-- got notified of the removal.
 removeRemoteUser :: TestM ()
 removeRemoteUser = do
   localDomain <- viewFederationDomain
@@ -303,10 +302,10 @@ removeRemoteUser = do
     void . liftIO . WS.assertMatch (3 # Second) ws $
       wsAssertMemberJoinWithRole qconv qBob [qAlice, qEve] roleNameWireMember
     FedGalley.updateConversationMemberships fedGalleyClient cmuRemove
+    afterRemoval <- aliceConvs
     void . liftIO $
       WS.assertMatch (3 # Second) ws $
         wsAssertMembersLeaveQualified qconv qBob [qEve]
-    afterRemoval <- aliceConvs
     liftIO $ do
       afterAddition @?= [qconv]
       afterRemoval @?= [qconv]
