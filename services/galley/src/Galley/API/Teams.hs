@@ -766,7 +766,7 @@ deleteTeamConversation zusr zcon tid cid = do
   let qconvId = Qualified cid localDomain
       qusr = Qualified zusr localDomain
   (bots, cmems) <- localBotsAndUsers <$> Data.members cid
-  ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
+  ensureActionAllowedThrowing Roles.DeleteConversation =<< getSelfMember zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete

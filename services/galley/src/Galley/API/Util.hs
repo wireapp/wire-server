@@ -128,15 +128,29 @@ ensureReAuthorised u secret = do
   unless reAuthed $
     throwM reAuthFailed
 
+data ActionCheckingOutcome
+  = ACOAllowed
+  | ACOActionDenied Action
+  | ACOCustomRolesNotSupported
+
+-- | Given a member in a conversation, check if the given action
+-- is permitted.
+ensureActionAllowed :: Action -> InternalMember a -> ActionCheckingOutcome
+ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
+  Just True -> ACOAllowed
+  Just False -> ACOActionDenied action
+  Nothing -> ACOCustomRolesNotSupported
+
 -- | Given a member in a conversation, check if the given action
 -- is permitted.
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-ensureActionAllowed :: Action -> InternalMember a -> Galley ()
-ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
-  Just True -> return ()
-  Just False -> throwErrorDescription (actionDenied action)
-  Nothing -> throwM (badRequest "Custom roles not supported")
+ensureActionAllowedThrowing :: Action -> InternalMember a -> Galley ()
+-- ensureActionAllowedThrowing action mem = case isActionAllowed action (memConvRoleName mem) of
+ensureActionAllowedThrowing action mem = case ensureActionAllowed action mem of
+  ACOAllowed -> return ()
+  ACOActionDenied _ -> throwErrorDescription (actionDenied action)
+  ACOCustomRolesNotSupported -> throwM (badRequest "Custom roles not supported")
 
 -- Actually, this will "never" happen due to the
 -- fact that there can be no custom roles at the moment

@@ -279,8 +279,20 @@ type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys up
 malformedPrekeys :: MalformedPrekeys
 malformedPrekeys = mkErrorDescription
 
-type RemovalNotAllowed =
-  ErrorDescription 403 "invalid-op" "Conversation type does not allow removing members"
+type ManagedRemovalNotAllowed =
+  ErrorDescription
+    403
+    "invalid-op"
+    "Users can not be removed from managed conversations."
 
-removalNotAllowed :: RemovalNotAllowed
-removalNotAllowed = mkErrorDescription
+managedRemovalNotAllowed :: ManagedRemovalNotAllowed
+managedRemovalNotAllowed = mkErrorDescription
+
+type CustomRolesNotSupported =
+  ErrorDescription
+    400
+    "bad-request"
+    "Custom roles not supported"
+
+customRolesNotSupported :: CustomRolesNotSupported
+customRolesNotSupported = mkErrorDescription
