@@ -53,6 +53,7 @@
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * Integration test coverage (#1704)
+* Integration test script now displays output interactively (#1700)
 
 # [2021-08-02]
 
