@@ -128,6 +128,7 @@ ensureReAuthorised u secret = do
   unless reAuthed $
     throwM reAuthFailed
 
+-- | Possible outcomes of ensuring an action is allowed.
 data ActionCheckingOutcome
   = ACOAllowed
   | ACOActionDenied Action
@@ -146,7 +147,6 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
 ensureActionAllowedThrowing :: Action -> InternalMember a -> Galley ()
--- ensureActionAllowedThrowing action mem = case isActionAllowed action (memConvRoleName mem) of
 ensureActionAllowedThrowing action mem = case ensureActionAllowed action mem of
   ACOAllowed -> return ()
   ACOActionDenied _ -> throwErrorDescription (actionDenied action)
