@@ -35,10 +35,12 @@
 
 ## Documentation
 
-*  fix swagger: mark name in UserUpdate as optional (#1691)
+* fix swagger: mark name in UserUpdate as optional (#1691)
 
 ## Internal changes
 
+* Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
+* Added a mechanism to derive `AsUnion` instances automatically (#1693)
 
 # [2021-08-02]
 
