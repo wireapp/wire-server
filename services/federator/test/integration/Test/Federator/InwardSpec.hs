@@ -26,6 +26,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import qualified Data.Text as Text
+import Federator.Options
 import Imports
 import Mu.GRpc.Client.TyApps
 import Network.GRPC.Client.Helpers
@@ -107,19 +108,23 @@ expectErr expectedType err =
 inwardBrigCall :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
 inwardBrigCall requestPath payload = do
   c <- viewFederatorExternalClient
+  originDomain <- cfgOriginDomain <$> view teTstOpts
   let brigCall =
         GRPC.Request
           { GRPC.component = Brig,
             GRPC.path = requestPath,
             GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = "example.com"
+            GRPC.originDomain = originDomain
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
 viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
 viewFederatorExternalClient = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
-  exampleCert <- liftIO $ BS.readFile "test/resources/integration-leaf.pem"
+  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  exampleCert <-
+    (clientCertificate . optSettings <$> view teOpts) >>= \case
+      Nothing -> liftIO $ assertFailure "No client certificate configured"
+      Just certPath -> liftIO $ BS.readFile certPath
   let cfg =
         (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
           { _grpcClientConfigHeaders = [("X-SSL-Certificate", HTTP.urlEncode True exampleCert)]

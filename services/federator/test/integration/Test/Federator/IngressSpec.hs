@@ -64,11 +64,12 @@ inwardBrigCallViaIngress requestPath payload = do
   client <- case c of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli
+  originDomain <- cfgOriginDomain <$> view teTstOpts
   let brigCall =
         GRPC.Request
           { GRPC.component = Brig,
             GRPC.path = requestPath,
             GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = "example.com"
+            GRPC.originDomain = originDomain
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client brigCall
