@@ -131,9 +131,7 @@ listConversationIdsUnqualified zusr start msize = do
       (Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
 
--- | Lists conversation ids for the logged in user. The request can optionally
--- have a 'startingPoint', this can be used to list conversation ids in a
--- paginated way.
+-- | Lists conversation ids for the logged in user in a paginated way.
 --
 -- Pagination requires an order, in this case the order is defined as:
 --
@@ -144,9 +142,9 @@ listConversationIdsUnqualified zusr start msize = do
 listConversationIds :: UserId -> Public.GetPaginatedConversationIds -> Galley Public.ConvIdsPage
 listConversationIds zusr Public.GetPaginatedConversationIds {..} = do
   localDomain <- viewFederationDomain
-  case gpciStartingPoint of
+  case gpciPagingState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gpciSize)
-    _ -> localsAndRemotes localDomain (fmap mkState . Public.cpsPagingState =<< gpciStartingPoint) gpciSize
+    _ -> localsAndRemotes localDomain (fmap mkState . Public.cpsPagingState =<< gpciPagingState) gpciSize
   where
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict

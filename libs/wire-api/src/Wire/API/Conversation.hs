@@ -309,7 +309,7 @@ instance ToSchema ConversationPagingTable where
           ]
 
 data GetPaginatedConversationIds = GetPaginatedConversationIds
-  { gpciStartingPoint :: Maybe ConversationPagingState,
+  { gpciPagingState :: Maybe ConversationPagingState,
     gpciSize :: Range 1 1000 Int32
   }
   deriving stock (Eq, Show, Generic)
@@ -317,16 +317,16 @@ data GetPaginatedConversationIds = GetPaginatedConversationIds
 
 instance ToSchema GetPaginatedConversationIds where
   schema =
-    let addStartingPointDoc =
+    let addPagingStateDoc =
           description
-            ?~ "starting conversation id, this conversation id will not be included in the response. \
-               \The conversations are ordered lexicographically by domain and then by id using UUID ordering."
+            ?~ "optional, when not first page of the conversation ids will be returned.\
+               \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
         addSizeDoc = description ?~ "optional, must be <= 1000, defaults to 1000."
      in objectWithDocModifier
           "GetPaginatedConversationIds"
           (description ?~ "A request to list some or all of a user's conversation ids, including remote ones")
           $ GetPaginatedConversationIds
-            <$> gpciStartingPoint .= optFieldWithDocModifier "starting_point" Nothing addStartingPointDoc schema
+            <$> gpciPagingState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema
             <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
 
 -- | Used on the POST /list-conversations endpoint
