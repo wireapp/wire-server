@@ -197,7 +197,8 @@ removeLocalUser :: TestM ()
 removeLocalUser = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
-  [alice, bob] <- randomUsers 2
+  alice <- randomUser
+  bob <- randomId
   let qAlice = Qualified alice localDomain
   let dom = Domain "bobland.example.com"
   let qBob = bob `Qualified` dom
@@ -259,7 +260,8 @@ removeRemoteUser :: TestM ()
 removeRemoteUser = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
-  [alice, bob, eve] <- randomUsers 3
+  alice <- randomUser
+  [bob, eve] <- replicateM 2 randomId
   let qAlice = Qualified alice localDomain
       dom = Domain "bobland.example.com"
       qBob = Qualified bob dom
@@ -302,7 +304,6 @@ removeRemoteUser = do
       wsAssertMemberJoinWithRole qconv qBob [qAlice, qEve] roleNameWireMember
     FedGalley.updateConversationMemberships fedGalleyClient cmuRemove
     void . liftIO $
-      -- WS.assertNoEvent (3 # Second) [ws]
       WS.assertMatch (3 # Second) ws $
         wsAssertMembersLeaveQualified qconv qBob [qEve]
     afterRemoval <- aliceConvs
