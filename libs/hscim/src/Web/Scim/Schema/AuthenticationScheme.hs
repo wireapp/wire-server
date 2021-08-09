@@ -19,7 +19,7 @@
 
 module Web.Scim.Schema.AuthenticationScheme
   ( AuthenticationScheme (..),
-    AuthenticationSchemeEncoding,
+    AuthenticationSchemeEncoding (..),
     authHttpBasicEncoding,
   )
 where
