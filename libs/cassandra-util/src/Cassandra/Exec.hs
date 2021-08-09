@@ -26,7 +26,7 @@ module Cassandra.Exec
     x1,
     syncCassandra,
     paginateC,
-    PageWithState(..),
+    PageWithState (..),
     paginateWithState,
     paramsPagingState,
     pwsHasMore,
@@ -38,12 +38,12 @@ import Cassandra.CQL (Consistency, R)
 import Control.Monad.Catch
 import Data.Conduit
 -- We only use these locally.
-import Database.CQL.IO (RetrySettings, RunQ, runQ, defRetrySettings, eagerRetrySettings, getResult, ProtocolError (UnexpectedResponse), hrHost, hrResponse)
+import Database.CQL.IO (ProtocolError (UnexpectedResponse), RetrySettings, RunQ, defRetrySettings, eagerRetrySettings, getResult, hrHost, hrResponse, runQ)
 -- Things we just import and re-export.
 import Database.CQL.IO as C (BatchM, Client, ClientState, MonadClient, Page (..), PrepQuery, Row, addPrepQuery, addQuery, adjustConsistency, adjustResponseTimeout, adjustSendTimeout, batch, emptyPage, init, liftClient, localState, paginate, prepared, query, query1, queryString, retry, runClient, schema, setConsistency, setSerialConsistency, setType, shutdown, trans, write)
 import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple, pagingState)
-import Imports hiding (init)
 import qualified Database.CQL.Protocol as Protocol
+import Imports hiding (init)
 
 params :: Tuple a => Consistency -> a -> QueryParams a
 params c p = QueryParams c False p Nothing Nothing Nothing Nothing

@@ -33,6 +33,7 @@ module Galley.API.Query
   )
 where
 
+import qualified Cassandra as C
 import Control.Monad.Catch (throwM)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
@@ -64,7 +65,6 @@ import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
-import qualified Cassandra as C
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
