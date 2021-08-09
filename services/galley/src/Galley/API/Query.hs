@@ -42,7 +42,6 @@ import Data.Id as Id
 import Data.Proxy
 import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
 import Data.Range
-import qualified Database.CQL.Protocol as C
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
@@ -65,6 +64,7 @@ import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
+import qualified Cassandra as C
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversationH (zbot ::: zcnv ::: _) = do

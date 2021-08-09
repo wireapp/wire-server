@@ -26,6 +26,10 @@ module Cassandra.Exec
     x1,
     syncCassandra,
     paginateC,
+    PageWithState(..),
+    paginateWithState,
+    paramsPagingState,
+    pwsHasMore,
     module C,
   )
 where
@@ -34,11 +38,12 @@ import Cassandra.CQL (Consistency, R)
 import Control.Monad.Catch
 import Data.Conduit
 -- We only use these locally.
-import Database.CQL.IO (RetrySettings, RunQ, defRetrySettings, eagerRetrySettings)
+import Database.CQL.IO (RetrySettings, RunQ, runQ, defRetrySettings, eagerRetrySettings, getResult, ProtocolError (UnexpectedResponse), hrHost, hrResponse)
 -- Things we just import and re-export.
 import Database.CQL.IO as C (BatchM, Client, ClientState, MonadClient, Page (..), PrepQuery, Row, addPrepQuery, addQuery, adjustConsistency, adjustResponseTimeout, adjustSendTimeout, batch, emptyPage, init, liftClient, localState, paginate, prepared, query, query1, queryString, retry, runClient, schema, setConsistency, setSerialConsistency, setType, shutdown, trans, write)
-import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple)
+import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple, pagingState)
 import Imports hiding (init)
+import qualified Database.CQL.Protocol as Protocol
 
 params :: Tuple a => Consistency -> a -> QueryParams a
 params c p = QueryParams c False p Nothing Nothing Nothing Nothing
@@ -100,3 +105,29 @@ paginateC q p r = go =<< lift (retry r (paginate q p))
         yield (result page)
       when (hasMore page) $
         go =<< lift (retry r (liftClient (nextPage page)))
+
+data PageWithState a = PageWithState
+  { pwsResults :: [a],
+    pwsState :: Maybe Protocol.PagingState
+  }
+  deriving (Functor)
+
+-- | Like 'paginate' but exposes the paging state. This paging state can be
+-- serialised and sent to consumers of the API. The state is not good for long
+-- term storage as the bytestring format may change useless when schema of a
+-- table changes or when cassandra is upgraded.
+paginateWithState :: (MonadClient m, Tuple a, Tuple b, RunQ q) => q R a b -> QueryParams a -> m (PageWithState b)
+paginateWithState q p = do
+  let p' = p {Protocol.pageSize = Protocol.pageSize p <|> Just 10000}
+  r <- runQ q p'
+  getResult r >>= \case
+    Protocol.RowsResult m b ->
+      return $ PageWithState b (pagingState m)
+    _ -> throwM $ UnexpectedResponse (hrHost r) (hrResponse r)
+
+paramsPagingState :: Consistency -> a -> Int32 -> Maybe Protocol.PagingState -> QueryParams a
+paramsPagingState c p n state = QueryParams c False p (Just n) state Nothing Nothing
+{-# INLINE paramsPagingState #-}
+
+pwsHasMore :: PageWithState a -> Bool
+pwsHasMore = isJust . pwsState
