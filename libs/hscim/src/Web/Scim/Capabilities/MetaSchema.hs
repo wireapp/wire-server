@@ -29,6 +29,7 @@ where
 import Data.Aeson
 import qualified Data.HashMap.Lazy as HML
 import Data.Text (Text)
+import Data.Typeable (Typeable, cast)
 import Servant hiding (URI)
 import Servant.API.Generic
 import Servant.Server.Generic
@@ -58,6 +59,16 @@ instance ToJSON a => ToJSON (Supported a) where
     (Object o) -> Object $ HML.insert "supported" (Bool b) o
     _ -> Object $ HML.fromList [("supported", Bool b)]
 
+instance (Typeable a, FromJSON a) => FromJSON (Supported a) where
+  parseJSON val = do
+    Supported
+      <$> withObject "Supported a" (.: "supported") val
+      <*> let -- allow special case for empty subConfig (`()` does not parse from json objects)
+              val' = case cast @() @a () of
+                Just _ -> Array mempty
+                Nothing -> val
+           in parseJSON @a val'
+
 data BulkConfig = BulkConfig
   { maxOperations :: Int,
     maxPayloadSize :: Int
@@ -67,6 +78,10 @@ data BulkConfig = BulkConfig
 instance ToJSON BulkConfig where
   toJSON = genericToJSON serializeOptions
 
+instance FromJSON BulkConfig where
+  parseJSON = withObject "BulkConfig" $ \obj -> do
+    BulkConfig <$> obj .: "maxOperations" <*> obj .: "maxPayloadSize"
+
 data FilterConfig = FilterConfig
   { maxResults :: Int
   }
@@ -74,6 +89,9 @@ data FilterConfig = FilterConfig
 
 instance ToJSON FilterConfig where
   toJSON = genericToJSON serializeOptions
+
+instance FromJSON FilterConfig where
+  parseJSON = genericParseJSON serializeOptions
 
 data Configuration = Configuration
   { documentationUri :: Maybe URI,
@@ -90,6 +108,9 @@ data Configuration = Configuration
 
 instance ToJSON Configuration where
   toJSON = genericToJSON serializeOptions
+
+instance FromJSON Configuration where
+  parseJSON = genericParseJSON serializeOptions
 
 empty :: Configuration
 empty =
