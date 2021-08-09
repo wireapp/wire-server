@@ -10,6 +10,6 @@ metadata:
 data:
 {{- if .Values.remoteCAContents }}
   ca.crt: {{ .Values.remoteCAContents | quote }}
-{{- else -}}
+{{- else }}
   {}
 {{- end }}

@@ -17,6 +17,10 @@ spec:
     - name: "federator-secrets"
       secret:
         secretName: "federator-secret"
+    # integration tests need access to the CA
+    - name: "federator-ca"
+      secret:
+        secretName: "federator-ca"
   containers:
   - name: integration
     command: ["federator-integration"]
@@ -28,4 +32,6 @@ spec:
       mountPath: "/etc/wire/federator/conf"
     - name: "federator-secrets"
       mountPath: "/etc/wire/federator/secrets"
+    - name: "federator-ca"
+      mountPath: "/etc/wire/federator/ca"
   restartPolicy: Never
