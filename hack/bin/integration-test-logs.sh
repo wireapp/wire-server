@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 if [[ -z "$NAMESPACE" ]]; then
   echo "NAMESPACE not set"
