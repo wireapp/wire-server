@@ -81,8 +81,7 @@ instance ToJSON BulkConfig where
   toJSON = genericToJSON serializeOptions
 
 instance FromJSON BulkConfig where
-  parseJSON = withObject "BulkConfig" $ \obj -> do
-    BulkConfig <$> obj .: "maxOperations" <*> obj .: "maxPayloadSize"
+  parseJSON = genericParseJSON serializeOptions
 
 data FilterConfig = FilterConfig
   { maxResults :: Int
