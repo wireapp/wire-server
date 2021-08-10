@@ -885,7 +885,7 @@ deleteMemberUnqualified u1 u2 c = do
       . zType "access"
 
 deleteMemberQualified ::
-  (HasCallStack, Monad m, MonadIO m, MonadHttp m, HasGalley m) =>
+  (HasCallStack, MonadIO m, MonadHttp m, HasGalley m) =>
   UserId ->
   Qualified UserId ->
   ConvId ->
