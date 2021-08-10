@@ -752,7 +752,7 @@ testOldClientsBlockDeviceHandshake = do
     -- If user has a client without the ClientSupportsLegalholdImplicitConsent
     -- capability then message sending is prevented to legalhold devices.
     peerClient <- randomClient peer (someLastPrekeys !! 2)
-    runit peer peerClient >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+    runit peer peerClient >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
     upgradeClientToLH peer peerClient
     runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
 
@@ -803,7 +803,7 @@ testClaimKeys testcase = do
         TCKConsentAndNewClients -> good
         where
           good = testResponse 200 Nothing
-          bad = testResponse 412 (Just "missing-legalhold-consent")
+          bad = testResponse 403 (Just "missing-legalhold-consent")
 
   let fetchKeys :: ClientId -> TestM ()
       fetchKeys legalholderLHDevice = do

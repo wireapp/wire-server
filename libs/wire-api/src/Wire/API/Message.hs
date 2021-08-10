@@ -51,6 +51,9 @@ module Wire.API.Message
     ClientMismatch (..),
     ClientMismatchStrategy (..),
     MessageSendingStatus (..),
+    PostOtrResponses,
+    PostOtrResponse,
+    MessageNotSent (..),
     UserClients (..),
     ReportMissing (..),
     IgnoreMissing (..),
@@ -75,6 +78,7 @@ import qualified Data.ProtoLens as ProtoLens
 import qualified Data.ProtoLens.Field as ProtoLens
 import qualified Data.ProtocolBuffers as Protobuf
 import Data.Qualified (Qualified (..))
+import Data.SOP (I (..), NS (..), unI, unZ)
 import Data.Schema
 import Data.Serialize (runGetLazy)
 import qualified Data.Set as Set
@@ -82,12 +86,16 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Read as Reader
 import qualified Data.UUID as UUID
+import qualified Generics.SOP as GSOP
 import Imports
 import qualified Proto.Otr
 import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (FromHttpApiData (..))
+import Servant.Server (type (.++))
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
+import Wire.API.ErrorDescription
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.MultiVerb
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
 import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), QualifiedUserClients, UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
 
@@ -552,6 +560,47 @@ instance ToSchema MessageSendingStatus where
                    \like when some clients are missing."
             )
             schema
+
+data MessageNotSent a
+  = MessageNotSentConversationNotFound
+  | MessageNotSentUnknownClient
+  | MessageNotSentLegalhold
+  | MessageNotSentClientMissing a
+  deriving stock (Eq, Show, Generic, Functor)
+  deriving
+    (AsUnion (MessageNotSentResponses a))
+    via (GenericAsUnion (MessageNotSentResponses a) (MessageNotSent a))
+
+instance GSOP.Generic (MessageNotSent a)
+
+type MessageNotSentResponses a =
+  '[ ConvNotFound,
+     UnknownClient,
+     MissingLegalholdConsent,
+     Respond 412 "Missing clients" a
+   ]
+
+type PostOtrResponses a =
+  MessageNotSentResponses a
+    .++ '[Respond 201 "Message sent" a]
+
+type PostOtrResponse a = Either (MessageNotSent a) a
+
+instance
+  ( rs ~ (MessageNotSentResponses a .++ '[r]),
+    a ~ ResponseType r
+  ) =>
+  AsUnion rs (PostOtrResponse a)
+  where
+  toUnion =
+    eitherToUnion
+      (toUnion @(MessageNotSentResponses a))
+      (Z . I)
+
+  fromUnion =
+    eitherFromUnion
+      (fromUnion @(MessageNotSentResponses a))
+      (unI . unZ)
 
 -- QueryParams
 
