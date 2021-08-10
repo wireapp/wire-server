@@ -14,13 +14,15 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Query
   ( getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
-    getConversationIds,
+    conversationIdsPageFromUnqualified,
+    conversationIdsPageFrom,
     getConversations,
     listConversations,
     iterateConversations,
@@ -31,7 +33,9 @@ module Galley.API.Query
   )
 where
 
+import qualified Cassandra as C
 import Control.Monad.Catch (throwM)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
@@ -118,14 +122,58 @@ getConversationRoles zusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getConversationIds :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
-getConversationIds zusr start msize = do
+conversationIdsPageFromUnqualified :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
+conversationIdsPageFromUnqualified zusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- Data.conversationIdsFrom zusr start size
   pure $
     Public.ConversationList
       (Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
+
+-- | Lists conversation ids for the logged in user in a paginated way.
+--
+-- Pagination requires an order, in this case the order is defined as:
+--
+-- - First all the local conversations are listed ordered by their id
+--
+-- - After local conversations, remote conversations are listed ordered
+-- - lexicographically by their domain and then by their id.
+conversationIdsPageFrom :: UserId -> Public.GetPaginatedConversationIds -> Galley Public.ConvIdsPage
+conversationIdsPageFrom zusr Public.GetPaginatedConversationIds {..} = do
+  localDomain <- viewFederationDomain
+  case gpciPagingState of
+    Just (Public.ConversationPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gpciSize)
+    _ -> localsAndRemotes localDomain (fmap mkState . Public.cpsPagingState =<< gpciPagingState) gpciSize
+  where
+    mkState :: ByteString -> C.PagingState
+    mkState = C.PagingState . LBS.fromStrict
+
+    localsAndRemotes :: Domain -> Maybe C.PagingState -> Range 1 1000 Int32 -> Galley Public.ConvIdsPage
+    localsAndRemotes localDomain pagingState size = do
+      localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.localConversationIdsPageFrom zusr pagingState size
+      let remainingSize = fromRange size - fromIntegral (length (Public.pageConvIds localPage))
+      if Public.pageHasMore localPage || remainingSize <= 0
+        then pure localPage {Public.pageHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
+        else do
+          remotePage <- remotesOnly Nothing remainingSize
+          pure $ remotePage {Public.pageConvIds = Public.pageConvIds localPage <> Public.pageConvIds remotePage}
+
+    remotesOnly :: Maybe C.PagingState -> Int32 -> Galley Public.ConvIdsPage
+    remotesOnly pagingState size =
+      pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsPageFrom zusr pagingState size
+
+    pageToConvIdPage :: Public.ConversationPagingTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
+    pageToConvIdPage table page@Data.PageWithState {..} =
+      Public.ConvIdsPage
+        { pageConvIds = pwsResults,
+          pageHasMore = C.pwsHasMore page,
+          pagePagingState =
+            Public.ConversationPagingState
+              { cpsTable = table,
+                cpsPagingState = LBS.toStrict . C.unPagingState <$> pwsState
+              }
+        }
 
 getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
 getConversations user mids mstart msize = do

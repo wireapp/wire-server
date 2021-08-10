@@ -126,9 +126,9 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
-    getConversationIds ::
+    listConversationIdsUnqualified ::
       routes
-        :- Summary "Get all conversation IDs."
+        :- Summary "[deprecated] Get all local conversation IDs."
         -- FUTUREWORK: add bounds to swagger schema for Range
         :> ZUser
         :> "conversations"
@@ -148,6 +148,15 @@ data Api routes = Api
              "size"
              (Range 1 1000 Int32)
         :> Get '[Servant.JSON] (Public.ConversationList ConvId),
+    listConversationIds ::
+      routes
+        :- Summary "Get all conversation IDs."
+          :> Description "To retrieve the next page, a client must pass the paging_state returned by the previous page."
+          :> ZUser
+          :> "conversations"
+          :> "list-ids"
+          :> ReqBody '[Servant.JSON] Public.GetPaginatedConversationIds
+          :> Post '[Servant.JSON] Public.ConvIdsPage,
     getConversations ::
       routes
         :- Summary "Get all *local* conversations."

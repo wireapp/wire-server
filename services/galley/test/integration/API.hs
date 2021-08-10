@@ -50,6 +50,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -116,7 +117,10 @@ tests s =
           test s "list-conversations by ids" listConvsOk2,
           test s "fail to get >500 conversations" getConvsFailMaxSize,
           test s "get conversation ids" getConvIdsOk,
+          test s "get conversation ids v2" listConvIdsOk,
           test s "paginate through conversation ids" paginateConvIds,
+          test s "paginate through /conversations/list-ids" paginateConvListIds,
+          test s "paginate through /conversations/list-ids - page ending at locals and remote domain" paginateConvListIdsPageEndingAtLocalsAndDomain,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
           test s "page through conversations" getConvsPagingOk,
           test s "page through list-conversations (local conversations only)" listConvsPagingOk,
@@ -667,12 +671,12 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
       let expectedRedundant =
             QualifiedUserClients . Map.fromList $
               [ ( owningDomain,
-                  Map.fromList $
+                  Map.fromList
                     [ (nonMemberUnqualified, Set.singleton nonMemberOwningDomainClient)
                     ]
                 ),
                 ( remoteDomain,
-                  Map.fromList $
+                  Map.fromList
                     [ (nonMemberRemoteUnqualified, Set.singleton nonMemberRemoteClient)
                     ]
                 )
@@ -1220,17 +1224,27 @@ paginateConvIds = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
-  replicateM_ 256 $
+  replicateM_ 253 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
-  foldM_ (getChunk 16 alice) Nothing [15 .. 0 :: Int]
+  -- 1 self conv, 2 convs with bob and eve, 253 gossips = 256 convs
+  foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
     getChunk size alice start n = do
       resp <- getConvIds alice start (Just size) <!! const 200 === statusCode
       let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
       liftIO $ do
-        length (convList c) @?= fromIntegral size
-        convHasMore c @?= n > 0
+        -- This is because of the way this test is setup, we always get 16
+        -- convs, even on the last one
+        assertEqual
+          ("Number of convs should match the requested size, " <> show n <> " more gets to go")
+          (fromIntegral size)
+          (length (convList c))
+
+        if n > 0
+          then assertEqual "hasMore should be True" True (convHasMore c)
+          else assertEqual ("hasMore should be False, " <> show n <> " more chunks to go") False (convHasMore c)
+
       return (Just (Right (last (convList c))))
 
 getConvIdsFailMaxSize :: TestM ()
@@ -1238,6 +1252,148 @@ getConvIdsFailMaxSize = do
   usr <- randomUser
   getConvIds usr Nothing (Just 1001)
     !!! const 400 === statusCode
+
+listConvIdsOk :: TestM ()
+listConvIdsOk = do
+  [alice, bob] <- randomUsers 2
+  connectUsers alice (singleton bob)
+  void $ postO2OConv alice bob (Just "gossip")
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  listConvIds alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Right 2) === fmap length . decodeQualifiedConvIdList
+  listConvIds bob paginationOpts !!! do
+    const 200 === statusCode
+    const (Right 2) === fmap length . decodeQualifiedConvIdList
+
+paginateConvListIds :: TestM ()
+paginateConvListIds = do
+  [alice, bob, eve] <- randomUsers 3
+  connectUsers alice (list1 bob [eve])
+  localDomain <- viewFederationDomain
+  let qAlice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  replicateM_ 197 $
+    postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+      !!! const 201 === statusCode
+
+  remoteChad <- randomId
+  let chadDomain = Domain "chad.example.com"
+      qChad = Qualified remoteChad chadDomain
+  replicateM_ 25 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qChad,
+              FederatedGalley.cmuConvId = Qualified conv chadDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  remoteDee <- randomId
+  let deeDomain = Domain "dee.example.com"
+      qDee = Qualified remoteDee deeDomain
+  replicateM_ 31 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qDee,
+              FederatedGalley.cmuConvId = Qualified conv deeDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
+  -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
+  -- should get all them in 16 times.
+  foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
+
+-- This test ensures to setup conversations so that a page would end exactly
+-- when local convs are exhausted and then exactly when another remote domain's
+-- convs are exhausted. As the local convs and remote convs are stored in two
+-- different tables, this is an important edge case to test.
+paginateConvListIdsPageEndingAtLocalsAndDomain :: TestM ()
+paginateConvListIdsPageEndingAtLocalsAndDomain = do
+  [alice, bob, eve] <- randomUsers 3
+  connectUsers alice (list1 bob [eve])
+  localDomain <- viewFederationDomain
+  let qAlice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- With page size 16, 29 group convs + 2 one-to-one convs + 1 self conv, we
+  -- get 32 convs. The 2nd page should end here.
+  replicateM_ 29 $
+    postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+      !!! const 201 === statusCode
+
+  -- We should be able to page through current state in 2 pages exactly
+  foldM_ (getChunkedConvs 16 0 alice) Nothing [2, 1, 0 :: Int]
+
+  remoteChad <- randomId
+  let chadDomain = Domain "chad.example.com"
+      qChad = Qualified remoteChad chadDomain
+  -- The 3rd page will end with this domain
+  replicateM_ 16 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qChad,
+              FederatedGalley.cmuConvId = Qualified conv chadDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  remoteDee <- randomId
+  let deeDomain = Domain "dee.example.com"
+      qDee = Qualified remoteDee deeDomain
+  -- The 4th and last page will end with this domain
+  replicateM_ 16 $ do
+    conv <- randomId
+    let cmu =
+          FederatedGalley.ConversationMemberUpdate
+            { FederatedGalley.cmuTime = now,
+              FederatedGalley.cmuOrigUserId = qDee,
+              FederatedGalley.cmuConvId = Qualified conv deeDomain,
+              FederatedGalley.cmuAlreadyPresentUsers = [],
+              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
+              FederatedGalley.cmuUsersRemove = []
+            }
+    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+
+  foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
+
+-- | Gets chunked conversation ids given size of each chunk, size of the last
+-- chunk, requesting user and @n@ which represents how many chunks are remaining
+-- to go, when this is 0, it is assumed that this chunk is last and the response
+-- must set @has_more@ to 'False' and the number of conv ids returned should
+-- match @lastSize@.
+getChunkedConvs :: HasCallStack => Int32 -> Int -> UserId -> Maybe ConversationPagingState -> Int -> TestM (Maybe ConversationPagingState)
+getChunkedConvs size lastSize alice pagingState n = do
+  let paginationOpts = GetPaginatedConversationIds pagingState (unsafeRange size)
+  resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
+  let c = responseJsonUnsafeWithMsg "failed to parse ConvIdsPage" resp
+  liftIO $ do
+    if n > 0
+      then assertEqual ("Number of convs should match the requested size, " <> show n <> " more chunks to go") (fromIntegral size) (length (pageConvIds c))
+      else assertEqual "Number of convs should match the last size, no more chunks to go" lastSize (length (pageConvIds c))
+
+    if n > 0
+      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (pageHasMore c)
+      else assertEqual "hasMore should be False, no more chunks to go" False (pageHasMore c)
+
+  return . Just $ pagePagingState c
 
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
@@ -1312,7 +1468,7 @@ postConvFailNumMembers :: TestM ()
 postConvFailNumMembers = do
   n <- fromIntegral <$> view tsMaxConvSize
   alice <- randomUser
-  bob : others <- replicateM n (randomUser)
+  bob : others <- replicateM n randomUser
   connectUsers alice (list1 bob others)
   postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
     const 400 === statusCode
@@ -1504,7 +1660,7 @@ postRepeatConnectConvCancel = do
   let cnv = responseJsonUnsafeWithMsg "conversation" rsp1
   liftIO $ do
     ConnectConv @=? cnvType cnv
-    (Just "A") @=? cnvName cnv
+    Just "A" @=? cnvName cnv
     [] @=? cmOthers (cnvMembers cnv)
     privateAccess @=? cnvAccess cnv
   -- Alice blocks / cancels
@@ -1514,7 +1670,7 @@ postRepeatConnectConvCancel = do
   let cnv2 = responseJsonUnsafeWithMsg "conversation" rsp2
   liftIO $ do
     ConnectConv @=? cnvType cnv2
-    (Just "A2") @=? cnvName cnv2
+    Just "A2" @=? cnvName cnv2
     [] @=? cmOthers (cnvMembers cnv2)
     privateAccess @=? cnvAccess cnv2
   -- Alice blocks / cancels again
@@ -1524,7 +1680,7 @@ postRepeatConnectConvCancel = do
   let cnv3 = responseJsonUnsafeWithMsg "conversation" rsp3
   liftIO $ do
     ConnectConv @=? cnvType cnv3
-    (Just "B") @=? cnvName cnv3
+    Just "B" @=? cnvName cnv3
     privateAccess @=? cnvAccess cnv3
   -- Bob accepting is a no-op, since he is already a member
   let convId = qUnqualified . cnvQualifiedId $ cnv
@@ -1532,14 +1688,14 @@ postRepeatConnectConvCancel = do
   cnvX <- responseJsonUnsafeWithMsg "conversation" <$> getConv bob convId
   liftIO $ do
     ConnectConv @=? cnvType cnvX
-    (Just "B") @=? cnvName cnvX
+    Just "B" @=? cnvName cnvX
     privateAccess @=? cnvAccess cnvX
   -- Alice accepts, finally turning it into a 1-1
   putConvAccept alice convId !!! const 200 === statusCode
   cnv4 <- responseJsonUnsafeWithMsg "conversation" <$> getConv alice convId
   liftIO $ do
     One2OneConv @=? cnvType cnv4
-    (Just "B") @=? cnvName cnv4
+    Just "B" @=? cnvName cnv4
     privateAccess @=? cnvAccess cnv4
   where
     cancel u c = do
@@ -1620,7 +1776,7 @@ leaveConnectConversation = do
   alice <- randomUser
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
-  let c = fromMaybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId <$> responseJsonUnsafe bdy)
+  let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
   deleteMember alice alice c !!! const 403 === statusCode
 
 -- FUTUREWORK: Add more tests for scenarios of federation.
@@ -1806,7 +1962,7 @@ testAddRemoteMemberFederationDisabled = do
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
   let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
-  withSettingsOverrides federatorNotConfigured $ do
+  withSettingsOverrides federatorNotConfigured $
     postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
       const 400 === statusCode
       const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
@@ -1815,7 +1971,7 @@ testAddRemoteMemberFederationDisabled = do
   -- misconfiguration of federator. That should give a 500.
   -- Port 1 should always be wrong hopefully.
   let federatorUnavailable :: Opts = opts & optFederator ?~ Endpoint "127.0.0.1" 1
-  withSettingsOverrides federatorUnavailable $ do
+  withSettingsOverrides federatorUnavailable $
     postQualifiedMembers' g alice (remoteBob :| []) convId !!! do
       const 500 === statusCode
       const (Just "federation-not-available") === fmap label . responseJsonUnsafe
@@ -2002,12 +2158,12 @@ putMemberOk update = do
         Member
           { memId = bob,
             memService = Nothing,
-            memOtrMuted = fromMaybe False (mupOtrMute update),
+            memOtrMuted = Just True == mupOtrMute update,
             memOtrMutedStatus = mupOtrMuteStatus update,
             memOtrMutedRef = mupOtrMuteRef update,
-            memOtrArchived = fromMaybe False (mupOtrArchive update),
+            memOtrArchived = Just True == mupOtrArchive update,
             memOtrArchivedRef = mupOtrArchiveRef update,
-            memHidden = fromMaybe False (mupHidden update),
+            memHidden = Just True == mupHidden update,
             memHiddenRef = mupHiddenRef update,
             memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
           }
