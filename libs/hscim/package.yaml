@@ -1,5 +1,5 @@
 name:                hscim
-version:             0.3.4
+version:             0.3.5
 synopsis:            hscim json schema and server implementation
 description:         The README file will answer all the questions you might have
 homepage:            https://github.com/wireapp/wire-server/libs/hscim/README.md
