@@ -543,7 +543,7 @@ conversationMeta conv =
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
-  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  (MonadClient m) =>
   UserId ->
   Maybe ConvId ->
   Range 1 1000 Int32 ->
@@ -556,7 +556,7 @@ conversationIdsFrom usr start (fromRange -> max) =
     strip p = p {result = take (fromIntegral max) (result p)}
 
 localConversationIdsPageFrom ::
-  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  (MonadClient m) =>
   UserId ->
   Maybe PagingState ->
   Range 1 1000 Int32 ->
@@ -564,7 +564,7 @@ localConversationIdsPageFrom ::
 localConversationIdsPageFrom usr pagingState (fromRange -> max) =
   fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState Quorum (Identity usr) max pagingState)
 
-remoteConversationIdsPageFrom :: (MonadClient m, MonadLogger m) => UserId -> Maybe PagingState -> Int32 -> m (PageWithState (Qualified ConvId))
+remoteConversationIdsPageFrom :: (MonadClient m) => UserId -> Maybe PagingState -> Int32 -> m (PageWithState (Qualified ConvId))
 remoteConversationIdsPageFrom usr pagingState max =
   uncurry (flip Qualified) <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState Quorum (Identity usr) max pagingState)
 
