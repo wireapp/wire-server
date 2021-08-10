@@ -208,22 +208,13 @@ getConversationsInternal user mids mstart msize = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
--- FUTUREWORK: pagination support for remote conversations, or should *all* of them be returned always?
 -- FUTUREWORK: optimize cassandra requests when retrieving conversations (avoid large IN queries, prefer parallel/chunked requests)
-listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
-listConversations user (Public.ListConversations mIds qstart msize) = do
+listConversations :: UserId -> Public.ListConversations -> Galley Public.ConversationsResponse
+listConversations user (Public.ListConversations ids) = do
   localDomain <- viewFederationDomain
-  when (isJust mIds && isJust qstart) $
-    throwM (invalidPayload "'start' and 'qualified_ids' are mutually exclusive")
-  (localMore, localConvIds, remoteConvIds) <- case mIds of
-    Just xs -> do
-      let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList xs)
-      (localMore, localConvIds) <- getIdsAndMore localIds
-      pure (localMore, localConvIds, remoteConvIds)
-    Nothing -> do
-      (localMore, localConvIds) <- getAll (localstart localDomain)
-      remoteConvIds <- Data.conversationsRemote user
-      pure (localMore, localConvIds, remoteConvIds)
+
+  let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList ids)
+  localConvIds <- Data.conversationIdsOf user localIds
 
   localInternalConversations <-
     Data.conversations localConvIds
@@ -233,23 +224,8 @@ listConversations user (Public.ListConversations mIds qstart msize) = do
 
   remoteConversations <- getRemoteConversations user remoteConvIds
   let allConvs = localConversations <> remoteConversations
-  pure $ Public.ConversationList allConvs localMore
+  pure $ Public.ConversationsResponse allConvs [] []
   where
-    localstart localDomain = case qstart of
-      Just start | qDomain start == localDomain -> Just (qUnqualified start)
-      _ -> Nothing
-
-    size = fromMaybe (toRange (Proxy @32)) msize
-
-    getIdsAndMore :: [ConvId] -> Galley (Bool, [ConvId])
-    getIdsAndMore ids = (False,) <$> Data.conversationIdsOf user ids
-
-    getAll :: Maybe ConvId -> Galley (Bool, [ConvId])
-    getAll mstart = do
-      r <- Data.conversationIdsFrom user mstart (rcast size)
-      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
-      pure (hasMore, Data.resultSetResult r)
-
     removeDeleted :: Data.Conversation -> Galley Bool
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False

@@ -31,6 +31,7 @@ module Wire.API.Conversation
     ConversationPagingState (..),
     ConversationPagingTable (..),
     ConvIdsPage (..),
+    ConversationsResponse (..),
 
     -- * Conversation properties
     Access (..),
@@ -343,11 +344,8 @@ instance ToSchema GetPaginatedConversationIds where
             <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
 
 -- | Used on the POST /list-conversations endpoint
--- FUTUREWORK: add to golden tests (how to generate them?)
-data ListConversations = ListConversations
-  { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
-    lStartId :: Maybe (Qualified ConvId),
-    lSize :: Maybe (Range 1 500 Int32)
+newtype ListConversations = ListConversations
+  { lQualifiedIds :: NonEmpty (Qualified ConvId)
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversations
@@ -356,11 +354,29 @@ instance ToSchema ListConversations where
   schema =
     objectWithDocModifier
       "ListConversations"
-      (description ?~ "A request to list some or all of a user's conversations, including remote ones")
+      (description ?~ "A request to list some of a user's conversations, including remote ones")
       $ ListConversations
-        <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
-        <*> lStartId .= optField "start_id" Nothing schema
-        <*> lSize .= optField "size" Nothing schema
+        <$> lQualifiedIds .= field "qualified_ids" (nonEmptyArray schema)
+
+data ConversationsResponse = ConversationsResponse
+  { crFound :: [Conversation],
+    crNotFound :: [Qualified ConvId],
+    crFailed :: [Qualified ConvId]
+  }
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse
+
+instance ToSchema ConversationsResponse where
+  schema =
+    let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
+        failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
+     in objectWithDocModifier
+          "ConversationsResponse"
+          (description ?~ "Response object for getting metadata of a list of conversations")
+          $ ConversationsResponse
+            <$> crFound .= field "found" (array schema)
+            <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
+            <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
 --------------------------------------------------------------------------------
 -- Conversation properties
