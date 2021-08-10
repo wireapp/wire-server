@@ -59,6 +59,8 @@ instance ToJSON a => ToJSON (Supported a) where
     (Object o) -> Object $ HML.insert "supported" (Bool b) o
     _ -> Object $ HML.fromList [("supported", Bool b)]
 
+-- | See module "Test.Schema.MetaSchemaSpec" for golden tests that explain this instance
+-- better.
 instance (Typeable a, FromJSON a) => FromJSON (Supported a) where
   parseJSON val = do
     Supported

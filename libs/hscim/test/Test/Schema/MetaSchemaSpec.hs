@@ -47,6 +47,10 @@ prop_roundtrip gen = property $ do
 spec :: Spec
 spec = do
   describe "MetaSchema" $ do
+    it "`Supported ()` golden test" $ do
+      encode (Supported (ScimBool True) ()) `shouldBe` "{\"supported\":true}"
+    it "`Supported a` golden test" $ do
+      encode (Supported (ScimBool True) (FilterConfig 3)) `shouldBe` "{\"supported\":true,\"maxResults\":3}"
     it "`Supported ()` roundtrips" $ do
       require (prop_roundtrip (genSupported (pure ())))
     it "`BulkConfig` roundtrips" $ do
