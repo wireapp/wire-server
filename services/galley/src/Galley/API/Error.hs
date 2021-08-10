@@ -209,18 +209,6 @@ noLegalHoldDeviceAllocated = mkError status404 "legalhold-no-device-allocated" "
 legalHoldCouldNotBlockConnections :: Error
 legalHoldCouldNotBlockConnections = mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
--- | See 'Brig.API.Error.missingLegalholdConsent'.
---
--- FUTUREWORK: To avoid this duplication, you could turn this into an `ErrorDescription` and
--- move it to the `ErrorDescription` module in wire-api, where it can then be used from both
--- brig and galley. Also, it makes it easier to add it to swagger, if desired, or even later
--- turn it into a statically checked response with `MultiVerb`.
---
--- For examples, see https://github.com/wireapp/wire-server/pull/1657 or
--- https://github.com/wireapp/wire-server/pull/1657/commits/8e73769d7d4a657fef5fbe9210f885f9ccbcaab6.
-missingLegalholdConsent :: Error
-missingLegalholdConsent = mkError status403 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent."
-
 disableSsoNotImplemented :: Error
 disableSsoNotImplemented =
   mkError

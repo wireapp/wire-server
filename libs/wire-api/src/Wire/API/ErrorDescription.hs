@@ -4,7 +4,7 @@ import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
 import Control.Lens.Combinators (_Just)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
-import Data.SOP (I (..), NS (..))
+import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
 import qualified Data.Swagger as Swagger
@@ -117,45 +117,6 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
       codeSchema :: ValueSchema SwaggerDoc Integer
       codeSchema = unnamed $ enum @Integer "Status" (element code code)
 
--- | This instance works with 'UVerb' only because of the following overlapping
--- instance for 'UVerb method cs (ErrorDescription status label desc ': rest))'
-instance
-  (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc, AllAccept cs, SwaggerMethod method) =>
-  HasSwagger (Verb method statusCode cs (ErrorDescription statusCode label desc))
-  where
-  toSwagger _ =
-    mempty
-      & Swagger.paths . at "/"
-        ?~ ( mempty & method
-               ?~ ( mempty
-                      & Swagger.produces ?~ Swagger.MimeList responseContentTypes
-                      & at code
-                        ?~ Swagger.Inline
-                          ( mempty
-                              & Swagger.description .~ desc
-                              & Swagger.schema ?~ schemaRef
-                          )
-                  )
-           )
-    where
-      method = swaggerMethod (Proxy @method)
-      responseContentTypes = allContentType (Proxy @cs)
-      code = fromIntegral (natVal (Proxy @statusCode))
-      desc = Text.pack (symbolVal (Proxy @desc))
-      schemaRef = Swagger.Inline $ Swagger.toSchema (Proxy @(ErrorDescription statusCode label desc))
-
--- | This is a copy of instance for 'UVerb method cs (a:as)', but without this
--- things don't work because the instance defined in the library is already
--- compiled with the now overlapped version of `Verb method cs a` and won't
--- pickup the above instance.
-instance
-  (KnownStatus status, KnownSymbol label, KnownSymbol desc, AllAccept cs, SwaggerMethod method, HasSwagger (UVerb method cs rest)) =>
-  HasSwagger (UVerb method cs (ErrorDescription status label desc ': rest))
-  where
-  toSwagger _ =
-    toSwagger (Proxy @(Verb method status cs (ErrorDescription status label desc)))
-      `combineSwagger` toSwagger (Proxy @(UVerb method cs rest))
-
 instance KnownStatus status => HasStatus (ErrorDescription status label desc) where
   type StatusOf (ErrorDescription status label desc) = status
 
@@ -163,6 +124,8 @@ instance KnownStatus status => HasStatus (ErrorDescription status label desc) wh
 
 type RespondWithErrorDescription s label desc =
   Respond s desc (ErrorDescription s label desc)
+
+type instance ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
 
 instance
   ( AllMimeRender cs (ErrorDescription s label desc),
@@ -173,11 +136,14 @@ instance
   ) =>
   IsResponse cs (ErrorDescription s label desc)
   where
-  type ResponseType (ErrorDescription s label desc) = ErrorDescription s label desc
   type ResponseStatus (ErrorDescription s label desc) = s
 
   responseRender = responseRender @cs @(RespondWithErrorDescription s label desc)
   responseUnrender = responseUnrender @cs @(RespondWithErrorDescription s label desc)
+
+instance KnownSymbol desc => AsConstructor '[] (ErrorDescription s label desc) where
+  toConstructor _ = Nil
+  fromConstructor _ = mkErrorDescription
 
 instance
   (KnownStatus s, KnownSymbol label, KnownSymbol desc) =>
@@ -201,11 +167,12 @@ instance
 
 data EmptyErrorForLegacyReasons s desc
 
+type instance ResponseType (EmptyErrorForLegacyReasons s desc) = ()
+
 instance
   KnownStatus s =>
   IsResponse cs (EmptyErrorForLegacyReasons s desc)
   where
-  type ResponseType (EmptyErrorForLegacyReasons s desc) = ()
   type ResponseStatus (EmptyErrorForLegacyReasons s desc) = s
 
   responseRender _ () =
@@ -332,3 +299,13 @@ type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys up
 
 malformedPrekeys :: MalformedPrekeys
 malformedPrekeys = mkErrorDescription
+
+type MissingLegalholdConsent =
+  ErrorDescription
+    403
+    "missing-legalhold-consent"
+    "Failed to connect to a user or to invite a user to a group because somebody \
+    \is under legalhold and somebody else has not granted consent."
+
+missingLegalholdConsent :: MissingLegalholdConsent
+missingLegalholdConsent = mkErrorDescription

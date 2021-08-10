@@ -94,7 +94,6 @@ import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
-import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -796,15 +795,12 @@ addClient usr con ip new = do
     clientResponse :: Public.Client -> BrigAPI.NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
-deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler (EmptyResult 200)
-deleteClient usr con clt body = do
+deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler ()
+deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
-  pure EmptyResult
 
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler (EmptyResult 200)
-updateClient usr clt upd = do
-  API.updateClient usr clt upd !>> clientError
-  pure EmptyResult
+updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler ()
+updateClient usr clt upd = API.updateClient usr clt upd !>> clientError
 
 listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
