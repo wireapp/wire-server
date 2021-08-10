@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -18,8 +19,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- FUTUREWORK:
--- There's still a lot of stuff we should factor out into separate modules.
+-- FUTUREWORK: There's still a lot of stuff we should factor out into separate
+-- modules.
 module Wire.API.Conversation
   ( -- * Conversation
     Conversation (..),
@@ -77,6 +78,8 @@ import Control.Applicative
 import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.Attoparsec.ByteString as AB
+import qualified Data.ByteString as BS
 import Data.Id
 import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.List.NonEmpty (NonEmpty)
@@ -276,7 +279,6 @@ instance ToSchema ConvIdsPage where
         <*> pageHasMore .= field "has_more" schema
         <*> pagePagingState .= field "paging_state" schema
 
--- | TODO: Would be nice to not expose these details to clients
 data ConversationPagingState = ConversationPagingState
   { cpsTable :: ConversationPagingTable,
     cpsPagingState :: Maybe ByteString
@@ -286,27 +288,38 @@ data ConversationPagingState = ConversationPagingState
 
 instance ToSchema ConversationPagingState where
   schema =
-    objectWithDocModifier
-      "ConversationPagingState"
-      (description ?~ "Clients should treat this object as opaque and not try to parse it.")
-      $ ConversationPagingState
-        <$> cpsTable .= field "table" schema
-        <*> (fmap toBase64Text . cpsPagingState) .= optField "paging_state" Nothing (parsedText "PagingState" fromBase64Text)
+    (toBase64Text . encodeConversationPagingState)
+      .= parsedText "ConversationPagingState" (parseConvesationPagingState <=< fromBase64Text)
+
+parseConvesationPagingState :: ByteString -> Either String ConversationPagingState
+parseConvesationPagingState = AB.parseOnly conversationPagingStateParser
+
+conversationPagingStateParser :: AB.Parser ConversationPagingState
+conversationPagingStateParser = do
+  cpsTable <- tableParser
+  cpsPagingState <- (AB.endOfInput $> Nothing) <|> (Just <$> AB.takeByteString <* AB.endOfInput)
+  pure ConversationPagingState {..}
+  where
+    tableParser :: AB.Parser ConversationPagingTable
+    tableParser =
+      (AB.word8 0 $> PagingLocals)
+        <|> (AB.word8 1 $> PagingRemotes)
+
+encodeConversationPagingState :: ConversationPagingState -> ByteString
+encodeConversationPagingState ConversationPagingState {..} =
+  let table = encodeConversationPagingTable cpsTable
+      state = fromMaybe "" cpsPagingState
+   in BS.cons table state
+
+encodeConversationPagingTable :: ConversationPagingTable -> Word8
+encodeConversationPagingTable = \case
+  PagingLocals -> 0
+  PagingRemotes -> 1
 
 data ConversationPagingTable
   = PagingLocals
   | PagingRemotes
   deriving (Show, Eq)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationPagingTable
-
-instance ToSchema ConversationPagingTable where
-  schema =
-    (S.schema . description ?~ "Used for getting ConvIdsPage") $
-      enum @Text "ConversationPagingTable" $
-        mconcat
-          [ element "paging_locals" PagingLocals,
-            element "paging_remotes" PagingRemotes
-          ]
 
 data GetPaginatedConversationIds = GetPaginatedConversationIds
   { gpciPagingState :: Maybe ConversationPagingState,
