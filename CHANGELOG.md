@@ -31,6 +31,8 @@
 
 ## Features
 
+* Client functions for the hscim library (#1699)
+
 ## Bug fixes and other updates
 
 ## Documentation
