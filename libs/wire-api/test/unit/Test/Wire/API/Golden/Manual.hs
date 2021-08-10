@@ -25,8 +25,10 @@ import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationPagingState
+import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
+import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Runner
@@ -88,5 +90,10 @@ tests =
           [ (testObject_FeatureConfigEvent_1, "testObject_FeatureConfigEvent_1.json"),
             (testObject_FeatureConfigEvent_2, "testObject_FeatureConfigEvent_2.json"),
             (testObject_FeatureConfigEvent_3, "testObject_FeatureConfigEvent_3.json")
-          ]
+          ],
+      testCase "ListConversations" $
+        testObjects
+          [(testObject_ListConversations_1, "testObject_ListConversations_1.json")],
+      testCase "ConversationsResponse" $
+        testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")]
     ]

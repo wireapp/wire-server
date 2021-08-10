@@ -187,12 +187,11 @@ data Api routes = Api
         :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
     listConversations ::
       routes
-        :- Summary "Get all conversations (also returns remote conversations)"
-        :> Description "Like GET /conversations, but allows specifying a list of remote conversations in its request body. Will return all or the requested qualified conversations, including remote ones. WIP: Size parameter is not yet honoured for remote conversations."
+        :- Summary "Get conversation metadata for a list of conversation ids"
         :> ZUser
         :> "list-conversations"
         :> ReqBody '[Servant.JSON] Public.ListConversations
-        :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
+        :> Post '[Servant.JSON] Public.ConversationsResponse,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     getConversationByReusableCode ::
