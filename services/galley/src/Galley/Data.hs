@@ -60,7 +60,7 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
-    conversationIdsPageFrom,
+    localConversationIdsPageFrom,
     conversationIdRowsForPagination,
     conversationIdsOf,
     conversationMeta,
@@ -77,7 +77,7 @@ module Galley.Data
     updateConversationMessageTimer,
     deleteConversation,
     lookupReceiptMode,
-    remoteConversationIdsFrom,
+    remoteConversationIdsPageFrom,
 
     -- * Conversation Members
     addMember,
@@ -541,6 +541,7 @@ conversationMeta conv =
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
+-- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   UserId ->
@@ -554,17 +555,17 @@ conversationIdsFrom usr start (fromRange -> max) =
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
-conversationIdsPageFrom ::
+localConversationIdsPageFrom ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   UserId ->
   Maybe PagingState ->
   Range 1 1000 Int32 ->
   m (PageWithState ConvId)
-conversationIdsPageFrom usr pagingState (fromRange -> max) =
+localConversationIdsPageFrom usr pagingState (fromRange -> max) =
   fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState Quorum (Identity usr) max pagingState)
 
-remoteConversationIdsFrom :: (MonadClient m, MonadLogger m) => UserId -> Maybe PagingState -> Int32 -> m (PageWithState (Qualified ConvId))
-remoteConversationIdsFrom usr pagingState max =
+remoteConversationIdsPageFrom :: (MonadClient m, MonadLogger m) => UserId -> Maybe PagingState -> Int32 -> m (PageWithState (Qualified ConvId))
+remoteConversationIdsPageFrom usr pagingState max =
   uncurry (flip Qualified) <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState Quorum (Identity usr) max pagingState)
 
 conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)

@@ -21,8 +21,8 @@ module Galley.API.Query
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
-    listConversationIdsUnqualified,
-    listConversationIds,
+    conversationIdsPageFromUnqualified,
+    conversationIdsPageFrom,
     getConversations,
     listConversations,
     iterateConversations,
@@ -122,8 +122,8 @@ getConversationRoles zusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-listConversationIdsUnqualified :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
-listConversationIdsUnqualified zusr start msize = do
+conversationIdsPageFromUnqualified :: UserId -> Maybe ConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList ConvId)
+conversationIdsPageFromUnqualified zusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- Data.conversationIdsFrom zusr start size
   pure $
@@ -139,8 +139,8 @@ listConversationIdsUnqualified zusr start msize = do
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
-listConversationIds :: UserId -> Public.GetPaginatedConversationIds -> Galley Public.ConvIdsPage
-listConversationIds zusr Public.GetPaginatedConversationIds {..} = do
+conversationIdsPageFrom :: UserId -> Public.GetPaginatedConversationIds -> Galley Public.ConvIdsPage
+conversationIdsPageFrom zusr Public.GetPaginatedConversationIds {..} = do
   localDomain <- viewFederationDomain
   case gpciPagingState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gpciSize)
@@ -151,7 +151,7 @@ listConversationIds zusr Public.GetPaginatedConversationIds {..} = do
 
     localsAndRemotes :: Domain -> Maybe C.PagingState -> Range 1 1000 Int32 -> Galley Public.ConvIdsPage
     localsAndRemotes localDomain pagingState size = do
-      localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.conversationIdsPageFrom zusr pagingState size
+      localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.localConversationIdsPageFrom zusr pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.pageConvIds localPage))
       if Public.pageHasMore localPage
         then pure localPage
@@ -161,7 +161,7 @@ listConversationIds zusr Public.GetPaginatedConversationIds {..} = do
 
     remotesOnly :: Maybe C.PagingState -> Int32 -> Galley Public.ConvIdsPage
     remotesOnly pagingState size =
-      pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsFrom zusr pagingState size
+      pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsPageFrom zusr pagingState size
 
     pageToConvIdPage :: Public.ConversationPagingTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
     pageToConvIdPage table Data.PageWithState {..} =
