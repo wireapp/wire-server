@@ -158,7 +158,8 @@ tests s =
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
           test s "remove members (unqualified conversation)" deleteMembersUnqualifiedOk,
-          test s "remove members" deleteMembersConvLocalQualifiedOk,
+          test s "remove members (all local)" deleteMembersConvLocalQualifiedOk,
+          test s "remove members (one remote member present)" deleteLocalMemberConvLocalQualifiedOk,
           test s "fail to remove members from self conv." deleteMembersUnqualifiedFailSelf,
           test s "fail to remove members from 1:1 conv." deleteMembersUnqualifiedFailO2O,
           test s "rename conversation" putConvRenameOk,
@@ -2089,9 +2090,7 @@ deleteMembersUnqualifiedOk = do
 deleteMembersConvLocalQualifiedOk :: TestM ()
 deleteMembersConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
-  alice <- randomUser
-  bob <- randomUser
-  eve <- randomUser
+  [alice, bob, eve] <- randomUsers 3
   let [qAlice, qBob, qEve] = (`Qualified` localDomain) <$> [alice, bob, eve]
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConvQualified alice [qBob, qEve] (Just "federated gossip") [] Nothing Nothing
@@ -2103,6 +2102,65 @@ deleteMembersConvLocalQualifiedOk = do
   deleteMemberQualified alice qEve conv !!! const 204 === statusCode
   deleteMemberQualified alice qAlice conv !!! const 200 === statusCode
   deleteMemberQualified alice qAlice conv !!! const 404 === statusCode
+
+-- Creates a conversation with three users. Alice and Bob are on the local
+-- domain, while Eve is on a remote domain. It uses a qualified endpoint for
+-- removing Bob from the conversation:
+--
+-- DELETE /conversations/:cnv/members/:domain/:usr
+deleteLocalMemberConvLocalQualifiedOk :: TestM ()
+deleteLocalMemberConvLocalQualifiedOk = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  eve <- randomId
+  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
+      remoteDomain = Domain "far-away.example.com"
+      qEve = Qualified eve remoteDomain
+  connectUsers alice (singleton bob)
+
+  convId <- decodeConvId <$> postConv alice [bob] (Just "remote gossip") [] Nothing Nothing
+  opts <- view tsGConf
+  g <- view tsGalley
+  fst
+    <$> withTempMockFederator
+      opts
+      remoteDomain
+      (respond (qEve, "Eve"))
+      (postQualifiedMembers' g alice (qEve :| []) convId)
+    !!! const 200 === statusCode
+  (respDel, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (respond (qEve, "Eve"))
+      (deleteMemberQualified alice qBob convId)
+  liftIO $ do
+    statusCode respDel @?= 200
+    case responseJsonEither respDel of
+      Left err -> assertFailure err
+      Right e -> isExpectedEvent qAlice (convId `Qualified` localDomain) [qBob] e
+  -- Now that Bob is gone, try removing him once again
+  fst
+    <$> withTempMockFederator
+      opts
+      remoteDomain
+      (respond (qEve, "Eve"))
+      (deleteMemberQualified alice qBob convId)
+    !!! do
+      const 204 === statusCode
+      const Nothing === responseBody
+  where
+    isExpectedEvent :: Qualified UserId -> Qualified ConvId -> [Qualified UserId] -> Event -> IO ()
+    isExpectedEvent usr conv victims e = do
+      evtConv e @?= conv
+      evtType e @?= MemberLeaveQualified
+      evtFrom e @?= usr
+      evtData e @?= EdMembersLeaveQualified (QualifiedUserIdList victims)
+    respond :: (Qualified UserId, Text) -> F.FederatedRequest -> Value
+    respond (mem, name) req
+      | fmap F.component (F.request req) == Just F.Brig =
+        toJSON [mkProfile mem (Name name)]
+      | otherwise = toJSON ()
 
 deleteMembersUnqualifiedFailSelf :: TestM ()
 deleteMembersUnqualifiedFailSelf = do
