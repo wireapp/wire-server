@@ -53,7 +53,6 @@ data RemoveFromConversation
   | RemoveFromConversationConnectConv
   | RemoveFromConversationUnchanged
   | RemoveFromConversationUpdated Public.Event
-  deriving (Eq, Show)
 
 -- | These are just the "error" outcomes of the 'RemoveFromConversation' type.
 -- This is needed in using ExceptT to differentiate error outcomes from an
