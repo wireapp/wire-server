@@ -64,42 +64,40 @@ spec = do
 
 genConfiguration :: Gen Configuration
 genConfiguration = do
-  documentationUri <- Gen.maybe genUri
-  schemas <- pure [User20]
-  patch <- genSupported (pure ())
-  bulk <- genSupported genBulkConfig
-  filter <- genSupported genFilterConfig
-  changePassword <- genSupported (pure ())
-  sort <- genSupported (pure ())
-  etag <- genSupported (pure ())
-  authenticationSchemes <- Gen.list (Range.linear 0 100) genAuthenticationSchemeEncoding
-  pure Configuration {..}
+  Configuration
+    <$> Gen.maybe genUri
+    <*> pure [User20]
+    <*> genSupported (pure ())
+    <*> genSupported genBulkConfig
+    <*> genSupported genFilterConfig
+    <*> genSupported (pure ())
+    <*> genSupported (pure ())
+    <*> genSupported (pure ())
+    <*> Gen.list (Range.linear 0 100) genAuthenticationSchemeEncoding
 
 genBulkConfig :: Gen BulkConfig
 genBulkConfig = do
-  maxOperations <- Gen.int (Range.linear 0 100)
-  maxPayloadSize <- Gen.int (Range.linear 0 100)
-  pure BulkConfig {..}
+  BulkConfig
+    <$> Gen.int (Range.linear 0 100)
+    <*> Gen.int (Range.linear 0 100)
 
 genFilterConfig :: Gen FilterConfig
 genFilterConfig = do
-  maxResults <- Gen.int (Range.linear 0 100)
-  pure FilterConfig {..}
+  FilterConfig <$> Gen.int (Range.linear 0 100)
 
 genAuthenticationSchemeEncoding :: Gen AuthenticationSchemeEncoding
 genAuthenticationSchemeEncoding = do
-  typ <- genSimpleText
-  name <- genSimpleText
-  description <- genSimpleText
-  specUri <- Gen.maybe genUri
-  documentationUri <- Gen.maybe genUri
-  pure AuthenticationSchemeEncoding {..}
+  AuthenticationSchemeEncoding
+    <$> genSimpleText
+    <*> genSimpleText
+    <*> genSimpleText
+    <*> Gen.maybe genUri
+    <*> Gen.maybe genUri
 
 genSupported :: forall a. Gen a -> Gen (Supported a)
 genSupported gen = do
-  supported :: ScimBool <- ScimBool <$> Gen.bool
-  subConfig :: a <- gen
-  pure Supported {..}
+  Supported <$> (ScimBool <$> Gen.bool)
+    <*> gen
 
 genUri :: Gen URI
 genUri = Gen.element [URI [uri|https://example.com|], URI [uri|gopher://glab.io|], URI [uri|ssh://nothing/blorg|]]
