@@ -28,7 +28,7 @@ where
 import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch, MonadThrow (throwM))
+import Control.Monad.Catch (MonadCatch)
 import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
 import Data.Range
@@ -37,7 +37,7 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error (missingLegalholdConsent)
+import Galley.API.Error (throwErrorDescription)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import qualified Galley.API.Query as Query
@@ -71,6 +71,7 @@ import Servant.API.Generic
 import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
+import Wire.API.ErrorDescription (missingLegalholdConsent)
 import qualified Wire.API.Team.Feature as Public
 
 data InternalApi routes = InternalApi
@@ -491,5 +492,5 @@ guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts :::
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-    >>= either (const (throwM missingLegalholdConsent)) pure
+    >>= either (const (throwErrorDescription missingLegalholdConsent)) pure
   pure $ Network.Wai.Utilities.setStatus status200 empty

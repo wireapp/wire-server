@@ -25,6 +25,7 @@ module Web.Scim.Server
 
     -- * API tree
     SiteAPI,
+    Site (..),
     siteServer,
 
     -- ** API subtrees, useful for tests

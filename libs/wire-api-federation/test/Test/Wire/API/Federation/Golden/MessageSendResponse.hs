@@ -23,7 +23,7 @@ import Data.Json.Util (toUTCTimeMillis)
 import Data.UUID as UUID
 import GHC.Exts (IsList (fromList))
 import Imports
-import Wire.API.Federation.API.Galley (MessageNotSent (..), MessageSendResponse (..))
+import Wire.API.Federation.API.Galley (MessageSendResponse (..))
 import Wire.API.Message
 import Wire.API.User.Client (QualifiedUserClients (..))
 

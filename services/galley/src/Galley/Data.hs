@@ -20,6 +20,7 @@
 module Galley.Data
   ( ResultSet,
     ResultSetType (..),
+    PageWithState (..),
     mkResultSet,
     resultSetType,
     resultSetResult,
@@ -59,6 +60,7 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
+    localConversationIdsPageFrom,
     conversationIdRowsForPagination,
     conversationIdsOf,
     conversationMeta,
@@ -75,6 +77,7 @@ module Galley.Data
     updateConversationMessageTimer,
     deleteConversation,
     lookupReceiptMode,
+    remoteConversationIdsPageFrom,
 
     -- * Conversation Members
     addMember,
@@ -547,8 +550,9 @@ conversationMeta conv =
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
+-- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
-  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  (MonadClient m) =>
   UserId ->
   Maybe ConvId ->
   Range 1 1000 Int32 ->
@@ -559,6 +563,19 @@ conversationIdsFrom usr start (fromRange -> max) =
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
+
+localConversationIdsPageFrom ::
+  (MonadClient m) =>
+  UserId ->
+  Maybe PagingState ->
+  Range 1 1000 Int32 ->
+  m (PageWithState ConvId)
+localConversationIdsPageFrom usr pagingState (fromRange -> max) =
+  fmap runIdentity <$> paginateWithState Cql.selectUserConvs (paramsPagingState Quorum (Identity usr) max pagingState)
+
+remoteConversationIdsPageFrom :: (MonadClient m) => UserId -> Maybe PagingState -> Int32 -> m (PageWithState (Qualified ConvId))
+remoteConversationIdsPageFrom usr pagingState max =
+  uncurry (flip Qualified) <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState Quorum (Identity usr) max pagingState)
 
 conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)
 conversationIdRowsForPagination usr start (fromRange -> max) =

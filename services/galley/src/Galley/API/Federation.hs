@@ -46,10 +46,8 @@ import Wire.API.Federation.API.Galley
     MessageSendResponse (..),
     RegisterConversation (..),
     RemoteMessage (..),
-    RemoveMembersRequest (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
-import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.ServantProto (FromProto (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
@@ -60,8 +58,7 @@ federationSitemap =
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
         FederationAPIGalley.receiveMessage = receiveMessage,
-        FederationAPIGalley.sendMessage = sendMessage,
-        FederationAPIGalley.removeMembers = removeMembers
+        FederationAPIGalley.sendMessage = sendMessage
       }
 
 registerConversation :: RegisterConversation -> Galley ()
@@ -145,8 +142,3 @@ sendMessage originDomain msr = do
   MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing (msrConvId msr) msg
   where
     err = throwM . invalidPayload . LT.pack
-
-removeMembers :: Domain -> RemoveMembersRequest -> Galley RemoveFromConversation
-removeMembers originDomain rmr = do
-  let _remover = Qualified (rmrRemover rmr) originDomain
-  undefined

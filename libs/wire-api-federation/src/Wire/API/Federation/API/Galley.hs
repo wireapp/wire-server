@@ -28,7 +28,7 @@ import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, StdMethod (DELETE), Summary, (:>))
+import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -39,9 +39,7 @@ import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
-import Wire.API.Message (MessageSendingStatus, Priority)
-import Wire.API.Routes.MultiVerb (MultiVerb)
-import Wire.API.Routes.Public.Galley.Responses
+import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -88,14 +86,7 @@ data Api routes = Api
         :> "send-message"
         :> OriginDomainHeader
         :> ReqBody '[JSON] MessageSendRequest
-        :> Post '[JSON] MessageSendResponse,
-    removeMembers ::
-      routes
-        :- "federation"
-        :> "remove-members"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] RemoveMembersRequest
-        :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation
+        :> Post '[JSON] MessageSendResponse
   }
   deriving (Generic)
 
@@ -182,7 +173,7 @@ data RemoteMessage conv = RemoteMessage
   deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
 
 data MessageSendRequest = MessageSendRequest
-  { -- | Converastion is assumed to be owned by the target domain, this allows
+  { -- | Conversation is assumed to be owned by the target domain, this allows
     -- us to protect against relay attacks
     msrConvId :: ConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
@@ -195,30 +186,14 @@ data MessageSendRequest = MessageSendRequest
   deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
 
 newtype MessageSendResponse = MessageSendResponse
-  {msResponse :: Either MessageNotSent MessageSendingStatus}
+  {msResponse :: PostOtrResponse MessageSendingStatus}
   deriving stock (Eq, Show)
-  deriving newtype (ToJSON, FromJSON)
-
-data RemoveMembersRequest = RemoveMembersRequest
-  { -- | The converastion is assumed to be owned by the target domain, which
-    -- allows us to protect against relay attacks
-    rmrConvId :: ConvId,
-    -- | The remover is assumed to be owned by the origin domain, which allows
-    -- us to protect against spoofing attacks
-    rmrRemover :: UserId,
-    -- | The set of conversation members to be removed
-    rmrMemberList :: Set (Qualified UserId)
-  }
-  deriving stock (Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded RemoveMembersRequest)
-
-data MessageNotSent
-  = MessageNotSentLegalhold
-  | MessageNotSentClientMissing MessageSendingStatus
-  | MessageNotSentConversationNotFound
-  | MessageNotSentUnknownClient
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded MessageNotSent)
+  deriving
+    (ToJSON, FromJSON)
+    via ( Either
+            (CustomEncoded (MessageNotSent MessageSendingStatus))
+            MessageSendingStatus
+        )
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

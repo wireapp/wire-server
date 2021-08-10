@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -18,14 +19,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- FUTUREWORK:
--- There's still a lot of stuff we should factor out into separate modules.
+-- FUTUREWORK: There's still a lot of stuff we should factor out into separate
+-- modules.
 module Wire.API.Conversation
   ( -- * Conversation
     Conversation (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
+    GetPaginatedConversationIds (..),
+    ConversationPagingState (..),
+    ConversationPagingTable (..),
+    ConvIdsPage (..),
 
     -- * Conversation properties
     Access (..),
@@ -73,13 +78,16 @@ import Control.Applicative
 import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.Attoparsec.ByteString as AB
+import qualified Data.ByteString as BS
 import Data.Id
+import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
-import Data.Range (Range)
+import Data.Range (Range, toRange)
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -225,6 +233,9 @@ instance ConversationListItem ConvId where
 instance ConversationListItem Conversation where
   convListItemName _ = "conversations"
 
+instance ConversationListItem (Qualified ConvId) where
+  convListItemName _ = "qualified Conversation IDs"
+
 instance (ConversationListItem a, S.ToSchema a) => S.ToSchema (ConversationList a) where
   declareNamedSchema _ = do
     listSchema <- S.declareSchemaRef (Proxy @[a])
@@ -251,6 +262,85 @@ instance FromJSON a => FromJSON (ConversationList a) where
     ConversationList
       <$> o A..: "conversations"
       <*> o A..: "has_more"
+
+data ConvIdsPage = ConvIdsPage
+  { pageConvIds :: [Qualified ConvId],
+    pageHasMore :: Bool,
+    pagePagingState :: ConversationPagingState
+  }
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvIdsPage
+
+instance ToSchema ConvIdsPage where
+  schema =
+    object "ConvIdsPage" $
+      ConvIdsPage
+        <$> pageConvIds .= field "qualified_conversations" (array schema)
+        <*> pageHasMore .= field "has_more" schema
+        <*> pagePagingState .= field "paging_state" schema
+
+data ConversationPagingState = ConversationPagingState
+  { cpsTable :: ConversationPagingTable,
+    cpsPagingState :: Maybe ByteString
+  }
+  deriving (Show, Eq)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationPagingState
+
+instance ToSchema ConversationPagingState where
+  schema =
+    (toBase64Text . encodeConversationPagingState)
+      .= parsedText "ConversationPagingState" (parseConvesationPagingState <=< fromBase64Text)
+
+parseConvesationPagingState :: ByteString -> Either String ConversationPagingState
+parseConvesationPagingState = AB.parseOnly conversationPagingStateParser
+
+conversationPagingStateParser :: AB.Parser ConversationPagingState
+conversationPagingStateParser = do
+  cpsTable <- tableParser
+  cpsPagingState <- (AB.endOfInput $> Nothing) <|> (Just <$> AB.takeByteString <* AB.endOfInput)
+  pure ConversationPagingState {..}
+  where
+    tableParser :: AB.Parser ConversationPagingTable
+    tableParser =
+      (AB.word8 0 $> PagingLocals)
+        <|> (AB.word8 1 $> PagingRemotes)
+
+encodeConversationPagingState :: ConversationPagingState -> ByteString
+encodeConversationPagingState ConversationPagingState {..} =
+  let table = encodeConversationPagingTable cpsTable
+      state = fromMaybe "" cpsPagingState
+   in BS.cons table state
+
+encodeConversationPagingTable :: ConversationPagingTable -> Word8
+encodeConversationPagingTable = \case
+  PagingLocals -> 0
+  PagingRemotes -> 1
+
+data ConversationPagingTable
+  = PagingLocals
+  | PagingRemotes
+  deriving (Show, Eq)
+
+data GetPaginatedConversationIds = GetPaginatedConversationIds
+  { gpciPagingState :: Maybe ConversationPagingState,
+    gpciSize :: Range 1 1000 Int32
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetPaginatedConversationIds
+
+instance ToSchema GetPaginatedConversationIds where
+  schema =
+    let addPagingStateDoc =
+          description
+            ?~ "optional, when not specified first page of the conversation ids will be returned.\
+               \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
+        addSizeDoc = description ?~ "optional, must be <= 1000, defaults to 1000."
+     in objectWithDocModifier
+          "GetPaginatedConversationIds"
+          (description ?~ "A request to list some or all of a user's conversation ids, including remote ones")
+          $ GetPaginatedConversationIds
+            <$> gpciPagingState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema
+            <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
 
 -- | Used on the POST /list-conversations endpoint
 -- FUTUREWORK: add to golden tests (how to generate them?)

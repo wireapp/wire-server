@@ -104,19 +104,22 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import Servant.API.UVerb
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.ErrorDescription (codeNotFound, convNotFound, unknownClient)
+import Wire.API.ErrorDescription
+  ( codeNotFound,
+    convNotFound,
+    missingLegalholdConsent,
+    unknownClient,
+  )
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
-import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -522,11 +525,11 @@ addMembers zusr zcon convId invite = do
 
       whenM (anyLegalholdActivated (memId <$> convUsers)) $
         unless allNewUsersGaveConsent $
-          throwM missingLegalholdConsent
+          throwErrorDescription missingLegalholdConsent
 
       whenM (anyLegalholdActivated newUsers) $ do
         unless allNewUsersGaveConsent $
-          throwM missingLegalholdConsent
+          throwErrorDescription missingLegalholdConsent
 
         convUsersLHStatus <- do
           uidsStatus <- getLHStatusForUsers (memId <$> convUsers)
@@ -544,7 +547,7 @@ addMembers zusr zcon convId invite = do
               when (consentGiven status == ConsentNotGiven) $
                 let qvictim = Qualified (memId mem) localDomain
                  in void $ removeMember EventBackwardsCompatibilityUnqualified (memId mem) Nothing (Data.convId conv) qvictim
-          else throwM missingLegalholdConsent
+          else throwErrorDescription missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
@@ -704,15 +707,15 @@ postBotMessage zbot zcnv val message =
 -- | FUTUREWORK: Send message to remote users, as of now this function fails if
 -- the conversation is not hosted on current backend. If the conversation is
 -- hosted on current backend, it completely ignores remote users.
-postProteusMessage :: UserId -> ConnId -> Qualified ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponses)
+postProteusMessage :: UserId -> ConnId -> Qualified ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage zusr zcon conv msg = do
   localDomain <- viewFederationDomain
   let sender = Qualified zusr localDomain
   if localDomain /= qDomain conv
     then postRemoteOtrMessage sender conv (rpRaw msg)
-    else mkPostOtrResponsesUnion =<< postQualifiedOtrMessage User sender (Just zcon) (qUnqualified conv) (rpValue msg)
+    else postQualifiedOtrMessage User sender (Just zcon) (qUnqualified conv) (rpValue msg)
 
-postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Union GalleyAPI.PostOtrResponsesUnqualified)
+postOtrMessageUnqualified :: UserId -> ConnId -> ConvId -> Maybe Public.IgnoreMissing -> Maybe Public.ReportMissing -> Public.NewOtrMessage -> Galley (Public.PostOtrResponse Public.ClientMismatch)
 postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
   localDomain <- viewFederationDomain
   let sender = Qualified zusr localDomain
@@ -737,9 +740,7 @@ postOtrMessageUnqualified zusr zcon cnv ignoreMissing reportMissing message = do
             Public.qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
   unqualify localDomain
-    <$> ( mkPostOtrResponsesUnion
-            =<< postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
-        )
+    <$> postQualifiedOtrMessage User sender (Just zcon) cnv qualifiedMessage
 
 postProtoOtrBroadcastH :: UserId ::: ConnId ::: Public.OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postProtoOtrBroadcastH (zusr ::: zcon ::: val ::: req ::: _) = do
@@ -1204,7 +1205,7 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
-      >>= either (const (throwM missingLegalholdConsent)) pure
+      >>= either (const (throwErrorDescription missingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound convNotFound
   InvalidOtrSenderClient -> pure $ OtrUnknownClient unknownClient
