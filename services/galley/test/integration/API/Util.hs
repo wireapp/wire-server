@@ -1296,7 +1296,7 @@ decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
 
 decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
-decodeQualifiedConvIdList = fmap convList . responseJsonEither
+decodeQualifiedConvIdList = fmap pageConvIds . responseJsonEither
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
