@@ -153,8 +153,8 @@ conversationIdsPageFrom zusr Public.GetPaginatedConversationIds {..} = do
     localsAndRemotes localDomain pagingState size = do
       localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.localConversationIdsPageFrom zusr pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.pageConvIds localPage))
-      if Public.pageHasMore localPage
-        then pure localPage
+      if Public.pageHasMore localPage || remainingSize <= 0
+        then pure localPage {Public.pageHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
         else do
           remotePage <- remotesOnly Nothing remainingSize
           pure $ remotePage {Public.pageConvIds = Public.pageConvIds localPage <> Public.pageConvIds remotePage}
@@ -164,11 +164,15 @@ conversationIdsPageFrom zusr Public.GetPaginatedConversationIds {..} = do
       pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsPageFrom zusr pagingState size
 
     pageToConvIdPage :: Public.ConversationPagingTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
-    pageToConvIdPage table Data.PageWithState {..} =
+    pageToConvIdPage table page@Data.PageWithState {..} =
       Public.ConvIdsPage
         { pageConvIds = pwsResults,
-          pageHasMore = isJust pwsState,
-          pagePagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+          pageHasMore = C.pwsHasMore page,
+          pagePagingState =
+            Public.ConversationPagingState
+              { cpsTable = table,
+                cpsPagingState = LBS.toStrict . C.unPagingState <$> pwsState
+              }
         }
 
 getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
