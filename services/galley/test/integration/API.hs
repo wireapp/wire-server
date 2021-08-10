@@ -1316,7 +1316,10 @@ paginateConvListIds = do
   -- should get all them in 16 times.
   foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
 
--- This test exists
+-- This test ensures to setup conversations so that a page would end exactly
+-- when local convs are exhausted and then exactly when another remote domain's
+-- convs are exhausted. As the local convs and remote convs are stored in two
+-- different tables, this is an important edge case to test.
 paginateConvListIdsPageEndingAtLocalsAndDomain :: TestM ()
 paginateConvListIdsPageEndingAtLocalsAndDomain = do
   [alice, bob, eve] <- randomUsers 3
@@ -1371,7 +1374,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
--- | Gets chucked conversation ids given size of each chunk, size of the last
+-- | Gets chunked conversation ids given size of each chunk, size of the last
 -- chunk, requesting user and @n@ which represents how many chunks are remaining
 -- to go, when this is 0, it is assumed that this chunk is last and the response
 -- must set @has_more@ to 'False' and the number of conv ids returned should

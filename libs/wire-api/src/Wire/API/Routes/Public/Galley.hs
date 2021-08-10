@@ -165,7 +165,7 @@ data Api routes = Api
     listConversationIds ::
       routes
         :- Summary "Get all conversation IDs."
-          :> Description "To retrieve next page, a client must pass the paging_state returned by previous page."
+          :> Description "To retrieve the next page, a client must pass the paging_state returned by the previous page."
           :> ZUser
           :> "conversations"
           :> "list-ids"

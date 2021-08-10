@@ -288,7 +288,7 @@ instance ToSchema ConversationPagingState where
   schema =
     objectWithDocModifier
       "ConversationPagingState"
-      (description ?~ "Clients should treat this object as opque and not try to parse it.")
+      (description ?~ "Clients should treat this object as opaque and not try to parse it.")
       $ ConversationPagingState
         <$> cpsTable .= field "table" schema
         <*> (fmap toBase64Text . cpsPagingState) .= optField "paging_state" Nothing (parsedText "PagingState" fromBase64Text)
@@ -301,8 +301,8 @@ data ConversationPagingTable
 
 instance ToSchema ConversationPagingTable where
   schema =
-    (S.schema . description ?~ "Used getting PagedConv") $
-      enum @Text "ConversationTable" $
+    (S.schema . description ?~ "Used for getting ConvIdsPage") $
+      enum @Text "ConversationPagingTable" $
         mconcat
           [ element "paging_locals" PagingLocals,
             element "paging_remotes" PagingRemotes
@@ -319,7 +319,7 @@ instance ToSchema GetPaginatedConversationIds where
   schema =
     let addPagingStateDoc =
           description
-            ?~ "optional, when not first page of the conversation ids will be returned.\
+            ?~ "optional, when not specified first page of the conversation ids will be returned.\
                \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
         addSizeDoc = description ?~ "optional, must be <= 1000, defaults to 1000."
      in objectWithDocModifier

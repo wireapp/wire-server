@@ -114,8 +114,8 @@ data PageWithState a = PageWithState
 
 -- | Like 'paginate' but exposes the paging state. This paging state can be
 -- serialised and sent to consumers of the API. The state is not good for long
--- term storage as the bytestring format may change useless when schema of a
--- table changes or when cassandra is upgraded.
+-- term storage as the bytestring format may change when the schema of a table
+-- changes or when cassandra is upgraded.
 paginateWithState :: (MonadClient m, Tuple a, Tuple b, RunQ q) => q R a b -> QueryParams a -> m (PageWithState b)
 paginateWithState q p = do
   let p' = p {Protocol.pageSize = Protocol.pageSize p <|> Just 10000}
