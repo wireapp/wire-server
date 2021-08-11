@@ -31,7 +31,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## API Changes
 
-* Deprecated `DELETE /conversations/:cnv/members/:usr`
+* Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
+* Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
 
 ## Features
 
@@ -39,12 +40,16 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Documentation
 
+* Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
+
 ## Internal changes
 
 * Integration test script now displays output interactively (#1700)
 * Fixed a few issues with error response documentation in Swagger (#1707)
+* The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
 
 ## Federation changes
 
 * Added client certificate support for server to server authentication (#1682)
 * Implemented full server-to-server authentication (#1687)
+* Add an endpoint for removing a qualified user from a local conversation (#1697)
