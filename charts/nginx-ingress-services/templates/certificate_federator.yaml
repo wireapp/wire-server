@@ -18,7 +18,7 @@ spec:
   renewBefore: 360h   # 15d
   isCA: false
   keyAlgorithm: ecdsa
-  keySize: 384        # 521 is not supported by Letsencrypt
+  keySize: 256        # hs-tls only supports p256
   keyEncoding: pkcs1
   secretName: federator-certificate-secret
   # NOTE: disabled due to https://github.com/jetstack/cert-manager/issues/2978
