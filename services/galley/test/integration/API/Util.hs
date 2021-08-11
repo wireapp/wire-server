@@ -1,5 +1,5 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -64,6 +64,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
+import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Galley.Intra.User (chunkify)
@@ -118,7 +119,6 @@ import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
-import Data.Time (getCurrentTime)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1778,6 +1778,21 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFggtNO/hrwzt9M/1X6eK2sG6YFmA7BDqlFMEipbZOsg0vcDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==",
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
+
+mkConv :: Qualified ConvId -> UserId -> Member -> [OtherMember] -> Conversation
+mkConv cnvId creator selfMember otherMembers =
+  Conversation
+    { cnvQualifiedId = cnvId,
+      cnvType = RegularConv,
+      cnvCreator = creator,
+      cnvAccess = [],
+      cnvAccessRole = ActivatedAccessRole,
+      cnvName = Just "federated gossip",
+      cnvMembers = ConvMembers selfMember otherMembers,
+      cnvTeam = Nothing,
+      cnvMessageTimer = Nothing,
+      cnvReceiptMode = Nothing
+    }
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()

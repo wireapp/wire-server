@@ -1927,9 +1927,8 @@ testListRemoteConvs = do
     assertEqual "conversations" (Just expected) actual
     assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
--- TODO: Extend this test to include local convs, remote failures, local non
--- exsitent convs, local convs which the requesting user is not part of and
--- remote not founds.
+-- TODO: Write another test for remote failures, local non exsitent convs, local
+-- convs which the requesting user is not part of and remote not founds.
 testBulkGetQualifiedConvsSuccess :: TestM ()
 testBulkGetQualifiedConvsSuccess = do
   -- alice on local domain
@@ -1937,52 +1936,55 @@ testBulkGetQualifiedConvsSuccess = do
   aliceQ <- randomQualifiedUser
   let alice = qUnqualified aliceQ
   bobId <- randomId
+  carlId <- randomId
   convId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
-      bobQ = Qualified bobId remoteDomain
-      remoteConvId = Qualified convId remoteDomain
-
-  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      mockConversation =
-        Conversation
-          { cnvQualifiedId = remoteConvId,
-            cnvType = RegularConv,
-            cnvCreator = alice,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers aliceAsSelfMember [bobAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
-      remoteConversationResponse = GetConversationsResponse [mockConversation]
-  opts <- view tsGConf
-
-  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+  let remoteDomainA = Domain "a.far-away.example.com"
+      remoteDomainB = Domain "b.far-away.example.com"
+      bobQ = Qualified bobId remoteDomainA
+      carlQ = Qualified carlId remoteDomainB
+      remoteConvIdA = Qualified convId remoteDomainA
+      remoteConvIdB = Qualified convId remoteDomainB
 
   localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   let localConvId = cnvQualifiedId localConv
 
+  -- TODO: Make this necessary
+  let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
+  registerRemoteConv remoteConvIdA bobQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdB carlQ Nothing (Set.fromList [aliceAsOtherMember])
+
   -- FUTUREWORK: Do this test with more than one remote domains
   -- test POST /list-conversations
-  let req = ListConversationsV2 (unsafeRange [localConvId, remoteConvId])
+  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
+      carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
+      mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
+      mockConversationB = mkConv remoteConvIdB carlId aliceAsSelfMember [carlAsOtherMember]
+      req = ListConversationsV2 (unsafeRange [localConvId, remoteConvIdA, remoteConvIdB])
+  opts <- view tsGConf
   (respAll, _) <-
     withTempMockFederator
       opts
-      remoteDomain
-      (const remoteConversationResponse)
+      remoteDomainA
+      (\fedReq ->
+         case F.domain fedReq of
+           d | d == domainText remoteDomainA -> GetConversationsResponse [mockConversationA]
+           d | d == domainText remoteDomainB -> GetConversationsResponse [mockConversationB]
+           _ -> GetConversationsResponse []
+      )
       (listConvsV2 alice req)
-  convs :: ConversationsResponse <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
+  convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
+
   liftIO $ do
-    let expectedRemoteConv = mockConversation
-        actualRemoteConv = find ((== remoteConvId) . cnvQualifiedId) (crFound convs)
+    let expectedRemoteConvA = mockConversationA
+        actualRemoteConvA = find ((== remoteConvIdA) . cnvQualifiedId) (crFound convs)
+        expectedRemoteConvB = mockConversationB
+        actualRemoteConvB = find ((== remoteConvIdB) . cnvQualifiedId) (crFound convs)
         expectedLocalConv = localConv
         actualLocalConv = find ((== localConvId) . cnvQualifiedId) (crFound convs)
     assertEqual "local conversation" (Just expectedLocalConv) actualLocalConv
-    assertEqual "remote conversation" (Just expectedRemoteConv) actualRemoteConv
+    assertEqual "remote conversation A" (Just expectedRemoteConvA) actualRemoteConvA
+    assertEqual "remote conversation B" (Just expectedRemoteConvB) actualRemoteConvB
     assertEqual "no not founds" [] (crNotFound convs)
     assertEqual "no failures" [] (crFailed convs)
 
