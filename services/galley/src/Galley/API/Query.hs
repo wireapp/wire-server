@@ -95,7 +95,7 @@ getConversation zusr cnv = do
   localDomain <- viewFederationDomain
   if qDomain cnv == localDomain
     then getUnqualifiedConversation zusr (qUnqualified cnv)
-    else getRemoteConversation zusr (toRemote cnv)
+    else getRemoteConversation zusr (toRemote cnv) -- TODO: This looks wrong, we shouldn't get a remote conversation is the requesting user is not part of that conversation.
 
 getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
 getRemoteConversation zusr remoteConvId = do
