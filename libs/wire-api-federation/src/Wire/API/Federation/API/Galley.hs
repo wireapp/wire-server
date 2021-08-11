@@ -130,6 +130,8 @@ data RegisterConversation = MkRegisterConversation
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
 
+-- | A conversation membership update, as given by ' ConversationMemberUpdate',
+-- can be either a member addition or removal.
 data ConversationMembersAction
   = ConversationMembersActionAdd (List1 (Qualified UserId, RoleName))
   | ConversationMembersActionRemove (List1 (Qualified UserId))
