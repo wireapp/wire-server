@@ -1963,9 +1963,12 @@ testBulkGetQualifiedConvsSuccess = do
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
+  localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  let localConvId = cnvQualifiedId localConv
+
   -- FUTUREWORK: Do this test with more than one remote domains
   -- test POST /list-conversations
-  let req = ListConversationsV2 (unsafeRange [remoteConvId])
+  let req = ListConversationsV2 (unsafeRange [localConvId, remoteConvId])
   (respAll, _) <-
     withTempMockFederator
       opts
@@ -1974,9 +1977,14 @@ testBulkGetQualifiedConvsSuccess = do
       (listConvsV2 alice req)
   convs :: ConversationsResponse <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do
-    let expected = mockConversation
-    let actual = find ((== remoteConvId) . cnvQualifiedId) (crFound convs)
-    assertEqual "conversation" (Just expected) actual
+    let expectedRemoteConv = mockConversation
+        actualRemoteConv = find ((== remoteConvId) . cnvQualifiedId) (crFound convs)
+        expectedLocalConv = localConv
+        actualLocalConv = find ((== localConvId) . cnvQualifiedId) (crFound convs)
+    assertEqual "local conversation" (Just expectedLocalConv) actualLocalConv
+    assertEqual "remote conversation" (Just expectedRemoteConv) actualRemoteConv
+    assertEqual "no not founds" [] (crNotFound convs)
+    assertEqual "no failures" [] (crFailed convs)
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do
