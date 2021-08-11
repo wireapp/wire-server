@@ -89,8 +89,9 @@ import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
-import Data.Range (Range, toRange)
+import Data.Range (Range, rangedSchema, toRange, fromRange)
 import Data.Schema
+import Data.Singletons (sing)
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
@@ -364,7 +365,7 @@ instance ToSchema ListConversations where
 
 -- | Used on the POST /list-conversations endpoint
 newtype ListConversationsV2 = ListConversationsV2
-  { lcQualifiedIds :: NonEmpty (Qualified ConvId)
+  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversationsV2
@@ -375,7 +376,7 @@ instance ToSchema ListConversationsV2 where
       "ListConversations"
       (description ?~ "A request to list some of a user's conversations, including remote ones")
       $ ListConversationsV2
-        <$> lcQualifiedIds .= field "qualified_ids" (nonEmptyArray schema)
+        <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
 
 data ConversationsResponse = ConversationsResponse
   { crFound :: [Conversation],

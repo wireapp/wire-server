@@ -261,7 +261,7 @@ listConversationsV2 :: UserId -> Public.ListConversationsV2 -> Galley Public.Con
 listConversationsV2 user (Public.ListConversationsV2 ids) = do
   localDomain <- viewFederationDomain
 
-  let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList ids)
+  let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
   localConvIds <- Data.conversationIdsOf user localIds
 
   localInternalConversations <-

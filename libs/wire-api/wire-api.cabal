@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dc88ad9211d31a3b215c3a2db745d7c55c0b91d2c9b0105de04ab959f18a5b68
+-- hash: efca28ca2d2ca3ccfcaf3b543293e01d05d18802dd38283d7658ec50939231d9
 
 name:           wire-api
 version:        0.1.0
@@ -148,6 +148,7 @@ library
     , servant-multipart
     , servant-server
     , servant-swagger
+    , singletons
     , sop-core
     , string-conversions
     , swagger >=0.1
