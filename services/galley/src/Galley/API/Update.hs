@@ -459,7 +459,7 @@ joinConversation zusr zcon cnv access = do
   -- where there is no way to control who joins, etc.
   let mems = localBotsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
-  addToConversation mems rMems (zusr, roleNameWireMember) zcon (Data.mkNonEmptyUserList ((,roleNameWireMember) <$> newUsers) []) conv
+  addToConversation mems rMems (zusr, roleNameWireMember) zcon (mkList1WithOrigin ((,roleNameWireMember) <$> newUsers) []) conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
@@ -555,9 +555,9 @@ addMembers zusr zcon convId invite = do
     combineUsers ::
       [UserId] ->
       [Remote UserId] ->
-      Maybe (Data.NonEmptyUserList (UserId, RoleName) (Remote UserId, RoleName))
+      Maybe (List1WithOrigin (UserId, RoleName) (Remote UserId, RoleName))
     combineUsers nls nrs =
-      Data.mkNonEmptyUserList ((,invQRoleName invite) <$> nls) ((,invQRoleName invite) <$> nrs)
+      mkList1WithOrigin ((,invQRoleName invite) <$> nls) ((,invQRoleName invite) <$> nrs)
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
@@ -647,8 +647,8 @@ removeMemberFromLocalConv compatibility zusr zcon convId qvictim@(Qualified vict
       -- Notify remote backends
       let stayingRemotes = (rmId <$> Data.convRemoteMembers conv) \\ remoteVictim
           victimAsList
-            | victimDomain == localDomain = Data.OnlyFirstList . singleton $ victim
-            | otherwise = Data.OnlySecondList . singleton . toRemote $ qvictim
+            | victimDomain == localDomain = OnlyFirstList . singleton $ victim
+            | otherwise = OnlySecondList . singleton . toRemote $ qvictim
       notifyRemoteOfRemovedConvMembers stayingRemotes zusr (evtTime event) conv victimAsList
 
       pure event
@@ -1018,19 +1018,19 @@ addToConversation ::
   -- | The connection ID of the originating user
   ConnId ->
   -- | New users to be added and their roles
-  Maybe (Data.NonEmptyUserList (UserId, RoleName) (Remote UserId, RoleName)) ->
+  Maybe (List1WithOrigin (UserId, RoleName) (Remote UserId, RoleName)) ->
   -- | The conversation to modify
   Data.Conversation ->
   Galley UpdateResult
 addToConversation _ _ _ _ Nothing _ = pure Unchanged
 addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn (Just newUsers) c = do
   ensureGroupConvThrowing c
-  let (newLocals, newRemotes) = Data.splitNonEmptyUserList newUsers
+  let (newLocals, newRemotes) = splitList1WithOrigin newUsers
   mems <- checkedMemberAddSize newLocals newRemotes
   now <- liftIO getCurrentTime
   localDomain <- viewFederationDomain
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
-  for_ (Data.mkNonEmptyUserList lmm rmm) $
+  for_ (mkList1WithOrigin lmm rmm) $
     notifyRemoteOfNewConvMembers existingRemotes usr now c
   let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
   pushConversationEvent (Just conn) e localsToNotify bots
