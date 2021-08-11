@@ -89,10 +89,10 @@ import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
-import Data.Range (Range, rangedSchema, toRange, fromRange)
+import Data.Range (Range, fromRange, rangedSchema, toRange)
 import Data.Schema
-import Data.Singletons (sing)
 import qualified Data.Set as Set
+import Data.Singletons (sing)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc

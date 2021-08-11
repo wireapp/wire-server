@@ -42,6 +42,7 @@ import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
 import Data.Id
@@ -1929,20 +1930,44 @@ testListRemoteConvs = do
 
 -- TODO: Write another test for remote failures, local non exsitent convs, local
 -- convs which the requesting user is not part of and remote not founds.
+
+-- | Tests getting many converations given their ids.
+--
+-- In this test:
+--
+-- - Alice is a local user, who will be part of these convs and be asking for
+--   their metadata
+--
+-- - Bob is on a.far-away.example.com, there is 1 conversation between Alice and
+--   Bob
+--
+-- - Carl is on b.far-away.example.com, there is 1 conversation between Alice
+--   and Carl
+--
+-- - Alice tries to get 1 conversation from a.far-away.example.com, but is not
+--   found in the local DB
+--
+-- - TODO: Alice tries to get 1 conversation from b.far-away.example.com, it is
+--   found in the local DB but remote does not return it
+--
+-- - TODO: Alice tries to get 1 conversation from c.far-away.example.com, but
+--   the federated call fails
+-- - TODO: Alice tries to get 1 local conversation which doesn't exist
+-- - TODO: Alice tries to get 1 local conersation which they're not part of
 testBulkGetQualifiedConvsSuccess :: TestM ()
 testBulkGetQualifiedConvsSuccess = do
-  -- alice on local domain
-  -- bob and the conversation on the remote domain
   aliceQ <- randomQualifiedUser
   let alice = qUnqualified aliceQ
   bobId <- randomId
   carlId <- randomId
   convId <- randomId
+  convIdNotFound <- randomId
   let remoteDomainA = Domain "a.far-away.example.com"
       remoteDomainB = Domain "b.far-away.example.com"
       bobQ = Qualified bobId remoteDomainA
       carlQ = Qualified carlId remoteDomainB
       remoteConvIdA = Qualified convId remoteDomainA
+      remoteConvIdALocallyNotFound = Qualified convIdNotFound remoteDomainA
       remoteConvIdB = Qualified convId remoteDomainB
 
   localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
@@ -1960,17 +1985,17 @@ testBulkGetQualifiedConvsSuccess = do
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
       mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
       mockConversationB = mkConv remoteConvIdB carlId aliceAsSelfMember [carlAsOtherMember]
-      req = ListConversationsV2 (unsafeRange [localConvId, remoteConvIdA, remoteConvIdB])
+      req = ListConversationsV2 (unsafeRange [localConvId, remoteConvIdA, remoteConvIdB, remoteConvIdALocallyNotFound])
   opts <- view tsGConf
-  (respAll, _) <-
+  (respAll, receivedRequests) <-
     withTempMockFederator
       opts
       remoteDomainA
-      (\fedReq ->
-         case F.domain fedReq of
-           d | d == domainText remoteDomainA -> GetConversationsResponse [mockConversationA]
-           d | d == domainText remoteDomainB -> GetConversationsResponse [mockConversationB]
-           _ -> GetConversationsResponse []
+      ( \fedReq ->
+          case F.domain fedReq of
+            d | d == domainText remoteDomainA -> GetConversationsResponse [mockConversationA]
+            d | d == domainText remoteDomainB -> GetConversationsResponse [mockConversationB]
+            _ -> GetConversationsResponse []
       )
       (listConvsV2 alice req)
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
@@ -1982,11 +2007,18 @@ testBulkGetQualifiedConvsSuccess = do
         actualRemoteConvB = find ((== remoteConvIdB) . cnvQualifiedId) (crFound convs)
         expectedLocalConv = localConv
         actualLocalConv = find ((== localConvId) . cnvQualifiedId) (crFound convs)
+        -- Assumes only one request is made
+        requestedConvIdsA =
+          fmap FederatedGalley.gcrConvIds
+            . decode @FederatedGalley.GetConversationsRequest
+            =<< fmap (LBS.fromStrict . F.body) . F.request
+            =<< find ((== domainText remoteDomainA) . F.domain) receivedRequests
     assertEqual "local conversation" (Just expectedLocalConv) actualLocalConv
     assertEqual "remote conversation A" (Just expectedRemoteConvA) actualRemoteConvA
     assertEqual "remote conversation B" (Just expectedRemoteConvB) actualRemoteConvB
-    assertEqual "no not founds" [] (crNotFound convs)
+    assertEqual "not founds" [remoteConvIdALocallyNotFound] (crNotFound convs)
     assertEqual "no failures" [] (crFailed convs)
+    assertEqual "only locally found conversations should be queried" (Just [qUnqualified remoteConvIdA]) requestedConvIdsA
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do
