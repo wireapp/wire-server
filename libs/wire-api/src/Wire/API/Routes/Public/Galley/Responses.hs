@@ -15,8 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | The module provides Galley HTTP response types that are shared with Galley
--- federation endpoints.
+-- | The module provides Galley HTTP response types and corresponding handler
+-- types.
 module Wire.API.Routes.Public.Galley.Responses where
 
 import Data.SOP (I (..), NS (..))
