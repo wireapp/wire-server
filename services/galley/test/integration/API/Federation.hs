@@ -253,8 +253,8 @@ removeLocalUser = do
 -- two times in a row: first adding a local and a remote user to a remote
 -- conversation, and then removing the remote user. The test asserts the
 -- expected database states in between the calls from the point of view of the
--- local user, the final database state and that the local conversation member
--- got notified of the removal.
+-- local backend, the final database state and that the local conversation
+-- member got notified of the removal.
 removeRemoteUser :: TestM ()
 removeRemoteUser = do
   localDomain <- viewFederationDomain
