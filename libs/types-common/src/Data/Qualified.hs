@@ -97,8 +97,8 @@ partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
 renderQualifiedId :: Qualified (Id a) -> Text
 renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
-deprecatedSchema :: Text -> ValueSchema NamedSwaggerDoc a -> ValueSchema SwaggerDoc a
-deprecatedSchema new = (doc . description ?~ ("Deprecated, use " <> new)) . unnamed
+deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc a -> ValueSchema doc a
+deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
 
 qualifiedSchema ::
   Text ->
