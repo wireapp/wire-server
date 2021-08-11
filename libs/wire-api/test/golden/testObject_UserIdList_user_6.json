@@ -1,4 +1,38 @@
 {
+    "qualified_ids": [
+        {
+            "domain": "faraway.example.com",
+            "id": "00005e38-0000-026b-0000-71b500006886"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "00000d99-0000-0db3-0000-2fdb00003e84"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "00001e6f-0000-0335-0000-779200001e18"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "000076f4-0000-5ca9-0000-38c000007caa"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "00003f84-0000-22f1-0000-13a0000072a0"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "00000c2a-0000-231b-0000-02db000071ac"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "00000875-0000-2878-0000-3de200003108"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "000041be-0000-3438-0000-4d7c0000794d"
+        }
+    ],
     "user_ids": [
         "00005e38-0000-026b-0000-71b500006886",
         "00000d99-0000-0db3-0000-2fdb00003e84",

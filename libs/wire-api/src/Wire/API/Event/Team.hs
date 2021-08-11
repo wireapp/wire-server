@@ -50,6 +50,7 @@ import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
+import Data.Qualified (Qualified)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports
@@ -202,7 +203,7 @@ data EventData
   = EdTeamCreate Team
   | EdTeamUpdate TeamUpdateData
   | EdMemberJoin UserId
-  | EdMemberLeave UserId
+  | EdMemberLeave (Qualified UserId)
   | EdMemberUpdate UserId (Maybe Permissions)
   | EdConvCreate ConvId
   | EdConvDelete ConvId

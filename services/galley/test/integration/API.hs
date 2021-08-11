@@ -1102,7 +1102,7 @@ postConvertTeamConv = do
     -- non-team members get kicked out
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qalice [eve, mallory]
+        wsAssertMemberLeave qconv qalice $ (`Qualified` localDomain) <$> [eve, mallory]
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -2386,10 +2386,12 @@ removeUser = do
     (mems3 >>= other bob) @?= Nothing
     (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
   where
+    -- TODO(md): such a function already exists in Util.hs. Just use it instead
+    -- of redefining it.
     matchMemberLeave conv u n = do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= conv
       evtType e @?= MemberLeave
       evtFrom e @?= u
-      evtData e @?= EdMembersLeave (UserIdList [qUnqualified u])
+      evtData e @?= EdMembersLeave (UserIdList [u])

@@ -996,7 +996,7 @@ rmBot zusr zcon b = do
     then pure Unchanged
     else do
       t <- liftIO getCurrentTime
-      let evd = EdMembersLeave (UserIdList [botUserId (b ^. rmBotId)])
+      let evd = EdMembersLeave (UserIdList [Qualified (botUserId (b ^. rmBotId)) localDomain])
       let e = Event MemberLeave qcnv qusr t evd
       for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon

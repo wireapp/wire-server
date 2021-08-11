@@ -144,7 +144,7 @@ import Wire.API.User.Profile
 -- clients will break if we switch these types. Also, this
 -- definition represents better what information it carries
 newtype UserIdList = UserIdList
-  {mUsers :: [UserId]}
+  {mUsers :: [Qualified UserId]}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIdList
@@ -153,7 +153,8 @@ instance ToSchema UserIdList where
   schema =
     object "UserIdList" $
       UserIdList
-        <$> mUsers .= field "user_ids" (array schema)
+        <$> mUsers .= field "qualified_ids" (array schema)
+        <* (fmap qUnqualified . mUsers) .= field "user_ids" (deprecatedSchema "qualified_ids" (array schema))
 
 modelUserIdList :: Doc.Model
 modelUserIdList = Doc.defineModel "UserIdList" $ do
