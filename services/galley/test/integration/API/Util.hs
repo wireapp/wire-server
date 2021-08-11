@@ -294,7 +294,7 @@ getTeamMembersInternalTruncated tid n = do
       === statusCode
   responseJsonError r
 
-bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM TeamMemberList
+bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [Qualified UserId] -> TestM TeamMemberList
 bulkGetTeamMembers usr tid uids = do
   g <- view tsGalley
   r <-
@@ -308,7 +308,7 @@ bulkGetTeamMembers usr tid uids = do
       === statusCode
   responseJsonError r
 
-bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
+bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [Qualified UserId] -> Int -> TestM ResponseLBS
 bulkGetTeamMembersTruncated usr tid uids trnc = do
   g <- view tsGalley
   post
@@ -1230,11 +1230,16 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtFrom e @?= usr
   evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
 
+-- TODO(md): See if this one can be implemented in terms of:
+--
+-- checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
+--
+-- or if they can be combined in general.
 wsAssertMembersLeave ::
   HasCallStack =>
   Qualified ConvId ->
   Qualified UserId ->
-  [UserId] ->
+  [Qualified UserId] ->
   Notification ->
   IO ()
 wsAssertMembersLeave conv usr leaving n = do
@@ -1245,6 +1250,7 @@ wsAssertMembersLeave conv usr leaving n = do
   evtFrom e @?= usr
   evtData e @?= EdMembersLeave (UserIdList leaving)
 
+-- TODO(md): Get rid of this one as it is the same as the function above
 wsAssertMembersLeaveQualified ::
   HasCallStack =>
   Qualified ConvId ->
@@ -1291,7 +1297,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvMessageTimerUpdate new
 
-wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -2098,7 +2104,7 @@ checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberJoin uid)
 
-checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
+checkTeamMemberLeave :: HasCallStack => TeamId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
@@ -2139,7 +2145,7 @@ checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
 
-checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> UserId -> WS.WebSocket -> TestM ()
+checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)

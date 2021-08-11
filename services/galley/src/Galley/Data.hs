@@ -973,7 +973,7 @@ removeMembersFromLocalConv compatibility localDomain conv orig (splitList1WithOr
   return $ case compatibility of
     EventBackwardsCompatibilityUnqualified ->
       -- An assumption here is that remoteVictims == []
-      Event MemberLeave qconvId qorig t (EdMembersLeave . UserIdList $ localVictims)
+      Event MemberLeave qconvId qorig t (EdMembersLeave . UserIdList . fmap (`Qualified` localDomain) $ localVictims)
     EventBackwardsCompatibilityQualified ->
       let allVictims =
             QualifiedUserIdList $

@@ -494,7 +494,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
   UserIdList uids <- fromJsonBody body
-  (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
+  (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults (qUnqualified <$> uids)
   pure . json $ teamMemberListJson withPerms memberList
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
@@ -715,7 +715,8 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
-      let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
+      localDomain <- viewFederationDomain
+      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave (Qualified remove localDomain)
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
       push1 $ newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
@@ -724,8 +725,9 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       -- This may not make sense if that list has been truncated. In such cases, we still want to
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
+      localDomain <- viewFederationDomain
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
+      let edata = Conv.EdMembersLeave (Conv.UserIdList [Qualified remove localDomain])
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
         Data.conversation (c ^. conversationId) >>= \conv ->

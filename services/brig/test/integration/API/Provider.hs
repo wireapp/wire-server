@@ -514,8 +514,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
     _ <- waitFor (5 # Second) not (isMember galley buid2 cid)
     getBotConv galley bid1 cid !!! const 404 === statusCode
     getBotConv galley bid2 cid !!! const 404 === statusCode
-    wsAssertMemberLeave ws qcid qbuid1 [buid1]
-    wsAssertMemberLeave ws qcid qbuid2 [buid2]
+    wsAssertMemberLeave ws qcid qbuid1 [qbuid1]
+    wsAssertMemberLeave ws qcid qbuid2 [qbuid2]
   -- The service should not be available
   getService brig pid sid
     !!! const 404 === statusCode
@@ -624,8 +624,8 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       quid1
       (ConversationAccessUpdate [InviteAccess] TeamAccessRole)
       qcid
-    svcAssertMemberLeave buf qbuid [buid] qcid
-    wsAssertMemberLeave ws qcid qbuid [buid]
+    svcAssertMemberLeave buf qbuid [qbuid] qcid
+    wsAssertMemberLeave ws qcid qbuid [qbuid]
   where
     setAccessRole uid cid role =
       updateConversationAccess galley uid cid [InviteAccess] role
@@ -898,8 +898,8 @@ testWhitelistKickout localDomain config db brig galley cannon = do
       _ <- waitFor (2 # Second) not (isMember galley buid cid)
       getBotConv galley bid cid
         !!! const 404 === statusCode
-      wsAssertMemberLeave ws qcid qowner [buid]
-      svcAssertMemberLeave buf qowner [buid] qcid
+      wsAssertMemberLeave ws qcid qowner [qbuid]
+      svcAssertMemberLeave buf qowner [qbuid] qcid
     -- The bot should not get any further events
     liftIO $
       timeout (2 # Second) (readChan buf) >>= \case
@@ -1685,7 +1685,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
-wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [UserId] -> m ()
+wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1733,7 +1733,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
       assertEqual "event data" (EdMembersJoin msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
-svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [UserId] -> Qualified ConvId -> m ()
+svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
 svcAssertMemberLeave buf usr gone cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1920,9 +1920,9 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     let Just ev = rsRemoveBotEvent <$> responseJsonMaybe _rs
     liftIO $ assertEqual "bot event" MemberLeave (evtType ev)
     -- Events for both users
-    forM_ [ws1, ws2] $ \ws -> wsAssertMemberLeave ws qcid quid2 [buid]
+    forM_ [ws1, ws2] $ \ws -> wsAssertMemberLeave ws qcid quid2 [Qualified buid localDomain]
     -- Event for the bot
-    svcAssertMemberLeave buf quid2 [buid] qcid
+    svcAssertMemberLeave buf quid2 [Qualified buid localDomain] qcid
     -- Empty 204 response if the bot is not in the conversation
     removeBot brig uid2 cid bid !!! const 204 === statusCode
   -- Check that the bot no longer has access to the conversation
@@ -1982,7 +1982,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     _ <- waitFor (5 # Second) not (isMember galley buid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
-    wsAssertMemberLeave ws qcid qbuid [buid]
+    wsAssertMemberLeave ws qcid qbuid [qbuid]
 
 prepareBotUsersTeam ::
   HasCallStack =>

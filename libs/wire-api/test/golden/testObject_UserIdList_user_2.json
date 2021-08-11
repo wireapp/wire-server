@@ -1,4 +1,22 @@
 {
+    "qualified_ids": [
+        {
+            "domain": "faraway.example.com",
+            "id": "000065bd-0000-36ec-0000-6d69000056cd"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "000017b3-0000-4bb2-0000-70df00006059"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "00000ef4-0000-64ca-0000-53a2000040ba"
+        },
+        {
+            "domain": "faraway.example.com",
+            "id": "00004d4c-0000-595a-0000-7f410000146a"
+        }
+    ],
     "user_ids": [
         "000065bd-0000-36ec-0000-6d69000056cd",
         "000017b3-0000-4bb2-0000-70df00006059",

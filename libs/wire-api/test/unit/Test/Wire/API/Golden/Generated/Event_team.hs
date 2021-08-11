@@ -19,7 +19,9 @@
 module Test.Wire.API.Golden.Generated.Event_team where
 
 import Control.Lens ((.~))
+import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
+import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
@@ -182,7 +184,7 @@ testObject_Event_team_6 =
       (MemberLeave)
       ((Id (fromJust (UUID.fromString "00001122-0000-75f2-0000-199f000005de"))))
       (read ("1864-05-16 06:23:02.245944146361 UTC"))
-      & eventData .~ (Just (EdMemberLeave (Id (fromJust (UUID.fromString "00005828-0000-7c47-0000-28ca00002f72")))))
+      & eventData .~ (Just (EdMemberLeave (Qualified (Id (fromJust (UUID.fromString "00005828-0000-7c47-0000-28ca00002f72"))) (Domain "faraway.example.com"))))
   )
 
 testObject_Event_team_7 :: Event
@@ -232,7 +234,7 @@ testObject_Event_team_10 =
       (MemberLeave)
       ((Id (fromJust (UUID.fromString "00000efc-0000-67f3-0000-33bd00000cc1"))))
       (read ("1864-06-08 20:37:32.993020874753 UTC"))
-      & eventData .~ (Just (EdMemberLeave (Id (fromJust (UUID.fromString "00004649-0000-6535-0000-5d2b00005924")))))
+      & eventData .~ (Just (EdMemberLeave (Qualified (Id (fromJust (UUID.fromString "00004649-0000-6535-0000-5d2b00005924"))) (Domain "faraway.example.com"))))
   )
 
 testObject_Event_team_11 :: Event

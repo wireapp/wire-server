@@ -252,7 +252,8 @@ testListTeamMembersCsv numMembers = do
     let someUsersInCsv = take 50 usersInCsv
         someHandles = tExportHandle <$> someUsersInCsv
     users <- Util.getUsersByHandle (catMaybes someHandles)
-    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
+    localDomain <- viewFederationDomain
+    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid ((`Qualified` localDomain) . U.userId <$> users)
 
     let check :: (Show a, Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
         check msg getTeamExportUserAttr uid userAttr = do
@@ -317,7 +318,8 @@ testListTeamMembersDefaultLimitByIds = do
   where
     check :: HasCallStack => UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
     check owner tid uidsIn uidsOut = do
-      listFromServer <- Util.bulkGetTeamMembers owner tid uidsIn
+      localDomain <- viewFederationDomain
+      listFromServer <- Util.bulkGetTeamMembers owner tid (fmap (`Qualified` localDomain) uidsIn)
       liftIO $
         assertEqual
           "list members"
@@ -331,7 +333,8 @@ testListTeamMembersDefaultLimitByIds = do
 testListTeamMembersTruncatedByIds :: TestM ()
 testListTeamMembersTruncatedByIds = do
   (owner, tid, mems) <- Util.createBindingTeamWithNMembers 4
-  Util.bulkGetTeamMembersTruncated owner tid (owner : mems) 3 !!! do
+  localDomain <- viewFederationDomain
+  Util.bulkGetTeamMembersTruncated owner tid (fmap (`Qualified` localDomain) (owner : mems)) 3 !!! do
     const 400 === statusCode
     const "too-many-uids" === Error.label . responseJsonUnsafeWithMsg "error label"
 
@@ -635,9 +638,9 @@ testRemoveNonBindingTeamMember = do
       === statusCode
     -- Ensure that `mem1` is still a user (tid is not a binding team)
     Util.ensureDeletedState False owner (mem1 ^. userId)
-    mapConcurrently_ (checkTeamMemberLeave tid (mem1 ^. userId)) [wsOwner, wsMem1, wsMem2]
-    checkConvMemberLeaveEvent (Qualified cid2 localDomain) (mem1 ^. userId) wsMext1
-    checkConvMemberLeaveEvent (Qualified cid3 localDomain) (mem1 ^. userId) wsMext3
+    mapConcurrently_ (checkTeamMemberLeave tid (Qualified (mem1 ^. userId) localDomain)) [wsOwner, wsMem1, wsMem2]
+    checkConvMemberLeaveEvent (Qualified cid2 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext1
+    checkConvMemberLeaveEvent (Qualified cid3 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext3
     WS.assertNoEvent timeout ws
 
 testRemoveBindingTeamMember :: Bool -> TestM ()
@@ -720,8 +723,8 @@ testRemoveBindingTeamMember ownerHasPassword = do
           )
           !!! const 202
           === statusCode
-    checkTeamMemberLeave tid (mem1 ^. userId) wsOwner
-    checkConvMemberLeaveEvent (Qualified cid1 localDomain) (mem1 ^. userId) wsMext
+    checkTeamMemberLeave tid (Qualified (mem1 ^. userId) localDomain) wsOwner
+    checkConvMemberLeaveEvent (Qualified cid1 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext
     assertQueue "team member leave" $ tUpdate 2 [ownerWithPassword, owner]
     WS.assertNoEvent timeout [wsMext]
     -- Mem1 is now gone from Wire
@@ -1389,6 +1392,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         return member
     removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
     removeTeamMemberAndExpectEvent expect owner tid victim others = do
+      localDomain <- viewFederationDomain
       c <- view tsCannon
       g <- view tsGalley
       WS.bracketRN c (owner : victim : others) $ \(wsOwner : _wsVictim : wsOthers) -> do
@@ -1402,7 +1406,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           !!! const 202
           === statusCode
         if expect
-          then checkTeamMemberLeave tid victim wsOwner
+          then checkTeamMemberLeave tid (Qualified victim localDomain) wsOwner
           else WS.assertNoEvent (1 # Second) [wsOwner]
         -- User deletion events
         mapM_ (checkUserDeleteEvent victim) wsOthers
