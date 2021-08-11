@@ -808,7 +808,7 @@ listConvsV2 u req = do
   g <- viewGalley
   post $
     g
-      . path "/list-conversations"
+      . path "/conversations/list/v2"
       . zUser u
       . zConn "conn"
       . zType "access"
