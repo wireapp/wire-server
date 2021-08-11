@@ -209,7 +209,6 @@ getConversationsInternal user mids mstart msize = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
-
 -- | Deprecated
 --  FUTUREWORK(federation): Delete this endpoint
 listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
