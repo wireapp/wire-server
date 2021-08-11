@@ -44,6 +44,7 @@ import Data.Id as Id
 import Data.Proxy
 import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
 import Data.Range
+import Data.Tagged (unTagged)
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
@@ -261,8 +262,9 @@ listConversationsV2 :: UserId -> Public.ListConversationsV2 -> Galley Public.Con
 listConversationsV2 user (Public.ListConversationsV2 ids) = do
   localDomain <- viewFederationDomain
 
-  let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
+  let (remoteIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
   localConvIds <- Data.conversationIdsOf user localIds
+  (foundRemoteIds, notFoundRemoteIds) <- Data.remoteConversationIdOf user remoteIds
 
   localInternalConversations <-
     Data.conversations localConvIds
@@ -270,9 +272,14 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
       >>= filterM (pure . isMember user . Data.convLocalMembers)
   localConversations <- mapM (Mapping.conversationView user) localInternalConversations
 
-  remoteConversations <- getRemoteConversations user remoteConvIds
+  remoteConversations <- getRemoteConversations user foundRemoteIds
   let allConvs = localConversations <> remoteConversations
-  pure $ Public.ConversationsResponse allConvs [] []
+  pure $
+    Public.ConversationsResponse
+      { crFound = allConvs,
+        crNotFound = map unTagged notFoundRemoteIds,
+        crFailed = []
+      }
   where
     removeDeleted :: Data.Conversation -> Galley Bool
     removeDeleted c
