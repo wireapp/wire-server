@@ -63,8 +63,8 @@ data RunSettings = RunSettings
     federationStrategy :: FederationStrategy,
     useSystemCAStore :: Bool,
     remoteCAStore :: Maybe FilePath,
-    clientCertificate :: Maybe FilePath,
-    clientPrivateKey :: Maybe FilePath
+    clientCertificate :: FilePath,
+    clientPrivateKey :: FilePath
   }
   deriving (Eq, Show, Generic)
 

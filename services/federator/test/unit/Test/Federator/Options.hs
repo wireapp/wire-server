@@ -37,15 +37,18 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 
-defRunSettings :: RunSettings
-defRunSettings =
+defRunSettings :: FilePath -> FilePath -> RunSettings
+defRunSettings client key =
   RunSettings
     { federationStrategy = AllowAll,
       useSystemCAStore = True,
       remoteCAStore = Nothing,
-      clientCertificate = Nothing,
-      clientPrivateKey = Nothing
+      clientCertificate = client,
+      clientPrivateKey = key
     }
+
+noClientCertSettings :: RunSettings
+noClientCertSettings = defRunSettings "invalid-cert" "invalid-private-key"
 
 tests :: TestTree
 tests =
@@ -88,23 +91,23 @@ testSettings =
     "settings"
     [ testCase "parse configuration example (open federation)" $ do
         assertParsesAs
-          defRunSettings
+          (defRunSettings "client.pem" "client-key.pem")
           ( B8.pack
               [QQ.i|
                 federationStrategy:
                   allowAll:
+                clientCertificate: client.pem
+                clientPrivateKey: client-key.pem
                 useSystemCAStore: true|]
           ),
       testCase "parse configuration example (closed federation)" $ do
         let settings =
-              defRunSettings
+              (defRunSettings "client.pem" "client-key.pem")
                 { federationStrategy =
                     AllowList
                       ( AllowedDomains [Domain "server2.example.com"]
                       ),
-                  useSystemCAStore = False,
-                  clientCertificate = Just "client.pem",
-                  clientPrivateKey = Just "client-key.pem"
+                  useSystemCAStore = False
                 }
         assertParsesAs settings . B8.pack $
           [QQ.i|
@@ -117,9 +120,8 @@ testSettings =
       testCase "succefully read client credentials" $ do
         let settings =
               defRunSettings
-                { clientCertificate = Just "test/resources/unit/localhost.pem",
-                  clientPrivateKey = Just "test/resources/unit/localhost-key.pem"
-                }
+                "test/resources/unit/localhost.pem"
+                "test/resources/unit/localhost-key.pem"
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
@@ -127,67 +129,29 @@ testSettings =
             allowAll: null
           clientCertificate: test/resources/unit/localhost.pem
           clientPrivateKey: test/resources/unit/localhost-key.pem|]
-        tlsSettings <- mkTLSSettings settings
-        assertBool "expected TLS client credentials" $
-          notNullOf (creds . _Just) tlsSettings,
-      testCase "parse missing client credentials" $ do
-        let settings = defRunSettings
-        assertParsesAs settings . B8.pack $
+        void (mkTLSSettings settings),
+      testCase "fail on missing client credentials" $
+        assertParseFailure @RunSettings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
           federationStrategy:
-            allowAll: null|]
-        tlsSettings <- mkTLSSettings settings
-        assertBool "unexpected TLS client credentials" $
-          nullOf (creds . _Just) tlsSettings,
+            allowAll: null|],
       testCase "fail on missing client private key" $ do
-        let settings =
-              defRunSettings
-                { clientCertificate = Just "test/resources/unit/localhost.pem"
-                }
-        assertParsesAs settings . B8.pack $
+        assertParseFailure @RunSettings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
           federationStrategy:
             allowAll: null
-          clientCertificate: test/resources/unit/localhost.pem|]
-        try @FederationSetupError (mkTLSSettings settings) >>= \case
-          Left (InvalidClientCertificate _) -> pure ()
-          Left e ->
-            assertFailure $
-              "expected invalid client certificate exception, got: "
-                <> show e
-          Right tlsSettings ->
-            assertFailure $
-              "expected failure for partial client credentials, got: "
-                <> show (tlsSettings ^. creds),
+          clientCertificate: test/resources/unit/localhost.pem|],
       testCase "fail on missing certificate" $ do
-        let settings =
-              defRunSettings
-                { clientPrivateKey = Just "test/resources/unit/localhost-key.pem"
-                }
-        assertParsesAs settings . B8.pack $
+        assertParseFailure @RunSettings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
           federationStrategy:
             allowAll: null
-          clientPrivateKey: test/resources/unit/localhost-key.pem|]
-        try @FederationSetupError (mkTLSSettings settings) >>= \case
-          Left (InvalidClientCertificate _) -> pure ()
-          Left e ->
-            assertFailure $
-              "expected invalid client certificate exception, got: "
-                <> show e
-          Right tlsSettings ->
-            assertFailure $
-              "expected failure for partial client credentials, got: "
-                <> show (tlsSettings ^. creds),
+          clientPrivateKey: test/resources/unit/localhost-key.pem|],
       testCase "fail on non-existent certificate" $ do
-        let settings =
-              defRunSettings
-                { clientCertificate = Just "non-existent",
-                  clientPrivateKey = Just "non-existent"
-                }
+        let settings = defRunSettings "non-existent" "non-existent"
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
@@ -208,9 +172,8 @@ testSettings =
       testCase "fail on invalid certificate" $ do
         let settings =
               defRunSettings
-                { clientCertificate = Just "test/resources/unit/invalid.pem",
-                  clientPrivateKey = Just "test/resources/unit/localhost-key.pem"
-                }
+                "test/resources/unit/invalid.pem"
+                "test/resources/unit/localhost-key.pem"
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
@@ -231,9 +194,8 @@ testSettings =
       testCase "fail on invalid private key" $ do
         let settings =
               defRunSettings
-                { clientCertificate = Just "test/resources/unit/localhost.pem",
-                  clientPrivateKey = Just "test/resources/unit/invalid.pem"
-                }
+                "test/resources/unit/localhost.pem"
+                "test/resources/unit/invalid.pem"
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
@@ -257,3 +219,8 @@ assertParsesAs :: (HasCallStack, Eq a, FromJSON a, Show a) => a -> ByteString ->
 assertParsesAs v bs =
   assertEqual "YAML parsing" (Right v) $
     either (Left . show) Right (Yaml.decodeEither' bs)
+
+assertParseFailure :: forall a. (FromJSON a, Show a) => ByteString -> Assertion
+assertParseFailure bs = case Yaml.decodeEither' bs of
+  Left _ -> pure ()
+  Right (x :: a) -> assertFailure $ "expected YAML parsing failure, got: " <> show x

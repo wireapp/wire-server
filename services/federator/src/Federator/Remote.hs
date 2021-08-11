@@ -146,7 +146,7 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
                       X509.HashSHA256
                       (X509.defaultHooks {TLS.hookValidateName = validateName})
                       X509.defaultChecks,
-                  TLS.onCertificateRequest = \_ -> pure (settings ^. creds)
+                  TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds))
                 },
             TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
           }

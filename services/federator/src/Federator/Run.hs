@@ -118,31 +118,15 @@ mkCAStore settings = do
       else pure mempty
   pure (customCAStore <> systemCAStore)
 
-getClientCredentials :: RunSettings -> Either String (Maybe (FilePath, FilePath))
-getClientCredentials settings = case clientCertificate settings of
-  Nothing -> noCreds1 $> Nothing
-  Just cert -> Just . (cert,) <$> getCreds1
-  where
-    noCreds1 :: Either String ()
-    noCreds1
-      | isNothing (clientPrivateKey settings) = pure ()
-      | otherwise = Left "invalid client credentials: no certificate"
-
-    getCreds1 :: Either String FilePath
-    getCreds1 =
-      maybe (Left "invalid client credentials: no private key") pure $
-        clientPrivateKey settings
-
-mkCreds :: RunSettings -> IO (Maybe TLS.Credential)
-mkCreds settings = handle h $ case getClientCredentials settings of
-  Left e -> throw (InvalidClientCertificate e)
-  Right Nothing -> pure Nothing
-  Right (Just (cert, key)) ->
-    TLS.credentialLoadX509 cert key >>= \case
-      Left e -> throw (InvalidClientCertificate e)
-      Right (X509.CertificateChain [], _) ->
-        throw (InvalidClientCertificate "could not read client certificate")
-      Right x -> pure (Just x)
+mkCreds :: RunSettings -> IO TLS.Credential
+mkCreds settings =
+  handle h $
+    TLS.credentialLoadX509 (clientCertificate settings) (clientPrivateKey settings)
+      >>= \case
+        Left e -> throw (InvalidClientCertificate e)
+        Right (X509.CertificateChain [], _) ->
+          throw (InvalidClientCertificate "could not read client certificate")
+        Right x -> pure x
   where
     h :: IOException -> IO a
     h = throw . InvalidClientCertificate . show
