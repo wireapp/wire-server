@@ -9,8 +9,6 @@
 
 ## API Changes
 
-* Deprecated `DELETE /conversations/:cnv/members/:usr`
-
 ## Features
 
 ## Bug fixes and other updates
@@ -33,6 +31,8 @@
 
 * Add `POST /conversations/list-ids` (#1686)
 * Deprecate `GET /converstations/ids` (#1686)
+* Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
+* Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
 
 ## Features
 
@@ -43,15 +43,18 @@
 ## Federation changes (alpha feature, do not use yet)
 
 * Add new API to list paginated qualified conversation ids (#1686)
+* Add an endpoint for removing a qualified user from a local conversation (#1697)
 
 ## Documentation
 
 * fix swagger: mark name in UserUpdate as optional (#1691)
+* Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
 
 ## Internal changes
 
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
+* The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
 
 # [2021-08-02]
 
