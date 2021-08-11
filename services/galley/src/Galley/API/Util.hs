@@ -582,7 +582,7 @@ notifyRemoteOfRemovedConvMembers ::
   UserId ->
   -- | The current time
   UTCTime ->
-  -- | The conversation form which members are being removed
+  -- | The conversation from which members are being removed
   Data.Conversation ->
   -- | Conversation members that are being removed
   List1WithOrigin UserId (Remote UserId) ->
