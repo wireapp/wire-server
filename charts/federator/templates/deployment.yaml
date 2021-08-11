@@ -38,11 +38,11 @@ spec:
         # federator-secrets contains the client certificate and the
         # corresponding private key to use when making requests to remote
         # backends.
-        # NOTE: if tls.shareFederatorSecret is set, we use the same secret as
-        # the one for the federator ingress
+        # NOTE: if tls.useSharedFederatorSecret is set, we use the same secret
+        # as the one for the federator ingress
         - name: "federator-secrets"
           secret:
-            secretName: {{ if .Values.tls.shareFederatorSecret -}}
+            secretName: {{ if .Values.tls.useSharedFederatorSecret -}}
               "federator-certificate-secret"
               {{- else -}}
               "federator-secret"

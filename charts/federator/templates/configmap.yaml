@@ -45,7 +45,7 @@ data:
       {{- if $.Values.remoteCAContents }}
       remoteCAStore: "/etc/wire/federator/ca/ca.crt"
       {{- end }}
-      {{- if $.Values.clientCertificateContents or $.Values.tls.shareFederatorSecret }}
+      {{- if $.Values.clientCertificateContents or $.Values.tls.useSharedFederatorSecret }}
       clientCertificate: "/etc/wire/federator/secrets/tls.crt"
       clientPrivateKey: "/etc/wire/federator/secrets/tls.key"
       {{- end }}

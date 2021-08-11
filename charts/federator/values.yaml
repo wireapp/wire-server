@@ -11,7 +11,7 @@ service:
 tls:
   # if enabled, federator will get its client certificate and private key from
   # the secret used by the federator ingress
-  shareFederatorSecret: false
+  useSharedFederatorSecret: false
 
 resources:
   # FUTUREWORK: come up with numbers which didn't appear out of thin air
