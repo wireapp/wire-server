@@ -27,6 +27,7 @@ module Wire.API.Conversation
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
+    ListConversationsV2 (..),
     GetPaginatedConversationIds (..),
     ConversationPagingState (..),
     ConversationPagingTable (..),
@@ -343,9 +344,10 @@ instance ToSchema GetPaginatedConversationIds where
             <$> gpciPagingState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema
             <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
 
--- | Used on the POST /list-conversations endpoint
-newtype ListConversations = ListConversations
-  { lQualifiedIds :: NonEmpty (Qualified ConvId)
+data ListConversations = ListConversations
+  { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
+    lStartId :: Maybe (Qualified ConvId),
+    lSize :: Maybe (Range 1 500 Int32)
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversations
@@ -354,9 +356,26 @@ instance ToSchema ListConversations where
   schema =
     objectWithDocModifier
       "ListConversations"
-      (description ?~ "A request to list some of a user's conversations, including remote ones")
+      (description ?~ "A request to list some or all of a user's conversations, including remote ones")
       $ ListConversations
-        <$> lQualifiedIds .= field "qualified_ids" (nonEmptyArray schema)
+        <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
+        <*> lStartId .= optField "start_id" Nothing schema
+        <*> lSize .= optField "size" Nothing schema
+
+-- | Used on the POST /list-conversations endpoint
+newtype ListConversationsV2 = ListConversationsV2
+  { lcQualifiedIds :: NonEmpty (Qualified ConvId)
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversationsV2
+
+instance ToSchema ListConversationsV2 where
+  schema =
+    objectWithDocModifier
+      "ListConversations"
+      (description ?~ "A request to list some of a user's conversations, including remote ones")
+      $ ListConversationsV2
+        <$> lcQualifiedIds .= field "qualified_ids" (nonEmptyArray schema)
 
 data ConversationsResponse = ConversationsResponse
   { crFound :: [Conversation],

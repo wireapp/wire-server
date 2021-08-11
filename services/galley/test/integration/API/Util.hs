@@ -33,6 +33,7 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
+import Data.Aeson.Types (emptyObject)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
@@ -774,11 +775,36 @@ getConvs u r s = do
       . zType "access"
       . convRange r s
 
+-- (should be) equivalent to
+-- listConvs u (ListConversations [] Nothing Nothing)
+-- (if the schema of ListConversations is correct)
+listAllConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> m ResponseLBS
+listAllConvs u = do
+  g <- viewGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json emptyObject
+
 listConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversations -> m ResponseLBS
 listConvs u req = do
   -- when using servant-client (pending #1605), this would become:
   -- galleyClient <- view tsGalleyClient
   -- res :: Public.ConversationList Public.Conversation <- listConversations galleyClient req
+  g <- viewGalley
+  post $
+    g
+      . path "/list-conversations"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json req
+
+listConvsV2 :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversationsV2 -> m ResponseLBS
+listConvsV2 u req = do
   g <- viewGalley
   post $
     g
