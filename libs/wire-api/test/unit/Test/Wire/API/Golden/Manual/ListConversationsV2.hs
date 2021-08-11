@@ -19,16 +19,17 @@ module Test.Wire.API.Golden.Manual.ListConversationsV2 where
 
 import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id))
-import Data.List.NonEmpty (NonEmpty (..))
 import Data.Qualified (Qualified (Qualified))
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation (ListConversationsV2 (..))
+import Data.Range (unsafeRange)
 
 testObject_ListConversationsV2_1 :: ListConversationsV2
 testObject_ListConversationsV2_1 =
   ListConversationsV2
-    ( Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "domain.example.com")
-        :| [ Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-111111111112"))) (Domain "domain2.example.com")
-           ]
+    ( unsafeRange
+        [ Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) (Domain "domain.example.com"),
+          Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-111111111112"))) (Domain "domain2.example.com")
+        ]
     )
