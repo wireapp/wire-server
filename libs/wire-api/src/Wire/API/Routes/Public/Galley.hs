@@ -188,10 +188,11 @@ data Api routes = Api
     listConversations ::
       routes
         :- Summary "[deprecated] Get all conversations (also returns remote conversations)"
-        :> Description "Like GET /conversations, but allows specifying a list of remote conversations in its request body. \
-                       \Will return all or the requested qualified conversations, including remote ones. \
-                       \Size parameter is not yet honoured for remote conversations.\n\
-                       \**NOTE** This endpoint will soon be removed."
+        :> Description
+             "Like GET /conversations, but allows specifying a list of remote conversations in its request body. \
+             \Will return all or the requested qualified conversations, including remote ones. \
+             \Size parameter is not yet honoured for remote conversations.\n\
+             \**NOTE** This endpoint will soon be removed."
         :> ZUser
         :> "list-conversations"
         :> ReqBody '[Servant.JSON] Public.ListConversations
