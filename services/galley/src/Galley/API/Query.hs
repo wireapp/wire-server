@@ -25,6 +25,7 @@ module Galley.API.Query
     conversationIdsPageFrom,
     getConversations,
     listConversations,
+    listConversationsV2,
     iterateConversations,
     getSelfH,
     internalGetMemberH,
@@ -208,9 +209,57 @@ getConversationsInternal user mids mstart msize = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
+
+-- | Deprecated
+--  FUTUREWORK(federation): Delete this endpoint
+listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
+listConversations user (Public.ListConversations mIds qstart msize) = do
+  localDomain <- viewFederationDomain
+  when (isJust mIds && isJust qstart) $
+    throwM (invalidPayload "'start' and 'qualified_ids' are mutually exclusive")
+  (localMore, localConvIds, remoteConvIds) <- case mIds of
+    Just xs -> do
+      let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList xs)
+      (localMore, localConvIds) <- getIdsAndMore localIds
+      pure (localMore, localConvIds, remoteConvIds)
+    Nothing -> do
+      (localMore, localConvIds) <- getAll (localstart localDomain)
+      remoteConvIds <- Data.conversationsRemote user
+      pure (localMore, localConvIds, remoteConvIds)
+
+  localInternalConversations <-
+    Data.conversations localConvIds
+      >>= filterM removeDeleted
+      >>= filterM (pure . isMember user . Data.convLocalMembers)
+  localConversations <- mapM (Mapping.conversationView user) localInternalConversations
+
+  remoteConversations <- getRemoteConversations user remoteConvIds
+  let allConvs = localConversations <> remoteConversations
+  pure $ Public.ConversationList allConvs localMore
+  where
+    localstart localDomain = case qstart of
+      Just start | qDomain start == localDomain -> Just (qUnqualified start)
+      _ -> Nothing
+
+    size = fromMaybe (toRange (Proxy @32)) msize
+
+    getIdsAndMore :: [ConvId] -> Galley (Bool, [ConvId])
+    getIdsAndMore ids = (False,) <$> Data.conversationIdsOf user ids
+
+    getAll :: Maybe ConvId -> Galley (Bool, [ConvId])
+    getAll mstart = do
+      r <- Data.conversationIdsFrom user mstart (rcast size)
+      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
+      pure (hasMore, Data.resultSetResult r)
+
+    removeDeleted :: Data.Conversation -> Galley Bool
+    removeDeleted c
+      | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
+      | otherwise = pure True
+
 -- FUTUREWORK: optimize cassandra requests when retrieving conversations (avoid large IN queries, prefer parallel/chunked requests)
-listConversations :: UserId -> Public.ListConversations -> Galley Public.ConversationsResponse
-listConversations user (Public.ListConversations ids) = do
+listConversationsV2 :: UserId -> Public.ListConversationsV2 -> Galley Public.ConversationsResponse
+listConversationsV2 user (Public.ListConversationsV2 ids) = do
   localDomain <- viewFederationDomain
 
   let (remoteConvIds, localIds) = partitionRemoteOrLocalIds' localDomain (toList ids)
