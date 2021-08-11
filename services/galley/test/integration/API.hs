@@ -1954,10 +1954,10 @@ testGetRemoteConversationsV2 = do
       remoteDomain
       (const remoteConversationResponse)
       (listConvsV2 alice req)
-  convs :: ConversationList Conversation <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
+  convs :: ConversationsResponse <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do
     let expected = mockConversation
-    let actual = find ((== remoteConvId) . cnvQualifiedId) (convList convs)
+    let actual = find ((== remoteConvId) . cnvQualifiedId) (crFound convs)
     assertEqual
       "name mismatch"
       (Just $ cnvName expected)
