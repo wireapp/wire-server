@@ -94,13 +94,6 @@ module Galley.Data
     updateMember,
     filterRemoteConvMembers,
 
-    -- * Non-empty user list
-    NonEmptyUserList (..),
-    mkNonEmptyUserList,
-    splitNonEmptyUserList,
-    nonEmptyUserListToQualified,
-    fromNonEmptyUserList,
-
     -- * Conversation Codes
     lookupCode,
     deleteCode,
@@ -136,7 +129,7 @@ import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
 import Data.List.Split (chunksOf)
-import Data.List1 (List1, list1, singleton)
+import Data.List1 (List1, List1WithOrigin (..), list1, singleton, splitList1WithOrigin)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
 import qualified Data.Monoid
@@ -961,9 +954,9 @@ removeMembersFromLocalConv ::
   Domain ->
   Conversation ->
   UserId ->
-  NonEmptyUserList UserId (Remote UserId) ->
+  List1WithOrigin UserId (Remote UserId) ->
   m Event
-removeMembersFromLocalConv compatibility localDomain conv orig (splitNonEmptyUserList -> (localVictims, remoteVictims)) = do
+removeMembersFromLocalConv compatibility localDomain conv orig (splitList1WithOrigin -> (localVictims, remoteVictims)) = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
@@ -1139,43 +1132,3 @@ withTeamMembersWithChunks tid action = do
       when (hasMore mems) $
         handleMembers =<< liftClient (nextPage mems)
 {-# INLINE withTeamMembersWithChunks #-}
-
--- Conversation Member Utilities --------------------------------------------
-
--- | This data type is useful in conversation member adding and removal. It
--- ensures there will be at least one member to work with.
-data NonEmptyUserList a b
-  = OnlyFirstList (List1 a)
-  | OnlySecondList (List1 b)
-  | BothLists (List1 a) (List1 b)
-
-mkNonEmptyUserList :: [a] -> [b] -> Maybe (NonEmptyUserList a b)
-mkNonEmptyUserList [] [] = Nothing
-mkNonEmptyUserList [] (h : t) = Just $ OnlySecondList (list1 h t)
-mkNonEmptyUserList (h : t) [] = Just $ OnlyFirstList (list1 h t)
-mkNonEmptyUserList (hl : tl) (hr : tr) =
-  Just $
-    BothLists (list1 hl tl) (list1 hr tr)
-
-splitNonEmptyUserList :: NonEmptyUserList a b -> ([a], [b])
-splitNonEmptyUserList = \case
-  OnlyFirstList ls -> (toList ls, [])
-  OnlySecondList rs -> ([], toList rs)
-  BothLists ls rs -> (toList ls, toList rs)
-
-nonEmptyUserListToQualified ::
-  Domain ->
-  NonEmptyUserList UserId (Remote UserId) ->
-  List1 (Qualified UserId)
-nonEmptyUserListToQualified domain =
-  fromNonEmptyUserList (`Qualified` domain) unTagged
-
-fromNonEmptyUserList ::
-  (a -> c) ->
-  (b -> c) ->
-  NonEmptyUserList a b ->
-  List1 c
-fromNonEmptyUserList f g = \case
-  OnlyFirstList ls -> fmap f ls
-  OnlySecondList rs -> fmap g rs
-  BothLists ls rs -> fmap f ls <> fmap g rs
