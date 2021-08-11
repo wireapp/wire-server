@@ -91,6 +91,7 @@ callInward client request =
 -- FUTUREWORK(federation): Consider using HsOpenSSL instead of tls for better
 -- security and to avoid having to depend on cryptonite and override validation
 -- hooks. This might involve forking http2-client: https://github.com/lucasdicioccio/http2-client/issues/76
+-- FUTUREWORK(federation): Use openssl
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
 mkGrpcClient ::
