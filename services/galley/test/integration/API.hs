@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -35,7 +36,6 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import qualified Cassandra as Cql
 import qualified Control.Concurrent.Async as Async
 import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Control.Monad.Except (MonadError (throwError))
@@ -58,7 +58,6 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
-import qualified Galley.Data as Cql
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
@@ -152,8 +151,10 @@ tests s =
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
-          test s "get and list remote conversations" testGetRemoteConversations,
-          test s "get and list remote conversations v2" testGetRemoteConversationsV2,
+          test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
+          test s "get conversations/:domain/:cnv - remote" testGetQualifiedRemoteConv,
+          test s "post list-conversations" testListRemoteConvs,
+          test s "post conversations/list/v2 - success" testBulkGetQualifiedConvsSuccess,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
@@ -1826,8 +1827,60 @@ testAddRemoteMember = do
         toJSON [mkProfile bob (Name "bob")]
       | otherwise = toJSON ()
 
-testGetRemoteConversations :: TestM ()
-testGetRemoteConversations = do
+testGetQualifiedLocalConv :: TestM ()
+testGetQualifiedLocalConv = do
+  alice <- randomUser
+  convId <- decodeQualifiedConvId <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  conv :: Conversation <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
+  liftIO $ do
+    assertEqual "conversation id" convId (cnvQualifiedId conv)
+    assertEqual "conversation name" (Just "gossip") (cnvName conv)
+
+testGetQualifiedRemoteConv :: TestM ()
+testGetQualifiedRemoteConv = do
+  aliceQ <- randomQualifiedUser
+  let aliceId = qUnqualified aliceQ
+  bobId <- randomId
+  convId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      bobQ = Qualified bobId remoteDomain
+      remoteConvId = Qualified convId remoteDomain
+      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
+      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
+      aliceAsMember = Member aliceId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+
+  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+
+  let mockConversation =
+        Conversation
+          { cnvQualifiedId = remoteConvId,
+            cnvType = RegularConv,
+            cnvCreator = bobId,
+            cnvAccess = [],
+            cnvAccessRole = ActivatedAccessRole,
+            cnvName = Just "federated gossip",
+            cnvMembers = ConvMembers aliceAsMember [bobAsOtherMember],
+            cnvTeam = Nothing,
+            cnvMessageTimer = Nothing,
+            cnvReceiptMode = Nothing
+          }
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
+
+  opts <- view tsGConf
+  (respAll, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const remoteConversationResponse)
+      (getConvQualified aliceId remoteConvId)
+
+  conv <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
+  -- FUTUREWORK: The backend should augment returned conversation data with
+  -- Alice's membership data stored locally
+  liftIO $ assertEqual "conversation" mockConversation conv
+
+testListRemoteConvs :: TestM ()
+testListRemoteConvs = do
   -- alice on local domain
   -- bob and the conversation on the remote domain
   aliceQ <- randomQualifiedUser
@@ -1835,6 +1888,7 @@ testGetRemoteConversations = do
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
+      bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
@@ -1854,22 +1908,8 @@ testGetRemoteConversations = do
           }
       remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
-  -- test GET /conversations/:domain/:cnv for single conversation
-  (respOne, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      (const remoteConversationResponse)
-      (getConvQualified alice remoteConvId)
-  conv :: Conversation <- responseJsonUnsafe <$> (pure respOne <!! const 200 === statusCode)
-  liftIO $ do
-    let actual = cmOthers $ cnvMembers conv
-    let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
-    assertEqual "getConversation: other members should include remoteBob" expected actual
 
-  -- insert remote conversationId for alice
-  cassState <- view tsCass
-  Cql.runClient cassState $ Cql.addLocalMembersToRemoteConv [alice] remoteConvId
+  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
   -- FUTUREWORK: Do this test with more than one remote domains
   -- test POST /list-conversations
@@ -1879,29 +1919,19 @@ testGetRemoteConversations = do
       remoteDomain
       (const remoteConversationResponse)
       (listAllConvs alice)
-  convs :: ConversationList Conversation <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
+  convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do
+    -- FUTUREWORK: Expect membership metadata to change
     let expected = mockConversation
     let actual = find ((== remoteConvId) . cnvQualifiedId) (convList convs)
-    assertEqual
-      "name mismatch"
-      (Just $ cnvName expected)
-      (cnvName <$> actual)
-    assertEqual
-      "self member mismatch"
-      (Just . cmSelf $ cnvMembers expected)
-      (cmSelf . cnvMembers <$> actual)
-    assertEqual
-      "other members mismatch"
-      (Just [])
-      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+    assertEqual "conversations" (Just expected) actual
     assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
 -- TODO: Extend this test to include local convs, remote failures, local non
 -- exsitent convs, local convs which the requesting user is not part of and
 -- remote not founds.
-testGetRemoteConversationsV2 :: TestM ()
-testGetRemoteConversationsV2 = do
+testBulkGetQualifiedConvsSuccess :: TestM ()
+testBulkGetQualifiedConvsSuccess = do
   -- alice on local domain
   -- bob and the conversation on the remote domain
   aliceQ <- randomQualifiedUser
@@ -1909,10 +1939,12 @@ testGetRemoteConversationsV2 = do
   bobId <- randomId
   convId <- randomId
   let remoteDomain = Domain "far-away.example.com"
+      bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
 
-  let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-      bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
+      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       mockConversation =
         Conversation
           { cnvQualifiedId = remoteConvId,
@@ -1921,33 +1953,19 @@ testGetRemoteConversationsV2 = do
             cnvAccess = [],
             cnvAccessRole = ActivatedAccessRole,
             cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
+            cnvMembers = ConvMembers aliceAsSelfMember [bobAsOtherMember],
             cnvTeam = Nothing,
             cnvMessageTimer = Nothing,
             cnvReceiptMode = Nothing
           }
       remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
-  -- test GET /conversations/:domain/:cnv for single conversation
-  (respOne, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      (const remoteConversationResponse)
-      (getConvQualified alice remoteConvId)
-  conv :: Conversation <- responseJsonUnsafe <$> (pure respOne <!! const 200 === statusCode)
-  liftIO $ do
-    let actual = cmOthers $ cnvMembers conv
-    let expected = [OtherMember aliceQ Nothing roleNameWireAdmin]
-    assertEqual "getConversation: other members should include remoteBob" expected actual
 
-  -- insert remote conversationId for alice
-  cassState <- view tsCass
-  Cql.runClient cassState $ Cql.addLocalMembersToRemoteConv [alice] remoteConvId
+  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
   -- FUTUREWORK: Do this test with more than one remote domains
   -- test POST /list-conversations
-  let req = ListConversationsV2 (remoteConvId :| [])
+  let req = ListConversationsV2 (unsafeRange [remoteConvId])
   (respAll, _) <-
     withTempMockFederator
       opts
@@ -1958,18 +1976,7 @@ testGetRemoteConversationsV2 = do
   liftIO $ do
     let expected = mockConversation
     let actual = find ((== remoteConvId) . cnvQualifiedId) (crFound convs)
-    assertEqual
-      "name mismatch"
-      (Just $ cnvName expected)
-      (cnvName <$> actual)
-    assertEqual
-      "self member mismatch"
-      (Just . cmSelf $ cnvMembers expected)
-      (cmSelf . cnvMembers <$> actual)
-    assertEqual
-      "other members mismatch"
-      (Just [])
-      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+    assertEqual "conversation" (Just expected) actual
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do

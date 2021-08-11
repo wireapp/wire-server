@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -117,6 +118,7 @@ import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
+import Data.Time (getCurrentTime)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1110,6 +1112,26 @@ getTeamQueue' zusr msince msize onlyLast = do
           ]
     )
 
+registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set OtherMember -> TestM ()
+registerRemoteConv convId originUser name othMembers = do
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  FederatedGalley.registerConversation
+    fedGalleyClient
+    ( FederatedGalley.MkRegisterConversation
+        { rcTime = now,
+          rcOrigUserId = originUser,
+          rcCnvId = convId,
+          rcCnvType = RegularConv,
+          rcCnvAccess = [],
+          rcCnvAccessRole = ActivatedAccessRole,
+          rcCnvName = name,
+          rcMembers = othMembers,
+          rcMessageTimer = Nothing,
+          rcReceiptMode = Nothing
+        }
+    )
+
 -------------------------------------------------------------------------------
 -- Common Assertions
 
@@ -1298,7 +1320,10 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvId = qUnqualified . cnvQualifiedId . responseJsonUnsafe
+decodeConvId = qUnqualified . decodeQualifiedConvId
+
+decodeQualifiedConvId :: Response (Maybe Lazy.ByteString) -> Qualified ConvId
+decodeQualifiedConvId = cnvQualifiedId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
