@@ -2085,7 +2085,7 @@ deleteMembersUnqualifiedOk = do
 -- Creates a conversation with three users from the same domain. Then it uses a
 -- qualified endpoint for deleting a conversation member:
 --
--- DELETE /conversations/:cnv/members/:domain/:usr
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
 deleteMembersConvLocalQualifiedOk :: TestM ()
 deleteMembersConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
@@ -2093,20 +2093,21 @@ deleteMembersConvLocalQualifiedOk = do
   let [qAlice, qBob, qEve] = (`Qualified` localDomain) <$> [alice, bob, eve]
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConvQualified alice [qBob, qEve] (Just "federated gossip") [] Nothing Nothing
-  deleteMemberQualified bob qBob conv !!! const 200 === statusCode
-  deleteMemberQualified bob qBob conv !!! const 404 === statusCode
+  let qconv = Qualified conv localDomain
+  deleteMemberQualified bob qBob qconv !!! const 200 === statusCode
+  deleteMemberQualified bob qBob qconv !!! const 404 === statusCode
   -- if the conversation still exists, don't respond with 404, but with 403.
   getConv bob conv !!! const 403 === statusCode
-  deleteMemberQualified alice qEve conv !!! const 200 === statusCode
-  deleteMemberQualified alice qEve conv !!! const 204 === statusCode
-  deleteMemberQualified alice qAlice conv !!! const 200 === statusCode
-  deleteMemberQualified alice qAlice conv !!! const 404 === statusCode
+  deleteMemberQualified alice qEve qconv !!! const 200 === statusCode
+  deleteMemberQualified alice qEve qconv !!! const 204 === statusCode
+  deleteMemberQualified alice qAlice qconv !!! const 200 === statusCode
+  deleteMemberQualified alice qAlice qconv !!! const 404 === statusCode
 
 -- Creates a conversation with three users. Alice and Bob are on the local
 -- domain, while Eve is on a remote domain. It uses a qualified endpoint for
 -- removing Bob from the conversation:
 --
--- DELETE /conversations/:cnv/members/:domain/:usr
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
 deleteLocalMemberConvLocalQualifiedOk :: TestM ()
 deleteLocalMemberConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
@@ -2133,7 +2134,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
       opts
       remoteDomain
       (respond (qEve, "Eve"))
-      (deleteMemberQualified alice qBob convId)
+      (deleteMemberQualified alice qBob qconvId)
   liftIO $ do
     statusCode respDel @?= 200
     case responseJsonEither respDel of
@@ -2145,7 +2146,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
       opts
       remoteDomain
       (respond (qEve, "Eve"))
-      (deleteMemberQualified alice qBob convId)
+      (deleteMemberQualified alice qBob qconvId)
     !!! do
       const 204 === statusCode
       const Nothing === responseBody

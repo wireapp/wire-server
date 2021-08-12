@@ -271,7 +271,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
         :> "members"
         :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
         :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation,
