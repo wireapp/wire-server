@@ -32,7 +32,7 @@ module Web.Scim.Client
     getUser,
     postUser,
     putUser,
-    patchUserr,
+    patchUser,
     deleteUser,
 
     -- * group
@@ -143,14 +143,14 @@ putUser ::
   IO (StoredUser tag)
 putUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|> (r :<|> (_ :<|> _))) -> r
 
-patchUserr ::
+patchUser ::
   HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->
   PatchOp tag ->
   IO (StoredUser tag)
-patchUserr env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|> (_ :<|> (r :<|> _))) -> r
+patchUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|> (_ :<|> (r :<|> _))) -> r
 
 deleteUser ::
   forall tag.

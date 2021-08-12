@@ -40,6 +40,8 @@
 
 ## Bug fixes and other updates
 
+* Remove old end-point for changing email
+
 ## Federation changes (alpha feature, do not use yet)
 
 * Add new API to list paginated qualified conversation ids (#1686)

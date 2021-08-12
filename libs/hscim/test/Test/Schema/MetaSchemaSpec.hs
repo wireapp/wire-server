@@ -47,10 +47,11 @@ prop_roundtrip gen = property $ do
 spec :: Spec
 spec = do
   describe "MetaSchema" $ do
+    -- the extra 'decode' in the golden tests is to make attribute order not count for Eq.
     it "`Supported ()` golden test" $ do
-      encode (Supported (ScimBool True) ()) `shouldBe` "{\"supported\":true}"
+      decode @Value (encode (Supported (ScimBool True) ())) `shouldBe` decode @Value ("{\"supported\":true}")
     it "`Supported a` golden test" $ do
-      encode (Supported (ScimBool True) (FilterConfig 3)) `shouldBe` "{\"supported\":true,\"maxResults\":3}"
+      decode @Value (encode (Supported (ScimBool True) (FilterConfig 3))) `shouldBe` decode @Value "{\"supported\":true,\"maxResults\":3}"
     it "`Supported ()` roundtrips" $ do
       require (prop_roundtrip (genSupported (pure ())))
     it "`BulkConfig` roundtrips" $ do
