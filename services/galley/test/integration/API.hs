@@ -1979,7 +1979,6 @@ testBulkGetQualifiedConvsSuccess = do
   eve <- randomQualifiedUser
   localConvIdNotParticipating <- decodeQualifiedConvId <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
 
-  -- TODO: Make this necessary
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
   registerRemoteConv remoteConvIdA bobQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdB carlQ Nothing (Set.fromList [aliceAsOtherMember])
