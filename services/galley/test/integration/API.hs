@@ -1947,7 +1947,7 @@ testListRemoteConvs = do
 -- - Alice tries to get 1 conversation from a.far-away.example.com, but is not
 --   found in the local DB
 --
--- - TODO: Alice tries to get 1 conversation from b.far-away.example.com, it is
+-- - Alice tries to get 1 conversation from b.far-away.example.com, it is
 --   found in the local DB but remote does not return it
 --
 -- - TODO: Alice tries to get 1 conversation from c.far-away.example.com, but
@@ -1963,25 +1963,27 @@ testBulkGetQualifiedConvsSuccess = do
   let alice = qUnqualified aliceQ
   bobId <- randomId
   carlId <- randomId
-  convId <- randomId
   let remoteDomainA = Domain "a.far-away.example.com"
       remoteDomainB = Domain "b.far-away.example.com"
       bobQ = Qualified bobId remoteDomainA
       carlQ = Qualified carlId remoteDomainB
-      remoteConvIdA = Qualified convId remoteDomainA
-      remoteConvIdB = Qualified convId remoteDomainB
 
   localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   let localConvId = cnvQualifiedId localConv
 
-  remoteConvIdALocallyNotFound <- flip Qualified remoteDomainA <$> randomId
-  localConvIdNotFound <- flip Qualified localDomain <$> randomId
+  remoteConvIdA <- randomQualifiedId remoteDomainA
+  remoteConvIdB <- randomQualifiedId remoteDomainB
+  remoteConvIdALocallyNotFound <- randomQualifiedId remoteDomainA
+  remoteConvIdBNotFoundOnRemote <- randomQualifiedId remoteDomainB
+  localConvIdNotFound <- randomQualifiedId localDomain
+
   eve <- randomQualifiedUser
   localConvIdNotParticipating <- decodeQualifiedConvId <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
   registerRemoteConv remoteConvIdA bobQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdB carlQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
   -- FUTUREWORK: Do this test with more than one remote domains
   -- test POST /list-conversations
@@ -1997,7 +1999,8 @@ testBulkGetQualifiedConvsSuccess = do
             remoteConvIdB,
             remoteConvIdALocallyNotFound,
             localConvIdNotFound,
-            localConvIdNotParticipating
+            localConvIdNotParticipating,
+            remoteConvIdBNotFoundOnRemote
           ]
   opts <- view tsGConf
   (respAll, receivedRequests) <-
@@ -2026,7 +2029,7 @@ testBulkGetQualifiedConvsSuccess = do
             =<< find ((== domainText remoteDomainA) . F.domain) receivedRequests
     assertEqual "only locally found conversations should be queried" (Just [qUnqualified remoteConvIdA]) requestedConvIdsA
 
-    let expectedNotFound = sort [localConvIdNotFound, localConvIdNotParticipating, remoteConvIdALocallyNotFound]
+    let expectedNotFound = sort [localConvIdNotFound, localConvIdNotParticipating, remoteConvIdALocallyNotFound, remoteConvIdBNotFoundOnRemote]
         actualNotFound = sort $ crNotFound convs
     assertEqual "not founds" expectedNotFound actualNotFound
     assertEqual "no failures" [] (crFailed convs)

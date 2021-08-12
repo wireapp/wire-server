@@ -1479,6 +1479,9 @@ randomUser = qUnqualified <$> randomUser' False True True
 randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
 randomQualifiedUser = randomUser' False True True
 
+randomQualifiedId :: MonadIO m => Domain -> m (Qualified (Id a))
+randomQualifiedId domain = flip Qualified domain <$> randomId
+
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
 
