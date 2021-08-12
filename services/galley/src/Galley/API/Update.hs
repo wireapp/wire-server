@@ -118,6 +118,7 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -547,7 +548,7 @@ addMembers zusr zcon convId invite = do
             for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $
                 let qvictim = Qualified (memId mem) localDomain
-                 in void $ removeMember (memId mem) Nothing (Data.convId conv) qvictim
+                 in void $ removeMember (memId mem) Nothing (Data.convId conv `Qualified` localDomain) qvictim
           else throwErrorDescription missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
@@ -591,10 +592,19 @@ updateOtherMember zusr zcon cid victim update = do
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
-removeMember :: UserId -> Maybe ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
-removeMember zusr zcon convId victim =
-  fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
-    removeMemberFromLocalConv zusr zcon convId victim
+removeMember ::
+  UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  Qualified UserId ->
+  Galley RemoveFromConversation
+removeMember remover zcon _qconv@(Qualified conv convDomain) victim = do
+  localDomain <- viewFederationDomain
+  if localDomain == convDomain
+    then
+      fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
+        removeMemberFromLocalConv remover zcon conv victim
+    else throwM federationNotImplemented
   where
     mapError :: RemoveFromConversationError -> RemoveFromConversation
     mapError = \case
@@ -610,9 +620,14 @@ removeMember zusr zcon convId victim =
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
-  removeMember zusr (Just zcon) conv (Qualified victim localDomain)
+  removeMember zusr (Just zcon) (Qualified conv localDomain) (Qualified victim localDomain)
 
-removeMemberQualified :: UserId -> ConnId -> ConvId -> Qualified UserId -> Galley RemoveFromConversation
+removeMemberQualified ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Qualified UserId ->
+  Galley RemoveFromConversation
 removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
 
 removeMemberFromLocalConv ::

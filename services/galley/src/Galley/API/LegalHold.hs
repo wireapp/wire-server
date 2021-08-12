@@ -504,12 +504,13 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
               mems
               uidsLHStatus
 
+        let qconv = Data.convId conv `Qualified` localDomain
         if any
           ((== ConsentGiven) . consentGiven . snd)
           (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (memId memberNoConsent) Nothing (Data.convId conv) (Qualified (memId memberNoConsent) localDomain)
+              removeMember (memId memberNoConsent) Nothing qconv (Qualified (memId memberNoConsent) localDomain)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember (memId legalholder) Nothing (Data.convId conv) (Qualified (memId legalholder) localDomain)
+              removeMember (memId legalholder) Nothing qconv (Qualified (memId legalholder) localDomain)
