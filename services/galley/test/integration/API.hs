@@ -1950,7 +1950,7 @@ testListRemoteConvs = do
 -- - Alice tries to get 1 conversation from b.far-away.example.com, it is
 --   found in the local DB but remote does not return it
 --
--- - TODO: Alice tries to get 1 conversation from c.far-away.example.com, but
+-- - Alice tries to get 1 conversation from c.far-away.example.com, but
 --   the federated call fails
 --
 -- - Alice tries to get 1 local conversation which doesn't exist
@@ -1965,6 +1965,7 @@ testBulkGetQualifiedConvsSuccess = do
   carlId <- randomId
   let remoteDomainA = Domain "a.far-away.example.com"
       remoteDomainB = Domain "b.far-away.example.com"
+      remoteDomainC = Domain "c.far-away.example.com"
       bobQ = Qualified bobId remoteDomainA
       carlQ = Qualified carlId remoteDomainB
 
@@ -1976,6 +1977,7 @@ testBulkGetQualifiedConvsSuccess = do
   remoteConvIdALocallyNotFound <- randomQualifiedId remoteDomainA
   remoteConvIdBNotFoundOnRemote <- randomQualifiedId remoteDomainB
   localConvIdNotFound <- randomQualifiedId localDomain
+  remoteConvIdCFailure <- randomQualifiedId remoteDomainC
 
   eve <- randomQualifiedUser
   localConvIdNotParticipating <- decodeQualifiedConvId <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
@@ -1984,6 +1986,7 @@ testBulkGetQualifiedConvsSuccess = do
   registerRemoteConv remoteConvIdA bobQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdB carlQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
+  registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
   -- FUTUREWORK: Do this test with more than one remote domains
   -- test POST /list-conversations
@@ -2000,18 +2003,21 @@ testBulkGetQualifiedConvsSuccess = do
             remoteConvIdALocallyNotFound,
             localConvIdNotFound,
             localConvIdNotParticipating,
-            remoteConvIdBNotFoundOnRemote
+            remoteConvIdBNotFoundOnRemote,
+            remoteConvIdCFailure
           ]
   opts <- view tsGConf
   (respAll, receivedRequests) <-
-    withTempMockFederator
+    withTempMockFederator'
       opts
       remoteDomainA
-      ( \fedReq ->
+      ( \fedReq -> do
+          let success = pure . F.OutwardResponseBody . LBS.toStrict . encode
           case F.domain fedReq of
-            d | d == domainText remoteDomainA -> GetConversationsResponse [mockConversationA]
-            d | d == domainText remoteDomainB -> GetConversationsResponse [mockConversationB]
-            _ -> GetConversationsResponse []
+            d | d == domainText remoteDomainA -> success $ GetConversationsResponse [mockConversationA]
+            d | d == domainText remoteDomainB -> success $ GetConversationsResponse [mockConversationB]
+            d | d == domainText remoteDomainC -> pure . F.OutwardResponseError $ F.OutwardError F.DiscoveryFailed Nothing
+            _ -> assertFailure $ "Unrecognized domain: " <> show fedReq
       )
       (listConvsV2 alice req)
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
@@ -2032,7 +2038,7 @@ testBulkGetQualifiedConvsSuccess = do
     let expectedNotFound = sort [localConvIdNotFound, localConvIdNotParticipating, remoteConvIdALocallyNotFound, remoteConvIdBNotFoundOnRemote]
         actualNotFound = sort $ crNotFound convs
     assertEqual "not founds" expectedNotFound actualNotFound
-    assertEqual "no failures" [] (crFailed convs)
+    assertEqual "failures" [remoteConvIdCFailure] (crFailed convs)
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do
