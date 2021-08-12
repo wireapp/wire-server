@@ -44,6 +44,7 @@ import Data.Id as Id
 import Data.Proxy
 import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
 import Data.Range
+import qualified Data.Set as Set
 import Data.Tagged (unTagged)
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
@@ -58,6 +59,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
+import qualified System.Logger.Class as Logger
 import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
@@ -264,7 +266,7 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
 
   let (remoteIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <- Data.localConversationIdsOf user localIds
-  (foundRemoteIds, notFoundRemoteIds) <- Data.remoteConversationIdOf user remoteIds
+  (foundRemoteIds, locallyNotFoundRemoteIds) <- Data.remoteConversationIdOf user remoteIds
 
   localInternalConversations <-
     Data.conversations foundLocalIds
@@ -273,12 +275,20 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
   localConversations <- mapM (Mapping.conversationView user) localInternalConversations
 
   remoteConversations <- getRemoteConversations user foundRemoteIds
+  let fetchedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations
+      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedRemoteIds) $ map unTagged foundRemoteIds
+  unless (null remoteNotFoundRemoteIds) $
+    Logger.info $
+      Logger.msg ("Some locally found conversation ids were not returned by remotes" :: ByteString)
+        . Logger.field "convIds" (show remoteNotFoundRemoteIds)
+
   let allConvs = localConversations <> remoteConversations
   pure $
     Public.ConversationsResponse
       { crFound = allConvs,
         crNotFound =
-          map unTagged notFoundRemoteIds
+          map unTagged locallyNotFoundRemoteIds
+            <> remoteNotFoundRemoteIds
             <> map (`Qualified` localDomain) notFoundLocalIds,
         crFailed = []
       }
