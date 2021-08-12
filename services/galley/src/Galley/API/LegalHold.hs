@@ -61,7 +61,7 @@ import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
 import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
-import Galley.Types (EventBackwardsCompatibility (..), LocalMember, memConvRoleName, memId)
+import Galley.Types (LocalMember, memConvRoleName, memId)
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types (status200, status404)
@@ -509,7 +509,7 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
           (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember EventBackwardsCompatibilityUnqualified (memId memberNoConsent) Nothing (Data.convId conv) (Qualified (memId memberNoConsent) localDomain)
+              removeMember (memId memberNoConsent) Nothing (Data.convId conv) (Qualified (memId memberNoConsent) localDomain)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember EventBackwardsCompatibilityUnqualified (memId legalholder) Nothing (Data.convId conv) (Qualified (memId legalholder) localDomain)
+              removeMember (memId legalholder) Nothing (Data.convId conv) (Qualified (memId legalholder) localDomain)
