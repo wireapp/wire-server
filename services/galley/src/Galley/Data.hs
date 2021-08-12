@@ -60,6 +60,7 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
+    localConversationIdsOf,
     remoteConversationIdOf,
     localConversationIdsPageFrom,
     conversationIdRowsForPagination,
@@ -576,18 +577,26 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
       Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
       Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
+-- Deprecated
 conversationIdsOf :: (MonadClient m) => UserId -> [ConvId] -> m [ConvId]
 conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
+localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -> [ConvId] -> m ([ConvId], [ConvId])
+localConversationIdsOf usr cids = do
+  concatTuples <$> pooledMapConcurrentlyN 8 splitOne cids
+  where
+    splitOne :: ConvId -> m (Maybe ConvId, Maybe  ConvId)
+    splitOne conv = do
+      mbMembership <- query1 Cql.selectUserConvMembership (params Quorum (usr, conv))
+      case mbMembership of
+        Nothing -> pure (Nothing, Just conv)
+        Just _ -> pure (Just conv, Nothing)
 -- | Takes a list of conversation ids and splits them by those found for the
 -- given user and those which are not found.
 remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m ([Remote ConvId], [Remote ConvId])
 remoteConversationIdOf usr cids =
   concatTuples <$> pooledMapConcurrentlyN 8 splitOne cids
   where
-    concatTuples :: [(Maybe a, Maybe b)] -> ([a], [b])
-    concatTuples xs = (mapMaybe fst xs, mapMaybe snd xs)
-
     splitOne :: Remote ConvId -> m (Maybe (Remote ConvId), Maybe (Remote ConvId))
     splitOne remoteConvId = do
       let (Qualified conv domain) = unTagged remoteConvId
@@ -595,6 +604,9 @@ remoteConversationIdOf usr cids =
       case mbMembership of
         Nothing -> pure (Nothing, Just remoteConvId)
         Just _ -> pure (Just remoteConvId, Nothing)
+
+concatTuples :: [(Maybe a, Maybe b)] -> ([a], [b])
+concatTuples xs = (mapMaybe fst xs, mapMaybe snd xs)
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do

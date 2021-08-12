@@ -1952,26 +1952,32 @@ testListRemoteConvs = do
 --
 -- - TODO: Alice tries to get 1 conversation from c.far-away.example.com, but
 --   the federated call fails
--- - TODO: Alice tries to get 1 local conversation which doesn't exist
--- - TODO: Alice tries to get 1 local conersation which they're not part of
+--
+-- - Alice tries to get 1 local conversation which doesn't exist
+--
+-- - Alice tries to get 1 local conersation which they're not part of
 testBulkGetQualifiedConvsSuccess :: TestM ()
 testBulkGetQualifiedConvsSuccess = do
+  localDomain <- viewFederationDomain
   aliceQ <- randomQualifiedUser
   let alice = qUnqualified aliceQ
   bobId <- randomId
   carlId <- randomId
   convId <- randomId
-  convIdNotFound <- randomId
   let remoteDomainA = Domain "a.far-away.example.com"
       remoteDomainB = Domain "b.far-away.example.com"
       bobQ = Qualified bobId remoteDomainA
       carlQ = Qualified carlId remoteDomainB
       remoteConvIdA = Qualified convId remoteDomainA
-      remoteConvIdALocallyNotFound = Qualified convIdNotFound remoteDomainA
       remoteConvIdB = Qualified convId remoteDomainB
 
   localConv <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   let localConvId = cnvQualifiedId localConv
+
+  remoteConvIdALocallyNotFound <- flip Qualified remoteDomainA <$> randomId
+  localConvIdNotFound <- flip Qualified localDomain <$> randomId
+  eve <- randomQualifiedUser
+  localConvIdNotParticipating <- decodeQualifiedConvId <$> postConv (qUnqualified eve) [] (Just "gossip about alice!") [] Nothing Nothing
 
   -- TODO: Make this necessary
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
@@ -1985,7 +1991,15 @@ testBulkGetQualifiedConvsSuccess = do
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
       mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
       mockConversationB = mkConv remoteConvIdB carlId aliceAsSelfMember [carlAsOtherMember]
-      req = ListConversationsV2 (unsafeRange [localConvId, remoteConvIdA, remoteConvIdB, remoteConvIdALocallyNotFound])
+      req =
+        ListConversationsV2 . unsafeRange $
+          [ localConvId,
+            remoteConvIdA,
+            remoteConvIdB,
+            remoteConvIdALocallyNotFound,
+            localConvIdNotFound,
+            localConvIdNotParticipating
+          ]
   opts <- view tsGConf
   (respAll, receivedRequests) <-
     withTempMockFederator
@@ -2001,24 +2015,22 @@ testBulkGetQualifiedConvsSuccess = do
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
 
   liftIO $ do
-    let expectedRemoteConvA = mockConversationA
-        actualRemoteConvA = find ((== remoteConvIdA) . cnvQualifiedId) (crFound convs)
-        expectedRemoteConvB = mockConversationB
-        actualRemoteConvB = find ((== remoteConvIdB) . cnvQualifiedId) (crFound convs)
-        expectedLocalConv = localConv
-        actualLocalConv = find ((== localConvId) . cnvQualifiedId) (crFound convs)
-        -- Assumes only one request is made
-        requestedConvIdsA =
+    let expectedFound = sortOn cnvQualifiedId [localConv, mockConversationA, mockConversationB]
+        actualFound = sortOn cnvQualifiedId $ crFound convs
+    assertEqual "found conversations" expectedFound actualFound
+
+    -- Assumes only one request is made
+    let requestedConvIdsA =
           fmap FederatedGalley.gcrConvIds
             . decode @FederatedGalley.GetConversationsRequest
             =<< fmap (LBS.fromStrict . F.body) . F.request
             =<< find ((== domainText remoteDomainA) . F.domain) receivedRequests
-    assertEqual "local conversation" (Just expectedLocalConv) actualLocalConv
-    assertEqual "remote conversation A" (Just expectedRemoteConvA) actualRemoteConvA
-    assertEqual "remote conversation B" (Just expectedRemoteConvB) actualRemoteConvB
-    assertEqual "not founds" [remoteConvIdALocallyNotFound] (crNotFound convs)
-    assertEqual "no failures" [] (crFailed convs)
     assertEqual "only locally found conversations should be queried" (Just [qUnqualified remoteConvIdA]) requestedConvIdsA
+
+    let expectedNotFound = sort [localConvIdNotFound, localConvIdNotParticipating, remoteConvIdALocallyNotFound]
+        actualNotFound = sort $ crNotFound convs
+    assertEqual "not founds" expectedNotFound actualNotFound
+    assertEqual "no failures" [] (crFailed convs)
 
 testAddRemoteMemberFailure :: TestM ()
 testAddRemoteMemberFailure = do
