@@ -2118,6 +2118,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
   connectUsers alice (singleton bob)
 
   convId <- decodeConvId <$> postConv alice [bob] (Just "remote gossip") [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
   opts <- view tsGConf
   g <- view tsGalley
   fst
@@ -2137,7 +2138,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
     statusCode respDel @?= 200
     case responseJsonEither respDel of
       Left err -> assertFailure err
-      Right e -> isExpectedEvent qAlice (convId `Qualified` localDomain) [qBob] e
+      Right e -> isExpectedEvent qconvId qAlice [qBob] e
   -- Now that Bob is gone, try removing him once again
   fst
     <$> withTempMockFederator
@@ -2149,12 +2150,6 @@ deleteLocalMemberConvLocalQualifiedOk = do
       const 204 === statusCode
       const Nothing === responseBody
   where
-    isExpectedEvent :: Qualified UserId -> Qualified ConvId -> [Qualified UserId] -> Event -> IO ()
-    isExpectedEvent usr conv victims e = do
-      evtConv e @?= conv
-      evtType e @?= MemberLeaveQualified
-      evtFrom e @?= usr
-      evtData e @?= EdMembersLeaveQualified (QualifiedUserIdList victims)
     respond :: (Qualified UserId, Text) -> F.FederatedRequest -> Value
     respond (mem, name) req
       | fmap F.component (F.request req) == Just F.Brig =

@@ -240,7 +240,7 @@ removeLocalUser = do
       void . WS.assertMatch (3 # Second) ws $
         wsAssertMemberJoinWithRole qconv qBob [qAlice] roleNameWireMember
       void . WS.assertMatch (3 # Second) ws $
-        wsAssertMembersLeaveQualified qconv qBob [qAlice]
+        wsAssertMembersLeave qconv qBob [qAlice]
     afterRemoval <- aliceConvs
     liftIO $ do
       afterAddition @?= [qconv]
@@ -305,7 +305,7 @@ removeRemoteUser = do
     afterRemoval <- aliceConvs
     void . liftIO $
       WS.assertMatch (3 # Second) ws $
-        wsAssertMembersLeaveQualified qconv qBob [qEve]
+        wsAssertMembersLeave qconv qBob [qEve]
     liftIO $ do
       afterAddition @?= [qconv]
       afterRemoval @?= [qconv]

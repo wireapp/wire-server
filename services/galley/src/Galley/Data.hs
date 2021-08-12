@@ -976,10 +976,10 @@ removeMembersFromLocalConv compatibility localDomain conv orig (splitList1WithOr
       Event MemberLeave qconvId qorig t (EdMembersLeave . UserIdList . fmap (`Qualified` localDomain) $ localVictims)
     EventBackwardsCompatibilityQualified ->
       let allVictims =
-            QualifiedUserIdList $
+            UserIdList $
               fmap (`Qualified` localDomain) localVictims
                 <> fmap unTagged remoteVictims
-       in Event MemberLeaveQualified qconvId qorig t (EdMembersLeaveQualified allVictims)
+       in Event MemberLeave qconvId qorig t (EdMembersLeave allVictims)
 
 removeLocalMembersFromRemoteConv ::
   MonadClient m =>

@@ -120,11 +120,11 @@ updateConversationMemberships cmu = do
             (list1 h t)
       pure $
         Event
-          MemberLeaveQualified
+          MemberLeave
           (cmuConvId cmu)
           (cmuOrigUserId cmu)
           (cmuTime cmu)
-          (EdMembersLeaveQualified . QualifiedUserIdList . toList $ toRemove)
+          (EdMembersLeave . UserIdList . toList $ toRemove)
   -- FUTUREWORK: support bots?
   -- send notifications
   pushConversationEvent Nothing event targets []
