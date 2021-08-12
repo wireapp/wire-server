@@ -23,7 +23,6 @@ module Wire.API.Event.Conversation
     Event (..),
     EventType (..),
     EventData (..),
-    EventBackwardsCompatibility (..),
 
     -- * Event data helpers
     SimpleMember (..),
@@ -549,14 +548,3 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
-
--- | The piece of information needed to maintain backwards compatibility of
--- 'Event's when members leave a conversation.
---
--- It is safe to remove this type once unqualified endpoints for conversation
--- member removal are deleted from the code base.
-data EventBackwardsCompatibility
-  = -- | For endpoints removing unqualified users
-    EventBackwardsCompatibilityUnqualified
-  | -- | For endpoints removing qualified users
-    EventBackwardsCompatibilityQualified

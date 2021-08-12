@@ -933,30 +933,28 @@ filterRemoteConvMembers users (Qualified conv dom) =
 
 removeLocalMembersFromLocalConv ::
   MonadClient m =>
-  EventBackwardsCompatibility ->
   Domain ->
   Conversation ->
   UserId ->
   List1 UserId ->
   m Event
-removeLocalMembersFromLocalConv compatibility localDomain conv orig =
-  removeMembersFromLocalConv compatibility localDomain conv orig . OnlyFirstList
+removeLocalMembersFromLocalConv localDomain conv orig =
+  removeMembersFromLocalConv localDomain conv orig . OnlyFirstList
 
 removeRemoteMembersFromLocalConv :: MonadClient m => Domain -> Conversation -> UserId -> List1 (Remote UserId) -> m Event
 removeRemoteMembersFromLocalConv localDomain conv orig =
-  removeMembersFromLocalConv EventBackwardsCompatibilityQualified localDomain conv orig . OnlySecondList
+  removeMembersFromLocalConv localDomain conv orig . OnlySecondList
 
 -- Remove members from a local conversation. Both local and remote users can be
 -- removed from this backend's database.
 removeMembersFromLocalConv ::
   MonadClient m =>
-  EventBackwardsCompatibility ->
   Domain ->
   Conversation ->
   UserId ->
   List1WithOrigin UserId (Remote UserId) ->
   m Event
-removeMembersFromLocalConv compatibility localDomain conv orig (splitList1WithOrigin -> (localVictims, remoteVictims)) = do
+removeMembersFromLocalConv localDomain conv orig (splitList1WithOrigin -> (localVictims, remoteVictims)) = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
@@ -970,16 +968,11 @@ removeMembersFromLocalConv compatibility localDomain conv orig (splitList1WithOr
 
   let qconvId = Qualified (convId conv) localDomain
       qorig = Qualified orig localDomain
-  return $ case compatibility of
-    EventBackwardsCompatibilityUnqualified ->
-      -- An assumption here is that remoteVictims == []
-      Event MemberLeave qconvId qorig t (EdMembersLeave . UserIdList . fmap (`Qualified` localDomain) $ localVictims)
-    EventBackwardsCompatibilityQualified ->
-      let allVictims =
-            UserIdList $
-              fmap (`Qualified` localDomain) localVictims
-                <> fmap unTagged remoteVictims
-       in Event MemberLeave qconvId qorig t (EdMembersLeave allVictims)
+      allVictims =
+        UserIdList $
+          fmap (`Qualified` localDomain) localVictims
+            <> fmap unTagged remoteVictims
+  return $ Event MemberLeave qconvId qorig t (EdMembersLeave allVictims)
 
 removeLocalMembersFromRemoteConv ::
   MonadClient m =>
