@@ -311,7 +311,7 @@ logInvitationRequest context action =
         Log.warn $ context . Log.msg @Text ("Failed to create invitation, label: " <> (cs . errorLabel) err')
         pure (Left err')
       Right result@(_, code) -> do
-        Log.info $ (context . logInvitationCode code) . Log.msg @Text "Succesfully created invitation"
+        Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
 createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler (Public.Invitation, Public.InvitationCode)
