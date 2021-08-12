@@ -1245,26 +1245,19 @@ wsAssertMembersLeave ::
 wsAssertMembersLeave conv usr leaving n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
+  isExpectedEvent conv usr leaving e
+
+isExpectedEvent ::
+  Qualified ConvId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Event ->
+  IO ()
+isExpectedEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
   evtData e @?= EdMembersLeave (UserIdList leaving)
-
--- TODO(md): Get rid of this one as it is the same as the function above
-wsAssertMembersLeaveQualified ::
-  HasCallStack =>
-  Qualified ConvId ->
-  Qualified UserId ->
-  [Qualified UserId] ->
-  Notification ->
-  IO ()
-wsAssertMembersLeaveQualified conv usr leaving n = do
-  let e = List1.head (WS.unpackPayload n)
-  ntfTransient n @?= False
-  evtConv e @?= conv
-  evtType e @?= Conv.MemberLeaveQualified
-  evtFrom e @?= usr
-  evtData e @?= EdMembersLeaveQualified (QualifiedUserIdList leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
