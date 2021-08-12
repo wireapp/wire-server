@@ -240,6 +240,9 @@ deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
 selectUserConvs = "select conv from user where user = ? order by conv"
 
+selectUserConvMembership :: PrepQuery R (UserId, ConvId) (Identity UserId)
+selectUserConvMembership = "select user from user where user = ? and conv = ?"
+
 selectUserConvsIn :: PrepQuery R (UserId, [ConvId]) (Identity ConvId)
 selectUserConvsIn = "select conv from user where user = ? and conv in ? order by conv"
 

@@ -263,11 +263,11 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
   localDomain <- viewFederationDomain
 
   let (remoteIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
-  localConvIds <- Data.conversationIdsOf user localIds
+  (foundLocalIds, notFoundLocalIds) <- Data.localConversationIdsOf user localIds
   (foundRemoteIds, notFoundRemoteIds) <- Data.remoteConversationIdOf user remoteIds
 
   localInternalConversations <-
-    Data.conversations localConvIds
+    Data.conversations foundLocalIds
       >>= filterM removeDeleted
       >>= filterM (pure . isMember user . Data.convLocalMembers)
   localConversations <- mapM (Mapping.conversationView user) localInternalConversations
@@ -277,7 +277,9 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
   pure $
     Public.ConversationsResponse
       { crFound = allConvs,
-        crNotFound = map unTagged notFoundRemoteIds,
+        crNotFound =
+          map unTagged notFoundRemoteIds
+            <> map (`Qualified` localDomain) notFoundLocalIds,
         crFailed = []
       }
   where
