@@ -7,7 +7,7 @@ cabal-version: 1.12
 -- hash: b8d0589f22bc168d16fa3a2b2800d9cc3b14b4d94bb911fe973ccf2a2025e5e5
 
 name:           hscim
-version:        0.3.4
+version:        0.3.5
 synopsis:       hscim json schema and server implementation
 description:    The README file will answer all the questions you might have
 category:       Web
