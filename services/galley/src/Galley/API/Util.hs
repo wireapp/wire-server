@@ -27,7 +27,8 @@ import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
-import Control.Monad.Extra (allM, anyM)
+import Control.Monad.Extra (allM, anyM, eitherM)
+import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -283,48 +284,89 @@ membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view use
 -- semantics; when using `getSelfMemberFromLocals`, if that user is _not_ part
 -- of the conversation, we don't want to disclose that such a conversation with
 -- that id exists.
-getSelfMemberFromLocals :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getSelfMemberFromLocals = getLocalMember (errorDescriptionToWai convNotFound)
+getSelfMemberFromLocals ::
+  (Foldable t, Monad m) =>
+  UserId ->
+  t LocalMember ->
+  ExceptT ConvNotFound m LocalMember
+getSelfMemberFromLocals = getLocalMember convNotFound
 
-getOtherMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
+-- | A legacy version of 'getSlefMemberFromLocals' that runs in the Galley monad.
+getSelfMemberFromLocalsLegacy ::
+  Foldable t =>
+  UserId ->
+  t LocalMember ->
+  Galley LocalMember
+getSelfMemberFromLocalsLegacy usr lmems =
+  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $ getSelfMemberFromLocals usr lmems
+
+getOtherMember :: (Foldable t, Monad m) => UserId -> t LocalMember -> ExceptT Error m LocalMember
 getOtherMember = getLocalMember convMemberNotFound
+
+getOtherMemberLegacy :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
+getOtherMemberLegacy usr lmems =
+  eitherM throwM pure . runExceptT $ getOtherMember usr lmems
 
 -- | Note that we use 2 nearly identical functions but slightly different
 -- semantics; when using `getSelfMemberQualified`, if that user is _not_ part of
 -- the conversation, we don't want to disclose that such a conversation with
 -- that id exists.
-getSelfMemberQualified :: Foldable t => Qualified UserId -> t LocalMember -> t RemoteMember -> Galley (Either LocalMember RemoteMember)
-getSelfMemberQualified qusr@(Qualified usr userDomain) lmems rmems = do
-  localDomain <- viewFederationDomain
+getSelfMemberQualified ::
+  (Foldable t, Monad m) =>
+  Domain ->
+  Qualified UserId ->
+  t LocalMember ->
+  t RemoteMember ->
+  ExceptT ConvNotFound m (Either LocalMember RemoteMember)
+getSelfMemberQualified localDomain qusr@(Qualified usr userDomain) lmems rmems = do
   if localDomain == userDomain
     then Left <$> getSelfMemberFromLocals usr lmems
     else Right <$> getSelfMemberFromRemotes (toRemote qusr) rmems
 
-getSelfMemberFromRemotes :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
-getSelfMemberFromRemotes = getRemoteMember (errorDescriptionToWai convNotFound)
+getSelfMemberFromRemotes ::
+  (Foldable t, Monad m) =>
+  Remote UserId ->
+  t RemoteMember ->
+  ExceptT ConvNotFound m RemoteMember
+getSelfMemberFromRemotes = getRemoteMember convNotFound
+
+getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
+getSelfMemberFromRemotesLegacy usr rmems =
+  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $
+    getSelfMemberFromRemotes usr rmems
 
 -- | Since we search by local user ID, we know that the member must be local.
-getLocalMember :: Foldable t => Error -> UserId -> t LocalMember -> Galley LocalMember
+getLocalMember ::
+  (Foldable t, Monad m) =>
+  e ->
+  UserId ->
+  t LocalMember ->
+  ExceptT e m LocalMember
 getLocalMember = getMember memId
 
 -- | Since we search by remote user ID, we know that the member must be remote.
-getRemoteMember :: Foldable t => Error -> Remote UserId -> t RemoteMember -> Galley RemoteMember
+getRemoteMember ::
+  (Foldable t, Monad m) =>
+  e ->
+  Remote UserId ->
+  t RemoteMember ->
+  ExceptT e m RemoteMember
 getRemoteMember = getMember rmId
 
 getMember ::
-  (Foldable t, Eq userId) =>
+  (Foldable t, Eq userId, Monad m) =>
   -- | A projection from a member type to its user ID
   (mem -> userId) ->
   -- | An error to throw in case the user is not in the list
-  Error ->
+  e ->
   -- | The member to be found by its user ID
   userId ->
   -- | A list of members to search
   t mem ->
-  Galley mem
+  ExceptT e m mem
 getMember p ex u ms = case find ((u ==) . p) ms of
   Just m -> return m
-  Nothing -> throwM ex
+  Nothing -> throwE ex
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership =
