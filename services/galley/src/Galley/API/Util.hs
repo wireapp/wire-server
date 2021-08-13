@@ -135,8 +135,8 @@ data ActionCheckingOutcome
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted.
-ensureActionAllowed :: Action -> InternalMember a -> ActionCheckingOutcome
-ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
+ensureActionAllowed :: Action -> RoleName -> ActionCheckingOutcome
+ensureActionAllowed action role = case isActionAllowed action role of
   Just True -> ACOAllowed
   Just False -> ACOActionDenied action
   Nothing -> ACOCustomRolesNotSupported
@@ -146,10 +146,11 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
 ensureActionAllowedThrowing :: Action -> InternalMember a -> Galley ()
-ensureActionAllowedThrowing action mem = case ensureActionAllowed action mem of
-  ACOAllowed -> return ()
-  ACOActionDenied _ -> throwErrorDescription (actionDenied action)
-  ACOCustomRolesNotSupported -> throwM (badRequest "Custom roles not supported")
+ensureActionAllowedThrowing action mem =
+  case ensureActionAllowed action (memConvRoleName mem) of
+    ACOAllowed -> return ()
+    ACOActionDenied _ -> throwErrorDescription (actionDenied action)
+    ACOCustomRolesNotSupported -> throwM (badRequest "Custom roles not supported")
 
 -- Actually, this will "never" happen due to the
 -- fact that there can be no custom roles at the moment

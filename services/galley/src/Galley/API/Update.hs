@@ -690,7 +690,7 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
       let action
             | Qualified zusr localDomain == qvictim = LeaveConversation
             | otherwise = RemoveConversationMember
-      case ensureActionAllowed action selfMember of
+      case ensureActionAllowed action (memConvRoleName selfMember) of
         ACOAllowed -> pure ()
         ACOActionDenied a -> throwE . RemoveFromConversationErrorNotAllowed $ a
         ACOCustomRolesNotSupported -> throwE RemoveFromConversationErrorCustomRolesNotSupported
