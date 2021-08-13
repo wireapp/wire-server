@@ -606,7 +606,11 @@ removeMember remover zcon _qconv@(Qualified conv convDomain) victim = do
     then
       fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
         removeMemberFromLocalConv remover zcon conv victim
-    else throwM federationNotImplemented
+    else do
+      if Qualified remover localDomain /= victim
+        then -- remote users can't remove others
+          pure . RemoveFromConversationNotAllowed $ RemoveConversationMember
+        else throwM federationNotImplemented
   where
     mapError :: RemoveFromConversationError -> RemoveFromConversation
     mapError = \case

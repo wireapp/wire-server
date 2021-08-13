@@ -161,6 +161,7 @@ tests s =
           test s "remove members (all local)" deleteMembersConvLocalQualifiedOk,
           test s "remove members (one remote member present)" deleteLocalMemberConvLocalQualifiedOk,
           test s "remote member leaves a conversation" leaveRemoteConvQualifiedOk,
+          test s "remote member fails to remove a conversation member" removeRemoteMemberConvQualifiedFail,
           test s "fail to remove members from self conv." deleteMembersUnqualifiedFailSelf,
           test s "fail to remove members from 1:1 conv." deleteMembersUnqualifiedFailO2O,
           test s "rename conversation" putConvRenameOk,
@@ -2178,6 +2179,29 @@ leaveRemoteConvQualifiedOk = do
     case responseJsonEither resp of
       Left err -> assertFailure err
       Right e -> isExpectedEvent qconv qAlice [qAlice] e
+
+-- Alice, a user remote to the conversation, tries to remove someone other than
+-- herself via:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+removeRemoteMemberConvQualifiedFail :: TestM ()
+removeRemoteMemberConvQualifiedFail = do
+  alice <- randomUser
+  conv <- randomId
+  bob <- randomId
+  let remoteDomain = Domain "faraway.example.com"
+      qconv = Qualified conv remoteDomain
+      qBob = Qualified bob remoteDomain
+  opts <- view tsGConf
+  fst
+    <$> withTempMockFederator
+      opts
+      remoteDomain
+      (onlyMockedFederatedBrigResponse [(qBob, "Bob")])
+      (deleteMemberQualified alice qBob qconv)
+    !!! do
+      const 403 === statusCode
+      const (Just "action-denied") === fmap label . responseJsonUnsafe
 
 deleteMembersUnqualifiedFailSelf :: TestM ()
 deleteMembersUnqualifiedFailSelf = do
