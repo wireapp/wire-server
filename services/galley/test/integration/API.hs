@@ -2127,14 +2127,14 @@ deleteLocalMemberConvLocalQualifiedOk = do
     <$> withTempMockFederator
       opts
       remoteDomain
-      (respond (qEve, "Eve"))
+      (onlyMockedFederatedBrigResponse [(qEve, "Eve")])
       (postQualifiedMembers' g alice (qEve :| []) convId)
     !!! const 200 === statusCode
   (respDel, _) <-
     withTempMockFederator
       opts
       remoteDomain
-      (respond (qEve, "Eve"))
+      (onlyMockedFederatedBrigResponse [(qEve, "Eve")])
       (deleteMemberQualified alice qBob qconvId)
   liftIO $ do
     statusCode respDel @?= 200
@@ -2146,17 +2146,11 @@ deleteLocalMemberConvLocalQualifiedOk = do
     <$> withTempMockFederator
       opts
       remoteDomain
-      (respond (qEve, "Eve"))
+      (onlyMockedFederatedBrigResponse [(qEve, "Eve")])
       (deleteMemberQualified alice qBob qconvId)
     !!! do
       const 204 === statusCode
       const Nothing === responseBody
-  where
-    respond :: (Qualified UserId, Text) -> F.FederatedRequest -> Value
-    respond (mem, name) req
-      | fmap F.component (F.request req) == Just F.Brig =
-        toJSON [mkProfile mem (Name name)]
-      | otherwise = toJSON ()
 
 deleteMembersUnqualifiedFailSelf :: TestM ()
 deleteMembersUnqualifiedFailSelf = do
