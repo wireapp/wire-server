@@ -106,6 +106,17 @@ getAllTeamFeatures uid tid = do
       . paths ["teams", toByteString' tid, "features"]
       . zUser uid
 
+getAllTeamFeaturesPersonal ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  m ResponseLBS
+getAllTeamFeaturesPersonal uid = do
+  g <- viewGalley
+  get $
+    g
+      . paths ["feature-configs"]
+      . zUser uid
+
 getTeamFeatureFlagWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> UserId -> TeamId -> m ResponseLBS
 getTeamFeatureFlagWithGalley feature galley uid tid = do
   get $

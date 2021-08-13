@@ -57,6 +57,7 @@
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
+* Integration test coverage (#1704)
 
 # [2021-08-02]
 
