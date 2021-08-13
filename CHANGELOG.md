@@ -35,6 +35,8 @@
 
 ## Documentation
 
+* Fixed a few issues with error response documentation in Swagger (#1707)
+
 ## Internal changes
 
 
