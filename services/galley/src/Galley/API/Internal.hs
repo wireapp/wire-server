@@ -31,6 +31,7 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
 import Data.Id as Id
 import Data.List1 (List1, list1, maybeList1)
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import Data.String.Conversions (cs)
 import GHC.TypeLits (AppendSymbol)
@@ -455,7 +456,7 @@ rmUser user conn = do
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
             -- FUTUREWORK: deal with remote members, too, see removeMembers
-            e <- Data.removeLocalMembersFromLocalConv localDomain c user u
+            e <- Data.removeLocalMembersFromLocalConv localDomain c (Qualified user localDomain) u
             return $
               (Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c))
                 <&> set Intra.pushConn conn

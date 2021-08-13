@@ -277,7 +277,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     [] -> return ()
     x : xs -> do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
-      e <- Data.removeLocalMembersFromLocalConv localDomain conv usr (list1 x xs)
+      e <- Data.removeLocalMembersFromLocalConv localDomain conv (Qualified usr localDomain) (list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
       for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
@@ -549,7 +549,8 @@ addMembers zusr zcon convId invite = do
             for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $
                 let qvictim = Qualified (memId mem) localDomain
-                 in void $ removeMember (memId mem) Nothing (Data.convId conv `Qualified` localDomain) qvictim
+                 in void $
+                      removeMember (memId mem `Qualified` localDomain) Nothing (Data.convId conv `Qualified` localDomain) qvictim
           else throwErrorDescription missingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
@@ -597,7 +598,7 @@ updateOtherMember zusr zcon cid victim update = do
 -- and the qualified endpoint for member removal. This is also used to leave a
 -- conversation.
 removeMember ::
-  UserId ->
+  Qualified UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
@@ -608,11 +609,7 @@ removeMember remover zcon _qconv@(Qualified conv convDomain) victim = do
     then
       fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
         removeMemberFromLocalConv remover zcon conv victim
-    else do
-      if Qualified remover localDomain /= victim
-        then -- remote users can't remove others
-          pure . RemoveFromConversationNotAllowed $ RemoveConversationMember
-        else throwM federationNotImplemented
+    else throwM federationNotImplemented
   where
     mapError :: RemoveFromConversationError -> RemoveFromConversation
     mapError = \case
@@ -628,7 +625,7 @@ removeMember remover zcon _qconv@(Qualified conv convDomain) victim = do
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
-  removeMember zusr (Just zcon) (Qualified conv localDomain) (Qualified victim localDomain)
+  removeMember (Qualified zusr localDomain) (Just zcon) (Qualified conv localDomain) (Qualified victim localDomain)
 
 removeMemberQualified ::
   UserId ->
@@ -636,12 +633,14 @@ removeMemberQualified ::
   Qualified ConvId ->
   Qualified UserId ->
   Galley RemoveFromConversation
-removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
+removeMemberQualified zusr zcon conv victim = do
+  localDomain <- viewFederationDomain
+  removeMember (Qualified zusr localDomain) (Just zcon) conv victim
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
   -- | The remover
-  UserId ->
+  Qualified UserId ->
   -- | Optional connection ID
   Maybe ConnId ->
   -- | The ID of a conversation local to this domain
@@ -649,13 +648,21 @@ removeMemberFromLocalConv ::
   -- | The member to remove
   Qualified UserId ->
   ExceptT RemoveFromConversationError Galley Public.Event
-removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomain) = do
+removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvictim@(Qualified victim victimDomain) = do
   localDomain <- viewFederationDomain
   conv <-
     lift (Data.conversation convId)
       >>= maybe (throwE RemoveFromConversationErrorNotFound) pure
   let (bots, locals) = localBotsAndUsers (Data.convLocalMembers conv)
-  genConvChecks conv locals
+  if removerDomain == localDomain
+    then genConvChecks conv locals
+    else
+      unless (remover == qvictim)
+        .
+        -- remote users can't remove others
+        throwE
+        . RemoveFromConversationErrorNotAllowed
+        $ RemoveConversationMember
   for_ (Data.convTeam conv) teamConvChecks
 
   if victimDomain == localDomain && victim `isMember` locals
@@ -664,10 +671,11 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
       let (remoteVictim, _localVictim) = partitionRemoteOrLocalIds' localDomain (singleton qvictim)
       event <-
         if victimDomain == localDomain
-          then Data.removeLocalMembersFromLocalConv localDomain conv zusr (singleton victim)
-          else Data.removeRemoteMembersFromLocalConv localDomain conv zusr (singleton . toRemote $ qvictim)
+          then Data.removeLocalMembersFromLocalConv localDomain conv remover (singleton victim)
+          else Data.removeRemoteMembersFromLocalConv localDomain conv remover (singleton . toRemote $ qvictim)
       -- Notify local users
-      for_ (newPushLocal ListComplete zusr (ConvEvent event) (recipient <$> locals)) $ \p ->
+      let localRemover = guard (removerDomain == localDomain) $> zusr
+      for_ (newPush ListComplete localRemover (ConvEvent event) (recipient <$> locals)) $ \p ->
         push1 $ p & pushConn .~ zcon
 
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
@@ -677,32 +685,34 @@ removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomai
           victimAsList
             | victimDomain == localDomain = OnlyFirstList . singleton $ victim
             | otherwise = OnlySecondList . singleton . toRemote $ qvictim
-      notifyRemoteOfRemovedConvMembers stayingRemotes zusr (evtTime event) conv victimAsList
+      notifyRemoteOfRemovedConvMembers stayingRemotes remover (evtTime event) conv victimAsList
 
       pure event
     else throwE RemoveFromConversationErrorUnchanged
   where
+    -- This function assumes the remover is local
     genConvChecks ::
+      (Foldable t, Monad m) =>
       Data.Conversation ->
-      [LocalMember] ->
-      ExceptT RemoveFromConversationError Galley ()
-    genConvChecks conv usrs = do
-      localDomain <- viewFederationDomain
+      t LocalMember ->
+      ExceptT RemoveFromConversationError m ()
+    genConvChecks conv locals = do
       case ensureGroupConv (Data.convType conv) of
         Left GroupConvInvalidOpSelfConv -> throwE RemoveFromConversationErrorSelfConv
         Left GroupConvInvalidOpOne2OneConv -> throwE RemoveFromConversationErrorOne2OneConv
         Left GroupConvInvalidOpConnectConv -> throwE RemoveFromConversationErrorConnectConv
         Right () -> pure ()
-      selfMember <-
+      removerRole <-
         withExceptT (const @_ @ConvNotFound RemoveFromConversationErrorNotFound) $
-          getSelfMemberFromLocals zusr usrs
+          memConvRoleName <$> getSelfMemberFromLocals zusr locals
       let action
-            | Qualified zusr localDomain == qvictim = LeaveConversation
+            | remover == qvictim = LeaveConversation
             | otherwise = RemoveConversationMember
-      case ensureActionAllowed action (memConvRoleName selfMember) of
+      case ensureActionAllowed action removerRole of
         ACOAllowed -> pure ()
         ACOActionDenied a -> throwE . RemoveFromConversationErrorNotAllowed $ a
         ACOCustomRolesNotSupported -> throwE RemoveFromConversationErrorCustomRolesNotSupported
+
     teamConvChecks :: TeamId -> ExceptT RemoveFromConversationError Galley ()
     teamConvChecks tid = do
       tcv <- Data.teamConversation tid convId
