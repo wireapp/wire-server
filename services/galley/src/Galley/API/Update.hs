@@ -636,10 +636,15 @@ removeMemberQualified ::
   Galley RemoveFromConversation
 removeMemberQualified zusr zcon = removeMember zusr (Just zcon)
 
+-- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
+  -- | The remover
   UserId ->
+  -- | Optional connection ID
   Maybe ConnId ->
+  -- | The ID of a conversation local to this domain
   ConvId ->
+  -- | The member to remove
   Qualified UserId ->
   ExceptT RemoveFromConversationError Galley Public.Event
 removeMemberFromLocalConv zusr zcon convId qvictim@(Qualified victim victimDomain) = do
