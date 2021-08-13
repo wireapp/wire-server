@@ -305,7 +305,7 @@ insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
 
 selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
-selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain"
+selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
 
 selectRemoteConvMembership :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
 selectRemoteConvMembership = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"

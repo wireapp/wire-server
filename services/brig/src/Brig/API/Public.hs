@@ -94,7 +94,6 @@ import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
-import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -267,21 +266,6 @@ sitemap o = do
     Doc.summary "Get your profile name"
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
-
-  put "/self/email" (continue changeSelfEmailH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.EmailUpdate
-  document "PUT" "changeEmail" $ do
-    Doc.summary "Change your email address"
-    Doc.body (Doc.ref Public.modelEmailUpdate) $
-      Doc.description "JSON body"
-    Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
-    Doc.response 204 "No update, current and new email address are the same." Doc.end
-    Doc.errorResponse invalidEmail
-    Doc.errorResponse userKeyExists
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
 
   put "/self/phone" (continue changePhoneH) $
     zauthUserId
@@ -796,15 +780,12 @@ addClient usr con ip new = do
     clientResponse :: Public.Client -> BrigAPI.NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
-deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler (EmptyResult 200)
-deleteClient usr con clt body = do
+deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler ()
+deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
-  pure EmptyResult
 
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler (EmptyResult 200)
-updateClient usr clt upd = do
-  API.updateClient usr clt upd !>> clientError
-  pure EmptyResult
+updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler ()
+updateClient usr clt upd = API.updateClient usr clt upd !>> clientError
 
 listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
@@ -1133,13 +1114,6 @@ customerExtensionCheckBlockedDomains email = do
       Right domain ->
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
-
-changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
-changeSelfEmailH (u ::: _ ::: req) = do
-  email <- Public.euEmail <$> parseJsonBody req
-  API.changeSelfEmail u email API.ForbidSCIMUpdates >>= \case
-    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
-    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
 createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.ConnectionRequest -> Handler Response
 createConnectionH (_ ::: self ::: conn ::: req) = do

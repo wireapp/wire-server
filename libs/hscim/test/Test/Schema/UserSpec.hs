@@ -160,7 +160,7 @@ genName =
     <*> Gen.maybe (Gen.text (Range.constant 0 20) Gen.unicode)
 
 genUri :: Gen URI
-genUri = Gen.element [URI [uri|https://example.com|]]
+genUri = Gen.element [URI [uri|https://example.com|], URI [uri|gopher://glab.io|], URI [uri|ssh://nothing/blorg|]]
 
 -- TODO(arianvp) Generate the lists too, but first need better support for SCIM
 -- lists in the first place

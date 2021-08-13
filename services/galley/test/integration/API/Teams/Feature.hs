@@ -377,12 +377,20 @@ testSimpleFlag defaultValue = do
   setFlagInternal defaultValue
   getFlag defaultValue
 
--- | Call 'GET /teams/:tid/features' and check if all features are there
+-- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
+-- features are there.
 testAllFeatures :: TestM ()
 testAllFeatures = do
   (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
-  let res = Util.getAllTeamFeatures member tid
-  res !!! do
+  Util.getAllTeamFeatures member tid !!! do
+    statusCode === const 200
+    responseJsonMaybe === const (Just expected)
+  Util.getAllTeamFeaturesPersonal member !!! do
+    statusCode === const 200
+    responseJsonMaybe === const (Just expected)
+
+  randomPersonalUser <- Util.randomUser
+  Util.getAllTeamFeaturesPersonal randomPersonalUser !!! do
     statusCode === const 200
     responseJsonMaybe === const (Just expected)
   where

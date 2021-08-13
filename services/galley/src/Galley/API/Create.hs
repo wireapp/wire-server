@@ -49,6 +49,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
+import Wire.API.ErrorDescription (missingLegalholdConsent)
 import Wire.API.Routes.Public.Galley
   ( ConversationResponse,
     ConversationResponseFor (..),
@@ -89,7 +90,7 @@ ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
-      throwM missingLegalholdConsent
+      throwErrorDescription missingLegalholdConsent
 
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
