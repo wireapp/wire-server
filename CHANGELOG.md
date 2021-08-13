@@ -51,6 +51,7 @@
 
 * fix swagger: mark name in UserUpdate as optional (#1691)
 * Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
+* Fixed a few issues with error response documentation in Swagger (#1707)
 
 ## Internal changes
 
