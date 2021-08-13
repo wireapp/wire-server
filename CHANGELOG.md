@@ -47,6 +47,7 @@
 ## Documentation
 
 * fix swagger: mark name in UserUpdate as optional (#1691)
+* Fixed a few issues with error response documentation in Swagger (#1707)
 
 ## Internal changes
 
