@@ -160,6 +160,7 @@ tests s =
           test s "remove members (unqualified conversation)" deleteMembersUnqualifiedOk,
           test s "remove members (all local)" deleteMembersConvLocalQualifiedOk,
           test s "remove members (one remote member present)" deleteLocalMemberConvLocalQualifiedOk,
+          test s "remote member leaves a conversation" leaveRemoteConvQualifiedOk,
           test s "fail to remove members from self conv." deleteMembersUnqualifiedFailSelf,
           test s "fail to remove members from 1:1 conv." deleteMembersUnqualifiedFailO2O,
           test s "rename conversation" putConvRenameOk,
@@ -2151,6 +2152,33 @@ deleteLocalMemberConvLocalQualifiedOk = do
     !!! do
       const 204 === statusCode
       const Nothing === responseBody
+
+-- Alice, a local user, leaves a remote conversation. Bob's domain is the same
+-- as that of the conversation. The test uses the following endpoint:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+leaveRemoteConvQualifiedOk :: TestM ()
+leaveRemoteConvQualifiedOk = do
+  localDomain <- viewFederationDomain
+  alice <- randomUser
+  let qAlice = Qualified alice localDomain
+  conv <- randomId
+  bob <- randomId
+  let remoteDomain = Domain "faraway.example.com"
+      qconv = Qualified conv remoteDomain
+      qBob = Qualified bob remoteDomain
+  opts <- view tsGConf
+  (resp, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (onlyMockedFederatedBrigResponse [(qBob, "Bob")])
+      (deleteMemberQualified alice qAlice qconv)
+  liftIO $ do
+    statusCode resp @?= 200
+    case responseJsonEither resp of
+      Left err -> assertFailure err
+      Right e -> isExpectedEvent qconv qAlice [qAlice] e
 
 deleteMembersUnqualifiedFailSelf :: TestM ()
 deleteMembersUnqualifiedFailSelf = do
