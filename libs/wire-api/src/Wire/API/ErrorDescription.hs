@@ -1,13 +1,13 @@
 module Wire.API.ErrorDescription where
 
-import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
-import Control.Lens.Combinators (_Just)
+import Control.Lens (at, (%~), (.~), (<>~), (?~))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
 import qualified Data.Swagger as S
+import qualified Data.Swagger.Declare as S
 import qualified Data.Text as Text
 import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
@@ -51,45 +51,17 @@ errorDescriptionAddToSwagger ::
   Swagger ->
   Swagger
 errorDescriptionAddToSwagger =
-  over (S.paths . traverse) overridePathItem
+  (S.allOperations . S.responses . S.responses . at status %~ Just . addRef)
+    . (S.definitions <>~ defs)
   where
-    addRef ::
-      Maybe (S.Referenced S.Response) ->
-      Maybe (S.Referenced S.Response)
-    addRef Nothing =
-      Just . S.Inline $
-        mempty
-          & S.description .~ desc
-          & S.schema ?~ S.Inline (S.toSchema (Proxy @(ErrorDescription code label desc)))
-    addRef (Just response) =
-      Just $
-        response
-          -- add the description of this error to the response description
-          & S._Inline . S.description
-            <>~ ("\n\n" <> desc)
-          -- add the label of this error to the possible values of the corresponding enum
-          & S._Inline . S.schema . _Just . S._Inline . S.properties . ix "label" . S._Inline . S.enum_ . _Just
-            <>~ [A.toJSON (symbolVal (Proxy @label))]
+    addRef :: Maybe (S.Referenced S.Response) -> S.Referenced S.Response
+    addRef Nothing = S.Inline resp
+    addRef (Just (S.Inline resp1)) = S.Inline (combineResponseSwagger resp1 resp)
+    addRef (Just r@(S.Ref _)) = r
 
-    desc =
-      Text.pack (symbolVal (Proxy @desc))
-        <> " (label: `"
-        <> Text.pack (symbolVal (Proxy @label))
-        <> "`)"
-
-    overridePathItem :: S.PathItem -> S.PathItem
-    overridePathItem =
-      over (S.get . _Just) overrideOp
-        . over (S.post . _Just) overrideOp
-        . over (S.put . _Just) overrideOp
-        . over (S.head_ . _Just) overrideOp
-        . over (S.patch . _Just) overrideOp
-        . over (S.delete . _Just) overrideOp
-        . over (S.options . _Just) overrideOp
-    overrideOp :: S.Operation -> S.Operation
-    overrideOp =
-      S.responses . S.responses . at (fromInteger $ natVal (Proxy @code))
-        %~ addRef
+    status = fromInteger (natVal (Proxy @code))
+    (defs, resp) =
+      S.runDeclare (responseSwagger @(ErrorDescription code label desc)) mempty
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
@@ -152,8 +124,14 @@ instance
   responseSwagger =
     pure $
       mempty
-        & S.description .~ Text.pack (symbolVal (Proxy @desc))
+        & S.description .~ desc
         & S.schema ?~ S.Inline (S.toSchema (Proxy @(ErrorDescription s label desc)))
+    where
+      desc =
+        Text.pack (symbolVal (Proxy @desc))
+          <> " (label: `"
+          <> Text.pack (symbolVal (Proxy @label))
+          <> "`)"
 
 instance
   (ResponseType r ~ a, KnownSymbol desc) =>
