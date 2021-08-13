@@ -510,7 +510,7 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
           (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (memId memberNoConsent) Nothing qconv (Qualified (memId memberNoConsent) localDomain)
+              removeMember (memId memberNoConsent `Qualified` localDomain) Nothing qconv (Qualified (memId memberNoConsent) localDomain)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember (memId legalholder) Nothing qconv (Qualified (memId legalholder) localDomain)
+              removeMember (memId legalholder `Qualified` localDomain) Nothing qconv (Qualified (memId legalholder) localDomain)

@@ -935,13 +935,19 @@ removeLocalMembersFromLocalConv ::
   MonadClient m =>
   Domain ->
   Conversation ->
-  UserId ->
+  Qualified UserId ->
   List1 UserId ->
   m Event
 removeLocalMembersFromLocalConv localDomain conv orig =
   removeMembersFromLocalConv localDomain conv orig . OnlyFirstList
 
-removeRemoteMembersFromLocalConv :: MonadClient m => Domain -> Conversation -> UserId -> List1 (Remote UserId) -> m Event
+removeRemoteMembersFromLocalConv ::
+  MonadClient m =>
+  Domain ->
+  Conversation ->
+  Qualified UserId ->
+  List1 (Remote UserId) ->
+  m Event
 removeRemoteMembersFromLocalConv localDomain conv orig =
   removeMembersFromLocalConv localDomain conv orig . OnlySecondList
 
@@ -951,10 +957,10 @@ removeMembersFromLocalConv ::
   MonadClient m =>
   Domain ->
   Conversation ->
-  UserId ->
+  Qualified UserId ->
   List1WithOrigin UserId (Remote UserId) ->
   m Event
-removeMembersFromLocalConv localDomain conv orig (splitList1WithOrigin -> (localVictims, remoteVictims)) = do
+removeMembersFromLocalConv localDomain conv qorig (splitList1WithOrigin -> (localVictims, remoteVictims)) = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
@@ -967,7 +973,6 @@ removeMembersFromLocalConv localDomain conv orig (splitList1WithOrigin -> (local
       addPrepQuery Cql.deleteUserConv (u, convId conv)
 
   let qconvId = Qualified (convId conv) localDomain
-      qorig = Qualified orig localDomain
       allVictims =
         UserIdList $
           fmap (`Qualified` localDomain) localVictims

@@ -651,7 +651,7 @@ notifyRemoteOfRemovedConvMembers ::
   -- | Remote members that stay after others are removed
   [Remote UserId] ->
   -- | The originating user that is removing conversation members
-  UserId ->
+  Qualified UserId ->
   -- | The current time
   UTCTime ->
   -- | The conversation from which members are being removed
@@ -659,12 +659,11 @@ notifyRemoteOfRemovedConvMembers ::
   -- | Conversation members that are being removed
   List1WithOrigin UserId (Remote UserId) ->
   Galley ()
-notifyRemoteOfRemovedConvMembers stayingRemotes usr now c memsToRemove = do
+notifyRemoteOfRemovedConvMembers stayingRemotes qusr now c memsToRemove = do
   localDomain <- viewFederationDomain
   let rmm = snd . splitList1WithOrigin $ memsToRemove
   let mm = nonEmptyUserListToQualified localDomain memsToRemove
       qcnv = Qualified (Data.convId c) localDomain
-      qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
   traverse_ (uncurry (notifyRemoteOfConvMemUpdate . mkUpdate now mm qusr qcnv) . swap)
     . Map.assocs
