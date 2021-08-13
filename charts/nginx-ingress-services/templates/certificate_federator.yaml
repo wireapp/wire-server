@@ -1,4 +1,7 @@
-{{- if and .Values.tls.enabled .Values.tls.useCertManager .Values.federator.enabled }}
+{{- if and .Values.federator.enabled (not .Values.tls.enabled) }}
+{{- fail "TLS is required by federator. Either disable federation or enable tls." }}
+{{- end }}
+{{- if and .Values.tls.enabled .Values.tls.useCertManager }}
 apiVersion: cert-manager.io/v1alpha2
 kind: Certificate
 metadata:
