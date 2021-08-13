@@ -328,11 +328,20 @@ instance
       <$> responseSwagger @a
       <*> responseListSwagger @as
 
--- TODO: merge schemas when possible
 combineResponseSwagger :: S.Response -> S.Response -> S.Response
 combineResponseSwagger r1 r2 =
-  r2
-    & S.description <>~ ("\n\n" <> r1 ^. S.description)
+  r1
+    & S.description <>~ ("\n\n" <> r2 ^. S.description)
+    & S.schema . _Just . S._Inline %~ flip combineSwaggerSchema (r2 ^. S.schema . _Just . S._Inline)
+
+combineSwaggerSchema :: S.Schema -> S.Schema -> S.Schema
+combineSwaggerSchema s1 s2
+  -- if they are both errors, merge label enums
+  | notNullOf (S.properties . ix "code") s1
+      && notNullOf (S.properties . ix "code") s2 =
+    s1 & S.properties . ix "label" . S._Inline . S.enum_ . _Just
+      <>~ (s2 ^. S.properties . ix "label" . S._Inline . S.enum_ . _Just)
+  | otherwise = s1
 
 -- | This type can be used in Servant to produce an endpoint which can return
 -- multiple values with various content types and status codes. It is similar to
