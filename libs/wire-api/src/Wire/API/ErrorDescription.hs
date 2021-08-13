@@ -7,7 +7,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
-import qualified Data.Swagger as Swagger
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
@@ -51,24 +51,24 @@ errorDescriptionAddToSwagger ::
   Swagger ->
   Swagger
 errorDescriptionAddToSwagger =
-  over (Swagger.paths . traverse) overridePathItem
+  over (S.paths . traverse) overridePathItem
   where
     addRef ::
-      Maybe (Swagger.Referenced Swagger.Response) ->
-      Maybe (Swagger.Referenced Swagger.Response)
+      Maybe (S.Referenced S.Response) ->
+      Maybe (S.Referenced S.Response)
     addRef Nothing =
-      Just . Swagger.Inline $
+      Just . S.Inline $
         mempty
-          & Swagger.description .~ desc
-          & Swagger.schema ?~ Swagger.Inline (Swagger.toSchema (Proxy @(ErrorDescription code label desc)))
+          & S.description .~ desc
+          & S.schema ?~ S.Inline (S.toSchema (Proxy @(ErrorDescription code label desc)))
     addRef (Just response) =
       Just $
         response
           -- add the description of this error to the response description
-          & Swagger._Inline . Swagger.description
+          & S._Inline . S.description
             <>~ ("\n\n" <> desc)
           -- add the label of this error to the possible values of the corresponding enum
-          & Swagger._Inline . Swagger.schema . _Just . Swagger._Inline . Swagger.properties . ix "label" . Swagger._Inline . Swagger.enum_ . _Just
+          & S._Inline . S.schema . _Just . S._Inline . S.properties . ix "label" . S._Inline . S.enum_ . _Just
             <>~ [A.toJSON (symbolVal (Proxy @label))]
 
     desc =
@@ -77,25 +77,25 @@ errorDescriptionAddToSwagger =
         <> Text.pack (symbolVal (Proxy @label))
         <> "`)"
 
-    overridePathItem :: Swagger.PathItem -> Swagger.PathItem
+    overridePathItem :: S.PathItem -> S.PathItem
     overridePathItem =
-      over (Swagger.get . _Just) overrideOp
-        . over (Swagger.post . _Just) overrideOp
-        . over (Swagger.put . _Just) overrideOp
-        . over (Swagger.head_ . _Just) overrideOp
-        . over (Swagger.patch . _Just) overrideOp
-        . over (Swagger.delete . _Just) overrideOp
-        . over (Swagger.options . _Just) overrideOp
-    overrideOp :: Swagger.Operation -> Swagger.Operation
+      over (S.get . _Just) overrideOp
+        . over (S.post . _Just) overrideOp
+        . over (S.put . _Just) overrideOp
+        . over (S.head_ . _Just) overrideOp
+        . over (S.patch . _Just) overrideOp
+        . over (S.delete . _Just) overrideOp
+        . over (S.options . _Just) overrideOp
+    overrideOp :: S.Operation -> S.Operation
     overrideOp =
-      Swagger.responses . Swagger.responses . at (fromInteger $ natVal (Proxy @code))
+      S.responses . S.responses . at (fromInteger $ natVal (Proxy @code))
         %~ addRef
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
 data ErrorDescription (statusCode :: Nat) (label :: Symbol) (desc :: Symbol) = ErrorDescription {edMessage :: Text}
   deriving stock (Show, Typeable)
-  deriving (A.ToJSON, A.FromJSON, Swagger.ToSchema) via Schema (ErrorDescription statusCode label desc)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (ErrorDescription statusCode label desc)
 
 instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSchema (ErrorDescription statusCode label desc) where
   schema =
@@ -110,7 +110,7 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
       code = natVal (Proxy @statusCode)
       desc = Text.pack (symbolVal (Proxy @desc))
       addExample =
-        Swagger.schema . Swagger.example
+        S.schema . S.example
           ?~ A.toJSON (ErrorDescription @statusCode @label @desc desc)
       labelSchema :: ValueSchema SwaggerDoc Text
       labelSchema = unnamed $ enum @Text "Label" (element label label)
@@ -149,7 +149,11 @@ instance
   (KnownStatus s, KnownSymbol label, KnownSymbol desc) =>
   IsSwaggerResponse (ErrorDescription s label desc)
   where
-  responseSwagger = responseSwagger @(RespondWithErrorDescription s label desc)
+  responseSwagger =
+    pure $
+      mempty
+        & S.description .~ Text.pack (symbolVal (Proxy @desc))
+        & S.schema ?~ S.Inline (S.toSchema (Proxy @(ErrorDescription s label desc)))
 
 instance
   (ResponseType r ~ a, KnownSymbol desc) =>
@@ -194,7 +198,7 @@ instance
   responseSwagger =
     pure $
       mempty
-        & Swagger.description
+        & S.description
           .~ ( Text.pack (symbolVal (Proxy @desc))
                  <> "(**Note**: This error has an empty body for legacy reasons)"
              )
