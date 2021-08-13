@@ -2151,3 +2151,28 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif ->
 
 checkTimeout :: WS.Timeout
 checkTimeout = 3 # Second
+
+-- | The function is used in conjuction with 'withTempMockFederator' to mock
+-- responses by Brig on the mocked side of federation.
+mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Maybe Value
+mockedFederatedBrigResponse users req
+  | fmap F.component (F.request req) == Just F.Brig =
+    Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
+  | otherwise = Nothing
+
+-- | Combine two mocked services such that for a given request a JSON response
+-- is produced.
+joinMockedFederatedResponses ::
+  (F.FederatedRequest -> Maybe Value) ->
+  (F.FederatedRequest -> Maybe Value) ->
+  F.FederatedRequest ->
+  Value
+joinMockedFederatedResponses service1 service2 req =
+  fromMaybe (toJSON ()) (service1 req <|> service2 req)
+
+-- | Only Brig is mocked.
+onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Value
+onlyMockedFederatedBrigResponse users =
+  joinMockedFederatedResponses
+    (mockedFederatedBrigResponse users)
+    (const Nothing)
