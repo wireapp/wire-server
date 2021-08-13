@@ -591,6 +591,9 @@ updateOtherMember zusr zcon cid victim update = do
   e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
+-- | A general conversation member removal function used both by the unqualified
+-- and the qualified endpoint for member removal. This is also used to leave a
+-- conversation.
 removeMember ::
   UserId ->
   Maybe ConnId ->
