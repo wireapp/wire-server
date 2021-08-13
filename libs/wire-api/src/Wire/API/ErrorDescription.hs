@@ -193,14 +193,11 @@ instance
   where
   responseSwagger =
     pure $
-      ResponseSwagger
-        { rsDescription =
-            Text.pack (symbolVal (Proxy @desc)) <> "\n\n"
-              <> "**Note**: This error has an empty body for legacy reasons",
-          rsStatus = statusVal (Proxy @s),
-          rsHeaders = mempty,
-          rsSchema = Nothing
-        }
+      mempty
+        & Swagger.description
+          .~ ( Text.pack (symbolVal (Proxy @desc))
+                 <> "(**Note**: This error has an empty body for legacy reasons)"
+             )
 
 instance
   ( ResponseType r ~ a,
