@@ -18,7 +18,8 @@
 module Galley.API.Teams.Features
   ( getFeatureStatus,
     setFeatureStatus,
-    getFeatureConfig,
+    getFeatureStatusPersonal,
+    getFeatureStatusTeam,
     getAllFeatureConfigs,
     getAllFeaturesH,
     getSSOStatusInternal,
@@ -77,9 +78,10 @@ getFeatureStatus ::
   Public.KnownTeamFeatureName a =>
   (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
   DoAuth ->
-  TeamId ->
+  Maybe TeamId ->
   Galley (Public.TeamFeatureStatus a)
-getFeatureStatus getter doauth tid = do
+getFeatureStatus getter _doauth Nothing = getter Nothing
+getFeatureStatus getter doauth (Just tid) = do
   case doauth of
     DoAuth uid -> do
       zusrMembership <- Data.teamMember tid uid
@@ -87,6 +89,23 @@ getFeatureStatus getter doauth tid = do
     DontDoAuth ->
       assertTeamExists tid
   getter (Just tid)
+
+getFeatureStatusPersonal ::
+  forall (a :: Public.TeamFeatureName).
+  Public.KnownTeamFeatureName a =>
+  (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  DoAuth ->
+  Galley (Public.TeamFeatureStatus a)
+getFeatureStatusPersonal getter doauth = getFeatureStatus @a getter doauth Nothing
+
+getFeatureStatusTeam ::
+  forall (a :: Public.TeamFeatureName).
+  Public.KnownTeamFeatureName a =>
+  (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  DoAuth ->
+  TeamId ->
+  Galley (Public.TeamFeatureStatus a)
+getFeatureStatusTeam getter doauth tid = getFeatureStatus @a getter doauth (Just tid)
 
 setFeatureStatus ::
   forall (a :: Public.TeamFeatureName).
@@ -105,59 +124,16 @@ setFeatureStatus setter doauth tid status = do
       assertTeamExists tid
   setter tid status
 
-getFeatureConfig ::
-  forall (a :: Public.TeamFeatureName).
-  Public.KnownTeamFeatureName a =>
-  (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  UserId ->
-  Galley (Public.TeamFeatureStatus a)
-getFeatureConfig getter zusr = do
-  mbTeam <- Data.oneUserTeam zusr
-  case mbTeam of
-    Nothing -> getter Nothing
-    Just tid -> do
-      zusrMembership <- Data.teamMember tid zusr
-      void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
-      assertTeamExists tid
-      getter (Just tid)
-
 getAllFeatureConfigs :: UserId -> Galley AllFeatureConfigs
-getAllFeatureConfigs zusr = do
-  mbTeam <- Data.oneUserTeam zusr
-  zusrMembership <- maybe (pure Nothing) (flip Data.teamMember zusr) mbTeam
-  let getStatus ::
-        forall (a :: Public.TeamFeatureName).
-        ( Public.KnownTeamFeatureName a,
-          Aeson.ToJSON (Public.TeamFeatureStatus a)
-        ) =>
-        (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-        Galley (Text, Aeson.Value)
-      getStatus getter = do
-        when (isJust mbTeam) $ do
-          void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
-        status <- getter mbTeam
-        let feature = Public.knownTeamFeatureName @a
-        pure $ (cs (toByteString' feature) Aeson..= status)
-  AllFeatureConfigs . HashMap.fromList
-    <$> sequence
-      [ getStatus @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
-        getStatus @'Public.TeamFeatureSSO getSSOStatusInternal,
-        getStatus @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
-        getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
-        getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
-        getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
-        getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
-        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
-      ]
+getAllFeatureConfigs zusr = getAllFeatures zusr =<< Data.oneUserTeam zusr
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
 getAllFeaturesH (uid ::: tid ::: _) =
-  json <$> getAllFeatures uid tid
+  json <$> getAllFeatures uid (Just tid)
 
-getAllFeatures :: UserId -> TeamId -> Galley Aeson.Value
-getAllFeatures uid tid = do
-  Aeson.object
+getAllFeatures :: UserId -> Maybe TeamId -> Galley AllFeatureConfigs
+getAllFeatures uid mbtid = do
+  AllFeatureConfigs . HashMap.fromList
     <$> sequence
       [ getStatus @'Public.TeamFeatureSSO getSSOStatusInternal,
         getStatus @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
@@ -178,7 +154,7 @@ getAllFeatures uid tid = do
       (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
       Galley (Text, Aeson.Value)
     getStatus getter = do
-      status <- getFeatureStatus @a getter (DoAuth uid) tid
+      status <- getFeatureStatus @a getter (DoAuth uid) mbtid
       let feature = Public.knownTeamFeatureName @a
       pure $ (cs (toByteString' feature) Aeson..= status)
 

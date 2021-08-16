@@ -240,7 +240,7 @@ iGetTeamFeature ::
   (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley (Public.TeamFeatureStatus a)
-iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth
+iGetTeamFeature getter = Features.getFeatureStatusTeam @a getter DontDoAuth
 
 iPutTeamFeature ::
   forall a.
