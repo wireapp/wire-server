@@ -44,8 +44,10 @@ spec:
           secret:
             secretName: {{ if .Values.tls.useSharedFederatorSecret -}}
               "federator-certificate-secret"
-              {{- else -}}
+              {{- else if .Values.clientCertificateContents -}}
               "federator-secret"
+              {{- else }}
+              {{ fail "must set .Values.tls.useSharedFederatorSecret to true or specify .Values.clientCertificateContents" }}
               {{- end }}
 
         - name: "federator-ca"
