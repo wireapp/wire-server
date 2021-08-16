@@ -1,4 +1,4 @@
 apiVersion: v1
-description: openldap - Sync LDAP via Wire Server SCIM API
+description: openldap - Test instance for LDAP sync with ldap-scim-bridge
 name: openldap
 version: 0.0.1
