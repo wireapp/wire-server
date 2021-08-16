@@ -22,13 +22,13 @@ module Test.Federator.ExternalServer where
 import Data.Domain (Domain (..))
 import Data.String.Conversions (cs)
 import Federator.ExternalServer (callLocal)
-import Federator.Options (FederationStrategy (AllowAll), RunSettings (..))
 import Federator.Service (Service)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
 import qualified Polysemy.TinyLog as TinyLog
+import Test.Federator.Options (noClientCertSettings)
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
@@ -53,7 +53,7 @@ requestBrigSuccess =
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
       let request = Request Brig "/federation/get-user-by-handle" "\"foo\"" exampleDomain
 
-      res :: InwardResponse <- mock @Service @IO . TinyLog.discardLogs . Polysemy.runReader allowAllSettings $ callLocal request
+      res :: InwardResponse <- mock @Service @IO . TinyLog.discardLogs . Polysemy.runReader noClientCertSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
       let expectedCall = (Brig, "federation/get-user-by-handle", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
@@ -66,7 +66,7 @@ requestBrigFailure =
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.notFound404, Just "response body"))
       let request = Request Brig "/federation/get-user-by-handle" "\"foo\"" exampleDomain
 
-      res <- mock @Service @IO . TinyLog.discardLogs . Polysemy.runReader allowAllSettings $ callLocal request
+      res <- mock @Service @IO . TinyLog.discardLogs . Polysemy.runReader noClientCertSettings $ callLocal request
 
       actualCalls <- mockServiceCallCalls @IO
       let expectedCall = (Brig, "federation/get-user-by-handle", "\"foo\"", aValidDomain)
@@ -82,14 +82,11 @@ requestGalleySuccess =
       mockServiceCallReturns @IO (\_ _ _ _ -> pure (HTTP.ok200, Just "response body"))
       let request = Request Galley "federation/get-conversations" "{}" exampleDomain
 
-      res :: InwardResponse <- mock @Service @IO . TinyLog.discardLogs . Polysemy.runReader allowAllSettings $ callLocal request
+      res :: InwardResponse <- mock @Service @IO . TinyLog.discardLogs . Polysemy.runReader noClientCertSettings $ callLocal request
       actualCalls <- mockServiceCallCalls @IO
       let expectedCall = (Galley, "federation/get-conversations", "{}", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
-
-allowAllSettings :: RunSettings
-allowAllSettings = RunSettings AllowAll True Nothing
 
 exampleDomain :: Text
 exampleDomain = "some.example.com"
