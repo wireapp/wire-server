@@ -37,6 +37,7 @@
 
 ## Internal changes
 
+* Integration test script now displays output interactively (#1700)
 
 # [2021-08-16]
 
