@@ -37,6 +37,9 @@
 
 ## Internal changes
 
+## Federation changes
+
+* Added client certificate support for server to server authentication (#1682)
 
 # [2021-08-16]
 
@@ -71,11 +74,6 @@ This is a routine release requiring only the routine upgrade steps.
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * Integration test coverage (#1696, #1704)
-
-
-## Federation changes
-
-* Added client certificate support for server to server authentication (#1682)
 
 # [2021-08-02]
 
