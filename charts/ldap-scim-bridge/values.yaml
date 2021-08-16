@@ -28,7 +28,7 @@ config:
     host: "spar"
     port: 8080
     path: "/scim/v2"
-    token: "Bearer test/team=3675658e-f31d-41c1-a41b-fe68a6adf3af/code=7f5cf0b4-cf76-4dc1-b122-28b413a9d2f7"
+    token: "Bearer U6DRfAcwsvCg9eBStJWtiHu/XqTB1iVDcvNcsuftvqk="
   mapping:
     userName: "uidNumber"
     externalId: "uid"
