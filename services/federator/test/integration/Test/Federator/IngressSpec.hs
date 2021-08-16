@@ -59,8 +59,8 @@ inwardBrigCallViaIngress requestPath payload = do
   Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> ask
   let target = SrvTarget (cs ingressHost) ingressPort
   runSettings <- optSettings . view teOpts <$> ask
-  caStore <- view teCAStore <$> ask
-  c <- liftIO . Polysemy.runM . discardLogs . Polysemy.runReader caStore . Polysemy.runReader runSettings $ mkGrpcClient target
+  tlsSettings <- view teTLSSettings
+  c <- liftIO . Polysemy.runM . discardLogs . Polysemy.runReader tlsSettings . Polysemy.runReader runSettings $ mkGrpcClient target
   client <- case c of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli

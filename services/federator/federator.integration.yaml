@@ -32,3 +32,6 @@ optSettings:
   #     - example.com
 
   useSystemCAStore: true
+
+  clientCertificate: "test/resources/integration-leaf.pem"
+  clientPrivateKey: "test/resources/integration-leaf-key.pem"

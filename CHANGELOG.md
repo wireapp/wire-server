@@ -22,7 +22,7 @@
 
 # [unreleased]
 
-[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
+[please put all changes that only affect federation into the "Federation changes" section to unclutter the rest of the release notes.]
 [if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
 
 ## Release Notes
@@ -38,6 +38,10 @@
 ## Internal changes
 
 * Integration test script now displays output interactively (#1700)
+
+## Federation changes
+
+* Added client certificate support for server to server authentication (#1682)
 
 # [2021-08-16]
 
@@ -123,7 +127,6 @@ Upgrade nginz (#1658)
 * Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
 * Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
 * Added golden tests for protobuf serialisation / deserialisation (#1644).
-
 
 # [2021-07-09]
 
