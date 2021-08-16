@@ -37,6 +37,8 @@
 
 ## Internal changes
 
+* Integration test script now displays output interactively (#1700)
+
 ## Federation changes
 
 * Added client certificate support for server to server authentication (#1682)
