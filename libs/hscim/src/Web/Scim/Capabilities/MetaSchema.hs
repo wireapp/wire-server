@@ -29,6 +29,7 @@ where
 import Data.Aeson
 import qualified Data.HashMap.Lazy as HML
 import Data.Text (Text)
+import Data.Typeable (Typeable, cast)
 import Servant hiding (URI)
 import Servant.API.Generic
 import Servant.Server.Generic
@@ -39,7 +40,7 @@ import Web.Scim.Capabilities.MetaSchema.Schema
 import Web.Scim.Capabilities.MetaSchema.User
 import Web.Scim.ContentType
 import Web.Scim.Handler
-import Web.Scim.Schema.AuthenticationScheme
+import qualified Web.Scim.Schema.AuthenticationScheme as AuthScheme
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error hiding (schemas)
 import Web.Scim.Schema.ListResponse as ListResponse hiding (schemas)
@@ -58,6 +59,18 @@ instance ToJSON a => ToJSON (Supported a) where
     (Object o) -> Object $ HML.insert "supported" (Bool b) o
     _ -> Object $ HML.fromList [("supported", Bool b)]
 
+-- | See module "Test.Schema.MetaSchemaSpec" for golden tests that explain this instance
+-- better.
+instance (Typeable a, FromJSON a) => FromJSON (Supported a) where
+  parseJSON val = do
+    Supported
+      <$> withObject "Supported a" (.: "supported") val
+      <*> let -- allow special case for empty subConfig (`()` does not parse from json objects)
+              val' = case cast @() @a () of
+                Just _ -> Array mempty
+                Nothing -> val
+           in parseJSON @a val'
+
 data BulkConfig = BulkConfig
   { maxOperations :: Int,
     maxPayloadSize :: Int
@@ -67,6 +80,9 @@ data BulkConfig = BulkConfig
 instance ToJSON BulkConfig where
   toJSON = genericToJSON serializeOptions
 
+instance FromJSON BulkConfig where
+  parseJSON = genericParseJSON serializeOptions
+
 data FilterConfig = FilterConfig
   { maxResults :: Int
   }
@@ -74,6 +90,9 @@ data FilterConfig = FilterConfig
 
 instance ToJSON FilterConfig where
   toJSON = genericToJSON serializeOptions
+
+instance FromJSON FilterConfig where
+  parseJSON = genericParseJSON serializeOptions
 
 data Configuration = Configuration
   { documentationUri :: Maybe URI,
@@ -84,12 +103,15 @@ data Configuration = Configuration
     changePassword :: Supported (),
     sort :: Supported (),
     etag :: Supported (),
-    authenticationSchemes :: [AuthenticationSchemeEncoding]
+    authenticationSchemes :: [AuthScheme.AuthenticationSchemeEncoding]
   }
   deriving (Show, Eq, Generic)
 
 instance ToJSON Configuration where
   toJSON = genericToJSON serializeOptions
+
+instance FromJSON Configuration where
+  parseJSON = genericParseJSON serializeOptions
 
 empty :: Configuration
 empty =
@@ -108,7 +130,7 @@ empty =
       changePassword = Supported (ScimBool False) (),
       sort = Supported (ScimBool False) (),
       etag = Supported (ScimBool False) (),
-      authenticationSchemes = [authHttpBasicEncoding]
+      authenticationSchemes = [AuthScheme.authHttpBasicEncoding]
     }
 
 configServer ::

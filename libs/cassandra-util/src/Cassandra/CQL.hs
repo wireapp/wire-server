@@ -29,6 +29,7 @@ import Database.CQL.Protocol as C
     Consistency (All, One, Quorum),
     Cql,
     Keyspace (Keyspace),
+    PagingState (..),
     QueryParams (QueryParams),
     QueryString (QueryString),
     R,

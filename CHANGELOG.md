@@ -35,12 +35,43 @@
 
 ## Documentation
 
-* fix swagger: mark name in UserUpdate as optional (#1691)
+## Internal changes
+
+
+# [2021-08-16]
+
+## Release Notes
+
+This is a routine release requiring only the routine upgrade steps.
+
+## API Changes
+
+* Add `POST /conversations/list-ids` (#1686)
+* Deprecate `GET /converstations/ids` (#1686)
+
+## Features
+
+* Client functions for the hscim library (#1694, #1699, #1702, https://hackage.haskell.org/package/hscim)
+
+## Bug fixes and other updates
+
+* Change http response code for `missing-legalhold-consent`. (#1688)
+* Remove old end-point for changing email
+
+## Federation changes (alpha feature, do not use yet)
+
+* Add new API to list paginated qualified conversation ids (#1686)
+
+## Documentation
+
+* Fix swagger: mark name in UserUpdate as optional (#1691, #1692)
 
 ## Internal changes
 
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
+* Integration test coverage (#1696, #1704)
+
 
 ## Federation changes
 
