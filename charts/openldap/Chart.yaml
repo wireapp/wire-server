@@ -1,0 +1,4 @@
+apiVersion: v1
+description: openldap - Sync LDAP via Wire Server SCIM API
+name: openldap
+version: 0.0.1

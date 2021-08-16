@@ -1,0 +1,35 @@
+image:
+  repository: quay.io/wire/ldap-scim-bridge
+  tag: 0.0.3
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+# https://v1-19.docs.kubernetes.io/docs/tasks/job/automated-tasks-with-cron-jobs/#schedule
+# schedule: "@hourly"
+schedule: "*/1 * * * *"
+# https://github.com/wireapp/ldap-scim-bridge
+config:
+  logLevel: "Debug"
+  ldapSource:
+    tls: false
+    host: "openldap"
+    port: 389
+    dn: "cn=admin,dc=nodomain"
+    password: "admin"
+    base: "ou=People,dc=nodomain"
+    objectClass: "account"
+    codec: "utf8"
+  scimTarget:
+    tls: false
+    host: "spar"
+    port: 8080
+    path: "/scim/v2"
+    token: "Bearer test/team=3675658e-f31d-41c1-a41b-fe68a6adf3af/code=7f5cf0b4-cf76-4dc1-b122-28b413a9d2f7"
+  mapping:
+    userName: "uidNumber"
+    externalId: "uid"
+    email: "email"
