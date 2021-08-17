@@ -1928,9 +1928,6 @@ testListRemoteConvs = do
     assertEqual "conversations" (Just expected) actual
     assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
--- TODO: Write another test for remote failures, local non exsitent convs, local
--- convs which the requesting user is not part of and remote not founds.
-
 -- | Tests getting many converations given their ids.
 --
 -- In this test:
