@@ -163,13 +163,13 @@ sanitizePath originalPath = do
 
   pure normalized
 
--- Match a hostname against the domain names of a certificate.
+-- | Match a hostname against the domain names of a certificate.
 --
 -- We strip the trailing dot from the domain, as the certificate is not
 -- expected to have the trailing dot.
 validateDomainName :: String -> X509.Certificate -> [X509.FailedReason]
-validateDomainName hostname cert =
-  X509.hookValidateName X509.defaultHooks (stripDot hostname) cert
+validateDomainName hostname =
+  X509.hookValidateName X509.defaultHooks (stripDot hostname)
   where
     stripDot h
       | "." `isSuffixOf` h = take (length h - 1) h
