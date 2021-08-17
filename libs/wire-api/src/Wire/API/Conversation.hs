@@ -363,7 +363,7 @@ instance ToSchema ListConversations where
         <*> lStartId .= optField "start_id" Nothing schema
         <*> lSize .= optField "size" Nothing schema
 
--- | Used on the POST /list-conversations endpoint
+-- | Used on the POST /conversations/list/v2 endpoint
 newtype ListConversationsV2 = ListConversationsV2
   { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
   }
