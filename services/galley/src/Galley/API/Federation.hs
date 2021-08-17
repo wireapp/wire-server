@@ -42,6 +42,7 @@ import Wire.API.Federation.API.Galley
   ( ConversationMemberUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
+    LeaveConversation (..),
     MessageSendRequest (..),
     MessageSendResponse (..),
     RegisterConversation (..),
@@ -49,7 +50,7 @@ import Wire.API.Federation.API.Galley
     RemoveMembersRequest (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
-import Wire.API.Routes.Public.Galley.Responses
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversation)
 import Wire.API.ServantProto (FromProto (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
@@ -59,6 +60,7 @@ federationSitemap =
       { FederationAPIGalley.registerConversation = registerConversation,
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
+        FederationAPIGalley.leaveConversation = leaveConversation,
         FederationAPIGalley.receiveMessage = receiveMessage,
         FederationAPIGalley.sendMessage = sendMessage,
         FederationAPIGalley.removeMembers = removeMembers
@@ -131,6 +133,15 @@ updateConversationMemberships cmu = do
   -- FUTUREWORK: support bots?
   -- send notifications
   pushConversationEvent Nothing event targets []
+
+leaveConversation ::
+  Domain ->
+  LeaveConversation ->
+  Galley RemoveFromConversation
+leaveConversation requestingDomain lc = do
+  conv <- (lcConvId lc `Qualified`) <$> viewFederationDomain
+  let leaver = Qualified (lcLeaver lc) requestingDomain
+  API.removeMember leaver Nothing conv leaver
 
 -- FUTUREWORK: report errors to the originating backend
 receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
