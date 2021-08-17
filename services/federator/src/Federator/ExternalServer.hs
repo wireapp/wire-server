@@ -25,7 +25,6 @@ import Control.Lens (view)
 import Data.Aeson (decode)
 import Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as LBS
--- import Data.PEM as X509
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -59,9 +58,6 @@ import Wire.Network.DNS.Effect as Polysemy
 -- for versioning schemas here.
 
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
---
--- FUTUREWORK(federation): implement server2server authentication!
--- (current validation only checks parsing and compares to allowList)
 callLocal ::
   ( Members
       '[ Service,
