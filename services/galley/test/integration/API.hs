@@ -2424,10 +2424,10 @@ removeUser = do
     deleteUser bob'
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        matchMemberLeave qconv1 bob
+        wsAssertMembersLeave qconv1 bob [bob]
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        matchMemberLeave qconv2 bob
+        wsAssertMembersLeave qconv2 bob [bob]
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
@@ -2439,13 +2439,3 @@ removeUser = do
     (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
     (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
-  where
-    -- TODO(md): such a function already exists in Util.hs. Just use it instead
-    -- of redefining it.
-    matchMemberLeave conv u n = do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= conv
-      evtType e @?= MemberLeave
-      evtFrom e @?= u
-      evtData e @?= EdMembersLeave (UserIdList [u])
