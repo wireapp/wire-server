@@ -138,7 +138,7 @@ federationRemoteInwardError err = Wai.mkError status (LT.fromStrict label) (LT.f
     (status, label) = case Proto.inwardErrorType err of
       Proto.IInvalidEndpoint -> (HTTP.Status 531 "Version Mismatch", "inward-invalid-endpoint")
       Proto.IFederationDeniedByRemote -> (HTTP.Status 532 "Federation Denied", "federation-denied-by-remote")
-      Proto.IInvalidDomain -> (unexpectedFederationResponseStatus, "invalid-origin-domain")
+      Proto.IAuthenticationFailed -> (unexpectedFederationResponseStatus, "server-to-server-authentication-failed")
       Proto.IForbiddenEndpoint -> (unexpectedFederationResponseStatus, "forbidden-endpoint")
       Proto.IDiscoveryFailed -> (HTTP.status500, "remote-discovery-failure")
       Proto.IOther -> (unexpectedFederationResponseStatus, "inward-other")

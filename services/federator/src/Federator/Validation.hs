@@ -59,7 +59,7 @@ decodeCertificate ::
   Sem r X509.Certificate
 decodeCertificate =
   Polysemy.fromEither
-    . first (InwardError IInvalidDomain . Text.pack)
+    . first (InwardError IAuthenticationFailed . Text.pack)
     . ( (pure . X509.getCertificate)
           <=< X509.decodeSignedCertificate
           <=< (pure . X509.pemContent)
@@ -85,10 +85,10 @@ validateDomain ::
   Maybe ByteString ->
   Text ->
   Sem r Domain
-validateDomain Nothing _ = throwInward IInvalidDomain "no client certificate provided"
+validateDomain Nothing _ = throwInward IAuthenticationFailed "no client certificate provided"
 validateDomain (Just encodedCertificate) unparsedDomain = do
   targetDomain <- case mkDomain unparsedDomain of
-    Left parseErr -> throwInward IInvalidDomain (errDomainParsing parseErr)
+    Left parseErr -> throwInward IAuthenticationFailed (errDomainParsing parseErr)
     Right d -> pure d
 
   -- run discovery to find the hostname of the client federator
@@ -98,7 +98,7 @@ validateDomain (Just encodedCertificate) unparsedDomain = do
       discoverFederatorWithError targetDomain
   let validationErrors = validateDomainName (B8.unpack hostname) certificate
   unless (null validationErrors) $
-    throwInward IInvalidDomain ("domain name does not match certificate: " <> Text.pack (show validationErrors))
+    throwInward IAuthenticationFailed ("domain name does not match certificate: " <> Text.pack (show validationErrors))
 
   passAllowList <- federateWith targetDomain
   if passAllowList

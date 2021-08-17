@@ -155,7 +155,7 @@ data InwardError = InwardError
 
 data InwardErrorType
   = IOther
-  | IInvalidDomain
+  | IAuthenticationFailed
   | IFederationDeniedByRemote
   | IInvalidEndpoint
   | IForbiddenEndpoint

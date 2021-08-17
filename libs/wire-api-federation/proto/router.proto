@@ -52,7 +52,7 @@ message OutwardError {
 message InwardError {
   enum ErrorType {
     IOther = 0;
-    IInvalidDomain = 1;
+    IAuthenticationFailed = 1;
     IFederationDeniedByRemote = 2;
     IInvalidEndpoint = 3;
     IForbiddenEndpoint = 4;

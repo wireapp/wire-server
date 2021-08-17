@@ -108,8 +108,8 @@ validateDomainAllowListFailSemantic =
           . Polysemy.runReader settings
           $ validateDomain (Just exampleCert) ("invalid//.><-semantic-&@-domain" :: Text)
       case res of
-        Left (InwardError IInvalidDomain _) -> pure ()
-        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
+        Left (InwardError IAuthenticationFailed _) -> pure ()
+        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
@@ -151,8 +151,8 @@ validateDomainCertMissing =
           . Polysemy.runReader noClientCertSettings
           $ validateDomain Nothing "foo.example.com"
       case res of
-        Left (InwardError IInvalidDomain _) -> pure ()
-        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
+        Left (InwardError IAuthenticationFailed _) -> pure ()
+        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
@@ -164,8 +164,8 @@ validateDomainCertInvalid =
           . Polysemy.runReader noClientCertSettings
           $ validateDomain (Just "not a certificate") "foo.example.com"
       case res of
-        Left (InwardError IInvalidDomain _) -> pure ()
-        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
+        Left (InwardError IAuthenticationFailed _) -> pure ()
+        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
@@ -178,8 +178,8 @@ validateDomainCertWrongDomain =
           . Polysemy.runReader noClientCertSettings
           $ validateDomain (Just exampleCert) "foo.example.com"
       case res of
-        Left (InwardError IInvalidDomain _) -> pure ()
-        x -> embed $ assertFailure $ "expected IInvalidDomain error, got " <> show x
+        Left (InwardError IAuthenticationFailed _) -> pure ()
+        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
