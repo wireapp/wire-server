@@ -71,30 +71,7 @@ callLocal ::
   Maybe ByteString ->
   Request ->
   Sem r InwardResponse
-callLocal cert = runInwardError . callLocal' cert
-  where
-    runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
-    runInwardError action = toResponse <$> Polysemy.runError action
-
-    toResponse :: Either InwardError ByteString -> InwardResponse
-    toResponse (Left err) = InwardResponseError err
-    toResponse (Right bs) = InwardResponseBody bs
-
-callLocal' ::
-  ( Members
-      '[ Service,
-         Embed IO,
-         TinyLog,
-         DiscoverFederator,
-         Polysemy.Reader RunSettings,
-         Polysemy.Error InwardError
-       ]
-      r
-  ) =>
-  Maybe ByteString ->
-  Request ->
-  Sem r ByteString
-callLocal' mcert req@Request {..} = do
+callLocal mcert req@Request {..} = runInwardError $ do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "request" (show req)
@@ -118,6 +95,13 @@ callLocal' mcert req@Request {..} = do
     code -> do
       let description = "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus) <> " Response body: " <> maybe mempty cs resBody
       throwInward IOther description
+  where
+    runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
+    runInwardError action = toResponse <$> Polysemy.runError action
+
+    toResponse :: Either InwardError ByteString -> InwardResponse
+    toResponse (Left err) = InwardResponseError err
+    toResponse (Right bs) = InwardResponseBody bs
 
 routeToInternal ::
   (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, DiscoverFederator, Polysemy.Reader RunSettings] r) =>
