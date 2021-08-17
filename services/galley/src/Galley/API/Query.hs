@@ -302,6 +302,9 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
   let fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> remoteFailures
       remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map unTagged foundRemoteIds
   unless (null remoteNotFoundRemoteIds) $
+    -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
+    -- current user should be considered removed from this conversation at this
+    -- point.
     Logger.info $
       Logger.msg ("Some locally found conversation ids were not returned by remotes" :: ByteString)
         . Logger.field "convIds" (show remoteNotFoundRemoteIds)
