@@ -581,33 +581,36 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
 conversationIdsOf :: (MonadClient m) => UserId -> [ConvId] -> m [ConvId]
 conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
+-- | Takes a list of conversation ids and splits them by those found for the
+-- given user and those which are not found.
+--
+-- Returns @(foundConvs, notFoundConvs)@.
 localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -> [ConvId] -> m ([ConvId], [ConvId])
 localConversationIdsOf usr cids = do
-  concatTuples <$> pooledMapConcurrentlyN 8 splitOne cids
+  partitionEithers <$> pooledMapConcurrentlyN 8 findConv cids
   where
-    splitOne :: ConvId -> m (Maybe ConvId, Maybe ConvId)
-    splitOne conv = do
+    findConv :: ConvId -> m (Either ConvId ConvId)
+    findConv conv = do
       mbMembership <- query1 Cql.selectUserConvMembership (params Quorum (usr, conv))
-      case mbMembership of
-        Nothing -> pure (Nothing, Just conv)
-        Just _ -> pure (Just conv, Nothing)
+      pure $ case mbMembership of
+        Nothing -> Right conv
+        Just _ -> Left conv
 
 -- | Takes a list of conversation ids and splits them by those found for the
 -- given user and those which are not found.
+--
+-- Returns @(foundConvs, notFoundConvs)@.
 remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m ([Remote ConvId], [Remote ConvId])
 remoteConversationIdOf usr cids =
-  concatTuples <$> pooledMapConcurrentlyN 8 splitOne cids
+  partitionEithers <$> pooledMapConcurrentlyN 8 findConv cids
   where
-    splitOne :: Remote ConvId -> m (Maybe (Remote ConvId), Maybe (Remote ConvId))
-    splitOne remoteConvId = do
+    findConv :: Remote ConvId -> m (Either (Remote ConvId) (Remote ConvId))
+    findConv remoteConvId = do
       let (Qualified conv domain) = unTagged remoteConvId
       mbMembership <- query1 Cql.selectRemoteConvMembership (params Quorum (usr, domain, conv))
-      case mbMembership of
-        Nothing -> pure (Nothing, Just remoteConvId)
-        Just _ -> pure (Just remoteConvId, Nothing)
-
-concatTuples :: [(Maybe a, Maybe b)] -> ([a], [b])
-concatTuples xs = (mapMaybe fst xs, mapMaybe snd xs)
+      pure $ case mbMembership of
+        Nothing -> Right remoteConvId
+        Just _ -> Left remoteConvId
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
