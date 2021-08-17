@@ -165,7 +165,7 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
 
 data LeaveConversation = LeaveConversation
-  { -- | The conversation is assumed to be owned by the target domain, wihch
+  { -- | The conversation is assumed to be owned by the target domain, which
     -- allows us to protect against relay attacks
     lcConvId :: ConvId,
     -- | The leaver is assumed to be owned by the origin domain, which allows us
