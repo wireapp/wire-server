@@ -585,12 +585,13 @@ localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -
 localConversationIdsOf usr cids = do
   concatTuples <$> pooledMapConcurrentlyN 8 splitOne cids
   where
-    splitOne :: ConvId -> m (Maybe ConvId, Maybe  ConvId)
+    splitOne :: ConvId -> m (Maybe ConvId, Maybe ConvId)
     splitOne conv = do
       mbMembership <- query1 Cql.selectUserConvMembership (params Quorum (usr, conv))
       case mbMembership of
         Nothing -> pure (Nothing, Just conv)
         Just _ -> pure (Just conv, Nothing)
+
 -- | Takes a list of conversation ids and splits them by those found for the
 -- given user and those which are not found.
 remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m ([Remote ConvId], [Remote ConvId])
