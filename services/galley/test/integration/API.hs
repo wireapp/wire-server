@@ -215,6 +215,7 @@ emptyFederatedGalley =
         { FederatedGalley.registerConversation = \_ -> e "registerConversation",
           FederatedGalley.getConversations = \_ -> e "getConversations",
           FederatedGalley.updateConversationMemberships = \_ -> e "updateConversationMemberships",
+          FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
         }

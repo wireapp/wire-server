@@ -28,7 +28,7 @@ import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, Summary, (:>))
+import Servant.API (JSON, Post, ReqBody, StdMethod (DELETE), Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -40,6 +40,8 @@ import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
+import Wire.API.Routes.MultiVerb (MultiVerb)
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversation, RemoveFromConversationResponses)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -69,6 +71,13 @@ data Api routes = Api
         :> "update-conversation-memberships"
         :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] (),
+    leaveConversation ::
+      routes
+        :- "federation"
+        :> "leave-conversation"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] LeaveConversation
+        :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
     receiveMessage ::
@@ -154,6 +163,17 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+
+data LeaveConversation = LeaveConversation
+  { -- | The conversation is assumed to be owned by the target domain, wihch
+    -- allows us to protect against relay attacks
+    lcConvId :: ConvId,
+    -- | The leaver is assumed to be owned by the origin domain, which allows us
+    -- to protect against spoofing attacks
+    lcLeaver :: UserId
+  }
+  deriving stock (Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversation)
 
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
