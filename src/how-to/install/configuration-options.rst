@@ -132,6 +132,8 @@ If `setRestrictUserCreation` is `true`, creating new personal users or new teams
 
 On instances with restricted user creation, the site operator with access to the internal REST API can still circumvent the restriction: just log into a brig service pod via ssh and follow the steps in https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/deploy/services-demo/create_test_team_admins.sh.
 
+.. note::
+    Once the creation of new users and teams has been disabled, it will still be possible to use the `team creation process <https://support.wire.com/hc/en-us/articles/115003858905-Create-a-team>`__ (enter the new team name, email, password, etc), but it will fail/refuse creation late in the creation process (after the «Create team» button is clicked).
 
 You may want
 --------------
