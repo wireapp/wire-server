@@ -122,9 +122,7 @@ viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, H
 viewFederatorExternalClient = do
   Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
   exampleCert <-
-    (clientCertificate . optSettings <$> view teOpts) >>= \case
-      Nothing -> liftIO $ assertFailure "No client certificate configured"
-      Just certPath -> liftIO $ BS.readFile certPath
+    (clientCertificate . optSettings <$> view teOpts) >>= liftIO . BS.readFile
   let cfg =
         (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
           { _grpcClientConfigHeaders = [("X-SSL-Certificate", HTTP.urlEncode True exampleCert)]

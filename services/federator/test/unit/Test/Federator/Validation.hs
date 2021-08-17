@@ -148,7 +148,7 @@ validateDomainCertMissing =
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryTrivial
-          . Polysemy.runReader defRunSettings
+          . Polysemy.runReader noClientCertSettings
           $ validateDomain Nothing "foo.example.com"
       case res of
         Left (InwardError IInvalidDomain _) -> pure ()
@@ -161,7 +161,7 @@ validateDomainCertInvalid =
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryTrivial
-          . Polysemy.runReader defRunSettings
+          . Polysemy.runReader noClientCertSettings
           $ validateDomain (Just "not a certificate") "foo.example.com"
       case res of
         Left (InwardError IInvalidDomain _) -> pure ()
@@ -175,7 +175,7 @@ validateDomainCertWrongDomain =
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryTrivial
-          . Polysemy.runReader defRunSettings
+          . Polysemy.runReader noClientCertSettings
           $ validateDomain (Just exampleCert) "foo.example.com"
       case res of
         Left (InwardError IInvalidDomain _) -> pure ()
@@ -190,7 +190,7 @@ validateDomainCertCN =
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryTrivial
-          . Polysemy.runReader defRunSettings
+          . Polysemy.runReader noClientCertSettings
           $ validateDomain (Just exampleCert) (domainText domain)
       embed $ res @?= Right domain
 
@@ -202,7 +202,7 @@ validateDomainDiscoveryFailed =
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryFailure
-          . Polysemy.runReader defRunSettings
+          . Polysemy.runReader noClientCertSettings
           $ validateDomain (Just exampleCert) "example.com"
       case res of
         Left (InwardError IDiscoveryFailed _) -> pure ()
@@ -217,7 +217,7 @@ validateDomainNonIdentitySRV =
       res :: Either InwardError Domain <-
         Polysemy.runError
           . mockDiscoveryMapping domain "localhost.example.com"
-          . Polysemy.runReader defRunSettings
+          . Polysemy.runReader noClientCertSettings
           $ validateDomain (Just exampleCert) (domainText domain)
       embed $ res @?= Right domain
 
