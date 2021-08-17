@@ -22,10 +22,32 @@
 
 # [unreleased]
 
-[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
+[please put all changes that only affect federation into the "Federation changes" section to unclutter the rest of the release notes.]
 [if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
 
 ## Release Notes
+
+## API Changes
+
+## Features
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
+* Integration test script now displays output interactively (#1700)
+
+## Federation changes
+
+* Added client certificate support for server to server authentication (#1682)
+
+# [2021-08-16]
+
+## Release Notes
+
+This is a routine release requiring only the routine upgrade steps.
 
 ## API Changes
 
@@ -36,10 +58,11 @@
 
 ## Features
 
-* Client functions for the hscim library (#1699)
+* Client functions for the hscim library (#1694, #1699, #1702, https://hackage.haskell.org/package/hscim)
 
 ## Bug fixes and other updates
 
+* Change http response code for `missing-legalhold-consent`. (#1688)
 * Remove old end-point for changing email
 
 ## Federation changes (alpha feature, do not use yet)
@@ -52,13 +75,14 @@
 * fix swagger: mark name in UserUpdate as optional (#1691)
 * Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
 * Fixed a few issues with error response documentation in Swagger (#1707)
+* Fix swagger: mark name in UserUpdate as optional (#1691, #1692)
 
 ## Internal changes
 
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
-* Integration test coverage (#1704)
+* Integration test coverage (#1696, #1704)
 
 # [2021-08-02]
 
@@ -110,7 +134,6 @@ Upgrade nginz (#1658)
 * Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
 * Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
 * Added golden tests for protobuf serialisation / deserialisation (#1644).
-
 
 # [2021-07-09]
 

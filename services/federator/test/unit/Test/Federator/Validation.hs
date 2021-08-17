@@ -32,6 +32,7 @@ import Polysemy.Embed
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Test.Federator.InternalServer ()
+import Test.Federator.Options (noClientCertSettings)
 import Test.Polysemy.Mock (evalMock)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -177,4 +178,4 @@ expectErr expectedType (Left err) =
 
 settingsWithAllowList :: [Domain] -> RunSettings
 settingsWithAllowList domains =
-  RunSettings (AllowList (AllowedDomains domains)) False Nothing
+  noClientCertSettings {federationStrategy = AllowList (AllowedDomains domains)}

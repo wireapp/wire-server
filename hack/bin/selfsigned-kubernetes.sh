@@ -10,6 +10,7 @@ TEMP=${TEMP:-/tmp}
 CSR="$TEMP/csr.json"
 OUTPUTNAME_CA="integration-ca"
 OUTPUTNAME_LEAF_CERT="integration-leaf"
+OUTPUTNAME_CLIENT_CERT="integration-client"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 OUTPUT_CONFIG_FEDERATOR="$TOP_LEVEL/hack/helm_vars/wire-server/certificates.yaml"
@@ -55,6 +56,9 @@ echo '{
 # generate cert and key based on CA given comma-separated hostnames as SANs
 cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="*.$FEDERATION_DOMAIN_BASE" "$CSR" | cfssljson -bare "$OUTPUTNAME_LEAF_CERT"
 
+# generate client certificate and key
+cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="*.$FEDERATION_DOMAIN_BASE" "$CSR" | cfssljson -bare "$OUTPUTNAME_CLIENT_CERT"
+
 # the following yaml override file is needed as an override to
 # nginx-ingress-services helm chart
 # for domain A, ingress@A needs cert+key for A
@@ -64,6 +68,8 @@ cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostnam
     sed -e 's/^/    /' $OUTPUTNAME_LEAF_CERT.pem
     echo "  tlsWildcardKey: |"
     sed -e 's/^/    /' $OUTPUTNAME_LEAF_CERT-key.pem
+    echo "  tlsClientCA: |"
+    sed -e 's/^/    /' $OUTPUTNAME_CA.pem
 } | tee "$OUTPUT_CONFIG_INGRESS"
 
 # the following yaml override file is needed as an override to
@@ -75,10 +81,17 @@ cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostnam
     echo "federator:"
     echo "  remoteCAContents: |"
     sed -e 's/^/    /' $OUTPUTNAME_CA.pem
+    echo "  clientCertificateContents: |"
+    sed -e 's/^/    /' $OUTPUTNAME_CLIENT_CERT.pem
+    echo "  clientPrivateKeyContents: |"
+    sed -e 's/^/    /' $OUTPUTNAME_CLIENT_CERT-key.pem
 } | tee "$OUTPUT_CONFIG_FEDERATOR"
 
 # cleanup unneeded files
 rm "$OUTPUTNAME_LEAF_CERT.csr"
 rm "$OUTPUTNAME_LEAF_CERT.pem"
 rm "$OUTPUTNAME_LEAF_CERT-key.pem"
+rm "$OUTPUTNAME_CLIENT_CERT.csr"
+rm "$OUTPUTNAME_CLIENT_CERT.pem"
+rm "$OUTPUTNAME_CLIENT_CERT-key.pem"
 rm "$CSR"
