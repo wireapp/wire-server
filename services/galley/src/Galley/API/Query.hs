@@ -238,8 +238,7 @@ getConversationsInternal user mids mstart msize = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
--- | Deprecated
---  FUTUREWORK(federation): Delete this endpoint
+-- | Deprecated. FUTUREWORK(federation): Delete this endpoint
 listConversations :: UserId -> Public.ListConversations -> Galley (Public.ConversationList Public.Conversation)
 listConversations user (Public.ListConversations mIds qstart msize) = do
   localDomain <- viewFederationDomain
@@ -285,7 +284,6 @@ listConversations user (Public.ListConversations mIds qstart msize) = do
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
 
--- FUTUREWORK: optimize cassandra requests when retrieving conversations (avoid large IN queries, prefer parallel/chunked requests)
 listConversationsV2 :: UserId -> Public.ListConversationsV2 -> Galley Public.ConversationsResponse
 listConversationsV2 user (Public.ListConversationsV2 ids) = do
   localDomain <- viewFederationDomain
