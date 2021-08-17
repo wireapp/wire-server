@@ -53,6 +53,8 @@ federatorExternal:
   host: 127.0.0.1
   port: 8098
 
+originDomain: example.com
+
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem
