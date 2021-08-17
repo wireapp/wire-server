@@ -1,6 +1,6 @@
 image:
   repository: quay.io/wire/ldap-scim-bridge
-  tag: 0.0.3
+  tag: 0.0.4
 resources:
   requests:
     memory: "256Mi"
@@ -13,20 +13,27 @@ resources:
 schedule: "*/1 * * * *"
 # https://github.com/wireapp/ldap-scim-bridge
 config:
-  logLevel: "Debug"
+  logLevel: "Debug"  # one of Trace,Debug,Info,Warn,Error,Fatal; `Fatal` is least noisy, `Trace` most.
   ldapSource:
     tls: false
-    host: "openldap"
+    host: "localhost"
     port: 389
     dn: "cn=admin,dc=nodomain"
-    password: "admin"
-    base: "ou=People,dc=nodomain"
-    objectClass: "account"
+    password: "geheim hoch drei"
+    search:
+      base: "ou=People,dc=nodomain"
+      objectClass: "account"
     codec: "utf8"
+    deleteOnAttribute:  # optional, related to `delete-from-directory`.
+      key: "deleted"
+      value: "true"
+    deleteFromDirectory:  # optional; ok to use together with `delete-on-attribute` if you use both.
+      base: "ou=DeletedPeople,dc=nodomain"
+      objectClass: "account"
   scimTarget:
     tls: false
-    host: "spar"
-    port: 8080
+    host: "localhost"
+    port: 8088
     path: "/scim/v2"
     token: "Bearer U6DRfAcwsvCg9eBStJWtiHu/XqTB1iVDcvNcsuftvqk="
   mapping:
