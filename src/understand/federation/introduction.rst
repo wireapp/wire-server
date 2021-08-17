@@ -1,8 +1,8 @@
 Introduction
 ============
 
-Federation is a feature that allows a collection of Wire backends to facilitate
-connections between their respective users.
+Federation is a feature that allows a collection of Wire backends to enable the
+establishment of connections between their respective users.
 
 Goals
 -----

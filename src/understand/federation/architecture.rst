@@ -18,16 +18,26 @@ for requests from internal backend components to other, remote backends.
 Backend domains
 ^^^^^^^^^^^^^^^
 
-A backend is identified by its `infrastructure domain` (or `infra domain` for
-short). This is the domain that the backend uses to authenticate towards other
-backends.
+Each backend has two domains: an `infrastructure domain` and a `backend domain`.
+
+The former is the domain under which the backend is actually reachable via the
+network. It is also the domain that each backend uses in authenticating itself
+to other backends.
 
 Similarly, there is the `backend domain`, which is used to qualify the names and
 identifiers of users local to an individual backend in the context of
-federation. See :ref:`Qualified Identifiers and Names
-<qualified-identifiers-and-names>` for more information. The owner of the
-backend domain has to specify an infra domain under which the Wire backend
-representing their domain is reachable.
+federation. For example, a user with (unqualified) user name `jane_doe` at a
+backend with backend domain `company-a.com` has the qualified user name
+`jane_doe@company-a.com`, which is visible to users of other backends in the
+context of federation.
+
+See :ref:`Qualified Identifiers and Names <qualified-identifiers-and-names>` for
+more information on qualified names and identifiers.
+
+The distinction between the two domains allows the owner of a (backend) domain
+(e.g. `company-a.com`) to host their Wire backend under a different (infra)
+domain (e.g. `wire.infra.company-a.com`).
+
 
 Backend components
 ^^^^^^^^^^^^^^^^^^
@@ -39,7 +49,8 @@ backends and respond to queries originating from remote backends.
 
 The following subsections briefly introduce the individual components, their
 state and their functionality. The semantics of backend-to-backend communication
-will be explained in more detail in Section 2.2.
+will be explained in more detail in the Section on :ref:`Federation API
+<federation-api>`.
 
 .. _ingress:
 
@@ -121,9 +132,9 @@ their federator, see the :ref:`federated API documentation<api-endpoints>`.
 Backend to backend communication
 --------------------------------------------
 
-We require communication between the federator of one (sending) backend another
-(receiving) backend to be both mutually authenticated and authorized. More
-specifically, both backends need to ensure the following:
+We require communication between the federator of one (sending) backend and the
+ingress of another (receiving) backend to be both mutually authenticated and
+authorized. More specifically, both backends need to ensure the following:
 
 :Authentication: Determine the identity (infra domain name) of the other
                  backend.
@@ -171,24 +182,23 @@ backend domain.
 
 This step is necessary in two scenarios:
 
-* A backend would like to establish a connection to another backend that they
-  only know the backend domain of. This is the case, for example, when a user of
-  a local backend searchers for a :ref:`qualified username
-  <qualified-user-name>`, which only includes that user's backends's backend
-  domain.
+* A backend would like to establish a connection to another backend that it only
+  knows the backend domain of. This is the case, for example, when a user of a
+  local backend searches for a :ref:`qualified username <qualified-user-name>`,
+  which only includes that user's backend's backend domain.
 * When receiving a message from another backend that authenticates with a given
   infra domain and claims to represent a given backend domain, a backend would
   like to ensure the backend domain owner authorized the owner of the infra
   domain to run their Wire backend.
 
 To make discovery possible, any party hosting a Wire backend has to announce the
-the infra domain via a DNS `SRV` record as defined in `RFC 2782
-<https://tools.ietf.org/html/rfc2782>`_ with `service = wire-server-federator, proto =
-tcp` and with `name` pointing to the backend's domain and `target` to the
-backend's infra domain.
+infra domain via a DNS `SRV` record as defined in `RFC 2782
+<https://tools.ietf.org/html/rfc2782>`_ with `service = wire-server-federator,
+proto = tcp` and with `name` pointing to the backend's domain and `target` to
+the backend's infra domain.
 
-For example, Company A with domain `company-a.com` and infra
-domain `wire.company-a.com` could publish
+For example, Company A with backend domain `company-a.com` and infra domain
+`wire.company-a.com` could publish
 
 .. code-block:: bash
 
@@ -200,9 +210,9 @@ the SRV record specifying the `wire-server-federator` service.
 Caching
 ~~~~~~~
 
-After retrieving the SRV record for a given domain, it caches the `backend
-domain <--> infra domain` mapping for the duration indicated in the TTL field of
-the record.
+After retrieving the SRV record for a given domain, the backend caches the
+`backend domain <--> infra domain` mapping for the duration indicated in the TTL
+field of the record.
 
 .. _authorization:
 
@@ -276,7 +286,7 @@ definitions of the actual payloads, please see the :ref:`federation
 API<federation-api>` section.
 
 The scenario is that the brig at `infra.a.com` has received a user search
-request from one of its clients.
+request from `Alice`, one of its clients.
 
 .. image:: img/federation-flow.png
    :width: 100%

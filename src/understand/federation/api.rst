@@ -101,13 +101,13 @@ API From Components to Federator
 --------------------------------
 
 Between two federated backends, the components talk to each other via their
-respective federators. When making the call to the federator, the components use
-protobuf over gRPC. They call the ``Outward`` service, which also supports one
-rpc called ``call``. This rpc requires a ``FederatedRequest`` object, which
-contains a ``Request`` object as defined above, as well as the domain of the
-destination federator. The rpc returns an ``OutwardResponse``, which can either
-contains a body with the returned information or an ``OutwardError``, these
-objects look like this:
+respective federators and ingress'. When making the call to the federator, the
+components use protobuf over gRPC. They call the ``Outward`` service, which also
+supports one rpc called ``call``. This rpc requires a ``FederatedRequest``
+object, which contains a ``Request`` object as defined above, as well as the
+domain of the destination federator. The rpc returns an ``OutwardResponse``,
+which can either contains a body with the returned information or an
+``OutwardError``, these objects look like this:
 
 .. code-block:: protobuf
 
@@ -218,7 +218,7 @@ the backend.
   belonging to that user.
 * ``claim-prekey-bundle``: Given a user id, return a prekey for each of the
   user's clients.
-* ``claim-multi-prekey-bundle``: Given a list of user ids, return the lists of
+* ``claim-multi-prekey-bundle``: Given a list of user ids, return prekeys of
   their respective clients.
 * ``search-users``: Given a term, search the user database for matches w.r.t.
   that term.
@@ -265,6 +265,16 @@ precise inputs and outputs.
 End-to-End Flows
 ----------------
 
+In the following end-to-end flows, we focus on the interaction between the Brigs
+and Galleys of federated backends. While the interactions are facilitated by the
+Federator and Ingress components of the backends involved, which handle the
+necessary discovery, authentication and authorization steps, we won't mention
+these steps explicitly each time to keep the flows simple.
+
+Additionally we assume that the backend domain and the infra domain of the
+respecivebackends involved are the same and each domain identifies a distinct
+backend.
+
 .. _user-discovery:
 
 User Discovery
@@ -273,13 +283,18 @@ User Discovery
 In this flow, the user `A` at `backend-a.com` tries to search for user `B` at
 `backend-b.com`.
 
-1. User `A@backend-a.com` enters the qualified user name of the target user
+#. User `A@backend-a.com` enters the qualified user name of the target user
    `B@backend-b.com` into the search field of their Wire client.
-2. The client issues a query to ``/search/contacts`` searching for `B` at
-   `backend-b.com`.
-3. `A`'s backend queries the ``search-users`` endpoint of B's backend for `B`.
-4. `B`'s backend replies with with `B`'s user name and qualified handle.
-5. `A`'s backend forwards that information to `A`'s client.
+#. The client issues a query to ``/search/contacts`` of the Brig searching for
+   `B` at `backend-b.com`.
+#. The Brig in `A`'s backend asks its local Federator to query the
+   ``search-users`` endpoint of B's backend for `B`.
+#. `A`'s Federator queries `B`'s Brig via `B`'s Ingress and Federator as
+   requested.
+#. `B`'s Brig replies with with `B`'s user name and qualified handle, the
+   response goes through `B`'s Federator and Ingress, as well as `A`'s Federator
+   before it reaches `A`'s Brig.
+#. `A`'s Brig forwards that information to `A`'s client.
 
 Conversation Establishment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -287,21 +302,26 @@ Conversation Establishment
 After having discovered user `B` at `backend-b.com`, user `A` at `backend-a.com`
 wants to establish a conversation with `B`.
 
-1. From the search results of a :ref:`user discovery<user-discovery>` process,
+#. From the search results of a :ref:`user discovery<user-discovery>` process,
    `A` chooses to create a conversation with `B`.
-2. `A`'s client issues a ``/users/backend-b.com/B/prekeys`` query to `A`'s
-   backend.
-3. `A`'s backend queries the ``claim-prekey-bundle`` endpoint of `B`'s backend
+#. `A`'s client issues a ``/users/backend-b.com/B/prekeys`` query to `A`'s
+   Brig.
+#. `A`'s Brig asks its Federator to query the ``claim-prekey-bundle`` endpoint
+   of `B`'s backend using `B`'s user id.
+#. `B`'s Ingress forwards the query to the Federator, who in turn forwards it to
+   the local Brig.
+#. `B`'s Brig replies with a prekey bundle for each of `B`'s clients, which is
+   forwarded to `A`'s Brig via `B`'s Federator and Ingress, as well as `A`'s
+   Federator.
+#. `A`'s Brig forwards that information to `A`'s client.
+#. `A`'s client queries the ``/conversations`` endpoint of its Galley
    using `B`'s user id.
-4. `B`'s backend replies with a prekey bundle for each of `B`'s clients.
-5. `A`'s backend forwards that information to `A`'s client.
-6. `A`'s client queries the ``/conversations`` endpoint of its backend
-   using `B`'s user id.
-7. `A`'s backend creates the conversation locally and queries the
-   ``register-conversation`` endpoint of `B`'s backend to inform it about the new
+#. `A`'s Galley creates the conversation locally and queries the
+   ``register-conversation`` endpoint of `B`'s Galley (again via its local
+   Federator, as well as `B`'s Ingress and Federator) to inform it about the new
    conversation, including the conversation metadata in the request.
-8. `B`'s backend registers the conversation locally and confirms the query.
-9. `B`'s backend notifies `B`'s client of the creation of the conversation.
+#. `B`'s Galley registers the conversation locally and confirms the query.
+#. `B`'s Galley notifies `B`'s client of the creation of the conversation.
 
 Message Sending (A)
 ^^^^^^^^^^^^^^^^^^^
@@ -309,18 +329,20 @@ Message Sending (A)
 Having established a conversation with user `B` at `backend-b.com`, user `A` at
 `backend-a.com` wants to send a message to user `B`.
 
-1. In a conversation `conv-1@backend-a.com` on `A`'s backend with users
+#. In a conversation `conv-1@backend-a.com` on `A`'s backend with users
    `A@backend-a.com` and `B@backend-b.com`, `A` sends a message by using the
    ``/conversations/backend-a.com/conv-1/proteus/messages`` endpoint
-   on `A`'s backend.
-2. `A`'s backend will check if `A` included all necessary user devices in their
-   request. For that it will make a ``get-user-clients`` request to `B`'s
-   backend. The returned list of clients will be checked to match against the
-   list of clients the message was encrypted for.
-3. `A`'s backend will send the message to all clients of those users on `A`'s
-   backend part of the conversation as usual,
-4. `A`'s backend will query the ``receive-message`` endpoint on `B`'s backend.
-5. `B`'s backend will propagate the message to all users on `B`.
+   on `A`'s Galley.
+#. `A`'s Galley checks if `A` included all necessary user devices in their
+   request. For that it makes a ``get-user-clients`` request to `B`'s Galley.
+   `A`'s Galley checks that the returned list of clients matches the list of
+   clients the message was encrypted for.
+#. `A`'s Galley sends the message to all clients in the conversation that are
+   part of `A`'s backend.
+#. `A`'s Galley queries the ``receive-message`` endpoint on `B`'s Galley via its
+   Federator and `B`'s Ingress and Federator.
+#. `B`'s Galley will propagate the message to all local clients involved in the
+   conversation.
 
 Message Sending (B)
 ^^^^^^^^^^^^^^^^^^^
@@ -328,17 +350,19 @@ Message Sending (B)
 Having received a message from user `A` at `backend-a.com`, user `B` at
 `backend-b.com` wants send a reply.
 
-1. In a conversation `conv-1@backend-a.com` on `A`'s backend with users
+#. In a conversation `conv-1@backend-a.com` on `A`'s backend with users
    `A@backend-a.com` and `B@backend-b.com`, `B` sends a message by using the
    ``/conversations/backend-a.com/conv-1/proteus/messages`` endpoint
    on `B`'s backend.
-2. `B`'s backend will query the ``send-message`` endpoint on `A`'s backend.
+#. `B`'s Galley queries the ``send-message`` endpoint on `A`'s backend.
    *Steps 3-6 below are essentially the same as steps 2-5 in Message Sending (A)*
-3. `A`'s backend will check if `B` included all necessary user devices in their
-   request. For that it will make a ``get-user-clients`` request to `B`'s
-   backend. The returned list of clients will be checked to match against the
-   list of clients the message was encrypted for.
-4. `A`'s backend will send the message to all clients of those users on `A`'s
-   backend part of the conversation as usual,
-5. `A`'s backend will query the ``receive-message`` endpoint on `B`'s backend.
-6. `B`'s backend will propagate the message to all users on `B`.
+#. `A`'s Galley checks if `A` included all necessary user devices in their
+   request. For that it makes a ``get-user-clients`` request to `B`'s Galley.
+   `A`'s Galley checks that the returned list of clients matches the list of
+   clients the message was encrypted for.
+#. `A`'s Galley sends the message to all clients in the conversation that are
+   part of `A`'s backend.
+#. `A`'s Galley queries the ``receive-message`` endpoint on `B`'s Galley via its
+   Federator and `B`'s Ingress and Federator.
+#. `B`'s Galley will propagate the message to all local clients involved in the
+   conversation.
