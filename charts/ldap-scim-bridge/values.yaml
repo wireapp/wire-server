@@ -16,10 +16,10 @@ config:
   logLevel: "Debug"  # one of Trace,Debug,Info,Warn,Error,Fatal; `Fatal` is least noisy, `Trace` most.
   ldapSource:
     tls: false
-    host: "localhost"
+    host: "openldap"
     port: 389
     dn: "cn=admin,dc=nodomain"
-    password: "geheim hoch drei"
+    password: "admin"
     search:
       base: "ou=People,dc=nodomain"
       objectClass: "account"
@@ -32,7 +32,7 @@ config:
       objectClass: "account"
   scimTarget:
     tls: false
-    host: "localhost"
+    host: "spar"
     port: 8088
     path: "/scim/v2"
     token: "Bearer U6DRfAcwsvCg9eBStJWtiHu/XqTB1iVDcvNcsuftvqk="
