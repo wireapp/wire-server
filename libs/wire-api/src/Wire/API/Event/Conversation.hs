@@ -41,7 +41,6 @@ module Wire.API.Event.Conversation
     Conversation (..),
     TypingData (..),
     UserIdList (..),
-    QualifiedUserIdList (..),
 
     -- * Swagger
     modelEvent,
@@ -85,7 +84,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
-import Wire.API.User (QualifiedUserIdList (..), UserIdList (..))
+import Wire.API.User (UserIdList (..))
 
 --------------------------------------------------------------------------------
 -- Event
@@ -183,7 +182,6 @@ typeEventType =
     Doc.enum
       [ "conversation.member-join",
         "conversation.member-leave",
-        "conversation.member-leave-qualified",
         "conversation.member-update",
         "conversation.rename",
         "conversation.access-update",
