@@ -2168,12 +2168,23 @@ leaveRemoteConvQualifiedOk = do
   let remoteDomain = Domain "faraway.example.com"
       qconv = Qualified conv remoteDomain
       qBob = Qualified bob remoteDomain
+  now <- liftIO getCurrentTime
+  let eventData = EdMembersLeave . UserIdList . pure $ qAlice
+      removalEvent = Event MemberLeave qconv qAlice now eventData
+      mockedFederatedGalleyResponse :: F.FederatedRequest -> Maybe Value
+      mockedFederatedGalleyResponse req
+        | fmap F.component (F.request req) == Just F.Galley =
+          Just . toJSON $ removalEvent
+        | otherwise = Nothing
   opts <- view tsGConf
   (resp, _) <-
     withTempMockFederator
       opts
       remoteDomain
-      (onlyMockedFederatedBrigResponse [(qBob, "Bob")])
+      ( joinMockedFederatedResponses
+          (mockedFederatedBrigResponse [(qBob, "Bob")])
+          mockedFederatedGalleyResponse
+      )
       (deleteMemberQualified alice qAlice qconv)
   liftIO $ do
     statusCode resp @?= 200

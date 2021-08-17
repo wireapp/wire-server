@@ -119,7 +119,7 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
-import Wire.API.Federation.Error (federationNotImplemented)
+import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import Wire.API.Routes.Public.Galley.Responses
@@ -603,13 +603,26 @@ removeMember ::
   Qualified ConvId ->
   Qualified UserId ->
   Galley RemoveFromConversation
-removeMember remover zcon _qconv@(Qualified conv convDomain) victim = do
+removeMember remover zcon (Qualified conv convDomain) victim = do
   localDomain <- viewFederationDomain
   if localDomain == convDomain
     then
       fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
         removeMemberFromLocalConv remover zcon conv victim
-    else throwM federationNotImplemented
+    else
+      if remover == victim
+        then do
+          let lc = FederatedGalley.LeaveConversation conv (qUnqualified victim)
+          let rpc =
+                FederatedGalley.leaveConversation
+                  FederatedGalley.clientRoutes
+                  (qDomain victim)
+                  lc
+          runFederated convDomain rpc
+        else
+          pure
+            . RemoveFromConversationNotAllowed
+            $ RemoveConversationMember
   where
     mapError :: RemoveFromConversationError -> RemoveFromConversation
     mapError = \case
