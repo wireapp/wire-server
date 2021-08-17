@@ -25,17 +25,14 @@ import Data.String.Conversions
 import qualified Data.Text.Encoding as Text
 import Federator.Discovery (DiscoverFederator (..), LookupError (..))
 import Federator.Options
-import Federator.Remote (Remote)
 import Federator.Validation
 import Imports
-import Polysemy (Sem, runM)
+import Polysemy (Sem, run)
 import qualified Polysemy
-import Polysemy.Embed
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Test.Federator.InternalServer ()
 import Test.Federator.Options (noClientCertSettings)
-import Test.Polysemy.Mock (evalMock)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.GRPC.Types
@@ -81,145 +78,135 @@ tests =
 
 federateWithAllowListSuccess :: TestTree
 federateWithAllowListSuccess =
-  testCase "should give True when target domain is in the list" $
-    -- removing evalMock @Remote doesn't seem to work, but why?
-    runM . evalMock @Remote @IO $ do
-      let settings = settingsWithAllowList [Domain "hello.world"]
-      res <- Polysemy.runReader settings $ federateWith (Domain "hello.world")
-      embed $ assertBool "federating should be allowed" res
+  testCase "should give True when target domain is in the list" $ do
+    let settings = settingsWithAllowList [Domain "hello.world"]
+        res = run . Polysemy.runReader settings $ federateWith (Domain "hello.world")
+    assertBool "federating should be allowed" res
 
 federateWithAllowListFail :: TestTree
 federateWithAllowListFail =
-  testCase "should give False when target domain is not in the list" $
-    runM . evalMock @Remote @IO $ do
-      let settings = settingsWithAllowList [Domain "only.other.domain"]
-      res <- Polysemy.runReader settings $ federateWith (Domain "hello.world")
-      embed $ assertBool "federating should not be allowed" (not res)
+  testCase "should give False when target domain is not in the list" $ do
+    let settings = settingsWithAllowList [Domain "only.other.domain"]
+        res = run . Polysemy.runReader settings $ federateWith (Domain "hello.world")
+    assertBool "federating should not be allowed" (not res)
 
 validateDomainAllowListFailSemantic :: TestTree
 validateDomainAllowListFailSemantic =
-  testCase "semantic validation" $
-    runM . evalMock @Remote @IO $ do
-      let settings = settingsWithAllowList [Domain "only.other.domain"]
-      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.pem"
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryTrivial
-          . Polysemy.runReader settings
-          $ validateDomain (Just exampleCert) ("invalid//.><-semantic-&@-domain" :: Text)
-      case res of
-        Left (InwardError IAuthenticationFailed _) -> pure ()
-        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+  testCase "semantic validation" $ do
+    exampleCert <- BS.readFile "test/resources/unit/localhost.pem"
+    let settings = settingsWithAllowList [Domain "only.other.domain"]
+        res :: Either InwardError Domain =
+          run
+            . Polysemy.runError
+            . mockDiscoveryTrivial
+            . Polysemy.runReader settings
+            $ validateDomain (Just exampleCert) ("invalid//.><-semantic-&@-domain" :: Text)
+    case res of
+      Left (InwardError IAuthenticationFailed _) -> pure ()
+      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
-  testCase "allow list validation" $
-    runM . evalMock @Remote @IO $ do
-      let settings = settingsWithAllowList [Domain "only.other.domain"]
-      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryTrivial
-          . Polysemy.runReader settings
-          $ validateDomain (Just exampleCert) ("localhost.example.com" :: Text)
-      case res of
-        Left (InwardError IFederationDeniedByRemote _) -> pure ()
-        x -> embed $ assertFailure $ "expected IFederationDeniedByRemote error, got " <> show x
+  testCase "allow list validation" $ do
+    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    let settings = settingsWithAllowList [Domain "only.other.domain"]
+        res :: Either InwardError Domain =
+          run
+            . Polysemy.runError
+            . mockDiscoveryTrivial
+            . Polysemy.runReader settings
+            $ validateDomain (Just exampleCert) ("localhost.example.com" :: Text)
+    case res of
+      Left (InwardError IFederationDeniedByRemote _) -> pure ()
+      x -> assertFailure $ "expected IFederationDeniedByRemote error, got " <> show x
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
-  testCase "should give parsed domain if in the allow list" $
-    -- removing evalMock @Remote doesn't seem to work, but why?
-    runM . evalMock @Remote @IO $ do
-      let domain = Domain "localhost.example.com"
-      let settings = settingsWithAllowList [domain]
-      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryTrivial
-          . Polysemy.runReader settings
-          $ validateDomain (Just exampleCert) (domainText domain)
-      embed $ assertEqual "validateDomain should give 'localhost.example.com' as domain" (Right domain) res
+  testCase "should give parsed domain if in the allow list" $ do
+    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    let domain = Domain "localhost.example.com"
+        settings = settingsWithAllowList [domain]
+        res :: Either InwardError Domain =
+          run
+            . Polysemy.runError
+            . mockDiscoveryTrivial
+            . Polysemy.runReader settings
+            $ validateDomain (Just exampleCert) (domainText domain)
+    assertEqual "validateDomain should give 'localhost.example.com' as domain" (Right domain) res
 
 validateDomainCertMissing :: TestTree
 validateDomainCertMissing =
-  testCase "should fail if no client certificate is provided" $
-    runM . evalMock @Remote @IO $ do
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryTrivial
-          . Polysemy.runReader noClientCertSettings
-          $ validateDomain Nothing "foo.example.com"
-      case res of
-        Left (InwardError IAuthenticationFailed _) -> pure ()
-        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+  testCase "should fail if no client certificate is provided" $ do
+    let res :: Either InwardError Domain =
+          run . Polysemy.runError
+            . mockDiscoveryTrivial
+            . Polysemy.runReader noClientCertSettings
+            $ validateDomain Nothing "foo.example.com"
+    case res of
+      Left (InwardError IAuthenticationFailed _) -> pure ()
+      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
-  testCase "should fail if the client certificate is invalid" $
-    runM . evalMock @Remote @IO $ do
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryTrivial
-          . Polysemy.runReader noClientCertSettings
-          $ validateDomain (Just "not a certificate") "foo.example.com"
-      case res of
-        Left (InwardError IAuthenticationFailed _) -> pure ()
-        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+  testCase "should fail if the client certificate is invalid" $ do
+    let res :: Either InwardError Domain =
+          run . Polysemy.runError
+            . mockDiscoveryTrivial
+            . Polysemy.runReader noClientCertSettings
+            $ validateDomain (Just "not a certificate") "foo.example.com"
+    case res of
+      Left (InwardError IAuthenticationFailed _) -> pure ()
+      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
-  testCase "should fail if the client certificate has a wrong domain" $
-    runM . evalMock @Remote @IO $ do
-      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryTrivial
-          . Polysemy.runReader noClientCertSettings
-          $ validateDomain (Just exampleCert) "foo.example.com"
-      case res of
-        Left (InwardError IAuthenticationFailed _) -> pure ()
-        x -> embed $ assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+  testCase "should fail if the client certificate has a wrong domain" $ do
+    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    let res :: Either InwardError Domain =
+          run . Polysemy.runError
+            . mockDiscoveryTrivial
+            . Polysemy.runReader noClientCertSettings
+            $ validateDomain (Just exampleCert) "foo.example.com"
+    case res of
+      Left (InwardError IAuthenticationFailed _) -> pure ()
+      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
-  testCase "should succeed if the certificate has subject CN but no SAN" $
-    runM . evalMock @Remote @IO $ do
-      exampleCert <- embed $ BS.readFile "test/resources/unit/example.com.pem"
-      let domain = Domain "foo.example.com"
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryTrivial
-          . Polysemy.runReader noClientCertSettings
-          $ validateDomain (Just exampleCert) (domainText domain)
-      embed $ res @?= Right domain
+  testCase "should succeed if the certificate has subject CN but no SAN" $ do
+    exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
+    let domain = Domain "foo.example.com"
+        res :: Either InwardError Domain =
+          run . Polysemy.runError
+            . mockDiscoveryTrivial
+            . Polysemy.runReader noClientCertSettings
+            $ validateDomain (Just exampleCert) (domainText domain)
+    res @?= Right domain
 
 validateDomainDiscoveryFailed :: TestTree
 validateDomainDiscoveryFailed =
-  testCase "should fail if discovery fails" $
-    runM . evalMock @Remote @IO $ do
-      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryFailure
-          . Polysemy.runReader noClientCertSettings
-          $ validateDomain (Just exampleCert) "example.com"
-      case res of
-        Left (InwardError IDiscoveryFailed _) -> pure ()
-        x -> embed $ assertFailure $ "expected IDiscoveryFailed error, got " <> show x
+  testCase "should fail if discovery fails" $ do
+    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    let res :: Either InwardError Domain =
+          run . Polysemy.runError
+            . mockDiscoveryFailure
+            . Polysemy.runReader noClientCertSettings
+            $ validateDomain (Just exampleCert) "example.com"
+    case res of
+      Left (InwardError IDiscoveryFailed _) -> pure ()
+      x -> assertFailure $ "expected IDiscoveryFailed error, got " <> show x
 
 validateDomainNonIdentitySRV :: TestTree
 validateDomainNonIdentitySRV =
-  testCase "should run discovery to look up the federator domain" $
-    runM . evalMock @Remote @IO $ do
-      exampleCert <- embed $ BS.readFile "test/resources/unit/localhost.example.com.pem"
-      let domain = Domain "foo.example.com"
-      res :: Either InwardError Domain <-
-        Polysemy.runError
-          . mockDiscoveryMapping domain "localhost.example.com"
-          . Polysemy.runReader noClientCertSettings
-          $ validateDomain (Just exampleCert) (domainText domain)
-      embed $ res @?= Right domain
+  testCase "should run discovery to look up the federator domain" $ do
+    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    let domain = Domain "foo.example.com"
+        res :: Either InwardError Domain =
+          run . Polysemy.runError
+            . mockDiscoveryMapping domain "localhost.example.com"
+            . Polysemy.runReader noClientCertSettings
+            $ validateDomain (Just exampleCert) (domainText domain)
+    res @?= Right domain
 
 validatePathSuccess :: [TestTree]
 validatePathSuccess = do
@@ -231,8 +218,7 @@ validatePathSuccess = do
   where
     expectOk :: ByteString -> TestTree
     expectOk path = testCase ("should allow " <> cs path) $ do
-      res <- runSanitize path
-      res @?= Right path
+      runSanitize path @?= Right path
 
 validatePathNormalize :: [TestTree]
 validatePathNormalize = do
@@ -246,8 +232,7 @@ validatePathNormalize = do
     expectNormalized :: (ByteString, ByteString) -> TestTree
     expectNormalized (input, output) = do
       testCase ("Should allow " <> cs input <> " and normalize to " <> cs output) $ do
-        res <- runSanitize input
-        res @?= Right output
+        runSanitize input @?= Right output
 
 validatePathForbidden :: [TestTree]
 validatePathForbidden = do
@@ -285,11 +270,11 @@ validatePathForbidden = do
     expectForbidden :: ByteString -> TestTree
     expectForbidden input = do
       testCase ("Should forbid '" <> cs (BS.take 40 input) <> "'") $ do
-        res <- runSanitize input
+        let res = runSanitize input
         expectErr IForbiddenEndpoint res
 
-runSanitize :: ByteString -> IO (Either InwardError ByteString)
-runSanitize = runM . evalMock @Remote @IO . Polysemy.runError @InwardError . sanitizePath
+runSanitize :: ByteString -> Either InwardError ByteString
+runSanitize = run . Polysemy.runError @InwardError . sanitizePath
 
 expectErr :: InwardErrorType -> Either InwardError ByteString -> IO ()
 expectErr expectedType (Right bdy) = do
