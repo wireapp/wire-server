@@ -33,7 +33,7 @@ config:
   scimTarget:
     tls: false
     host: "spar"
-    port: 8088
+    port: 8080
     path: "/scim/v2"
     token: "Bearer U6DRfAcwsvCg9eBStJWtiHu/XqTB1iVDcvNcsuftvqk="
   mapping:
