@@ -1231,7 +1231,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtFrom e @?= usr
   evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
 
--- TODO(md): See if this one can be implemented in terms of:
+-- FUTUREWORK: See if this one can be implemented in terms of:
 --
 -- checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 --
