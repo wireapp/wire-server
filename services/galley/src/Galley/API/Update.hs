@@ -626,7 +626,9 @@ removeMember remover zcon _qconv@(Qualified conv convDomain) victim = do
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
-  removeMember (Qualified zusr localDomain) (Just zcon) (Qualified conv localDomain) (Qualified victim localDomain)
+  let qualify :: v -> Qualified v
+      qualify a = a `Qualified` localDomain
+  removeMember (qualify zusr) (Just zcon) (qualify conv) (qualify victim)
 
 removeMemberQualified ::
   UserId ->
