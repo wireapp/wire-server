@@ -280,9 +280,8 @@ expectErr :: InwardErrorType -> Either InwardError ByteString -> IO ()
 expectErr expectedType (Right bdy) = do
   assertFailure $ "expected error '" <> show expectedType <> "' but got a valid body: " <> show bdy
 expectErr expectedType (Left err) =
-  unless (inwardErrorType err == expectedType)
-    . liftIO
-    $ assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
+  unless (inwardErrorType err == expectedType) $ do
+    assertFailure $ "expected type '" <> show expectedType <> "' but got " <> show err
 
 settingsWithAllowList :: [Domain] -> RunSettings
 settingsWithAllowList domains =
