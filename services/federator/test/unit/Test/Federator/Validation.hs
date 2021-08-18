@@ -101,9 +101,7 @@ validateDomainAllowListFailSemantic =
             . mockDiscoveryTrivial
             . Polysemy.runReader settings
             $ validateDomain (Just exampleCert) ("invalid//.><-semantic-&@-domain" :: Text)
-    case res of
-      Left (InwardError IAuthenticationFailed _) -> pure ()
-      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+    res @?= Left (InwardError IAuthenticationFailed  "Domain parse failure for [invalid//.><-semantic-&@-domain]: Failed reading: Invalid domain name: cannot be dotless domain")
 
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
@@ -116,9 +114,7 @@ validateDomainAllowListFail =
             . mockDiscoveryTrivial
             . Polysemy.runReader settings
             $ validateDomain (Just exampleCert) ("localhost.example.com" :: Text)
-    case res of
-      Left (InwardError IFederationDeniedByRemote _) -> pure ()
-      x -> assertFailure $ "expected IFederationDeniedByRemote error, got " <> show x
+    res @?= Left (InwardError IFederationDeniedByRemote "Origin domain [localhost.example.com] not in the federation allow list")
 
 validateDomainAllowListSuccess :: TestTree
 validateDomainAllowListSuccess =
@@ -142,9 +138,7 @@ validateDomainCertMissing =
             . mockDiscoveryTrivial
             . Polysemy.runReader noClientCertSettings
             $ validateDomain Nothing "foo.example.com"
-    case res of
-      Left (InwardError IAuthenticationFailed _) -> pure ()
-      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+    res @?= Left (InwardError IAuthenticationFailed "no client certificate provided")
 
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
@@ -154,9 +148,7 @@ validateDomainCertInvalid =
             . mockDiscoveryTrivial
             . Polysemy.runReader noClientCertSettings
             $ validateDomain (Just "not a certificate") "foo.example.com"
-    case res of
-      Left (InwardError IAuthenticationFailed _) -> pure ()
-      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+    res @?= Left (InwardError IAuthenticationFailed "no certificate found")
 
 validateDomainCertWrongDomain :: TestTree
 validateDomainCertWrongDomain =
@@ -167,9 +159,7 @@ validateDomainCertWrongDomain =
             . mockDiscoveryTrivial
             . Polysemy.runReader noClientCertSettings
             $ validateDomain (Just exampleCert) "foo.example.com"
-    case res of
-      Left (InwardError IAuthenticationFailed _) -> pure ()
-      x -> assertFailure $ "expected IAuthenticationFailed error, got " <> show x
+    res @?= Left (InwardError IAuthenticationFailed "domain name does not match certificate: [NameMismatch \"foo.example.com\"]")
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
@@ -192,9 +182,7 @@ validateDomainDiscoveryFailed =
             . mockDiscoveryFailure
             . Polysemy.runReader noClientCertSettings
             $ validateDomain (Just exampleCert) "example.com"
-    case res of
-      Left (InwardError IDiscoveryFailed _) -> pure ()
-      x -> assertFailure $ "expected IDiscoveryFailed error, got " <> show x
+    res @?= Left (InwardError IDiscoveryFailed "DNS error: mock DNS error")
 
 validateDomainNonIdentitySRV :: TestTree
 validateDomainNonIdentitySRV =
