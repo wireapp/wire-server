@@ -23,6 +23,7 @@ module Federator.Remote
     discoverAndCall,
     interpretRemote,
     mkGrpcClient,
+    blessedCiphers,
   )
 where
 
@@ -89,6 +90,23 @@ callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
 callInward client request =
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
+-- FUTUREWORK: get review on blessed ciphers
+blessedCiphers :: [Cipher]
+blessedCiphers =
+  [ TLS.cipher_TLS13_AES128CCM8_SHA256,
+    TLS.cipher_TLS13_AES128CCM_SHA256,
+    TLS.cipher_TLS13_AES128GCM_SHA256,
+    TLS.cipher_TLS13_AES256GCM_SHA384,
+    TLS.cipher_TLS13_CHACHA20POLY1305_SHA256,
+    -- For TLS 1.2 (copied from default nginx ingress config):
+    TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
+    TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
+    TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
+    TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
+    TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
+    TLS.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256
+  ]
+
 -- FUTUREWORK(federation): Consider using HsOpenSSL instead of tls for better
 -- security and to avoid having to depend on cryptonite and override validation
 -- hooks. This might involve forking http2-client: https://github.com/lucasdicioccio/http2-client/issues/76
@@ -107,29 +125,13 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
   -- and use it when making a request
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
 
-  -- FUTUREWORK: get review on blessed ciphers
-  let blessed_ciphers =
-        [ TLS.cipher_TLS13_AES128CCM8_SHA256,
-          TLS.cipher_TLS13_AES128CCM_SHA256,
-          TLS.cipher_TLS13_AES128GCM_SHA256,
-          TLS.cipher_TLS13_AES256GCM_SHA384,
-          TLS.cipher_TLS13_CHACHA20POLY1305_SHA256,
-          -- For TLS 1.2 (copied from default nginx ingress config):
-          TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
-          TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
-          TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
-          TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
-          TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
-          TLS.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256
-        ]
-
   settings <- Polysemy.ask
 
   let tlsConfig =
         (defaultParamsClient (cs host) (cs $ show port))
           { TLS.clientSupported =
               def
-                { TLS.supportedCiphers = blessed_ciphers,
+                { TLS.supportedCiphers = blessedCiphers,
                   -- FUTUREWORK: Figure out if we can drop TLS 1.2
                   TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
                 },
