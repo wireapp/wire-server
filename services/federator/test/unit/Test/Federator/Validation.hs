@@ -101,7 +101,7 @@ validateDomainAllowListFailSemantic =
             . mockDiscoveryTrivial
             . Polysemy.runReader settings
             $ validateDomain (Just exampleCert) ("invalid//.><-semantic-&@-domain" :: Text)
-    res @?= Left (InwardError IAuthenticationFailed  "Domain parse failure for [invalid//.><-semantic-&@-domain]: Failed reading: Invalid domain name: cannot be dotless domain")
+    res @?= Left (InwardError IAuthenticationFailed "Domain parse failure for [invalid//.><-semantic-&@-domain]: Failed reading: Invalid domain name: cannot be dotless domain")
 
 validateDomainAllowListFail :: TestTree
 validateDomainAllowListFail =
