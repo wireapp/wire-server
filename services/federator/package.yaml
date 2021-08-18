@@ -36,6 +36,7 @@ dependencies:
 - mu-grpc-server
 - mu-rpc
 - network-uri
+- pem
 - polysemy
 - polysemy-wire-zoo
 - retry
@@ -49,7 +50,9 @@ dependencies:
 - unliftio
 - uri-bytestring
 - uuid
+- wai
 - wai-utilities
+- warp
 - wire-api
 - wire-api-federation
 - x509
