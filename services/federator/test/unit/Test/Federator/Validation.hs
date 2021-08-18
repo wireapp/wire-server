@@ -186,7 +186,7 @@ validateDomainCertCN =
 validateDomainDiscoveryFailed :: TestTree
 validateDomainDiscoveryFailed =
   testCase "should fail if discovery fails" $ do
-    exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
     let res :: Either InwardError Domain =
           run . Polysemy.runError
             . mockDiscoveryFailure
