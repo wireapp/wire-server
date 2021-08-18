@@ -10,11 +10,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 set -e
 TEMP=${TEMP:-"$(mktemp -d)"}
+REGENERATE=${REGENERATE:-0}
 CSR="$TEMP/csr.json"
 OUTPUTNAME_CA="$DIR/unit-ca"
 OUTPUTNAME_LOCALHOST_CERT="$DIR/localhost"
 OUTPUTNAME_LOCALHOST_DOT_CERT="$DIR/localhost-dot"
 OUTPUTNAME_EXAMPLE_COM_CERT="$DIR/localhost.example.com"
+OUTPUTNAME_SECOND_EXAMPLE_COM_CERT="$DIR/second-federator.example.com"
 
 command -v cfssl >/dev/null 2>&1 || { echo >&2 "cfssl is not installed, aborting. See https://github.com/cloudflare/cfssl"; exit 1; }
 command -v cfssljson >/dev/null 2>&1 || { echo >&2 "cfssljson is not installed, aborting. See https://github.com/cloudflare/cfssl"; exit 1; }
@@ -28,7 +30,9 @@ echo '{
 }' >"$CSR"
 
 # generate CA key and cert
-cfssl gencert -initca "$CSR" | cfssljson -bare "$OUTPUTNAME_CA"
+if [[ ! -f "$OUTPUTNAME_CA.pem" ]] || [[ "$REGENERATE" -eq "1" ]]; then
+  cfssl gencert -initca "$CSR" | cfssljson -bare "$OUTPUTNAME_CA"
+fi
 
 echo '{
     "key": {
@@ -37,13 +41,24 @@ echo '{
     }
 }' >"$CSR"
 
-# generate cert and key based on CA given comma-separated hostnames as SANs
-cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="localhost" "$CSR" | cfssljson -bare "$OUTPUTNAME_LOCALHOST_CERT"
-cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="localhost." "$CSR" | cfssljson -bare "$OUTPUTNAME_LOCALHOST_DOT_CERT"
-cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="localhost.example.com" "$CSR" | cfssljson -bare "$OUTPUTNAME_EXAMPLE_COM_CERT"
+generate() {
+    local hostname=$1
+    local file=$2
+
+    if [[ ! -f "$file.pem" ]] || [[ "$REGENERATE" -eq "1" ]]; then
+        cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="$hostname" "$CSR" | cfssljson -bare "$file"
+    fi
+}
+
+generate cert and key based on CA given comma-separated hostnames as SANs
+generate "localhost" "$OUTPUTNAME_LOCALHOST_CERT"
+generate "localhost." "$OUTPUTNAME_LOCALHOST_DOT_CERT"
+generate "localhost.example.com" "$OUTPUTNAME_EXAMPLE_COM_CERT"
+generate "second-federator.example.com" "$OUTPUTNAME_SECOND_EXAMPLE_COM_CERT"
 
 # cleanup unneeded files
-rm "$OUTPUTNAME_CA.csr"
-rm "$OUTPUTNAME_LOCALHOST_CERT.csr"
-rm "$OUTPUTNAME_LOCALHOST_DOT_CERT.csr"
-rm "$OUTPUTNAME_EXAMPLE_COM_CERT.csr"
+rm -f "$OUTPUTNAME_CA.csr"
+rm -f "$OUTPUTNAME_LOCALHOST_CERT.csr"
+rm -f "$OUTPUTNAME_LOCALHOST_DOT_CERT.csr"
+rm -f "$OUTPUTNAME_EXAMPLE_COM_CERT.csr"
+rm -f "$OUTPUTNAME_SECOND_EXAMPLE_COM_CERT.csr"

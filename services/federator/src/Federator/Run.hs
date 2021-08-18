@@ -68,8 +68,9 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- "merged" using Servant's 'Raw' type (like in 'brig') with servant's http
 -- endpoints and exposed on the same port.
 run :: Opts -> IO ()
-run opts =
-  DNS.withCachingResolver $ \res ->
+run opts = do
+  let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
+  DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
@@ -82,6 +83,15 @@ run opts =
 
     endpointExternal = federatorExternal opts
     portExternal = fromIntegral $ endpointExternal ^. epPort
+
+    mkResolvConf :: RunSettings -> DNS.ResolvConf -> DNS.ResolvConf
+    mkResolvConf settings conf =
+      case (dnsHost settings, dnsPort settings) of
+        (Just host, Nothing) ->
+          conf {DNS.resolvInfo = DNS.RCHostName host}
+        (Just host, Just port) ->
+          conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
+        (_, _) -> conf
 
 -------------------------------------------------------------------------------
 -- Environment
