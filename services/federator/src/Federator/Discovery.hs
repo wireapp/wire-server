@@ -18,6 +18,7 @@
 module Federator.Discovery where
 
 import Data.Domain (Domain, domainText)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import Imports
@@ -38,6 +39,7 @@ data LookupError
 
 data DiscoverFederator m a where
   DiscoverFederator :: Domain -> DiscoverFederator m (Either LookupError SrvTarget)
+  DiscoverAllFederators :: Domain -> DiscoverFederator m (Either LookupError (NonEmpty SrvTarget))
 
 makeSem ''DiscoverFederator
 
@@ -47,25 +49,36 @@ discoverFederatorWithError ::
   Sem r SrvTarget
 discoverFederatorWithError = Polysemy.fromEither <=< discoverFederator
 
-runFederatorDiscovery :: Members '[DNSLookup, TinyLog] r => Sem (DiscoverFederator ': r) a -> Sem r a
-runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->
-  -- FUTUREWORK(federation): This string conversation is probably wrong, we should encode this
-  -- using IDNA encoding or expect domain to be bytestring everywhere
-  let domainSrv = cs $ "_wire-server-federator._tcp." <> domainText d
-   in lookupDomainByDNS domainSrv
+discoverAllFederatorsWithError ::
+  Members '[DiscoverFederator, Polysemy.Error LookupError] r =>
+  Domain ->
+  Sem r (NonEmpty SrvTarget)
+discoverAllFederatorsWithError = Polysemy.fromEither <=< discoverAllFederators
 
-lookupDomainByDNS :: Members '[DNSLookup, TinyLog] r => ByteString -> Sem r (Either LookupError SrvTarget)
+runFederatorDiscovery :: Members '[DNSLookup, TinyLog] r => Sem (DiscoverFederator ': r) a -> Sem r a
+runFederatorDiscovery = interpret $ \case
+  DiscoverFederator d ->
+    -- FUTUREWORK(federation): orderSrvResult and try the list in order this
+    -- will make it not federator specific and then we can move this whole
+    -- function to dns-util
+    NonEmpty.head <$$> lookupDomainByDNS (domainSrv d)
+  DiscoverAllFederators d -> lookupDomainByDNS (domainSrv d)
+  where
+    -- FUTUREWORK(federation): This string conversion is wrong, we should encode
+    -- this using IDNA encoding or expect domain to be bytestring everywhere
+    domainSrv d = cs $ "_wire-server-federator._tcp." <> domainText d
+
+lookupDomainByDNS :: Members '[DNSLookup, TinyLog] r => ByteString -> Sem r (Either LookupError (NonEmpty SrvTarget))
 lookupDomainByDNS domainSrv = do
   res <- Lookup.lookupSRV domainSrv
   case res of
-    SrvAvailable entries -> do
-      -- FUTUREWORK(federation): orderSrvResult and try the list in order this will make it
-      -- not federator specific and then we can move this whole function to
-      -- dns-util
-      pure $ Right $ srvTarget $ NonEmpty.head entries
-    SrvNotAvailable -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
-    -- Name error also means that the record is not available
-    SrvResponseError DNS.NameError -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
+    SrvAvailable entries ->
+      pure $ Right $ srvTarget <$> entries
+    SrvNotAvailable ->
+      pure $ Left $ LookupErrorSrvNotAvailable domainSrv
+    SrvResponseError DNS.NameError ->
+      -- Name error also means that the record is not available
+      pure $ Left $ LookupErrorSrvNotAvailable domainSrv
     SrvResponseError err -> do
       TinyLog.err $ Log.msg ("DNS Lookup failed" :: ByteString) . Log.field "error" (show err)
       pure $ Left $ LookupErrorDNSError domainSrv

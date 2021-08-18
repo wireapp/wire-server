@@ -28,6 +28,7 @@ import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.Domain (Domain, domainText, mkDomain)
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.PEM as X509
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
@@ -93,12 +94,12 @@ validateDomain (Just encodedCertificate) unparsedDomain = do
 
   -- run discovery to find the hostname of the client federator
   certificate <- decodeCertificate encodedCertificate
-  SrvTarget hostname _ <-
-    Polysemy.mapError (InwardError IDiscoveryFailed . errDiscovery) $
-      discoverFederatorWithError targetDomain
-  let validationErrors = validateDomainName (B8.unpack hostname) certificate
-  unless (null validationErrors) $
-    throwInward IAuthenticationFailed ("domain name does not match certificate: " <> Text.pack (show validationErrors))
+  hostnames <-
+    srvTargetDomain
+      <$$> Polysemy.mapError (InwardError IDiscoveryFailed . errDiscovery) (discoverAllFederatorsWithError targetDomain)
+  let validationErrors = (\h -> validateDomainName (B8.unpack h) certificate) <$> hostnames
+  unless (any null validationErrors) $
+    throwInward IAuthenticationFailed ("none of the domain names match the certificate, errrors: " <> (Text.pack . show . NonEmpty.toList $ validationErrors))
 
   passAllowList <- federateWith targetDomain
   if passAllowList

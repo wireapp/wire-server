@@ -21,6 +21,7 @@ module Test.Federator.Validation where
 
 import qualified Data.ByteString as BS
 import Data.Domain (Domain (..), domainText)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.String.Conversions
 import qualified Data.Text.Encoding as Text
 import Federator.Discovery (DiscoverFederator (..), LookupError (..))
@@ -39,19 +40,23 @@ import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
 mockDiscoveryTrivial :: Sem (DiscoverFederator ': r) x -> Sem r x
-mockDiscoveryTrivial = Polysemy.interpret $ \(DiscoverFederator dom) ->
-  pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443
+mockDiscoveryTrivial = Polysemy.interpret $ \case
+  DiscoverFederator dom -> pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443
+  DiscoverAllFederators dom -> pure . Right $ SrvTarget (Text.encodeUtf8 (domainText dom)) 443 :| []
 
-mockDiscoveryMapping :: Domain -> Text -> Sem (DiscoverFederator ': r) x -> Sem r x
-mockDiscoveryMapping origin target = Polysemy.interpret $ \(DiscoverFederator dom) ->
-  pure $
-    if dom == origin
-      then Right $ SrvTarget (Text.encodeUtf8 target) 443
-      else Left $ LookupErrorSrvNotAvailable "invalid origin domain"
+mockDiscoveryMapping :: HasCallStack => Domain -> NonEmpty ByteString -> Sem (DiscoverFederator ': r) x -> Sem r x
+mockDiscoveryMapping origin targets = Polysemy.interpret $ \case
+  DiscoverFederator _ -> error "Not mocked"
+  DiscoverAllFederators dom ->
+    pure $
+      if dom == origin
+        then Right $ fmap (`SrvTarget` 443) targets
+        else Left $ LookupErrorSrvNotAvailable "invalid origin domain"
 
-mockDiscoveryFailure :: Sem (DiscoverFederator ': r) x -> Sem r x
-mockDiscoveryFailure = Polysemy.interpret $ \(DiscoverFederator _) ->
-  pure . Left $ LookupErrorDNSError "mock DNS error"
+mockDiscoveryFailure :: HasCallStack => Sem (DiscoverFederator ': r) x -> Sem r x
+mockDiscoveryFailure = Polysemy.interpret $ \case
+  DiscoverFederator _ -> error "Not mocked"
+  DiscoverAllFederators _ -> pure . Left $ LookupErrorDNSError "mock DNS error"
 
 tests :: TestTree
 tests =
@@ -68,6 +73,7 @@ tests =
           validateDomainCertInvalid,
           validateDomainCertWrongDomain,
           validateDomainCertCN,
+          validateDomainMultipleFederators,
           validateDomainDiscoveryFailed,
           validateDomainNonIdentitySRV
         ],
@@ -159,7 +165,7 @@ validateDomainCertWrongDomain =
             . mockDiscoveryTrivial
             . Polysemy.runReader noClientCertSettings
             $ validateDomain (Just exampleCert) "foo.example.com"
-    res @?= Left (InwardError IAuthenticationFailed "domain name does not match certificate: [NameMismatch \"foo.example.com\"]")
+    res @?= Left (InwardError IAuthenticationFailed "none of the domain names match the certificate, errrors: [[NameMismatch \"foo.example.com\"]]")
 
 validateDomainCertCN :: TestTree
 validateDomainCertCN =
@@ -172,6 +178,24 @@ validateDomainCertCN =
             . Polysemy.runReader noClientCertSettings
             $ validateDomain (Just exampleCert) (domainText domain)
     res @?= Right domain
+
+validateDomainMultipleFederators :: TestTree
+validateDomainMultipleFederators =
+  testCase "should succedd if certificate matches any of the given federators" $ do
+    localhostExampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
+    secondExampleCert <- BS.readFile "test/resources/unit/second-federator.example.com.pem"
+    let runValidation =
+          run
+            . Polysemy.runError
+            . mockDiscoveryMapping domain ("localhost.example.com" :| ["second-federator.example.com"])
+            . Polysemy.runReader noClientCertSettings
+        domain = Domain "foo.example.com"
+        resFirst :: Either InwardError Domain =
+          runValidation $ validateDomain (Just localhostExampleCert) (domainText domain)
+    resFirst @?= Right domain
+    let resSecond :: Either InwardError Domain =
+          runValidation $ validateDomain (Just secondExampleCert) (domainText domain)
+    resSecond @?= Right domain
 
 validateDomainDiscoveryFailed :: TestTree
 validateDomainDiscoveryFailed =
@@ -191,7 +215,7 @@ validateDomainNonIdentitySRV =
     let domain = Domain "foo.example.com"
         res :: Either InwardError Domain =
           run . Polysemy.runError
-            . mockDiscoveryMapping domain "localhost.example.com"
+            . mockDiscoveryMapping domain ("localhost.example.com" :| [])
             . Polysemy.runReader noClientCertSettings
             $ validateDomain (Just exampleCert) (domainText domain)
     res @?= Right domain
