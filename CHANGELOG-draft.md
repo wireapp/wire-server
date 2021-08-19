@@ -49,3 +49,4 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Added client certificate support for server to server authentication (#1682)
 * Implemented full server-to-server authentication (#1687)
 * Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
+* Avoid remote calls to get conversation when it is not found locally (#1713)
