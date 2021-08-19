@@ -155,7 +155,7 @@ tests s =
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
           test s "get conversations/:domain/:cnv - remote" testGetQualifiedRemoteConv,
           test s "post list-conversations" testListRemoteConvs,
-          test s "post conversations/list/v2 - success" testBulkGetQualifiedConvsSuccess,
+          test s "post conversations/list/v2" testBulkGetQualifiedConvs,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
@@ -1930,31 +1930,27 @@ testListRemoteConvs = do
 
 -- | Tests getting many converations given their ids.
 --
--- In this test:
+-- In this test, Alice is a local user, who will be asking for metadata of these
+-- conversations:
 --
--- - Alice is a local user, who will be part of these convs and be asking for
---   their metadata
+-- - A local conversation which she is part of
 --
--- - Bob is on a.far-away.example.com, there is 1 conversation between Alice and
---   Bob
+-- - A remote conv on a.far-away.example.com (with Bob)
 --
--- - Carl is on b.far-away.example.com, there is 1 conversation between Alice
---   and Carl
+-- - A remote conv on b.far-away.example.com (with Carl)
 --
--- - Alice tries to get 1 conversation from a.far-away.example.com, but is not
---   found in the local DB
+-- - A remote conv on a.far-away.example.com, which is not found in the local DB
 --
--- - Alice tries to get 1 conversation from b.far-away.example.com, it is
---   found in the local DB but remote does not return it
+-- - A remote conv on b.far-away.example.com, it is found in the local DB but
+--   the remote does not return it
 --
--- - Alice tries to get 1 conversation from c.far-away.example.com, but
---   the federated call fails
+-- - A remote conv on c.far-away.example.com, for which the federated call fails
 --
--- - Alice tries to get 1 local conversation which doesn't exist
+-- - A local conversation which doesn't exist
 --
--- - Alice tries to get 1 local conersation which they're not part of
-testBulkGetQualifiedConvsSuccess :: TestM ()
-testBulkGetQualifiedConvsSuccess = do
+-- - A local conersation which they're not part of
+testBulkGetQualifiedConvs :: TestM ()
+testBulkGetQualifiedConvs = do
   localDomain <- viewFederationDomain
   aliceQ <- randomQualifiedUser
   let alice = qUnqualified aliceQ
@@ -1985,8 +1981,6 @@ testBulkGetQualifiedConvsSuccess = do
   registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  -- FUTUREWORK: Do this test with more than one remote domains
-  -- test POST /list-conversations
   let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
