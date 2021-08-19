@@ -46,6 +46,8 @@ pdf_documents = [
 # Add section number to section
 referencespdf_use_numbered_links = True
 
+pdf_fit_mode = "shrink"
+
 # see https://rst2pdf.org/static/manual.pdf for more pdf configuration options
 
 # Add any paths that contain templates here, relative to this directory.
