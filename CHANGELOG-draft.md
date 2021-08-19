@@ -33,6 +33,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 * Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
 * Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
+* Add `POST /conversations/list/v2` (#1703)
+* Deprecate `POST /list-conversations` (#1703)
 
 ## Features
 
@@ -60,3 +62,4 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Implemented full server-to-server authentication (#1687)
 * Add an endpoint for removing a qualified user from a local conversation (#1697)
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
+* Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
