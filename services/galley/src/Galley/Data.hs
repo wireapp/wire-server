@@ -586,31 +586,34 @@ conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConv
 --
 -- Returns @(foundConvs, notFoundConvs)@.
 localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -> [ConvId] -> m ([ConvId], [ConvId])
-localConversationIdsOf usr cids = do
-  partitionEithers <$> pooledMapConcurrentlyN 8 findConv cids
+localConversationIdsOf usr = conncurrentPartitionM (pure . isJust <=< findConv)
   where
-    findConv :: ConvId -> m (Either ConvId ConvId)
+    findConv :: ConvId -> m (Maybe (Identity UserId))
     findConv conv = do
-      mbMembership <- query1 Cql.selectUserConvMembership (params Quorum (usr, conv))
-      pure $ case mbMembership of
-        Nothing -> Right conv
-        Just _ -> Left conv
+      query1 Cql.selectUserConvMembership (params Quorum (usr, conv))
 
 -- | Takes a list of conversation ids and splits them by those found for the
 -- given user and those which are not found.
 --
 -- Returns @(foundConvs, notFoundConvs)@.
 remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m ([Remote ConvId], [Remote ConvId])
-remoteConversationIdOf usr cids =
-  partitionEithers <$> pooledMapConcurrentlyN 8 findConv cids
+remoteConversationIdOf usr = conncurrentPartitionM (pure . isJust <=< findRemoteConv)
   where
-    findConv :: Remote ConvId -> m (Either (Remote ConvId) (Remote ConvId))
-    findConv remoteConvId = do
+    findRemoteConv :: Remote ConvId -> m (Maybe (Identity UserId))
+    findRemoteConv remoteConvId = do
       let (Qualified conv domain) = unTagged remoteConvId
-      mbMembership <- query1 Cql.selectRemoteConvMembership (params Quorum (usr, domain, conv))
-      pure $ case mbMembership of
-        Nothing -> Right remoteConvId
-        Just _ -> Left remoteConvId
+      query1 Cql.selectRemoteConvMembership (params Quorum (usr, domain, conv))
+
+-- | Like 'Control.Monad.Extra.partitionM', but works concurrently in 8 threads.
+conncurrentPartitionM :: forall m a. MonadUnliftIO m => (a -> m Bool) -> [a] -> m ([a], [a])
+conncurrentPartitionM predM xs = partitionEithers <$> pooledMapConcurrentlyN 8 bar xs
+  where
+    bar :: a -> m (Either a a)
+    bar x = do
+      matches <- predM x
+      pure $ if matches
+        then Left x
+        else Right x
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
