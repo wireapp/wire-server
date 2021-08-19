@@ -40,6 +40,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Internal changes
 
 * Integration test script now displays output interactively (#1700)
+* Fixed a few issues with error response documentation in Swagger (#1707)
 
 ## Federation changes
 
