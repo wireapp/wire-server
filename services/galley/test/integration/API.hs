@@ -153,7 +153,11 @@ tests s =
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
+          test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
+          test s "get conversations/:domain/:cnv - local, not participating" testGetQualifiedLocalConvNotParticipating,
           test s "get conversations/:domain/:cnv - remote" testGetQualifiedRemoteConv,
+          test s "get conversations/:domain/:cnv - remote, not found" testGetQualifiedRemoteConvNotFound,
+          test s "get conversations/:domain/:cnv - remote, not found on remote" testGetQualifiedRemoteConvNotFoundOnRemote,
           test s "post list-conversations" testListRemoteConvs,
           test s "post conversations/list/v2" testBulkGetQualifiedConvs,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
@@ -1837,6 +1841,24 @@ testGetQualifiedLocalConv = do
     assertEqual "conversation id" convId (cnvQualifiedId conv)
     assertEqual "conversation name" (Just "gossip") (cnvName conv)
 
+testGetQualifiedLocalConvNotFound :: TestM ()
+testGetQualifiedLocalConvNotFound = do
+  alice <- randomUser
+  localDomain <- viewFederationDomain
+  convId <- (`Qualified` localDomain) <$> randomId
+  getConvQualified alice convId !!! do
+    const 404 === statusCode
+    const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
+
+testGetQualifiedLocalConvNotParticipating :: TestM ()
+testGetQualifiedLocalConvNotParticipating = do
+  alice <- randomUser
+  bob <- randomUser
+  convId <- decodeQualifiedConvId <$> postConv bob [] (Just "gossip about alice") [] Nothing Nothing
+  getConvQualified alice convId !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === view (at "label") . responseJsonUnsafe @Object
+
 testGetQualifiedRemoteConv :: TestM ()
 testGetQualifiedRemoteConv = do
   aliceQ <- randomQualifiedUser
@@ -1879,6 +1901,35 @@ testGetQualifiedRemoteConv = do
   -- FUTUREWORK: The backend should augment returned conversation data with
   -- Alice's membership data stored locally
   liftIO $ assertEqual "conversation" mockConversation conv
+
+testGetQualifiedRemoteConvNotFound :: TestM ()
+testGetQualifiedRemoteConvNotFound = do
+  aliceId <- randomUser
+  let remoteDomain = Domain "far-away.example.com"
+  remoteConvId <- (`Qualified` remoteDomain) <$> randomId
+  -- No need to mock federator as we don't expect a call to be made
+  getConvQualified aliceId remoteConvId !!! do
+    const 404 === statusCode
+    const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
+
+testGetQualifiedRemoteConvNotFoundOnRemote :: TestM ()
+testGetQualifiedRemoteConvNotFoundOnRemote = do
+  aliceQ <- randomQualifiedUser
+  let aliceId = qUnqualified aliceQ
+  bobId <- randomId
+  convId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      bobQ = Qualified bobId remoteDomain
+      remoteConvId = Qualified convId remoteDomain
+      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
+
+  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+
+  opts <- view tsGConf
+  void . withTempMockFederator opts remoteDomain (const (GetConversationsResponse [])) $ do
+    getConvQualified aliceId remoteConvId !!! do
+      const 404 === statusCode
+      const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
 
 testListRemoteConvs :: TestM ()
 testListRemoteConvs = do
