@@ -101,15 +101,18 @@ getConversation zusr cnv = do
   localDomain <- viewFederationDomain
   if qDomain cnv == localDomain
     then getUnqualifiedConversation zusr (qUnqualified cnv)
-    else getRemoteConversation zusr (toRemote cnv)
-
-getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
-getRemoteConversation zusr remoteConvId = do
-  conversations <- getRemoteConversations zusr [remoteConvId]
-  case conversations of
-    [] -> throwErrorDescription convNotFound
-    [conv] -> pure conv
-    _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
+    else getRemoteConversation (toRemote cnv)
+  where
+    getRemoteConversation :: Remote ConvId -> Galley Public.Conversation
+    getRemoteConversation remoteConvId = do
+      (foundConvs, _) <- Data.remoteConversationIdOf zusr [remoteConvId]
+      unless (remoteConvId `elem` foundConvs) $
+        throwErrorDescription convNotFound
+      conversations <- getRemoteConversations zusr [remoteConvId]
+      case conversations of
+        [] -> throwErrorDescription convNotFound
+        [conv] -> pure conv
+        _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
 getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
 getRemoteConversations zusr remoteConvs = do
