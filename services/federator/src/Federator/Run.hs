@@ -26,17 +26,19 @@ module Federator.Run
 
     -- * App Environment
     newEnv,
-    mkCAStore,
+    mkTLSSettings,
+    FederationSetupError (..),
     closeEnv,
   )
 where
 
 import qualified Bilge as RPC
-import Control.Exception (throw)
+import Control.Exception (handle, throw)
 import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.X509 as X509
 import Data.X509.CertificateStore
 import Federator.Env
 import Federator.ExternalServer (serveInward)
@@ -45,6 +47,7 @@ import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
+import qualified Network.TLS as TLS
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import qualified System.Logger.Class as Log
@@ -65,8 +68,9 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- "merged" using Servant's 'Raw' type (like in 'brig') with servant's http
 -- endpoints and exposed on the same port.
 run :: Opts -> IO ()
-run opts =
-  DNS.withCachingResolver $ \res ->
+run opts = do
+  let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
+  DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
@@ -80,13 +84,24 @@ run opts =
     endpointExternal = federatorExternal opts
     portExternal = fromIntegral $ endpointExternal ^. epPort
 
+    mkResolvConf :: RunSettings -> DNS.ResolvConf -> DNS.ResolvConf
+    mkResolvConf settings conf =
+      case (dnsHost settings, dnsPort settings) of
+        (Just host, Nothing) ->
+          conf {DNS.resolvInfo = DNS.RCHostName host}
+        (Just host, Just port) ->
+          conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
+        (_, _) -> conf
+
 -------------------------------------------------------------------------------
 -- Environment
 
-newtype InvalidCAStore = InvalidCAStore FilePath
+data FederationSetupError
+  = InvalidCAStore FilePath
+  | InvalidClientCertificate String
   deriving (Show)
 
-instance Exception InvalidCAStore
+instance Exception FederationSetupError
 
 newEnv :: Opts -> DNS.Resolver -> IO Env
 newEnv o _dnsResolver = do
@@ -97,7 +112,7 @@ newEnv o _dnsResolver = do
   let _service Brig = mkEndpoint (Opt.brig o)
       _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
-  _caStore <- mkCAStore _runSettings
+  _tls <- mkTLSSettings _runSettings
   return Env {..}
   where
     mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
@@ -113,17 +128,32 @@ mkCAStore settings = do
       else pure mempty
   pure (customCAStore <> systemCAStore)
 
+mkCreds :: RunSettings -> IO TLS.Credential
+mkCreds settings =
+  handle h $
+    TLS.credentialLoadX509 (clientCertificate settings) (clientPrivateKey settings)
+      >>= \case
+        Left e -> throw (InvalidClientCertificate e)
+        Right (X509.CertificateChain [], _) ->
+          throw (InvalidClientCertificate "could not read client certificate")
+        Right x -> pure x
+  where
+    h :: IOException -> IO a
+    h = throw . InvalidClientCertificate . show
+
+mkTLSSettings :: RunSettings -> IO TLSSettings
+mkTLSSettings settings =
+  TLSSettings
+    <$> mkCAStore settings
+    <*> mkCreds settings
+
 closeEnv :: Env -> IO ()
 closeEnv e = do
   Log.flush $ e ^. applog
   Log.close $ e ^. applog
 
--- | Copied (and adjusted) from brig, do we want to put this somehwere common?
--- FUTUREWORK(federation): review certificate and protocol security setting for this TLS
--- manager
 initHttpManager :: IO HTTP.Manager
 initHttpManager =
-  -- See Note [SSL context]
   HTTP.newManager
     HTTP.defaultManagerSettings
       { HTTP.managerConnCount = 1024,

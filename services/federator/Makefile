@@ -34,7 +34,7 @@ i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
-	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -m "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: integration
 integration: fast i

@@ -520,6 +520,20 @@ packages:
   original:
     hackage: servant-swagger-ui-0.3.4.3.36.1
 - completed:
+    hackage: tls-1.5.5@sha256:f6681d6624071211edd509a8f56e0c96b4f003bb349b7dc706d4333775a373c5,6996
+    pantry-tree:
+      size: 4897
+      sha256: 6400901a8f8ddd0c7d2fb30c95857753a654a60a63fcec38aab4a08b23e0984f
+  original:
+    hackage: tls-1.5.5
+- completed:
+    hackage: cryptonite-0.28@sha256:b6c75e62b4c655d4cb1bcbb80d01430d136aac32bd6962c86c84738935cc8f9d,18195
+    pantry-tree:
+      size: 23132
+      sha256: d80d7be9b1d0799a8e401ca5d4f4f424e0d8c42d4a30cc37bf6f82970232bfcf
+  original:
+    hackage: cryptonite-0.28
+- completed:
     name: servant-swagger
     version: 1.1.11
     git: https://github.com/haskell-servant/servant-swagger

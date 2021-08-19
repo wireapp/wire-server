@@ -17,23 +17,32 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Remote where
+module Federator.Remote
+  ( Remote,
+    RemoteError (..),
+    discoverAndCall,
+    interpretRemote,
+    mkGrpcClient,
+    blessedCiphers,
+  )
+where
 
+import Control.Lens ((^.))
 import Data.Default (def)
 import Data.Domain (Domain, domainText)
 import Data.String.Conversions (cs)
 import qualified Data.X509 as X509
-import Data.X509.CertificateStore
 import qualified Data.X509.Validation as X509
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
+import Federator.Env (TLSSettings, caStore, creds)
 import Federator.Options
+import Federator.Validation
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply)
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
 import Mu.GRpc.Client.TyApps (gRpcCall)
 import Network.GRPC.Client.Helpers
-import Network.TLS
-import qualified Network.TLS as TLS
+import Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import Polysemy
 import qualified Polysemy.Error as Polysemy
@@ -57,7 +66,7 @@ data Remote m a where
 makeSem ''Remote
 
 interpretRemote ::
-  (Members [Embed IO, DiscoverFederator, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader CertificateStore] r) =>
+  (Members [Embed IO, DiscoverFederator, TinyLog, Polysemy.Reader RunSettings, Polysemy.Reader TLSSettings] r) =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
@@ -81,14 +90,31 @@ callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
 callInward client request =
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
+-- FUTUREWORK: get review on blessed ciphers
+blessedCiphers :: [Cipher]
+blessedCiphers =
+  [ TLS.cipher_TLS13_AES128CCM8_SHA256,
+    TLS.cipher_TLS13_AES128CCM_SHA256,
+    TLS.cipher_TLS13_AES128GCM_SHA256,
+    TLS.cipher_TLS13_AES256GCM_SHA384,
+    TLS.cipher_TLS13_CHACHA20POLY1305_SHA256,
+    -- For TLS 1.2 (copied from default nginx ingress config):
+    TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
+    TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
+    TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
+    TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
+    TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
+    TLS.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256
+  ]
+
 -- FUTUREWORK(federation): Consider using HsOpenSSL instead of tls for better
 -- security and to avoid having to depend on cryptonite and override validation
 -- hooks. This might involve forking http2-client: https://github.com/lucasdicioccio/http2-client/issues/76
--- FUTUREWORK(federation): Allow a configurable trust store to be used in TLS certificate validation
+-- FUTUREWORK(federation): Use openssl
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Cache this client and use it for many requests
 mkGrpcClient ::
-  Members '[Embed IO, TinyLog, Polysemy.Reader CertificateStore] r =>
+  Members '[Embed IO, TinyLog, Polysemy.Reader TLSSettings] r =>
   SrvTarget ->
   Sem r (Either RemoteError GrpcClient)
 mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
@@ -99,37 +125,13 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
   -- and use it when making a request
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
 
-  -- FUTUREWORK: get review on blessed ciphers
-  let blessed_ciphers =
-        [ TLS.cipher_TLS13_AES128CCM8_SHA256,
-          TLS.cipher_TLS13_AES128CCM_SHA256,
-          TLS.cipher_TLS13_AES128GCM_SHA256,
-          TLS.cipher_TLS13_AES256GCM_SHA384,
-          TLS.cipher_TLS13_CHACHA20POLY1305_SHA256,
-          -- For TLS 1.2 (copied from default nginx ingress config):
-          TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
-          TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
-          TLS.cipher_ECDHE_RSA_AES128GCM_SHA256,
-          TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
-          TLS.cipher_ECDHE_ECDSA_CHACHA20POLY1305_SHA256,
-          TLS.cipher_ECDHE_RSA_CHACHA20POLY1305_SHA256
-        ]
-
-  caStore <- Polysemy.ask
-
-  -- validate the hostname without a trailing dot as the certificate is not
-  -- expected to have the trailing dot.
-  let stripDot hostname
-        | "." `isSuffixOf` hostname = take (length hostname - 1) hostname
-        | otherwise = hostname
-  let validateName hostname cert =
-        TLS.hookValidateName X509.defaultHooks (stripDot hostname) cert
+  settings <- Polysemy.ask
 
   let tlsConfig =
         (defaultParamsClient (cs host) (cs $ show port))
           { TLS.clientSupported =
               def
-                { TLS.supportedCiphers = blessed_ciphers,
+                { TLS.supportedCiphers = blessedCiphers,
                   -- FUTUREWORK: Figure out if we can drop TLS 1.2
                   TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
                 },
@@ -138,11 +140,11 @@ mkGrpcClient target@(SrvTarget host port) = logAndReturn target $ do
                 { TLS.onServerCertificate =
                     X509.validate
                       X509.HashSHA256
-                      (X509.defaultHooks {TLS.hookValidateName = validateName})
-                      X509.defaultChecks
+                      (X509.defaultHooks {X509.hookValidateName = validateDomainName})
+                      X509.defaultChecks,
+                  TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds))
                 },
-            -- FUTUREWORK: use onCertificateRequest to provide client certificates
-            TLS.clientShared = def {TLS.sharedCAStore = caStore}
+            TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
           }
   let cfg' = cfg {_grpcClientConfigTLS = Just tlsConfig}
   Polysemy.mapError (RemoteErrorClientFailure target)
