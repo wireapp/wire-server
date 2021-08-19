@@ -1,7 +1,7 @@
 How to set up DNS records
 ----------------------------
 
-An installation needs 5 to 9 domain names (5 without audio/video support, federation and team settings, plus an additional one for each audio/video support and team settings, federation and team settings):
+An installation needs 5 to 10 domain names (5 without audio/video support, federation and team settings, plus an additional one for each audio/video support and team settings, federation, SFTD and team settings):
 
 You need
 
@@ -12,6 +12,7 @@ You need
 * (optional) one DNS name for team settings (to manage team membership if using PRO accounts), usually called `teams.<domain>`
 * (optional) one DNS name for a audio/video calling server, usually called `restund01.<domain>`.
 * (optional) one DNS name for the federator, usually called `federator.<domain>`.
+* (optional) one DNS name for SFTD (conference calling), usually called `sftd.<domain>`.
 
 If you are on the most recent charts from wire-server-deploy, these are your names:
 
@@ -22,6 +23,7 @@ If you are on the most recent charts from wire-server-deploy, these are your nam
 * account.<domain>
 * teams.<domain>
 * federator.<domain>
+* sftd.<domain>
 
 (Yes, they all need to point to the same IP address - this is necessary for the nginx ingress to know how to do internal routing based on virtual hosting.)
 
