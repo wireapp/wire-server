@@ -611,9 +611,10 @@ conncurrentPartitionM predM xs = partitionEithers <$> pooledMapConcurrentlyN 8 b
     bar :: a -> m (Either a a)
     bar x = do
       matches <- predM x
-      pure $ if matches
-        then Left x
-        else Right x
+      pure $
+        if matches
+          then Left x
+          else Right x
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
