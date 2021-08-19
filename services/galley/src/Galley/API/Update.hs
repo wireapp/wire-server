@@ -122,7 +122,6 @@ import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
-import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))

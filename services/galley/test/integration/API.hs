@@ -1296,8 +1296,7 @@ paginateConvListIds = do
               FederatedGalley.cmuOrigUserId = qChad,
               FederatedGalley.cmuConvId = Qualified conv chadDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuEitherAddOrRemoveUsers = FederatedGalley.ConversationMembersActionAdd $ list1 (qAlice, roleNameWireMember) []
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
@@ -1312,8 +1311,7 @@ paginateConvListIds = do
               FederatedGalley.cmuOrigUserId = qDee,
               FederatedGalley.cmuConvId = Qualified conv deeDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuEitherAddOrRemoveUsers = FederatedGalley.ConversationMembersActionAdd $ list1 (qAlice, roleNameWireMember) []
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
@@ -1356,8 +1354,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cmuOrigUserId = qChad,
               FederatedGalley.cmuConvId = Qualified conv chadDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuEitherAddOrRemoveUsers = FederatedGalley.ConversationMembersActionAdd $ list1 (qAlice, roleNameWireMember) []
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
@@ -1373,8 +1370,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cmuOrigUserId = qDee,
               FederatedGalley.cmuConvId = Qualified conv deeDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuEitherAddOrRemoveUsers = FederatedGalley.ConversationMembersActionAdd $ list1 (qAlice, roleNameWireMember) []
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
