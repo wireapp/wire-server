@@ -22,11 +22,11 @@ domain name (i.e. the qualifying part) is static.
 
 In particular, we use the following identifiers throughout the API:
 
-* :ref:`Qualified User ID <qualified-user-id>` (QUID): `user_uuid@backend-domain.com`
-* :ref:`Qualified User Name <qualified-user-name>` (QUN): `user_name@backend-domain.com`
-* :ref:`Qualified Client ID <qualified-client-id>` (QDID) attached to a QUID: `client_uuid.user_uuid@backend-domain.com`
-* :ref:`Qualified Conversation <qualified-conversation-id>`/:ref:`Group ID <qualified-group-id>` (QCID/QGID): `backend-domain.com/groups/group_uuid`
-* :ref:`Qualified Team ID <qualified-team-id>` (QTID): `backend-domain.com/teams/team_uuid`
+* :ref:`Qualified User ID <glossary_qualified-user-id>` (QUID): `user_uuid@backend-domain.com`
+* :ref:`Qualified User Name <glossary_qualified-user-name>` (QUN): `user_name@backend-domain.com`
+* :ref:`Qualified Client ID <glossary_qualified-client-id>` (QDID) attached to a QUID: `client_uuid.user_uuid@backend-domain.com`
+* :ref:`Qualified Conversation <glossary_qualified-conversation-id>`/:ref:`Group ID <glossary_qualified-group-id>` (QCID/QGID): `backend-domain.com/groups/group_uuid`
+* :ref:`Qualified Team ID <glossary_qualified-team-id>` (QTID): `backend-domain.com/teams/team_uuid`
 
 While the canonical representation for purposes of visualization is as displayed
 above, the API often decomposes the qualified identifiers into an (unqualified)
@@ -34,7 +34,7 @@ id and a domain name. In the code and API documentation, we sometimes call a
 username a "handle" and a qualified username a "qualified handle".
 
 Besides the above names and identifiers, there are also user :ref:`display names
-<display-name>` (sometimes also referred to as "profile names"), which are not
+<glossary_display-name>` (sometimes also referred to as "profile names"), which are not
 unique on the user's backend, can be changed by the user at any time and are not
 qualified.
 
