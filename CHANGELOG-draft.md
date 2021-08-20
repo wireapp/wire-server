@@ -41,6 +41,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 * Integration test script now displays output interactively (#1700)
 * Fixed a few issues with error response documentation in Swagger (#1707)
+* Make mapping between (team) permissions and roles more lenient (#1711)
 
 ## Federation changes
 
