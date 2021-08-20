@@ -20,7 +20,7 @@
 project = 'Wire'
 copyright = '2021, Wire'
 author = 'Wire Swiss GmbH'
-version = "0.0.1"
+version = "0.0.2"
 
 
 # -- General configuration ---------------------------------------------------
@@ -30,7 +30,8 @@ version = "0.0.1"
 # ones.
 extensions = [
     'rst2pdf.pdfbuilder',
-    'sphinxcontrib.fulltoc'
+    'sphinxcontrib.fulltoc',
+    'sphinx_multiversion'
 ]
 
 # Grouping the document tree into PDF files. List of tuples
@@ -45,10 +46,19 @@ pdf_documents = [
 # Add section number to section
 referencespdf_use_numbered_links = True
 
+pdf_fit_mode = "shrink"
+
 # see https://rst2pdf.org/static/manual.pdf for more pdf configuration options
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
+
+html_sidebars = {
+    # instead of a wildcard **, a regex could optionally 
+    # show the version sidebar only on some pages but not all of them.
+    '**': ['versioning.html', 'globaltoc.html', 'sourcelink.html', 'searchbox.html'],
+}
+
 
 # The master toctree document.
 master_doc = 'index'
@@ -57,7 +67,7 @@ master_doc = 'index'
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = [ '**.inc.rst' ]
-if tags.has('administrate'):
+if tags and tags.has('administrate'):
     exclude_patterns = ['**/*single*/**', '**/*install*/**', 'understand/**']
 
 # -- Options for HTML output -------------------------------------------------
@@ -72,3 +82,12 @@ html_theme = 'wire-theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+
+smv_tag_whitelist = ''
+smv_branch_whitelist = r'^(install-with-poetry)$'
+smv_remote_whitelist = r'^(origin)$'
+smv_released_pattern = r'^remotes/.+$'
+
+smv_outputdir_format = 'versions/{ref.name}'
+smv_prefer_remote_refs = True

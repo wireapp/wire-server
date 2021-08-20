@@ -1,7 +1,8 @@
 How to set up DNS records
 ----------------------------
 
-An installation needs 5 to 7 domain names (5 without audio/video support, 7 with audio/video support):
+
+An installation needs 5 to 10 domain names (5 without audio/video support, federation and team settings, plus an additional one for each audio/video support and team settings, federation, SFTD and team settings):
 
 You need
 
@@ -12,7 +13,8 @@ You need
 * (optional) one DNS name for SFTD support (conference calling), usually called `sftd.<domain>`
 * (optional) one DNS name for team settings (to manage team membership if using PRO accounts), usually called `teams.<domain>`
 * (optional) two DNS names for audio/video calling servers, usually called `restund01.<domain>` and `restund02.<domain>`. Two are used so during upgrades, you can drain one and use the second while work is happening on the first.
-* (optional) one DNS name for federation, usually called `federator.<domain>`
+* (optional) one DNS name for the federator, usually called `federator.<domain>`.
+* (optional) one DNS name for SFTD (conference calling), usually called `sftd.<domain>`.
 
 If you are on the most recent charts from wire-server-deploy, these are your names:
 
@@ -39,6 +41,7 @@ The only expections to this are:
 * restund01, restund02  which need the appropriate DNS name pointed to them
 * sftd which needs to point to both of the external IPs you are providing conference calling on
 
+
 So `sftd.<domain>` should list both SFT servers, while each of the restund servers get their own respective domain name.
 
 You may be happy with skipping the DNS setup and just make sure that the ``/etc/hosts`` on your client machine points all the above names to the right IP address:
@@ -46,6 +49,29 @@ You may be happy with skipping the DNS setup and just make sure that the ``/etc/
 ::
 
    1.2.3.4 nginz-https.<domain> nginz-ssl.<domain> assets.<domain> webapp.<domain> teams.<domain> account.<domain> sftd.<domain> restund01.<domain> restund02.<domain> federator.<domain>
+
+DNS setup for federation
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+One prerequisite to enable federation is an SRV record that needs to be set up to allow the wire-server
+to be discovered by other Wire backends. See the documentation on
+:ref:`discovery in federation<discovery>` for more information on the role of
+discovery in federation.
+
+The fields of the SRV record need to be populated as follows
+* `service`:  `wire-server-federator`
+* `proto`: `tcp`
+* `name`: federator.<domain>
+* `target`: <backend-domain>
+
+Where <backend-domain> is the domain which will be used to :ref:`qualify names
+and identifiers <qualified-identifiers-and-names>` in the context of federation.
+
+To give an example, for `<domain> = wire.company-a.com` and `<backend-domain> = company-a.com`, the SRV record would look as follows:
+
+.. code-block:: bash
+
+   _wire-server-federator._tcp.company-a.com. 600  IN  SRV 10 5 443 federator.wire.company-a.com.
 
 
 How to direct traffic to your cluster

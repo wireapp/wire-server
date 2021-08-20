@@ -106,8 +106,7 @@ How to install wire-server itself
 
 .. note::
 
-    the following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.*
-
+    The following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.
 
 Change back to the wire-server-deploy directory.  Copy example demo values and secrets:
 

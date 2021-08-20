@@ -22,7 +22,9 @@ You need to have wire-server installed, see either of
 How to install Prometheus and Grafana on Kubernetes using Helm
 ---------------------------------------------------------------
 
-*Note: the following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.*
+.. note::
+
+    The following makes use of overrides for helm charts. You may wish to read :ref:`understand-helm-overrides` first.
 
 Create an override file:
 

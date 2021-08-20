@@ -6,7 +6,7 @@ MKFILE_DIR = $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 DOCKER_USER   ?= quay.io/wire
 DOCKER_IMAGE  = alpine-sphinx
-DOCKER_TAG    ?= latest
+DOCKER_TAG    ?= 0.0.32
 
 # You can set these variables (with a ?=) from the command line, and also
 # from the environment.
@@ -103,6 +103,8 @@ help:
 ifeq ($(USE_POETRY), 1)
 	source $$HOME/.poetry/env && \
 	poetry run $(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	$(if $(and $(@),html), poetry run sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)/$(@)" $(SPHINXOPTS))
 else
 	$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	$(if $(and $(@),html), sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)/$(@)" $(SPHINXOPTS))
 endif
