@@ -161,7 +161,7 @@ permissionsRole (Permissions p p') = if p /= p'
     permsRole perms =
       Maybe.listToMaybe
         [ role
-          | (perms', role) <- reverse . sortBy (compare `on` (length . fst)) $ (\r -> (rolePerms r, r)) <$> [minBound ..],
+          | (perms', role) <- reverse . sortOn (length . fst) $ (\r -> (rolePerms r, r)) <$> [minBound ..],
             -- if a there is a role that is strictly less permissive than the perms set that
             -- we encounter, we downgrade.  this shouldn't happen in real life, but it has
             -- happened to very old users on a staging environment, where a user (probably)
