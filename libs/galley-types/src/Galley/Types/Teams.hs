@@ -149,13 +149,13 @@ rolePermissions :: Role -> Permissions
 rolePermissions role = Permissions p p where p = rolePerms role
 
 permissionsRole :: Permissions -> Maybe Role
-permissionsRole (Permissions p p')
-  | p /= p' =
+permissionsRole (Permissions p p') = if p /= p'
+  then do
     -- we never did use @p /= p'@ for anything, fingers crossed that it doesn't occur anywhere
     -- in the wild.  but if it does, this implementation prevents privilege escalation.
     let p'' = Set.intersection p p'
      in permissionsRole (Permissions p'' p'')
-permissionsRole (Permissions p _) = permsRole p
+  else permsRole p
   where
     permsRole :: Set Perm -> Maybe Role
     permsRole perms =
