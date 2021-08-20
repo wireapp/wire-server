@@ -39,7 +39,7 @@ This is necessary for the nginx ingress to know how to do internal routing based
 The only expections to this are:
 
 * restund01, restund02  which need the appropriate DNS name pointed to them
-* sftd which needs to point to both of the external IPs you are providing conference calling on
+* sftd which needs to point to the external IPs you are providing conference calling on
 
 
 So `sftd.<domain>` should list both SFT servers, while each of the restund servers get their own respective domain name.
