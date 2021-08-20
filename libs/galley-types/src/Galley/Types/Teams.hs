@@ -161,12 +161,12 @@ permissionsRole (Permissions p p') = if p /= p'
     permsRole perms =
       Maybe.listToMaybe
         [ role
-          | (perms', role) <- reverse . sortOn (length . fst) $ (\r -> (rolePerms r, r)) <$> [minBound ..],
+          | role <- [minBound ..],
             -- if a there is a role that is strictly less permissive than the perms set that
             -- we encounter, we downgrade.  this shouldn't happen in real life, but it has
             -- happened to very old users on a staging environment, where a user (probably)
             -- was create before the current publicly visible permissions had been stabilized.
-            perms' `Set.isSubsetOf` perms
+            rolePerms role `Set.isSubsetOf` perms
         ]
 
 -- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
