@@ -170,7 +170,7 @@ addLocalUser = do
             FedGalley.cmuOrigUserId = qbob,
             FedGalley.cmuConvId = qconv,
             FedGalley.cmuAlreadyPresentUsers = [],
-            FedGalley.cmuEitherAddOrRemoveUsers =
+            FedGalley.cmuAction =
               FedGalley.ConversationMembersActionAdd (singleton (qalice, roleNameWireMember))
           }
   WS.bracketR c alice $ \ws -> do
@@ -213,7 +213,7 @@ removeLocalUser = do
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = qconv,
             FedGalley.cmuAlreadyPresentUsers = [],
-            FedGalley.cmuEitherAddOrRemoveUsers =
+            FedGalley.cmuAction =
               FedGalley.ConversationMembersActionAdd (singleton (qAlice, roleNameWireMember))
           }
       cmuRemove =
@@ -222,7 +222,7 @@ removeLocalUser = do
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = qconv,
             FedGalley.cmuAlreadyPresentUsers = [alice],
-            FedGalley.cmuEitherAddOrRemoveUsers =
+            FedGalley.cmuAction =
               FedGalley.ConversationMembersActionRemove (singleton qAlice)
           }
       aliceConvs :: TestM [Qualified ConvId] =
@@ -276,7 +276,7 @@ removeRemoteUser = do
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = qconv,
             FedGalley.cmuAlreadyPresentUsers = [],
-            FedGalley.cmuEitherAddOrRemoveUsers =
+            FedGalley.cmuAction =
               FedGalley.ConversationMembersActionAdd
                 (list1 (qAlice, roleNameWireMember) [(qEve, roleNameWireMember)])
           }
@@ -286,7 +286,7 @@ removeRemoteUser = do
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = qconv,
             FedGalley.cmuAlreadyPresentUsers = [alice],
-            FedGalley.cmuEitherAddOrRemoveUsers =
+            FedGalley.cmuAction =
               FedGalley.ConversationMembersActionRemove (singleton qEve)
           }
       aliceConvs :: TestM [Qualified ConvId] =
@@ -330,7 +330,7 @@ notifyLocalUser = do
             FedGalley.cmuOrigUserId = qbob,
             FedGalley.cmuConvId = qconv,
             FedGalley.cmuAlreadyPresentUsers = [alice],
-            FedGalley.cmuEitherAddOrRemoveUsers =
+            FedGalley.cmuAction =
               FedGalley.ConversationMembersActionAdd (singleton (qcharlie, roleNameWireMember))
           }
   WS.bracketR c alice $ \ws -> do
@@ -364,7 +364,7 @@ receiveMessage = do
             FedGalley.cmuOrigUserId = qbob,
             FedGalley.cmuConvId = qconv,
             FedGalley.cmuAlreadyPresentUsers = [],
-            FedGalley.cmuEitherAddOrRemoveUsers =
+            FedGalley.cmuAction =
               FedGalley.ConversationMembersActionAdd (singleton (qalice, roleNameWireMember))
           }
   FedGalley.updateConversationMemberships fedGalleyClient cmu

@@ -642,7 +642,7 @@ notifyRemoteOfNewConvMembers existingRemotes usr now c mems = do
           cmuOrigUserId = orig,
           cmuConvId = cnv,
           cmuAlreadyPresentUsers = others,
-          cmuEitherAddOrRemoveUsers = ConversationMembersActionAdd toAdd
+          cmuAction = ConversationMembersActionAdd toAdd
         }
 
 -- | Notify remote backends about users being removed from an existing
@@ -685,7 +685,7 @@ notifyRemoteOfRemovedConvMembers stayingRemotes qusr now c memsToRemove = do
           cmuOrigUserId = orig,
           cmuConvId = cnv,
           cmuAlreadyPresentUsers = others,
-          cmuEitherAddOrRemoveUsers = ConversationMembersActionRemove toRemove
+          cmuAction = ConversationMembersActionRemove toRemove
         }
     nonEmptyUserListToQualified ::
       Domain ->

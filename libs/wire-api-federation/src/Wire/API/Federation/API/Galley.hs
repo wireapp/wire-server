@@ -165,7 +165,7 @@ data ConversationMemberUpdate = ConversationMemberUpdate
     -- conversation to users.
     cmuAlreadyPresentUsers :: [UserId],
     -- | Users that got either added to or removed from the conversation.
-    cmuEitherAddOrRemoveUsers :: ConversationMembersAction
+    cmuAction :: ConversationMembersAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)

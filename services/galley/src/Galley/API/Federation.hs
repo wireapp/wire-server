@@ -98,13 +98,13 @@ getConversations (GetConversationsRequest qUid gcrConvIds) = do
 updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
 updateConversationMemberships cmu = do
   localDomain <- viewFederationDomain
-  let users = case cmuEitherAddOrRemoveUsers cmu of
+  let users = case cmuAction cmu of
         FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
         FederationAPIGalley.ConversationMembersActionRemove toRemove -> toRemove
       localUsers = filter ((== localDomain) . qDomain) . toList $ users
       localUserIds = qUnqualified <$> localUsers
       targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
-  event <- case cmuEitherAddOrRemoveUsers cmu of
+  event <- case cmuAction cmu of
     FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
       unless (null localUsers) $
         Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
