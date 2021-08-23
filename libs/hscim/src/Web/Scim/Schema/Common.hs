@@ -85,7 +85,8 @@ serializeOptions =
 jsonLower :: Value -> Value
 jsonLower (Object o) = Object . HM.fromList . fmap lowerPair . HM.toList $ o
   where
-    lowerPair (key, val) = (fromKeyword . toLower $ key, val)
+    lowerPair (key, val) = (fromKeyword . toLower $ key, jsonLower val)
+jsonLower (Array x) = Array (jsonLower <$> x)
 jsonLower x = x
 
 fromKeyword :: (IsString p, Eq p) => p -> p

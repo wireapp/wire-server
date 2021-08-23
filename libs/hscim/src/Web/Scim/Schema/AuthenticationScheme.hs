@@ -67,7 +67,7 @@ instance ToJSON AuthenticationSchemeEncoding where
 
 instance FromJSON AuthenticationSchemeEncoding where
   -- NB: "typ" will be converted to "type" thanks to 'serializeOptions'
-  parseJSON = genericParseJSON serializeOptions
+  parseJSON = genericParseJSON parseOptions . jsonLower
 
 ----------------------------------------------------------------------------
 -- Scheme encodings
