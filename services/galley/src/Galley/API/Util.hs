@@ -291,7 +291,7 @@ getSelfMemberFromLocals ::
   ExceptT ConvNotFound m LocalMember
 getSelfMemberFromLocals = getLocalMember convNotFound
 
--- | A legacy version of 'getSlefMemberFromLocals' that runs in the Galley monad.
+-- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley monad.
 getSelfMemberFromLocalsLegacy ::
   Foldable t =>
   UserId ->
