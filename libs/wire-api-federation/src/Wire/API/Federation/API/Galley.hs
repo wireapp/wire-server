@@ -39,7 +39,7 @@ import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
-import Wire.API.Message (MessageSendingStatus, PostOtrResponse, Priority, MessageNotSent)
+import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
 import Wire.API.Routes.MultiVerb (MultiVerb)
 import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversation, RemoveFromConversationResponses)
 import Wire.API.User.Client (UserClientMap)
