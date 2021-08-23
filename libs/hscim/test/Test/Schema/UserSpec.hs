@@ -64,8 +64,8 @@ prop_caseInsensitive :: Property
 prop_caseInsensitive = property $ do
   user <- forAll genUser
   let (Object user') = toJSON user
-  let user'' = HM.foldlWithKey' (\u k v -> HM.insert (toUpper k) v u) user' HM.empty
-  let user''' = HM.foldlWithKey' (\u k v -> HM.insert (toLower k) v u) user' HM.empty
+  let user'' = HM.foldlWithKey' (\u k v -> HM.insert (toUpper k) v u) HM.empty user'
+  let user''' = HM.foldlWithKey' (\u k v -> HM.insert (toLower k) v u) HM.empty user'
   fromJSON (Object user'') === Success user
   fromJSON (Object user''') === Success user
 
