@@ -137,8 +137,9 @@ file.
      grafana:
        persistence:
          enabled: false
-     prometheusSpec:
-       storageSpec: null
+     prometheus:
+       prometheusSpec:
+         storageSpec: null
      alertmanager:
        alertmanagerSpec:
            storage: null
@@ -163,11 +164,12 @@ file.
      grafana:
        persistence:
          storageClassName: "<my-storage-class>"
-     prometheusSpec:
-       storageSpec:
-         volumeClaimTemplate:
-           spec:
-             storageClassName: "<my-storage-class>"
+     prometheus:
+       prometheusSpec:
+         storageSpec:
+           volumeClaimTemplate:
+             spec:
+               storageClassName: "<my-storage-class>"
      alertmanager:
        alertmanagerSpec:
          storage:
