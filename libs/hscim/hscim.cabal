@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b8d0589f22bc168d16fa3a2b2800d9cc3b14b4d94bb911fe973ccf2a2025e5e5
+-- hash: 6089b5e95585547fb49e994e3d8d681c18df1e5a172f8581280066b8860167fd
 
 name:           hscim
 version:        0.3.5
@@ -173,9 +173,13 @@ test-suite spec
       Test.Class.UserSpec
       Test.FilterSpec
       Test.MiscSpec
+      Test.Schema.AuthenticationSchemeSpec
+      Test.Schema.GroupSpec
       Test.Schema.MetaSchemaSpec
       Test.Schema.PatchOpSpec
+      Test.Schema.ResourceSpec
       Test.Schema.UserSpec
+      Test.Schema.Util
       Paths_hscim
   hs-source-dirs:
       test

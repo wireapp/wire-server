@@ -26,16 +26,15 @@ module Test.Schema.MetaSchemaSpec
 where
 
 import Data.Aeson
-import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Network.URI.Static (uri)
 import Test.Hspec
+import Test.Schema.Util (genSimpleText, genUri, mk_prop_caseInsensitive)
 import Web.Scim.Capabilities.MetaSchema
 import Web.Scim.Schema.AuthenticationScheme
-import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..))
+import Web.Scim.Schema.Common (ScimBool (ScimBool))
 import Web.Scim.Schema.Schema (Schema (..))
 import Prelude hiding (filter)
 
@@ -62,6 +61,8 @@ spec = do
       require (prop_roundtrip genAuthenticationSchemeEncoding)
     it "`Configuration` roundtrips" $ do
       require (prop_roundtrip genConfiguration)
+    it "`Configuration` satisfies the insane json-case-insensitivity rule." $ do
+      require $ mk_prop_caseInsensitive genConfiguration
 
 genConfiguration :: Gen Configuration
 genConfiguration = do
@@ -99,9 +100,3 @@ genSupported :: forall a. Gen a -> Gen (Supported a)
 genSupported gen = do
   Supported <$> (ScimBool <$> Gen.bool)
     <*> gen
-
-genUri :: Gen URI
-genUri = Gen.element [URI [uri|https://example.com|], URI [uri|gopher://glab.io|], URI [uri|ssh://nothing/blorg|]]
-
-genSimpleText :: Gen Text
-genSimpleText = Gen.element ["one", "green", "sharp"]
