@@ -36,6 +36,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Bug fixes and other updates
 
 * Fix case sensitivity in schema parser in hscim library (#1714)
+* [helm charts] resolve a rate-limiting issue when using certificate-manager alongside wire-server and nginx-ingress-services helm charts (#1715)
 
 ## Documentation
 
