@@ -217,8 +217,7 @@ emptyFederatedGalley =
           FederatedGalley.updateConversationMemberships = \_ -> e "updateConversationMemberships",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage",
-          FederatedGalley.sendMessage = \_ _ -> e "sendMessage",
-          FederatedGalley.removeMembers = \_ _ -> e "removeMembers"
+          FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
         }
 
 -------------------------------------------------------------------------------

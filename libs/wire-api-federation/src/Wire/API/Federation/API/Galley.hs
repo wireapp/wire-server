@@ -95,14 +95,7 @@ data Api routes = Api
         :> "send-message"
         :> OriginDomainHeader
         :> ReqBody '[JSON] MessageSendRequest
-        :> Post '[JSON] MessageSendResponse,
-    removeMembers ::
-      routes
-        :- "federation"
-        :> "remove-members"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] RemoveMembersRequest
-        :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation
+        :> Post '[JSON] MessageSendResponse
   }
   deriving (Generic)
 
@@ -223,19 +216,6 @@ newtype MessageSendResponse = MessageSendResponse
             (CustomEncoded (MessageNotSent MessageSendingStatus))
             MessageSendingStatus
         )
-
-data RemoveMembersRequest = RemoveMembersRequest
-  { -- | The converastion is assumed to be owned by the target domain, which
-    -- allows us to protect against relay attacks
-    rmrConvId :: ConvId,
-    -- | The remover is assumed to be owned by the origin domain, which allows
-    -- us to protect against spoofing attacks
-    rmrRemover :: UserId,
-    -- | The set of conversation members to be removed
-    rmrMemberList :: Set (Qualified UserId)
-  }
-  deriving stock (Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded RemoveMembersRequest)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient
