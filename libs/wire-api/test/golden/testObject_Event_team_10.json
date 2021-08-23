@@ -1,10 +1,11 @@
 {
     "time": "1864-06-08T20:37:32.993020874753Z",
     "data": {
-        "user": {
-            "id": "00004649-0000-6535-0000-5d2b00005924",
-            "domain": "faraway.example.com"
-        }
+        "qualified_user": {
+            "domain": "faraway.example.com",
+            "id": "00004649-0000-6535-0000-5d2b00005924"
+        },
+        "user": "00004649-0000-6535-0000-5d2b00005924"
     },
     "team": "00000efc-0000-67f3-0000-33bd00000cc1",
     "type": "team.member-leave"
