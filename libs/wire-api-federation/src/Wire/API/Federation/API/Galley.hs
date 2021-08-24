@@ -28,21 +28,21 @@ import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Servant.API (JSON, Post, ReqBody, StdMethod (DELETE), Summary, (:>))
+import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
+import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
-import Wire.API.Routes.MultiVerb (MultiVerb)
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationHTTPResponse, RemoveFromConversationResponse)
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError, RemoveFromConversationResponse)
 import Wire.API.User.Client (UserClientMap)
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -77,11 +77,7 @@ data Api routes = Api
         :> "leave-conversation"
         :> OriginDomainHeader
         :> ReqBody '[JSON] LeaveConversation
-        :> MultiVerb
-             'DELETE
-             '[JSON]
-             RemoveFromConversationHTTPResponse
-             RemoveFromConversationResponse,
+        :> Post '[JSON] RemoveFromConversationResponse,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
     receiveMessage ::
@@ -219,6 +215,16 @@ newtype MessageSendResponse = MessageSendResponse
     via ( Either
             (CustomEncoded (MessageNotSent MessageSendingStatus))
             MessageSendingStatus
+        )
+
+newtype RemoveFromConversationFedResponse = RemoveFromConversationFedResponse
+  {mResponse :: RemoveFromConversationResponse}
+  deriving stock (Eq, Show)
+  deriving
+    (ToJSON, FromJSON)
+    via ( Either
+            (CustomEncoded RemoveFromConversationError)
+            Public.Event
         )
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))

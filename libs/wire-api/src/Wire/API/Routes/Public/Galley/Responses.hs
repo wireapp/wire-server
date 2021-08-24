@@ -19,6 +19,7 @@
 -- types.
 module Wire.API.Routes.Public.Galley.Responses where
 
+import Data.Aeson (FromJSON, ToJSON)
 import Data.SOP (I (..), NS (..), unI, unZ)
 import qualified Generics.SOP as GSOP
 import Imports
@@ -34,6 +35,7 @@ import Wire.API.ErrorDescription
   )
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Routes.MultiVerb (AsUnion (..), GenericAsUnion (..), Respond, RespondEmpty, ResponseType, eitherFromUnion, eitherToUnion)
+import Wire.API.Util.Aeson (CustomEncoded (CustomEncoded))
 
 -- | These are just the "error" outcomes of the 'RemoveFromConversationResponses' type.
 -- This is needed in using ExceptT to differentiate error outcomes from an
@@ -48,6 +50,9 @@ data RemoveFromConversationError
   | RemoveFromConversationErrorConnectConv
   | RemoveFromConversationErrorUnchanged
   deriving stock (Eq, Show, Generic)
+  deriving
+    (ToJSON, FromJSON)
+    via (CustomEncoded RemoveFromConversationError)
   deriving
     (AsUnion RemovalNotPerformedHTTPResponses)
     via (GenericAsUnion RemovalNotPerformedHTTPResponses RemoveFromConversationError)
