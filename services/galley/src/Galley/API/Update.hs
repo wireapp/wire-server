@@ -1057,9 +1057,9 @@ addToConversation ::
   (UserId, RoleName) ->
   -- | The connection ID of the originating user
   ConnId ->
-  -- | New users to be added and their roles
-  -- Maybe (List1WithOrigin (UserId, RoleName) (Remote UserId, RoleName)) ->
+  -- | New local users to be added and their roles
   [(UserId, RoleName)] ->
+  -- | New remote users to be added and their roles
   [(Remote UserId, RoleName)] ->
   -- | The conversation to modify
   Data.Conversation ->
