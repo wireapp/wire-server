@@ -240,6 +240,18 @@ actionDenied a =
   ErrorDescription $
     "Insufficient authorization (missing " <> Text.pack (show a) <> ")"
 
+-- TODO: Combine ConvMemberRemovalDenied and ConvMemberLeavingDenied
+type ConvMemberRemovalDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
+
+convMemberRemovalDenied :: ConvMemberRemovalDenied
+convMemberRemovalDenied = ErrorDescription "Insufficient authorization (missing ConvMemberRemove)"
+
+-- | TODO: Is this dead code? When does this ever happen?
+type ConvMemberLeavingDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
+
+convMemberLeavingDenied :: ConvMemberLeavingDenied
+convMemberLeavingDenied = ErrorDescription "Insufficient authorization (missing ConvMemberLeave)"
+
 type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation code not found"
 
 codeNotFound :: CodeNotFound

@@ -41,7 +41,7 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
 import Wire.API.Routes.MultiVerb (MultiVerb)
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversation, RemoveFromConversationResponses)
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationHTTPResponse, RemoveFromConversationResponse)
 import Wire.API.User.Client (UserClientMap)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -77,7 +77,11 @@ data Api routes = Api
         :> "leave-conversation"
         :> OriginDomainHeader
         :> ReqBody '[JSON] LeaveConversation
-        :> MultiVerb 'DELETE '[JSON] RemoveFromConversationResponses RemoveFromConversation,
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             RemoveFromConversationHTTPResponse
+             RemoveFromConversationResponse,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
     receiveMessage ::

@@ -19,46 +19,29 @@
 -- types.
 module Wire.API.Routes.Public.Galley.Responses where
 
-import Data.SOP (I (..), NS (..))
-import qualified Data.Text as T
+import Data.SOP (I (..), NS (..), unI, unZ)
+import qualified Generics.SOP as GSOP
 import Imports
-import Wire.API.Conversation.Role (Action)
+import Servant (type (.++))
 import Wire.API.ErrorDescription
-  ( ActionDenied,
+  ( ConvMemberLeavingDenied,
+    ConvMemberRemovalDenied,
     ConvNotFound,
     CustomRolesNotSupported,
-    ErrorDescription (..),
     InvalidOpConnectConv,
     InvalidOpOne2OneConv,
     InvalidOpSelfConv,
     ManagedRemovalNotAllowed,
-    actionDenied,
-    convNotFound,
-    customRolesNotSupported,
-    invalidOpConnectConv,
-    invalidOpOne2OneConv,
-    invalidOpSelfConv,
-    managedRemovalNotAllowed,
   )
 import qualified Wire.API.Event.Conversation as Public
-import Wire.API.Routes.MultiVerb (AsUnion (..), Respond, RespondEmpty)
+import Wire.API.Routes.MultiVerb (AsUnion (..), GenericAsUnion (..), Respond, RespondEmpty, ResponseType, eitherFromUnion, eitherToUnion)
 
-data RemoveFromConversation
-  = RemoveFromConversationNotAllowed Action
-  | RemoveFromConversationManagedConvNotAllowed
-  | RemoveFromConversationNotFound
-  | RemoveFromConversationCustomRolesNotSupported
-  | RemoveFromConversationSelfConv
-  | RemoveFromConversationOne2OneConv
-  | RemoveFromConversationConnectConv
-  | RemoveFromConversationUnchanged
-  | RemoveFromConversationUpdated Public.Event
-
--- | These are just the "error" outcomes of the 'RemoveFromConversation' type.
+-- | These are just the "error" outcomes of the 'RemoveFromConversationResponses' type.
 -- This is needed in using ExceptT to differentiate error outcomes from an
 -- outcome reflecting a change.
 data RemoveFromConversationError
-  = RemoveFromConversationErrorNotAllowed Action
+  = RemoveFromConversationErrorRemovalNotAllowed
+  | RemoveFromConversationErrorLeavingNotAllowed
   | RemoveFromConversationErrorManagedConvNotAllowed
   | RemoveFromConversationErrorNotFound
   | RemoveFromConversationErrorCustomRolesNotSupported
@@ -66,42 +49,43 @@ data RemoveFromConversationError
   | RemoveFromConversationErrorOne2OneConv
   | RemoveFromConversationErrorConnectConv
   | RemoveFromConversationErrorUnchanged
+  deriving stock (Eq, Show, Generic)
+  deriving
+    (AsUnion RemovalNotPerformedHTTPResponses)
+    via (GenericAsUnion RemovalNotPerformedHTTPResponses RemoveFromConversationError)
 
-instance AsUnion RemoveFromConversationResponses RemoveFromConversation where
-  toUnion (RemoveFromConversationNotAllowed a) = Z (I (actionDenied a))
-  toUnion RemoveFromConversationManagedConvNotAllowed = S (Z (I managedRemovalNotAllowed))
-  toUnion RemoveFromConversationNotFound = S (S (Z (I convNotFound)))
-  toUnion RemoveFromConversationCustomRolesNotSupported = S (S (S (Z (I customRolesNotSupported))))
-  toUnion RemoveFromConversationSelfConv = S (S (S (S (Z (I invalidOpSelfConv)))))
-  toUnion RemoveFromConversationOne2OneConv = S (S (S (S (S (Z (I invalidOpOne2OneConv))))))
-  toUnion RemoveFromConversationConnectConv = S (S (S (S (S (S (Z (I invalidOpConnectConv)))))))
-  toUnion RemoveFromConversationUnchanged = S (S (S (S (S (S (S (Z (I ()))))))))
-  toUnion (RemoveFromConversationUpdated e) = S (S (S (S (S (S (S (S (Z (I e)))))))))
+instance GSOP.Generic RemoveFromConversationError
 
-  fromUnion (Z (I (ErrorDescription e))) = RemoveFromConversationNotAllowed . parse $ e
-    where
-      -- The input is from the error description given in
-      -- 'Wire.API.ErrorDescription.actionDenied'.
-      parse :: Text -> Action
-      parse = read . T.unpack . (!! 3) . T.words
-  fromUnion (S (Z _)) = RemoveFromConversationManagedConvNotAllowed
-  fromUnion (S (S (Z _))) = RemoveFromConversationNotFound
-  fromUnion (S (S (S (Z _)))) = RemoveFromConversationCustomRolesNotSupported
-  fromUnion (S (S (S (S (Z _))))) = RemoveFromConversationSelfConv
-  fromUnion (S (S (S (S (S (Z _)))))) = RemoveFromConversationOne2OneConv
-  fromUnion (S (S (S (S (S (S (Z _))))))) = RemoveFromConversationConnectConv
-  fromUnion (S (S (S (S (S (S (S (Z (I _))))))))) = RemoveFromConversationUnchanged
-  fromUnion (S (S (S (S (S (S (S (S (Z (I e)))))))))) = RemoveFromConversationUpdated e
-  fromUnion (S (S (S (S (S (S (S (S (S x))))))))) = case x of
-
-type RemoveFromConversationResponses =
-  '[ ActionDenied,
+type RemovalNotPerformedHTTPResponses =
+  '[ ConvMemberRemovalDenied,
+     ConvMemberLeavingDenied,
      ManagedRemovalNotAllowed,
      ConvNotFound,
      CustomRolesNotSupported,
      InvalidOpSelfConv,
      InvalidOpOne2OneConv,
      InvalidOpConnectConv,
-     RespondEmpty 204 "No change",
-     Respond 200 "Member removed" Public.Event
+     RespondEmpty 204 "No change"
    ]
+
+type RemoveFromConversationHTTPResponse =
+  RemovalNotPerformedHTTPResponses
+    .++ '[Respond 200 "Member removed" Public.Event]
+
+type RemoveFromConversationResponse = Either RemoveFromConversationError Public.Event
+
+instance
+  ( rs ~ (RemovalNotPerformedHTTPResponses .++ '[r]),
+    Public.Event ~ ResponseType r
+  ) =>
+  AsUnion rs RemoveFromConversationResponse
+  where
+  toUnion =
+    eitherToUnion
+      (toUnion @RemovalNotPerformedHTTPResponses)
+      (Z . I)
+
+  fromUnion =
+    eitherFromUnion
+      (fromUnion @RemovalNotPerformedHTTPResponses)
+      (unI . unZ)

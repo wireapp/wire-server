@@ -602,12 +602,12 @@ removeMember ::
   Maybe ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
-  Galley RemoveFromConversation
+  Galley RemoveFromConversationResponse
 removeMember remover zcon (Qualified conv convDomain) victim = do
   localDomain <- viewFederationDomain
   if localDomain == convDomain
     then
-      fmap (either mapError RemoveFromConversationUpdated) . runExceptT $
+      runExceptT $
         removeMemberFromLocalConv remover zcon conv victim
     else
       if remover == victim
@@ -619,23 +619,9 @@ removeMember remover zcon (Qualified conv convDomain) victim = do
                   (qDomain victim)
                   lc
           runFederated convDomain rpc
-        else
-          pure
-            . RemoveFromConversationNotAllowed
-            $ RemoveConversationMember
-  where
-    mapError :: RemoveFromConversationError -> RemoveFromConversation
-    mapError = \case
-      RemoveFromConversationErrorNotAllowed a -> RemoveFromConversationNotAllowed a
-      RemoveFromConversationErrorManagedConvNotAllowed -> RemoveFromConversationManagedConvNotAllowed
-      RemoveFromConversationErrorNotFound -> RemoveFromConversationNotFound
-      RemoveFromConversationErrorCustomRolesNotSupported -> RemoveFromConversationCustomRolesNotSupported
-      RemoveFromConversationErrorSelfConv -> RemoveFromConversationSelfConv
-      RemoveFromConversationErrorOne2OneConv -> RemoveFromConversationOne2OneConv
-      RemoveFromConversationErrorConnectConv -> RemoveFromConversationConnectConv
-      RemoveFromConversationErrorUnchanged -> RemoveFromConversationUnchanged
+        else pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
 
-removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversation
+removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversationResponse
 removeMemberUnqualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
   let qualify :: v -> Qualified v
@@ -647,7 +633,7 @@ removeMemberQualified ::
   ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
-  Galley RemoveFromConversation
+  Galley RemoveFromConversationResponse
 removeMemberQualified zusr zcon conv victim = do
   localDomain <- viewFederationDomain
   removeMember (Qualified zusr localDomain) (Just zcon) conv victim
@@ -676,8 +662,7 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
         .
         -- remote users can't remove others
         throwE
-        . RemoveFromConversationErrorNotAllowed
-        $ RemoveConversationMember
+        $ RemoveFromConversationErrorRemovalNotAllowed
   for_ (Data.convTeam conv) teamConvChecks
 
   if victimDomain == localDomain && victim `isMember` locals
@@ -725,7 +710,10 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
             | otherwise = RemoveConversationMember
       case ensureActionAllowed action removerRole of
         ACOAllowed -> pure ()
-        ACOActionDenied a -> throwE . RemoveFromConversationErrorNotAllowed $ a
+        ACOActionDenied _ ->
+          if remover == qvictim
+            then throwE RemoveFromConversationErrorLeavingNotAllowed
+            else throwE RemoveFromConversationErrorRemovalNotAllowed
         ACOCustomRolesNotSupported -> throwE RemoveFromConversationErrorCustomRolesNotSupported
 
     teamConvChecks :: TeamId -> ExceptT RemoveFromConversationError Galley ()

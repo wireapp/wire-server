@@ -49,7 +49,7 @@ import Wire.API.Federation.API.Galley
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversation)
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationResponse)
 import Wire.API.ServantProto (FromProto (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
@@ -135,7 +135,7 @@ updateConversationMemberships cmu = do
 leaveConversation ::
   Domain ->
   LeaveConversation ->
-  Galley RemoveFromConversation
+  Galley RemoveFromConversationResponse
 leaveConversation requestingDomain lc = do
   conv <- (lcConvId lc `Qualified`) <$> viewFederationDomain
   let leaver = Qualified (lcLeaver lc) requestingDomain
