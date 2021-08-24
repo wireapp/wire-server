@@ -663,27 +663,30 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
         $ RemoveFromConversationErrorRemovalNotAllowed
   for_ (Data.convTeam conv) teamConvChecks
 
-  if victimDomain == localDomain && victim `isMember` locals
-    || toRemote qvictim `isRemoteMember` Data.convRemoteMembers conv
-    then lift $ do
-      event <-
-        if victimDomain == localDomain
-          then Data.removeLocalMembersFromLocalConv localDomain conv remover (pure victim)
-          else Data.removeRemoteMembersFromLocalConv localDomain conv remover (pure . toRemote $ qvictim)
-      -- Notify local users
-      let localRemover = guard (removerDomain == localDomain) $> zusr
-      for_ (newPush ListComplete localRemover (ConvEvent event) (recipient <$> locals)) $ \p ->
-        push1 $ p & pushConn .~ zcon
+  unless
+    ( (victimDomain == localDomain && victim `isMember` locals)
+        || toRemote qvictim `isRemoteMember` Data.convRemoteMembers conv
+    )
+    $ throwE RemoveFromConversationErrorUnchanged
 
-      -- Notify the bots
-      void . forkIO $ void $ External.deliver (bots `zip` repeat event)
+  event <-
+    if victimDomain == localDomain
+      then Data.removeLocalMembersFromLocalConv localDomain conv remover (pure victim)
+      else Data.removeRemoteMembersFromLocalConv localDomain conv remover (pure . toRemote $ qvictim)
 
-      -- Notify remote backends
-      let existingRemotes = rmId <$> Data.convRemoteMembers conv
-      notifyRemoteOfRemovedConvMembers existingRemotes remover (evtTime event) conv (pure qvictim)
+  -- Notify local users
+  let localRemover = guard (removerDomain == localDomain) $> zusr
+  for_ (newPush ListComplete localRemover (ConvEvent event) (recipient <$> locals)) $ \p ->
+    lift . push1 $ p & pushConn .~ zcon
 
-      pure event
-    else throwE RemoveFromConversationErrorUnchanged
+  -- Notify the bots
+  lift . void . forkIO . void $ External.deliver (bots `zip` repeat event)
+
+  -- Notify remote backends
+  let existingRemotes = rmId <$> Data.convRemoteMembers conv
+  lift $ notifyRemoteOfRemovedConvMembers existingRemotes remover (evtTime event) conv (pure qvictim)
+
+  pure event
   where
     -- This function assumes the remover is local
     genConvChecks ::
