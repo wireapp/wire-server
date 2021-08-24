@@ -35,6 +35,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Bug fixes and other updates
 
+* Fix case sensitivity in schema parser in hscim library (#1714)
+
 ## Documentation
 
 ## Internal changes

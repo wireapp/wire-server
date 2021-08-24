@@ -32,7 +32,7 @@ import Prelude hiding (map)
 data ResourceType
   = UserResource
   | GroupResource
-  deriving (Show, Eq)
+  deriving (Show, Eq, Enum, Bounded)
 
 instance ToJSON ResourceType where
   toJSON UserResource = "User"
