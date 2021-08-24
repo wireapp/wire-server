@@ -66,6 +66,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE, withExceptT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
+import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
@@ -647,20 +648,20 @@ removeMemberFromLocalConv ::
   -- | The member to remove
   Qualified UserId ->
   ExceptT RemoveFromConversationError Galley Public.Event
-removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvictim@(Qualified victim victimDomain) = do
+removeMemberFromLocalConv remover@(Qualified removerUid removerDomain) zcon convId qvictim@(Qualified victim victimDomain) = do
   localDomain <- viewFederationDomain
   conv <-
     lift (Data.conversation convId)
       >>= maybe (throwE RemoveFromConversationErrorNotFound) pure
   let (bots, locals) = localBotsAndUsers (Data.convLocalMembers conv)
-  if removerDomain == localDomain
-    then genConvChecks conv locals
-    else
-      unless (remover == qvictim)
-        .
-        -- remote users can't remove others
-        throwE
-        $ RemoveFromConversationErrorRemovalNotAllowed
+
+  removerRole <-
+    withExceptT (const @_ @ConvNotFound RemoveFromConversationErrorNotFound) $
+      if localDomain == removerDomain
+        then memConvRoleName <$> getSelfMemberFromLocals removerUid locals
+        else rmConvRoleName <$> getSelfMemberFromRemotes (toRemote remover) (Data.convRemoteMembers conv)
+
+  generalConvChecks localDomain removerRole conv
   for_ (Data.convTeam conv) teamConvChecks
 
   unless
@@ -675,7 +676,7 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
       else Data.removeRemoteMembersFromLocalConv localDomain conv remover (pure . toRemote $ qvictim)
 
   -- Notify local users
-  let localRemover = guard (removerDomain == localDomain) $> zusr
+  let localRemover = guard (removerDomain == localDomain) $> removerUid
   for_ (newPush ListComplete localRemover (ConvEvent event) (recipient <$> locals)) $ \p ->
     lift . push1 $ p & pushConn .~ zcon
 
@@ -688,21 +689,22 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
 
   pure event
   where
-    -- This function assumes the remover is local
-    genConvChecks ::
-      (Foldable t, Monad m) =>
+    generalConvChecks ::
+      Monad m =>
+      Domain ->
+      RoleName ->
       Data.Conversation ->
-      t LocalMember ->
       ExceptT RemoveFromConversationError m ()
-    genConvChecks conv locals = do
+    generalConvChecks localDomain removerRole conv = do
+      -- remote users can't remove others
+      when (removerDomain /= localDomain && remover /= qvictim) $
+        throwE RemoveFromConversationErrorRemovalNotAllowed
+
       case ensureGroupConv (Data.convType conv) of
         Left GroupConvInvalidOpSelfConv -> throwE RemoveFromConversationErrorSelfConv
         Left GroupConvInvalidOpOne2OneConv -> throwE RemoveFromConversationErrorOne2OneConv
         Left GroupConvInvalidOpConnectConv -> throwE RemoveFromConversationErrorConnectConv
         Right () -> pure ()
-      removerRole <-
-        withExceptT (const @_ @ConvNotFound RemoveFromConversationErrorNotFound) $
-          memConvRoleName <$> getSelfMemberFromLocals zusr locals
       let action
             | remover == qvictim = LeaveConversation
             | otherwise = RemoveConversationMember

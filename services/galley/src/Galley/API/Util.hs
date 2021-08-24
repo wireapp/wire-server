@@ -22,12 +22,11 @@ module Galley.API.Util where
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Arrow (Arrow (second), second)
-import Control.Error (ExceptT)
+import Control.Error (ExceptT, hoistEither, note)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Extra (allM, anyM, eitherM)
-import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -363,9 +362,7 @@ getMember ::
   -- | A list of members to search
   t mem ->
   ExceptT e m mem
-getMember p ex u ms = case find ((u ==) . p) ms of
-  Just m -> return m
-  Nothing -> throwE ex
+getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership =
