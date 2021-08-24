@@ -77,7 +77,7 @@ data Api routes = Api
         :> "leave-conversation"
         :> OriginDomainHeader
         :> ReqBody '[JSON] LeaveConversation
-        :> Post '[JSON] RemoveFromConversationResponse,
+        :> Post '[JSON] RemoveFromConversationFedResponse,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
     receiveMessage ::
@@ -218,7 +218,7 @@ newtype MessageSendResponse = MessageSendResponse
         )
 
 newtype RemoveFromConversationFedResponse = RemoveFromConversationFedResponse
-  {mResponse :: RemoveFromConversationResponse}
+  {rmResponse :: RemoveFromConversationResponse}
   deriving stock (Eq, Show)
   deriving
     (ToJSON, FromJSON)

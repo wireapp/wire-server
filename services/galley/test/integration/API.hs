@@ -2170,7 +2170,7 @@ leaveRemoteConvQualifiedOk = do
       mockedFederatedGalleyResponse :: F.FederatedRequest -> Maybe Value
       mockedFederatedGalleyResponse req
         | fmap F.component (F.request req) == Just F.Galley =
-          Just . toJSON $ removalEvent
+          Just . toJSON . FederatedGalley.RemoveFromConversationFedResponse . Right $ removalEvent
         | otherwise = Nothing
   opts <- view tsGConf
   (resp, _) <-

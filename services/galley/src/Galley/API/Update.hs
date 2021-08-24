@@ -617,7 +617,7 @@ removeMember remover zcon (Qualified conv convDomain) victim = do
                   FederatedGalley.clientRoutes
                   (qDomain victim)
                   lc
-          runFederated convDomain rpc
+          FederatedGalley.rmResponse <$> runFederated convDomain rpc
         else pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
 
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversationResponse
