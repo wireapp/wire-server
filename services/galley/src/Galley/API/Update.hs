@@ -463,7 +463,7 @@ joinConversation zusr zcon cnv access = do
   -- where there is no way to control who joins, etc.
   let mems = localBotsAndUsers (Data.convLocalMembers conv)
   let rMems = Data.convRemoteMembers conv
-  addToConversation mems rMems (zusr, roleNameWireMember) zcon (mkList1WithOrigin ((,roleNameWireMember) <$> newUsers) []) conv
+  addToConversation mems rMems (zusr, roleNameWireMember) zcon ((,roleNameWireMember) <$> newUsers) [] conv
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
@@ -504,9 +504,12 @@ addMembers zusr zcon convId invite = do
   checkRemoteUsersExist newRemotes
   checkLHPolicyConflictsLocal conv newLocals
   checkLHPolicyConflictsRemote (FutureWork newRemotes)
-  addToConversation mems rMems (zusr, memConvRoleName self) zcon (combineUsers newLocals newRemotes) conv
+  addToConversation mems rMems (zusr, memConvRoleName self) zcon (withRoles newLocals) (withRoles newRemotes) conv
   where
     userIsMember u = (^. userId . to (== u))
+
+    withRoles :: [a] -> [(a, RoleName)]
+    withRoles = map (,invQRoleName invite)
 
     checkLocals :: Data.Conversation -> Maybe TeamId -> [UserId] -> Galley ()
     checkLocals conv (Just tid) newUsers = do
@@ -556,13 +559,6 @@ addMembers zusr zcon convId invite = do
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
-
-    combineUsers ::
-      [UserId] ->
-      [Remote UserId] ->
-      Maybe (List1WithOrigin (UserId, RoleName) (Remote UserId, RoleName))
-    combineUsers nls nrs =
-      mkList1WithOrigin ((,invQRoleName invite) <$> nls) ((,invQRoleName invite) <$> nrs)
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
@@ -1062,14 +1058,15 @@ addToConversation ::
   -- | The connection ID of the originating user
   ConnId ->
   -- | New users to be added and their roles
-  Maybe (List1WithOrigin (UserId, RoleName) (Remote UserId, RoleName)) ->
+  -- Maybe (List1WithOrigin (UserId, RoleName) (Remote UserId, RoleName)) ->
+  [(UserId, RoleName)] ->
+  [(Remote UserId, RoleName)] ->
   -- | The conversation to modify
   Data.Conversation ->
   Galley UpdateResult
-addToConversation _ _ _ _ Nothing _ = pure Unchanged
-addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn (Just newUsers) c = do
+addToConversation _ _ _ _ [] [] _ = pure Unchanged
+addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn newLocals newRemotes c = do
   ensureGroupConvThrowing c
-  let (newLocals, newRemotes) = splitList1WithOrigin newUsers
   mems <- checkedMemberAddSize newLocals newRemotes
   now <- liftIO getCurrentTime
   localDomain <- viewFederationDomain
