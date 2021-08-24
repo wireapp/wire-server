@@ -709,12 +709,12 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
             | remover == qvictim = LeaveConversation
             | otherwise = RemoveConversationMember
       case ensureActionAllowed action removerRole of
-        ACOAllowed -> pure ()
+        ACOAllowed ->
+          pure ()
         ACOActionDenied _ ->
-          if remover == qvictim
-            then throwE RemoveFromConversationErrorLeavingNotAllowed
-            else throwE RemoveFromConversationErrorRemovalNotAllowed
-        ACOCustomRolesNotSupported -> throwE RemoveFromConversationErrorCustomRolesNotSupported
+          throwE RemoveFromConversationErrorRemovalNotAllowed
+        ACOCustomRolesNotSupported ->
+          throwE RemoveFromConversationErrorCustomRolesNotSupported
 
     teamConvChecks :: TeamId -> ExceptT RemoveFromConversationError Galley ()
     teamConvChecks tid = do

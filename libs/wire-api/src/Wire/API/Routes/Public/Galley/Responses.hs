@@ -24,8 +24,7 @@ import qualified Generics.SOP as GSOP
 import Imports
 import Servant (type (.++))
 import Wire.API.ErrorDescription
-  ( ConvMemberLeavingDenied,
-    ConvMemberRemovalDenied,
+  ( ConvMemberRemovalDenied,
     ConvNotFound,
     CustomRolesNotSupported,
     InvalidOpConnectConv,
@@ -41,7 +40,6 @@ import Wire.API.Routes.MultiVerb (AsUnion (..), GenericAsUnion (..), Respond, Re
 -- outcome reflecting a change.
 data RemoveFromConversationError
   = RemoveFromConversationErrorRemovalNotAllowed
-  | RemoveFromConversationErrorLeavingNotAllowed
   | RemoveFromConversationErrorManagedConvNotAllowed
   | RemoveFromConversationErrorNotFound
   | RemoveFromConversationErrorCustomRolesNotSupported
@@ -58,7 +56,6 @@ instance GSOP.Generic RemoveFromConversationError
 
 type RemovalNotPerformedHTTPResponses =
   '[ ConvMemberRemovalDenied,
-     ConvMemberLeavingDenied,
      ManagedRemovalNotAllowed,
      ConvNotFound,
      CustomRolesNotSupported,
