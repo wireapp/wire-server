@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 31e38964f6cd17a7feac63c62ab9091796b935b58e286c75a7aa8782928ef0cf
+-- hash: 2d99568b99b04295f5440679db6164528f4894f279df796cf8c30f4d41fdc8cf
 
 name:           wire-api-federation
 version:        0.1.0
@@ -77,6 +77,7 @@ test-suite spec
   other-modules:
       Test.Wire.API.Federation.API.BrigSpec
       Test.Wire.API.Federation.ClientSpec
+      Test.Wire.API.Federation.Golden.ConversationMemberUpdate
       Test.Wire.API.Federation.Golden.GoldenSpec
       Test.Wire.API.Federation.Golden.LeaveConversation
       Test.Wire.API.Federation.Golden.MessageSendResponse
