@@ -17,6 +17,7 @@ spec:
     kind: Issuer
   usages:
     - server auth
+    - client auth
   duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
   renewBefore: 360h   # 15d
   isCA: false
