@@ -80,38 +80,3 @@ instance (Cql a) => Cql (List1 a) where
   fromCql (CqlList []) = Left "At least 1 element in list required."
   fromCql (CqlList l) = List1 . N.fromList <$> mapM fromCql l
   fromCql _ = Left "Expected CqlList."
-
------------------------------------------------------------------------------
--- A type for non-empty lists that tracks origin
-
--- | This data type is useful in conversation member adding and removal (one
--- list for local users and the other one for remote users). It ensures there
--- will be at least one element to work with.
-data List1WithOrigin a b
-  = OnlyFirstList (List1 a)
-  | OnlySecondList (List1 b)
-  | BothLists (List1 a) (List1 b)
-
-mkList1WithOrigin :: [a] -> [b] -> Maybe (List1WithOrigin a b)
-mkList1WithOrigin [] [] = Nothing
-mkList1WithOrigin [] (h : t) = Just $ OnlySecondList (list1 h t)
-mkList1WithOrigin (h : t) [] = Just $ OnlyFirstList (list1 h t)
-mkList1WithOrigin (hl : tl) (hr : tr) =
-  Just $
-    BothLists (list1 hl tl) (list1 hr tr)
-
-splitList1WithOrigin :: List1WithOrigin a b -> ([a], [b])
-splitList1WithOrigin = \case
-  OnlyFirstList ls -> (toList ls, [])
-  OnlySecondList rs -> ([], toList rs)
-  BothLists ls rs -> (toList ls, toList rs)
-
-fromList1WithOrigin ::
-  (a -> c) ->
-  (b -> c) ->
-  List1WithOrigin a b ->
-  List1 c
-fromList1WithOrigin f g = \case
-  OnlyFirstList ls -> fmap f ls
-  OnlySecondList rs -> fmap g rs
-  BothLists ls rs -> fmap f ls <> fmap g rs
