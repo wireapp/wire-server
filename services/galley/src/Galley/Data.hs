@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -89,7 +87,6 @@ module Galley.Data
     removeMember,
     removeLocalMembersFromLocalConv,
     removeRemoteMembersFromLocalConv,
-    removeMembersFromLocalConv,
     removeLocalMembersFromRemoteConv,
     updateMember,
     filterRemoteConvMembers,
@@ -128,8 +125,9 @@ import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.Split (chunksOf)
-import Data.List1 (List1, List1WithOrigin (..), list1, singleton, splitList1WithOrigin)
+import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
 import qualified Data.Monoid
@@ -936,48 +934,38 @@ removeLocalMembersFromLocalConv ::
   Domain ->
   Conversation ->
   Qualified UserId ->
-  List1 UserId ->
+  NonEmpty UserId ->
   m Event
-removeLocalMembersFromLocalConv localDomain conv orig =
-  removeMembersFromLocalConv localDomain conv orig . OnlyFirstList
+removeLocalMembersFromLocalConv localDomain conv orig localVictims = do
+  t <- liftIO getCurrentTime
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    for_ localVictims $ \localVictim -> do
+      addPrepQuery Cql.removeMember (convId conv, localVictim)
+      addPrepQuery Cql.deleteUserConv (localVictim, convId conv)
+  let qconvId = Qualified (convId conv) localDomain
+      qualifiedVictims = UserIdList . map (`Qualified` localDomain) . toList $ localVictims
+  return $ Event MemberLeave qconvId orig t (EdMembersLeave qualifiedVictims)
 
 removeRemoteMembersFromLocalConv ::
   MonadClient m =>
   Domain ->
   Conversation ->
   Qualified UserId ->
-  List1 (Remote UserId) ->
+  NonEmpty (Remote UserId) ->
   m Event
-removeRemoteMembersFromLocalConv localDomain conv orig =
-  removeMembersFromLocalConv localDomain conv orig . OnlySecondList
-
--- Remove members from a local conversation. Both local and remote users can be
--- removed from this backend's database.
-removeMembersFromLocalConv ::
-  MonadClient m =>
-  Domain ->
-  Conversation ->
-  Qualified UserId ->
-  List1WithOrigin UserId (Remote UserId) ->
-  m Event
-removeMembersFromLocalConv localDomain conv qorig (splitList1WithOrigin -> (localVictims, remoteVictims)) = do
+removeRemoteMembersFromLocalConv localDomain conv orig remoteVictims = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ remoteVictims $ \u -> do
-      let rUser = unTagged u
+    for_ remoteVictims $ \remoteVictim -> do
+      let rUser = unTagged remoteVictim
       addPrepQuery Cql.removeRemoteMember (convId conv, qDomain rUser, qUnqualified rUser)
-    for_ localVictims $ \u -> do
-      addPrepQuery Cql.removeMember (convId conv, u)
-      addPrepQuery Cql.deleteUserConv (u, convId conv)
-
   let qconvId = Qualified (convId conv) localDomain
-      allVictims =
-        UserIdList $
-          fmap (`Qualified` localDomain) localVictims
-            <> fmap unTagged remoteVictims
-  return $ Event MemberLeave qconvId qorig t (EdMembersLeave allVictims)
+      qualifiedVictims = UserIdList . map unTagged . toList $ remoteVictims
+  return $ Event MemberLeave qconvId orig t (EdMembersLeave qualifiedVictims)
 
 removeLocalMembersFromRemoteConv ::
   MonadClient m =>

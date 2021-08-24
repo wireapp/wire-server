@@ -30,7 +30,7 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
 import Data.Id as Id
-import Data.List1 (List1, list1, maybeList1)
+import Data.List1 (maybeList1)
 import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import Data.String.Conversions (cs)
@@ -437,15 +437,14 @@ rmUser user conn = do
   tids <- Data.teamIdsForPagination user Nothing (rcast n)
   leaveTeams tids
   cids <- Data.conversationIdRowsForPagination user Nothing (rcast n)
-  let u = list1 user []
-  leaveConversations u cids
+  leaveConversations user cids
   Data.eraseClients user
   where
     leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveConversations :: List1 UserId -> Cql.Page ConvId -> Galley ()
+    leaveConversations :: UserId -> Cql.Page ConvId -> Galley ()
     leaveConversations u ids = do
       localDomain <- viewFederationDomain
       cc <- Data.conversations (Cql.result ids)
@@ -456,9 +455,9 @@ rmUser user conn = do
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
             -- FUTUREWORK: deal with remote members, too, see removeMembers
-            e <- Data.removeLocalMembersFromLocalConv localDomain c (Qualified user localDomain) u
+            e <- Data.removeLocalMembersFromLocalConv localDomain c (Qualified user localDomain) (pure u)
             return $
-              (Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c))
+              Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing

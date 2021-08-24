@@ -68,6 +68,7 @@ import Data.Code
 import Data.Id
 import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (FutureWork (FutureWork))
@@ -277,7 +278,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     [] -> return ()
     x : xs -> do
       -- FUTUREWORK: deal with remote members, too, see removeMembers
-      e <- Data.removeLocalMembersFromLocalConv localDomain conv (Qualified usr localDomain) (list1 x xs)
+      e <- Data.removeLocalMembersFromLocalConv localDomain conv (Qualified usr localDomain) (x :| xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
       for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
@@ -671,8 +672,8 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
       let (remoteVictim, _localVictim) = partitionRemoteOrLocalIds' localDomain (singleton qvictim)
       event <-
         if victimDomain == localDomain
-          then Data.removeLocalMembersFromLocalConv localDomain conv remover (singleton victim)
-          else Data.removeRemoteMembersFromLocalConv localDomain conv remover (singleton . toRemote $ qvictim)
+          then Data.removeLocalMembersFromLocalConv localDomain conv remover (pure victim)
+          else Data.removeRemoteMembersFromLocalConv localDomain conv remover (pure . toRemote $ qvictim)
       -- Notify local users
       let localRemover = guard (removerDomain == localDomain) $> zusr
       for_ (newPush ListComplete localRemover (ConvEvent event) (recipient <$> locals)) $ \p ->
