@@ -59,6 +59,7 @@ module Galley.API.Update
 where
 
 import qualified Brig.Types.User as User
+import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
@@ -95,7 +96,7 @@ import Galley.Types
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
-import Galley.Types.Conversations.Members (RemoteMember (rmId))
+import Galley.Types.Conversations.Members (RemoteMember (rmConvRoleName, rmId))
 import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Validation
@@ -665,7 +666,6 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
   if victimDomain == localDomain && victim `isMember` locals
     || toRemote qvictim `isRemoteMember` Data.convRemoteMembers conv
     then lift $ do
-      let (remoteVictim, _localVictim) = partitionRemoteOrLocalIds' localDomain (singleton qvictim)
       event <-
         if victimDomain == localDomain
           then Data.removeLocalMembersFromLocalConv localDomain conv remover (pure victim)
@@ -675,14 +675,12 @@ removeMemberFromLocalConv remover@(Qualified zusr removerDomain) zcon convId qvi
       for_ (newPush ListComplete localRemover (ConvEvent event) (recipient <$> locals)) $ \p ->
         push1 $ p & pushConn .~ zcon
 
+      -- Notify the bots
       void . forkIO $ void $ External.deliver (bots `zip` repeat event)
 
       -- Notify remote backends
-      let stayingRemotes = (rmId <$> Data.convRemoteMembers conv) \\ remoteVictim
-          victimAsList
-            | victimDomain == localDomain = OnlyFirstList . singleton $ victim
-            | otherwise = OnlySecondList . singleton . toRemote $ qvictim
-      notifyRemoteOfRemovedConvMembers stayingRemotes remover (evtTime event) conv victimAsList
+      let existingRemotes = rmId <$> Data.convRemoteMembers conv
+      notifyRemoteOfRemovedConvMembers existingRemotes remover (evtTime event) conv (pure qvictim)
 
       pure event
     else throwE RemoveFromConversationErrorUnchanged
@@ -1071,8 +1069,14 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
   now <- liftIO getCurrentTime
   localDomain <- viewFederationDomain
   (e, lmm, rmm) <- Data.addMembersWithRole localDomain now (Data.convId c) (usr, usrRole) mems
-  for_ (mkList1WithOrigin lmm rmm) $
-    notifyRemoteOfNewConvMembers existingRemotes usr now c
+  let newMembersWithRoles =
+        ((flip Qualified localDomain . memId &&& memConvRoleName) <$> lmm)
+          <> ((unTagged . rmId &&& rmConvRoleName) <$> rmm)
+  case newMembersWithRoles of
+    [] ->
+      pure ()
+    (x : xs) ->
+      notifyRemoteOfNewConvMembers (existingRemotes <> rmm) usr now c (x :| xs)
   let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
   pushConversationEvent (Just conn) e localsToNotify bots
   pure $ Updated e

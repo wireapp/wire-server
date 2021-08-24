@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -22,7 +21,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow (Arrow (second), second, (&&&))
+import Control.Arrow (Arrow (second), second)
 import Control.Error (ExceptT)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
@@ -34,7 +33,7 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
-import Data.List1 (List1, List1WithOrigin, fromList1WithOrigin, splitList1WithOrigin)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), Remote, partitionQualified, toRemote)
@@ -609,29 +608,23 @@ notifyRemoteOfNewConvMembers ::
   UserId ->
   UTCTime ->
   Data.Conversation ->
-  List1WithOrigin LocalMember RemoteMember ->
+  NonEmpty (Qualified UserId, RoleName) ->
   Galley ()
-notifyRemoteOfNewConvMembers existingRemotes usr now c mems = do
+notifyRemoteOfNewConvMembers remotesToNotify usr now c newMems = do
   localDomain <- viewFederationDomain
-  let rmm = snd . splitList1WithOrigin $ mems
-  let mm =
-        fromList1WithOrigin
-          (((`Qualified` localDomain) . memId) &&& memConvRoleName)
-          ((unTagged . rmId) &&& rmConvRoleName)
-          mems
-      qcnv = Qualified (Data.convId c) localDomain
+  let qcnv = Qualified (Data.convId c) localDomain
       qusr = Qualified usr localDomain
   -- FUTUREWORK: parallelise federated requests
-  traverse_ (uncurry (notifyRemoteOfConvMemUpdate . mkUpdate now mm qusr qcnv) . swap)
+  traverse_ (uncurry (notifyRemoteOfConvMemUpdate . mkUpdate now newMems qusr qcnv) . swap)
     . Map.assocs
     . partitionQualified
     . nubOrd
     . map (unTagged . rmId)
-    $ rmm <> existingRemotes
+    $ remotesToNotify
   where
     mkUpdate ::
       UTCTime ->
-      List1 (Qualified UserId, RoleName) ->
+      NonEmpty (Qualified UserId, RoleName) ->
       Qualified UserId ->
       Qualified ConvId ->
       [UserId] ->
@@ -648,7 +641,7 @@ notifyRemoteOfNewConvMembers existingRemotes usr now c mems = do
 -- | Notify remote backends about users being removed from an existing
 -- conversation
 notifyRemoteOfRemovedConvMembers ::
-  -- | Remote members that stay after others are removed
+  -- | Remote members that need to be notified
   [Remote UserId] ->
   -- | The originating user that is removing conversation members
   Qualified UserId ->
@@ -657,24 +650,22 @@ notifyRemoteOfRemovedConvMembers ::
   -- | The conversation from which members are being removed
   Data.Conversation ->
   -- | Conversation members that are being removed
-  List1WithOrigin UserId (Remote UserId) ->
+  NonEmpty (Qualified UserId) ->
   Galley ()
-notifyRemoteOfRemovedConvMembers stayingRemotes qusr now c memsToRemove = do
+notifyRemoteOfRemovedConvMembers remotesToNotify qusr now c memsToRemove = do
   localDomain <- viewFederationDomain
-  let rmm = snd . splitList1WithOrigin $ memsToRemove
-  let mm = nonEmptyUserListToQualified localDomain memsToRemove
-      qcnv = Qualified (Data.convId c) localDomain
+  let qcnv = Qualified (Data.convId c) localDomain
   -- FUTUREWORK: parallelise federated requests
-  traverse_ (uncurry (notifyRemoteOfConvMemUpdate . mkUpdate now mm qusr qcnv) . swap)
+  traverse_ (uncurry (notifyRemoteOfConvMemUpdate . mkUpdate now memsToRemove qusr qcnv) . swap)
     . Map.assocs
     . partitionQualified
     . nubOrd
     . map unTagged
-    $ rmm <> stayingRemotes
+    $ remotesToNotify
   where
     mkUpdate ::
       UTCTime ->
-      List1 (Qualified UserId) ->
+      NonEmpty (Qualified UserId) ->
       Qualified UserId ->
       Qualified ConvId ->
       [UserId] ->
@@ -687,12 +678,6 @@ notifyRemoteOfRemovedConvMembers stayingRemotes qusr now c memsToRemove = do
           cmuAlreadyPresentUsers = others,
           cmuAction = ConversationMembersActionRemove toRemove
         }
-    nonEmptyUserListToQualified ::
-      Domain ->
-      List1WithOrigin UserId (Remote UserId) ->
-      List1 (Qualified UserId)
-    nonEmptyUserListToQualified domain =
-      fromList1WithOrigin (`Qualified` domain) unTagged
 
 notifyRemoteOfConvMemUpdate :: ConversationMemberUpdate -> Domain -> Galley ()
 notifyRemoteOfConvMemUpdate cmu domain = do

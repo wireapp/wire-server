@@ -23,7 +23,7 @@ import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
-import Data.List1 (List1)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -142,8 +142,8 @@ data RegisterConversation = MkRegisterConversation
 -- | A conversation membership update, as given by ' ConversationMemberUpdate',
 -- can be either a member addition or removal.
 data ConversationMembersAction
-  = ConversationMembersActionAdd (List1 (Qualified UserId, RoleName))
-  | ConversationMembersActionRemove (List1 (Qualified UserId))
+  = ConversationMembersActionAdd (NonEmpty (Qualified UserId, RoleName))
+  | ConversationMembersActionRemove (NonEmpty (Qualified UserId))
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
