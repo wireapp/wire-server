@@ -172,7 +172,7 @@ data LeaveConversation = LeaveConversation
     -- to protect against spoofing attacks
     lcLeaver :: UserId
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Eq, Show)
   deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversation)
 
 -- Note: this is parametric in the conversation type to allow it to be used

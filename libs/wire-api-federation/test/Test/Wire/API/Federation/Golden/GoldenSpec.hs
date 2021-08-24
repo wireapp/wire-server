@@ -19,12 +19,13 @@ module Test.Wire.API.Federation.Golden.GoldenSpec where
 
 import Imports
 import Test.Hspec
+import qualified Test.Wire.API.Federation.Golden.LeaveConversation as LeaveConversation
 import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
 import Test.Wire.API.Federation.Golden.Runner (testObjects)
 
 spec :: Spec
 spec =
-  describe "Golden tests" $
+  describe "Golden tests" $ do
     testObjects
       [ (MessageSendResponse.testObject_MessageSendReponse1, "testObject_MessageSendReponse1.json"),
         (MessageSendResponse.testObject_MessageSendReponse2, "testObject_MessageSendReponse2.json"),
@@ -32,3 +33,4 @@ spec =
         (MessageSendResponse.testObject_MessageSendReponse4, "testObject_MessageSendReponse4.json"),
         (MessageSendResponse.testObject_MessageSendReponse5, "testObject_MessageSendReponse5.json")
       ]
+    testObjects [(LeaveConversation.testObject_LeaveConversation1, "testObject_LeaveConversation1.json")]
