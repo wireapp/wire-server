@@ -598,8 +598,8 @@ registerRemoteConversationMemberships now localDomain c = do
       let rpc = FederatedGalley.registerConversation FederatedGalley.clientRoutes rc
       runFederated domain rpc
 
--- | Notify remote backends about their users being added to an existing
--- conversation
+-- | Notify remote backends about changes to the conversation memberships of the
+-- conversation their users are part of.
 notifyRemoteAboutConvUpdate ::
   -- | The originating user that is doing the update
   Qualified UserId ->
