@@ -690,7 +690,7 @@ removeMemberFromLocalConv remover@(Qualified removerUid removerDomain) zcon conv
   -- Notify remote backends
   let existingRemotes = rmId <$> Data.convRemoteMembers conv
   let action = FederatedGalley.ConversationMembersActionRemove $ pure qvictim
-  lift $ notifyRemoteAboutConvUpdate remover conv (evtTime event) action existingRemotes
+  lift $ notifyRemoteAboutConvUpdate remover convId (evtTime event) action existingRemotes
 
   pure event
   where
@@ -1088,7 +1088,7 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
     (x : xs) -> do
       let action = FederatedGalley.ConversationMembersActionAdd (x :| xs)
           qusr = Qualified usr localDomain
-      notifyRemoteAboutConvUpdate qusr c now action (rmId <$> existingRemotes <> rmm)
+      notifyRemoteAboutConvUpdate qusr (convId c) now action (rmId <$> existingRemotes <> rmm)
   let localsToNotify = nubOrd . fmap memId $ existingLocals <> lmm
   pushConversationEvent (Just conn) e localsToNotify bots
   pure $ Updated e

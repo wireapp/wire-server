@@ -603,8 +603,9 @@ registerRemoteConversationMemberships now localDomain c = do
 notifyRemoteAboutConvUpdate ::
   -- | The originating user that is doing the update
   Qualified UserId ->
-  -- | The conversation being updated
-  Data.Conversation ->
+  -- | The conversation being updated, assumed local as we shouldn't be sending
+  -- updates for non local conversations.
+  ConvId ->
   -- | The current time
   UTCTime ->
   -- | Action being performed
@@ -612,9 +613,9 @@ notifyRemoteAboutConvUpdate ::
   -- | Remote members that need to be notified
   [Remote UserId] ->
   Galley ()
-notifyRemoteAboutConvUpdate origUser conv time action remotesToNotify = do
+notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let qconvId = Qualified (Data.convId conv) localDomain
+  let qconvId = Qualified convId localDomain
       mkUpdate oth = ConversationMemberUpdate time origUser qconvId oth action
   traverse_ (uncurry (notificationRPC . mkUpdate) . swap)
     . Map.assocs
