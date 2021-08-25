@@ -38,6 +38,9 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Bug fixes and other updates
 
+* Fix case sensitivity in schema parser in hscim library (#1714)
+* [helm charts] resolve a rate-limiting issue when using certificate-manager alongside wire-server and nginx-ingress-services helm charts (#1715)
+
 ## Documentation
 
 * Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
@@ -46,6 +49,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 * Integration test script now displays output interactively (#1700)
 * Fixed a few issues with error response documentation in Swagger (#1707)
+* Make mapping between (team) permissions and roles more lenient (#1711)
 * The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
 
 ## Federation changes
