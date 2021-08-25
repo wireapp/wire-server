@@ -26,26 +26,6 @@ import Imports
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), ConversationMembersAction (..))
 
--- data ConversationMembersAction
---   = ConversationMembersActionAdd (NonEmpty (Qualified UserId, RoleName))
---   | ConversationMembersActionRemove (NonEmpty (Qualified UserId))
---   deriving stock (Eq, Show, Generic)
---   deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
---   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
-
--- data ConversationMemberUpdate = ConversationMemberUpdate
---   { cmuTime :: UTCTime,
---     cmuOrigUserId :: Qualified UserId,
---     cmuConvId :: Qualified ConvId,
---     -- | A list of users from a remote backend that need to be sent
---     -- notifications about this change. This is required as we do not expect a
---     -- non-conversation owning backend to have an indexed mapping of
---     -- conversation to users.
---     cmuAlreadyPresentUsers :: [UserId],
---     -- | Users that got either added to or removed from the conversation.
---     cmuAction :: ConversationMembersAction
---   }
-
 qAlice, qBob :: Qualified UserId
 qAlice =
   Qualified
