@@ -42,6 +42,7 @@ import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
 import Data.Id
@@ -161,7 +162,8 @@ tests s =
           test s "delete conversations/:cnv/members/:usr - fail, self conv" deleteMembersUnqualifiedFailSelf,
           test s "delete conversations/:cnv/members/:usr - fail, 1:1 conv" deleteMembersUnqualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
-          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local convs with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove someone else, fail" removeRemoteMemberConvQualifiedFail,
           test s "rename conversation" putConvRenameOk,
@@ -2138,6 +2140,59 @@ deleteLocalMemberConvLocalQualifiedOk = do
   -- Now that Bob is gone, try removing him once again
   void . withTempMockFederator opts remoteDomain mockReturnEve $
     deleteMemberQualified alice qBob qconvId !!! do
+      const 204 === statusCode
+      const Nothing === responseBody
+
+-- Creates a conversation with five users. Alice and Bob are on the local
+-- domain. Chad and Dee are on far-away-1.example.com. Eve is on
+-- far-away-2.example.com. It uses a qualified endpoint for removing Chad from
+-- the conversation:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+-- TODO: Make an assertion that both remotes get notified about this
+deleteRemoteMemberConvLocalQualifiedOk :: TestM ()
+deleteRemoteMemberConvLocalQualifiedOk = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  let [qAlice, _qBob] = (`Qualified` localDomain) <$> [alice, bob]
+      remoteDomain1 = Domain "far-away-1.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+  qChad <- (`Qualified` remoteDomain1) <$> randomId
+  qDee <- (`Qualified` remoteDomain1) <$> randomId
+  qEve <- (`Qualified` remoteDomain2) <$> randomId
+  connectUsers alice (singleton bob)
+
+  convId <- decodeConvId <$> postConv alice [bob] (Just "remote gossip") [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
+  opts <- view tsGConf
+  let mockedResponse fedReq = do
+        let success :: ToJSON a => a -> IO F.OutwardResponse
+            success = pure . F.OutwardResponseBody . LBS.toStrict . encode
+            getUsersPath = Just "/federation/get-users-by-ids"
+        case (F.domain fedReq, F.path <$> F.request fedReq) of
+          (d, mp)
+            | d == domainText remoteDomain1 && mp == getUsersPath ->
+              success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
+          (d, mp)
+            | d == domainText remoteDomain2 && mp == getUsersPath ->
+              success [mkProfile qEve (Name "Eve")]
+          _ -> success ()
+
+  void . withTempMockFederator' opts remoteDomain1 mockedResponse $
+    postQualifiedMembers'' alice (qChad :| [qDee, qEve]) convId
+      !!! const 200 === statusCode
+  (respDel, _) <-
+    withTempMockFederator' opts remoteDomain1 mockedResponse $
+      deleteMemberQualified alice qChad qconvId
+  liftIO $ do
+    statusCode respDel @?= 200
+    case responseJsonEither respDel of
+      Left err -> assertFailure err
+      Right e -> assertLeaveEvent qconvId qAlice [qChad] e
+
+  -- Now that Chad is gone, try removing him once again
+  void . withTempMockFederator' opts remoteDomain1 mockedResponse $
+    deleteMemberQualified alice qChad qconvId !!! do
       const 204 === statusCode
       const Nothing === responseBody
 
