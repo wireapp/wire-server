@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -35,12 +33,11 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
-import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
-import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError, RemoveFromConversationResponse)
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError)
 import Wire.API.User.Client (UserClientMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
@@ -76,8 +73,8 @@ data Api routes = Api
         :- "federation"
         :> "leave-conversation"
         :> OriginDomainHeader
-        :> ReqBody '[JSON] LeaveConversation
-        :> Post '[JSON] RemoveFromConversationFedResponse,
+        :> ReqBody '[JSON] LeaveConversationRequest
+        :> Post '[JSON] LeaveConversationResponse,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
     receiveMessage ::
@@ -164,7 +161,7 @@ data ConversationMemberUpdate = ConversationMemberUpdate
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
 
-data LeaveConversation = LeaveConversation
+data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which
     -- allows us to protect against relay attacks
     lcConvId :: ConvId,
@@ -173,7 +170,7 @@ data LeaveConversation = LeaveConversation
     lcLeaver :: UserId
   }
   deriving stock (Generic, Eq, Show)
-  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversation)
+  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversationRequest)
 
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
@@ -217,15 +214,12 @@ newtype MessageSendResponse = MessageSendResponse
             MessageSendingStatus
         )
 
-newtype RemoveFromConversationFedResponse = RemoveFromConversationFedResponse
-  {rmResponse :: RemoveFromConversationResponse}
+newtype LeaveConversationResponse = LeaveConversationResponse
+  {leaveResponse :: Either RemoveFromConversationError ()}
   deriving stock (Eq, Show)
   deriving
     (ToJSON, FromJSON)
-    via ( Either
-            (CustomEncoded RemoveFromConversationError)
-            Public.Event
-        )
+    via (Either (CustomEncoded RemoveFromConversationError) ())
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

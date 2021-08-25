@@ -17,6 +17,7 @@
 module Galley.API.Federation where
 
 import Control.Monad.Catch (throwM)
+import Control.Monad.Except (runExceptT)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.Id (ConvId)
@@ -42,12 +43,12 @@ import Wire.API.Federation.API.Galley
   ( ConversationMemberUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
-    LeaveConversation (..),
+    LeaveConversationRequest (..),
+    LeaveConversationResponse (..),
     MessageSendRequest (..),
     MessageSendResponse (..),
     RegisterConversation (..),
     RemoteMessage (..),
-    RemoveFromConversationFedResponse (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 import Wire.API.ServantProto (FromProto (..))
@@ -134,12 +135,12 @@ updateConversationMemberships cmu = do
 
 leaveConversation ::
   Domain ->
-  LeaveConversation ->
-  Galley RemoveFromConversationFedResponse
+  LeaveConversationRequest ->
+  Galley LeaveConversationResponse
 leaveConversation requestingDomain lc = do
-  conv <- (lcConvId lc `Qualified`) <$> viewFederationDomain
   let leaver = Qualified (lcLeaver lc) requestingDomain
-  RemoveFromConversationFedResponse <$> API.removeMember leaver Nothing conv leaver
+  fmap LeaveConversationResponse . runExceptT . void $
+    API.removeMemberFromLocalConv leaver Nothing (lcConvId lc) leaver
 
 -- FUTUREWORK: report errors to the originating backend
 receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()

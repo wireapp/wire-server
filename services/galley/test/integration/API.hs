@@ -2138,7 +2138,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
     statusCode respDel @?= 200
     case responseJsonEither respDel of
       Left err -> assertFailure err
-      Right e -> isExpectedEvent qconvId qAlice [qBob] e
+      Right e -> assertLeaveEvent qconvId qAlice [qBob] e
   -- Now that Bob is gone, try removing him once again
   fst
     <$> withTempMockFederator
@@ -2164,13 +2164,10 @@ leaveRemoteConvQualifiedOk = do
   let remoteDomain = Domain "faraway.example.com"
       qconv = Qualified conv remoteDomain
       qBob = Qualified bob remoteDomain
-  now <- liftIO getCurrentTime
-  let eventData = EdMembersLeave . UserIdList . pure $ qAlice
-      removalEvent = Event MemberLeave qconv qAlice now eventData
-      mockedFederatedGalleyResponse :: F.FederatedRequest -> Maybe Value
+  let mockedFederatedGalleyResponse :: F.FederatedRequest -> Maybe Value
       mockedFederatedGalleyResponse req
         | fmap F.component (F.request req) == Just F.Galley =
-          Just . toJSON . FederatedGalley.RemoveFromConversationFedResponse . Right $ removalEvent
+          Just . toJSON . FederatedGalley.LeaveConversationResponse . Right $ ()
         | otherwise = Nothing
   opts <- view tsGConf
   (resp, _) <-
@@ -2186,7 +2183,7 @@ leaveRemoteConvQualifiedOk = do
     statusCode resp @?= 200
     case responseJsonEither resp of
       Left err -> assertFailure err
-      Right e -> isExpectedEvent qconv qAlice [qAlice] e
+      Right e -> assertLeaveEvent qconv qAlice [qAlice] e
 
 -- Alice, a user remote to the conversation, tries to remove someone other than
 -- herself via:

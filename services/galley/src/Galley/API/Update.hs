@@ -40,6 +40,7 @@ module Galley.API.Update
     removeMember,
     removeMemberQualified,
     removeMemberUnqualified,
+    removeMemberFromLocalConv,
 
     -- * Talking
     postProteusMessage,
@@ -67,6 +68,7 @@ import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE, withExceptT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
+import Data.Either.Extra (mapRight)
 import Data.Id
 import Data.Json.Util (fromBase64TextLenient, toUTCTimeMillis)
 import Data.List.Extra (nubOrd)
@@ -602,7 +604,7 @@ removeMember ::
   Qualified ConvId ->
   Qualified UserId ->
   Galley RemoveFromConversationResponse
-removeMember remover zcon (Qualified conv convDomain) victim = do
+removeMember remover zcon qconvId@(Qualified conv convDomain) victim = do
   localDomain <- viewFederationDomain
   if localDomain == convDomain
     then
@@ -611,13 +613,15 @@ removeMember remover zcon (Qualified conv convDomain) victim = do
     else
       if remover == victim
         then do
-          let lc = FederatedGalley.LeaveConversation conv (qUnqualified victim)
+          let lc = FederatedGalley.LeaveConversationRequest conv (qUnqualified victim)
           let rpc =
                 FederatedGalley.leaveConversation
                   FederatedGalley.clientRoutes
                   (qDomain victim)
                   lc
-          FederatedGalley.rmResponse <$> runFederated convDomain rpc
+          t <- liftIO getCurrentTime
+          let successEvent = Event MemberLeave qconvId remover t (EdMembersLeave (UserIdList [victim]))
+          mapRight (const successEvent) . FederatedGalley.leaveResponse <$> runFederated convDomain rpc
         else pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
 
 removeMemberUnqualified :: UserId -> ConnId -> ConvId -> UserId -> Galley RemoveFromConversationResponse

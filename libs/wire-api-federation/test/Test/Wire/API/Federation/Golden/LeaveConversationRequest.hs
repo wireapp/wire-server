@@ -15,15 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Federation.Golden.LeaveConversation where
+module Test.Wire.API.Federation.Golden.LeaveConversationRequest where
 
 import Data.Id (Id (Id))
 import Data.Maybe (fromJust)
 import qualified Data.UUID as UUID
-import Wire.API.Federation.API.Galley (LeaveConversation (LeaveConversation))
+import Wire.API.Federation.API.Galley (LeaveConversationRequest (LeaveConversationRequest))
 
-testObject_LeaveConversation1 :: LeaveConversation
-testObject_LeaveConversation1 =
-  LeaveConversation
+testObject_LeaveConversationRequest1 :: LeaveConversationRequest
+testObject_LeaveConversationRequest1 =
+  LeaveConversationRequest
     (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")))
     (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))

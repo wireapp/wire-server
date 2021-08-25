@@ -1246,15 +1246,15 @@ wsAssertMembersLeave ::
 wsAssertMembersLeave conv usr leaving n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  isExpectedEvent conv usr leaving e
+  assertLeaveEvent conv usr leaving e
 
-isExpectedEvent ::
+assertLeaveEvent ::
   Qualified ConvId ->
   Qualified UserId ->
   [Qualified UserId] ->
   Event ->
   IO ()
-isExpectedEvent conv usr leaving e = do
+assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
