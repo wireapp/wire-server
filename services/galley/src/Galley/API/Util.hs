@@ -32,7 +32,6 @@ import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (..), Remote, partitionQualified, toRemote)
