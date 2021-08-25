@@ -2121,32 +2121,23 @@ deleteLocalMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
   opts <- view tsGConf
   g <- view tsGalley
-  fst
-    <$> withTempMockFederator
-      opts
-      remoteDomain
-      (onlyMockedFederatedBrigResponse [(qEve, "Eve")])
-      (postQualifiedMembers' g alice (qEve :| []) convId)
-    !!! const 200 === statusCode
+  let mockReturnEve = onlyMockedFederatedBrigResponse [(qEve, "Eve")]
+
+  void . withTempMockFederator opts remoteDomain mockReturnEve $
+    postQualifiedMembers' g alice (qEve :| []) convId
+      !!! const 200 === statusCode
   (respDel, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      (onlyMockedFederatedBrigResponse [(qEve, "Eve")])
-      (deleteMemberQualified alice qBob qconvId)
+    withTempMockFederator opts remoteDomain mockReturnEve $
+      deleteMemberQualified alice qBob qconvId
   liftIO $ do
     statusCode respDel @?= 200
     case responseJsonEither respDel of
       Left err -> assertFailure err
       Right e -> assertLeaveEvent qconvId qAlice [qBob] e
+
   -- Now that Bob is gone, try removing him once again
-  fst
-    <$> withTempMockFederator
-      opts
-      remoteDomain
-      (onlyMockedFederatedBrigResponse [(qEve, "Eve")])
-      (deleteMemberQualified alice qBob qconvId)
-    !!! do
+  void . withTempMockFederator opts remoteDomain mockReturnEve $
+    deleteMemberQualified alice qBob qconvId !!! do
       const 204 === statusCode
       const Nothing === responseBody
 
@@ -2169,16 +2160,15 @@ leaveRemoteConvQualifiedOk = do
         | fmap F.component (F.request req) == Just F.Galley =
           Just . toJSON . FederatedGalley.LeaveConversationResponse . Right $ ()
         | otherwise = Nothing
-  opts <- view tsGConf
-  (resp, _) <-
-    withTempMockFederator
-      opts
-      remoteDomain
-      ( joinMockedFederatedResponses
+      mockResponses =
+        joinMockedFederatedResponses
           (mockedFederatedBrigResponse [(qBob, "Bob")])
           mockedFederatedGalleyResponse
-      )
-      (deleteMemberQualified alice qAlice qconv)
+  opts <- view tsGConf
+
+  (resp, _) <-
+    withTempMockFederator opts remoteDomain mockResponses $
+      deleteMemberQualified alice qAlice qconv
   liftIO $ do
     statusCode resp @?= 200
     case responseJsonEither resp of
@@ -2197,14 +2187,10 @@ removeRemoteMemberConvQualifiedFail = do
   let remoteDomain = Domain "faraway.example.com"
       qconv = Qualified conv remoteDomain
       qBob = Qualified bob remoteDomain
+      mockResponse = onlyMockedFederatedBrigResponse [(qBob, "Bob")]
   opts <- view tsGConf
-  fst
-    <$> withTempMockFederator
-      opts
-      remoteDomain
-      (onlyMockedFederatedBrigResponse [(qBob, "Bob")])
-      (deleteMemberQualified alice qBob qconv)
-    !!! do
+  void . withTempMockFederator opts remoteDomain mockResponse $
+    deleteMemberQualified alice qBob qconv !!! do
       const 403 === statusCode
       const (Just "action-denied") === fmap label . responseJsonUnsafe
 
