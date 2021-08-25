@@ -30,6 +30,7 @@ import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Runner
+import Test.Wire.API.Golden.Manual.UserIdList
 
 tests :: TestTree
 tests =
@@ -88,5 +89,10 @@ tests =
           [ (testObject_FeatureConfigEvent_1, "testObject_FeatureConfigEvent_1.json"),
             (testObject_FeatureConfigEvent_2, "testObject_FeatureConfigEvent_2.json"),
             (testObject_FeatureConfigEvent_3, "testObject_FeatureConfigEvent_3.json")
+          ],
+      testCase "UserIdsList" $
+        testObjects
+          [ (testObject_UserIdList_1, "testObject_UserIdList_1.json"),
+            (testObject_UserIdList_2, "testObject_UserIdList_2.json")
           ]
     ]
