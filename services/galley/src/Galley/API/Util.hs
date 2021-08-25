@@ -600,86 +600,33 @@ registerRemoteConversationMemberships now localDomain c = do
 
 -- | Notify remote backends about their users being added to an existing
 -- conversation
-notifyRemoteOfNewConvMembers ::
-  [RemoteMember] ->
-  UserId ->
-  UTCTime ->
-  Data.Conversation ->
-  NonEmpty (Qualified UserId, RoleName) ->
-  Galley ()
-notifyRemoteOfNewConvMembers remotesToNotify usr now c newMems = do
-  localDomain <- viewFederationDomain
-  let qcnv = Qualified (Data.convId c) localDomain
-      qusr = Qualified usr localDomain
-  -- FUTUREWORK: parallelise federated requests
-  traverse_ (uncurry (notifyRemoteOfConvMemUpdate . mkUpdate now newMems qusr qcnv) . swap)
-    . Map.assocs
-    . partitionQualified
-    . nubOrd
-    . map (unTagged . rmId)
-    $ remotesToNotify
-  where
-    mkUpdate ::
-      UTCTime ->
-      NonEmpty (Qualified UserId, RoleName) ->
-      Qualified UserId ->
-      Qualified ConvId ->
-      [UserId] ->
-      ConversationMemberUpdate
-    mkUpdate t toAdd orig cnv others =
-      ConversationMemberUpdate
-        { cmuTime = t,
-          cmuOrigUserId = orig,
-          cmuConvId = cnv,
-          cmuAlreadyPresentUsers = others,
-          cmuAction = ConversationMembersActionAdd toAdd
-        }
-
--- | Notify remote backends about users being removed from an existing
--- conversation
-notifyRemoteOfRemovedConvMembers ::
-  -- | Remote members that need to be notified
-  [Remote UserId] ->
-  -- | The originating user that is removing conversation members
+notifyRemoteAboutConvUpdate ::
+  -- | The originating user that is doing the update
   Qualified UserId ->
+  -- | The conversation being updated
+  Data.Conversation ->
   -- | The current time
   UTCTime ->
-  -- | The conversation from which members are being removed
-  Data.Conversation ->
-  -- | Conversation members that are being removed
-  NonEmpty (Qualified UserId) ->
+  -- | Action being performed
+  ConversationMembersAction ->
+  -- | Remote members that need to be notified
+  [Remote UserId] ->
   Galley ()
-notifyRemoteOfRemovedConvMembers remotesToNotify qusr now c memsToRemove = do
+notifyRemoteAboutConvUpdate origUser conv time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let qcnv = Qualified (Data.convId c) localDomain
-  -- FUTUREWORK: parallelise federated requests
-  traverse_ (uncurry (notifyRemoteOfConvMemUpdate . mkUpdate now memsToRemove qusr qcnv) . swap)
+  let qconvId = Qualified (Data.convId conv) localDomain
+      mkUpdate oth = ConversationMemberUpdate time origUser qconvId oth action
+  traverse_ (uncurry (notificationRPC . mkUpdate) . swap)
     . Map.assocs
     . partitionQualified
     . nubOrd
     . map unTagged
     $ remotesToNotify
   where
-    mkUpdate ::
-      UTCTime ->
-      NonEmpty (Qualified UserId) ->
-      Qualified UserId ->
-      Qualified ConvId ->
-      [UserId] ->
-      ConversationMemberUpdate
-    mkUpdate t toRemove orig cnv others =
-      ConversationMemberUpdate
-        { cmuTime = t,
-          cmuOrigUserId = orig,
-          cmuConvId = cnv,
-          cmuAlreadyPresentUsers = others,
-          cmuAction = ConversationMembersActionRemove toRemove
-        }
-
-notifyRemoteOfConvMemUpdate :: ConversationMemberUpdate -> Domain -> Galley ()
-notifyRemoteOfConvMemUpdate cmu domain = do
-  let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
-  runFederated domain rpc
+    notificationRPC :: ConversationMemberUpdate -> Domain -> Galley ()
+    notificationRPC cmu domain = do
+      let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
+      runFederated domain rpc
 
 --------------------------------------------------------------------------------
 -- Legalhold
