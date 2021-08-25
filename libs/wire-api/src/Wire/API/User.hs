@@ -152,7 +152,7 @@ instance ToSchema UserIdList where
   schema =
     object "UserIdList" $
       UserIdList
-        <$> mUsers .= field "qualified_ids" (array schema)
+        <$> mUsers .= field "qualified_user_ids" (array schema)
         <* (fmap qUnqualified . mUsers) .= field "user_ids" (deprecatedSchema "qualified_ids" (array schema))
 
 modelUserIdList :: Doc.Model

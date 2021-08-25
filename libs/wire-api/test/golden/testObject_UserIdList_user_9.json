@@ -1,11 +1,11 @@
 {
-    "qualified_ids": [
+    "user_ids": [
+        "0000570a-0000-5a69-0000-1c9800004362"
+    ],
+    "qualified_user_ids": [
         {
             "domain": "faraway.example.com",
             "id": "0000570a-0000-5a69-0000-1c9800004362"
         }
-    ],
-    "user_ids": [
-        "0000570a-0000-5a69-0000-1c9800004362"
     ]
 }
