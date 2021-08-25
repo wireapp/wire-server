@@ -263,7 +263,7 @@ data Action
   | ModifyOtherConversationMember
   | LeaveConversation
   | DeleteConversation
-  deriving stock (Eq, Ord, Read, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Action)
   deriving (S.ToSchema) via (S.CustomSwagger '[S.ConstructorTagModifier S.CamelToSnake] Action)
 
