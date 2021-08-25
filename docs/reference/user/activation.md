@@ -14,8 +14,6 @@ Non-activated users can not [connect](connection.md) to others, nor can connecti
 
 * A non-activated user cannot add other users to conversations. The only way to participate in a conversation is to either create a new conversation with link access or to use a link provided by another user.
 
-* A non-activated user cannot get auto-connected to others as a result of an address book upload.
-
 The only flow where it makes sense for non-activated users to exist is the [wireless flow](registration.md#RefRegistrationWireless) used for [guest rooms](https://wire.com/en/features/encrypted-guest-rooms/)
 
 ## API {#RefActivationApi}

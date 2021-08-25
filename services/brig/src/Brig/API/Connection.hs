@@ -22,7 +22,6 @@
 -- User connection logic.
 module Brig.API.Connection
   ( -- * Connections
-    autoConnect,
     createConnection,
     updateConnection,
     UpdateConnectionsInternal (..),
@@ -45,7 +44,6 @@ import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setUserMaxConnections)
 import Brig.Types
-import Brig.Types.Intra
 import Brig.Types.User.Event
 import Control.Error
 import Control.Lens (view)
@@ -54,9 +52,7 @@ import Data.Id as Id
 import qualified Data.LegalHold as LH
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
-import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
-import qualified Galley.Types.Teams as Team
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message
@@ -419,51 +415,6 @@ updateConnectionInternal = \case
       IgnoredWithHistory -> IgnoredWithHistory
       SentWithHistory -> SentWithHistory
       CancelledWithHistory -> CancelledWithHistory
-
-autoConnect ::
-  UserId ->
-  Set UserId ->
-  Maybe ConnId ->
-  ExceptT ConnectionError AppIO [UserConnection]
-autoConnect from (Set.toList -> to) conn = do
-  selfActive <- lift $ Data.isActivated from
-  -- FIXME: checkLimit from
-  -- Checking the limit here is currently a too heavy operation
-  -- for this code path and needs to be optimised / rethought.
-  unless selfActive $
-    throwE ConnectNoIdentity
-  othersActive <- lift $ Data.filterActive to
-  nonTeamMembers <- filterOutTeamMembers othersActive
-  lift $ connectAll nonTeamMembers
-  where
-    filterOutTeamMembers us = do
-      -- FUTUREWORK: This is only used for test purposes. If getTeamContacts is truncated
-      --       tests might fail in strange ways. Maybe we want to fail hard if this
-      --       returns a truncated list. I think the whole function can be removed.
-      mems <- lift $ Intra.getTeamContacts from
-      return $ maybe us (Team.notTeamMember us . view Team.teamMembers) mems
-    connectAll activeOthers = do
-      others <- selectOthers activeOthers
-      convs <- mapM (createConv from) others
-      self <- Data.lookupName from
-      ucs <- Data.connectUsers from convs
-      let events = map (toEvent self) ucs
-      forM_ events $ Intra.onConnectionEvent from conn
-      return ucs
-    -- Assumption: if there's an existing connection, don't touch it.
-    -- The exception to this rule _could_ be a sent/pending connection
-    -- but for sure we would not override states like `blocked` and `ignored`
-    -- For simplicity, let's just not touch them.
-    selectOthers usrs = do
-      existing <- map csFrom <$> Data.lookupConnectionStatus usrs [from]
-      return $ filter (`notElem` existing) usrs
-    createConv s o = do
-      c <- Intra.createConnectConv s o Nothing Nothing conn
-      _ <- Intra.acceptConnectConv o conn c
-      return (o, c)
-    -- Note: The events sent to the users who got auto-connected to 'from'
-    --       get the user name of the user whom they got connected to included.
-    toEvent self uc = ConnectionUpdated uc Nothing (mfilter (const $ ucFrom uc /= from) self)
 
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO UserConnectionList
 lookupConnections from start size = do

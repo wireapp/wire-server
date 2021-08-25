@@ -29,16 +29,12 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import qualified Data.UUID.V4 as UUID
-import Data.Vector (Vector)
-import qualified Data.Vector as Vec
 import Galley.Types
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
-import Safe hiding (at)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
@@ -61,11 +57,7 @@ tests cl _at _conf p b _c g =
       test p "put /connections/:id bad update" $ testBadUpdateConnection b,
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
       test p "get /connections - 200 (paging)" $ testConnectionPaging b,
-      test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl,
-      -- FUTUREWORK: auto-connect may be out of use, check and if possible remove!
-      test p "post /i/users/auto-connect" $ testAutoConnectionOK b g,
-      test p "post /i/users/auto-connect - existing conn" $ testAutoConnectionNoChanges b,
-      test p "post /i/users/auto-connect - 400 (bad range)" $ testAutoConnectionBadRequest b
+      test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl
     ]
 
 testCreateConnectionInvalidUser :: Brig -> Http ()
@@ -364,57 +356,3 @@ testConnectionLimit brig (ConnectionLimit l) = do
     assertLimited = do
       const 403 === statusCode
       const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
-
-testAutoConnectionOK :: Brig -> Galley -> Http ()
-testAutoConnectionOK brig galley = do
-  uid1 <- userId <$> randomUser brig
-  uid2 <- userId <$> randomUser brig
-  bdy <-
-    postAutoConnection brig uid1 [uid2] <!! do
-      const 200 === statusCode
-      const (Just 2) === \r -> do
-        b <- responseBody r
-        Vec.length <$> (decode b :: Maybe (Vector UserConnection))
-  assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
-  assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
-  case responseJsonMaybe bdy >>= headMay >>= ucConvId of
-    Nothing -> liftIO $ assertFailure "incomplete connection"
-    Just cnv -> do
-      getConversation galley uid1 cnv !!! do
-        const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
-      getConversation galley uid2 cnv !!! do
-        const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
-
-testAutoConnectionNoChanges :: Brig -> Http ()
-testAutoConnectionNoChanges brig = do
-  uid1 <- userId <$> randomUser brig
-  uid2 <- userId <$> randomUser brig
-  postConnection brig uid1 uid2 !!! const 201 === statusCode
-  -- This is effectively a no-op
-  postAutoConnection brig uid1 [uid2] !!! do
-    const 200 === statusCode
-    const (Just 0) === \r -> do
-      b <- responseBody r
-      Vec.length <$> (decode b :: Maybe (Vector UserConnection))
-
-testAutoConnectionBadRequest :: Brig -> Http ()
-testAutoConnectionBadRequest brig = do
-  uid1 <- userId <$> randomUser brig
-  -- no users
-  postAutoConnection brig uid1 [] !!! const 400 === statusCode
-  -- too many users
-  uids <- replicateM 26 (liftIO $ Id <$> UUID.nextRandom)
-  postAutoConnection brig uid1 uids !!! const 400 === statusCode
-  -- unactivated / unverified self user
-  uid2 <- userId <$> createAnonUser "foo2" brig
-  postAutoConnection brig uid2 (take 1 uids) !!! do
-    const 403 === statusCode
-    const (Just "no-identity") === fmap Error.label . responseJsonMaybe
-  -- unactivated / unverified target users simply get filtered out
-  postAutoConnection brig uid1 [uid2] !!! do
-    const 200 === statusCode
-    const (Just 0) === \r -> do
-      b <- responseBody r
-      Vec.length <$> (decode b :: Maybe (Vector UserConnection))
