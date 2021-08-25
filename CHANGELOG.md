@@ -30,7 +30,7 @@
 ## API Changes
 
 ## Features
-* Helm charts to deploy [ldap-scim-bridge](https://github.com/wireapp/ldap-scim-bridge) #1709
+
 ## Bug fixes and other updates
 
 ## Documentation
