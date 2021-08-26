@@ -2117,17 +2117,13 @@ deleteLocalMemberConvLocalQualifiedOk = do
   let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
       remoteDomain = Domain "far-away.example.com"
       qEve = Qualified eve remoteDomain
+
   connectUsers alice (singleton bob)
-
-  convId <- decodeConvId <$> postConv alice [bob] (Just "remote gossip") [] Nothing Nothing
+  convId <- decodeConvId <$> postConvWithRemoteUser remoteDomain (mkProfile qEve (Name "Eve")) alice [qBob, qEve]
   let qconvId = Qualified convId localDomain
-  opts <- view tsGConf
-  g <- view tsGalley
-  let mockReturnEve = onlyMockedFederatedBrigResponse [(qEve, "Eve")]
 
-  void . withTempMockFederator opts remoteDomain mockReturnEve $
-    postQualifiedMembers' g alice (qEve :| []) convId
-      !!! const 200 === statusCode
+  opts <- view tsGConf
+  let mockReturnEve = onlyMockedFederatedBrigResponse [(qEve, "Eve")]
   (respDel, fedRequests) <-
     withTempMockFederator opts remoteDomain mockReturnEve $
       deleteMemberQualified alice qBob qconvId
@@ -2155,7 +2151,7 @@ deleteRemoteMemberConvLocalQualifiedOk :: TestM ()
 deleteRemoteMemberConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
   [alice, bob] <- randomUsers 2
-  let qAlice = Qualified alice localDomain
+  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
       remoteDomain1 = Domain "far-away-1.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
   qChad <- (`Qualified` remoteDomain1) <$> randomId
@@ -2163,9 +2159,6 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   qEve <- (`Qualified` remoteDomain2) <$> randomId
   connectUsers alice (singleton bob)
 
-  convId <- decodeConvId <$> postConv alice [bob] (Just "remote gossip") [] Nothing Nothing
-  g <- view tsGalley
-  let qconvId = Qualified convId localDomain
   opts <- view tsGConf
   let mockedResponse fedReq = do
         let success :: ToJSON a => a -> IO F.OutwardResponse
@@ -2180,9 +2173,11 @@ deleteRemoteMemberConvLocalQualifiedOk = do
               success [mkProfile qEve (Name "Eve")]
           _ -> success ()
 
-  void . withTempMockFederator' opts remoteDomain1 mockedResponse $
-    postQualifiedMembers' g alice (qChad :| [qDee, qEve]) convId
-      !!! const 200 === statusCode
+  (convId, _) <-
+    withTempMockFederator' opts remoteDomain1 mockedResponse $
+      decodeConvId <$> postConvQualified alice [qBob, qChad, qDee, qEve] Nothing [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
+
   (respDel, federatedRequests) <-
     withTempMockFederator' opts remoteDomain1 mockedResponse $
       deleteMemberQualified alice qChad qconvId
@@ -2253,12 +2248,10 @@ removeRemoteMemberConvQualifiedFail = do
   let remoteDomain = Domain "faraway.example.com"
       qconv = Qualified conv remoteDomain
       qBob = Qualified bob remoteDomain
-      mockResponse = onlyMockedFederatedBrigResponse [(qBob, "Bob")]
-  opts <- view tsGConf
-  void . withTempMockFederator opts remoteDomain mockResponse $
-    deleteMemberQualified alice qBob qconv !!! do
-      const 403 === statusCode
-      const (Just "action-denied") === fmap label . responseJsonUnsafe
+
+  deleteMemberQualified alice qBob qconv !!! do
+    const 403 === statusCode
+    const (Just "action-denied") === fmap label . responseJsonUnsafe
 
 deleteMembersUnqualifiedFailSelf :: TestM ()
 deleteMembersUnqualifiedFailSelf = do
