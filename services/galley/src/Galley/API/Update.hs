@@ -620,7 +620,7 @@ removeMember remover zcon qconvId@(Qualified conv convDomain) victim = do
                   (qDomain victim)
                   lc
           t <- liftIO getCurrentTime
-          let successEvent = Event MemberLeave qconvId remover t (EdMembersLeave (UserIdList [victim]))
+          let successEvent = Event MemberLeave qconvId remover t (EdMembersLeave (QualifiedUserIdList [victim]))
           mapRight (const successEvent) . FederatedGalley.leaveResponse <$> runFederated convDomain rpc
         else pure . Left $ RemoveFromConversationErrorRemovalNotAllowed
 
@@ -1044,7 +1044,7 @@ rmBot zusr zcon b = do
     then pure Unchanged
     else do
       t <- liftIO getCurrentTime
-      let evd = EdMembersLeave (UserIdList [Qualified (botUserId (b ^. rmBotId)) localDomain])
+      let evd = EdMembersLeave (QualifiedUserIdList [Qualified (botUserId (b ^. rmBotId)) localDomain])
       let e = Event MemberLeave qcnv qusr t evd
       for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon

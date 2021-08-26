@@ -945,7 +945,7 @@ removeLocalMembersFromLocalConv localDomain conv orig localVictims = do
       addPrepQuery Cql.removeMember (convId conv, localVictim)
       addPrepQuery Cql.deleteUserConv (localVictim, convId conv)
   let qconvId = Qualified (convId conv) localDomain
-      qualifiedVictims = UserIdList . map (`Qualified` localDomain) . toList $ localVictims
+      qualifiedVictims = QualifiedUserIdList . map (`Qualified` localDomain) . toList $ localVictims
   return $ Event MemberLeave qconvId orig t (EdMembersLeave qualifiedVictims)
 
 removeRemoteMembersFromLocalConv ::
@@ -964,7 +964,7 @@ removeRemoteMembersFromLocalConv localDomain conv orig remoteVictims = do
       let rUser = unTagged remoteVictim
       addPrepQuery Cql.removeRemoteMember (convId conv, qDomain rUser, qUnqualified rUser)
   let qconvId = Qualified (convId conv) localDomain
-      qualifiedVictims = UserIdList . map unTagged . toList $ remoteVictims
+      qualifiedVictims = QualifiedUserIdList . map unTagged . toList $ remoteVictims
   return $ Event MemberLeave qconvId orig t (EdMembersLeave qualifiedVictims)
 
 removeLocalMembersFromRemoteConv ::

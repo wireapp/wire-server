@@ -21,6 +21,7 @@
 
 module Wire.API.User
   ( UserIdList (..),
+    QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
     -- Profiles
     UserProfile (..),
@@ -142,8 +143,7 @@ import Wire.API.User.Profile
 -- needed due to backwards compatible reasons since old
 -- clients will break if we switch these types. Also, this
 -- definition represents better what information it carries
-newtype UserIdList = UserIdList
-  {mUsers :: [Qualified UserId]}
+newtype UserIdList = UserIdList {mUsers :: [UserId]}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIdList
@@ -152,14 +152,28 @@ instance ToSchema UserIdList where
   schema =
     object "UserIdList" $
       UserIdList
-        <$> mUsers .= field "qualified_user_ids" (array schema)
-        <* (fmap qUnqualified . mUsers) .= field "user_ids" (deprecatedSchema "qualified_ids" (array schema))
+        <$> mUsers .= field "user_ids" (array schema)
 
 modelUserIdList :: Doc.Model
 modelUserIdList = Doc.defineModel "UserIdList" $ do
   Doc.description "list of user ids"
   Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "the array of team conversations"
+
+--------------------------------------------------------------------------------
+-- QualifiedUserIdList
+
+newtype QualifiedUserIdList = QualifiedUserIdList {qualifiedUserIdList :: [Qualified UserId]}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema QualifiedUserIdList
+
+instance ToSchema QualifiedUserIdList where
+  schema =
+    object "QualifiedUserIdList" $
+      QualifiedUserIdList
+        <$> qualifiedUserIdList .= field "qualified_user_ids" (array schema)
+        <* (fmap qUnqualified . qualifiedUserIdList) .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList

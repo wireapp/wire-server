@@ -40,7 +40,7 @@ module Wire.API.Event.Conversation
     ConversationCode (..),
     Conversation (..),
     TypingData (..),
-    UserIdList (..),
+    QualifiedUserIdList (..),
 
     -- * Swagger
     modelEvent,
@@ -84,7 +84,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
-import Wire.API.User (UserIdList (..))
+import Wire.API.User (QualifiedUserIdList(..))
 
 --------------------------------------------------------------------------------
 -- Event
@@ -198,7 +198,7 @@ typeEventType =
 
 data EventData
   = EdMembersJoin SimpleMembers
-  | EdMembersLeave UserIdList
+  | EdMembersLeave QualifiedUserIdList
   | EdConnect Connect
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename

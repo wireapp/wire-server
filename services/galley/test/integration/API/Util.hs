@@ -294,7 +294,7 @@ getTeamMembersInternalTruncated tid n = do
       === statusCode
   responseJsonError r
 
-bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [Qualified UserId] -> TestM TeamMemberList
+bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM TeamMemberList
 bulkGetTeamMembers usr tid uids = do
   g <- view tsGalley
   r <-
@@ -308,7 +308,7 @@ bulkGetTeamMembers usr tid uids = do
       === statusCode
   responseJsonError r
 
-bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [Qualified UserId] -> Int -> TestM ResponseLBS
+bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
 bulkGetTeamMembersTruncated usr tid uids trnc = do
   g <- view tsGalley
   post
@@ -1265,7 +1265,7 @@ assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  evtData e @?= EdMembersLeave (UserIdList leaving)
+  evtData e @?= EdMembersLeave (QualifiedUserIdList leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1305,9 +1305,9 @@ wsAssertMemberLeave conv usr old n = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (EdMembersLeave (UserIdList old))
+  sorted (evtData e) @?= sorted (EdMembersLeave (QualifiedUserIdList old))
   where
-    sorted (EdMembersLeave (UserIdList m)) = EdMembersLeave (UserIdList (sort m))
+    sorted (EdMembersLeave (QualifiedUserIdList m)) = EdMembersLeave (QualifiedUserIdList (sort m))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
@@ -2162,7 +2162,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif ->
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
-    Conv.EdMembersLeave mm -> mm @?= Conv.UserIdList [usr]
+    Conv.EdMembersLeave mm -> mm @?= Conv.QualifiedUserIdList [usr]
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout

@@ -252,8 +252,7 @@ testListTeamMembersCsv numMembers = do
     let someUsersInCsv = take 50 usersInCsv
         someHandles = tExportHandle <$> someUsersInCsv
     users <- Util.getUsersByHandle (catMaybes someHandles)
-    localDomain <- viewFederationDomain
-    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid ((`Qualified` localDomain) . U.userId <$> users)
+    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
 
     let check :: (Show a, Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
         check msg getTeamExportUserAttr uid userAttr = do
@@ -318,8 +317,7 @@ testListTeamMembersDefaultLimitByIds = do
   where
     check :: HasCallStack => UserId -> TeamId -> [UserId] -> [UserId] -> TestM ()
     check owner tid uidsIn uidsOut = do
-      localDomain <- viewFederationDomain
-      listFromServer <- Util.bulkGetTeamMembers owner tid (fmap (`Qualified` localDomain) uidsIn)
+      listFromServer <- Util.bulkGetTeamMembers owner tid uidsIn
       liftIO $
         assertEqual
           "list members"
@@ -333,8 +331,7 @@ testListTeamMembersDefaultLimitByIds = do
 testListTeamMembersTruncatedByIds :: TestM ()
 testListTeamMembersTruncatedByIds = do
   (owner, tid, mems) <- Util.createBindingTeamWithNMembers 4
-  localDomain <- viewFederationDomain
-  Util.bulkGetTeamMembersTruncated owner tid (fmap (`Qualified` localDomain) (owner : mems)) 3 !!! do
+  Util.bulkGetTeamMembersTruncated owner tid (owner : mems) 3 !!! do
     const 400 === statusCode
     const "too-many-uids" === Error.label . responseJsonUnsafeWithMsg "error label"
 

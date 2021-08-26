@@ -66,7 +66,7 @@ import Wire.API.Event.Conversation
       ),
     SimpleMember (..),
     SimpleMembers (SimpleMembers, mMembers),
-    UserIdList (UserIdList, mUsers),
+    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
   )
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
@@ -432,8 +432,8 @@ testObject_Event_user_18 =
       (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
       (read "1864-04-12 01:28:25.705 UTC")
       ( ( EdMembersLeave
-            ( UserIdList
-                { mUsers =
+            ( QualifiedUserIdList
+                { qualifiedUserIdList =
                     [ (Qualified (Id (fromJust (UUID.fromString "00003fab-0000-40b8-0000-3b0c000014ef"))) (Domain "faraway.example.com")),
                       (Qualified (Id (fromJust (UUID.fromString "00001c48-0000-29ae-0000-62fc00001479"))) (Domain "faraway.example.com")),
                       (Qualified (Id (fromJust (UUID.fromString "00003254-0000-4f74-0000-6fc400003a01"))) (Domain "faraway.example.com")),
@@ -581,8 +581,8 @@ testObject_Event_user_20 =
       (Qualified (Id (fromJust (UUID.fromString "00007547-0000-26d8-0000-52280000157c"))) (Domain "faraway.example.com"))
       (read "1864-04-21 23:40:54.462 UTC")
       ( ( EdMembersLeave
-            ( UserIdList
-                { mUsers =
+            ( QualifiedUserIdList
+                { qualifiedUserIdList =
                     [ (Qualified (Id (fromJust (UUID.fromString "00002e78-0000-23d9-0000-1cba00005025"))) (Domain "faraway.example.com")),
                       (Qualified (Id (fromJust (UUID.fromString "00003293-0000-6991-0000-533700000e73"))) (Domain "faraway.example.com")),
                       (Qualified (Id (fromJust (UUID.fromString "000075b1-0000-2e89-0000-6262000067a9"))) (Domain "faraway.example.com")),

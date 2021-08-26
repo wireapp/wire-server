@@ -494,7 +494,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
   UserIdList uids <- fromJsonBody body
-  (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults (qUnqualified <$> uids)
+  (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
   pure . json $ teamMemberListJson withPerms memberList
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
@@ -726,7 +726,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       -- handle nicely these missing events, regardless of whether they are in the same team or not
       localDomain <- viewFederationDomain
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.UserIdList [Qualified remove localDomain])
+      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [Qualified remove localDomain])
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
         Data.conversation (c ^. conversationId) >>= \conv ->
