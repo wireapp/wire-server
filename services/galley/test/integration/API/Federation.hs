@@ -312,7 +312,7 @@ leaveConversationSuccess = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   [alice, bob] <- randomUsers 2
-  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
+  let qBob = Qualified bob localDomain
       remoteDomain1 = Domain "far-away-1.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
   qChad <- (`Qualified` remoteDomain1) <$> randomId
@@ -340,7 +340,7 @@ leaveConversationSuccess = do
   let qconvId = Qualified convId localDomain
 
   (_, federatedRequests) <-
-    WS.bracketR c alice $ \ws -> do
+    WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
       withTempMockFederator' opts remoteDomain1 mockedResponse $ do
         g <- viewGalley
         let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
@@ -356,8 +356,10 @@ leaveConversationSuccess = do
         parsedResp <- responseJsonError respBS
         liftIO $ do
           FedGalley.leaveResponse parsedResp @?= Right ()
-          void . WS.assertMatch (3 # Second) ws $
-            wsAssertMembersLeave qconvId qAlice [qChad]
+          void . WS.assertMatch (3 # Second) wsAlice $
+            wsAssertMembersLeave qconvId qChad [qChad]
+          void . WS.assertMatch (3 # Second) wsBob $
+            wsAssertMembersLeave qconvId qChad [qChad]
 
   let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 F.Galley federatedRequests
       [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 F.Galley federatedRequests
