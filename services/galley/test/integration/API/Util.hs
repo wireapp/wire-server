@@ -843,6 +843,13 @@ listConvIds u paginationOpts = do
       . zUser u
       . json paginationOpts
 
+-- | Does not page through conversation list
+listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
+listRemoteConvs remoteDomain uid = do
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
+  allConvs <- fmap pageConvIds . responseJsonError =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
+
 postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
 postQualifiedMembers zusr invitees conv = do
   g <- view tsGalley
