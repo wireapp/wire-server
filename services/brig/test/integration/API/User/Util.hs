@@ -42,7 +42,6 @@ import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (unsafeRange)
-import qualified Data.Set as Set
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Imports
@@ -245,17 +244,6 @@ listConnections brig u =
     brig
       . path "connections"
       . zUser u
-
-postAutoConnection :: Brig -> UserId -> [UserId] -> (MonadIO m, MonadHttp m) => m ResponseLBS
-postAutoConnection brig from to =
-  post $
-    brig
-      . paths ["/i/users", toByteString' from, "auto-connect"]
-      . contentJson
-      . body payload
-      . zConn "conn"
-  where
-    payload = RequestBodyLBS . encode $ UserSet (Set.fromList to)
 
 setProperty :: Brig -> UserId -> ByteString -> Value -> (MonadIO m, MonadHttp m) => m ResponseLBS
 setProperty brig u k v =
