@@ -49,10 +49,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Role
-import Wire.API.Federation.API.Galley
-  ( GetConversationsRequest (..),
-    GetConversationsResponse (..),
-  )
+import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
