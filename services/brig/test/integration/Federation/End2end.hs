@@ -90,6 +90,7 @@ spec _brigOpts mg brig galley cannon _federator brigTwo galleyTwo =
         test mg "list user clients" $ testListUserClients brig brigTwo,
         test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
         test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
+        test mg "remove remote user from a local conversation" $ testRemoveRemoteUserFromLocalConv brig galley brigTwo galleyTwo,
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
         test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon,
         test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon
@@ -274,6 +275,43 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
       expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
   liftIO $ actual' @?= expected'
 
+testRemoveRemoteUserFromLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
+testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+  let aliceId = userQualifiedId alice
+  let bobId = userQualifiedId bob
+
+  convId <- cnvQualifiedId . responseJsonUnsafe <$> createConversation galley1 (userId alice) [bobId]
+
+  aliceConvBeforeDelete :: Conversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
+
+  bobConvBeforeDelete :: Conversation <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers bobConvBeforeDelete)) @?= [aliceId]
+
+  -- Alice kicks Bob out of the conversation
+  delete
+    ( galley1
+        . paths
+          [ "conversations",
+            (toByteString' . qDomain) convId,
+            (toByteString' . qUnqualified) convId,
+            "members",
+            (toByteString' . qDomain) bobId,
+            (toByteString' . qUnqualified) bobId
+          ]
+        . zUser (userId alice)
+        . zConn "conn"
+    )
+    !!! const 200 === statusCode
+
+  aliceConvAfterDelete :: Conversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvAfterDelete)) @?= []
+
+  getConversationQualified galley2 (userId bob) convId
+    !!! const 404 === statusCode
+
 -- | This creates a new conversation with a remote user. The test checks that
 -- Galleys on both ends of the federation see the same conversation members.
 testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
@@ -324,7 +362,6 @@ testListUserClients brig1 brig2 = do
 --  - conversation can be queried and shows members (galley1)
 --  - conversation can be queried and shows members (galley2 via qualified get conversation endpoint)
 --
-
 testListConversations :: Brig -> Brig -> Galley -> Galley -> Http ()
 testListConversations brig1 brig2 galley1 galley2 = do
   alice <- randomUser brig1
