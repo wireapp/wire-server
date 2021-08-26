@@ -2138,15 +2138,15 @@ deleteLocalMemberConvLocalQualifiedOk = do
       Right e -> assertLeaveEvent qconvId qAlice [qBob] e
 
   -- Now that Bob is gone, try removing him once again
-  void . withTempMockFederator opts remoteDomain mockReturnEve $
-    deleteMemberQualified alice qBob qconvId !!! do
-      const 204 === statusCode
-      const Nothing === responseBody
+  -- void . withTempMockFederator opts remoteDomain mockReturnEve $
+  deleteMemberQualified alice qBob qconvId !!! do
+    const 204 === statusCode
+    const Nothing === responseBody
 
 -- Creates a conversation with five users. Alice and Bob are on the local
 -- domain. Chad and Dee are on far-away-1.example.com. Eve is on
--- far-away-2.example.com. It uses a qualified endpoint for removing Chad from
--- the conversation:
+-- far-away-2.example.com. It uses a qualified endpoint to remove Chad from the
+-- conversation:
 --
 -- DELETE /conversations/:domain/:cnv/members/:domain/:usr
 -- TODO: Make an assertion that both remotes get notified about this
@@ -2192,10 +2192,9 @@ deleteRemoteMemberConvLocalQualifiedOk = do
       Right e -> assertLeaveEvent qconvId qAlice [qChad] e
 
   -- Now that Chad is gone, try removing him once again
-  void . withTempMockFederator' opts remoteDomain1 mockedResponse $
-    deleteMemberQualified alice qChad qconvId !!! do
-      const 204 === statusCode
-      const Nothing === responseBody
+  deleteMemberQualified alice qChad qconvId !!! do
+    const 204 === statusCode
+    const Nothing === responseBody
 
 -- Alice, a local user, leaves a remote conversation. Bob's domain is the same
 -- as that of the conversation. The test uses the following endpoint:
