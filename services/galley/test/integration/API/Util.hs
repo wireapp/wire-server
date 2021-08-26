@@ -1310,6 +1310,15 @@ assertNoMsg ws f = do
     Left _ -> return () -- expected
     Right _ -> assertFailure "Unexpected message"
 
+assertRemoveUpdate :: MonadIO m => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
+  F.path req @?= "/federation/update-conversation-memberships"
+  let Just cmu = decodeStrict (F.body req)
+  FederatedGalley.cmuOrigUserId cmu @?= remover
+  FederatedGalley.cmuConvId cmu @?= qconvId
+  sort (FederatedGalley.cmuAlreadyPresentUsers cmu) @?= sort alreadyPresentUsers
+  FederatedGalley.cmuAction cmu @?= FederatedGalley.ConversationMembersActionRemove (pure victim)
+
 -------------------------------------------------------------------------------
 -- Helpers
 
@@ -2176,3 +2185,12 @@ onlyMockedFederatedBrigResponse users =
   joinMockedFederatedResponses
     (mockedFederatedBrigResponse users)
     (const Nothing)
+
+fedRequestsForDomain :: HasCallStack => Domain -> F.Component -> [F.FederatedRequest] -> [F.Request]
+fedRequestsForDomain domain component =
+  map (fromJust . F.request)
+    . filter
+      ( \req ->
+          F.domain req == domainText domain
+            && fmap F.component (F.request req) == Just component
+      )

@@ -2128,9 +2128,12 @@ deleteLocalMemberConvLocalQualifiedOk = do
   void . withTempMockFederator opts remoteDomain mockReturnEve $
     postQualifiedMembers' g alice (qEve :| []) convId
       !!! const 200 === statusCode
-  (respDel, _) <-
+  (respDel, fedRequests) <-
     withTempMockFederator opts remoteDomain mockReturnEve $
       deleteMemberQualified alice qBob qconvId
+  let [galleyFederatedRequest] = fedRequestsForDomain remoteDomain F.Galley fedRequests
+  assertRemoveUpdate galleyFederatedRequest qconvId qAlice [qUnqualified qEve] qBob
+
   liftIO $ do
     statusCode respDel @?= 200
     case responseJsonEither respDel of
@@ -2138,7 +2141,6 @@ deleteLocalMemberConvLocalQualifiedOk = do
       Right e -> assertLeaveEvent qconvId qAlice [qBob] e
 
   -- Now that Bob is gone, try removing him once again
-  -- void . withTempMockFederator opts remoteDomain mockReturnEve $
   deleteMemberQualified alice qBob qconvId !!! do
     const 204 === statusCode
     const Nothing === responseBody
@@ -2149,7 +2151,6 @@ deleteLocalMemberConvLocalQualifiedOk = do
 -- conversation:
 --
 -- DELETE /conversations/:domain/:cnv/members/:domain/:usr
--- TODO: Make an assertion that both remotes get notified about this
 deleteRemoteMemberConvLocalQualifiedOk :: TestM ()
 deleteRemoteMemberConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
@@ -2182,7 +2183,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   void . withTempMockFederator' opts remoteDomain1 mockedResponse $
     postQualifiedMembers' g alice (qChad :| [qDee, qEve]) convId
       !!! const 200 === statusCode
-  (respDel, _) <-
+  (respDel, federatedRequests) <-
     withTempMockFederator' opts remoteDomain1 mockedResponse $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
@@ -2190,6 +2191,11 @@ deleteRemoteMemberConvLocalQualifiedOk = do
     case responseJsonEither respDel of
       Left err -> assertFailure err
       Right e -> assertLeaveEvent qconvId qAlice [qChad] e
+
+  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 F.Galley federatedRequests
+      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 F.Galley federatedRequests
+  assertRemoveUpdate remote1GalleyFederatedRequest qconvId qAlice [qUnqualified qChad, qUnqualified qDee] qChad
+  assertRemoveUpdate remote2GalleyFederatedRequest qconvId qAlice [qUnqualified qEve] qChad
 
   -- Now that Chad is gone, try removing him once again
   deleteMemberQualified alice qChad qconvId !!! do
@@ -2221,14 +2227,19 @@ leaveRemoteConvQualifiedOk = do
           mockedFederatedGalleyResponse
   opts <- view tsGConf
 
-  (resp, _) <-
+  (resp, fedRequests) <-
     withTempMockFederator opts remoteDomain mockResponses $
       deleteMemberQualified alice qAlice qconv
+  let leaveRequest =
+        fromJust . decodeStrict . F.body . fromJust . F.request . Imports.head $
+          fedRequests
   liftIO $ do
     statusCode resp @?= 200
     case responseJsonEither resp of
       Left err -> assertFailure err
       Right e -> assertLeaveEvent qconv qAlice [qAlice] e
+    FederatedGalley.lcConvId leaveRequest @?= conv
+    FederatedGalley.lcLeaver leaveRequest @?= alice
 
 -- Alice, a user remote to the conversation, tries to remove someone other than
 -- herself via:
