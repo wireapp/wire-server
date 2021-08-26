@@ -2114,7 +2114,7 @@ checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberJoin uid)
 
-checkTeamMemberLeave :: HasCallStack => TeamId -> Qualified UserId -> WS.WebSocket -> TestM ()
+checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)

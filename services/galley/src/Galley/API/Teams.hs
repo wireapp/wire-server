@@ -715,8 +715,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
-      localDomain <- viewFederationDomain
-      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave (Qualified remove localDomain)
+      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
       push1 $ newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.

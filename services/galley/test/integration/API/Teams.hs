@@ -638,7 +638,7 @@ testRemoveNonBindingTeamMember = do
       === statusCode
     -- Ensure that `mem1` is still a user (tid is not a binding team)
     Util.ensureDeletedState False owner (mem1 ^. userId)
-    mapConcurrently_ (checkTeamMemberLeave tid (Qualified (mem1 ^. userId) localDomain)) [wsOwner, wsMem1, wsMem2]
+    mapConcurrently_ (checkTeamMemberLeave tid (mem1 ^. userId)) [wsOwner, wsMem1, wsMem2]
     checkConvMemberLeaveEvent (Qualified cid2 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext1
     checkConvMemberLeaveEvent (Qualified cid3 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext3
     WS.assertNoEvent timeout ws
@@ -723,7 +723,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           )
           !!! const 202
           === statusCode
-    checkTeamMemberLeave tid (Qualified (mem1 ^. userId) localDomain) wsOwner
+    checkTeamMemberLeave tid (mem1 ^. userId) wsOwner
     checkConvMemberLeaveEvent (Qualified cid1 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext
     assertQueue "team member leave" $ tUpdate 2 [ownerWithPassword, owner]
     WS.assertNoEvent timeout [wsMext]
@@ -1392,7 +1392,6 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         return member
     removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
     removeTeamMemberAndExpectEvent expect owner tid victim others = do
-      localDomain <- viewFederationDomain
       c <- view tsCannon
       g <- view tsGalley
       WS.bracketRN c (owner : victim : others) $ \(wsOwner : _wsVictim : wsOthers) -> do
@@ -1406,7 +1405,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           !!! const 202
           === statusCode
         if expect
-          then checkTeamMemberLeave tid (Qualified victim localDomain) wsOwner
+          then checkTeamMemberLeave tid victim wsOwner
           else WS.assertNoEvent (1 # Second) [wsOwner]
         -- User deletion events
         mapM_ (checkUserDeleteEvent victim) wsOthers

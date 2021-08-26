@@ -50,7 +50,6 @@ import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
-import Data.Qualified (Qualified (qUnqualified))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports
@@ -98,11 +97,9 @@ modelMemberEvent = Doc.defineModel "TeamMemberEvent" $ do
 
 modelMemberData :: Doc.Model
 modelMemberData =
-  Doc.defineModel "MemberData" $ do
+  Doc.defineModel "MemberData" $
     Doc.property "user" Doc.bytes' $
       Doc.description "user ID"
-    Doc.property "qualified_user" Doc.bytes' $
-      Doc.description "qualified user ID"
 
 modelConvEvent :: Doc.Model
 modelConvEvent = Doc.defineModel "TeamConversationEvent" $ do
@@ -205,7 +202,7 @@ data EventData
   = EdTeamCreate Team
   | EdTeamUpdate TeamUpdateData
   | EdMemberJoin UserId
-  | EdMemberLeave (Qualified UserId)
+  | EdMemberLeave UserId
   | EdMemberUpdate UserId (Maybe Permissions)
   | EdConvCreate ConvId
   | EdConvDelete ConvId
@@ -219,11 +216,7 @@ instance ToJSON EventData where
       "user" .= usr
         # "permissions" .= mPerm
         # []
-  toJSON (EdMemberLeave usr) =
-    object
-      [ "user" .= qUnqualified usr,
-        "qualified_user" .= usr
-      ]
+  toJSON (EdMemberLeave usr) = object ["user" .= usr]
   toJSON (EdConvCreate cnv) = object ["conv" .= cnv]
   toJSON (EdConvDelete cnv) = object ["conv" .= cnv]
   toJSON (EdTeamUpdate upd) = toJSON upd
@@ -239,7 +232,7 @@ parseEventData MemberUpdate (Just j) = do
   withObject "member update data" f j
 parseEventData MemberLeave Nothing = fail "missing event data for type 'team.member-leave'"
 parseEventData MemberLeave (Just j) = do
-  let f o = Just . EdMemberLeave <$> o .: "qualified_user"
+  let f o = Just . EdMemberLeave <$> o .: "user"
   withObject "member leave data" f j
 parseEventData ConvCreate Nothing = fail "missing event data for type 'team.conversation-create"
 parseEventData ConvCreate (Just j) = do
