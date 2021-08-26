@@ -165,7 +165,8 @@ tests s =
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
-          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove someone else, fail" removeRemoteMemberConvQualifiedFail,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove local user, fail" removeLocalMemberConvQualifiedFail,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove remote user, fail" removeRemoteMemberConvQualifiedFail,
           test s "rename conversation" putConvRenameOk,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
@@ -2236,8 +2237,24 @@ leaveRemoteConvQualifiedOk = do
     FederatedGalley.lcConvId leaveRequest @?= conv
     FederatedGalley.lcLeaver leaveRequest @?= alice
 
--- Alice, a user remote to the conversation, tries to remove someone other than
--- herself via:
+-- Alice, a user remote to the conversation, tries to remove someone on her own
+-- backend other than herself via:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+removeLocalMemberConvQualifiedFail :: TestM ()
+removeLocalMemberConvQualifiedFail = do
+  alice <- randomUser
+  conv <- randomId
+  qBob <- randomQualifiedUser
+  let remoteDomain = Domain "faraway.example.com"
+      qconv = Qualified conv remoteDomain
+
+  deleteMemberQualified alice qBob qconv !!! do
+    const 403 === statusCode
+    const (Just "action-denied") === fmap label . responseJsonUnsafe
+
+-- Alice, a user remote to the conversation, tries to remove someone on a remote
+-- backend via:
 --
 -- DELETE /conversations/:domain/:cnv/members/:domain/:usr
 removeRemoteMemberConvQualifiedFail :: TestM ()
