@@ -125,20 +125,6 @@ sitemap = do
   head "/i/status" (continue $ const $ return empty) true
 
   -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to the user and all users connecting with
-  -- - ConvCreate event to the user for each connect conversation that did not exist before
-  --   (via galley)
-  -- - ConvConnect event to the user for each connection that was not already accepted by the
-  --   other
-  -- - MemberJoin event to the user and other for each connection that was not already
-  --   accepted by the other
-  post "/i/users/:uid/auto-connect" (continue autoConnectH) $
-    accept "application" "json"
-      .&. capture "uid"
-      .&. opt zauthConnId
-      .&. jsonRequest @UserSet
-
-  -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email or phone get activated
   post "/i/users" (continue createUserNoVerifyH) $
@@ -345,21 +331,6 @@ internalListFullClientsH (_ ::: req) =
 internalListFullClients :: UserSet -> AppIO UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
-
-autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
-autoConnectH (_ ::: uid ::: conn ::: req) = do
-  json <$> (autoConnect uid conn =<< parseJsonBody req)
-
-autoConnect :: UserId -> Maybe ConnId -> UserSet -> Handler [UserConnection]
-autoConnect uid conn (UserSet to) = do
-  let num = Set.size to
-  when (num < 1) $
-    throwStd $
-      badRequest "No users given for auto-connect."
-  when (num > 25) $
-    throwStd $
-      badRequest "Too many users given for auto-connect (> 25)."
-  API.autoConnect uid to conn !>> connError
 
 createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response
 createUserNoVerifyH (_ ::: req) = do

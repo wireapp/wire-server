@@ -51,6 +51,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Fixed a few issues with error response documentation in Swagger (#1707)
 * Make mapping between (team) permissions and roles more lenient (#1711)
 * The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
+* Remove leftover auto-connect internal endpoint and code (#1716)
 
 ## Federation changes
 
