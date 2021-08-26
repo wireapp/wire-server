@@ -29,8 +29,8 @@ import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
-import Test.Wire.API.Golden.Runner
 import Test.Wire.API.Golden.Manual.UserIdList
+import Test.Wire.API.Golden.Runner
 
 tests :: TestTree
 tests =

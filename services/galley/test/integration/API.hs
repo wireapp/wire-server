@@ -2163,6 +2163,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   connectUsers alice (singleton bob)
 
   convId <- decodeConvId <$> postConv alice [bob] (Just "remote gossip") [] Nothing Nothing
+  g <- view tsGalley
   let qconvId = Qualified convId localDomain
   opts <- view tsGConf
   let mockedResponse fedReq = do
@@ -2179,7 +2180,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
           _ -> success ()
 
   void . withTempMockFederator' opts remoteDomain1 mockedResponse $
-    postQualifiedMembers'' alice (qChad :| [qDee, qEve]) convId
+    postQualifiedMembers' g alice (qChad :| [qDee, qEve]) convId
       !!! const 200 === statusCode
   (respDel, _) <-
     withTempMockFederator' opts remoteDomain1 mockedResponse $

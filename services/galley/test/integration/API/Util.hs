@@ -859,19 +859,6 @@ postQualifiedMembers' g zusr invitees conv = do
       . zType "access"
       . json invite
 
--- TODO: Find better name
-postQualifiedMembers'' :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> NonEmpty (Qualified UserId) -> ConvId -> m ResponseLBS
-postQualifiedMembers'' zusr invitees conv = do
-  g <- viewGalley
-  let invite = Public.InviteQualified invitees roleNameWireAdmin
-  post $
-    g
-      . paths ["conversations", toByteString' conv, "members", "v2"]
-      . zUser zusr
-      . zConn "conn"
-      . zType "access"
-      . json invite
-
 postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
 postMembers u us c = do
   g <- view tsGalley
