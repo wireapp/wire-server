@@ -2155,7 +2155,7 @@ deleteRemoteMemberConvLocalQualifiedOk :: TestM ()
 deleteRemoteMemberConvLocalQualifiedOk = do
   localDomain <- viewFederationDomain
   [alice, bob] <- randomUsers 2
-  let [qAlice, _qBob] = (`Qualified` localDomain) <$> [alice, bob]
+  let qAlice = Qualified alice localDomain
       remoteDomain1 = Domain "far-away-1.example.com"
       remoteDomain2 = Domain "far-away-2.example.com"
   qChad <- (`Qualified` remoteDomain1) <$> randomId
