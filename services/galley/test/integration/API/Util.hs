@@ -1317,7 +1317,7 @@ assertNoMsg ws f = do
     Left _ -> return () -- expected
     Right _ -> assertFailure "Unexpected message"
 
-assertRemoveUpdate :: MonadIO m => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertRemoveUpdate :: (MonadIO m, HasCallStack)=> F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   F.path req @?= "/federation/update-conversation-memberships"
   let Just cmu = decodeStrict (F.body req)

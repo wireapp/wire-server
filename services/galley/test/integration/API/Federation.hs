@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.Federation where
 
@@ -68,6 +69,7 @@ tests s =
       test s "POST /federation/update-conversation-memberships : Remove a local user from a remote conversation" removeLocalUser,
       test s "POST /federation/update-conversation-memberships : Remove a remote user from a remote conversation" removeRemoteUser,
       test s "POST /federation/update-conversation-memberships : Notify local user about other members joining" notifyLocalUser,
+      test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
     ]
@@ -304,6 +306,63 @@ notifyLocalUser = do
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertMemberJoinWithRole qconv qbob [qcharlie] roleNameWireMember
+
+leaveConversationSuccess :: TestM ()
+leaveConversationSuccess = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  [alice, bob] <- randomUsers 2
+  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
+      remoteDomain1 = Domain "far-away-1.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+  qChad <- (`Qualified` remoteDomain1) <$> randomId
+  qDee <- (`Qualified` remoteDomain1) <$> randomId
+  qEve <- (`Qualified` remoteDomain2) <$> randomId
+  connectUsers alice (singleton bob)
+
+  opts <- view tsGConf
+  let mockedResponse fedReq = do
+        let success :: ToJSON a => a -> IO F.OutwardResponse
+            success = pure . F.OutwardResponseBody . LBS.toStrict . A.encode
+            getUsersPath = Just "/federation/get-users-by-ids"
+        case (F.domain fedReq, F.path <$> F.request fedReq) of
+          (d, mp)
+            | d == domainText remoteDomain1 && mp == getUsersPath ->
+              success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
+          (d, mp)
+            | d == domainText remoteDomain2 && mp == getUsersPath ->
+              success [mkProfile qEve (Name "Eve")]
+          _ -> success ()
+
+  (convId, _) <-
+    withTempMockFederator' opts remoteDomain1 mockedResponse $
+      decodeConvId <$> postConvQualified alice [qBob, qChad, qDee, qEve] Nothing [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
+
+  (_, federatedRequests) <-
+    WS.bracketR c alice $ \ws -> do
+      withTempMockFederator' opts remoteDomain1 mockedResponse $ do
+        g <- viewGalley
+        let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
+        respBS <-
+          post
+            ( g
+                . paths ["federation", "leave-conversation"]
+                . content "application/json"
+                . header "Wire-Origin-Domain" (toByteString' remoteDomain1)
+                . json leaveRequest
+            )
+            <!! const 200 === statusCode
+        parsedResp <- responseJsonError respBS
+        liftIO $ do
+          FedGalley.leaveResponse parsedResp @?= Right ()
+          void . WS.assertMatch (3 # Second) ws $
+            wsAssertMembersLeave qconvId qAlice [qChad]
+
+  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 F.Galley federatedRequests
+      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 F.Galley federatedRequests
+  assertRemoveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
+  assertRemoveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
 
 receiveMessage :: TestM ()
 receiveMessage = do
