@@ -350,7 +350,6 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
   getConversationQualified galley2 (userId bob) convId
     !!! const 404 === statusCode
 
-
 -- | This creates a new conversation with a remote user. The test checks that
 -- Galleys on both ends of the federation see the same conversation members.
 testRemoteUsersInNewConv :: Brig -> Galley -> Brig -> Galley -> Http ()
