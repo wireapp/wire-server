@@ -66,7 +66,7 @@ import Data.Time.Clock
 import Data.Timeout (TimedOut (..), Timeout, TimeoutUnit (..), (#))
 import qualified Data.UUID as UUID
 import qualified Data.ZAuth.Token as ZAuth
-import Galley.Types (Access (..), AccessRole (..), ConvMembers (..), Conversation (..), ConversationAccessUpdate (..), Event (..), EventData (..), EventType (..), NewConv (..), NewConvUnmanaged (..), OtherMember (..), OtrMessage (..), SimpleMember (..), SimpleMembers (..), UserIdList (..))
+import Galley.Types (Access (..), AccessRole (..), ConvMembers (..), Conversation (..), ConversationAccessUpdate (..), Event (..), EventData (..), EventType (..), NewConv (..), NewConvUnmanaged (..), OtherMember (..), OtrMessage (..), SimpleMember (..), SimpleMembers (..), QualifiedUserIdList(..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
@@ -1695,7 +1695,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtConv e @?= conv
         evtType e @?= MemberLeave
         evtFrom e @?= usr
-        evtData e @?= EdMembersLeave (UserIdList old)
+        evtData e @?= EdMembersLeave (QualifiedUserIdList old)
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
 wsAssertConvDelete ws conv from = void $
@@ -1738,7 +1738,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
     Just (TestBotMessage e) -> do
-      let msg = UserIdList gone
+      let msg = QualifiedUserIdList gone
       assertEqual "event type" MemberLeave (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
