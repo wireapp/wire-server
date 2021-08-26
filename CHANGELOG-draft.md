@@ -40,6 +40,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Documentation
 
+* Document backend internals for user connections (#1717)
+
 ## Internal changes
 
 * Integration test script now displays output interactively (#1700)
