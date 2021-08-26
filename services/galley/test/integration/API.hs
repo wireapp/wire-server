@@ -1779,7 +1779,7 @@ leaveConnectConversation = do
   alice <- randomUser
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
-  let c = fromMaybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId <$> responseJsonUnsafe bdy)
+  let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
   deleteMemberUnqualified alice alice c !!! const 403 === statusCode
 
 -- FUTUREWORK: Add more tests for scenarios of federation.
