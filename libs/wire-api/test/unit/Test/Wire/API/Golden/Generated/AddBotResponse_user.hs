@@ -137,9 +137,9 @@ import Wire.API.Event.Conversation
         misOtrMutedStatus,
         misTarget
       ),
+    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
     SimpleMember (..),
     SimpleMembers (SimpleMembers, mMembers),
-    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
   )
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User

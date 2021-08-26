@@ -84,7 +84,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
-import Wire.API.User (QualifiedUserIdList(..))
+import Wire.API.User (QualifiedUserIdList (..))
 
 --------------------------------------------------------------------------------
 -- Event

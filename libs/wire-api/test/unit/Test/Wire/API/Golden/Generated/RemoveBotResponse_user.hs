@@ -96,9 +96,9 @@ import Wire.API.Event.Conversation
         otrRecipient,
         otrSender
       ),
+    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
     SimpleMember (..),
     SimpleMembers (SimpleMembers, mMembers),
-    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
   )
 
 testObject_RemoveBotResponse_user_1 :: RemoveBotResponse
