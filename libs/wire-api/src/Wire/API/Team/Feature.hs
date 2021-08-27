@@ -38,7 +38,6 @@ module Wire.API.Team.Feature
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
     modelTeamFeatureStatusNoConfig,
-    modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
     modelTeamFeatureClassifiedDomainsConfig,
     modelForTeamFeature,
