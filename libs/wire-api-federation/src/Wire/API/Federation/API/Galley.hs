@@ -66,6 +66,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "update-conversation-memberships"
+        :> OriginDomainHeader
         :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] (),
     leaveConversation ::
@@ -148,7 +149,10 @@ data ConversationMembersAction
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,
     cmuOrigUserId :: Qualified UserId,
-    cmuConvId :: Qualified ConvId,
+    -- | The unqualified ID of the conversation where the update is happening.
+    -- The ID is local to prevent putting arbitrary domain that is different
+    -- than that of the backend making a conversation membership update request.
+    cmuConvId :: ConvId,
     -- | A list of users from a remote backend that need to be sent
     -- notifications about this change. This is required as we do not expect a
     -- non-conversation owning backend to have an indexed mapping of

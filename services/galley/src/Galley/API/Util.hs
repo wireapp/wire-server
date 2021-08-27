@@ -614,19 +614,22 @@ notifyRemoteAboutConvUpdate ::
   Galley ()
 notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let qconvId = Qualified convId localDomain
-      mkUpdate oth = ConversationMemberUpdate time origUser qconvId oth action
-  traverse_ (uncurry (notificationRPC . mkUpdate) . swap)
+  let mkUpdate oth = ConversationMemberUpdate time origUser convId oth action
+  traverse_ (uncurry (notificationRPC localDomain . mkUpdate) . swap)
     . Map.assocs
     . partitionQualified
     . nubOrd
     . map unTagged
     $ remotesToNotify
   where
-    notificationRPC :: ConversationMemberUpdate -> Domain -> Galley ()
-    notificationRPC cmu domain = do
-      let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
-      runFederated domain rpc
+    notificationRPC :: Domain -> ConversationMemberUpdate -> Domain -> Galley ()
+    notificationRPC sendingDomain cmu receivingDomain = do
+      let rpc =
+            FederatedGalley.updateConversationMemberships
+              FederatedGalley.clientRoutes
+              sendingDomain
+              cmu
+      runFederated receivingDomain rpc
 
 --------------------------------------------------------------------------------
 -- Legalhold

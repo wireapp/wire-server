@@ -217,7 +217,7 @@ emptyFederatedGalley =
    in FederatedGalley.Api
         { FederatedGalley.registerConversation = \_ -> e "registerConversation",
           FederatedGalley.getConversations = \_ -> e "getConversations",
-          FederatedGalley.updateConversationMemberships = \_ -> e "updateConversationMemberships",
+          FederatedGalley.updateConversationMemberships = \_ _ -> e "updateConversationMemberships",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
@@ -1296,11 +1296,11 @@ paginateConvListIds = do
           FederatedGalley.ConversationMemberUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qChad,
-              FederatedGalley.cmuConvId = Qualified conv chadDomain,
+              FederatedGalley.cmuConvId = conv,
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+    FederatedGalley.updateConversationMemberships fedGalleyClient chadDomain cmu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1311,11 +1311,11 @@ paginateConvListIds = do
           FederatedGalley.ConversationMemberUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qDee,
-              FederatedGalley.cmuConvId = Qualified conv deeDomain,
+              FederatedGalley.cmuConvId = conv,
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+    FederatedGalley.updateConversationMemberships fedGalleyClient deeDomain cmu
 
   -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
   -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
@@ -1354,11 +1354,11 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
           FederatedGalley.ConversationMemberUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qChad,
-              FederatedGalley.cmuConvId = Qualified conv chadDomain,
+              FederatedGalley.cmuConvId = conv,
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+    FederatedGalley.updateConversationMemberships fedGalleyClient chadDomain cmu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1370,11 +1370,11 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
           FederatedGalley.ConversationMemberUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qDee,
-              FederatedGalley.cmuConvId = Qualified conv deeDomain,
+              FederatedGalley.cmuConvId = conv,
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient cmu
+    FederatedGalley.updateConversationMemberships fedGalleyClient deeDomain cmu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 

@@ -1320,9 +1320,10 @@ assertNoMsg ws f = do
 assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   F.path req @?= "/federation/update-conversation-memberships"
+  F.originDomain req @?= (domainText . qDomain) qconvId
   let Just cmu = decodeStrict (F.body req)
   FederatedGalley.cmuOrigUserId cmu @?= remover
-  FederatedGalley.cmuConvId cmu @?= qconvId
+  FederatedGalley.cmuConvId cmu @?= qUnqualified qconvId
   sort (FederatedGalley.cmuAlreadyPresentUsers cmu) @?= sort alreadyPresentUsers
   FederatedGalley.cmuAction cmu @?= FederatedGalley.ConversationMembersActionRemove (pure victim)
 
