@@ -803,9 +803,9 @@ listConvs u req = do
       . zType "access"
       . json req
 
-getConv :: UserId -> ConvId -> TestM ResponseLBS
+getConv :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ConvId -> m ResponseLBS
 getConv u c = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["conversations", toByteString' c]
@@ -813,7 +813,7 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
-getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> Qualified ConvId -> m ResponseLBS
+getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Qualified ConvId -> m ResponseLBS
 getConvQualified u (Qualified conv domain) = do
   g <- viewGalley
   get $
@@ -842,6 +842,13 @@ listConvIds u paginationOpts = do
       . path "/conversations/list-ids"
       . zUser u
       . json paginationOpts
+
+-- | Does not page through conversation list
+listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
+listRemoteConvs remoteDomain uid = do
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
+  allConvs <- fmap pageConvIds . responseJsonError =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
 postQualifiedMembers zusr invitees conv = do
@@ -883,13 +890,35 @@ postMembersWithRole u us c r = do
       . zType "access"
       . json i
 
-deleteMember :: UserId -> UserId -> ConvId -> TestM ResponseLBS
-deleteMember u1 u2 c = do
+deleteMemberUnqualified :: HasCallStack => UserId -> UserId -> ConvId -> TestM ResponseLBS
+deleteMemberUnqualified u1 u2 c = do
   g <- view tsGalley
   delete $
     g
       . zUser u1
       . paths ["conversations", toByteString' c, "members", toByteString' u2]
+      . zConn "conn"
+      . zType "access"
+
+deleteMemberQualified ::
+  (HasCallStack, MonadIO m, MonadHttp m, HasGalley m) =>
+  UserId ->
+  Qualified UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified conv convDomain) = do
+  g <- viewGalley
+  delete $
+    g
+      . zUser u1
+      . paths
+        [ "conversations",
+          toByteString' convDomain,
+          toByteString' conv,
+          "members",
+          toByteString' u2Domain,
+          toByteString' u2
+        ]
       . zConn "conn"
       . zType "access"
 
@@ -1197,10 +1226,10 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 -- | This assumes the default role name
-wsAssertMemberJoin :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
+wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin
 
-wsAssertMemberJoinWithRole :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
+wsAssertMemberJoinWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1208,6 +1237,35 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
+
+-- FUTUREWORK: See if this one can be implemented in terms of:
+--
+-- checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
+--
+-- or if they can be combined in general.
+wsAssertMembersLeave ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Notification ->
+  IO ()
+wsAssertMembersLeave conv usr leaving n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  assertLeaveEvent conv usr leaving e
+
+assertLeaveEvent ::
+  Qualified ConvId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Event ->
+  IO ()
+assertLeaveEvent conv usr leaving e = do
+  evtConv e @?= conv
+  evtType e @?= Conv.MemberLeave
+  evtFrom e @?= usr
+  evtData e @?= EdMembersLeave (QualifiedUserIdList leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1240,16 +1298,16 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvMessageTimerUpdate new
 
-wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (EdMembersLeave (UserIdList old))
+  sorted (evtData e) @?= sorted (EdMembersLeave (QualifiedUserIdList old))
   where
-    sorted (EdMembersLeave (UserIdList m)) = EdMembersLeave (UserIdList (sort m))
+    sorted (EdMembersLeave (QualifiedUserIdList m)) = EdMembersLeave (QualifiedUserIdList (sort m))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
@@ -1258,6 +1316,15 @@ assertNoMsg ws f = do
   liftIO $ case x of
     Left _ -> return () -- expected
     Right _ -> assertFailure "Unexpected message"
+
+assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
+  F.path req @?= "/federation/update-conversation-memberships"
+  let Just cmu = decodeStrict (F.body req)
+  FederatedGalley.cmuOrigUserId cmu @?= remover
+  FederatedGalley.cmuConvId cmu @?= qconvId
+  sort (FederatedGalley.cmuAlreadyPresentUsers cmu) @?= sort alreadyPresentUsers
+  FederatedGalley.cmuAction cmu @?= FederatedGalley.ConversationMembersActionRemove (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1286,7 +1353,7 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event ConvCodeUpdate _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
-decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
+decodeConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = qUnqualified . cnvQualifiedId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
@@ -1919,8 +1986,7 @@ withTempMockFederator ::
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action =
-  withTempMockFederator' opts targetDomain (pure . oresp) action
+withTempMockFederator opts targetDomain resp = withTempMockFederator' opts targetDomain (pure . oresp)
   where
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
@@ -2089,15 +2155,49 @@ checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
 
-checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> UserId -> WS.WebSocket -> TestM ()
+checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
-    Conv.EdMembersLeave mm -> mm @?= Conv.UserIdList [usr]
+    Conv.EdMembersLeave mm -> mm @?= Conv.QualifiedUserIdList [usr]
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout
 checkTimeout = 3 # Second
+
+-- | The function is used in conjuction with 'withTempMockFederator' to mock
+-- responses by Brig on the mocked side of federation.
+mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Maybe Value
+mockedFederatedBrigResponse users req
+  | fmap F.component (F.request req) == Just F.Brig =
+    Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
+  | otherwise = Nothing
+
+-- | Combine two mocked services such that for a given request a JSON response
+-- is produced.
+joinMockedFederatedResponses ::
+  (F.FederatedRequest -> Maybe Value) ->
+  (F.FederatedRequest -> Maybe Value) ->
+  F.FederatedRequest ->
+  Value
+joinMockedFederatedResponses service1 service2 req =
+  fromMaybe (toJSON ()) (service1 req <|> service2 req)
+
+-- | Only Brig is mocked.
+onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Value
+onlyMockedFederatedBrigResponse users =
+  joinMockedFederatedResponses
+    (mockedFederatedBrigResponse users)
+    (const Nothing)
+
+fedRequestsForDomain :: HasCallStack => Domain -> F.Component -> [F.FederatedRequest] -> [F.Request]
+fedRequestsForDomain domain component =
+  map (fromJust . F.request)
+    . filter
+      ( \req ->
+          F.domain req == domainText domain
+            && fmap F.component (F.request req) == Just component
+      )

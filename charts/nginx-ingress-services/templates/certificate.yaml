@@ -36,7 +36,4 @@ spec:
     {{- if .Values.accountPages.enabled }}
     - {{ .Values.config.dns.accountPages }}
     {{- end }}
-    {{- if .Values.federator.enabled }}
-    - {{ .Values.config.dns.federator }}
-    {{- end }}
 {{- end -}}

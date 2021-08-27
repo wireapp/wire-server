@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -23,6 +21,7 @@ import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -37,9 +36,10 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError)
 import Wire.API.User.Client (UserClientMap)
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -68,6 +68,13 @@ data Api routes = Api
         :> "update-conversation-memberships"
         :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] (),
+    leaveConversation ::
+      routes
+        :- "federation"
+        :> "leave-conversation"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] LeaveConversationRequest
+        :> Post '[JSON] LeaveConversationResponse,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
     receiveMessage ::
@@ -129,6 +136,15 @@ data RegisterConversation = MkRegisterConversation
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
 
+-- | A conversation membership update, as given by ' ConversationMemberUpdate',
+-- can be either a member addition or removal.
+data ConversationMembersAction
+  = ConversationMembersActionAdd (NonEmpty (Qualified UserId, RoleName))
+  | ConversationMembersActionRemove (NonEmpty (Qualified UserId))
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
+
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTime :: UTCTime,
     cmuOrigUserId :: Qualified UserId,
@@ -138,18 +154,23 @@ data ConversationMemberUpdate = ConversationMemberUpdate
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.
     cmuAlreadyPresentUsers :: [UserId],
-    -- | Users that got added to the conversation.
-    cmuUsersAdd :: [(Qualified UserId, RoleName)],
-    -- | Users that got removed from the conversation. This should probably be
-    -- Qualified, but as of now this is a stub.
-    --
-    -- FUTUREWORK: Implement this when supporting removal of remote conversation
-    -- members.
-    cmuUsersRemove :: [UserId]
+    -- | Users that got either added to or removed from the conversation.
+    cmuAction :: ConversationMembersAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+
+data LeaveConversationRequest = LeaveConversationRequest
+  { -- | The conversation is assumed to be owned by the target domain, which
+    -- allows us to protect against relay attacks
+    lcConvId :: ConvId,
+    -- | The leaver is assumed to be owned by the origin domain, which allows us
+    -- to protect against spoofing attacks
+    lcLeaver :: UserId
+  }
+  deriving stock (Generic, Eq, Show)
+  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversationRequest)
 
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
@@ -192,6 +213,13 @@ newtype MessageSendResponse = MessageSendResponse
             (CustomEncoded (MessageNotSent MessageSendingStatus))
             MessageSendingStatus
         )
+
+newtype LeaveConversationResponse = LeaveConversationResponse
+  {leaveResponse :: Either RemoveFromConversationError ()}
+  deriving stock (Eq, Show)
+  deriving
+    (ToJSON, FromJSON)
+    via (Either (CustomEncoded RemoveFromConversationError) ())
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Galley m))
 clientRoutes = genericClient

@@ -224,14 +224,49 @@ federator:
 ### Federation TLS Config
 
 When a federator connects with another federator, it does so over HTTPS. There
-are two options to configure the CA for this:
+are a few options to configure the CA for this:
 1. `useSystemCAStore`: Boolean. If set to `True` it will use the system CA.
-1. `remoteCAStore`: Maybe Filepath. This config option can be used to specify
+2. `remoteCAStore`: Maybe Filepath. This config option can be used to specify
    multiple certificates from either a single file (multiple PEM formatted
    certificates concatenated) or directory (one certificate per file, file names
    are hashes from certificate).
+3. `clientCertificate`: Maybe Filepath. A client certificate to use when
+   connecting to remote federators. If this option is omitted, no client
+   certificate is used. If it is provided, then the `clientPrivateKey` option
+   (see below) must be provided as well.
+4. `clientPrivateKey`: Maybe Filepath. The private key corresponding to the
+   `clientCertificate` option above. It is an error to provide only a private key
+   without the corresponding certificate.
 
-Both of these options can be specified, in this case the stores are concatenated
-and used for verifying certificates. When `useSystemCAStore` is `False` and
-`remoteCAStore` is not set, then all outbound connections will fail with TLS
-error as there will be no CA to verify.
+Both the `useSystemCAStore` and `remoteCAStore` options can be specified, in
+which case the stores are concatenated and used for verifying certificates.
+When `useSystemCAStore` is set to `false` and `remoteCAStore` is not provided,
+all outbound connections will fail with a TLS error as there will be no CA for
+verifying the server certificate.
+
+#### Examples
+
+Federate with anyone, no client certificates, use system CA store to verify
+server certificates:
+
+```yaml
+federator:
+  optSettings:
+    federationStrategy:
+      allowAll:
+    useSystemCAStore: true
+```
+
+Federate only with `server2.example.com`, use a client certificate and a
+specific CA:
+
+```yaml
+federator:
+  optSettings:
+    federationStrategy:
+      allowedDomains:
+        - server2.example.com
+    useSystemCAStore: false
+    clientCertificate: client.pem
+    clientPrivateKey: client-key.pem
+```

@@ -29,13 +29,13 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)

@@ -53,6 +53,11 @@ federatorExternal:
   host: 127.0.0.1
   port: 8098
 
+# This domain is configured using coredns runing along with the rest of
+# docker-ephemeral setup. There is only an SRV record for
+# _wire-server-federator._tcp.example.com
+originDomain: example.com
+
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem

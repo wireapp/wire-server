@@ -19,7 +19,6 @@
 
 module Brig.Data.Connection
   ( module T,
-    connectUsers,
     insertConnection,
     updateConnection,
     lookupConnection,
@@ -49,20 +48,6 @@ import Data.Time (getCurrentTime)
 import Imports
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Connection
-
-connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
-connectUsers from to = do
-  now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency Quorum
-    forM_ to $ \(u, c) -> do
-      addPrepQuery connectionInsert (from, u, AcceptedWithHistory, now, Nothing, c)
-      addPrepQuery connectionInsert (u, from, AcceptedWithHistory, now, Nothing, c)
-  return . concat . (`map` to) $ \(u, c) ->
-    [ UserConnection from u Accepted now Nothing (Just c),
-      UserConnection u from Accepted now Nothing (Just c)
-    ]
 
 insertConnection ::
   -- | From

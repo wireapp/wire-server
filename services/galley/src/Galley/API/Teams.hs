@@ -352,7 +352,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (c ^. conversationId) localDomain
           qorig = Qualified zusr localDomain
-      (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
+      (bots, convMembs) <- localBotsAndUsers <$> Data.members (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
@@ -715,7 +715,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
-      let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
+      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
       push1 $ newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
@@ -724,8 +724,9 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       -- This may not make sense if that list has been truncated. In such cases, we still want to
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
+      localDomain <- viewFederationDomain
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
+      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [Qualified remove localDomain])
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
         Data.conversation (c ^. conversationId) >>= \conv ->
@@ -739,7 +740,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (Data.convId dc) localDomain
           qusr = Qualified zusr localDomain
-      let (bots, users) = botsAndUsers (Data.convLocalMembers dc)
+      let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPushLocal (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
@@ -765,8 +766,8 @@ deleteTeamConversation zusr zcon tid cid = do
   localDomain <- viewFederationDomain
   let qconvId = Qualified cid localDomain
       qusr = Qualified zusr localDomain
-  (bots, cmems) <- botsAndUsers <$> Data.members cid
-  ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
+  (bots, cmems) <- localBotsAndUsers <$> Data.members cid
+  ensureActionAllowedThrowing Roles.DeleteConversation =<< getSelfMemberFromLocalsLegacy zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete

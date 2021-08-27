@@ -1,0 +1,32 @@
+module Test.Wire.API.Federation.Golden.LeaveConversationResponse where
+
+import Imports
+import Wire.API.Federation.API.Galley (LeaveConversationResponse (LeaveConversationResponse))
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..))
+
+testObject_LeaveConversationResponse1 :: LeaveConversationResponse
+testObject_LeaveConversationResponse1 = LeaveConversationResponse $ Right ()
+
+testObject_LeaveConversationResponse2 :: LeaveConversationResponse
+testObject_LeaveConversationResponse2 = LeaveConversationResponse $ Left RemoveFromConversationErrorRemovalNotAllowed
+
+testObject_LeaveConversationResponse3 :: LeaveConversationResponse
+testObject_LeaveConversationResponse3 = LeaveConversationResponse $ Left RemoveFromConversationErrorManagedConvNotAllowed
+
+testObject_LeaveConversationResponse4 :: LeaveConversationResponse
+testObject_LeaveConversationResponse4 = LeaveConversationResponse $ Left RemoveFromConversationErrorNotFound
+
+testObject_LeaveConversationResponse5 :: LeaveConversationResponse
+testObject_LeaveConversationResponse5 = LeaveConversationResponse $ Left RemoveFromConversationErrorCustomRolesNotSupported
+
+testObject_LeaveConversationResponse6 :: LeaveConversationResponse
+testObject_LeaveConversationResponse6 = LeaveConversationResponse $ Left RemoveFromConversationErrorSelfConv
+
+testObject_LeaveConversationResponse7 :: LeaveConversationResponse
+testObject_LeaveConversationResponse7 = LeaveConversationResponse $ Left RemoveFromConversationErrorOne2OneConv
+
+testObject_LeaveConversationResponse8 :: LeaveConversationResponse
+testObject_LeaveConversationResponse8 = LeaveConversationResponse $ Left RemoveFromConversationErrorConnectConv
+
+testObject_LeaveConversationResponse9 :: LeaveConversationResponse
+testObject_LeaveConversationResponse9 = LeaveConversationResponse $ Left RemoveFromConversationErrorUnchanged

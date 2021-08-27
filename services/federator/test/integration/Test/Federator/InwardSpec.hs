@@ -21,12 +21,16 @@ import Bilge
 import Control.Lens (view)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import qualified Data.Text as Text
+import Federator.Options
 import Imports
 import Mu.GRpc.Client.TyApps
+import Network.GRPC.Client.Helpers
+import qualified Network.HTTP.Types as HTTP
 import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
@@ -93,6 +97,19 @@ spec env =
         err <- asInwardErrorUnsafe <$> inwardBrigCall "federation/../i/users" (encode o)
         expectErr IForbiddenEndpoint err
 
+    -- Matching client certificates against domain names is better tested in
+    -- unit tests.
+    it "should reject requests without a client certificate" $
+      runTestFederator env $ do
+        brig <- view teBrig <$> ask
+        user <- randomUser brig
+        hdl <- randomHandle
+        _ <- putHandle brig (userId user) hdl
+
+        client <- viewFederatorExternalClientWithoutCert
+        err <- asInwardError =<< inwardBrigCallWithClient client "federation/get-user-by-handle" (encode hdl)
+        expectErr IAuthenticationFailed err
+
 -- Utility functions
 --
 expectErr :: InwardErrorType -> InwardError -> TestFederator IO ()
@@ -104,19 +121,38 @@ expectErr expectedType err =
 inwardBrigCall :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
 inwardBrigCall requestPath payload = do
   c <- viewFederatorExternalClient
+  inwardBrigCallWithClient c requestPath payload
+
+inwardBrigCallWithClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => GrpcClient -> ByteString -> LBS.ByteString -> m (GRpcReply InwardResponse)
+inwardBrigCallWithClient c requestPath payload = do
+  originDomain <- cfgOriginDomain <$> view teTstOpts
   let brigCall =
         GRPC.Request
           { GRPC.component = Brig,
             GRPC.path = requestPath,
             GRPC.body = LBS.toStrict payload,
-            GRPC.originDomain = "foo.example.com"
+            GRPC.originDomain = originDomain
           }
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
 viewFederatorExternalClient :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
 viewFederatorExternalClient = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
-  client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  exampleCert <- liftIO . BS.readFile . clientCertificate . optSettings =<< view teOpts
+  let cfg =
+        (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+          { _grpcClientConfigHeaders = [("X-SSL-Certificate", HTTP.urlEncode True exampleCert)]
+          }
+  client <- createGrpcClient cfg
+  case client of
+    Left clientErr -> liftIO $ assertFailure (show clientErr)
+    Right cli -> pure cli
+
+viewFederatorExternalClientWithoutCert :: (MonadIO m, MonadHttp m, MonadReader TestEnv m, HasCallStack) => m GrpcClient
+viewFederatorExternalClientWithoutCert = do
+  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  let cfg = grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False
+  client <- createGrpcClient cfg
   case client of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli

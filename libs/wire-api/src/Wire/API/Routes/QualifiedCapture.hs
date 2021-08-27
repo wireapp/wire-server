@@ -44,7 +44,7 @@ data QualifiedCapture' (mods :: [*]) (capture :: Symbol) (a :: *)
 type QualifiedCapture capture a = QualifiedCapture' '[] capture a
 
 type WithDomain mods capture a api =
-  Capture "domain" Domain
+  Capture (AppendSymbol capture "_domain") Domain
     :> Capture' mods capture a
     :> api
 
@@ -53,6 +53,7 @@ instance
     ToParamSchema a,
     HasSwagger api,
     KnownSymbol capture,
+    KnownSymbol (AppendSymbol capture "_domain"),
     KnownSymbol (FoldDescription mods)
   ) =>
   HasSwagger (QualifiedCapture' mods capture a :> api)
@@ -64,6 +65,7 @@ instance
     FromHttpApiData a,
     HasServer api context,
     SBoolI (FoldLenient mods),
+    KnownSymbol (AppendSymbol capture "_domain"),
     HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters
   ) =>
   HasServer (QualifiedCapture' mods capture a :> api) context
@@ -80,7 +82,11 @@ instance
       qualify handler domain value = handler (Qualified value domain)
 
 instance
-  (KnownSymbol capture, ToHttpApiData a, HasClient m api) =>
+  ( KnownSymbol capture,
+    ToHttpApiData a,
+    HasClient m api,
+    KnownSymbol (AppendSymbol capture "_domain")
+  ) =>
   HasClient m (QualifiedCapture' mods capture a :> api)
   where
   type

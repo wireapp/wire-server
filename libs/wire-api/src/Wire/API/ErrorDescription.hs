@@ -1,13 +1,13 @@
 module Wire.API.ErrorDescription where
 
-import Control.Lens (at, ix, over, (%~), (.~), (<>~), (?~))
-import Control.Lens.Combinators (_Just)
+import Control.Lens (at, (%~), (.~), (<>~), (?~))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
 import Data.Swagger (Swagger)
-import qualified Data.Swagger as Swagger
+import qualified Data.Swagger as S
+import qualified Data.Swagger.Declare as S
 import qualified Data.Text as Text
 import GHC.TypeLits (KnownSymbol, Symbol, natVal, symbolVal)
 import GHC.TypeNats (Nat)
@@ -51,51 +51,23 @@ errorDescriptionAddToSwagger ::
   Swagger ->
   Swagger
 errorDescriptionAddToSwagger =
-  over (Swagger.paths . traverse) overridePathItem
+  (S.allOperations . S.responses . S.responses . at status %~ Just . addRef)
+    . (S.definitions <>~ defs)
   where
-    addRef ::
-      Maybe (Swagger.Referenced Swagger.Response) ->
-      Maybe (Swagger.Referenced Swagger.Response)
-    addRef Nothing =
-      Just . Swagger.Inline $
-        mempty
-          & Swagger.description .~ desc
-          & Swagger.schema ?~ Swagger.Inline (Swagger.toSchema (Proxy @(ErrorDescription code label desc)))
-    addRef (Just response) =
-      Just $
-        response
-          -- add the description of this error to the response description
-          & Swagger._Inline . Swagger.description
-            <>~ ("\n\n" <> desc)
-          -- add the label of this error to the possible values of the corresponding enum
-          & Swagger._Inline . Swagger.schema . _Just . Swagger._Inline . Swagger.properties . ix "label" . Swagger._Inline . Swagger.enum_ . _Just
-            <>~ [A.toJSON (symbolVal (Proxy @label))]
+    addRef :: Maybe (S.Referenced S.Response) -> S.Referenced S.Response
+    addRef Nothing = S.Inline resp
+    addRef (Just (S.Inline resp1)) = S.Inline (combineResponseSwagger resp1 resp)
+    addRef (Just r@(S.Ref _)) = r
 
-    desc =
-      Text.pack (symbolVal (Proxy @desc))
-        <> " (label: `"
-        <> Text.pack (symbolVal (Proxy @label))
-        <> "`)"
-
-    overridePathItem :: Swagger.PathItem -> Swagger.PathItem
-    overridePathItem =
-      over (Swagger.get . _Just) overrideOp
-        . over (Swagger.post . _Just) overrideOp
-        . over (Swagger.put . _Just) overrideOp
-        . over (Swagger.head_ . _Just) overrideOp
-        . over (Swagger.patch . _Just) overrideOp
-        . over (Swagger.delete . _Just) overrideOp
-        . over (Swagger.options . _Just) overrideOp
-    overrideOp :: Swagger.Operation -> Swagger.Operation
-    overrideOp =
-      Swagger.responses . Swagger.responses . at (fromInteger $ natVal (Proxy @code))
-        %~ addRef
+    status = fromInteger (natVal (Proxy @code))
+    (defs, resp) =
+      S.runDeclare (responseSwagger @(ErrorDescription code label desc)) mempty
 
 -- FUTUREWORK: Ponder about elevating label and messge to the type level. If all
 -- errors are static, there is probably no point in having them at value level.
 data ErrorDescription (statusCode :: Nat) (label :: Symbol) (desc :: Symbol) = ErrorDescription {edMessage :: Text}
   deriving stock (Show, Typeable)
-  deriving (A.ToJSON, A.FromJSON, Swagger.ToSchema) via Schema (ErrorDescription statusCode label desc)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (ErrorDescription statusCode label desc)
 
 instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSchema (ErrorDescription statusCode label desc) where
   schema =
@@ -110,7 +82,7 @@ instance (KnownStatus statusCode, KnownSymbol label, KnownSymbol desc) => ToSche
       code = natVal (Proxy @statusCode)
       desc = Text.pack (symbolVal (Proxy @desc))
       addExample =
-        Swagger.schema . Swagger.example
+        S.schema . S.example
           ?~ A.toJSON (ErrorDescription @statusCode @label @desc desc)
       labelSchema :: ValueSchema SwaggerDoc Text
       labelSchema = unnamed $ enum @Text "Label" (element label label)
@@ -149,7 +121,17 @@ instance
   (KnownStatus s, KnownSymbol label, KnownSymbol desc) =>
   IsSwaggerResponse (ErrorDescription s label desc)
   where
-  responseSwagger = responseSwagger @(RespondWithErrorDescription s label desc)
+  responseSwagger =
+    pure $
+      mempty
+        & S.description .~ desc
+        & S.schema ?~ S.Inline (S.toSchema (Proxy @(ErrorDescription s label desc)))
+    where
+      desc =
+        Text.pack (symbolVal (Proxy @desc))
+          <> " (label: `"
+          <> Text.pack (symbolVal (Proxy @label))
+          <> "`)"
 
 instance
   (ResponseType r ~ a, KnownSymbol desc) =>
@@ -193,14 +175,11 @@ instance
   where
   responseSwagger =
     pure $
-      ResponseSwagger
-        { rsDescription =
-            Text.pack (symbolVal (Proxy @desc)) <> "\n\n"
-              <> "**Note**: This error has an empty body for legacy reasons",
-          rsStatus = statusVal (Proxy @s),
-          rsHeaders = mempty,
-          rsSchema = Nothing
-        }
+      mempty
+        & S.description
+          .~ ( Text.pack (symbolVal (Proxy @desc))
+                 <> "(**Note**: This error has an empty body for legacy reasons)"
+             )
 
 instance
   ( ResponseType r ~ a,
@@ -261,6 +240,11 @@ actionDenied a =
   ErrorDescription $
     "Insufficient authorization (missing " <> Text.pack (show a) <> ")"
 
+type ConvMemberRemovalDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
+
+convMemberRemovalDenied :: ConvMemberRemovalDenied
+convMemberRemovalDenied = ErrorDescription "Insufficient authorization, cannot remove member from conversation"
+
 type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation code not found"
 
 codeNotFound :: CodeNotFound
@@ -309,3 +293,45 @@ type MissingLegalholdConsent =
 
 missingLegalholdConsent :: MissingLegalholdConsent
 missingLegalholdConsent = mkErrorDescription
+
+type ManagedRemovalNotAllowed =
+  ErrorDescription
+    403
+    "invalid-op"
+    "Users can not be removed from managed conversations."
+
+managedRemovalNotAllowed :: ManagedRemovalNotAllowed
+managedRemovalNotAllowed = mkErrorDescription
+
+type CustomRolesNotSupported =
+  ErrorDescription
+    400
+    "bad-request"
+    "Custom roles not supported"
+
+customRolesNotSupported :: CustomRolesNotSupported
+customRolesNotSupported = mkErrorDescription
+
+type InvalidOp desc =
+  ErrorDescription
+    403
+    "invalid-op"
+    desc
+
+invalidOpErrorDesc :: KnownSymbol desc => proxy desc -> InvalidOp desc
+invalidOpErrorDesc = ErrorDescription . Text.pack . symbolVal
+
+type InvalidOpSelfConv = InvalidOp "invalid operation for self conversation"
+
+invalidOpSelfConv :: InvalidOpSelfConv
+invalidOpSelfConv = mkErrorDescription
+
+type InvalidOpOne2OneConv = InvalidOp "invalid operation for 1:1 conversations"
+
+invalidOpOne2OneConv :: InvalidOpOne2OneConv
+invalidOpOne2OneConv = mkErrorDescription
+
+type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversation"
+
+invalidOpConnectConv :: InvalidOpConnectConv
+invalidOpConnectConv = mkErrorDescription

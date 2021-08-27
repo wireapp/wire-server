@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9152de17654638a8439538e5d42de1b136055ce828561a44f3ca3e3b3d28fdba
+-- hash: 2e4bca56fcdff432834ff4ef0e7678b73cafc509219dd2b1b0f6308dca6a2588
 
 name:           wire-api
 version:        0.1.0
@@ -52,6 +52,7 @@ library
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
       Wire.API.Routes.Public.Galley
+      Wire.API.Routes.Public.Galley.Responses
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
       Wire.API.Routes.QualifiedCapture
@@ -85,6 +86,7 @@ library
       Wire.API.User.Scim
       Wire.API.User.Search
       Wire.API.UserMap
+      Wire.API.Util.Aeson
       Wire.API.Wrapped
   other-modules:
       Paths_wire_api
@@ -385,7 +387,6 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.UserConnectionList_user
       Test.Wire.API.Golden.Generated.UserHandleInfo_user
       Test.Wire.API.Golden.Generated.UserIdentity_user
-      Test.Wire.API.Golden.Generated.UserIdList_user
       Test.Wire.API.Golden.Generated.UserLegalHoldStatusResponse_team
       Test.Wire.API.Golden.Generated.UserProfile_user
       Test.Wire.API.Golden.Generated.UserSSOId_user
@@ -406,6 +407,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+      Test.Wire.API.Golden.Manual.UserIdList
       Test.Wire.API.Golden.Protobuf
       Test.Wire.API.Golden.Runner
       Test.Wire.API.Roundtrip.Aeson

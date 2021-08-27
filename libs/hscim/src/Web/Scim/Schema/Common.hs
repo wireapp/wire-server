@@ -25,7 +25,6 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.Char as Char
 import qualified Data.HashMap.Lazy as HML
 import qualified Data.HashMap.Strict as HM
-import Data.String (IsString)
 import Data.String.Conversions (cs)
 import Data.Text hiding (dropWhile)
 import qualified Network.URI as Network
@@ -69,7 +68,7 @@ instance FromJSON ScimBool where
       _ -> fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> cs str
   parseJSON bad = fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> show bad
 
-toKeyword :: (IsString p, Eq p) => p -> p
+toKeyword :: String -> String
 toKeyword "typ" = "type"
 toKeyword "ref" = "$ref"
 toKeyword other = other
@@ -81,20 +80,20 @@ serializeOptions =
       fieldLabelModifier = toKeyword
     }
 
--- | Turn all keys in a JSON object to lowercase.
-jsonLower :: Value -> Value
-jsonLower (Object o) = Object . HM.fromList . fmap lowerPair . HM.toList $ o
-  where
-    lowerPair (key, val) = (fromKeyword . toLower $ key, val)
-jsonLower x = x
-
-fromKeyword :: (IsString p, Eq p) => p -> p
-fromKeyword "type" = "typ"
-fromKeyword "$ref" = "ref"
-fromKeyword other = other
-
 parseOptions :: Options
 parseOptions =
   defaultOptions
-    { fieldLabelModifier = fmap Char.toLower
+    { fieldLabelModifier = toKeyword . fmap Char.toLower
     }
+
+-- | Turn all keys in a JSON object to lowercase recursively.  This is applied to the aeson
+-- 'Value' to be parsed; 'parseOptions' is applied to the keys passed to '(.:)' etc.
+--
+-- (FUTUREWORK: The "recursively" part is a bit of a waste and could be dropped, but we would
+-- have to spend more effort in making sure it is always called manually in nested parsers.)
+jsonLower :: Value -> Value
+jsonLower (Object o) = Object . HM.fromList . fmap lowerPair . HM.toList $ o
+  where
+    lowerPair (key, val) = (toLower key, jsonLower val)
+jsonLower (Array x) = Array (jsonLower <$> x)
+jsonLower x = x

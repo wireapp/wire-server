@@ -32,10 +32,10 @@ module Wire.API.Routes.MultiVerb
     ResponseType,
     IsResponse (..),
     IsSwaggerResponse (..),
+    combineResponseSwagger,
     RenderOutput (..),
     roAddContentType,
     roResponse,
-    ResponseSwagger (..),
     ResponseTypes,
     IsResponseList (..),
   )
@@ -46,6 +46,7 @@ import Control.Lens hiding (Context)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Containers.ListUtils
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Proxy
 import Data.SOP
 import qualified Data.Sequence as Seq
@@ -81,13 +82,6 @@ data Respond (s :: Nat) (desc :: Symbol) (a :: *)
 --
 -- Includes status code and description.
 data RespondEmpty (s :: Nat) (desc :: Symbol)
-
-data ResponseSwagger = ResponseSwagger
-  { rsDescription :: Text,
-    rsStatus :: Status,
-    rsHeaders :: InsOrdHashMap S.HeaderName S.Header,
-    rsSchema :: Maybe (S.Referenced S.Schema)
-  }
 
 data RenderOutput = RenderOutput
   { roStatus :: Status,
@@ -131,7 +125,7 @@ instance MonadPlus UnrenderResult where
   mplus m@(UnrenderSuccess _) _ = m
 
 class IsSwaggerResponse a where
-  responseSwagger :: Declare ResponseSwagger
+  responseSwagger :: Declare S.Response
 
 type family ResponseType a :: *
 
@@ -173,12 +167,12 @@ instance
   (KnownStatus s, KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (Respond s desc a)
   where
-  responseSwagger =
-    ResponseSwagger desc status mempty . Just
-      <$> S.declareSchemaRef (Proxy @a)
-    where
-      desc = Text.pack (symbolVal (Proxy @desc))
-      status = statusVal (Proxy @s)
+  responseSwagger = do
+    ref <- S.declareSchemaRef (Proxy @a)
+    pure $
+      mempty
+        & S.description .~ Text.pack (symbolVal (Proxy @desc))
+        & S.schema ?~ ref
 
 type instance ResponseType (RespondEmpty s desc) = ()
 
@@ -200,10 +194,10 @@ instance KnownStatus s => IsResponse cs (RespondEmpty s desc) where
       )
 
 instance (KnownStatus s, KnownSymbol desc) => IsSwaggerResponse (RespondEmpty s desc) where
-  responseSwagger = pure $ ResponseSwagger desc status mempty Nothing
-    where
-      desc = Text.pack (symbolVal (Proxy @desc))
-      status = statusVal (Proxy @s)
+  responseSwagger =
+    pure $
+      mempty
+        & S.description .~ Text.pack (symbolVal (Proxy @desc))
 
 -- | This type adds response headers to a 'MultiVerb' response.
 --
@@ -281,11 +275,11 @@ instance
   where
   responseSwagger =
     fmap
-      (\rs -> rs {rsHeaders = toAllResponseHeaders (Proxy @hs)})
+      (S.headers .~ toAllResponseHeaders (Proxy @hs))
       (responseSwagger @r)
 
 class IsSwaggerResponseList as where
-  responseListSwagger :: Declare [ResponseSwagger]
+  responseListSwagger :: Declare (InsOrdHashMap S.HttpStatusCode S.Response)
 
 type family ResponseTypes (as :: [*]) where
   ResponseTypes '[] = '[]
@@ -303,7 +297,7 @@ instance IsResponseList cs '[] where
   responseListStatuses = []
 
 instance IsSwaggerResponseList '[] where
-  responseListSwagger = pure []
+  responseListSwagger = pure mempty
 
 instance
   ( IsResponse cs a,
@@ -322,10 +316,33 @@ instance
   responseListStatuses = statusVal (Proxy @(ResponseStatus a)) : responseListStatuses @cs @as
 
 instance
-  (IsSwaggerResponse a, IsSwaggerResponseList as) =>
+  ( IsSwaggerResponse a,
+    KnownNat (ResponseStatus a),
+    IsSwaggerResponseList as
+  ) =>
   IsSwaggerResponseList (a ': as)
   where
-  responseListSwagger = (:) <$> responseSwagger @a <*> responseListSwagger @as
+  responseListSwagger =
+    InsOrdHashMap.insertWith
+      combineResponseSwagger
+      (fromIntegral (natVal (Proxy @(ResponseStatus a))))
+      <$> responseSwagger @a
+      <*> responseListSwagger @as
+
+combineResponseSwagger :: S.Response -> S.Response -> S.Response
+combineResponseSwagger r1 r2 =
+  r1
+    & S.description <>~ ("\n\n" <> r2 ^. S.description)
+    & S.schema . _Just . S._Inline %~ flip combineSwaggerSchema (r2 ^. S.schema . _Just . S._Inline)
+
+combineSwaggerSchema :: S.Schema -> S.Schema -> S.Schema
+combineSwaggerSchema s1 s2
+  -- if they are both errors, merge label enums
+  | notNullOf (S.properties . ix "code") s1
+      && notNullOf (S.properties . ix "code") s2 =
+    s1 & S.properties . ix "label" . S._Inline . S.enum_ . _Just
+      <>~ (s2 ^. S.properties . ix "label" . S._Inline . S.enum_ . _Just)
+  | otherwise = s1
 
 -- | This type can be used in Servant to produce an endpoint which can return
 -- multiple values with various content types and status codes. It is similar to
@@ -524,22 +541,13 @@ instance
                & method
                  ?~ ( mempty
                         & S.produces ?~ S.MimeList (nubOrd cs)
-                        & S.responses .~ foldr addResponse mempty responses
+                        & S.responses . S.responses .~ fmap S.Inline responses
                     )
            )
     where
       method = S.swaggerMethod (Proxy @method)
       cs = allMime (Proxy @cs)
       (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
-      addResponse :: ResponseSwagger -> S.Responses -> S.Responses
-      addResponse response =
-        at (statusCode (rsStatus response))
-          .~ (Just . S.Inline)
-            ( mempty
-                & S.description .~ rsDescription response
-                & S.schema .~ rsSchema response
-                & S.headers .~ rsHeaders response
-            )
 
 roResponse :: RenderOutput -> Wai.Response
 roResponse ro = Wai.responseLBS (roStatus ro) (roHeaders ro) (roBody ro)

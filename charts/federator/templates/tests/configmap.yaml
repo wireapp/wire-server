@@ -19,3 +19,4 @@ data:
     nginxIngress:
       host: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
       port: 443
+    originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local

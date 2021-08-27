@@ -36,6 +36,7 @@ import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Test.FilterSpec (genAttrPath, genSubAttr, genValuePath)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy, xit)
+import Test.Schema.Util (mk_prop_caseInsensitive)
 import Web.Scim.AttrName (AttrName (..))
 import Web.Scim.Filter (AttrPath (..), CompValue (ValNull), CompareOp (OpEq), Filter (..), ValuePath (..))
 import Web.Scim.Schema.PatchOp
@@ -50,6 +51,9 @@ isSuccess (Error _) = False
 
 genPatchOp :: forall tag. UserTypes tag => Gen Value -> Gen (PatchOp tag)
 genPatchOp genValue = PatchOp <$> Gen.list (Range.constant 0 20) ((genOperation @tag) genValue)
+
+genSimplePatchOp :: forall tag. UserTypes tag => Gen (PatchOp tag)
+genSimplePatchOp = genPatchOp @tag (String <$> Gen.text (Range.constant 0 20) Gen.unicode)
 
 genOperation :: forall tag. UserTypes tag => Gen Value -> Gen Operation
 genOperation genValue = Operation <$> Gen.enumBounded <*> Gen.maybe (genPath @tag) <*> Gen.maybe genValue
@@ -71,7 +75,7 @@ prop_roundtrip_PatchOp = property $ do
   -- Just some strings for now. However, should be constrained to what the
   -- PatchOp is operating on in the future... We need better typed PatchOp for
   -- this. TODO(arianvp)
-  x <- forAll (genPatchOp @tag (String <$> Gen.text (Range.constant 0 20) Gen.unicode))
+  x <- forAll (genSimplePatchOp @tag)
   tripping x toJSON fromJSON
 
 type PatchTestTag = TestTag () () () ()
@@ -115,6 +119,7 @@ spec = do
     --TODO(arianvp): We don't support arbitrary path names (yet)
     it "roundtrips Path" $ require $ prop_roundtrip @PatchTestTag
     it "roundtrips PatchOp" $ require $ prop_roundtrip_PatchOp @PatchTestTag
+    it "case-insensitive" $ require $ mk_prop_caseInsensitive (genSimplePatchOp @PatchTestTag)
     it "rejects invalid operations" $ do
       fromJSON @(PatchOp PatchTestTag)
         [scim| {
