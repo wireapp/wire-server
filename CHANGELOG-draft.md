@@ -32,7 +32,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## API Changes
 
 * Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
-* Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
+* Add `DELETE /conversations/:domain/:cnv/members/:domain/:usr` (#1697)
 
 ## Features
 
