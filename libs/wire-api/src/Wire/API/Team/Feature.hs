@@ -35,6 +35,10 @@ module Wire.API.Team.Feature
     defaultClassifiedDomains,
 
     -- * Swagger
+
+    -- This is used in:
+    -- - this packge: in Wire.API.Swagger in 'models'
+    -- - Stern: in Stern.Swagger in 'sternModels', in Stern.API in a few places
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
     modelTeamFeatureStatusNoConfig,
