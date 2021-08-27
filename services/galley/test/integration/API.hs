@@ -42,6 +42,7 @@ import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Code as Code
 import Data.Domain (Domain (Domain), domainText)
 import Data.Id
@@ -157,9 +158,15 @@ tests s =
           test s "add deleted remote members" testAddDeletedRemoteUser,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
-          test s "remove members" deleteMembersOk,
-          test s "fail to remove members from self conv." deleteMembersFailSelf,
-          test s "fail to remove members from 1:1 conv." deleteMembersFailO2O,
+          test s "delete conversations/:cnv/members/:usr - success" deleteMembersUnqualifiedOk,
+          test s "delete conversations/:cnv/members/:usr - fail, self conv" deleteMembersUnqualifiedFailSelf,
+          test s "delete conversations/:cnv/members/:usr - fail, 1:1 conv" deleteMembersUnqualifiedFailO2O,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove local user, fail" removeLocalMemberConvQualifiedFail,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove remote user, fail" removeRemoteMemberConvQualifiedFail,
           test s "rename conversation" putConvRenameOk,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
@@ -211,6 +218,7 @@ emptyFederatedGalley =
         { FederatedGalley.registerConversation = \_ -> e "registerConversation",
           FederatedGalley.getConversations = \_ -> e "getConversations",
           FederatedGalley.updateConversationMemberships = \_ -> e "updateConversationMemberships",
+          FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
         }
@@ -1100,7 +1108,7 @@ postConvertTeamConv = do
     -- non-team members get kicked out
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qalice [eve, mallory]
+        wsAssertMemberLeave qconv qalice $ (`Qualified` localDomain) <$> [eve, mallory]
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -1290,8 +1298,7 @@ paginateConvListIds = do
               FederatedGalley.cmuOrigUserId = qChad,
               FederatedGalley.cmuConvId = Qualified conv chadDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
@@ -1306,8 +1313,7 @@ paginateConvListIds = do
               FederatedGalley.cmuOrigUserId = qDee,
               FederatedGalley.cmuConvId = Qualified conv deeDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
@@ -1350,8 +1356,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cmuOrigUserId = qChad,
               FederatedGalley.cmuConvId = Qualified conv chadDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
@@ -1367,8 +1372,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cmuOrigUserId = qDee,
               FederatedGalley.cmuConvId = Qualified conv deeDomain,
               FederatedGalley.cmuAlreadyPresentUsers = [],
-              FederatedGalley.cmuUsersAdd = [(qAlice, roleNameWireMember)],
-              FederatedGalley.cmuUsersRemove = []
+              FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
     FederatedGalley.updateConversationMemberships fedGalleyClient cmu
 
@@ -1777,7 +1781,7 @@ leaveConnectConversation = do
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
-  deleteMember alice alice c !!! const 403 === statusCode
+  deleteMemberUnqualified alice alice c !!! const 403 === statusCode
 
 -- FUTUREWORK: Add more tests for scenarios of federation.
 -- See also the comment in Galley.API.Update.addMembers for some other checks that are necessary.
@@ -2022,7 +2026,7 @@ postMembersOk3 = do
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Bob leaves
-  deleteMember bob bob conv !!! const 200 === statusCode
+  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
   -- Fetch bob
   getSelfMember bob conv !!! const 200 === statusCode
   -- Alice re-adds Bob to the conversation
@@ -2064,35 +2068,221 @@ postTooManyMembersFail = do
     const 403 === statusCode
     const (Just "too-many-members") === fmap label . responseJsonUnsafe
 
-deleteMembersOk :: TestM ()
-deleteMembersOk = do
+deleteMembersUnqualifiedOk :: TestM ()
+deleteMembersUnqualifiedOk = do
   alice <- randomUser
   bob <- randomUser
   eve <- randomUser
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-  deleteMember bob bob conv !!! const 200 === statusCode
-  deleteMember bob bob conv !!! const 404 === statusCode
+  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
+  deleteMemberUnqualified bob bob conv !!! const 404 === statusCode
   -- if conversation still exists, don't respond with 404, but with 403.
   getConv bob conv !!! const 403 === statusCode
-  deleteMember alice eve conv !!! const 200 === statusCode
-  deleteMember alice eve conv !!! const 204 === statusCode
-  deleteMember alice alice conv !!! const 200 === statusCode
-  deleteMember alice alice conv !!! const 404 === statusCode
+  deleteMemberUnqualified alice eve conv !!! const 200 === statusCode
+  deleteMemberUnqualified alice eve conv !!! const 204 === statusCode
+  deleteMemberUnqualified alice alice conv !!! const 200 === statusCode
+  deleteMemberUnqualified alice alice conv !!! const 404 === statusCode
 
-deleteMembersFailSelf :: TestM ()
-deleteMembersFailSelf = do
+-- Creates a conversation with three users from the same domain. Then it uses a
+-- qualified endpoint for deleting a conversation member:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+deleteMembersConvLocalQualifiedOk :: TestM ()
+deleteMembersConvLocalQualifiedOk = do
+  localDomain <- viewFederationDomain
+  [alice, bob, eve] <- randomUsers 3
+  let [qAlice, qBob, qEve] = (`Qualified` localDomain) <$> [alice, bob, eve]
+  connectUsers alice (list1 bob [eve])
+  conv <- decodeConvId <$> postConvQualified alice [qBob, qEve] (Just "federated gossip") [] Nothing Nothing
+  let qconv = Qualified conv localDomain
+  deleteMemberQualified bob qBob qconv !!! const 200 === statusCode
+  deleteMemberQualified bob qBob qconv !!! const 404 === statusCode
+  -- if the conversation still exists, don't respond with 404, but with 403.
+  getConv bob conv !!! const 403 === statusCode
+  deleteMemberQualified alice qEve qconv !!! const 200 === statusCode
+  deleteMemberQualified alice qEve qconv !!! const 204 === statusCode
+  deleteMemberQualified alice qAlice qconv !!! const 200 === statusCode
+  deleteMemberQualified alice qAlice qconv !!! const 404 === statusCode
+
+-- Creates a conversation with three users. Alice and Bob are on the local
+-- domain, while Eve is on a remote domain. It uses a qualified endpoint for
+-- removing Bob from the conversation:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+deleteLocalMemberConvLocalQualifiedOk :: TestM ()
+deleteLocalMemberConvLocalQualifiedOk = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  eve <- randomId
+  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
+      remoteDomain = Domain "far-away.example.com"
+      qEve = Qualified eve remoteDomain
+
+  connectUsers alice (singleton bob)
+  convId <- decodeConvId <$> postConvWithRemoteUser remoteDomain (mkProfile qEve (Name "Eve")) alice [qBob, qEve]
+  let qconvId = Qualified convId localDomain
+
+  opts <- view tsGConf
+  let mockReturnEve = onlyMockedFederatedBrigResponse [(qEve, "Eve")]
+  (respDel, fedRequests) <-
+    withTempMockFederator opts remoteDomain mockReturnEve $
+      deleteMemberQualified alice qBob qconvId
+  let [galleyFederatedRequest] = fedRequestsForDomain remoteDomain F.Galley fedRequests
+  assertRemoveUpdate galleyFederatedRequest qconvId qAlice [qUnqualified qEve] qBob
+
+  liftIO $ do
+    statusCode respDel @?= 200
+    case responseJsonEither respDel of
+      Left err -> assertFailure err
+      Right e -> assertLeaveEvent qconvId qAlice [qBob] e
+
+  -- Now that Bob is gone, try removing him once again
+  deleteMemberQualified alice qBob qconvId !!! do
+    const 204 === statusCode
+    const Nothing === responseBody
+
+-- Creates a conversation with five users. Alice and Bob are on the local
+-- domain. Chad and Dee are on far-away-1.example.com. Eve is on
+-- far-away-2.example.com. It uses a qualified endpoint to remove Chad from the
+-- conversation:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+deleteRemoteMemberConvLocalQualifiedOk :: TestM ()
+deleteRemoteMemberConvLocalQualifiedOk = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
+      remoteDomain1 = Domain "far-away-1.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+  qChad <- (`Qualified` remoteDomain1) <$> randomId
+  qDee <- (`Qualified` remoteDomain1) <$> randomId
+  qEve <- (`Qualified` remoteDomain2) <$> randomId
+  connectUsers alice (singleton bob)
+
+  opts <- view tsGConf
+  let mockedResponse fedReq = do
+        let success :: ToJSON a => a -> IO F.OutwardResponse
+            success = pure . F.OutwardResponseBody . LBS.toStrict . encode
+            getUsersPath = Just "/federation/get-users-by-ids"
+        case (F.domain fedReq, F.path <$> F.request fedReq) of
+          (d, mp)
+            | d == domainText remoteDomain1 && mp == getUsersPath ->
+              success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
+          (d, mp)
+            | d == domainText remoteDomain2 && mp == getUsersPath ->
+              success [mkProfile qEve (Name "Eve")]
+          _ -> success ()
+
+  (convId, _) <-
+    withTempMockFederator' opts remoteDomain1 mockedResponse $
+      decodeConvId <$> postConvQualified alice [qBob, qChad, qDee, qEve] Nothing [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
+
+  (respDel, federatedRequests) <-
+    withTempMockFederator' opts remoteDomain1 mockedResponse $
+      deleteMemberQualified alice qChad qconvId
+  liftIO $ do
+    statusCode respDel @?= 200
+    case responseJsonEither respDel of
+      Left err -> assertFailure err
+      Right e -> assertLeaveEvent qconvId qAlice [qChad] e
+
+  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 F.Galley federatedRequests
+      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 F.Galley federatedRequests
+  assertRemoveUpdate remote1GalleyFederatedRequest qconvId qAlice [qUnqualified qChad, qUnqualified qDee] qChad
+  assertRemoveUpdate remote2GalleyFederatedRequest qconvId qAlice [qUnqualified qEve] qChad
+
+  -- Now that Chad is gone, try removing him once again
+  deleteMemberQualified alice qChad qconvId !!! do
+    const 204 === statusCode
+    const Nothing === responseBody
+
+-- Alice, a local user, leaves a remote conversation. Bob's domain is the same
+-- as that of the conversation. The test uses the following endpoint:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+leaveRemoteConvQualifiedOk :: TestM ()
+leaveRemoteConvQualifiedOk = do
+  localDomain <- viewFederationDomain
+  alice <- randomUser
+  let qAlice = Qualified alice localDomain
+  conv <- randomId
+  bob <- randomId
+  let remoteDomain = Domain "faraway.example.com"
+      qconv = Qualified conv remoteDomain
+      qBob = Qualified bob remoteDomain
+  let mockedFederatedGalleyResponse :: F.FederatedRequest -> Maybe Value
+      mockedFederatedGalleyResponse req
+        | fmap F.component (F.request req) == Just F.Galley =
+          Just . toJSON . FederatedGalley.LeaveConversationResponse . Right $ ()
+        | otherwise = Nothing
+      mockResponses =
+        joinMockedFederatedResponses
+          (mockedFederatedBrigResponse [(qBob, "Bob")])
+          mockedFederatedGalleyResponse
+  opts <- view tsGConf
+
+  (resp, fedRequests) <-
+    withTempMockFederator opts remoteDomain mockResponses $
+      deleteMemberQualified alice qAlice qconv
+  let leaveRequest =
+        fromJust . decodeStrict . F.body . fromJust . F.request . Imports.head $
+          fedRequests
+  liftIO $ do
+    statusCode resp @?= 200
+    case responseJsonEither resp of
+      Left err -> assertFailure err
+      Right e -> assertLeaveEvent qconv qAlice [qAlice] e
+    FederatedGalley.lcConvId leaveRequest @?= conv
+    FederatedGalley.lcLeaver leaveRequest @?= alice
+
+-- Alice, a user remote to the conversation, tries to remove someone on her own
+-- backend other than herself via:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+removeLocalMemberConvQualifiedFail :: TestM ()
+removeLocalMemberConvQualifiedFail = do
+  alice <- randomUser
+  conv <- randomId
+  qBob <- randomQualifiedUser
+  let remoteDomain = Domain "faraway.example.com"
+      qconv = Qualified conv remoteDomain
+
+  deleteMemberQualified alice qBob qconv !!! do
+    const 403 === statusCode
+    const (Just "action-denied") === fmap label . responseJsonUnsafe
+
+-- Alice, a user remote to the conversation, tries to remove someone on a remote
+-- backend via:
+--
+-- DELETE /conversations/:domain/:cnv/members/:domain/:usr
+removeRemoteMemberConvQualifiedFail :: TestM ()
+removeRemoteMemberConvQualifiedFail = do
+  alice <- randomUser
+  conv <- randomId
+  bob <- randomId
+  let remoteDomain = Domain "faraway.example.com"
+      qconv = Qualified conv remoteDomain
+      qBob = Qualified bob remoteDomain
+
+  deleteMemberQualified alice qBob qconv !!! do
+    const 403 === statusCode
+    const (Just "action-denied") === fmap label . responseJsonUnsafe
+
+deleteMembersUnqualifiedFailSelf :: TestM ()
+deleteMembersUnqualifiedFailSelf = do
   alice <- randomUser
   self <- decodeConvId <$> postSelfConv alice
-  deleteMember alice alice self !!! const 403 === statusCode
+  deleteMemberUnqualified alice alice self !!! const 403 === statusCode
 
-deleteMembersFailO2O :: TestM ()
-deleteMembersFailO2O = do
+deleteMembersUnqualifiedFailO2O :: TestM ()
+deleteMembersUnqualifiedFailO2O = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
   o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
-  deleteMember alice bob o2o !!! const 403 === statusCode
+  deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
 
 putConvRenameOk :: TestM ()
 putConvRenameOk = do
@@ -2289,10 +2479,10 @@ removeUser = do
     deleteUser bob'
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
-        matchMemberLeave qconv1 bob
+        wsAssertMembersLeave qconv1 bob [bob]
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-        matchMemberLeave qconv2 bob
+        wsAssertMembersLeave qconv2 bob [bob]
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
@@ -2304,11 +2494,3 @@ removeUser = do
     (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
     (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
-  where
-    matchMemberLeave conv u n = do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= conv
-      evtType e @?= MemberLeave
-      evtFrom e @?= u
-      evtData e @?= EdMembersLeave (UserIdList [qUnqualified u])

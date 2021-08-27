@@ -41,6 +41,7 @@ module Galley.Types
     EventType (..),
     EventData (..),
     UserIdList (..),
+    QualifiedUserIdList (..),
     SimpleMember (..),
     SimpleMembers (..),
     MemberUpdateData (..),
@@ -85,6 +86,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.CustomBackend
 import Wire.API.Event.Conversation
 import Wire.API.Message
+import Wire.API.User (UserIdList (..))
 import Wire.API.User.Client
 
 --------------------------------------------------------------------------------

@@ -636,8 +636,8 @@ testRemoveNonBindingTeamMember = do
     -- Ensure that `mem1` is still a user (tid is not a binding team)
     Util.ensureDeletedState False owner (mem1 ^. userId)
     mapConcurrently_ (checkTeamMemberLeave tid (mem1 ^. userId)) [wsOwner, wsMem1, wsMem2]
-    checkConvMemberLeaveEvent (Qualified cid2 localDomain) (mem1 ^. userId) wsMext1
-    checkConvMemberLeaveEvent (Qualified cid3 localDomain) (mem1 ^. userId) wsMext3
+    checkConvMemberLeaveEvent (Qualified cid2 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext1
+    checkConvMemberLeaveEvent (Qualified cid3 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext3
     WS.assertNoEvent timeout ws
 
 testRemoveBindingTeamMember :: Bool -> TestM ()
@@ -721,7 +721,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           !!! const 202
           === statusCode
     checkTeamMemberLeave tid (mem1 ^. userId) wsOwner
-    checkConvMemberLeaveEvent (Qualified cid1 localDomain) (mem1 ^. userId) wsMext
+    checkConvMemberLeaveEvent (Qualified cid1 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext
     assertQueue "team member leave" $ tUpdate 2 [ownerWithPassword, owner]
     WS.assertNoEvent timeout [wsMext]
     -- Mem1 is now gone from Wire

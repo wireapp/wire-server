@@ -21,6 +21,7 @@
 
 module Wire.API.User
   ( UserIdList (..),
+    QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
     -- Profiles
     UserProfile (..),
@@ -142,8 +143,7 @@ import Wire.API.User.Profile
 -- needed due to backwards compatible reasons since old
 -- clients will break if we switch these types. Also, this
 -- definition represents better what information it carries
-newtype UserIdList = UserIdList
-  {mUsers :: [UserId]}
+newtype UserIdList = UserIdList {mUsers :: [UserId]}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIdList
@@ -159,6 +159,21 @@ modelUserIdList = Doc.defineModel "UserIdList" $ do
   Doc.description "list of user ids"
   Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "the array of team conversations"
+
+--------------------------------------------------------------------------------
+-- QualifiedUserIdList
+
+newtype QualifiedUserIdList = QualifiedUserIdList {qualifiedUserIdList :: [Qualified UserId]}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema QualifiedUserIdList
+
+instance ToSchema QualifiedUserIdList where
+  schema =
+    object "QualifiedUserIdList" $
+      QualifiedUserIdList
+        <$> qualifiedUserIdList .= field "qualified_user_ids" (array schema)
+        <* (fmap qUnqualified . qualifiedUserIdList) .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
