@@ -53,6 +53,18 @@ No.  This is a feature we never fully implemented.  Details / latest
 updates: https://github.com/wireapp/wire-server/issues/1151
 
 
+Can the SSO feature be disabled for a team?
+-------------------------------------------
+
+No, this is `not implemented <https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215>`_.
+
+
+Can you remove a SAML connection?
+---------------------------------
+
+It is not possible to delete a SAML connection in the Team Settings app, however it can be overwritten with a new connection.
+It is possible do delete a SAML connection directly via the API endpoint ``DELETE /identity-providers/{id}``. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from Team Settings.
+
 If you get an error when returning from your IdP
 ------------------------------------------------
 
@@ -230,3 +242,56 @@ All three fields are mandatory.
 Also note that the account will be set to `"active": false` until the
 user has accepted the invitation and activated the account.  Please
 contact customer support if this causes any issues.
+
+
+Can I distribute a URL to my users that contains the login code?
+----------------------------------------------------------------
+
+Users may find it awkward to copy and paste the login code into the
+form.  If they are using the webapp, an alternative is to give them
+the following URL (fill in the login code that you can find in your
+team settings):
+
+.. code:: bash
+
+  https://wire-webapp-dev.zinfra.io/auth#sso/3c4f050a-f073-11eb-b4c9-931bceeed13e
+
+
+(Theoretical) name clashes in SAML NameIDs
+------------------------------------------
+
+You can technically configure your SAML IdP to create name clashes in
+wire, ie., to map two (technically) different NameIDs to the same wire
+user.
+
+How to know you're safe
+^^^^^^^^^^^^^^^^^^^^^^^
+
+This is highly unlikely, since the
+distinguishing parts of `NameID` that we ignore are generally either
+unused or redundant.  If you are confident that any two users you have
+assigned to the wire app can be distinguished solely by the
+lower-cased `NameID` content, you're safe.
+
+Impact
+^^^^^^
+
+If you are using SCIM for user provisioning, this may lead
+to errors during provisioning of new users ("user already exists").
+If you use SAML auto-provisioning, this may lead to unintential
+account sharing instead of an error.
+
+How to reproduce
+^^^^^^^^^^^^^^^^
+
+If you have users whose combination of
+`IssuerId` and `NameID` can only be distinguished by casing (upper
+vs. lower) or by the `NameID` qualifiers (`NameID` xml attributes
+`NameQualifier`, `IdPNameQualifier`, ...), those users will name
+clash.
+
+Solution
+^^^^^^^^
+
+Do not rely on case sensitivity of `IssuerID` or `NameID`, or on
+`NameID` qualifiers for distinguishing user identifiers.

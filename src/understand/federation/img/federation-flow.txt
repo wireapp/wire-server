@@ -1,0 +1,55 @@
+title: Federator to Ingress/Federator Flow
+
+Brig @infra.a.com -> Federator @infra.a.com: (domain="b.com", component="brig", handle="alice")
+
+Federator @infra.a.com -> DNS Resolver: DNS query: (service: "wire-server-federator", proto: "tcp", name: "b.com")
+
+DNS Resolver -> Federator @infra.a.com: DNS response: (target: "infra.b.com")
+
+Federator @infra.a.com -> Ingress @infra.b.com: mTLS session establishment
+
+note:
+Provides the Federator's client certificate.
+
+Ingress @infra.b.com -> Federator @infra.a.com: mTLS session establishment response
+
+note: After authenticating the given client certificate using the root of trust as per RFC 8446.
+
+group: Mutually authenticated channel between infra.a.com and infra.b.com
+
+Federator @infra.a.com -> Ingress @infra.b.com: (originDomain="a.com", component="brig", path="get-user-by-handle", body="alice")
+
+end
+
+//group: TLS-secured backend-internal channel
+
+Ingress @infra.b.com -> Federator @infra.b.com: (domain= "a.com", infra-domain= "infra.a.com",  component="brig", path="get-user-by-handle", body="alice")
+
+
+//end
+
+Federator @infra.b.com -> DNS Resolver: DNS query: (service: "wire-server-federator", proto: "tcp", name: "a.com")
+
+DNS Resolver -> Federator @infra.b.com: DNS response: (target: "infra.a.com")
+
+//group: TLS-secured backend-internal channel
+
+Federator @infra.b.com -> Brig @infra.b.com: (originDomain= "a.com", component="brig", path="federation/get-user-by-handle" handle="alice")
+
+note: After checking that the content of the _target_ field in the DNS response is equivalent to that of the _infra-domain_ field in the request and that the content of the _domain_ field is on the allow list.
+
+Brig @infra.b.com -> Federator @infra.b.com: (UserProfile(Alice))
+
+note: After authorizing the given request specifically relative to the local state.
+
+Federator @infra.b.com -> Ingress @infra.b.com: (UserProfile(Alice))
+
+//end
+
+group: Mutually authenticated channel between infra.a.com and infra.b.com
+
+Ingress @infra.b.com -> Federator @infra.a.com: (UserProfile(Alice))
+
+end
+
+Federator @infra.a.com -> Brig @infra.a.com: (UserProfile(Alice))

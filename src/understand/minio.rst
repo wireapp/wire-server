@@ -21,7 +21,7 @@ disks with fixed disks, and then heal.
 However, it is not possible to shrink or increase the cluster size. If the
 cluster is starting to get full, you will need to set up a parallel bigger
 cluster, mirror everything to the new cluster, swap the DNS entries to
-the new one, and then decomission the old one.
+the new one, and then decommission the old one.
 
 Hurdles from the trenches: disk usage statistics; directories vs. disks
 -----------------------------------------------------------------------
@@ -49,6 +49,6 @@ Moral of the story: we're probably getting weird numbers because we're not
 using disks but we're using folders instead. We should use disks.
 
 When doing a healing procedure, minio will give you feedback per bucket item.
-If a bucket item hapens to be say 500 Megabytes, it might look like the progress
+If a bucket item happens to be say 500 Megabytes, it might look like the progress
 is stuck, but it just means it doesn't update until the entire 500mb file is
 healed. Don't worry and have a bit of patience.

@@ -8,4 +8,10 @@ run:
   - -exc
   - |
     cd wire-docs
+
+    # NOTE: git resource does not want to know about other branches
+    # SOURCE: https://github.com/concourse/git-resource/blob/61d45dd637a61053d23367d88e6a8be245c9413f/assets/in#L98
+    # and it's not going to: https://github.com/concourse/git-resource/issues/134
+    git fetch --depth=1 origin '+refs/heads/*:refs/remotes/origin/*'
+
     make html push

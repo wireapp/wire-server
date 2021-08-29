@@ -24,6 +24,304 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart version 2.110.0
+=====================
+
+Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-07-09
+
+.. warning::
+
+   This release requires a manual change in your galley configuration: `galley.settings.conversationCodeURI` in `values/wire-server/values.yaml` was had to be set to `${WEBAPP}/join` before this release, and must be set to `${ACCOUNTS}/conversation-join` from now on, where `${WEBAPP}` is the url to the webapp and `${ACCOUNTS}` is the url to the account pages.
+
+API Changes
+-----------
+
+* Several public team feature endpoints are removed (their internal and
+  Stern-based counterparts remain available):
+  - `PUT /teams/:tid/features/sso`
+  - `PUT /teams/:tid/features/validateSAMLemails`
+  - `PUT /teams/:tid/features/digitalSignatures`
+* All endpoints that fetch conversation details now also include a new key
+  `qualified_id` for a qualified conversation ID (#1640)
+* New endpoint `POST /list-conversations` similar to `GET /conversations`, but which will also return your own remote conversations (if federation is enabled). (#1591)
+
+Features
+--------
+
+* Change `settings.conversationCodeURI` in galley.yaml (#1643).
+* [Federation] RPC to propagate messages to other backends (#1596).
+* [Federation] Fetch remote user's clients when sending messages (#1635).
+* [Federation] Actually propagate messages to other backends (#1638).
+* [Federation] Support sending messages to remote conversations (#1609).
+* [Federation] Guard against path traversal attacks (#1646).
+
+Internal changes
+----------------
+
+* Feature endpoints are rewritten in Servant (#1642).
+* Internal federation endpoints using the publicly-facing conversation data type
+  now also include a qualified conversation ID under the `qualified_id` key
+  (#1640)
+* schema-profunctor: add `optField` combinator and corresponding documentation (#1621, #1624).
+* [Federation] Let a receiving backend decide conversation attribute specifics of its users
+  added to a new conversation via `POST /federation/register-conversation` (#1622).
+* [Federation] Adjust scripts under ./hack/federation to work with recent changes to the federation API (#1632).
+* Refactored Proteus endpoint to work with qualified users (#1634).
+* Refactored Federator InternalServer (#1637)
+
+Internal Federation API changes
+-------------------------------
+
+* Breaking change on InwardResponse and OutwardResponse in router.proto for improved error handling (#1637)
+  * Note: federation should not be in use anywhere yet, so this should not have any impact
+* Added golden tests for protobuf serialisation / deserialisation (#1644).
+
+Documentation
+-------------
+
+* Fix validation errors in Swagger documentation (#1625).
+
+Bug fixes and other updates
+---------------------------
+
+* Restore old behaviour for parse errors in request bodies (#1628, #1629).
+* Allow to change IdP Issuer name to previous name (#1615).
+
+
+Chart version 2.109.0
+=====================
+
+See https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-06-23 
+
+Release notes
+-------------
+
+.. warning::
+
+   This release went out with a bug that makes breaks certain error messages in the log in process.
+   This has been rectified in 2.110.0
+
+API Changes
+------------
+
+* [Federation] Add qualified endpoint for sending messages at `POST /conversations/:domain/:cnv/proteus/messages` (#1593, #1614, #1616).
+
+Security fixes
+--------------
+* Fix for https://github.com/wireapp/wire-webapp/security/advisories/GHSA-382j-mmc8-m5rw  (#1613)
+
+Bug fixes
+----------
+* [helm] Allow sending messages upto 40 MB by default (#1614)
+* Fix for https://github.com/wireapp/wire-webapp/security/advisories/GHSA-382j-mmc8-m5rw  (#1613)
+* Update wire-webapp version (#1613)
+* Update team-settings version (#1598)
+* Allow optional password field in RmClient (#1604, #1607)
+* Add endpoint: Get name, id with for CodeAccess conversations (#1592)
+* demote logging failed invitations to a warning, rather than an error. Server operators can't act on these errors in any way (#1586)
+
+
+Documentation
+-------------
+
+* Add descriptive comments to `ConversationMemberUpdate` (#1578)
+* initial few anti-patterns and links about cassandra (#1599)
+
+Internal changes
+----------------
+
+* Rename a local members field in the Conversation data type (#1580)
+* Servantify Protobuf endpoint to send messages (#1583)
+* Servantify own client API (#1584, #1603)
+* Remove resource requests (#1581)
+* Import http2 fix (#1582)
+* Remove stale FUTUREWORK comment (#1587)
+* Reorganise helper functions for conversation notifications (#1588)
+* Extract origin domain header name for use in API (#1597)
+* Merge Empty200, Empty404 and EmptyResult (#1589)
+* Set content-type header for JSON errors in Servant (#1600)
+* Add golden tests for ClientCapability(List) (#1590)
+* Add checklist for PRs (#1601, #1610)
+* Remove outdated TODO (#1606)
+* submodules (#1612)
+
+More federation changes (inactive code)
+---------------------------------------
+
+* Add getUserClients RPC (and thereby allow remote clients lookup) (#1500)
+* minor refactor: runFederated (#1575)
+* Notify remote backends when users join (#1556)
+* end2end test getting remote conversation and complete its implementation (#1585)
+* Federation: Notify Remote Users of Being Added to a New Conversation (#1594)
+* Add qualified endpoint for sending messages (#1593, #1614)
+* Galley/int: Expect remote call when creating conv with remotes (#1611)
+
+
+
+Chart version 2.108.0
+=====================
+
+Release notes
+-------------
+
+This release doesn't require any extra considerations to deploy.
+
+Features
+--------
+* Update versions of webapp, team-settings, account-pages (#1559)
+* Add missing /list-users route (#1572)
+* [Legalhold] Block device handshake in case of LH policy conflict (#1526)
+* [Legalhold] Fix: Connection type when unblocking after LH (#1549)
+* [Legalhold] Allow Legalhold for large teams (>2000) if enabled via whitelist (#1546)
+* [Legalhold] Add ClientCapabilities to NewClient. (#1552)
+* [Legalhold] Dynamic whitelisted teams & whitelist-teams-and-implicit-consent feature in tests (#1557, #1574)
+* [Federation] Add remote members to conversations (#1529)
+* [Federation] Federation: new endpoint: GET /conversations/{domain}/{cnv} (#1566)
+* [Federation] Parametric mock federator (#1558)
+* [Federation] Add more information to federation errors (#1560)
+* [Federation] Add remote users when creating a conversation (#1569)
+* [Federation] Update conversation membership in a remote backend (#1540)
+* [Federation] expose /conversations/{cnv}/members/v2 for federation backends (#1543)
+
+Bug fixes and other updates
+---------------------------
+* Fix MIME-type of asset artifacts 
+* Add some missing charts (#1533)
+
+Internal changes
+----------------
+* Qualify users and conversations in Event (#1547)
+* Make botsAndUsers pure (#1562)
+* Set swagger type of text schema (#1561)
+* More examples in schema-profunctor documentation (#1539)
+* Refactoring-friendly FutureWork data type (#1550)
+* nginz/Dockerfile: Run 'apk add' verbosely for debugging (#1565)
+* Introduce a generalized version of wai-extra Session type constructor (#1563)
+* Avoid wrapping error in rethrow middleware (#1567)
+* wire-api: Introduce ErrorDescription (#1573)
+* [Federation] Use Servant.respond instead of explicit SOP (#1535)
+* [Federation] Add end2end test for adding remote users to a conversation (#1538)
+* [Federation] Add required fields to Swagger for SchemaP (#1536)
+* [Federation] Add Galley component to federator API (#1555)
+* [Federation] Generalises the mock federator to work with any MonadIO m monad (#1564)
+* [Federation] Introduces the HasGalley class (#1568)
+* [Federation] Servantify JSON endpoint to send messages (#1532)
+* [Federation] federator: rename Brig -> Service and add galley (#1570)
+
+
+
+Chart version 2.107.0
+=====================
+
+Release notes
+-------------
+
+
+.. warning::
+
+   This release introduces a notion of "consent" to
+   legalhold (LH).  If you are using LH on your site, follow the
+   instructions in
+   https://github.com/wireapp/wire-server/blob/814f3ebc251965ab4492f5df4d9195f3b2e0256f/docs/reference/team/legalhold.md#whitelisting-and-implicit-consent
+   after the upgrade.  **Legalhold will not work as expected until you
+   change `galley.conf` as described!**
+
+.. warning::
+
+   This release introduces changes to the way `NameID` is
+   processed: all identifiers are stored in lower-case and qualifiers are
+   ignored.  No manual upgrade steps are necessary, but consult
+   https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html#theoretical-name-clashes-in-saml-nameids
+   on whether you need to re-calibrate your SAML IdP / SCIM setup.
+   (Reason / technical details: this change is motivated by two facts:
+   (1) email casing is complicated, and industry best practice appears to
+   be to ignore case information even though that is in conflict with the
+   official standard documents; and (2) SCIM user provisioning does not
+   allow to provide SAML NameID qualifiers, and guessing them has proven
+   to be infeasible.  See
+   https://github.com/wireapp/wire-server/pull/1495 for the code
+   changes.)
+
+
+Features
+--------
+ - [SAML/SCIM] More lenient matching of user ids (#1495)
+ - [Legalhold] Block and kick users in case of LH no_consent conflict (1:1 convs). (#1507, #1530)
+ - [Legalhold] Add legalhold status to user profile (#1522)
+ - [Legalhold] Client-supported capabilities end-point (#1503)
+ - [Legalhold] Whitelisting Teams for LH with implicit consent (#1502)
+ - [Federation] Remove OptionallyQualified data type from types-common (#1517)
+ - [Federation] Add RPC getConversations (#1493)
+ - [Federation] Prepare remote conversations: Remove Opaque/Mapped Ids, delete remote identifiers from member/user tables. (#1478)
+ - [Federation] Add schema migration for new tables (#1485)
+ - [SAML/SCIM] Normalize SAML identifiers and fix issues with duplicate account creation (#1495)
+ - Internal end-point for ejpd request processing. (#1484)
+ 
+Bug fixes and other updates
+---------------------------
+ - Fix: NewTeamMember vs. UserLegalHoldStatus (increase robustness against rogue clients) (#1496)
+ 
+Documentation
+-------------
+ - Fixes a typo in the wire-api documentation (#1513)
+
+
+Chart version 2.106.0
+=======================
+
+Release notes
+-------------
+
+
+.. warning::
+
+   From this version on; we do not ship DynamoDB-compatible service anymore. Instead, we ship with a built-in prekey distribution strategy
+   that no longer depends on an external locking service. (#1416, #1476).
+
+   If you want to keep using DynamoDB, you must set ``brig.randomPrekeys`` to ``false`` in your ``values.yaml`` explicitly.
+
+
+
+
+Features
+-------------
+ - [brig] New option to use a random prekey selection strategy to remove DynamoDB dependency (#1416, #1476)
+ - [brig] Ensure servant APIs are recorded by the metrics middleware (#1441)
+ - [brig] Add exact handle matches from all teams in /search/contacts (#1431, #1455)
+ - [brig] CSV endpoint: Add columns to output (#1452)
+ - [galley] Make pagination more idiomatic (#1460)
+ - [federation] Testing improvements (#1411, #1429)
+ - [federation] error reporting, DNS error logging (#1433, #1463)
+ - [federation] endpoint refactoring, new brig endpoints, servant client for federated calls, originDomain metadata (#1389, #1446, #1445, #1468, #1447)
+ - [federation] Add federator to galley (#1465)
+ - [move-team] Update move-team with upstream schema changes #1423
+
+Bug fixes and other updates
+----------------------------
+ - [security] Update webapp container image tag to address CVE-2021-21400 (#1473)
+ - [brig] Return correct status phrase and body on error (#1414) …
+ - [brig] Fix FromJSON instance of ListUsersQuery (#1456)
+ - [galley] Lower the limit for URL lengths for galley -> brig RPC calls (#1469)
+ - [chores] Remove unused dependencies (#1424) …
+ - [compilation] Stop re-compiling nginz when running integration test for unrelated changes
+ - [tooling] Use jq magic instead of bash (#1432), Add wget (#1443)
+ - [chores] Refactor Dockerfile apk installation tasks (#1448)
+ - [tooling] Script to generate token for SCIM endpoints (#1457)
+ - [tooling] Ormolu script improvements (#1458)
+ - [tooling] Add script to colourise test failure output (#1459)
+ - [tooling] Setup for running tests in kind (#1451, #1462)
+ - [tooling] HLS workaround for optimisation flags (#1449)
+
+Documentation
+-------------
+ - [docs] Document how to run multi-backend tests for federation (#1436)
+ - [docs] Fix CHANGELOG: incorrect release dates (#1435)
+ - [docs] Update release notes with data migration for SCIM (#1442)
+ - [docs] Fixes a k8s typo in the README (#1475)
+ - [docs] Document testing strategy and patterns (#1472)
+
+
+
 Chart version 2.104.0
 =====================
 
