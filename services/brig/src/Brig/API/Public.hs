@@ -1091,11 +1091,10 @@ customerExtensionCheckBlockedDomains email = do
 
 createConnectionH :: UserId -> ConnId -> Public.ConnectionRequest -> Handler Public.UserConnection
 createConnectionH self conn cr = do
-  _rs <- API.createConnection self cr conn !>> connError
-  -- return $ case rs of
-  --   ConnectionCreated c -> setStatus status201 $ json (c :: Public.UserConnection)
-  --   ConnectionExists c -> json (c :: Public.UserConnection)
-  undefined
+  rs <- API.createConnection self cr conn !>> connError
+  return $ case rs of
+    ConnectionCreated c -> c -- TODO: 201
+    ConnectionExists c -> c -- TODO: 200
 
 updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do

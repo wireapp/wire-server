@@ -318,25 +318,29 @@ data Api routes = Api
     -- - ConvConnect event to self, in some cases (via galley),
     --   for details see 'Galley.API.Create.createConnectConversation'
     --
-    --   Doc.returns (Doc.ref Public.modelConnection)
-    --   Doc.response 200 "The connection exists." Doc.end
-    --   Doc.response 201 "The connection was created." Doc.end
+    --  TODO: error cases
     --   Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
     --   Doc.errorResponse connectionLimitReached
     --   Doc.errorResponse invalidUser
     --   Doc.errorResponse (noIdentity 5)
     createConnection ::
       routes :- Summary "Create a connection to another user."
-        -- config value 'setUserMaxConnections' value in production/by default is 1000 since many years already.
+        -- Config value 'setUserMaxConnections' value in production/by default
+        -- is currently 1000 and has not changed in the last few years.
+        -- While it would be more correct to use the config value here, that
+        -- might not be time well spent.
         :> Description "You can have no more than 1000 connections in accepted or sent state"
         :> ZUser
         :> ZConn
-        -- :> CanThrow TooManyClients
-        -- :> CanThrow MissingAuth
-        -- :> CanThrow MalformedPrekeys
         :> "connections"
         :> ReqBody '[JSON] ConnectionRequest
-        :> Verb 'POST 201 '[JSON] UserConnection,
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[ Respond 200 "Connection exists" UserConnection,
+                Respond 201 "Connection was created" UserConnection
+              ]
+             UserConnection,
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
