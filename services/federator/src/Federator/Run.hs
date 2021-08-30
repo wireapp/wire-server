@@ -26,20 +26,19 @@ module Federator.Run
 
     -- * App Environment
     newEnv,
+    closeEnv,
+
+    -- * Re-exports
     mkTLSSettings,
     FederationSetupError (..),
-    closeEnv,
   )
 where
 
 import qualified Bilge as RPC
-import Control.Exception (handle, throw)
 import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.X509 as X509
-import Data.X509.CertificateStore
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
@@ -48,12 +47,8 @@ import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.TLS as TLS
-import qualified Polysemy
-import qualified Polysemy.Error as Polysemy
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
-import System.X509
 import UnliftIO (bracket)
 import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
@@ -98,13 +93,6 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-data FederationSetupError
-  = InvalidCAStore FilePath
-  | InvalidClientCertificate String
-  deriving (Show)
-
-instance Exception FederationSetupError
-
 newEnv :: Opts -> DNS.Resolver -> IO Env
 newEnv o _dnsResolver = do
   _metrics <- Metrics.metrics
@@ -118,36 +106,6 @@ newEnv o _dnsResolver = do
   return Env {..}
   where
     mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
-
-mkCAStore :: RunSettings -> IO CertificateStore
-mkCAStore settings = do
-  customCAStore <- fmap (fromRight mempty) . Polysemy.runM . Polysemy.runError @() $ do
-    path <- maybe (Polysemy.throw ()) pure $ remoteCAStore settings
-    Polysemy.embed $ readCertificateStore path >>= maybe (throw $ InvalidCAStore path) pure
-  systemCAStore <-
-    if useSystemCAStore settings
-      then getSystemCertificateStore
-      else pure mempty
-  pure (customCAStore <> systemCAStore)
-
-mkCreds :: RunSettings -> IO TLS.Credential
-mkCreds settings =
-  handle h $
-    TLS.credentialLoadX509 (clientCertificate settings) (clientPrivateKey settings)
-      >>= \case
-        Left e -> throw (InvalidClientCertificate e)
-        Right (X509.CertificateChain [], _) ->
-          throw (InvalidClientCertificate "could not read client certificate")
-        Right x -> pure x
-  where
-    h :: IOException -> IO a
-    h = throw . InvalidClientCertificate . show
-
-mkTLSSettings :: RunSettings -> IO TLSSettings
-mkTLSSettings settings =
-  TLSSettings
-    <$> mkCAStore settings
-    <*> mkCreds settings
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

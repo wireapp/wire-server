@@ -50,6 +50,7 @@ dependencies:
 - tinylog
 - tls
 - types-common
+- unix
 - unliftio
 - uri-bytestring
 - uuid

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5dbc4fa2071a3afdbc4414f8a9d9a147a5e757cc66ded8b01ec0202d73953366
+-- hash: 91ee1bdb98cb432de59d46d1636cca242c96bead3bd30d88a8c5fd731d16d51a
 
 name:           federator
 version:        1.0.0
@@ -94,6 +94,7 @@ library
     , tinylog
     , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
@@ -158,6 +159,7 @@ executable federator
     , tinylog
     , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
@@ -232,6 +234,7 @@ executable federator-integration
     , tinylog
     , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
@@ -308,6 +311,7 @@ test-suite federator-tests
     , tinylog
     , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
