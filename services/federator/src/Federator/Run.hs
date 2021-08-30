@@ -43,6 +43,7 @@ import Data.X509.CertificateStore
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
+import Federator.Monitor
 import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
@@ -74,9 +75,10 @@ run opts = do
     bracket (newEnv opts res) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
-      internalServerThread <- async internalServer
-      externalServerThread <- async externalServer
-      void $ waitAnyCancel [internalServerThread, externalServerThread]
+      withMonitor env (optSettings opts) $ do
+        internalServerThread <- async internalServer
+        externalServerThread <- async externalServer
+        void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort

@@ -14,12 +14,15 @@ dependencies:
 - base
 - bilge
 - bytestring
+- containers
 - data-default
 - dns
 - dns-util
 - either
 - exceptions
 - extended
+- filepath
+- hinotify
 - HsOpenSSL
 - HsOpenSSL-x509-system
 - http2-client
