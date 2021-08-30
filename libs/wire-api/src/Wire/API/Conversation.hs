@@ -374,7 +374,7 @@ instance ToSchema ListConversationsV2 where
   schema =
     objectWithDocModifier
       "ListConversations"
-      (description ?~ "A request to list some of a user's conversations, including remote ones")
+      (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
       $ ListConversationsV2
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
 

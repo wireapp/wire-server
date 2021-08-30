@@ -139,7 +139,7 @@ getRemoteConversationsWithFailures zusr remoteConvs = do
         Right a -> pure $ Right a
         Left e -> do
           Logger.warn $
-            Logger.msg ("Error occurred while fetch remote conversations" :: ByteString)
+            Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
               . Logger.field "error" (show e)
           pure . Left $ map (`Qualified` domain) convIds
     concatEithers :: (Monoid a, Monoid b) => [Either a b] -> (a, b)
