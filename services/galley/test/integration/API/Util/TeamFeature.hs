@@ -148,6 +148,51 @@ getAllFeatureConfigsWithGalley galley uid = do
       . paths ["feature-configs"]
       . zUser uid
 
+putTeamFeatureFlag ::
+  forall (a :: Public.TeamFeatureName) m.
+  ( HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a),
+    MonadIO m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  (Request -> Request) ->
+  UserId ->
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  m ResponseLBS
+putTeamFeatureFlag reqMod member tid status = do
+  g <- viewGalley
+  putTeamFeatureFlagWithGalley @a reqMod g member tid status
+
+putTeamFeatureFlagWithGalley ::
+  forall (a :: Public.TeamFeatureName) m.
+  ( MonadIO m,
+    MonadHttp m,
+    HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  (Request -> Request) ->
+  (Request -> Request) ->
+  UserId ->
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  m ResponseLBS
+putTeamFeatureFlagWithGalley reqMod galley member tid status =
+  put $
+    galley
+      . paths
+        [ "teams",
+          toByteString' tid,
+          "features",
+          toByteString' (Public.knownTeamFeatureName @a)
+        ]
+      . zUser member
+      . json status
+      . reqMod
+
 putTeamFeatureFlagInternal ::
   forall (a :: Public.TeamFeatureName).
   ( HasCallStack,
