@@ -43,6 +43,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Documentation
 
+* Document backend internals for user connections (#1717)
 * Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
 
 ## Internal changes
