@@ -1,9 +1,8 @@
 
-Operations procedures
-~~~~~~~~~~~~~~~~~~~~~
+Operational procedures
+~~~~~~~~~~~~~~~~~~~~~~
 
-This section describes common operations performed on operational clusters.
-
+This section describes common operations to be performed on operational clusters.
 
 Reboot procedures
 -----------------
@@ -185,3 +184,5 @@ You should see output looking like this:
 .. code:: 
 
   1630250355 15:18:55 elasticsearch-directory green 3 3 17 6 0 0 0 - 100.0%
+
+Here, the ``green`` denotes good node health, and the ``3 3`` denotes 3 running nodes.
