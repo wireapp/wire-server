@@ -1,5 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -26,7 +25,6 @@ module Wire.API.Connection
   ( -- * UserConnection
     UserConnection (..),
     UserConnectionList (..),
-    Message (..),
     Relation (..),
     RelationWithHistory (..),
     relationDropHistory,
@@ -38,24 +36,23 @@ module Wire.API.Connection
     -- * Swagger
     modelConnectionList,
     modelConnection,
-    modelConnectionRequest,
     modelConnectionUpdate,
   )
 where
 
-import Data.Aeson
-import Data.Aeson.Types (Parser)
+import Control.Lens ((?~))
+import Data.Aeson as Aeson
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Range
+import qualified Data.Schema as P
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Swagger.Schema
+import Data.Swagger.Schema as S
 import Data.Text as Text
-import Deriving.Swagger (CamelToKebab, ConstructorTagModifier, CustomSwagger)
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserConnectionList
@@ -68,26 +65,22 @@ data UserConnectionList = UserConnectionList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserConnectionList)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema UserConnectionList)
 
+instance P.ToSchema UserConnectionList where
+  schema =
+    P.object "UserConnectionList" $
+      UserConnectionList
+        <$> clConnections P..= P.field "connections" (P.array P.schema)
+        <*> clHasMore P..= P.fieldWithDocModifier "has_more" (P.description ?~ "Indicator that the server has more connections than returned.") P.schema
+
+-- TODO remove
 modelConnectionList :: Doc.Model
 modelConnectionList = Doc.defineModel "UserConnectionList" $ do
   Doc.description "A list of user connections."
   Doc.property "connections" (Doc.unique $ Doc.array (Doc.ref modelConnection)) Doc.end
   Doc.property "has_more" Doc.bool' $
     Doc.description "Indicator that the server has more connections than returned."
-
-instance ToJSON UserConnectionList where
-  toJSON (UserConnectionList l m) =
-    object
-      [ "connections" .= l,
-        "has_more" .= m
-      ]
-
-instance FromJSON UserConnectionList where
-  parseJSON = withObject "UserConnectionList" $ \o ->
-    UserConnectionList
-      <$> o .: "connections"
-      <*> o .: "has_more"
 
 --------------------------------------------------------------------------------
 -- UserConnection
@@ -103,12 +96,23 @@ data UserConnection = UserConnection
     ucStatus :: Relation,
     -- | When 'ucStatus' was last changed
     ucLastUpdate :: UTCTimeMillis,
-    ucMessage :: Maybe Message,
     ucConvId :: Maybe ConvId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserConnection)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema UserConnection)
 
+instance P.ToSchema UserConnection where
+  schema =
+    P.object "UserConnection" $
+      UserConnection
+        <$> ucFrom P..= P.field "from" P.schema
+        <*> ucTo P..= P.field "to" P.schema
+        <*> ucStatus P..= P.field "status" P.schema
+        <*> ucLastUpdate P..= P.field "last_update" P.schema
+        <*> ucConvId P..= P.opt (P.field "conversation" P.schema)
+
+-- TODO remove
 modelConnection :: Doc.Model
 modelConnection = Doc.defineModel "Connection" $ do
   Doc.description "Directed connection between two users"
@@ -127,27 +131,6 @@ modelConnection = Doc.defineModel "Connection" $ do
     Doc.description "Conversation ID"
     Doc.optional
 
-instance ToJSON UserConnection where
-  toJSON uc =
-    object
-      [ "from" .= ucFrom uc,
-        "to" .= ucTo uc,
-        "status" .= ucStatus uc,
-        "last_update" .= ucLastUpdate uc,
-        "message" .= ucMessage uc,
-        "conversation" .= ucConvId uc
-      ]
-
-instance FromJSON UserConnection where
-  parseJSON = withObject "user-connection" $ \o ->
-    UserConnection
-      <$> o .: "from"
-      <*> o .: "to"
-      <*> o .: "status"
-      <*> o .: "last_update"
-      <*> o .:? "message"
-      <*> o .:? "conversation"
-
 --------------------------------------------------------------------------------
 -- Relation
 
@@ -165,7 +148,7 @@ data Relation
     MissingLegalholdConsent
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Relation)
-  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToKebab] Relation)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema Relation)
 
 -- | 'updateConnectionInternal', requires knowledge of the previous state (before
 -- 'MissingLegalholdConsent'), but the clients don't need that information.  To avoid having
@@ -215,29 +198,22 @@ typeRelation =
         "missing-legalhold-consent"
       ]
 
-instance ToJSON Relation where
-  toJSON = \case
-    Accepted -> "accepted"
-    Blocked -> "blocked"
-    Pending -> "pending"
-    Ignored -> "ignored"
-    Sent -> "sent"
-    Cancelled -> "cancelled"
-    MissingLegalholdConsent -> "missing-legalhold-consent"
-
-instance FromJSON Relation where
-  parseJSON (String "accepted") = return Accepted
-  parseJSON (String "blocked") = return Blocked
-  parseJSON (String "pending") = return Pending
-  parseJSON (String "ignored") = return Ignored
-  parseJSON (String "sent") = return Sent
-  parseJSON (String "cancelled") = return Cancelled
-  parseJSON (String "missing-legalhold-consent") = return MissingLegalholdConsent
-  parseJSON _ = mzero
+instance P.ToSchema Relation where
+  schema =
+    P.enum @Text "Relation" $
+      mconcat
+        [ P.element "accepted" Accepted,
+          P.element "blocked" Blocked,
+          P.element "pending" Pending,
+          P.element "ignored" Ignored,
+          P.element "sent" Sent,
+          P.element "cancelled" Cancelled,
+          P.element "missing-legalhold-consent" MissingLegalholdConsent
+        ]
 
 instance FromByteString Relation where
   parser =
-    takeByteString >>= \b -> case b of
+    takeByteString >>= \case
       "accepted" -> return Accepted
       "blocked" -> return Blocked
       "pending" -> return Pending
@@ -258,21 +234,6 @@ instance ToByteString Relation where
     MissingLegalholdConsent -> "missing-legalhold-consent"
 
 --------------------------------------------------------------------------------
--- Message
-
--- | Initial message sent along with a connection request. 1-256 characters.
---
--- /Note 2019-03-28:/ some clients send it, but we have hidden it anyway in the UI since it
--- works as a nice source of spam. TODO deprecate and remove.
-newtype Message = Message {messageText :: Text}
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON)
-  deriving (Arbitrary) via (Ranged 1 256 Text)
-
-instance FromJSON Message where
-  parseJSON x = Message . fromRange <$> (parseJSON x :: Parser (Range 1 256 Text))
-
---------------------------------------------------------------------------------
 -- Requests
 
 -- | Payload type for a connection request from one user to another.
@@ -280,61 +241,37 @@ data ConnectionRequest = ConnectionRequest
   { -- | Connection recipient
     crUser :: UserId,
     -- | Name of the conversation to be created
-    crName :: Text,
-    -- | Initial message
-    crMessage :: Message
+    -- FUTUREWORK investigate: shouldn't this name be optional? Do we use this name actually anywhere?
+    crName :: Range 1 256 Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConnectionRequest)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema ConnectionRequest)
 
-modelConnectionRequest :: Doc.Model
-modelConnectionRequest = Doc.defineModel "ConnectionRequest" $ do
-  Doc.description "Connection request from one user to another"
-  Doc.property "user" Doc.bytes' $
-    Doc.description "User ID of the user to request a connection with"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name of the (pending) conversation being initiated (1 - 256 characters)."
-  Doc.property "message" Doc.string' $
-    Doc.description "The initial message in the request (1 - 256 characters)."
-
-instance ToJSON ConnectionRequest where
-  toJSON c =
-    object
-      [ "user" .= crUser c,
-        "name" .= crName c,
-        "message" .= crMessage c
-      ]
-
-instance FromJSON ConnectionRequest where
-  parseJSON = withObject "connection-request" $ \o ->
-    ConnectionRequest
-      <$> o .: "user"
-      <*> (fromRange <$> ((o .: "name") :: Parser (Range 1 256 Text)))
-      <*> o .: "message"
-
--- | TODO: make 'crName :: Range 1 256 Text' and derive this instance.
-instance Arbitrary ConnectionRequest where
-  arbitrary =
-    ConnectionRequest
-      <$> arbitrary
-      <*> (fromRange <$> arbitrary @(Range 1 256 Text))
-      <*> arbitrary
+instance P.ToSchema ConnectionRequest where
+  schema =
+    P.object "ConnectionRequest" $
+      ConnectionRequest
+        <$> crUser P..= P.fieldWithDocModifier "user" (P.description ?~ "user ID of the user to request a connection with") P.schema
+        <*> crName P..= P.fieldWithDocModifier "name" (P.description ?~ "Name of the (pending) conversation being initiated (1 - 256) characters)") P.schema
 
 -- | Payload type for "please change the status of this connection".
-data ConnectionUpdate = ConnectionUpdate
+newtype ConnectionUpdate = ConnectionUpdate
   { cuStatus :: Relation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConnectionUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (P.Schema ConnectionUpdate)
 
+instance P.ToSchema ConnectionUpdate where
+  schema =
+    P.object "ConnectionUpdate" $
+      ConnectionUpdate
+        <$> cuStatus P..= P.fieldWithDocModifier "status" (P.description ?~ "New relation status") P.schema
+
+-- TODO remove
 modelConnectionUpdate :: Doc.Model
 modelConnectionUpdate = Doc.defineModel "ConnectionUpdate" $ do
   Doc.description "Connection update"
   Doc.property "status" typeRelation $
     Doc.description "New relation status"
-
-instance ToJSON ConnectionUpdate where
-  toJSON c = object ["status" .= cuStatus c]
-
-instance FromJSON ConnectionUpdate where
-  parseJSON = withObject "connection-update" $ \o ->
-    ConnectionUpdate <$> o .: "status"

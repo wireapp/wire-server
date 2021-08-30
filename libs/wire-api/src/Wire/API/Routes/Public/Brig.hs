@@ -33,6 +33,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
+import Wire.API.Connection
 import Wire.API.ErrorDescription
   ( CanThrow,
     EmptyErrorForLegacyReasons,
@@ -309,6 +310,33 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> "prekeys"
         :> Get '[JSON] [PrekeyId],
+    --
+    -- This endpoint can lead to the following events being sent:
+    -- - ConnectionUpdated event to self and other, if any side's connection state changes
+    -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
+    -- - ConvCreate event to self, if creating a connect conversation (via galley)
+    -- - ConvConnect event to self, in some cases (via galley),
+    --   for details see 'Galley.API.Create.createConnectConversation'
+    --
+    --   Doc.returns (Doc.ref Public.modelConnection)
+    --   Doc.response 200 "The connection exists." Doc.end
+    --   Doc.response 201 "The connection was created." Doc.end
+    --   Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
+    --   Doc.errorResponse connectionLimitReached
+    --   Doc.errorResponse invalidUser
+    --   Doc.errorResponse (noIdentity 5)
+    createConnection ::
+      routes :- Summary "Create a connection to another user."
+        -- config value 'setUserMaxConnections' value in production/by default is 1000 since many years already.
+        :> Description "You can have no more than 1000 connections in accepted or sent state"
+        :> ZUser
+        :> ZConn
+        -- :> CanThrow TooManyClients
+        -- :> CanThrow MissingAuth
+        -- :> CanThrow MalformedPrekeys
+        :> "connections"
+        :> ReqBody '[JSON] ConnectionRequest
+        :> Verb 'POST 201 '[JSON] UserConnection,
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
