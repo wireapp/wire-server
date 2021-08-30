@@ -74,7 +74,7 @@ createConnectionToLocalUser ::
   ConnectionRequest ->
   ConnId ->
   ExceptT ConnectionError AppIO ConnectionResult
-createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} conn = do
+createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
   when (self == crUser) $
     throwE $
       InvalidUser crUser
@@ -104,9 +104,9 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       Log.info $
         logConnection self crUser
           . msg (val "Creating connection")
-      cnv <- Intra.createConnectConv self crUser (Just crName) (Just crMessage) (Just conn)
-      s2o' <- Data.insertConnection self crUser SentWithHistory (Just crMessage) cnv
-      o2s' <- Data.insertConnection crUser self PendingWithHistory (Just crMessage) cnv
+      cnv <- Intra.createConnectConv self crUser (Just (fromRange crName)) (Just conn)
+      s2o' <- Data.insertConnection self crUser SentWithHistory cnv
+      o2s' <- Data.insertConnection crUser self PendingWithHistory cnv
       e2o <- ConnectionUpdated o2s' (ucStatus <$> o2s) <$> Data.lookupName self
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
       mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
