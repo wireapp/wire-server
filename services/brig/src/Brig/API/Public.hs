@@ -395,26 +395,26 @@ sitemap o = do
   -- - ConvCreate event to self, if creating a connect conversation (via galley)
   -- - ConvConnect event to self, in some cases (via galley),
   --   for details see 'Galley.API.Create.createConnectConversation'
-  post "/connections" (continue createConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.ConnectionRequest
-  document "POST" "createConnection" $ do
-    Doc.summary "Create a connection to another user."
-    Doc.notes $
-      "You can have no more than "
-        <> Text.pack (show (setUserMaxConnections $ optSettings o))
-        <> " connections in accepted or sent state."
-    Doc.body (Doc.ref Public.modelConnectionRequest) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "The connection exists." Doc.end
-    Doc.response 201 "The connection was created." Doc.end
-    Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
-    Doc.errorResponse connectionLimitReached
-    Doc.errorResponse invalidUser
-    Doc.errorResponse (noIdentity 5)
+  -- post "/connections" (continue createConnectionH) $
+  --   accept "application" "json"
+  --     .&. zauthUserId
+  --     .&. zauthConnId
+  --     .&. jsonRequest @Public.ConnectionRequest
+  -- document "POST" "createConnection" $ do
+  --   Doc.summary "Create a connection to another user."
+  --   Doc.notes $
+  --     "You can have no more than "
+  --       <> Text.pack (show (setUserMaxConnections $ optSettings o))
+  --       <> " connections in accepted or sent state."
+  --   Doc.body (Doc.ref Public.modelConnectionRequest) $
+  --     Doc.description "JSON body"
+  --   Doc.returns (Doc.ref Public.modelConnection)
+  --   Doc.response 200 "The connection exists." Doc.end
+  --   Doc.response 201 "The connection was created." Doc.end
+  --   Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
+  --   Doc.errorResponse connectionLimitReached
+  --   Doc.errorResponse invalidUser
+  --   Doc.errorResponse (noIdentity 5)
 
   -- This endpoint is used to test /i/metrics, when this is servantified, please
   -- make sure some other endpoint is used to test that routes defined in this
