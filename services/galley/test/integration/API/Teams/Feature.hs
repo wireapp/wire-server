@@ -65,6 +65,8 @@ tests s =
       test s "FileSharing" $ testSimpleFlag @'Public.TeamFeatureFileSharing Public.TeamFeatureEnabled,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
+      test s "App Lock (enabled)" testAppLockEnabled,
+      test s "App Lock (disabled)" testAppLockDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "ConferenceCalling" $ testSimpleFlag @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled
@@ -313,6 +315,107 @@ testClassifiedDomainsDisabled = do
     getClassifiedDomains member tid expected
     getClassifiedDomainsInternal tid expected
     getClassifiedDomainsFeatureConfig member expected
+
+----------------------------------------------------------------------
+-- TeamFeatureAppLock
+
+getAppLock ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+  UserId ->
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
+  m ()
+getAppLock member tid =
+  assertFlagWithConfig @Public.TeamFeatureAppLockConfig $
+    Util.getTeamFeatureFlag Public.TeamFeatureAppLock member tid
+
+setAppLock ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m, HasGalley m) =>
+  UserId ->
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
+  m ResponseLBS
+setAppLock =
+  Util.putTeamFeatureFlag @'Public.TeamFeatureAppLock expect2xx
+
+getAppLockInternal ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
+  m ()
+getAppLockInternal tid =
+  assertFlagWithConfig @Public.TeamFeatureAppLockConfig $
+    Util.getTeamFeatureFlagInternal Public.TeamFeatureAppLock tid
+
+testAppLockEnabled :: TestM ()
+testAppLockEnabled = do
+  (owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
+  -- This is the default value for AppLock
+  let expectedBeforeChange =
+        Public.TeamFeatureStatusWithConfig
+          { Public.tfwcStatus = Public.TeamFeatureEnabled,
+            Public.tfwcConfig = Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)
+          }
+      expectedAfterChange =
+        Public.TeamFeatureStatusWithConfig
+          { Public.tfwcStatus = Public.TeamFeatureEnabled,
+            Public.tfwcConfig = Public.TeamFeatureAppLockConfig (Public.EnforceAppLock True) (300 :: Int32)
+          }
+
+  let getAppLockFeatureConfig ::
+        (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+        UserId ->
+        Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
+        m ()
+      getAppLockFeatureConfig uid = do
+        assertFlagWithConfig @Public.TeamFeatureAppLockConfig $
+          Util.getFeatureConfig Public.TeamFeatureAppLock uid
+
+  getAppLock member tid expectedBeforeChange
+  getAppLockInternal tid expectedBeforeChange
+  getAppLockFeatureConfig member expectedBeforeChange
+
+  void $ setAppLock owner tid expectedAfterChange
+  getAppLock member tid expectedAfterChange
+
+testAppLockDisabled :: TestM ()
+testAppLockDisabled = do
+  (owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
+  let expectedBeforeChange =
+        Public.TeamFeatureStatusWithConfig
+          { Public.tfwcStatus = Public.TeamFeatureDisabled,
+            Public.tfwcConfig = Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)
+          }
+      expectedAfterChange =
+        Public.TeamFeatureStatusWithConfig
+          { Public.tfwcStatus = Public.TeamFeatureDisabled,
+            Public.tfwcConfig = Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (30 :: Int32)
+          }
+
+  let getAppLockFeatureConfig ::
+        (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
+        UserId ->
+        Public.TeamFeatureStatus 'Public.TeamFeatureAppLock ->
+        m ()
+      getAppLockFeatureConfig uid = do
+        assertFlagWithConfig @Public.TeamFeatureAppLockConfig $
+          Util.getFeatureConfig Public.TeamFeatureAppLock uid
+
+  opts <- view tsGConf
+  let appLockDisabled =
+        opts
+          & over
+            (optSettings . setFeatureFlags . flagAppLockDefaults . unDefaults)
+            (\s -> s {Public.tfwcStatus = Public.TeamFeatureDisabled})
+  withSettingsOverrides appLockDisabled $ do
+    getAppLock member tid expectedBeforeChange
+    getAppLockInternal tid expectedBeforeChange
+    getAppLockFeatureConfig member expectedBeforeChange
+
+    void $ setAppLock owner tid expectedAfterChange
+    getAppLock member tid expectedAfterChange
+
+----------------------------------------------------------------------
 
 testSimpleFlag ::
   forall (a :: Public.TeamFeatureName).
