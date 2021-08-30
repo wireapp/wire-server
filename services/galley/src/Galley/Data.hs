@@ -577,44 +577,26 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
       Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
       Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
--- Deprecated
+-- TODO: Delete
 conversationIdsOf :: (MonadClient m) => UserId -> [ConvId] -> m [ConvId]
 conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
--- | Takes a list of conversation ids and splits them by those found for the
--- given user and those which are not found.
---
--- Returns @(foundConvs, notFoundConvs)@.
-localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -> [ConvId] -> m ([ConvId], [ConvId])
-localConversationIdsOf usr = conncurrentPartitionM (pure . isJust <=< findConv)
-  where
-    findConv :: ConvId -> m (Maybe (Identity UserId))
-    findConv conv = do
-      query1 Cql.selectUserConvMembership (params Quorum (usr, conv))
+-- | Takes a list of conversation ids and returns those found for the given
+-- user.
+localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -> [ConvId] -> m [ConvId]
+localConversationIdsOf usr cids = do
+  runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
--- | Takes a list of conversation ids and splits them by those found for the
--- given user and those which are not found.
---
--- Returns @(foundConvs, notFoundConvs)@.
-remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m ([Remote ConvId], [Remote ConvId])
-remoteConversationIdOf usr = conncurrentPartitionM (pure . isJust <=< findRemoteConv)
+-- | Takes a list of remote conversation ids and splits them by those found for
+-- the given user
+remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m [Remote ConvId]
+remoteConversationIdOf usr cnvs = do
+  concat <$$> pooledMapConcurrentlyN 8 findRemoteConvs . Map.assocs . partitionQualified . map unTagged $ cnvs
   where
-    findRemoteConv :: Remote ConvId -> m (Maybe (Identity UserId))
-    findRemoteConv remoteConvId = do
-      let (Qualified conv domain) = unTagged remoteConvId
-      query1 Cql.selectRemoteConvMembership (params Quorum (usr, domain, conv))
-
--- | Like 'Control.Monad.Extra.partitionM', but works concurrently in 8 threads.
-conncurrentPartitionM :: forall m a. MonadUnliftIO m => (a -> m Bool) -> [a] -> m ([a], [a])
-conncurrentPartitionM predM xs = partitionEithers <$> pooledMapConcurrentlyN 8 bar xs
-  where
-    bar :: a -> m (Either a a)
-    bar x = do
-      matches <- predM x
-      pure $
-        if matches
-          then Left x
-          else Right x
+    findRemoteConvs :: (Domain, [ConvId]) -> m [Remote ConvId]
+    findRemoteConvs (domain, remoteConvIds) = do
+      foundCnvs <- runIdentity <$$> query Cql.selectRemoteConvMembershipIn (params Quorum (usr, domain, remoteConvIds))
+      pure $ toRemote . (`Qualified` domain) <$> foundCnvs
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do

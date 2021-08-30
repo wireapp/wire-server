@@ -240,9 +240,6 @@ deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
 selectUserConvs = "select conv from user where user = ? order by conv"
 
-selectUserConvMembership :: PrepQuery R (UserId, ConvId) (Identity UserId)
-selectUserConvMembership = "select user from user where user = ? and conv = ?"
-
 selectUserConvsIn :: PrepQuery R (UserId, [ConvId]) (Identity ConvId)
 selectUserConvsIn = "select conv from user where user = ? and conv in ? order by conv"
 
@@ -312,6 +309,9 @@ selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_rem
 
 selectRemoteConvMembership :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
 selectRemoteConvMembership = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+
+selectRemoteConvMembershipIn :: PrepQuery R (UserId, Domain, [ConvId]) (Identity ConvId)
+selectRemoteConvMembershipIn = "select conv_remote_id from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id in ?"
 
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"

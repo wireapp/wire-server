@@ -289,8 +289,8 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
   localDomain <- viewFederationDomain
 
   let (remoteIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
-  (foundLocalIds, notFoundLocalIds) <- Data.localConversationIdsOf user localIds
-  (foundRemoteIds, locallyNotFoundRemoteIds) <- Data.remoteConversationIdOf user remoteIds
+  (foundLocalIds, notFoundLocalIds) <- foundsAndNotFounds (Data.localConversationIdsOf user) localIds
+  (foundRemoteIds, locallyNotFoundRemoteIds) <- foundsAndNotFounds (Data.remoteConversationIdOf user) remoteIds
 
   localInternalConversations <-
     Data.conversations foundLocalIds
@@ -324,6 +324,11 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
+    foundsAndNotFounds :: (Monad m, Eq a) => ([a] -> m [a]) -> [a] -> m ([a], [a])
+    foundsAndNotFounds f xs = do
+      founds <- f xs
+      let notFounds = xs \\ founds
+      pure (founds, notFounds)
 
 iterateConversations :: forall a. UserId -> Range 1 500 Int32 -> ([Data.Conversation] -> Galley a) -> Galley [a]
 iterateConversations uid pageSize handleConvs = go Nothing
