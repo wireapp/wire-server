@@ -62,7 +62,6 @@ module Galley.Data
     remoteConversationIdOf,
     localConversationIdsPageFrom,
     conversationIdRowsForPagination,
-    conversationIdsOf,
     conversationMeta,
     conversations,
     conversationsRemote,
@@ -576,10 +575,6 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
     <$$> case start of
       Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
       Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
-
--- TODO: Delete
-conversationIdsOf :: (MonadClient m) => UserId -> [ConvId] -> m [ConvId]
-conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
 -- | Takes a list of conversation ids and returns those found for the given
 -- user.

@@ -226,7 +226,7 @@ getConversationsInternal user mids mstart msize = do
     -- get ids and has_more flag
     getIds (Just ids) =
       (False,)
-        <$> Data.conversationIdsOf
+        <$> Data.localConversationIdsOf
           user
           (fromCommaSeparatedList (fromRange ids))
     getIds Nothing = do
@@ -271,7 +271,7 @@ listConversations user (Public.ListConversations mIds qstart msize) = do
     size = fromMaybe (toRange (Proxy @32)) msize
 
     getIdsAndMore :: [ConvId] -> Galley (Bool, [ConvId])
-    getIdsAndMore ids = (False,) <$> Data.conversationIdsOf user ids
+    getIdsAndMore ids = (False,) <$> Data.localConversationIdsOf user ids
 
     getAll :: Maybe ConvId -> Galley (Bool, [ConvId])
     getAll mstart = do
