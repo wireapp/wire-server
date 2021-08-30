@@ -32,7 +32,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## API Changes
 
 * Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
-* Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
+* Add `DELETE /conversations/:domain/:cnv/members/:domain/:usr` (#1697)
 
 ## Features
 
@@ -40,6 +40,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 * Fix case sensitivity in schema parser in hscim library (#1714)
 * [helm charts] resolve a rate-limiting issue when using certificate-manager alongside wire-server and nginx-ingress-services helm charts (#1715)
+* Remove support for managed conversations in member removal (#1718)
 
 ## Documentation
 

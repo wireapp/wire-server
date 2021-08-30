@@ -666,7 +666,6 @@ removeMemberFromLocalConv remover@(Qualified removerUid removerDomain) zcon conv
         else rmConvRoleName <$> getSelfMemberFromRemotes (toRemote remover) (Data.convRemoteMembers conv)
 
   generalConvChecks localDomain removerRole conv
-  for_ (Data.convTeam conv) teamConvChecks
 
   unless
     ( (victimDomain == localDomain && victim `isMember` locals)
@@ -720,12 +719,6 @@ removeMemberFromLocalConv remover@(Qualified removerUid removerDomain) zcon conv
           throwE RemoveFromConversationErrorRemovalNotAllowed
         ACOCustomRolesNotSupported ->
           throwE RemoveFromConversationErrorCustomRolesNotSupported
-
-    teamConvChecks :: TeamId -> ExceptT RemoveFromConversationError Galley ()
-    teamConvChecks tid = do
-      tcv <- Data.teamConversation tid convId
-      when (maybe False (view managedConversation) tcv) $
-        throwE RemoveFromConversationErrorManagedConvNotAllowed
 
 -- OTR
 
