@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -22,12 +21,12 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow (Arrow (second), second, (&&&))
-import Control.Error (ExceptT)
+import Control.Arrow (Arrow (second), second)
+import Control.Error (ExceptT, hoistEither, note)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
-import Control.Monad.Extra (allM, anyM)
+import Control.Monad.Extra (allM, anyM, eitherM)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -35,7 +34,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), Remote, partitionQualified)
+import Data.Qualified (Qualified (..), Remote, partitionQualified, toRemote)
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -126,15 +125,30 @@ ensureReAuthorised u secret = do
   unless reAuthed $
     throwM reAuthFailed
 
+-- | Possible outcomes of ensuring an action is allowed.
+data ActionCheckingOutcome
+  = ACOAllowed
+  | ACOActionDenied Action
+  | ACOCustomRolesNotSupported
+
+-- | Given a member in a conversation, check if the given action
+-- is permitted.
+ensureActionAllowed :: Action -> RoleName -> ActionCheckingOutcome
+ensureActionAllowed action role = case isActionAllowed action role of
+  Just True -> ACOAllowed
+  Just False -> ACOActionDenied action
+  Nothing -> ACOCustomRolesNotSupported
+
 -- | Given a member in a conversation, check if the given action
 -- is permitted.
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-ensureActionAllowed :: Action -> InternalMember a -> Galley ()
-ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
-  Just True -> return ()
-  Just False -> throwErrorDescription (actionDenied action)
-  Nothing -> throwM (badRequest "Custom roles not supported")
+ensureActionAllowedThrowing :: Action -> InternalMember a -> Galley ()
+ensureActionAllowedThrowing action mem =
+  case ensureActionAllowed action (memConvRoleName mem) of
+    ACOAllowed -> return ()
+    ACOActionDenied _ -> throwErrorDescription (actionDenied action)
+    ACOCustomRolesNotSupported -> throwM (badRequest "Custom roles not supported")
 
 -- Actually, this will "never" happen due to the
 -- fact that there can be no custom roles at the moment
@@ -235,8 +249,8 @@ isRemoteMember u = isJust . find ((u ==) . rmId)
 findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convLocalMembers c)
 
-botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
-botsAndUsers = foldMap botOrUser
+localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
+localBotsAndUsers = foldMap botOrUser
   where
     botOrUser m = case memService m of
       -- we drop invalid bots here, which shouldn't happen
@@ -264,22 +278,90 @@ membersToRecipients Nothing = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
 -- | Note that we use 2 nearly identical functions but slightly different
--- semantics; when using `getSelfMember`, if that user is _not_ part of
--- the conversation, we don't want to disclose that such a conversation
--- with that id exists.
-getSelfMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getSelfMember = getMember (errorDescriptionToWai convNotFound)
+-- semantics; when using `getSelfMemberFromLocals`, if that user is _not_ part
+-- of the conversation, we don't want to disclose that such a conversation with
+-- that id exists.
+getSelfMemberFromLocals ::
+  (Foldable t, Monad m) =>
+  UserId ->
+  t LocalMember ->
+  ExceptT ConvNotFound m LocalMember
+getSelfMemberFromLocals = getLocalMember convNotFound
 
-getOtherMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getOtherMember = getMember convMemberNotFound
+-- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley monad.
+getSelfMemberFromLocalsLegacy ::
+  Foldable t =>
+  UserId ->
+  t LocalMember ->
+  Galley LocalMember
+getSelfMemberFromLocalsLegacy usr lmems =
+  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $ getSelfMemberFromLocals usr lmems
+
+getOtherMember :: (Foldable t, Monad m) => UserId -> t LocalMember -> ExceptT Error m LocalMember
+getOtherMember = getLocalMember convMemberNotFound
+
+getOtherMemberLegacy :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
+getOtherMemberLegacy usr lmems =
+  eitherM throwM pure . runExceptT $ getOtherMember usr lmems
+
+-- | Note that we use 2 nearly identical functions but slightly different
+-- semantics; when using `getSelfMemberQualified`, if that user is _not_ part of
+-- the conversation, we don't want to disclose that such a conversation with
+-- that id exists.
+getSelfMemberQualified ::
+  (Foldable t, Monad m) =>
+  Domain ->
+  Qualified UserId ->
+  t LocalMember ->
+  t RemoteMember ->
+  ExceptT ConvNotFound m (Either LocalMember RemoteMember)
+getSelfMemberQualified localDomain qusr@(Qualified usr userDomain) lmems rmems = do
+  if localDomain == userDomain
+    then Left <$> getSelfMemberFromLocals usr lmems
+    else Right <$> getSelfMemberFromRemotes (toRemote qusr) rmems
+
+getSelfMemberFromRemotes ::
+  (Foldable t, Monad m) =>
+  Remote UserId ->
+  t RemoteMember ->
+  ExceptT ConvNotFound m RemoteMember
+getSelfMemberFromRemotes = getRemoteMember convNotFound
+
+getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
+getSelfMemberFromRemotesLegacy usr rmems =
+  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $
+    getSelfMemberFromRemotes usr rmems
 
 -- | Since we search by local user ID, we know that the member must be local.
-getMember :: Foldable t => Error -> UserId -> t LocalMember -> Galley LocalMember
-getMember ex u ms = do
-  let member = find ((u ==) . memId) ms
-  case member of
-    Just m -> return (m {memId = u})
-    Nothing -> throwM ex
+getLocalMember ::
+  (Foldable t, Monad m) =>
+  e ->
+  UserId ->
+  t LocalMember ->
+  ExceptT e m LocalMember
+getLocalMember = getMember memId
+
+-- | Since we search by remote user ID, we know that the member must be remote.
+getRemoteMember ::
+  (Foldable t, Monad m) =>
+  e ->
+  Remote UserId ->
+  t RemoteMember ->
+  ExceptT e m RemoteMember
+getRemoteMember = getMember rmId
+
+getMember ::
+  (Foldable t, Eq userId, Monad m) =>
+  -- | A projection from a member type to its user ID
+  (mem -> userId) ->
+  -- | An error to throw in case the user is not in the list
+  e ->
+  -- | The member to be found by its user ID
+  userId ->
+  -- | A list of members to search
+  t mem ->
+  ExceptT e m mem
+getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership =
@@ -515,50 +597,36 @@ registerRemoteConversationMemberships now localDomain c = do
       let rpc = FederatedGalley.registerConversation FederatedGalley.clientRoutes rc
       runFederated domain rpc
 
--- | Notify remote users of being added to an existing conversation
-updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
-updateRemoteConversationMemberships existingRemotes usr now c lmm rmm = do
+-- | Notify remote backends about changes to the conversation memberships of the
+-- conversation their users are part of.
+notifyRemoteAboutConvUpdate ::
+  -- | The originating user that is doing the update
+  Qualified UserId ->
+  -- | The conversation being updated, assumed local as we shouldn't be sending
+  -- updates for non local conversations.
+  ConvId ->
+  -- | The current time
+  UTCTime ->
+  -- | Action being performed
+  ConversationMembersAction ->
+  -- | Remote members that need to be notified
+  [Remote UserId] ->
+  Galley ()
+notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let mm = catMembers localDomain lmm rmm
-      qcnv = Qualified (Data.convId c) localDomain
-      qusr = Qualified usr localDomain
-  -- FUTUREWORK: parallelise federated requests
-  traverse_ (uncurry (updateRemoteConversations now mm qusr qcnv))
+  let qconvId = Qualified convId localDomain
+      mkUpdate oth = ConversationMemberUpdate time origUser qconvId oth action
+  traverse_ (uncurry (notificationRPC . mkUpdate) . swap)
     . Map.assocs
     . partitionQualified
     . nubOrd
-    . map (unTagged . rmId)
-    $ rmm <> existingRemotes
-
-updateRemoteConversations ::
-  UTCTime ->
-  [(Qualified UserId, RoleName)] ->
-  Qualified UserId ->
-  Qualified ConvId ->
-  Domain ->
-  [UserId] ->
-  Galley ()
-updateRemoteConversations now uids orig cnv domain others = do
-  let cmu =
-        ConversationMemberUpdate
-          { cmuTime = now,
-            cmuOrigUserId = orig,
-            cmuConvId = cnv,
-            cmuAlreadyPresentUsers = others,
-            cmuUsersAdd = uids,
-            cmuUsersRemove = []
-          }
-  let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
-  runFederated domain rpc
-
-catMembers ::
-  Domain ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  [(Qualified UserId, RoleName)]
-catMembers localDomain ls rs =
-  map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
-    <> map ((unTagged . rmId) &&& rmConvRoleName) rs
+    . map unTagged
+    $ remotesToNotify
+  where
+    notificationRPC :: ConversationMemberUpdate -> Domain -> Galley ()
+    notificationRPC cmu domain = do
+      let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
+      runFederated domain rpc
 
 --------------------------------------------------------------------------------
 -- Legalhold

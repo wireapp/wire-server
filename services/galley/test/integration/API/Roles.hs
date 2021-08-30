@@ -162,7 +162,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   postMembers admin (singleton other) cid !!! assertActionSucceeded
   -- Remove members, regardless of who they are
   forM_ [otherAdmin, mem] $ \victim -> do
-    deleteMember admin victim cid !!! assertActionSucceeded
+    deleteMemberUnqualified admin victim cid !!! assertActionSucceeded
     postMembersWithRole admin (singleton victim) cid role !!! assertActionSucceeded
   -- Modify the conversation name
   void $ putConversationName admin cid "gossip++" !!! assertActionSucceeded
@@ -185,7 +185,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   let memUpdate = memberUpdate {mupOtrMute = Just True}
   putMember admin memUpdate cid !!! assertActionSucceeded
   -- You can also leave a conversation
-  deleteMember admin admin cid !!! assertActionSucceeded
+  deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
   -- Readding the user
   postMembersWithRole otherAdmin (singleton admin) cid role !!! const 200 === statusCode
 
@@ -206,7 +206,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- Cannot add members, regardless of their role
   postMembers mem (singleton other) cid !!! assertActionDenied
   -- Cannot remove members, regardless of who they are
-  forM_ [admin, otherMem] $ \victim -> deleteMember mem victim cid !!! assertActionDenied
+  forM_ [admin, otherMem] $ \victim -> deleteMemberUnqualified mem victim cid !!! assertActionDenied
   -- Cannot modify the conversation name
   void $ putConversationName mem cid "gossip++" !!! assertActionDenied
   -- Cannot modify other members roles
@@ -233,7 +233,7 @@ wireMemberChecks cid mem admin otherMem = do
   let memUpdate = memberUpdate {mupOtrMute = Just True}
   putMember mem memUpdate cid !!! assertActionSucceeded
   -- Last option is to leave a conversation
-  deleteMember mem mem cid !!! assertActionSucceeded
+  deleteMemberUnqualified mem mem cid !!! assertActionSucceeded
   -- Let's readd the user to make tests easier
   postMembersWithRole admin (singleton mem) cid role !!! const 200 === statusCode
 
