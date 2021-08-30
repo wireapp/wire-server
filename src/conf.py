@@ -20,7 +20,9 @@
 project = 'Wire'
 copyright = '2021, Wire'
 author = 'Wire Swiss GmbH'
-version = "0.0.2"
+version = '0.0.2'
+# the 'release' variable is used in latex-based PDF generation
+release = version
 
 
 # -- General configuration ---------------------------------------------------
@@ -42,6 +44,12 @@ pdf_documents = [
     ('understand/federation/index', 'wire_federation', 'Wire Federation', 'Wire Swiss GmbH')
 ]
 
+latex_documents = [
+    ('understand/federation/index', 'main.tex', 'Wire Federation', 'Wire Swiss GmbH', 'howto', 'False')
+]
+
+
+
 
 # Add section number to section
 referencespdf_use_numbered_links = True
@@ -54,7 +62,7 @@ pdf_fit_mode = "shrink"
 templates_path = ['_templates']
 
 html_sidebars = {
-    # instead of a wildcard **, a regex could optionally 
+    # instead of a wildcard **, a regex could optionally
     # show the version sidebar only on some pages but not all of them.
     '**': ['versioning.html', 'globaltoc.html', 'sourcelink.html', 'searchbox.html'],
 }
