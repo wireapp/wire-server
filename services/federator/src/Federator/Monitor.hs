@@ -39,7 +39,7 @@ import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
-import System.FilePath (takeDirectory)
+import System.FilePath (splitFileName)
 import System.INotify
 import qualified System.Logger.Message as Log
 import System.Posix.ByteString (RawFilePath)
@@ -54,6 +54,26 @@ rawPath :: FilePath -> IO RawFilePath
 rawPath path = do
   encoding <- getFileSystemEncoding
   withCStringLen encoding path packCStringLen
+
+data WatchedPath
+  = WatchedFile RawFilePath
+  | WatchedDir RawFilePath (Set RawFilePath)
+  deriving (Eq, Ord, Show)
+
+mergePaths :: [WatchedPath] -> (Set WatchedPath)
+mergePaths = Set.fromList . merge . sort
+  where
+    merge [] = []
+    merge [w] = [w]
+    merge (w1 : w2 : ws) = case (w1, w2) of
+      (_, WatchedFile _) -> w1 : w2 : merge ws
+      (WatchedDir dir1 paths1, WatchedDir dir2 paths2)
+        | dir1 == dir2 -> merge (WatchedDir dir1 (paths1 <> paths2) : ws)
+      _ -> w1 : merge (w2 : ws)
+
+watchedPath :: WatchedPath -> RawFilePath
+watchedPath (WatchedFile path) = path
+watchedPath (WatchedDir dir _) = dir
 
 monitorEvents :: [EventVariety]
 monitorEvents = [CloseWrite, MoveIn, Create]
@@ -89,14 +109,14 @@ monitorCertificates env rs = do
   inotify <- embed initINotify
   let watch path = do
         wd <- embed
-          . addWatch inotify monitorEvents path
+          . addWatch inotify monitorEvents (watchedPath path)
           -- TODO: use correct encoding here
           $ \e -> runMonitor env $ do
             handleEvent path (view tls env) rs e
         Log.debug $
           Log.msg ("watching file" :: Text)
             . Log.field "descriptor" (show wd)
-            . Log.field "file" path
+            . Log.field "file" (watchedPath path)
         pure wd
   Log.debug $
     Log.msg ("inotify initialized" :: Text)
@@ -106,31 +126,24 @@ monitorCertificates env rs = do
 
 handleEvent ::
   (Members '[TinyLog, Embed IO] r) =>
-  RawFilePath ->
+  WatchedPath ->
   MVar TLSSettings ->
   RunSettings ->
   Event ->
   Sem r ()
-handleEvent watchedPath var rs e = case eventPath e of
-  Nothing ->
-    Log.warn $
-      Log.msg ("unexpected monitor event" :: Text)
-        . Log.field "event" (show e)
-  Just path -> when (isRelevant path) $ do
-    tls' <- embed $ mkTLSSettings rs
-    Log.info $ Log.msg ("updating TLS settings" :: Text)
-    embed @IO $ print tls'
-    embed @IO $ modifyMVar_ var (const (pure tls'))
+handleEvent wpath var rs e = when (needReload wpath e) $ do
+  tls' <- embed $ mkTLSSettings rs
+  Log.info $ Log.msg ("updating TLS settings" :: Text)
+  embed @IO $ modifyMVar_ var (const (pure tls'))
   where
-    eventPath :: Event -> Maybe RawFilePath
-    eventPath (Closed _ mpath True) = mpath <> Just watchedPath
-    eventPath (MovedIn _ path _) = Just path
-    eventPath (Created _ path) = Just path
-    eventPath _ = Nothing
-
-    isRelevant :: RawFilePath -> Bool
-    isRelevant path | watchedPath == path = True
-    isRelevant _path = False -- TODO
+    needReload :: WatchedPath -> Event -> Bool
+    needReload (WatchedFile path) (Closed _ mpath True) =
+      maybe True (== path) mpath
+    needReload (WatchedDir _ paths) (MovedIn _ path _) =
+      Set.member path paths
+    needReload (WatchedDir _ paths) (Created _ path) =
+      Set.member path paths
+    needReload _ _ = False
 
 certificatePaths :: RunSettings -> [FilePath]
 certificatePaths rs =
@@ -139,15 +152,22 @@ certificatePaths rs =
          clientPrivateKey rs
        ]
 
-certificateWatchPaths :: RunSettings -> IO (Set RawFilePath)
+certificateWatchPaths :: RunSettings -> IO (Set WatchedPath)
 certificateWatchPaths =
-  fmap Set.fromList
-    . traverse rawPath
-    . (cert1 =<<)
+  fmap (mergePaths . concat)
+    . traverse watched
     . certificatePaths
   where
-    cert1 :: FilePath -> [FilePath]
-    cert1 path = [path, takeDirectory path]
+    watched :: FilePath -> IO [WatchedPath]
+    watched path = do
+      rpath <- rawPath path
+      let (dir, base) = splitFileName path
+      rdir <- rawPath dir
+      rbase <- rawPath base
+      pure
+        [ WatchedFile rpath,
+          WatchedDir rdir (Set.singleton rbase)
+        ]
 
 data FederationSetupError
   = InvalidCAStore FilePath

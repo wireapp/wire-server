@@ -27,7 +27,6 @@ import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Data.X509.CertificateStore
 import Federator.Options (RunSettings)
-import Imports
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.TLS as TLS
