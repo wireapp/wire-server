@@ -1951,7 +1951,7 @@ testListRemoteConvs = do
 --
 -- - A local conversation which doesn't exist
 --
--- - A local conersation which they're not part of
+-- - A local conversation which they're not part of
 testBulkGetQualifiedConvs :: TestM ()
 testBulkGetQualifiedConvs = do
   localDomain <- viewFederationDomain
