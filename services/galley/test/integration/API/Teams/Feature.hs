@@ -431,8 +431,6 @@ testFeatureConfigConsistency = do
 
   unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
     liftIO $ expectationFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
-
-  pure ()
   where
     parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
     parseObjectKeys res = do
