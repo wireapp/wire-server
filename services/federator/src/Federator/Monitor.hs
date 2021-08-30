@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Monitor where
+module Federator.Monitor (withMonitor) where
 
 import Control.Exception (bracket)
 import Control.Lens (view)
@@ -35,15 +35,15 @@ import qualified System.Logger.Message as Log
 monitorEvents :: [EventVariety]
 monitorEvents = [CloseWrite, MoveIn, Create]
 
+runMonitor :: Env -> Sem '[TinyLog, Embed IO] a -> IO a
+runMonitor env = Polysemy.runM . Log.runTinyLog (view applog env)
+
 withMonitor :: Env -> RunSettings -> IO a -> IO a
 withMonitor env rs action =
   bracket
-    (run (monitorCertificates rs))
-    (run . stopMonitoringCertificates :: [WatchDescriptor] -> IO ())
+    (runMonitor env (monitorCertificates env rs))
+    (runMonitor env . stopMonitoringCertificates)
     (const action)
-  where
-    run :: Sem '[TinyLog, Embed IO] a -> IO a
-    run = Polysemy.runM . Log.runTinyLog (view applog env)
 
 stopMonitoringCertificates ::
   (Members '[TinyLog, Embed IO] r) =>
@@ -59,13 +59,19 @@ stopMonitoringCertificates = traverse_ stop
 
 monitorCertificates ::
   (Members '[TinyLog, Embed IO] r) =>
+  Env ->
   RunSettings ->
   Sem r [WatchDescriptor]
-monitorCertificates rs = do
+monitorCertificates env rs = do
   inotify <- embed initINotify
   let watch path = do
-        wd <- embed . addWatch inotify monitorEvents (B8.pack path) $ \e ->
-          print e
+        wd <- embed
+          . addWatch inotify monitorEvents (B8.pack path)
+          $ \e -> runMonitor env $ do
+            Log.debug $
+              Log.msg ("monitor event" :: Text)
+                . Log.field "event" (show e)
+            handleEvent env e
         Log.debug $
           Log.msg ("watching file" :: Text)
             . Log.field "descriptor" (show wd)
@@ -75,6 +81,9 @@ monitorCertificates rs = do
     Log.msg ("inotify initialized" :: Text)
       . Log.field "inotify" (show inotify)
   traverse watch (toList (certificatePaths rs))
+
+handleEvent :: (Members '[Embed IO] r) => Env -> Event -> Sem r ()
+handleEvent _env _e = pure ()
 
 certificatePaths :: RunSettings -> Set FilePath
 certificatePaths rs =
