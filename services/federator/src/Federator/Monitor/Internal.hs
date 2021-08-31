@@ -17,13 +17,13 @@
 
 module Federator.Monitor.Internal where
 
-import Control.Lens (view)
+import Control.Exception (try)
 import Data.ByteString (packCStringLen)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.X509 as X509
 import Data.X509.CertificateStore
-import Federator.Env (Env, TLSSettings (..), applog, tls)
+import Federator.Env (TLSSettings (..))
 import Federator.Options (RunSettings (..))
 import GHC.Foreign (withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
@@ -100,23 +100,28 @@ stopMonitoringCertificates ::
 stopMonitoringCertificates = traverse_ stop
   where
     stop wd = do
-      embed $ removeWatch wd
+      -- ignore exceptions when removing watches
+      embed . void . try @IOException $ removeWatch wd
       Log.debug $
         Log.msg ("stopped watching file" :: Text)
           . Log.field "descriptor" (show wd)
 
 monitorCertificates ::
-  (Members '[TinyLog, Embed IO] r) =>
-  Env ->
+  ( Members '[TinyLog, Embed IO] r,
+    Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r1
+  ) =>
+  ( Sem r1 () ->
+    IO ()
+  ) ->
+  MVar TLSSettings ->
   RunSettings ->
   Sem r [WatchDescriptor]
-monitorCertificates env rs = do
+monitorCertificates runSem tlsVar rs = do
   inotify <- embed initINotify
   let watch path = do
         wd <- embed
           . addWatch inotify monitorEvents (watchedPath path)
-          $ \e -> runMonitor (view applog env) . logAndIgnoreErrors $ do
-            handleEvent path (view tls env) rs e
+          $ \e -> runSem $ handleEvent path tlsVar rs e
         Log.debug $
           Log.msg ("watching file" :: Text)
             . Log.field "descriptor" (show wd)
@@ -156,6 +161,7 @@ certificatePaths rs =
          clientPrivateKey rs
        ]
 
+-- TODO: consider only watching directories
 certificateWatchPaths :: RunSettings -> IO (Set WatchedPath)
 certificateWatchPaths =
   fmap (mergePaths . concat)

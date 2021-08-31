@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8e732aec117d0fcbffe4489216539ebff724b389765668a7986be3dbd4fd2dd9
+-- hash: cdf89f0c5f8f54e24765560fd9a38d25461c90b53255d7fb530cfe18881c875f
 
 name:           federator
 version:        1.0.0
@@ -181,6 +181,7 @@ executable federator-integration
       Test.Federator.IngressSpec
       Test.Federator.InwardSpec
       Test.Federator.JSON
+      Test.Federator.Monitor
       Test.Federator.Util
       Paths_federator
   hs-source-dirs:
@@ -309,9 +310,11 @@ test-suite federator-tests
     , string-conversions
     , tasty
     , tasty-hunit
+    , temporary
     , text
     , tinylog
     , tls
+    , transformers
     , types-common
     , unix
     , unliftio

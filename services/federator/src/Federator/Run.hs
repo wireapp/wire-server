@@ -70,7 +70,7 @@ run opts = do
     bracket (newEnv opts res) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
-      withMonitor env (optSettings opts) $ do
+      withMonitor (env ^. applog) (env ^. tls) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
         void $ waitAnyCancel [internalServerThread, externalServerThread]

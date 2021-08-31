@@ -23,13 +23,13 @@ module Federator.Monitor
 where
 
 import Control.Exception (bracket, throw)
-import Control.Lens (view)
-import Federator.Env (Env, TLSSettings (..), applog)
+import Federator.Env (TLSSettings (..))
 import Federator.Monitor.Internal
 import Federator.Options (RunSettings (..))
 import Imports
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
+import System.Logger (Logger)
 
 mkTLSSettingsOrThrow :: RunSettings -> IO TLSSettings
 mkTLSSettingsOrThrow =
@@ -38,9 +38,16 @@ mkTLSSettingsOrThrow =
     . Polysemy.runError @FederationSetupError
     . mkTLSSettings
 
-withMonitor :: Env -> RunSettings -> IO a -> IO a
-withMonitor env rs action =
+withMonitor :: Logger -> MVar TLSSettings -> RunSettings -> IO a -> IO a
+withMonitor logger tlsVar rs action =
   bracket
-    (runMonitor (view applog env) (monitorCertificates env rs))
-    (runMonitor (view applog env) . stopMonitoringCertificates)
+    ( runMonitor
+        logger
+        ( monitorCertificates
+            (runMonitor logger . logAndIgnoreErrors)
+            tlsVar
+            rs
+        )
+    )
+    (runMonitor logger . stopMonitoringCertificates)
     (const action)

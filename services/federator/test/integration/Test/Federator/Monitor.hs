@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,29 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Test.Federator.Monitor (spec) where
 
 import Imports
-import qualified Test.Federator.ExternalServer
-import qualified Test.Federator.InternalServer
-import qualified Test.Federator.Monitor
-import qualified Test.Federator.Options
-import qualified Test.Federator.Remote
-import qualified Test.Federator.Validation as Validation
-import Test.Tasty
+import Test.Federator.Util
+import Test.Hspec
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Federator.Options.tests,
-        Validation.tests,
-        Test.Federator.InternalServer.tests,
-        Test.Federator.ExternalServer.tests,
-        Test.Federator.Monitor.tests,
-        Test.Federator.Remote.tests
-      ]
+spec :: TestEnv -> Spec
+spec _env =
+  describe "Monitor" $ pure ()

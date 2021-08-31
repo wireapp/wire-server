@@ -110,6 +110,8 @@ tests:
     - streaming-commons
     - tasty
     - tasty-hunit
+    - temporary
+    - transformers
     - wai
     - warp
     - warp-tls
