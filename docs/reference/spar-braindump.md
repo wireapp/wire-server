@@ -115,9 +115,10 @@ Copy the new metadata file to one of your spar instances.
 
 Ssh into it.  If you can't, [the scim
 docs](provisioning/scim-via-curl.md) explain how you can create a
-bearer token if you have the `ADMIN_ID` and password. If you follow
+bearer token if you have the admin's login credentials.  If you follow
 that approach, you need to replace all mentions of `-H'Z-User ...'`
-with `-H'Bearer ...'` in the following.
+with `-H'Bearer ...'` in the following, and you won't need
+`$ADMIN_ID`, but something like `$BEARER`.
 
 There are two ways to update an IDP, described below, each with their own tradeoffs that affect users.
 
@@ -180,7 +181,7 @@ curl -v \
 ### deleting an idp via curl
 
 Read the beginning of the last section up to "Option 1".  You need
-`ADMIN_ID` and `IDP_ID`, but not `METADATA_FILE`.
+`ADMIN_ID` (or `BEARER`) and `IDP_ID`, but not `METADATA_FILE`.
 
 ```shell
 curl -v
