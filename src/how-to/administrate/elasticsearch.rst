@@ -6,14 +6,6 @@ Elasticsearch
 For more information, see the `elasticsearch
 documentation <https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html>`__
 
-See cluster health and cluster nodes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code:: sh
-
-   curl 'http://localhost:9200/_cluster/health?pretty'
-   curl 'http://localhost:9200/_cat/nodes?v&h=id,ip,name'
-
 How to rolling-restart an elasticsearch cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -75,6 +67,21 @@ You should see output looking like this:
   1630250355 15:18:55 elasticsearch-directory green 3 3 17 6 0 0 0 - 100.0%
 
 Here, the ``green`` denotes good node health, and the ``3 3`` denotes 3 running nodes.
+
+Check cluster health and list cluster nodes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is the command to check the health of the entire cluster:
+
+.. code:: sh
+
+   ssh <ip of elastisearch node> curl 'http://localhost:9200/_cluster/health?pretty'
+
+And this is the command to list the nodes in the cluster:
+
+.. code:: sh
+
+   ssh <ip of elastisearch node> curl 'http://localhost:9200/_cat/nodes?v&h=id,ip,name'
 
 
 Troubleshooting
