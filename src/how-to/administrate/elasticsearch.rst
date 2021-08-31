@@ -58,6 +58,25 @@ How to manually look into what is stored in elasticsearch
 
 See also the elasticsearch sections in :ref:`investigative_tasks`.
 
+
+Check the health of an ElastiSearch node
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To check the health of an ElastiSearch node, run the following command: 
+
+.. code:: sh 
+
+  ssh <ip of elastisearch node> curl localhost:9200/_cat/health
+
+You should see output looking like this:
+
+.. code:: 
+
+  1630250355 15:18:55 elasticsearch-directory green 3 3 17 6 0 0 0 - 100.0%
+
+Here, the ``green`` denotes good node health, and the ``3 3`` denotes 3 running nodes.
+
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 

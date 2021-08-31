@@ -42,3 +42,26 @@ On each server one by one:
 6. Do the same on the next server.
 
 
+Check the health of a Cassandra node
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To check the health of a Cassandra node, run the following command: 
+
+.. code:: sh 
+
+  ssh <ip of cassandra node> /opt/cassandra/bin/nodetool status
+
+You should see a list of nodes like this:
+
+.. code:: sh 
+
+   Datacenter: datacenter1
+   =======================
+   Status=Up/Down
+   |/ State=Normal/Leaving/Joining/Moving
+   --  Address         Load       Tokens          Owns (effective)   Host ID                                Rack
+   UN  192.168.220.13  9.51MiB    256             100.0%             3dba71c8-eea7-4e35-8f35-4386e7944894   rack1
+   UN  192.168.220.23  9.53MiB    256             100.0%             3af56f1f-7685-4b5b-b73f-efdaa371e96e   rack1
+   UN  192.168.220.33  9.55MiB    256             100.0%             RANDOMLY-MADE-UUID-GOES-INTHISPLACE!   rack1
+
+A ``UN`` at the begginng of the line, refers to a node that is ``Up`` and ``Normal``.
