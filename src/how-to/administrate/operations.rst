@@ -39,6 +39,7 @@ This is a list of the health-checking procedures currently documented, for diffe
 * `MinIO <https://docs.wire.com/how-to/administrate/minio.html#check-the-health-of-a-minio-node>`__.
 * `Cassandra <https://docs.wire.com/how-to/administrate/cassandra.html#check-the-health-of-a-cassandra-node>`__.
 * `ElastiSearch <https://docs.wire.com/how-to/administrate/elasticsearch.html#check-the-health-of-an-elastisearch-node>`__.
+* `Etcd <https://docs.wire.com/how-to/administrate/etcd.html#how-to-see-cluster-health>`__.
 * `Restund <https://docs.wire.com/how-to/administrate/restund.html#rebooting-a-restund-node>`__ (the health check is explained as part of the reboot procedure).
 
 To check the health of different services not listed here, see the documentation for that specific project, or ask your Wire contact.
