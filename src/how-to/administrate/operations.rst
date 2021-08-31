@@ -29,7 +29,15 @@ Second, reboot the pod:
 
   ssh -t <ip of minio node> sudo reboot
 
-Third, `check the health <https://docs.wire.com/how-to/administrate/operations.html#health-checks>`__ of the pod again.
+Third, wait until the pod is up again by trying to connect to it via SSH :
+
+.. code:: sh 
+
+  ssh -o 'ConnectionAttempts 3600' <ip of minio node> exit
+
+(``ConnectionAttempts`` will make it so it attempts to connect until the host is actually Up and the connection is succesful)
+
+Fourth, `check the health <https://docs.wire.com/how-to/administrate/operations.html#health-checks>`__ of the pod again.
 
 Health checks
 -------------

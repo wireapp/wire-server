@@ -196,7 +196,13 @@ Now log into the restund server you wish to reboot (``restund-1`` in this exampl
   
   ssh -t <ip of restund-1> sudo reboot
 
-Wait at least a minute for the machine to restart, then log into the restund server (``restund-1``, in this example), and make sure the docker service is running:
+Wait at least a minute for the machine to restart, you can use this command to automatically retry SSH access until it is succesful:
+
+.. code:: sh 
+
+  ssh -o 'ConnectionAttempts 3600' <ip of restund-1 node> exit
+
+Then log into the restund server (``restund-1``, in this example), and make sure the docker service is running:
 
 .. code:: sh
 
