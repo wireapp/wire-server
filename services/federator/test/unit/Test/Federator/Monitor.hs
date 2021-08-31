@@ -18,16 +18,21 @@
 module Test.Federator.Monitor (tests) where
 
 import Control.Exception (bracket)
+import Control.Lens (view)
 import Control.Monad.Trans.Cont
-import Federator.Env (TLSSettings (..))
+import Data.X509 (CertificateChain (..))
+import Federator.Env (TLSSettings (..), creds)
+import Federator.Monitor
 import Federator.Monitor.Internal
 import Federator.Options
 import Imports
-import Polysemy (Embed, Member, Sem)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.TinyLog as Polysemy
+import System.FilePath
 import System.IO.Temp
+import System.Posix (createSymbolicLink, getWorkingDirectory)
+import System.Timeout
 import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -39,19 +44,8 @@ tests =
     [ testMonitorChangeUpdate,
       testMonitorOverwriteUpdate,
       testMonitorSymlinkUpdate,
-      testMonitorErrorLog
+      testMonitorError
     ]
-
-assertNoErrors ::
-  (Exception e, Member (Embed IO) r) =>
-  Sem (Polysemy.Error e ': r) a ->
-  Sem r a
-assertNoErrors m =
-  Polysemy.runError m >>= \case
-    Left e ->
-      Polysemy.embed $
-        assertFailure ("unexpected error: " ++ displayException e)
-    Right x -> pure x
 
 tempFile :: FilePath -> String -> ContT r IO FilePath
 tempFile dir template =
@@ -59,43 +53,125 @@ tempFile dir template =
 
 withSettings :: ContT r IO RunSettings
 withSettings = do
-  dir <- liftIO $ getCanonicalTemporaryDirectory
+  dir <- liftIO getCanonicalTemporaryDirectory
   cert <- tempFile dir "cert.pem"
   liftIO $ copyFile "test/resources/unit/localhost.pem" cert
   key <- tempFile dir "key.pem"
   liftIO $ copyFile "test/resources/unit/localhost-key.pem" key
   pure $ defRunSettings cert key
 
-withSilentMonitor :: ContT r IO (IORef TLSSettings, RunSettings)
-withSilentMonitor = do
+withSymlinkSettings :: ContT r IO RunSettings
+withSymlinkSettings = do
   settings <- withSettings
+  dir <- ContT $ withSystemTempDirectory "conf"
+  liftIO $ createSymbolicLink (clientCertificate settings) (dir </> "cert.pem")
+  liftIO $ createSymbolicLink (clientPrivateKey settings) (dir </> "key.pem")
+  pure $
+    settings
+      { clientCertificate = dir </> "cert.pem",
+        clientPrivateKey = dir </> "key.pem"
+      }
+
+withSilentMonitor ::
+  MVar (Maybe FederationSetupError) ->
+  RunSettings ->
+  ContT r IO (IORef TLSSettings)
+withSilentMonitor done settings = do
   tlsVar <- liftIO $ newIORef (error "TLSSettings not updated before being read")
   void . ContT $
     bracket
       (runSem (monitorCertificates runSemE tlsVar settings))
       (runSem . stopMonitoringCertificates)
-  pure (tlsVar, settings)
+  pure tlsVar
   where
     runSem = Polysemy.runM . Polysemy.discardLogs
-    runSemE = runSem . assertNoErrors @FederationSetupError
+    runSemE action = do
+      r <- runSem (Polysemy.runError @FederationSetupError action)
+      void $ tryPutMVar done (either Just (const Nothing) r)
 
 testMonitorChangeUpdate :: TestTree
 testMonitorChangeUpdate =
   testCase "monitor updates settings on file change" $ do
-    _tls <- evalContT $ do
-      (tlsVar, settings) <- withSilentMonitor
-      liftIO $
+    done <- newEmptyMVar
+    evalContT $ do
+      settings <- withSettings
+      tlsVar <- withSilentMonitor done settings
+      liftIO $ do
+        appendFile (clientCertificate settings) ""
+        result <- timeout 100000 (readMVar done)
+        case result of
+          Nothing -> assertFailure "certificate not updated within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
+
+testMonitorOverwriteUpdate :: TestTree
+testMonitorOverwriteUpdate =
+  testCase "monitor updates settings on file being replaced" $ do
+    done <- newEmptyMVar
+    evalContT $ do
+      settings <- withSettings
+      tlsVar <- withSilentMonitor done settings
+      liftIO $ do
         copyFile
           "test/resources/unit/localhost-dot.pem"
           (clientCertificate settings)
-      readIORef tlsVar
-    pure ()
-
-testMonitorOverwriteUpdate :: TestTree
-testMonitorOverwriteUpdate = testCase "monitor updates settings on file change" $ pure ()
+        result <- timeout 100000 (readMVar done)
+        case result of
+          Nothing -> assertFailure "certificate not updated within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
 
 testMonitorSymlinkUpdate :: TestTree
-testMonitorSymlinkUpdate = testCase "monitor updates settings on file change" $ pure ()
+testMonitorSymlinkUpdate =
+  testCase "monitor updates settings symlink swap" $ do
+    done <- newEmptyMVar
+    evalContT $ do
+      settings <- withSymlinkSettings
+      tlsVar <- withSilentMonitor done settings
+      liftIO $ do
+        removeFile (clientCertificate settings)
+        wd <- getWorkingDirectory
+        createSymbolicLink
+          (wd </> "test/resources/unit/localhost-dot.pem")
+          (clientCertificate settings)
+        result <- timeout 100000 (readMVar done)
+        case result of
+          Nothing -> assertFailure "certificate not updated within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
 
-testMonitorErrorLog :: TestTree
-testMonitorErrorLog = testCase "monitor updates settings on file change" $ pure ()
+testMonitorError :: TestTree
+testMonitorError =
+  testCase "monitor returns an error when settings cannot be updated" $ do
+    done <- newEmptyMVar
+    evalContT $ do
+      settings <- withSettings
+      _ <- withSilentMonitor done settings
+      liftIO $ do
+        writeFile (clientCertificate settings) "not a certificate"
+        result <- timeout 1000000 (readMVar done)
+        case result of
+          Nothing -> assertFailure "no error returned within the allotted time"
+          Just Nothing -> assertFailure "unexpected success"
+          _ -> pure ()

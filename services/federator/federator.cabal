@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cdf89f0c5f8f54e24765560fd9a38d25461c90b53255d7fb530cfe18881c875f
+-- hash: f45fc6f2145c6efc12bc29d131f8a63ab19966233c6d996b52d0080434d88303
 
 name:           federator
 version:        1.0.0
@@ -276,6 +276,7 @@ test-suite federator-tests
     , bytestring
     , containers
     , data-default
+    , directory
     , dns
     , dns-util
     , either

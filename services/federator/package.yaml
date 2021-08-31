@@ -104,6 +104,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - bytestring
+    - directory
     - federator
     - interpolate
     - polysemy-mocks
