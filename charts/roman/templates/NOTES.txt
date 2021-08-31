@@ -1,0 +1,21 @@
+1. Application available at
+$ export host={{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ . }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+2. Get the pubkey.
+   openssl s_client -showcerts -servername "\${host}" -connect "${host}":443 2>/dev/null | openssl x509 -inform pem -pubkey -noout | base64 > pub-key-base-64.key
+
+3. Generate jwt secret
+
+  openssl rand -hex 32 > app.key
+
+4. Upload the secrets to kubernetes:
+
+  kubectl create secret generic roman-secrets --from-file=roman-pub-key-base64=pub-key-base64.key --from-file=jwt-secret=app.key
+
+5. Roman deployment should become stable
