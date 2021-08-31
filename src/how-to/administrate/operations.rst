@@ -43,3 +43,33 @@ This is a list of the health-checking procedures currently documented, for diffe
 * `Restund <https://docs.wire.com/how-to/administrate/restund.html#rebooting-a-restund-node>`__ (the health check is explained as part of the reboot procedure).
 
 To check the health of different services not listed here, see the documentation for that specific project, or ask your Wire contact.
+
+Draining pods from a node for maintainance
+------------------------------------------
+
+You might want to remove («drain») all pods from a specific node/server, so you can do maintainance work on it, without disrupting the entire cluster.
+
+If you want to do this, you should follow the procudure found at: https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/
+
+In short, the procedure is essentially:
+
+First, identify the name of the node you wish to drain. You can list all of the nodes in your cluster with
+
+.. code:: sh 
+
+  kubectl get nodes
+
+Next, tell Kubernetes to drain the node:
+
+.. code:: sh 
+
+  kubectl drain <node name>
+
+Once it returns (without giving an error), you can power down the node (or equivalently, if on a cloud platform, delete the virtual machine backing the node). If you leave the node in the cluster during the maintenance operation, you need to run
+
+.. code:: sh 
+
+  kubectl uncordon <node name>
+
+afterwards to tell Kubernetes that it can resume scheduling new pods onto the node.
+
