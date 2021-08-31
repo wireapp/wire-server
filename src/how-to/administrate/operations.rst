@@ -4,65 +4,45 @@ Operational procedures
 
 This section describes common operations to be performed on operational clusters.
 
+TOREMOVE: Julia Longtin
+I would move the content into the sections (so people know how to health check), then move the "what to do about needing to reboot" stuff into a separate section, that says "perform health checks here, and here, and"...
+10:12 AM
+and probably add a word of caution that one needs to actually understand these instructions, they are not guaranteed correct for every environment, you can destroy your data, yadda yadda..
+10:13 AM
+"if you are unsure, contact your wire customer support representative", etc.
+
 Reboot procedures
 -----------------
 
+The general procedure to reboot a pod is as follows:
 
+* 1. Check the health (TODO: Link) of the pod/service. (If the health isn't good, move to `troubleshooting <https://docs.wire.com/search.html?q=troubleshooting>`__. If it is good, move to the next step.)
+* 2. Reboot the server the pod/service is running on.
+* 3. Check the health of the pod/service **again**. (If the health isn't good, move to `troubleshooting <https://docs.wire.com/search.html?q=troubleshooting>`__. If it is good, your reboot was succesful.)
+
+The method for checking health is different for each pod/service type, you can find a list of those methods `here <https://docs.wire.com/TODO-ADD-LINK>`__.
+
+The method to reset a pod is the same for most services, except for ``restund``, for which the procedure is different, and can be found `here <https://docs.wire.com/TODO-ADD-LINK>`__.
+
+For other (non-``restund``) pods, the procedure is as follows:
+
+Assuming in this example you are trying to reboot a minio server, simply the following:
+
+First, check the health of the pod.
+
+Second, reboot the pod:
+
+.. code:: sh 
+
+  ssh -t <ip of minio node> sudo reboot
+
+Third, check the health of the pod again.
 
 Health checks
 -------------
 
+This is a list of the health-checking procedures currently documented: 
 
 
-Check the health of a Cassandra node
-....................................
 
-To check the health of a Cassandra node, first log into the cassandra node:
 
-.. code:: sh 
-
-  ssh <ip of cassandra node>
-
-Then run the following command: 
-
-.. code:: sh 
-
-  /opt/cassandra/bin/nodetool status
-
-You should see a list of nodes like this:
-
-.. code:: sh 
-
-   Datacenter: datacenter1
-   =======================
-   Status=Up/Down
-   |/ State=Normal/Leaving/Joining/Moving
-   --  Address         Load       Tokens          Owns (effective)   Host ID                                Rack
-   UN  192.168.220.13  9.51MiB    256             100.0%             3dba71c8-eea7-4e35-8f35-4386e7944894   rack1
-   UN  192.168.220.23  9.53MiB    256             100.0%             3af56f1f-7685-4b5b-b73f-efdaa371e96e   rack1
-   UN  192.168.220.33  9.55MiB    256             100.0%             RANDOMLY-MADE-UUID-GOES-INTHISPLACE!   rack1
-
-A ``UN`` at the begginng of the line, refers to a node that is ``Up`` and ``Normal``.
-
-Check the health of an ElastiSearch node
-........................................
-
-To check the health of an ElastiSearch node, first log into the elastisearch node:
-
-.. code:: sh 
-
-  ssh <ip of elastisearch node>
-
-Then run the following command: 
-
-.. code:: sh 
-
-  curl localhost:9200/_cat/health
-
-You should see output looking like this:
-
-.. code:: 
-
-  1630250355 15:18:55 elasticsearch-directory green 3 3 17 6 0 0 0 - 100.0%
-
-Here, the ``green`` denotes good node health, and the ``3 3`` denotes 3 running nodes.
