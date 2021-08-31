@@ -66,10 +66,10 @@ withSettings = do
   liftIO $ copyFile "test/resources/unit/localhost-key.pem" key
   pure $ defRunSettings cert key
 
-withSilentMonitor :: ContT r IO (MVar TLSSettings, RunSettings)
+withSilentMonitor :: ContT r IO (IORef TLSSettings, RunSettings)
 withSilentMonitor = do
   settings <- withSettings
-  tlsVar <- liftIO $ newMVar (error "TLSSettings not updated before being read")
+  tlsVar <- liftIO $ newIORef (error "TLSSettings not updated before being read")
   void . ContT $
     bracket
       (runSem (monitorCertificates runSemE tlsVar settings))
@@ -88,7 +88,7 @@ testMonitorChangeUpdate =
         copyFile
           "test/resources/unit/localhost-dot.pem"
           (clientCertificate settings)
-      readMVar tlsVar
+      readIORef tlsVar
     pure ()
 
 testMonitorOverwriteUpdate :: TestTree

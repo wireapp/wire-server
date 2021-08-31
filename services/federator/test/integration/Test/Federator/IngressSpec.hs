@@ -102,7 +102,7 @@ inwardBrigCallViaIngress requestPath payload = do
   Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> ask
   let target = SrvTarget (cs ingressHost) ingressPort
   runSettings <- optSettings . view teOpts <$> ask
-  tlsSettings <- view teTLSSettings >>= newMVar
+  tlsSettings <- view teTLSSettings >>= newIORef
   c <-
     liftIO
       . Polysemy.runM

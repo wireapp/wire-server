@@ -75,16 +75,16 @@ testValidatesCertificateSuccess =
     "can get response with valid certificate"
     [ testCase "when hostname=localhost and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
           void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port)),
       testCase "when hostname=localhost. and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
           void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port)),
       -- This is a limitation of the TLS library, this test just exists to document that.
       testCase "when hostname=localhost. and certificate-for=localhost." $ do
         bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
           eitherClient <-
             Polysemy.runM
               . Polysemy.runError @RemoteError
@@ -101,7 +101,7 @@ testValidatesCertificateWrongHostname =
     "refuses to connect with server"
     [ testCase "when the server's certificate doesn't match the hostname" $
         bracket (startMockServer certForWrongDomain) (Async.cancel . fst) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
           eitherClient <-
             Polysemy.runM
               . Polysemy.runError

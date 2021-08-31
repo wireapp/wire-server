@@ -104,7 +104,7 @@ serveOutward env port = do
            Polysemy.Error ServerError,
            Embed IO,
            Polysemy.Reader RunSettings,
-           Polysemy.Reader (MVar TLSSettings),
+           Polysemy.Reader (IORef TLSSettings),
            Embed Federator
          ]
         a ->

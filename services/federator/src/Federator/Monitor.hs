@@ -38,7 +38,7 @@ mkTLSSettingsOrThrow =
     . Polysemy.runError @FederationSetupError
     . mkTLSSettings
 
-withMonitor :: Logger -> MVar TLSSettings -> RunSettings -> IO a -> IO a
+withMonitor :: Logger -> IORef TLSSettings -> RunSettings -> IO a -> IO a
 withMonitor logger tlsVar rs action =
   bracket
     ( runMonitor

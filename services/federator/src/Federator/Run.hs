@@ -102,7 +102,7 @@ newEnv o _dnsResolver = do
   let _service Brig = mkEndpoint (Opt.brig o)
       _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
-  _tls <- mkTLSSettingsOrThrow _runSettings >>= newMVar
+  _tls <- mkTLSSettingsOrThrow _runSettings >>= newIORef
   return Env {..}
   where
     mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty

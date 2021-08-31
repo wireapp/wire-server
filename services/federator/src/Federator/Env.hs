@@ -22,11 +22,11 @@ module Federator.Env where
 
 import Bilge (RequestId)
 import qualified Bilge as RPC
-import Control.Concurrent.MVar
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Data.X509.CertificateStore
 import Federator.Options (RunSettings)
+import Imports
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.TLS as TLS
@@ -46,7 +46,7 @@ data Env = Env
     _runSettings :: RunSettings,
     _service :: Component -> RPC.Request,
     _httpManager :: HTTP.Manager,
-    _tls :: MVar TLSSettings
+    _tls :: IORef TLSSettings
   }
 
 makeLenses ''TLSSettings

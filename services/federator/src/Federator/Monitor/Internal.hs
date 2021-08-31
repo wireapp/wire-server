@@ -113,15 +113,17 @@ monitorCertificates ::
   ( Sem r1 () ->
     IO ()
   ) ->
-  MVar TLSSettings ->
+  IORef TLSSettings ->
   RunSettings ->
   Sem r [WatchDescriptor]
 monitorCertificates runSem tlsVar rs = do
   inotify <- embed initINotify
   let watch path = do
-        wd <- embed
-          . addWatch inotify monitorEvents (watchedPath path)
-          $ \e -> runSem $ handleEvent path tlsVar rs e
+        wd <-
+          embed
+            . addWatch inotify monitorEvents (watchedPath path)
+            . handleEvent runSem path tlsVar
+            $ rs
         Log.debug $
           Log.msg ("watching file" :: Text)
             . Log.field "descriptor" (show wd)
@@ -134,25 +136,37 @@ monitorCertificates runSem tlsVar rs = do
   traverse watch (toList paths)
 
 handleEvent ::
-  (Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r) =>
+  Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r =>
+  (Sem r () -> IO ()) ->
   WatchedPath ->
-  MVar TLSSettings ->
+  IORef TLSSettings ->
   RunSettings ->
   Event ->
-  Sem r ()
-handleEvent wpath var rs e = when (needReload wpath e) $ do
-  tls' <- mkTLSSettings rs
-  Log.info $ Log.msg ("updating TLS settings" :: Text)
-  embed @IO $ modifyMVar_ var (const (pure tls'))
+  IO ()
+handleEvent runSem wpath var rs e = do
+  when (needReload wpath e) $ do
+    runSem (reloadSettings var rs)
   where
     needReload :: WatchedPath -> Event -> Bool
     needReload (WatchedFile path) (Closed _ mpath True) =
       maybe True (== path) mpath
+    needReload (WatchedDir _ paths) (Closed _ (Just path) True) =
+      Set.member path paths
     needReload (WatchedDir _ paths) (MovedIn _ path _) =
       Set.member path paths
     needReload (WatchedDir _ paths) (Created _ path) =
       Set.member path paths
     needReload _ _ = False
+
+reloadSettings ::
+  (Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r) =>
+  IORef TLSSettings ->
+  RunSettings ->
+  Sem r ()
+reloadSettings var rs = do
+  tls' <- mkTLSSettings rs
+  Log.info $ Log.msg ("updating TLS settings" :: Text)
+  embed @IO $ atomicWriteIORef var tls'
 
 certificatePaths :: RunSettings -> [FilePath]
 certificatePaths rs =
@@ -221,8 +235,10 @@ mkCreds ::
   Sem r TLS.Credential
 mkCreds settings = do
   creds <-
-    Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayException) $
-      TLS.credentialLoadX509
+    Polysemy.fromExceptionVia
+      @SomeException
+      (InvalidClientCertificate . displayException)
+      $ TLS.credentialLoadX509
         (clientCertificate settings)
         (clientPrivateKey settings)
   case creds of

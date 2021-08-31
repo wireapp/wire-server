@@ -71,7 +71,7 @@ interpretRemote ::
        DiscoverFederator,
        TinyLog,
        Polysemy.Reader RunSettings,
-       Polysemy.Reader (MVar TLSSettings)
+       Polysemy.Reader (IORef TLSSettings)
      ]
     r =>
   Sem (Remote ': r) a ->
@@ -116,7 +116,7 @@ mkGrpcClient ::
   Members
     '[ Embed IO,
        Polysemy.Error RemoteError,
-       Polysemy.Reader (MVar TLSSettings)
+       Polysemy.Reader (IORef TLSSettings)
      ]
     r =>
   SrvTarget ->
@@ -127,7 +127,7 @@ mkGrpcClient target@(SrvTarget host port) = do
   --
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
 
-  settings <- Polysemy.ask >>= (embed @IO . readMVar)
+  settings <- Polysemy.ask >>= embed @IO . readIORef
 
   let tlsConfig =
         (defaultParamsClient (cs host) (cs $ show port))
