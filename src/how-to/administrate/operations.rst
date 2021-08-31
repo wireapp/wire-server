@@ -16,9 +16,9 @@ Reboot procedures
 
 The general procedure to reboot a pod is as follows:
 
-* 1. Check the health (TODO: Link) of the pod/service. (If the health isn't good, move to `troubleshooting <https://docs.wire.com/search.html?q=troubleshooting>`__. If it is good, move to the next step.)
+* 1. `Check the health <https://docs.wire.com/how-to/administrate/operations.html#health-checks>`__ of the pod/service. (If the health isn't good, move to `troubleshooting <https://docs.wire.com/search.html?q=troubleshooting>`__. If it is good, move to the next step.)
 * 2. Reboot the server the pod/service is running on.
-* 3. Check the health of the pod/service **again**. (If the health isn't good, move to `troubleshooting <https://docs.wire.com/search.html?q=troubleshooting>`__. If it is good, your reboot was succesful.)
+* 3. `Check the health <https://docs.wire.com/how-to/administrate/operations.html#health-checks>`__ of the pod/service **again**. (If the health isn't good, move to `troubleshooting <https://docs.wire.com/search.html?q=troubleshooting>`__. If it is good, your reboot was succesful.)
 
 The method for checking health is different for each pod/service type, you can find a list of those methods `here <https://docs.wire.com/how-to/administrate/operations.html#health-checks>`__.
 
