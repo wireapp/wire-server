@@ -26,9 +26,9 @@ The method to reset a pod is the same for most services, except for ``restund``,
 
 For other (non-``restund``) pods, the procedure is as follows:
 
-Assuming in this example you are trying to reboot a minio server, simply the following:
+Assuming in this example you are trying to reboot a minio server, follow these steps:
 
-First, check the health of the pod.
+First, `check the health <https://docs.wire.com/how-to/administrate/operations.html#health-checks>`__ of the pod.
 
 Second, reboot the pod:
 
@@ -36,7 +36,7 @@ Second, reboot the pod:
 
   ssh -t <ip of minio node> sudo reboot
 
-Third, check the health of the pod again.
+Third, `check the health <https://docs.wire.com/how-to/administrate/operations.html#health-checks>`__ of the pod again.
 
 Health checks
 -------------
