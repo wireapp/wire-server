@@ -241,6 +241,12 @@ Then wait at least a minute.
 
 If you go to ssh in, and get 'Connection refused', it just means you need to wait a bit longer.
 
+Tip: You can automatically ask SSH to attempt to connect until it is succesful, by using the following command: 
+
+.. code:: sh 
+
+  ssh -o 'ConnectionAttempts 3600' <ip of minio node> exit
+
 Log into minio ( repeat the steps above ), and check again.
 
 You should see a very low uptime value on two hosts now.

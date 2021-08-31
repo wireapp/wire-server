@@ -91,6 +91,36 @@ Description:
 **ES nodes ran out of disk space** and error message says: ``"blocked by: [FORBIDDEN/12/index read-only / allow delete (api)];"``
 
 Solution:
-* clean up disk (e.g. ``apt autoremove`` on all nodes), then restart machines and/or the elasticsearch process
-* get the elastichsearch cluster out of *read-only* mode: SSH to one elasticsearch machine, then run ``curl -X PUT -H 'Content-Type: application/json' http://localhost:9200/_all/_settings -d '{"index.blocks.read_only_allow_delete": null}'``
-* trigger reindexing: From a kubernetes machine, in one terminal: ``kubectl port-forward svc/brig 9999:8080``, and in a second terminal trigger the reindex: ``curl -v -X POST localhost:9999/i/index/reindex``
+
+1. Connect to the node:
+
+.. code:: sh 
+
+  ssh <ip of elastisearch node>
+
+2. Clean up disk (e.g. ``apt autoremove`` on all nodes), then restart machines and/or the elasticsearch process
+
+.. code:: sh 
+
+  sudo apt autoremove 
+  sudo reboot
+
+As always, and as explained in the `operations/procedures page <https://docs.wire.com/how-to/administrate/operations.html>`__, make sure you `check the health of the process <https://docs.wire.com/how-to/administrate/elasticsearch.html#check-the-health-of-an-elastisearch-node>`__. before and after the reboot.
+
+3. Get the elastichsearch cluster out of *read-only* mode, run:
+
+.. code:: sh 
+
+  curl -X PUT -H 'Content-Type: application/json' http://localhost:9200/_all/_settings -d '{"index.blocks.read_only_allow_delete": null}'
+
+4. Trigger reindexing: From a kubernetes machine, in one terminal: 
+
+.. code:: sh 
+
+  kubectl port-forward svc/brig 9999:8080 
+
+And in a second terminal trigger the reindex: 
+
+.. code:: sh  
+
+  curl -v -X POST localhost:9999/i/index/reindex

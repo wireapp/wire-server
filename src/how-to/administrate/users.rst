@@ -146,6 +146,12 @@ First, ssh to an elasticsearch instance.
 
 .. code:: sh
 
+  ssh <ip of elastisearch instance> 
+
+Then run the following:
+
+.. code:: sh
+
    PREFIX=...
    curl -s "http://localhost:9200/directory/_search?q=$PREFIX" | json_pp
 
@@ -160,7 +166,11 @@ How to manually delete a user from elasticsearch only
 
 If, despite the warning, you wish to continue?
 
-First, ssh to an elasticsearch instance.
+First, ssh to an elasticsearch instance:
+
+.. code:: sh
+
+  ssh <ip of elastisearch instance> 
 
 Next, check that the user exists:
 
