@@ -4,13 +4,6 @@ Operational procedures
 
 This section describes common operations to be performed on operational clusters.
 
-TOREMOVE: Julia Longtin
-I would move the content into the sections (so people know how to health check), then move the "what to do about needing to reboot" stuff into a separate section, that says "perform health checks here, and here, and"...
-10:12 AM
-and probably add a word of caution that one needs to actually understand these instructions, they are not guaranteed correct for every environment, you can destroy your data, yadda yadda..
-10:13 AM
-"if you are unsure, contact your wire customer support representative", etc.
-
 Reboot procedures
 -----------------
 
