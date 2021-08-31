@@ -36,6 +36,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Documentation
 
 * Document backend internals for user connections (#1717)
+* Open Update spar braindump and explain idp deletion (#1728)
 
 ## Internal changes
 
