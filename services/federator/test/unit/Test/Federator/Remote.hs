@@ -5,7 +5,7 @@ module Test.Federator.Remote where
 import Data.Streaming.Network (bindRandomPortTCP)
 import Federator.Options
 import Federator.Remote
-import Federator.Run (mkTLSSettings)
+import Federator.Run (mkTLSSettingsOrThrow)
 import Imports
 import Network.HTTP.Types (status200)
 import Network.Wai
@@ -58,16 +58,16 @@ testValidatesCertificateSuccess =
     "can get response with valid certificate"
     [ testCase "when hostname=localhost and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettings settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
           void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port)),
       testCase "when hostname=localhost. and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettings settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
           void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port)),
       -- This is a limitation of the TLS library, this test just exists to document that.
       testCase "when hostname=localhost. and certificate-for=localhost." $ do
         bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettings settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
           eitherClient <-
             Polysemy.runM
               . Polysemy.runError @RemoteError
@@ -84,7 +84,7 @@ testValidatesCertificateWrongHostname =
     "refuses to connect with server"
     [ testCase "when the server's certificate doesn't match the hostname" $
         bracket (startMockServer certForWrongDomain) (Async.cancel . fst) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettings settings >>= newMVar
+          tlsSettings <- mkTLSSettingsOrThrow settings >>= newMVar
           eitherClient <-
             Polysemy.runM
               . Polysemy.runError

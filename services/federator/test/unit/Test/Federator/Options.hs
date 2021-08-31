@@ -131,7 +131,7 @@ testSettings =
             allowAll: null
           clientCertificate: test/resources/unit/localhost.pem
           clientPrivateKey: test/resources/unit/localhost-key.pem|]
-        void (mkTLSSettings settings),
+        void (mkTLSSettingsOrThrow settings),
       testCase "fail on missing client credentials" $
         assertParseFailure @RunSettings . B8.pack $
           [QQ.i|
@@ -161,7 +161,7 @@ testSettings =
             allowAll: null
           clientCertificate: non-existent
           clientPrivateKey: non-existent|]
-        try @FederationSetupError (mkTLSSettings settings) >>= \case
+        try @FederationSetupError (mkTLSSettingsOrThrow settings) >>= \case
           Left (InvalidClientCertificate _) -> pure ()
           Left e ->
             assertFailure $
@@ -183,7 +183,7 @@ testSettings =
             allowAll: null
           clientCertificate: test/resources/unit/invalid.pem
           clientPrivateKey: test/resources/unit/localhost-key.pem|]
-        try @FederationSetupError (mkTLSSettings settings) >>= \case
+        try @FederationSetupError (mkTLSSettingsOrThrow settings) >>= \case
           Left (InvalidClientCertificate _) -> pure ()
           Left e ->
             assertFailure $
@@ -205,7 +205,7 @@ testSettings =
             allowAll: null
           clientCertificate: test/resources/unit/localhost.pem
           clientPrivateKey: test/resources/unit/invalid.pem|]
-        try @FederationSetupError (mkTLSSettings settings) >>= \case
+        try @FederationSetupError (mkTLSSettingsOrThrow settings) >>= \case
           Left (InvalidClientCertificate _) -> pure ()
           Left e ->
             assertFailure $
