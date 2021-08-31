@@ -69,7 +69,7 @@ You should see output looking like this:
 Here, the ``green`` denotes good node health, and the ``3 3`` denotes 3 running nodes.
 
 Check cluster health and list cluster nodes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This is the command to check the health of the entire cluster:
 
