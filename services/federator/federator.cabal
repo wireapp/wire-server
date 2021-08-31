@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 91ee1bdb98cb432de59d46d1636cca242c96bead3bd30d88a8c5fd731d16d51a
+-- hash: 8e732aec117d0fcbffe4489216539ebff724b389765668a7986be3dbd4fd2dd9
 
 name:           federator
 version:        1.0.0
@@ -41,6 +41,7 @@ library
       Federator.ExternalServer
       Federator.InternalServer
       Federator.Monitor
+      Federator.Monitor.Internal
       Federator.Options
       Federator.Remote
       Federator.Run
@@ -256,6 +257,7 @@ test-suite federator-tests
   other-modules:
       Test.Federator.ExternalServer
       Test.Federator.InternalServer
+      Test.Federator.Monitor
       Test.Federator.Options
       Test.Federator.Remote
       Test.Federator.Validation
