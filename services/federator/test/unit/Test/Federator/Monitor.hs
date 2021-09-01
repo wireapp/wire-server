@@ -17,6 +17,7 @@
 
 module Test.Federator.Monitor (tests) where
 
+import Control.Concurrent.Chan
 import Control.Exception (bracket)
 import Control.Lens (view)
 import Control.Monad.Trans.Cont
@@ -42,6 +43,7 @@ tests =
   testGroup
     "Federator.Monitor"
     [ testMonitorChangeUpdate,
+      testMonitorReplacedChangeUpdate,
       testMonitorOverwriteUpdate,
       testMonitorSymlinkUpdate,
       testMonitorError
@@ -73,10 +75,10 @@ withSymlinkSettings = do
       }
 
 withSilentMonitor ::
-  MVar (Maybe FederationSetupError) ->
+  Chan (Maybe FederationSetupError) ->
   RunSettings ->
   ContT r IO (IORef TLSSettings)
-withSilentMonitor done settings = do
+withSilentMonitor reloads settings = do
   tlsVar <- liftIO $ newIORef (error "TLSSettings not updated before being read")
   void . ContT $
     bracket
@@ -87,20 +89,58 @@ withSilentMonitor done settings = do
     runSem = Polysemy.runM . Polysemy.discardLogs
     runSemE action = do
       r <- runSem (Polysemy.runError @FederationSetupError action)
-      void $ tryPutMVar done (either Just (const Nothing) r)
+      writeChan reloads (either Just (const Nothing) r)
 
 testMonitorChangeUpdate :: TestTree
 testMonitorChangeUpdate =
   testCase "monitor updates settings on file change" $ do
-    done <- newEmptyMVar
+    reloads <- newChan
     evalContT $ do
       settings <- withSettings
-      tlsVar <- withSilentMonitor done settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         appendFile (clientCertificate settings) ""
-        result <- timeout 100000 (readMVar done)
+        result <- timeout 100000 (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
+
+testMonitorReplacedChangeUpdate :: TestTree
+testMonitorReplacedChangeUpdate =
+  testCase "monitor updates settings on file changed after being replaced" $ do
+    reloads <- newChan
+    evalContT $ do
+      settings <- withSettings
+      tlsVar <- withSilentMonitor reloads settings
+      liftIO $ do
+        -- first replace file with a different one
+        copyFile
+          "test/resources/unit/localhost-dot.pem"
+          (clientCertificate settings)
+        result1 <- timeout 100000 (readChan reloads)
+        case result1 of
+          Nothing ->
+            assertFailure
+              "certificate not updated once within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        -- now modify the replaced file
+        appendFile (clientCertificate settings) ""
+        result2 <- timeout 100000 (readChan reloads)
+        case result2 of
+          Nothing ->
+            assertFailure
+              "certificate not updated twice within the allotted time"
           Just (Just err) ->
             assertFailure
               ("unexpected exception " <> displayException err)
@@ -114,15 +154,15 @@ testMonitorChangeUpdate =
 testMonitorOverwriteUpdate :: TestTree
 testMonitorOverwriteUpdate =
   testCase "monitor updates settings on file being replaced" $ do
-    done <- newEmptyMVar
+    reloads <- newChan
     evalContT $ do
       settings <- withSettings
-      tlsVar <- withSilentMonitor done settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         copyFile
           "test/resources/unit/localhost-dot.pem"
           (clientCertificate settings)
-        result <- timeout 100000 (readMVar done)
+        result <- timeout 100000 (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
@@ -138,17 +178,17 @@ testMonitorOverwriteUpdate =
 testMonitorSymlinkUpdate :: TestTree
 testMonitorSymlinkUpdate =
   testCase "monitor updates settings symlink swap" $ do
-    done <- newEmptyMVar
+    reloads <- newChan
     evalContT $ do
       settings <- withSymlinkSettings
-      tlsVar <- withSilentMonitor done settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         removeFile (clientCertificate settings)
         wd <- getWorkingDirectory
         createSymbolicLink
           (wd </> "test/resources/unit/localhost-dot.pem")
           (clientCertificate settings)
-        result <- timeout 100000 (readMVar done)
+        result <- timeout 100000 (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
@@ -164,13 +204,13 @@ testMonitorSymlinkUpdate =
 testMonitorError :: TestTree
 testMonitorError =
   testCase "monitor returns an error when settings cannot be updated" $ do
-    done <- newEmptyMVar
+    reloads <- newChan
     evalContT $ do
       settings <- withSettings
-      _ <- withSilentMonitor done settings
+      _ <- withSilentMonitor reloads settings
       liftIO $ do
         writeFile (clientCertificate settings) "not a certificate"
-        result <- timeout 1000000 (readMVar done)
+        result <- timeout 1000000 (readChan reloads)
         case result of
           Nothing -> assertFailure "no error returned within the allotted time"
           Just Nothing -> assertFailure "unexpected success"

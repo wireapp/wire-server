@@ -19,8 +19,11 @@ module Federator.Monitor.Internal where
 
 import Control.Exception (try)
 import Data.ByteString (packCStringLen)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
 import qualified Data.X509 as X509
 import Data.X509.CertificateStore
 import Federator.Env (TLSSettings (..))
@@ -71,8 +74,11 @@ watchedPath :: WatchedPath -> RawFilePath
 watchedPath (WatchedFile path) = path
 watchedPath (WatchedDir dir _) = dir
 
-monitorEvents :: [EventVariety]
-monitorEvents = [CloseWrite, MoveIn, Create]
+-- Since we are watching a filesystem path, and not an inode, we need to replace a
+-- file watch when the file gets overwritten.
+-- This type is a map of paths to watches used to keep track of file watches as
+-- they get deleted and recreated.
+type FileWatches = Map RawFilePath WatchDescriptor
 
 runMonitor :: Logger -> Sem '[TinyLog, Embed IO] a -> IO a
 runMonitor logger = Polysemy.runM . Log.runTinyLog logger
@@ -110,61 +116,131 @@ monitorCertificates ::
   ( Members '[TinyLog, Embed IO] r,
     Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r1
   ) =>
-  ( Sem r1 () ->
-    IO ()
-  ) ->
+  (Sem r1 () -> IO ()) ->
   IORef TLSSettings ->
   RunSettings ->
   Sem r [WatchDescriptor]
 monitorCertificates runSem tlsVar rs = do
   inotify <- embed initINotify
-  let watch path = do
-        wd <-
-          embed
-            . addWatch inotify monitorEvents (watchedPath path)
-            . handleEvent runSem path tlsVar
-            $ rs
-        Log.debug $
-          Log.msg ("watching file" :: Text)
-            . Log.field "descriptor" (show wd)
-            . Log.field "file" (watchedPath path)
-        pure wd
+  watchesVar <- embed @IO $ newIORef mempty
+  let watch wpath = do
+        let handler = handleEvent inotify runSem wpath tlsVar watchesVar rs
+        case wpath of
+          WatchedFile path -> do
+            wd <- embed $ addFileWatch inotify watchesVar path handler
+            Log.debug $
+              Log.msg ("watching file" :: Text)
+                . Log.field "descriptor" (show wd)
+                . Log.field "file" path
+            pure wd
+          WatchedDir path _ -> do
+            wd <- embed $ addDirectoryWatch inotify path handler
+            Log.debug $
+              Log.msg ("watching directory" :: Text)
+                . Log.field "descriptor" (show wd)
+                . Log.field "path" path
+            pure wd
   Log.debug $
     Log.msg ("inotify initialized" :: Text)
       . Log.field "inotify" (show inotify)
   paths <- embed $ certificateWatchPaths rs
   traverse watch (toList paths)
 
+data Action = ReplaceWatch RawFilePath | ReloadSettings
+  deriving (Eq, Ord, Show)
+
 handleEvent ::
   Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r =>
+  INotify ->
   (Sem r () -> IO ()) ->
   WatchedPath ->
   IORef TLSSettings ->
+  IORef FileWatches ->
   RunSettings ->
   Event ->
   IO ()
-handleEvent runSem wpath var rs e = do
-  when (needReload wpath e) $ do
-    runSem (reloadSettings var rs)
-  where
-    needReload :: WatchedPath -> Event -> Bool
-    needReload (WatchedFile path) (Closed _ mpath True) =
-      maybe True (== path) mpath
-    needReload (WatchedDir _ paths) (MovedIn _ path _) =
-      Set.member path paths
-    needReload (WatchedDir _ paths) (Created _ path) =
-      Set.member path paths
-    needReload _ _ = False
+handleEvent inotify runSem wpath tlsVar watchesVar rs e = do
+  let actions = getActions wpath e
+  print (wpath, e, actions)
+  unless (null actions) $
+    -- only use runSem when there are some actions
+    -- this makes it possible to use a special runSem in the tests that is able
+    -- to detect when some action has taken place
+    runSem $ traverse_ (applyAction inotify runSem tlsVar watchesVar rs) actions
 
-reloadSettings ::
+-- Note: it is important that the watch is replaced *before* settings are
+-- reloaded, otherwise there is a window of time (after reloading settings,
+-- but before the new watch is set) where changes to the settings can go
+-- undetected
+getActions :: WatchedPath -> Event -> [Action]
+getActions (WatchedFile path) (Closed _ mpath True)
+  | maybe True (== path) mpath = [ReloadSettings]
+getActions (WatchedDir dir paths) (MovedIn _ path _)
+  | Set.member path paths = [ReplaceWatch (dir <> path), ReloadSettings]
+getActions (WatchedDir dir paths) (Created _ path)
+  | Set.member path paths = [ReplaceWatch (dir <> path), ReloadSettings]
+getActions _ _ = []
+
+applyAction ::
   (Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r) =>
+  INotify ->
+  (Sem r () -> IO ()) ->
   IORef TLSSettings ->
+  IORef FileWatches ->
   RunSettings ->
+  Action ->
   Sem r ()
-reloadSettings var rs = do
+applyAction _ _ tlsVar _ rs ReloadSettings = do
   tls' <- mkTLSSettings rs
   Log.info $ Log.msg ("updating TLS settings" :: Text)
-  embed @IO $ atomicWriteIORef var tls'
+  embed @IO $ atomicWriteIORef tlsVar tls'
+applyAction inotify runSem tlsVar watchesVar rs (ReplaceWatch path) = do
+  let pathText = Text.decodeUtf8With Text.lenientDecode path
+  putStrLn $ "replace watch " <> Text.unpack pathText
+  Log.debug $
+    Log.msg ("replacing watch" :: Text)
+      . Log.field "path" pathText
+  r <-
+    embed @IO . try @SomeException $
+      addFileWatch
+        inotify
+        watchesVar
+        path
+        (handleEvent inotify runSem (WatchedFile path) tlsVar watchesVar rs)
+  case r of
+    Right _ -> pure ()
+    Left e -> do
+      putStrLn "error while replacing watch"
+      Log.err $
+        Log.msg ("error while replacing watch" :: Text)
+          . Log.field "path" pathText
+          . Log.field "error" (displayException e)
+
+addDirectoryWatch ::
+  INotify ->
+  RawFilePath ->
+  (Event -> IO ()) ->
+  IO WatchDescriptor
+addDirectoryWatch inotify = addWatch inotify [MoveIn, Create]
+
+addFileWatch ::
+  INotify ->
+  IORef FileWatches ->
+  RawFilePath ->
+  (Event -> IO ()) ->
+  IO WatchDescriptor
+addFileWatch inotify watchesVar path handler = do
+  -- create a new watch
+  w' <- addWatch inotify [CloseWrite] path handler
+  -- atomically save it in the map, and return the old one
+  mw <-
+    atomicModifyIORef watchesVar $
+      swap . Map.updateLookupWithKey (\_ _ -> Just w') path
+  -- remove the old watch
+  case mw of
+    Nothing -> pure ()
+    Just w -> removeWatch w
+  pure w'
 
 certificatePaths :: RunSettings -> [FilePath]
 certificatePaths rs =
@@ -173,7 +249,6 @@ certificatePaths rs =
          clientPrivateKey rs
        ]
 
--- TODO: consider only watching directories
 certificateWatchPaths :: RunSettings -> IO (Set WatchedPath)
 certificateWatchPaths =
   fmap (mergePaths . concat)
@@ -244,6 +319,6 @@ mkCreds settings = do
     Right (X509.CertificateChain [], _) ->
       Polysemy.throw
         ( InvalidClientCertificate
-            "could not read client certificate or private key"
+            "could not read client certificate"
         )
     Right x -> pure x
