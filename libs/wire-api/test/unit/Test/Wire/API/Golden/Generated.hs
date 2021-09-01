@@ -433,7 +433,6 @@ tests =
       testCase "Golden: NewConvUnmanaged_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.NewConvUnmanaged_user.testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json"),
-            (Test.Wire.API.Golden.Generated.NewConvUnmanaged_user.testObject_NewConvUnmanaged_user_2, "testObject_NewConvUnmanaged_user_2.json"),
             (Test.Wire.API.Golden.Generated.NewConvUnmanaged_user.testObject_NewConvUnmanaged_user_3, "testObject_NewConvUnmanaged_user_3.json")
           ],
       testCase "Golden: NewConvManaged_user" $

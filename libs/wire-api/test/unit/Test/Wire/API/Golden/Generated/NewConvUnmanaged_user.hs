@@ -28,10 +28,7 @@ import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
   ( Access (CodeAccess, InviteAccess, LinkAccess, PrivateAccess),
     AccessRole
-      ( ActivatedAccessRole,
-        NonActivatedAccessRole,
-        PrivateAccessRole,
-        TeamAccessRole
+      ( ActivatedAccessRole
       ),
     ConvTeamInfo (ConvTeamInfo, cnvManaged, cnvTeamId),
     NewConv

@@ -26,7 +26,7 @@ import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Runner
-import Wire.API.Conversation (Conversation)
+import Wire.API.Conversation (Conversation, NewConvUnmanaged)
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -39,13 +39,22 @@ tests =
       testCase "SimpleMember" $
         testFromJSONObjects
           [(testObject_SimpleMember_user_1, "testObject_SimpleMember_user_1.json")],
-      testCase "NewConv" $
-        testFromJSONObjects
-          [ (testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json"),
-            (testObject_NewConvUnmanaged_user_21, "testObject_NewConvUnmanaged_user_21.json")
-          ],
-      testCase "RmClient" $
-        testFromJSONObjects
+      testGroup
+        "NewConv"
+        [ testCase "success" $
+            testFromJSONObject
+              testObject_NewConvUnmanaged_user_1
+              "testObject_NewConvUnmanaged_user_1.json",
+          testCase
+            "failure"
+            $ testFromJSONFailureWithMsg
+              @NewConvUnmanaged
+              (Just "managed conversations have been deprecated")
+              "testObject_NewConvUnmanaged_user_2.json"
+        ],
+      testCase
+        "RmClient"
+        $ testFromJSONObjects
           [(testObject_RmClient_user_4, "testObject_RmClient_user_4.json")],
       testCase "RmClient failure" $
         testFromJSONFailure @RmClient "testObject_RmClient_failure.json",

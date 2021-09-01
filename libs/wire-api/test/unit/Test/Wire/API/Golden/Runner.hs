@@ -20,6 +20,7 @@ module Test.Wire.API.Golden.Runner
     protoTestObjects,
     testFromJSONFailure,
     testFromJSONFailureWithMsg,
+    testFromJSONObject,
     testFromJSONObjects,
   )
 where
