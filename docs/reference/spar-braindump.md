@@ -117,7 +117,7 @@ Ssh into it.  If you can't, [the scim
 docs](provisioning/scim-via-curl.md) explain how you can create a
 bearer token if you have the admin's login credentials.  If you follow
 that approach, you need to replace all mentions of `-H'Z-User ...'`
-with `-H'Bearer ...'` in the following, and you won't need
+with `-H'Authorization: Bearer ...'` in the following, and you won't need
 `$ADMIN_ID`, but something like `$BEARER`.
 
 There are two ways to update an IDP, described below, each with their own tradeoffs that affect users.
