@@ -167,8 +167,8 @@ testObject_Event_user_7 =
     (read "1864-04-18 05:01:13.761 UTC")
     (EdTyping (TypingData {tdStatus = StoppedTyping}))
 
-testObject_Event_user_10 :: Event
-testObject_Event_user_10 =
+testObject_Event_user_8 :: Event
+testObject_Event_user_8 =
   Event
     ConvCreate
     (Qualified (Id (fromJust (UUID.fromString "000019e1-0000-1dc6-0000-68de0000246d"))) (Domain "faraway.example.com"))
@@ -228,8 +228,8 @@ testObject_Event_user_10 =
         )
     )
 
-testObject_Event_user_14 :: Event
-testObject_Event_user_14 =
+testObject_Event_user_9 :: Event
+testObject_Event_user_9 =
   Event
     ConvReceiptModeUpdate
     (Qualified (Id (fromJust (UUID.fromString "00000b98-0000-618d-0000-19e200004651"))) (Domain "faraway.example.com"))

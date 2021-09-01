@@ -682,8 +682,8 @@ tests =
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_5, "testObject_Event_user_5.json"),
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_6, "testObject_Event_user_6.json"),
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_7, "testObject_Event_user_7.json"),
-            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_10, "testObject_Event_user_10.json"),
-            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_14, "testObject_Event_user_14.json"),
+            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_8, "testObject_Event_user_8.json"),
+            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_9, "testObject_Event_user_9.json"),
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_15, "testObject_Event_user_15.json"),
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_18, "testObject_Event_user_18.json"),
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_19, "testObject_Event_user_19.json")
