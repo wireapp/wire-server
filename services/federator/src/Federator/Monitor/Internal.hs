@@ -150,8 +150,6 @@ handleEvent runSem wpath var rs e = do
     needReload :: WatchedPath -> Event -> Bool
     needReload (WatchedFile path) (Closed _ mpath True) =
       maybe True (== path) mpath
-    needReload (WatchedDir _ paths) (Closed _ (Just path) True) =
-      Set.member path paths
     needReload (WatchedDir _ paths) (MovedIn _ path _) =
       Set.member path paths
     needReload (WatchedDir _ paths) (Created _ path) =
