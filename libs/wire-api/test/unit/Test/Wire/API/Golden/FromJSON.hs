@@ -26,7 +26,7 @@ import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Runner
-import Wire.API.Conversation (Conversation, NewConvUnmanaged)
+import Wire.API.Conversation (Conversation, NewConvManaged, NewConvUnmanaged)
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -40,7 +40,7 @@ tests =
         testFromJSONObjects
           [(testObject_SimpleMember_user_1, "testObject_SimpleMember_user_1.json")],
       testGroup
-        "NewConv"
+        "NewConvUnmanaged"
         [ testCase "success" $
             testFromJSONObject
               testObject_NewConvUnmanaged_user_1
@@ -52,6 +52,12 @@ tests =
               (Just "managed conversations have been deprecated")
               "testObject_NewConvUnmanaged_user_2.json"
         ],
+      testCase
+        "NewConvManaged failure"
+        $ testFromJSONFailureWithMsg
+          @NewConvManaged
+          (Just "only managed conversations are allowed here")
+          "testObject_NewConvManaged_user_2.json",
       testCase
         "RmClient"
         $ testFromJSONObjects
