@@ -1,0 +1,107 @@
+{
+    "found": [
+        {
+            "access": [],
+            "creator": "00000001-0000-0001-0000-000200000001",
+            "access_role": "private",
+            "members": {
+                "self": {
+                    "hidden_ref": "",
+                    "status": 0,
+                    "service": null,
+                    "otr_muted_ref": null,
+                    "conversation_role": "rhhdzf0j0njilixx0g0vzrp06b_5us",
+                    "status_time": "1970-01-01T00:00:00.000Z",
+                    "hidden": false,
+                    "status_ref": "0.0",
+                    "id": "00000001-0000-0001-0000-000100000000",
+                    "otr_archived": false,
+                    "otr_muted_status": null,
+                    "otr_muted": true,
+                    "otr_archived_ref": ""
+                },
+                "others": []
+            },
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000001-0000-0000-0000-000000000000"
+            },
+            "name": " 0",
+            "team": "00000001-0000-0001-0000-000100000002",
+            "id": "00000001-0000-0000-0000-000000000000",
+            "type": 2,
+            "receipt_mode": -2,
+            "last_event_time": "1970-01-01T00:00:00.000Z",
+            "message_timer": null,
+            "last_event": "0.0"
+        },
+        {
+            "access": [
+                "invite",
+                "invite",
+                "code",
+                "link",
+                "invite",
+                "private",
+                "link",
+                "code",
+                "code",
+                "link",
+                "private",
+                "invite"
+            ],
+            "creator": "00000000-0000-0000-0000-000200000001",
+            "access_role": "non_activated",
+            "members": {
+                "self": {
+                    "hidden_ref": "",
+                    "status": 0,
+                    "service": null,
+                    "otr_muted_ref": null,
+                    "conversation_role": "9b2d3thyqh4ptkwtq2n2v9qsni_ln1ca66et_z8dlhfs9oamp328knl3rj9kcj",
+                    "status_time": "1970-01-01T00:00:00.000Z",
+                    "hidden": true,
+                    "status_ref": "0.0",
+                    "id": "00000000-0000-0001-0000-000100000001",
+                    "otr_archived": false,
+                    "otr_muted_status": -1,
+                    "otr_muted": true,
+                    "otr_archived_ref": null
+                },
+                "others": []
+            },
+            "qualified_id": {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0000-0000-000000000002"
+            },
+            "name": "",
+            "team": "00000000-0000-0001-0000-000200000000",
+            "id": "00000000-0000-0000-0000-000000000002",
+            "type": 1,
+            "receipt_mode": 2,
+            "last_event_time": "1970-01-01T00:00:00.000Z",
+            "message_timer": 1319272593797015,
+            "last_event": "0.0"
+        }
+    ],
+    "not_found": [
+        {
+            "domain": "golden.example.com",
+            "id": "00000018-0000-0020-0000-000e00000002"
+        },
+        {
+            "domain": "golden2.example.com",
+            "id": "00000018-0000-0020-0000-111111111112"
+        }
+    ],
+    "failed": [
+        {
+            "domain": "golden.example.com",
+            "id": "00000018-4444-0020-0000-000e00000002"
+        },
+        {
+            "domain": "golden3.example.com",
+            "id": "99999999-0000-0020-0000-111111111112"
+        }
+    ]
+}

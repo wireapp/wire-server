@@ -27,6 +27,9 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## API Changes
 
+* Add `POST /conversations/list/v2` (#1703)
+* Deprecate `POST /list-conversations` (#1703)
+
 ## Features
 
 ## Bug fixes and other updates
@@ -40,3 +43,4 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Internal changes
 
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
+* Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)

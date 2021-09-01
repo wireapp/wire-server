@@ -58,9 +58,10 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
+    localConversationIdsOf,
+    remoteConversationIdOf,
     localConversationIdsPageFrom,
     conversationIdRowsForPagination,
-    conversationIdsOf,
     conversationMeta,
     conversations,
     conversationsRemote,
@@ -575,12 +576,22 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
       Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
       Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
-conversationIdsOf ::
-  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
-  UserId ->
-  [ConvId] ->
-  m [ConvId]
-conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+-- | Takes a list of conversation ids and returns those found for the given
+-- user.
+localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -> [ConvId] -> m [ConvId]
+localConversationIdsOf usr cids = do
+  runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+
+-- | Takes a list of remote conversation ids and splits them by those found for
+-- the given user
+remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m [Remote ConvId]
+remoteConversationIdOf usr cnvs = do
+  concat <$$> pooledMapConcurrentlyN 8 findRemoteConvs . Map.assocs . partitionQualified . map unTagged $ cnvs
+  where
+    findRemoteConvs :: (Domain, [ConvId]) -> m [Remote ConvId]
+    findRemoteConvs (domain, remoteConvIds) = do
+      foundCnvs <- runIdentity <$$> query Cql.selectRemoteConvMembershipIn (params Quorum (usr, domain, remoteConvIds))
+      pure $ toRemote . (`Qualified` domain) <$> foundCnvs
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
