@@ -20,6 +20,7 @@ module Test.Wire.API.Golden.FromJSON where
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Wire.API.Golden.Generated.Invite_user (testObject_Invite_user_2)
 import Test.Wire.API.Golden.Generated.NewConvUnmanaged_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
@@ -68,5 +69,7 @@ tests =
         testFromJSONObjects
           [(testObject_ListConversations_1, "testObject_ListConversations_1.json")],
       testCase "QualifiedConversationId" $
-        testFromJSONFailure @Conversation "testObject_Conversation_qualifiedId.json"
+        testFromJSONFailure @Conversation "testObject_Conversation_qualifiedId.json",
+      testCase "Invite" $
+        testFromJSONObject testObject_Invite_user_2 "testObject_Invite_user_2.json"
     ]
