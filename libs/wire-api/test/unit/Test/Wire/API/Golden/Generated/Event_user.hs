@@ -237,8 +237,8 @@ testObject_Event_user_9 =
     (read "1864-05-01 11:57:35.123 UTC")
     (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -10505}}))
 
-testObject_Event_user_15 :: Event
-testObject_Event_user_15 =
+testObject_Event_user_10 :: Event
+testObject_Event_user_10 =
   Event
     ConvConnect
     (Qualified (Id (fromJust (UUID.fromString "00005e43-0000-3b56-0000-7c270000538c"))) (Domain "faraway.example.com"))
@@ -254,8 +254,8 @@ testObject_Event_user_15 =
         )
     )
 
-testObject_Event_user_18 :: Event
-testObject_Event_user_18 =
+testObject_Event_user_11 :: Event
+testObject_Event_user_11 =
   Event
     MemberLeave
     (Qualified (Id (fromJust (UUID.fromString "0000303b-0000-23a9-0000-25de00002f80"))) (Domain "faraway.example.com"))
@@ -271,8 +271,8 @@ testObject_Event_user_18 =
         )
     )
 
-testObject_Event_user_19 :: Event
-testObject_Event_user_19 =
+testObject_Event_user_12 :: Event
+testObject_Event_user_12 =
   Event
     MemberJoin
     (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
