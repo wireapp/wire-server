@@ -47,7 +47,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Make mapping between (team) permissions and roles more lenient (#1711)
 * The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
 * Remove leftover auto-connect internal endpoint and code (#1716)
-* Clean up JSON golden tests (#1729)
+* Clean up JSON golden tests (#1729, #1732)
 
 ## Federation changes
 
