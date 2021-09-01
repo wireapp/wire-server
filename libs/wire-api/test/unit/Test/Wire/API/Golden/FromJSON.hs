@@ -27,7 +27,7 @@ import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Runner
-import Wire.API.Conversation (Conversation, NewConvManaged, NewConvUnmanaged)
+import Wire.API.Conversation (Conversation, MemberUpdate, NewConvManaged, NewConvUnmanaged)
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -71,5 +71,12 @@ tests =
       testCase "QualifiedConversationId" $
         testFromJSONFailure @Conversation "testObject_Conversation_qualifiedId.json",
       testCase "Invite" $
-        testFromJSONObject testObject_Invite_user_2 "testObject_Invite_user_2.json"
+        testFromJSONObject testObject_Invite_user_2 "testObject_Invite_user_2.json",
+      testCase "MemberUpdate" $
+        testFromJSONFailureWithMsg @MemberUpdate
+          ( Just $
+              "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', "
+                <> "'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
+          )
+          "testObject_MemberUpdate_user_3.json"
     ]

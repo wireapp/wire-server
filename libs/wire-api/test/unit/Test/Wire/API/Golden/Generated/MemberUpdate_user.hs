@@ -48,7 +48,7 @@ testObject_MemberUpdate_user_2 =
       mupOtrMuteRef = Nothing,
       mupOtrArchive = Nothing,
       mupOtrArchiveRef = Nothing,
-      mupHidden = Nothing,
+      mupHidden = Just False,
       mupHiddenRef = Nothing,
       mupConvRoleName = Nothing
     }
