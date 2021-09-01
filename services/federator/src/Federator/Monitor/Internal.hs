@@ -37,7 +37,7 @@ import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
-import System.FilePath (splitFileName)
+import System.FilePath (dropTrailingPathSeparator, splitFileName)
 import System.INotify
 import System.Logger (Logger)
 import qualified System.Logger.Message as Log
@@ -262,13 +262,19 @@ certificateWatchPaths =
     watched :: FilePath -> IO [WatchedPath]
     watched path = do
       rpath <- rawPath path
-      let (dir, base) = splitFileName path
-      rdir <- rawPath dir
-      rbase <- rawPath base
-      pure
-        [ WatchedFile rpath,
-          WatchedDir rdir (Set.singleton rbase)
-        ]
+      dirs <- watchedDirs path
+      pure $ WatchedFile rpath : dirs
+
+    watchedDirs :: FilePath -> IO [WatchedPath]
+    watchedDirs path = do
+      let (dir, base) = splitFileName (dropTrailingPathSeparator path)
+      if dir == path
+        then pure [] -- base case: root directory
+        else do
+          wds <- watchedDirs dir
+          rdir <- rawPath dir
+          rbase <- rawPath base
+          pure $ WatchedDir rdir (Set.singleton rbase) : wds
 
 data FederationSetupError
   = InvalidCAStore FilePath

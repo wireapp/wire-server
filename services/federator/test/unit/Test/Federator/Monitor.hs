@@ -48,6 +48,7 @@ tests =
       testMonitorReplacedChangeUpdate,
       testMonitorOverwriteUpdate,
       testMonitorSymlinkUpdate,
+      testMonitorNestedUpdate,
       testMonitorError,
       testMergeWatchedPaths
     ]
@@ -76,6 +77,17 @@ withSymlinkSettings = do
       { clientCertificate = dir </> "cert.pem",
         clientPrivateKey = dir </> "key.pem"
       }
+
+withNestedSettings :: ContT r IO RunSettings
+withNestedSettings = do
+  root <- ContT $ withSystemTempDirectory "conf"
+  liftIO $ do
+    createDirectory (root </> "a")
+    let cert = root </> "a/cert.pem"
+        key = root </> "a/key.pem"
+    copyFile "test/resources/unit/localhost.pem" cert
+    copyFile "test/resources/unit/localhost-key.pem" key
+    pure $ defRunSettings cert key
 
 withSilentMonitor ::
   Chan (Maybe FederationSetupError) ->
@@ -191,6 +203,40 @@ testMonitorSymlinkUpdate =
         createSymbolicLink
           (wd </> "test/resources/unit/localhost-dot.pem")
           (clientCertificate settings)
+        result <- timeout 100000 (readChan reloads)
+        case result of
+          Nothing -> assertFailure "certificate not updated within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
+
+testMonitorNestedUpdate :: TestTree
+testMonitorNestedUpdate =
+  testCase "monitor updates when parent directory is replaced" $ do
+    reloads <- newChan
+    evalContT $ do
+      settings <- withNestedSettings
+      tlsVar <- withSilentMonitor reloads settings
+      liftIO $ do
+        -- make a new directory with other credentials
+        let parent = takeDirectory (clientCertificate settings)
+            root = takeDirectory parent
+        createDirectory (root </> "a1")
+        let cert = root </> "a1/cert.pem"
+            key = root </> "a1/key.pem"
+        copyFile "test/resources/unit/localhost-dot.pem" cert
+        copyFile "test/resources/unit/localhost-dot-key.pem" key
+
+        -- replace the old directory with the new one
+        renameDirectory (root </> "a") (root </> "a2")
+        renameDirectory (root </> "a1") (root </> "a")
+
         result <- timeout 100000 (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
