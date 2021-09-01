@@ -45,6 +45,7 @@ import Wire.API.ErrorDescription
   )
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.User
 import Wire.API.User.Client
@@ -337,10 +338,10 @@ data Api routes = Api
         :> MultiVerb
              'POST
              '[JSON]
-             '[ Respond 200 "Connection exists" UserConnection,
+             '[ Respond 200 "Connection existed" UserConnection,
                 Respond 201 "Connection was created" UserConnection
               ]
-             UserConnection,
+             (ResponseForExistedCreated UserConnection),
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
