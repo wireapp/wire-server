@@ -21,31 +21,24 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 -->
 
-
-# [unreleased]
-
-[please put all changes that only affect federation into the "Federation changes" section to unclutter the rest of the release notes.]
-[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
+# [2021-xx-xx]
 
 ## Release Notes
 
 ## API Changes
 
-* Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
-* Add `DELETE /conversations/:domain/:cnv/members/:domain/:usr` (#1697)
+* Add `POST /conversations/list/v2` (#1703)
+* Deprecate `POST /list-conversations` (#1703)
 
 ## Features
 
 ## Bug fixes and other updates
 
-* Fix case sensitivity in schema parser in hscim library (#1714)
-* [helm charts] resolve a rate-limiting issue when using certificate-manager alongside wire-server and nginx-ingress-services helm charts (#1715)
 * Remove support for managed conversations in member removal (#1718)
 
 ## Documentation
 
 * Document backend internals for user connections (#1717)
-* Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
 
 ## Internal changes
 
@@ -62,3 +55,4 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Implemented full server-to-server authentication (#1687)
 * Add an endpoint for removing a qualified user from a local conversation (#1697)
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
+* Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
