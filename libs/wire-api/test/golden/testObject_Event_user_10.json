@@ -45,54 +45,15 @@
                         "id": "00000000-0000-0001-0000-000100000001"
                     },
                     "id": "00000000-0000-0001-0000-000100000001"
-                },
-                {
-                    "status": 0,
-                    "service": {
-                        "id": "00000001-0000-0000-0000-000000000001",
-                        "provider": "00000000-0000-0001-0000-000000000000"
-                    },
-                    "conversation_role": "yv7zy3tkxrvz7aj3vvdv3e57pdi8euyuiatpvj48yl8ecw2xskacp737wl269wnts4rgbn1f93zbrkxs5oltt61e099wwzgztqpat4laqk6rqafvb_9aku2w",
-                    "qualified_id": {
-                        "domain": "golden.example.com",
-                        "id": "00000000-0000-0000-0000-000100000001"
-                    },
-                    "id": "00000000-0000-0000-0000-000100000001"
-                },
-                {
-                    "status": 0,
-                    "service": {
-                        "id": "00000000-0000-0001-0000-000000000001",
-                        "provider": "00000000-0000-0000-0000-000100000001"
-                    },
-                    "conversation_role": "zsltc_f04kycbem134adefbzjuyd7",
-                    "qualified_id": {
-                        "domain": "golden.example.com",
-                        "id": "00000001-0000-0001-0000-000100000001"
-                    },
-                    "id": "00000001-0000-0001-0000-000100000001"
-                },
-                {
-                    "status": 0,
-                    "service": {
-                        "id": "00000001-0000-0001-0000-000100000000",
-                        "provider": "00000001-0000-0000-0000-000000000001"
-                    },
-                    "conversation_role": "nm1gzd7dfqwcf_u3zfq991ylfmjavcs0s0gm6kjq532pjjflua6u5f_xk8dxm1t1g4s3mc2piv631phv19qvtix62s4q6_rc4xj5dh3wmoer_",
-                    "qualified_id": {
-                        "domain": "golden.example.com",
-                        "id": "00000001-0000-0001-0000-000000000001"
-                    },
-                    "id": "00000001-0000-0001-0000-000000000001"
                 }
             ]
         },
-        "name": "\u0007\u000e\r",
-        "team": "00000000-0000-0002-0000-000100000001",
         "qualified_id": {
             "domain": "golden.example.com",
             "id": "00000000-0000-0000-0000-000100000001"
         },
+        "name": "\u0007\u000e\r",
+        "team": "00000000-0000-0002-0000-000100000001",
         "id": "00000000-0000-0000-0000-000100000001",
         "type": 0,
         "receipt_mode": -1,
