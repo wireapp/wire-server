@@ -76,9 +76,9 @@ watchedPath (WatchedDir dir _) = dir
 
 -- Since we are watching a filesystem path, and not an inode, we need to replace a
 -- file watch when the file gets overwritten.
--- This type is a map of paths to watches used to keep track of file watches as
--- they get deleted and recreated.
-type FileWatches = Map RawFilePath WatchDescriptor
+-- This type is a map of paths to watches used to keep track of both file and
+-- directory watches as they get deleted and recreated.
+type Watches = Map RawFilePath WatchDescriptor
 
 runMonitor :: Logger -> Sem '[TinyLog, Embed IO] a -> IO a
 runMonitor logger = Polysemy.runM . Log.runTinyLog logger
@@ -101,9 +101,11 @@ logAndIgnoreErrors = void . Polysemy.runError . logErrors
 
 stopMonitoringCertificates ::
   (Members '[TinyLog, Embed IO] r) =>
-  [WatchDescriptor] ->
+  IORef Watches ->
   Sem r ()
-stopMonitoringCertificates = traverse_ stop
+stopMonitoringCertificates watchesVar = do
+  watches <- readIORef watchesVar
+  traverse_ stop watches
   where
     stop wd = do
       -- ignore exceptions when removing watches
@@ -119,7 +121,7 @@ monitorCertificates ::
   (Sem r1 () -> IO ()) ->
   IORef TLSSettings ->
   RunSettings ->
-  Sem r [WatchDescriptor]
+  Sem r (IORef Watches)
 monitorCertificates runSem tlsVar rs = do
   inotify <- embed initINotify
   watchesVar <- embed @IO $ newIORef mempty
@@ -132,19 +134,18 @@ monitorCertificates runSem tlsVar rs = do
               Log.msg ("watching file" :: Text)
                 . Log.field "descriptor" (show wd)
                 . Log.field "file" path
-            pure wd
           WatchedDir path _ -> do
-            wd <- embed $ addDirectoryWatch inotify path handler
+            wd <- embed $ addDirectoryWatch inotify watchesVar path handler
             Log.debug $
               Log.msg ("watching directory" :: Text)
                 . Log.field "descriptor" (show wd)
                 . Log.field "path" path
-            pure wd
   Log.debug $
     Log.msg ("inotify initialized" :: Text)
       . Log.field "inotify" (show inotify)
   paths <- embed $ certificateWatchPaths rs
-  traverse watch (toList paths)
+  traverse_ watch (toList paths)
+  pure watchesVar
 
 data Action = ReplaceWatch RawFilePath | ReloadSettings
   deriving (Eq, Ord, Show)
@@ -155,13 +156,12 @@ handleEvent ::
   (Sem r () -> IO ()) ->
   WatchedPath ->
   IORef TLSSettings ->
-  IORef FileWatches ->
+  IORef Watches ->
   RunSettings ->
   Event ->
   IO ()
 handleEvent inotify runSem wpath tlsVar watchesVar rs e = do
   let actions = getActions wpath e
-  print (wpath, e, actions)
   unless (null actions) $
     -- only use runSem when there are some actions
     -- this makes it possible to use a special runSem in the tests that is able
@@ -186,7 +186,7 @@ applyAction ::
   INotify ->
   (Sem r () -> IO ()) ->
   IORef TLSSettings ->
-  IORef FileWatches ->
+  IORef Watches ->
   RunSettings ->
   Action ->
   Sem r ()
@@ -196,7 +196,6 @@ applyAction _ _ tlsVar _ rs ReloadSettings = do
   embed @IO $ atomicWriteIORef tlsVar tls'
 applyAction inotify runSem tlsVar watchesVar rs (ReplaceWatch path) = do
   let pathText = Text.decodeUtf8With Text.lenientDecode path
-  putStrLn $ "replace watch " <> Text.unpack pathText
   Log.debug $
     Log.msg ("replacing watch" :: Text)
       . Log.field "path" pathText
@@ -210,7 +209,6 @@ applyAction inotify runSem tlsVar watchesVar rs (ReplaceWatch path) = do
   case r of
     Right _ -> pure ()
     Left e -> do
-      putStrLn "error while replacing watch"
       Log.err $
         Log.msg ("error while replacing watch" :: Text)
           . Log.field "path" pathText
@@ -218,24 +216,34 @@ applyAction inotify runSem tlsVar watchesVar rs (ReplaceWatch path) = do
 
 addDirectoryWatch ::
   INotify ->
+  IORef Watches ->
   RawFilePath ->
   (Event -> IO ()) ->
   IO WatchDescriptor
-addDirectoryWatch inotify = addWatch inotify [MoveIn, Create]
+addDirectoryWatch inotify = addWatchAndSave inotify [MoveIn, Create]
 
 addFileWatch ::
   INotify ->
-  IORef FileWatches ->
+  IORef Watches ->
   RawFilePath ->
   (Event -> IO ()) ->
   IO WatchDescriptor
-addFileWatch inotify watchesVar path handler = do
+addFileWatch inotify = addWatchAndSave inotify [CloseWrite]
+
+addWatchAndSave ::
+  INotify ->
+  [EventVariety] ->
+  IORef Watches ->
+  RawFilePath ->
+  (Event -> IO ()) ->
+  IO WatchDescriptor
+addWatchAndSave inotify events watchesVar path handler = do
   -- create a new watch
-  w' <- addWatch inotify [CloseWrite] path handler
+  w' <- addWatch inotify events path handler
   -- atomically save it in the map, and return the old one
   mw <-
     atomicModifyIORef watchesVar $
-      swap . Map.updateLookupWithKey (\_ _ -> Just w') path
+      swap . Map.alterF (,Just w') path
   -- remove the old watch
   case mw of
     Nothing -> pure ()
