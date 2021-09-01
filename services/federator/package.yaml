@@ -110,6 +110,7 @@ tests:
     - polysemy-mocks
     - streaming-commons
     - tasty
+    - tasty-quickcheck
     - tasty-hunit
     - temporary
     - transformers

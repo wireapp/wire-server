@@ -43,6 +43,7 @@ import System.Logger (Logger)
 import qualified System.Logger.Message as Log
 import System.Posix.ByteString (RawFilePath)
 import System.X509
+import Wire.API.Arbitrary
 
 data Monitor = Monitor
   { monINotify :: INotify,
@@ -65,7 +66,8 @@ rawPath path = do
 data WatchedPath
   = WatchedFile RawFilePath
   | WatchedDir RawFilePath (Set RawFilePath)
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform WatchedPath)
 
 mergePaths :: [WatchedPath] -> (Set WatchedPath)
 mergePaths = Set.fromList . merge . sort

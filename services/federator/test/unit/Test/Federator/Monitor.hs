@@ -21,6 +21,7 @@ import Control.Concurrent.Chan
 import Control.Exception (bracket)
 import Control.Lens (view)
 import Control.Monad.Trans.Cont
+import qualified Data.Set as Set
 import Data.X509 (CertificateChain (..))
 import Federator.Env (TLSSettings (..), creds)
 import Federator.Monitor
@@ -37,6 +38,7 @@ import System.Timeout
 import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
 tests :: TestTree
 tests =
@@ -46,7 +48,8 @@ tests =
       testMonitorReplacedChangeUpdate,
       testMonitorOverwriteUpdate,
       testMonitorSymlinkUpdate,
-      testMonitorError
+      testMonitorError,
+      testMergeWatchedPaths
     ]
 
 tempFile :: FilePath -> String -> ContT r IO FilePath
@@ -215,3 +218,39 @@ testMonitorError =
           Nothing -> assertFailure "no error returned within the allotted time"
           Just Nothing -> assertFailure "unexpected success"
           _ -> pure ()
+
+testMergeWatchedPaths :: TestTree
+testMergeWatchedPaths =
+  testGroup
+    "merged paths"
+    [ testProperty "contain the same files" $ \(wpaths :: [WatchedPath]) ->
+        let f (WatchedFile path) = [path]
+            f (WatchedDir _ _) = []
+            mergedFiles = Set.fromList (Set.toList (mergePaths wpaths) >>= f)
+            origFiles = Set.fromList (wpaths >>= f)
+         in mergedFiles == origFiles,
+      testProperty "contain the same directories" $ \(wpaths :: [WatchedPath]) ->
+        let f (WatchedFile _) = []
+            f (WatchedDir dir _) = [dir]
+            mergedDirs = Set.fromList (Set.toList (mergePaths wpaths) >>= f)
+            origDirs = Set.fromList (wpaths >>= f)
+         in mergedDirs == origDirs,
+      testProperty "has no duplicated directories" $ \(wpaths :: [WatchedPath]) ->
+        let f (WatchedFile _) = []
+            f (WatchedDir dir _) = [dir]
+            mergedDirList = Set.toList (mergePaths wpaths) >>= f
+            mergedDirs = Set.fromList mergedDirList
+         in Set.size mergedDirs == length mergedDirList,
+      testProperty "has lower total count" $ \(wpaths :: [WatchedPath]) ->
+        let f (WatchedFile _) = 1
+            f (WatchedDir _ files) = Set.size files
+            mergedCount = sum $ map f (Set.toList (mergePaths wpaths))
+            origCount = sum (map f wpaths)
+         in mergedCount <= origCount,
+      testProperty "has the same paths" $ \(wpaths :: [WatchedPath]) ->
+        let f (WatchedFile path) = [path]
+            f (WatchedDir dir files) = map (dir <>) (Set.toList files)
+            mergedPaths = Set.fromList (Set.toList (mergePaths wpaths) >>= f)
+            origPaths = Set.fromList (wpaths >>= f)
+         in mergedPaths == origPaths
+    ]
