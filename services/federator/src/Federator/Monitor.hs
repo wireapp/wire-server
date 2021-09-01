@@ -41,13 +41,13 @@ mkTLSSettingsOrThrow =
 withMonitor :: Logger -> IORef TLSSettings -> RunSettings -> IO a -> IO a
 withMonitor logger tlsVar rs action =
   bracket
-    ( runMonitor
+    ( runSemDefault
         logger
-        ( monitorCertificates
-            (runMonitor logger . logAndIgnoreErrors)
+        ( mkMonitor
+            (runSemDefault logger . logAndIgnoreErrors)
             tlsVar
             rs
         )
     )
-    (runMonitor logger . stopMonitoringCertificates)
+    (runSemDefault logger . delMonitor)
     (const action)

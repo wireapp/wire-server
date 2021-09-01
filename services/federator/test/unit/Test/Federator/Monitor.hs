@@ -82,8 +82,8 @@ withSilentMonitor reloads settings = do
   tlsVar <- liftIO $ newIORef (error "TLSSettings not updated before being read")
   void . ContT $
     bracket
-      (runSem (monitorCertificates runSemE tlsVar settings))
-      (runSem . stopMonitoringCertificates)
+      (runSem (mkMonitor runSemE tlsVar settings))
+      (runSem . delMonitor)
   pure tlsVar
   where
     runSem = Polysemy.runM . Polysemy.discardLogs
