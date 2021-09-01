@@ -19,12 +19,16 @@
 module Test.Wire.API.Golden.Generated.Event_user where
 
 import Data.Domain
+import Data.Either (fromRight)
 import Data.Id (ClientId (ClientId, client), Id (Id))
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified
+import Data.Range (unsafeRange)
+import Data.Text.Ascii (validate)
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust, read)
+import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust, read, undefined)
 import Wire.API.Conversation
+import Wire.API.Conversation.Code (ConversationCode (..), Key (..), Value (..))
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Conversation.Typing (TypingData (TypingData, tdStatus), TypingStatus (StoppedTyping))
 import Wire.API.Event.Conversation
@@ -34,11 +38,13 @@ import Wire.API.Event.Conversation
     EventType
       ( ConvAccessUpdate,
         ConvCodeDelete,
+        ConvCodeUpdate,
         ConvConnect,
         ConvCreate,
         ConvDelete,
         ConvMessageTimerUpdate,
         ConvReceiptModeUpdate,
+        ConvRename,
         MemberJoin,
         MemberLeave,
         MemberStateUpdate,
@@ -293,3 +299,28 @@ testObject_Event_user_12 =
             }
         )
     )
+
+testObject_Event_user_13 :: Event
+testObject_Event_user_13 =
+  Event
+    ConvRename
+    (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
+    (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
+    (read "1864-05-12 20:29:47.483 UTC")
+    (EdConvRename (ConversationRename "New conversation name"))
+
+testObject_Event_user_14 :: Event
+testObject_Event_user_14 =
+  Event
+    ConvCodeUpdate
+    (Qualified (Id (fromJust (UUID.fromString "00000838-0000-1bc6-0000-686d00003565"))) (Domain "faraway.example.com"))
+    (Qualified (Id (fromJust (UUID.fromString "0000114a-0000-7da8-0000-40cb00007fcf"))) (Domain "faraway.example.com"))
+    (read "1864-05-12 20:29:47.483 UTC")
+    (EdConvCodeUpdate cc)
+  where
+    cc =
+      ConversationCode
+        { conversationKey = Key {asciiKey = unsafeRange (fromRight undefined (validate "NEN=eLUWHXclTp=_2Nap"))},
+          conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))},
+          conversationUri = Nothing
+        }

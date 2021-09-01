@@ -1,0 +1,18 @@
+{
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00000838-0000-1bc6-0000-686d00003565"
+    },
+    "conversation": "00000838-0000-1bc6-0000-686d00003565",
+    "time": "1864-05-12T20:29:47.483Z",
+    "data": {
+        "key": "NEN=eLUWHXclTp=_2Nap",
+        "code": "lLz-9vR8ENum0kI-xWJs"
+    },
+    "from": "0000114a-0000-7da8-0000-40cb00007fcf",
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "0000114a-0000-7da8-0000-40cb00007fcf"
+    },
+    "type": "conversation.code-update"
+}
