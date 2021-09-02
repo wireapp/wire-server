@@ -98,6 +98,7 @@ import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
+import qualified Wire.API.Routes.Public.Util as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -1089,12 +1090,12 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnectionH :: UserId -> ConnId -> Public.ConnectionRequest -> Handler Public.UserConnection
+createConnectionH :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
 createConnectionH self conn cr = do
   rs <- API.createConnection self cr conn !>> connError
   return $ case rs of
-    ConnectionCreated c -> c -- TODO: 201
-    ConnectionExists c -> c -- TODO: 200
+    ConnectionCreated c -> Public.Created201 c
+    ConnectionExists c -> Public.Existed200 c
 
 updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
