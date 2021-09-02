@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c7b9fadc7ca998bb407e72fafa69129ab6de4b4ab29ec45e5495ba6cfd9cab39
+-- hash: 9a181e3a92130220d845ad959ca6e02a217b07a38602513bff4c9376a4ffe145
 
 name:           federator
 version:        1.0.0
@@ -181,7 +181,6 @@ executable federator-integration
       Test.Federator.IngressSpec
       Test.Federator.InwardSpec
       Test.Federator.JSON
-      Test.Federator.Monitor
       Test.Federator.Util
       Paths_federator
   hs-source-dirs:
