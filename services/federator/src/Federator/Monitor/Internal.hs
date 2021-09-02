@@ -277,25 +277,26 @@ certificatePaths rs =
 certificateWatchPaths :: RunSettings -> IO (Set WatchedPath)
 certificateWatchPaths =
   fmap (mergePaths . concat)
-    . traverse watched
+    . traverse watchedPaths
     . certificatePaths
-  where
-    watched :: FilePath -> IO [WatchedPath]
-    watched path = do
-      rpath <- rawPath path
-      dirs <- watchedDirs path
-      pure $ WatchedFile rpath : dirs
 
-    watchedDirs :: FilePath -> IO [WatchedPath]
-    watchedDirs path = do
-      let (dir, base) = splitFileName (dropTrailingPathSeparator path)
-      if dir == path
-        then pure [] -- base case: root directory
-        else do
-          wds <- watchedDirs dir
-          rdir <- rawPath (dropTrailingPathSeparator dir)
-          rbase <- rawPath base
-          pure $ WatchedDir rdir (Set.singleton rbase) : wds
+watchedPaths :: FilePath -> IO [WatchedPath]
+watchedPaths path' = do
+  path <- makeAbsolute path'
+  rpath <- rawPath path
+  dirs <- watchedDirs path
+  pure $ WatchedFile rpath : dirs
+
+watchedDirs :: FilePath -> IO [WatchedPath]
+watchedDirs path = do
+  let (dir, base) = splitFileName (dropTrailingPathSeparator path)
+  if dir == path
+    then pure [] -- base case: root directory
+    else do
+      wds <- watchedDirs dir
+      rdir <- rawPath (dropTrailingPathSeparator dir)
+      rbase <- rawPath base
+      pure $ WatchedDir rdir (Set.singleton rbase) : wds
 
 data FederationSetupError
   = InvalidCAStore FilePath
