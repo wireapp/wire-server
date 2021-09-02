@@ -38,6 +38,7 @@ import Wire.API.Conversation
         memOtrMutedStatus,
         memService
       ),
+    MutedStatus (MutedStatus, fromMutedStatus),
     OtherMember (..),
   )
 import Wire.API.Conversation.Role (parseRoleName)
