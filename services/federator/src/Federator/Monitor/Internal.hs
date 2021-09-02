@@ -333,7 +333,6 @@ mkCAStore settings = do
   pure (customCAStore <> systemCAStore)
 
 mkCreds ::
-  forall r.
   Members '[Embed IO, Polysemy.Error FederationSetupError] r =>
   RunSettings ->
   Sem r TLS.Credential
