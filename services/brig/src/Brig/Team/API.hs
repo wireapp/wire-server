@@ -64,6 +64,7 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public

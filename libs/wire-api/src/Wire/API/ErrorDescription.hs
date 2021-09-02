@@ -5,7 +5,6 @@ import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
-import Data.String.Conversions (cs)
 import Data.Swagger (Swagger)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
@@ -234,8 +233,11 @@ invalidUser = mkErrorDescription
 
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
 
-noIdentity :: forall desc. KnownSymbol desc => Int -> NoIdentity
-noIdentity i = ErrorDescription $ Text.pack (symbolVal (Proxy @desc)) <> "[code: " <> cs (show i) <> "]"
+-- FUTUREWORK: if that additional error number in the message has any importance
+-- (it probably doesn't matter), maybe there's a way to add it to the
+-- description here.
+noIdentity :: Int -> NoIdentity
+noIdentity _i = mkErrorDescription
 
 type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
 
