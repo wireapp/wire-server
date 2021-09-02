@@ -20,7 +20,7 @@ import Data.Misc (IpAddr (IpAddr))
 import Imports (Maybe (Just, Nothing), read)
 import Wire.API.Call.Config
   ( Scheme (SchemeTurn, SchemeTurns),
-    Transport (TransportTCP, TransportUDP),
+    Transport (TransportTCP),
     TurnHost (TurnHostIp, TurnHostName),
     TurnURI,
     turnURI,
