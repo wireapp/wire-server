@@ -49,6 +49,7 @@ tests =
       testMonitorOverwriteUpdate,
       testMonitorSymlinkUpdate,
       testMonitorNestedUpdate,
+      testMonitorDeepUpdate,
       testMonitorError,
       testMergeWatchedPaths
     ]
@@ -78,13 +79,16 @@ withSymlinkSettings = do
         clientPrivateKey = dir </> "key.pem"
       }
 
-withNestedSettings :: ContT r IO RunSettings
-withNestedSettings = do
+withNestedSettings :: Int -> ContT r IO RunSettings
+withNestedSettings n = do
   root <- ContT $ withSystemTempDirectory "conf"
   liftIO $ do
-    createDirectory (root </> "a")
-    let cert = root </> "a/cert.pem"
-        key = root </> "a/key.pem"
+    forM_ [1 .. n] $ \i -> do
+      let path = concat ["d" ++ show j ++ "/" | j <- [1 .. i]]
+      createDirectory (root </> path)
+    let dir = root </> concat ["d" ++ show j ++ "/" | j <- [1 .. n]]
+        cert = dir </> "cert.pem"
+        key = dir </> "key.pem"
     copyFile "test/resources/unit/localhost.pem" cert
     copyFile "test/resources/unit/localhost-key.pem" key
     pure $ defRunSettings cert key
@@ -221,7 +225,7 @@ testMonitorNestedUpdate =
   testCase "monitor updates when parent directory is replaced" $ do
     reloads <- newChan
     evalContT $ do
-      settings <- withNestedSettings
+      settings <- withNestedSettings 1
       tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         -- make a new directory with other credentials
@@ -234,8 +238,8 @@ testMonitorNestedUpdate =
         copyFile "test/resources/unit/localhost-dot-key.pem" key
 
         -- replace the old directory with the new one
-        renameDirectory (root </> "a") (root </> "a2")
-        renameDirectory (root </> "a1") (root </> "a")
+        renameDirectory (root </> "d1") (root </> "b1")
+        renameDirectory (root </> "a1") (root </> "d1")
 
         result <- timeout 100000 (readChan reloads)
         case result of
@@ -244,6 +248,49 @@ testMonitorNestedUpdate =
             assertFailure
               ("unexpected exception " <> displayException err)
           _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
+
+testMonitorDeepUpdate :: TestTree
+testMonitorDeepUpdate =
+  testCase "monitor updates when grandparent directory is replaced" $ do
+    reloads <- newChan
+    evalContT $ do
+      settings <- withNestedSettings 2
+      tlsVar <- withSilentMonitor reloads settings
+      liftIO $ do
+        -- make a new directory with other credentials
+        let root = takeDirectory (takeDirectory (takeDirectory (clientCertificate settings)))
+        createDirectory (root </> "a1")
+        createDirectory (root </> "a1/d2")
+        let cert = root </> "a1/d2/cert.pem"
+            key = root </> "a1/d2/key.pem"
+        copyFile "test/resources/unit/localhost-dot.pem" cert
+        copyFile "test/resources/unit/localhost-dot-key.pem" key
+
+        -- replace the old directory with the new one
+        renameDirectory (root </> "d1") (root </> "b1")
+        renameDirectory (root </> "a1") (root </> "d1")
+
+        timeout 100000 (readChan reloads) >>= \case
+          Nothing -> assertFailure "certificate not updated once within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+
+        -- test that further changes are seen
+        appendFile (clientCertificate settings) ""
+        timeout 100000 (readChan reloads) >>= \case
+          Nothing -> assertFailure "certificate not updated twice within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+
         tls <- readIORef tlsVar
         case view creds tls of
           (CertificateChain [], _) ->

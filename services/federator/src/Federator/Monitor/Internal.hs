@@ -92,7 +92,7 @@ watchPathEvents (WatchedDir _ _) = [MoveIn, Create]
 -- file watch when the file gets overwritten.
 -- This type is a map of paths to watches used to keep track of both file and
 -- directory watches as they get deleted and recreated.
-type Watches = Map RawFilePath WatchDescriptor
+type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
 
 runSemDefault :: Logger -> Sem '[TinyLog, Embed IO] a -> IO a
 runSemDefault logger = Polysemy.runM . Log.runTinyLog logger
@@ -121,7 +121,7 @@ delMonitor monitor = do
   watches <- readIORef (monWatches monitor)
   traverse_ stop watches
   where
-    stop wd = do
+    stop (wd, _) = do
       -- ignore exceptions when removing watches
       embed . void . try @IOException $ removeWatch wd
       Log.debug $
@@ -182,9 +182,9 @@ getActions :: WatchedPath -> Event -> [Action]
 getActions (WatchedFile path) (Closed _ mpath True)
   | maybe True (== path) mpath = [ReloadSettings]
 getActions (WatchedDir dir paths) (MovedIn _ path _)
-  | Set.member path paths = [ReplaceWatch (dir <> path), ReloadSettings]
+  | Set.member path paths = [ReplaceWatch (dir <> "/" <> path), ReloadSettings]
 getActions (WatchedDir dir paths) (Created _ path)
-  | Set.member path paths = [ReplaceWatch (dir <> path), ReloadSettings]
+  | Set.member path paths = [ReplaceWatch (dir <> "/" <> path), ReloadSettings]
 getActions _ _ = []
 
 applyAction ::
@@ -196,8 +196,16 @@ applyAction monitor ReloadSettings = do
   tls' <- mkTLSSettings (monSettings monitor)
   Log.info $ Log.msg ("updating TLS settings" :: Text)
   embed @IO $ atomicWriteIORef (monTLS monitor) tls'
-applyAction monitor (ReplaceWatch path) =
-  addWatchedFile monitor (WatchedFile path)
+applyAction monitor (ReplaceWatch path) = do
+  watches <- readIORef (monWatches monitor)
+  case Map.lookup path watches of
+    Nothing -> pure ()
+    Just (_, wpath) -> do
+      addWatchedFile monitor wpath
+      case wpath of
+        WatchedDir dir paths ->
+          traverse_ (applyAction monitor . ReplaceWatch . ((dir <> "/") <>)) paths
+        WatchedFile _ -> pure ()
 
 addWatchedFile ::
   Members '[TinyLog, Embed IO] r =>
@@ -211,7 +219,7 @@ addWatchedFile monitor wpath = do
         (monINotify monitor)
         (watchPathEvents wpath)
         (monWatches monitor)
-        (watchedPath wpath)
+        wpath
         (monHandler monitor wpath)
   let pathText = Text.decodeUtf8With Text.lenientDecode (watchedPath wpath)
   case r of
@@ -230,20 +238,21 @@ addWatchAndSave ::
   INotify ->
   [EventVariety] ->
   IORef Watches ->
-  RawFilePath ->
+  WatchedPath ->
   (Event -> IO ()) ->
   IO WatchDescriptor
-addWatchAndSave inotify events watchesVar path handler = do
+addWatchAndSave inotify events watchesVar wpath handler = do
+  let path = watchedPath wpath
   -- create a new watch
   w' <- addWatch inotify events path handler
   -- atomically save it in the map, and return the old one
   mw <-
     atomicModifyIORef watchesVar $
-      swap . Map.alterF (,Just w') path
+      swap . Map.alterF (,Just (w', wpath)) path
   -- remove the old watch
   case mw of
     Nothing -> pure ()
-    Just w -> removeWatch w
+    Just (w, _) -> removeWatch w
   pure w'
 
 certificatePaths :: RunSettings -> [FilePath]
@@ -272,7 +281,7 @@ certificateWatchPaths =
         then pure [] -- base case: root directory
         else do
           wds <- watchedDirs dir
-          rdir <- rawPath dir
+          rdir <- rawPath (dropTrailingPathSeparator dir)
           rbase <- rawPath base
           pure $ WatchedDir rdir (Set.singleton rbase) : wds
 
