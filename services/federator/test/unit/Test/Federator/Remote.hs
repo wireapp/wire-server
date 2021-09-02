@@ -11,9 +11,9 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as WarpTLS
-import qualified Polysemy
+import Polysemy
+import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
-import qualified Polysemy.TinyLog as TinyLog
 import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -42,6 +42,16 @@ settings =
       remoteCAStore = Just "test/resources/unit/unit-ca.pem"
     }
 
+assertNoError ::
+  forall e r x.
+  (Show e, Member (Embed IO) r) =>
+  Sem (Polysemy.Error e ': r) x ->
+  Sem r x
+assertNoError action =
+  Polysemy.runError action >>= \case
+    Left err -> embed . assertFailure $ "Unexpected error: " <> show err
+    Right x -> pure x
+
 testValidatesCertificateSuccess :: TestTree
 testValidatesCertificateSuccess =
   testGroup
@@ -49,24 +59,20 @@ testValidatesCertificateSuccess =
     [ testCase "when hostname=localhost and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
           tlsSettings <- mkTLSSettings settings
-          eitherClient <- Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port))
-          case eitherClient of
-            Left err -> assertFailure $ "Unexpected error: " <> show err
-            Right _ -> pure (),
+          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port)),
       testCase "when hostname=localhost. and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
           tlsSettings <- mkTLSSettings settings
-          eitherClient <- Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
-          case eitherClient of
-            Left err -> assertFailure $ "Unexpected error: " <> show err
-            Right _ -> pure (),
+          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port)),
       -- This is a limitation of the TLS library, this test just exists to document that.
       testCase "when hostname=localhost. and certificate-for=localhost." $ do
         bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
           tlsSettings <- mkTLSSettings settings
           eitherClient <-
-            Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader tlsSettings $
-              mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
+            Polysemy.runM
+              . Polysemy.runError @RemoteError
+              . Polysemy.runReader tlsSettings
+              $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
           case eitherClient of
             Left _ -> pure ()
             Right _ -> assertFailure "Congratulations, you fixed a known issue!"
@@ -80,8 +86,10 @@ testValidatesCertificateWrongHostname =
         bracket (startMockServer certForWrongDomain) (Async.cancel . fst) $ \(_, port) -> do
           tlsSettings <- mkTLSSettings settings
           eitherClient <-
-            Polysemy.runM . TinyLog.discardLogs . Polysemy.runReader tlsSettings $
-              mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
+            Polysemy.runM
+              . Polysemy.runError
+              . Polysemy.runReader tlsSettings
+              $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
           case eitherClient of
             Left (RemoteErrorTLSException _ _) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
