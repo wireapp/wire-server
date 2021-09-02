@@ -35,6 +35,7 @@ import qualified Network.TLS as TLS
 import Polysemy (Embed, Member, Members, Sem, embed)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
+import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import System.FilePath (dropTrailingPathSeparator, splitFileName)
@@ -50,7 +51,8 @@ data Monitor = Monitor
     monTLS :: IORef TLSSettings,
     monWatches :: IORef Watches,
     monSettings :: RunSettings,
-    monHandler :: WatchedPath -> Event -> IO ()
+    monHandler :: WatchedPath -> Event -> IO (),
+    monLock :: MVar ()
   }
 
 -- This is needed because the normal Posix file system API uses strings, while
@@ -117,9 +119,14 @@ delMonitor ::
   (Members '[TinyLog, Embed IO] r) =>
   Monitor ->
   Sem r ()
-delMonitor monitor = do
-  watches <- readIORef (monWatches monitor)
-  traverse_ stop watches
+delMonitor monitor = Polysemy.resourceToIO $
+  Polysemy.bracket
+    (takeMVar (monLock monitor))
+    (putMVar (monLock monitor))
+    . const
+    $ do
+      watches <- readIORef (monWatches monitor)
+      traverse_ stop watches
   where
     stop (wd, _) = do
       -- ignore exceptions when removing watches
@@ -142,14 +149,17 @@ mkMonitor runSem tlsVar rs = do
     Log.msg ("inotify initialized" :: Text)
       . Log.field "inotify" (show inotify)
 
+  lock <- embed @IO $ newMVar ()
   watchesVar <- embed @IO $ newIORef mempty
+
   let monitor =
         Monitor
           { monINotify = inotify,
             monTLS = tlsVar,
             monWatches = watchesVar,
             monSettings = rs,
-            monHandler = handleEvent runSem monitor
+            monHandler = handleEvent runSem monitor,
+            monLock = lock
           }
 
   paths <- embed $ certificateWatchPaths rs
@@ -168,11 +178,13 @@ handleEvent ::
   IO ()
 handleEvent runSem monitor wpath e = do
   let actions = getActions wpath e
+  -- only use runSem when there are some actions
+  -- this makes it possible to use a special runSem in the tests that is able
+  -- to detect when some action has taken place
   unless (null actions) $
-    -- only use runSem when there are some actions
-    -- this makes it possible to use a special runSem in the tests that is able
-    -- to detect when some action has taken place
-    runSem $ traverse_ (applyAction monitor) actions
+    -- we take the lock here, so that handlers never execute concurrently
+    withMVar (monLock monitor) $ \_ ->
+      runSem $ traverse_ (applyAction monitor) actions
 
 -- Note: it is important that the watch is replaced *before* settings are
 -- reloaded, otherwise there is a window of time (after reloading settings,
