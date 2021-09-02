@@ -85,11 +85,11 @@ instance ToJSON Error where
 -- Error Mapping ----------------------------------------------------------
 
 connError :: ConnectionError -> Error
-connError TooManyConnections {} = StdError connectionLimitReached
+connError TooManyConnections {} = StdError (errorDescriptionToWai connectionLimitReached)
 connError InvalidTransition {} = StdError invalidTransition
 connError NotConnected {} = StdError (errorDescriptionToWai notConnected)
-connError InvalidUser {} = StdError invalidUser
-connError ConnectNoIdentity {} = StdError (noIdentity 0)
+connError InvalidUser {} = StdError (errorDescriptionToWai invalidUser)
+connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (noIdentity 0))
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 connError (ConnectInvalidEmail _ _) = StdError invalidEmail
 connError ConnectInvalidPhone {} = StdError invalidPhone
@@ -147,11 +147,11 @@ changePhoneError (PhoneExists _) = StdError userKeyExists
 
 changePwError :: ChangePasswordError -> Error
 changePwError InvalidCurrentPassword = StdError badCredentials
-changePwError ChangePasswordNoIdentity = StdError (noIdentity 1)
+changePwError ChangePasswordNoIdentity = StdError (errorDescriptionToWai (noIdentity 1))
 changePwError ChangePasswordMustDiffer = StdError changePasswordMustDiffer
 
 changeHandleError :: ChangeHandleError -> Error
-changeHandleError ChangeHandleNoIdentity = StdError (noIdentity 2)
+changeHandleError ChangeHandleNoIdentity = StdError (errorDescriptionToWai (noIdentity 2))
 changeHandleError ChangeHandleExists = StdError handleExists
 changeHandleError ChangeHandleInvalid = StdError invalidHandle
 changeHandleError ChangeHandleManagedByScim = StdError $ propertyManagedByScim "handle"
@@ -198,7 +198,7 @@ zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 clientError :: ClientError -> Error
 clientError ClientNotFound = StdError (errorDescriptionToWai clientNotFound)
 clientError (ClientDataError e) = clientDataError e
-clientError (ClientUserNotFound _) = StdError invalidUser
+clientError (ClientUserNotFound _) = StdError (errorDescriptionToWai invalidUser)
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
@@ -211,7 +211,7 @@ fedError = StdError . federationErrorToWai
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
 idtError NoPassword = StdError noPassword
-idtError NoIdentity = StdError (noIdentity 3)
+idtError NoIdentity = StdError (errorDescriptionToWai (noIdentity 3))
 
 propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
@@ -223,7 +223,7 @@ clientDataError ClientMissingAuth = StdError (errorDescriptionToWai missingAuthE
 clientDataError MalformedPrekeys = StdError (errorDescriptionToWai malformedPrekeys)
 
 deleteUserError :: DeleteUserError -> Error
-deleteUserError DeleteUserInvalid = StdError invalidUser
+deleteUserError DeleteUserInvalid = StdError (errorDescriptionToWai invalidUser)
 deleteUserError DeleteUserInvalidCode = StdError invalidCode
 deleteUserError DeleteUserInvalidPassword = StdError badCredentials
 deleteUserError DeleteUserMissingPassword = StdError (errorDescriptionToWai missingAuthError)
@@ -253,20 +253,11 @@ propertyKeyTooLarge = Wai.mkError status403 "property-key-too-large" "The proper
 propertyValueTooLarge :: Wai.Error
 propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The property value is too large"
 
-connectionLimitReached :: Wai.Error
-connectionLimitReached = Wai.mkError status403 "connection-limit" "Too many sent/accepted connections."
-
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
 
-invalidUser :: Wai.Error
-invalidUser = Wai.mkError status400 "invalid-user" "Invalid user."
-
 invalidTransition :: Wai.Error
 invalidTransition = Wai.mkError status403 "bad-conn-update" "Invalid status transition."
-
-noIdentity :: Int -> Wai.Error
-noIdentity i = Wai.mkError status403 "no-identity" ("The user has no verified identity (email or phone number). [code: " <> cs (show i) <> "]")
 
 noEmail :: Wai.Error
 noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."

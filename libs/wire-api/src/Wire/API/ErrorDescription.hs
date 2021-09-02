@@ -5,6 +5,7 @@ import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.SOP (I (..), NP (..), NS (..))
 import Data.Schema
+import Data.String.Conversions (cs)
 import Data.Swagger (Swagger)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
@@ -220,6 +221,21 @@ type NotConnected = ErrorDescription 403 "not-connected" "Users are not connecte
 
 notConnected :: NotConnected
 notConnected = mkErrorDescription
+
+type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many sent/accepted connections."
+
+connectionLimitReached :: ConnectionLimitReached
+connectionLimitReached = mkErrorDescription
+
+type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
+
+invalidUser :: InvalidUser
+invalidUser = mkErrorDescription
+
+type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
+
+noIdentity :: forall desc. KnownSymbol desc => Int -> NoIdentity
+noIdentity i = ErrorDescription $ Text.pack (symbolVal (Proxy @desc)) <> "[code: " <> cs (show i) <> "]"
 
 type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
 

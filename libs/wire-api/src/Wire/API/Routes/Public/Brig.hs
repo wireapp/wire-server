@@ -35,14 +35,6 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
-  ( CanThrow,
-    EmptyErrorForLegacyReasons,
-    HandleNotFound,
-    MalformedPrekeys,
-    MissingAuth,
-    TooManyClients,
-    UserNotFound,
-  )
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.Public.Util
@@ -319,13 +311,12 @@ data Api routes = Api
     -- - ConvConnect event to self, in some cases (via galley),
     --   for details see 'Galley.API.Create.createConnectConversation'
     --
-    --  TODO: error cases
-    --   Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
-    --   Doc.errorResponse connectionLimitReached
-    --   Doc.errorResponse invalidUser
-    --   Doc.errorResponse (noIdentity 5)
     createConnection ::
       routes :- Summary "Create a connection to another user."
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NoIdentity
         -- Config value 'setUserMaxConnections' value in production/by default
         -- is currently 1000 and has not changed in the last few years.
         -- While it would be more correct to use the config value here, that

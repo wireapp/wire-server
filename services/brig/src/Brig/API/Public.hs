@@ -298,7 +298,7 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
     Doc.errorResponse badCredentials
-    Doc.errorResponse (noIdentity 4)
+    Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
 
   put "/self/locale" (continue changeLocaleH) $
     zauthUserId
@@ -431,10 +431,10 @@ sitemap = do
     Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "Connection updated." Doc.end
     Doc.response 204 "No change." Doc.end
-    Doc.errorResponse connectionLimitReached
+    Doc.errorResponse (errorDescriptionToWai connectionLimitReached)
     Doc.errorResponse invalidTransition
     Doc.errorResponse (errorDescriptionToWai notConnected)
-    Doc.errorResponse invalidUser
+    Doc.errorResponse (errorDescriptionToWai invalidUser)
 
   get "/connections/:id" (continue getConnectionH) $
     accept "application" "json"
