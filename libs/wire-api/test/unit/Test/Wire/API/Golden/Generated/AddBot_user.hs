@@ -16,47 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.AddBot_user where
 
-import Data.ISO3166_CountryCodes
-  ( CountryCode
-      ( BN,
-        BV,
-        DJ,
-        DK,
-        EC,
-        GR,
-        GU,
-        IQ,
-        LI,
-        LR,
-        MK,
-        MR,
-        MU,
-        PW,
-        TD,
-        TR
-      ),
-  )
+import Data.ISO3166_CountryCodes (CountryCode (GR))
 import Data.Id (Id (Id))
-import qualified Data.LanguageCodes
-  ( ISO639_1
-      ( AA,
-        AZ,
-        BA,
-        BS,
-        EU,
-        KI,
-        KV,
-        MN,
-        NB,
-        PT,
-        SD,
-        SM,
-        SO,
-        TK,
-        UG,
-        UZ
-      ),
-  )
+import qualified Data.LanguageCodes (ISO639_1 (UZ))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation.Bot (AddBot (..))
