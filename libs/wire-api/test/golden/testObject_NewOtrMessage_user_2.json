@@ -1,14 +1,7 @@
 {
-    "native_priority": "low",
-    "data": "97",
-    "native_push": false,
-    "sender": "3",
-    "transient": true,
-    "recipients": {
-        "00000000-0000-0001-0000-000000000001": {
-            "1": ""
-        },
-        "00000001-0000-0000-0000-000100000000": {},
-        "00000000-0000-0001-0000-000000000000": {}
-    }
+    "data": "data",
+    "native_push": true,
+    "sender": "6",
+    "transient": false,
+    "recipients": {}
 }
