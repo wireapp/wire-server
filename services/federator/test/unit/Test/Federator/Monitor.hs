@@ -40,6 +40,9 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
+timeoutMicroseconds :: Int
+timeoutMicroseconds = 1000000
+
 tests :: TestTree
 tests =
   testGroup
@@ -119,7 +122,7 @@ testMonitorChangeUpdate =
       tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         appendFile (clientCertificate settings) ""
-        result <- timeout 100000 (readChan reloads)
+        result <- timeout timeoutMicroseconds (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
@@ -144,7 +147,7 @@ testMonitorReplacedChangeUpdate =
         copyFile
           "test/resources/unit/localhost-dot.pem"
           (clientCertificate settings)
-        result1 <- timeout 100000 (readChan reloads)
+        result1 <- timeout timeoutMicroseconds (readChan reloads)
         case result1 of
           Nothing ->
             assertFailure
@@ -155,7 +158,7 @@ testMonitorReplacedChangeUpdate =
           _ -> pure ()
         -- now modify the replaced file
         appendFile (clientCertificate settings) ""
-        result2 <- timeout 100000 (readChan reloads)
+        result2 <- timeout timeoutMicroseconds (readChan reloads)
         case result2 of
           Nothing ->
             assertFailure
@@ -181,7 +184,7 @@ testMonitorOverwriteUpdate =
         copyFile
           "test/resources/unit/localhost-dot.pem"
           (clientCertificate settings)
-        result <- timeout 100000 (readChan reloads)
+        result <- timeout timeoutMicroseconds (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
@@ -207,7 +210,7 @@ testMonitorSymlinkUpdate =
         createSymbolicLink
           (wd </> "test/resources/unit/localhost-dot.pem")
           (clientCertificate settings)
-        result <- timeout 100000 (readChan reloads)
+        result <- timeout timeoutMicroseconds (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
@@ -241,7 +244,7 @@ testMonitorNestedUpdate =
         renameDirectory (root </> "d1") (root </> "b1")
         renameDirectory (root </> "a1") (root </> "d1")
 
-        result <- timeout 100000 (readChan reloads)
+        result <- timeout timeoutMicroseconds (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
@@ -275,7 +278,7 @@ testMonitorDeepUpdate =
         renameDirectory (root </> "d1") (root </> "b1")
         renameDirectory (root </> "a1") (root </> "d1")
 
-        timeout 100000 (readChan reloads) >>= \case
+        timeout timeoutMicroseconds (readChan reloads) >>= \case
           Nothing -> assertFailure "certificate not updated once within the allotted time"
           Just (Just err) ->
             assertFailure
@@ -284,7 +287,7 @@ testMonitorDeepUpdate =
 
         -- test that further changes are seen
         appendFile (clientCertificate settings) ""
-        timeout 100000 (readChan reloads) >>= \case
+        timeout timeoutMicroseconds (readChan reloads) >>= \case
           Nothing -> assertFailure "certificate not updated twice within the allotted time"
           Just (Just err) ->
             assertFailure
@@ -306,7 +309,7 @@ testMonitorError =
       _ <- withSilentMonitor reloads settings
       liftIO $ do
         writeFile (clientCertificate settings) "not a certificate"
-        result <- timeout 1000000 (readChan reloads)
+        result <- timeout timeoutMicroseconds (readChan reloads)
         case result of
           Nothing -> assertFailure "no error returned within the allotted time"
           Just Nothing -> assertFailure "unexpected success"
