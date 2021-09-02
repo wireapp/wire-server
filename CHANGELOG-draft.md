@@ -54,5 +54,6 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Added client certificate support for server to server authentication (#1682)
 * Implemented full server-to-server authentication (#1687)
 * Add an endpoint for removing a qualified user from a local conversation (#1697)
+* Refactored remote error handling in federator (#1681)
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
 * Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
