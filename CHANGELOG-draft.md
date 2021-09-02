@@ -42,5 +42,6 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Internal changes
 
+* Refactored remote error handling in federator (#1681)
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
 * Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
