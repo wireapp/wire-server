@@ -54,7 +54,8 @@ tests =
       testMonitorNestedUpdate,
       testMonitorDeepUpdate,
       testMonitorError,
-      testMergeWatchedPaths
+      testMergeWatchedPaths,
+      testDirectoryTraversal
     ]
 
 tempFile :: FilePath -> String -> ContT r IO FilePath
@@ -349,4 +350,32 @@ testMergeWatchedPaths =
             mergedPaths = Set.fromList (Set.toList (mergePaths wpaths) >>= f)
             origPaths = Set.fromList (wpaths >>= f)
          in mergedPaths == origPaths
+    ]
+
+newtype Path = Path {getPath :: FilePath}
+
+instance Show Path where
+  show = show . getPath
+
+instance Arbitrary Path where
+  arbitrary = Path . intercalate "/" <$> listOf (listOf1 ch)
+    where
+      ch = arbitrary `suchThat` (/= '/')
+
+testDirectoryTraversal :: TestTree
+testDirectoryTraversal =
+  testGroup
+    "directory traversal"
+    [ testProperty "the number of entries is the same as the number of path components" $
+        \(path' :: Path) -> ioProperty $ do
+          path <- makeAbsolute ("/" <> getPath path')
+          wpaths <- watchedPaths path
+          pure (length wpaths == length (splitPath path)),
+      testProperty "relative paths are resolved correctly" $
+        \(path' :: Path) -> ioProperty $ do
+          dir <- getWorkingDirectory
+          let path = getPath path'
+          wpaths <- watchedPaths path
+          wpaths' <- watchedPaths (dir </> path)
+          pure $ wpaths == wpaths'
     ]
