@@ -22,7 +22,7 @@ import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Connection
   ( Message (Message, messageText),
-    Relation (Accepted, Blocked, Cancelled, Ignored, Pending, Sent),
+    Relation (Cancelled, Pending),
     UserConnection (..),
   )
 

@@ -19,13 +19,8 @@
 module Test.Wire.API.Golden.Generated.ConversationAccessUpdate_user where
 
 import Wire.API.Conversation
-  ( Access (CodeAccess, InviteAccess, LinkAccess, PrivateAccess),
-    AccessRole
-      ( ActivatedAccessRole,
-        NonActivatedAccessRole,
-        PrivateAccessRole,
-        TeamAccessRole
-      ),
+  ( Access (InviteAccess),
+    AccessRole (ActivatedAccessRole, NonActivatedAccessRole),
     ConversationAccessUpdate (..),
   )
 
