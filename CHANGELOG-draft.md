@@ -49,6 +49,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
 * Remove leftover auto-connect internal endpoint and code (#1716)
 * Clean up JSON golden tests (#1729)
+* Make regenerated JSON output deterministic (#1734)
 
 ## Federation changes
 
