@@ -1,1 +1,15 @@
-{"cookie":"","time":"1864-05-07T00:38:22.384Z","location":{"lat":-0.31865405026910076,"lon":6.859482454480745e-2},"id":"1","type":"temporary","class":"legalhold","capabilities":{"capabilities":[]},"label":"pi"}
+{
+    "cookie": "",
+    "time": "1864-05-07T00:38:22.384Z",
+    "location": {
+        "lat": -0.31865405026910076,
+        "lon": 6.859482454480745e-2
+    },
+    "id": "1",
+    "type": "temporary",
+    "class": "legalhold",
+    "capabilities": {
+        "capabilities": []
+    },
+    "label": "pi"
+}

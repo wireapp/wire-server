@@ -1,1 +1,13 @@
-{"cookie":"􏬺c􄂩","time":"1864-05-07T08:48:22.537Z","location":{"lat":0.6919026326441752,"lon":1.18215529547942},"id":"1","type":"legalhold","capabilities":{"capabilities":[]}}
+{
+    "cookie": "􏬺c􄂩",
+    "time": "1864-05-07T08:48:22.537Z",
+    "location": {
+        "lat": 0.6919026326441752,
+        "lon": 1.18215529547942
+    },
+    "id": "1",
+    "type": "legalhold",
+    "capabilities": {
+        "capabilities": []
+    }
+}

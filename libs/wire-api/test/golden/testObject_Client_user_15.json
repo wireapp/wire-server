@@ -1,1 +1,11 @@
-{"cookie":"􌨷N","time":"1864-05-08T11:28:27.778Z","model":"zAI","id":"3","type":"temporary","capabilities":{"capabilities":[]},"label":"\u0004G"}
+{
+    "cookie": "􌨷N",
+    "time": "1864-05-08T11:28:27.778Z",
+    "model": "zAI",
+    "id": "3",
+    "type": "temporary",
+    "capabilities": {
+        "capabilities": []
+    },
+    "label": "\u0004G"
+}
