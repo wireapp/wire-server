@@ -359,6 +359,11 @@ testCreateUserNoIdP = do
   let eid = Scim.User.externalId scimUser
       sml = Nothing
    in testCsvData tid owner userid eid sml
+
+  -- members table contains an entry
+  -- (this really shouldn't be tested here, but by the type system!)
+  members <- getTeamMembers userid tid
+  liftIO $ members `shouldContain` [userid]
   where
     -- cloned from brig's integration tests
 
@@ -430,6 +435,11 @@ testCreateUserWithSamlIdP = do
       sml :: HasCallStack => UserSSOId
       sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
    in testCsvData tid owner uid eid (Just sml)
+
+  -- members table contains an entry
+  -- (this really shouldn't be tested here, but by the type system!)
+  members <- getTeamMembers userid tid
+  liftIO $ members `shouldContain` [userid]
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
