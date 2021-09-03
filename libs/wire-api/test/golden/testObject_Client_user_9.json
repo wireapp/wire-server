@@ -1,16 +1,16 @@
 {
+    "capabilities": {
+        "capabilities": []
+    },
+    "class": "legalhold",
     "cookie": "G",
-    "time": "1864-05-08T03:54:56.526Z",
+    "id": "1",
+    "label": "v",
     "location": {
         "lat": -0.3086524641730466,
         "lon": 1.72690152811777
     },
     "model": "㌀m",
-    "id": "1",
-    "type": "legalhold",
-    "class": "legalhold",
-    "capabilities": {
-        "capabilities": []
-    },
-    "label": "v"
+    "time": "1864-05-08T03:54:56.526Z",
+    "type": "legalhold"
 }

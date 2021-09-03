@@ -1,15 +1,9 @@
 {
-    "team_code": "B7ams5fFLxcw1iSuEZIpbQ==",
-    "locale": "pl",
-    "managed_by": "wire",
     "accent_id": -14182,
-    "picture": [],
-    "name": ")Q>\t\u0004􀲻O&G`)wJ􂑑󼄟󺅞𨐦~\u0002V.􎎑e+d\u001b𐃢󽁉󹫧g[~𠦱9𠗫QxR\u0017HMtNg\u0015𠨴H𮥄_x󺚍ⴔvx3\u0006}\u001bNo9Pd\u001cV>",
-    "password": "$LQ\u001e@󻗇Q𘪕y5𠚒T\u000b󿯉mMd􆌍6@0T뉊}S𞸲>󰣚󾱏\u0007C𠈢\u0010=m:$^g󳁻N\u0013Q\u0003\u0013>]hmg(謧Ae\u0003𘃴@-m\"@\u000b\u0002훵yY􂾺]\u000cby1괥O􉃨ZO⼄󸹨:\"&廊􄁕\u001a𡿐a󾦪qE\u0011W됽gBʰ5MTꉚI𪟗􎍬;\u0007&2𗈒`;Uy𠑯𝜁3\nࠅ󰇭\u0016\u0012Ʌ𑖞k*\u0001v󻿘\u0019\u0005\u0012􄀧\u0013]+鴰'𛉣􇳷,",
     "assets": [
         {
-            "size": "preview",
             "key": "06m\u0000𩼄",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -17,48 +11,48 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "92",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "9􀣢\"B\t1󴂷|",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "B ",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "\u001ag",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "[\u001e􎯪n/",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "嗿",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "􄦨3",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "!Ἓ|R!81",
-            "type": "image"
-        },
-        {
             "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "􄦨3",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "!Ἓ|R!81",
+            "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "\"U))K𡽢\u0014`P",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -66,36 +60,42 @@
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "M\u0012,\u0017\t篜",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "&𘞣%e5",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "Fu􋕾X\u0006󱯴8wq",
-            "type": "image"
-        },
-        {
             "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "L",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "FyZs9暑2\u0005",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "B\u001fZ󰚌o\u000c\u001e-􋽳",
+            "size": "complete",
             "type": "image"
         }
     ],
     "email_code": "u7kZwe4BWVUT4ofDJg==",
-    "label": "\u0012눎I'\u0015\u0012,\t|"
+    "label": "\u0012눎I'\u0015\u0012,\t|",
+    "locale": "pl",
+    "managed_by": "wire",
+    "name": ")Q>\t\u0004􀲻O&G`)wJ􂑑󼄟󺅞𨐦~\u0002V.􎎑e+d\u001b𐃢󽁉󹫧g[~𠦱9𠗫QxR\u0017HMtNg\u0015𠨴H𮥄_x󺚍ⴔvx3\u0006}\u001bNo9Pd\u001cV>",
+    "password": "$LQ\u001e@󻗇Q𘪕y5𠚒T\u000b󿯉mMd􆌍6@0T뉊}S𞸲>󰣚󾱏\u0007C𠈢\u0010=m:$^g󳁻N\u0013Q\u0003\u0013>]hmg(謧Ae\u0003𘃴@-m\"@\u000b\u0002훵yY􂾺]\u000cby1괥O􉃨ZO⼄󸹨:\"&廊􄁕\u001a𡿐a󾦪qE\u0011W됽gBʰ5MTꉚI𪟗􎍬;\u0007&2𗈒`;Uy𠑯𝜁3\nࠅ󰇭\u0016\u0012Ʌ𑖞k*\u0001v󻿘\u0019\u0005\u0012􄀧\u0013]+鴰'𛉣􇳷,",
+    "picture": [],
+    "team_code": "B7ams5fFLxcw1iSuEZIpbQ=="
 }

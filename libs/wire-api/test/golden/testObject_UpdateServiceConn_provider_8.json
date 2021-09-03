@@ -1,11 +1,11 @@
 {
-    "public_keys": [
-        "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0\nG06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH\nWvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV\nVPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS\nbUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8\n7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la\nnQIDAQAB\n-----END PUBLIC KEY-----\n"
-    ],
-    "enabled": false,
-    "base_url": "https://example.com",
     "auth_tokens": [
         "IRIB"
     ],
-    "password": "Y\u000e󸓭36\u0004𛋷bOlW𨾿@\"l[9%⥅𐳿c;9\u0011\u001b\u001by\u001d􋟰Cp\u0002hYJ}\u0014\u0001􍀈􎲿45F4=6f+𠮻#𝚗㍾\u001e\u0002􍵊}\u0016='𡠐l(=\u001e3\u001eAK𡸌M\u000bT=􁷻Z&`ꀕ,|􁌾\u0007􍧠Z2\u0004 1cc􃋗\u0014舂C\u001f&U\u0010\u0013y󵲱ki\u0006\nw`E\u0018_\u0005R𩑲\u000fa󿚃\\P&捌L\t~|i3𫣣);e𠏑_𦨊\"5󴪋V3\u0013&6󸺄𮝡E􃆵𧱧𥃁4\u0000𧖁#Fb𗄭UD󵶕􁶛d*i\u000c*o+?\u0007\u00193􋳚\\}f\u0017󱻸󵴮Y\u000c5􀎖7]P󲣑\u0013&W(lZ7?\u000e빵❊)2x\u0015N$u𐓹y萚|\u0008\\K`"
+    "base_url": "https://example.com",
+    "enabled": false,
+    "password": "Y\u000e󸓭36\u0004𛋷bOlW𨾿@\"l[9%⥅𐳿c;9\u0011\u001b\u001by\u001d􋟰Cp\u0002hYJ}\u0014\u0001􍀈􎲿45F4=6f+𠮻#𝚗㍾\u001e\u0002􍵊}\u0016='𡠐l(=\u001e3\u001eAK𡸌M\u000bT=􁷻Z&`ꀕ,|􁌾\u0007􍧠Z2\u0004 1cc􃋗\u0014舂C\u001f&U\u0010\u0013y󵲱ki\u0006\nw`E\u0018_\u0005R𩑲\u000fa󿚃\\P&捌L\t~|i3𫣣);e𠏑_𦨊\"5󴪋V3\u0013&6󸺄𮝡E􃆵𧱧𥃁4\u0000𧖁#Fb𗄭UD󵶕􁶛d*i\u000c*o+?\u0007\u00193􋳚\\}f\u0017󱻸󵴮Y\u000c5􀎖7]P󲣑\u0013&W(lZ7?\u000e빵❊)2x\u0015N$u𐓹y萚|\u0008\\K`",
+    "public_keys": [
+        "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0\nG06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH\nWvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV\nVPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS\nbUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8\n7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la\nnQIDAQAB\n-----END PUBLIC KEY-----\n"
+    ]
 }

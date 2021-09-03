@@ -1,6 +1,6 @@
 {
-    "token": "𮆍\u0003𝃂",
     "app": "G\rꛌ\r",
-    "transport": "APNS_VOIP",
-    "client": "1e"
+    "client": "1e",
+    "token": "𮆍\u0003𝃂",
+    "transport": "APNS_VOIP"
 }

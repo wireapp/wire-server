@@ -1,64 +1,64 @@
 {
     "tokens": [
         {
-            "token": "MK8p\u000c",
             "app": "pU2r",
-            "transport": "GCM",
-            "client": "4"
+            "client": "4",
+            "token": "MK8p\u000c",
+            "transport": "GCM"
         },
         {
-            "token": "\n𧼵`􌋰>𮬇",
             "app": "",
-            "transport": "APNS_SANDBOX",
-            "client": "1a"
+            "client": "1a",
+            "token": "\n𧼵`􌋰>𮬇",
+            "transport": "APNS_SANDBOX"
         },
         {
-            "token": "𬖅",
             "app": "\u0019\u0003",
-            "transport": "APNS_VOIP",
-            "client": "0"
+            "client": "0",
+            "token": "𬖅",
+            "transport": "APNS_VOIP"
         },
         {
-            "token": "",
             "app": "玆Y􋬭O",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "13"
-        },
-        {
-            "token": "\u0002󺖟\u001bW󺈞2\u0001",
-            "app": ">8C9E",
-            "transport": "APNS_VOIP",
-            "client": "18"
-        },
-        {
-            "token": "􀵒阼㈽􈨹􆘺\"",
-            "app": "\u000cn\u0005E\u001e",
-            "transport": "APNS",
-            "client": "16"
-        },
-        {
-            "token": ")\u0008 v",
-            "app": "H>8\u0003",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "12"
-        },
-        {
+            "client": "13",
             "token": "",
+            "transport": "APNS_VOIP_SANDBOX"
+        },
+        {
+            "app": ">8C9E",
+            "client": "18",
+            "token": "\u0002󺖟\u001bW󺈞2\u0001",
+            "transport": "APNS_VOIP"
+        },
+        {
+            "app": "\u000cn\u0005E\u001e",
+            "client": "16",
+            "token": "􀵒阼㈽􈨹􆘺\"",
+            "transport": "APNS"
+        },
+        {
+            "app": "H>8\u0003",
+            "client": "12",
+            "token": ")\u0008 v",
+            "transport": "APNS_VOIP_SANDBOX"
+        },
+        {
             "app": "V",
-            "transport": "GCM",
-            "client": "16"
+            "client": "16",
+            "token": "",
+            "transport": "GCM"
         },
         {
-            "token": "\u00193",
             "app": "􋄪\u0017",
-            "transport": "APNS_VOIP",
-            "client": "1a"
+            "client": "1a",
+            "token": "\u00193",
+            "transport": "APNS_VOIP"
         },
         {
-            "token": ">",
             "app": "`B𡛪\\",
-            "transport": "APNS_SANDBOX",
-            "client": "1c"
+            "client": "1c",
+            "token": ">",
+            "transport": "APNS_SANDBOX"
         }
     ]
 }

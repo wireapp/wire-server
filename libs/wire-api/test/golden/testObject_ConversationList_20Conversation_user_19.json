@@ -1,81 +1,81 @@
 {
-    "has_more": true,
     "conversations": [
         {
             "access": [],
-            "creator": "00000001-0000-0000-0000-000000000000",
             "access_role": "non_activated",
+            "creator": "00000001-0000-0000-0000-000000000000",
+            "id": "00000001-0000-0000-0000-000000000001",
+            "last_event": "0.0",
+            "last_event_time": "1970-01-01T00:00:00.000Z",
             "members": {
+                "others": [],
                 "self": {
+                    "conversation_role": "39cavf2gxmdivwom4sbqacf5qid3jeh2_yon0puszvkl4e9rof60k4f9t48xqme95zv0zhn4z5m98_x0g9eig6wlj04is6zvwg6byi7z07c6gt9090ny2u3lt",
+                    "hidden": false,
                     "hidden_ref": null,
-                    "status": 0,
+                    "id": "00000001-0000-0000-0000-000000000001",
+                    "otr_archived": false,
+                    "otr_archived_ref": "",
+                    "otr_muted": true,
+                    "otr_muted_ref": "",
+                    "otr_muted_status": null,
                     "service": {
                         "id": "00000001-0000-0001-0000-000100000001",
                         "provider": "00000001-0000-0000-0000-000000000000"
                     },
-                    "otr_muted_ref": "",
-                    "conversation_role": "39cavf2gxmdivwom4sbqacf5qid3jeh2_yon0puszvkl4e9rof60k4f9t48xqme95zv0zhn4z5m98_x0g9eig6wlj04is6zvwg6byi7z07c6gt9090ny2u3lt",
-                    "status_time": "1970-01-01T00:00:00.000Z",
-                    "hidden": false,
+                    "status": 0,
                     "status_ref": "0.0",
-                    "id": "00000001-0000-0000-0000-000000000001",
-                    "otr_archived": false,
-                    "otr_muted_status": null,
-                    "otr_muted": true,
-                    "otr_archived_ref": ""
-                },
-                "others": []
+                    "status_time": "1970-01-01T00:00:00.000Z"
+                }
             },
+            "message_timer": null,
             "name": "",
-            "team": null,
             "qualified_id": {
                 "domain": "golden.example.com",
                 "id": "00000001-0000-0000-0000-000000000001"
             },
-            "id": "00000001-0000-0000-0000-000000000001",
-            "type": 3,
             "receipt_mode": 0,
-            "last_event_time": "1970-01-01T00:00:00.000Z",
-            "message_timer": null,
-            "last_event": "0.0"
+            "team": null,
+            "type": 3
         },
         {
             "access": [],
-            "creator": "00000000-0000-0001-0000-000100000000",
             "access_role": "non_activated",
+            "creator": "00000000-0000-0001-0000-000100000000",
+            "id": "00000000-0000-0000-0000-000100000000",
+            "last_event": "0.0",
+            "last_event_time": "1970-01-01T00:00:00.000Z",
             "members": {
+                "others": [],
                 "self": {
+                    "conversation_role": "5h13g6f13e8vecpsadfwntn970iek5v4zl_421qw1p6_v0dudbh1ac_h70og_d7ed4m_q1trwmk9evrzqeq2s1llbwh7mn6ar_g1mikt6s",
+                    "hidden": false,
                     "hidden_ref": "",
-                    "status": 0,
+                    "id": "00000001-0000-0000-0000-000100000000",
+                    "otr_archived": false,
+                    "otr_archived_ref": null,
+                    "otr_muted": false,
+                    "otr_muted_ref": null,
+                    "otr_muted_status": 1,
                     "service": {
                         "id": "00000000-0000-0001-0000-000100000000",
                         "provider": "00000001-0000-0001-0000-000000000001"
                     },
-                    "otr_muted_ref": null,
-                    "conversation_role": "5h13g6f13e8vecpsadfwntn970iek5v4zl_421qw1p6_v0dudbh1ac_h70og_d7ed4m_q1trwmk9evrzqeq2s1llbwh7mn6ar_g1mikt6s",
-                    "status_time": "1970-01-01T00:00:00.000Z",
-                    "hidden": false,
+                    "status": 0,
                     "status_ref": "0.0",
-                    "id": "00000001-0000-0000-0000-000100000000",
-                    "otr_archived": false,
-                    "otr_muted_status": 1,
-                    "otr_muted": false,
-                    "otr_archived_ref": null
-                },
-                "others": []
+                    "status_time": "1970-01-01T00:00:00.000Z"
+                }
             },
+            "message_timer": null,
             "name": "",
-            "team": null,
             "qualified_id": {
                 "domain": "golden.example.com",
                 "id": "00000000-0000-0000-0000-000100000000"
             },
-            "id": "00000000-0000-0000-0000-000100000000",
-            "type": 0,
             "receipt_mode": null,
-            "last_event_time": "1970-01-01T00:00:00.000Z",
-            "message_timer": null,
-            "last_event": "0.0"
+            "team": null,
+            "type": 0
         }
-    ]
+    ],
+    "has_more": true
 }

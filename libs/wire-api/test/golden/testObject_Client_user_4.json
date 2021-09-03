@@ -1,15 +1,15 @@
 {
+    "capabilities": {
+        "capabilities": []
+    },
+    "class": "legalhold",
     "cookie": "j",
-    "time": "1864-05-06T09:13:45.902Z",
+    "id": "3",
     "location": {
         "lat": 0.43019316470477537,
         "lon": -2.1994844230432533
     },
     "model": "",
-    "id": "3",
-    "type": "permanent",
-    "class": "legalhold",
-    "capabilities": {
-        "capabilities": []
-    }
+    "time": "1864-05-06T09:13:45.902Z",
+    "type": "permanent"
 }

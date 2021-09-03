@@ -1,18 +1,18 @@
 {
     "access": [],
+    "conversation_role": "mqkbqyi796z05v6jj4ijc7nl5unid6eq1t028pp9awv2_8bc61wq0zl",
+    "message_timer": 1570858821505994,
+    "name": "v",
+    "qualified_users": [],
+    "receipt_mode": -1,
+    "team": {
+        "managed": true,
+        "teamid": "00000001-0000-0000-0000-000100000000"
+    },
     "users": [
         "00000001-0000-0000-0000-000100000000",
         "00000000-0000-0000-0000-000100000001",
         "00000000-0000-0000-0000-000100000001",
         "00000000-0000-0001-0000-000100000000"
-    ],
-    "conversation_role": "mqkbqyi796z05v6jj4ijc7nl5unid6eq1t028pp9awv2_8bc61wq0zl",
-    "name": "v",
-    "team": {
-        "managed": true,
-        "teamid": "00000001-0000-0000-0000-000100000000"
-    },
-    "receipt_mode": -1,
-    "message_timer": 1570858821505994,
-    "qualified_users": []
+    ]
 }

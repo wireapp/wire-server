@@ -1,15 +1,15 @@
 {
-    "hidden_ref": null,
-    "status": 0,
-    "service": null,
-    "otr_muted_ref": null,
     "conversation_role": "n_ka0q5qzafpovvvcrpmjctgwp45pfampamwcyry615ffkldjfzdf_jhuf7m0vb2n9mk90r3krdcqkeutj21_89wqelz0mx7o63cf195cjtqaoi",
-    "status_time": "1970-01-01T00:00:00.000Z",
     "hidden": true,
-    "status_ref": "0.0",
+    "hidden_ref": null,
     "id": "00000001-0000-0002-0000-000100000001",
     "otr_archived": true,
-    "otr_muted_status": 1,
+    "otr_archived_ref": null,
     "otr_muted": true,
-    "otr_archived_ref": null
+    "otr_muted_ref": null,
+    "otr_muted_status": 1,
+    "service": null,
+    "status": 0,
+    "status_ref": "0.0",
+    "status_time": "1970-01-01T00:00:00.000Z"
 }

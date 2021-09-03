@@ -1,12 +1,12 @@
 {
-    "cookie": "U",
-    "time": "1864-05-12T11:31:10.072Z",
-    "model": "",
-    "id": "2",
-    "type": "temporary",
-    "class": "legalhold",
     "capabilities": {
         "capabilities": []
     },
-    "label": "=E"
+    "class": "legalhold",
+    "cookie": "U",
+    "id": "2",
+    "label": "=E",
+    "model": "",
+    "time": "1864-05-12T11:31:10.072Z",
+    "type": "temporary"
 }

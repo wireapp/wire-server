@@ -1,9 +1,9 @@
 {
-    "hidden_ref": "x\u001b􏨛",
-    "otr_muted_ref": "L\r󶓬",
     "conversation_role": "3fwjaofhryb7nd1hp3nwukjiyxxhgimw8ddzx5s_8ek5nnctkzkic6w51hqugeh6l50hg87dez8pw974dbuywd83njuytv0euf9619s",
+    "hidden_ref": "x\u001b􏨛",
     "otr_archived": true,
-    "otr_muted": false,
     "otr_archived_ref": "\u000b\u0014",
+    "otr_muted": false,
+    "otr_muted_ref": "L\r󶓬",
     "target": "00000001-0000-0002-0000-000200000001"
 }

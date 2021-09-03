@@ -4,16 +4,16 @@
         "invite",
         "code"
     ],
-    "users": [
-        "00000002-0000-0003-0000-000300000003"
-    ],
     "conversation_role": "_wje4g3_kcquzyoms0q4cwzz8",
+    "message_timer": 4005602882980532,
     "name": "b󶕜",
+    "qualified_users": [],
+    "receipt_mode": 1,
     "team": {
         "managed": false,
         "teamid": "00000001-0000-0001-0000-000200000002"
     },
-    "receipt_mode": 1,
-    "message_timer": 4005602882980532,
-    "qualified_users": []
+    "users": [
+        "00000002-0000-0003-0000-000300000003"
+    ]
 }

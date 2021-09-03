@@ -1,11 +1,11 @@
 {
-    "time": "1864-05-07T04:35:34.201Z",
-    "model": "",
-    "id": "4",
-    "type": "permanent",
-    "class": "phone",
     "capabilities": {
         "capabilities": []
     },
-    "label": ""
+    "class": "phone",
+    "id": "4",
+    "label": "",
+    "model": "",
+    "time": "1864-05-07T04:35:34.201Z",
+    "type": "permanent"
 }

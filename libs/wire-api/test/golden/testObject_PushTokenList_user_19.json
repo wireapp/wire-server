@@ -1,94 +1,94 @@
 {
     "tokens": [
         {
-            "token": "􃿙+󶟱",
             "app": "2󼉔",
-            "transport": "GCM",
-            "client": "1a"
+            "client": "1a",
+            "token": "􃿙+󶟱",
+            "transport": "GCM"
         },
         {
-            "token": "U",
             "app": "w",
-            "transport": "APNS",
-            "client": "19"
+            "client": "19",
+            "token": "U",
+            "transport": "APNS"
         },
         {
-            "token": "\u000c\u0007",
             "app": "\u0011",
-            "transport": "APNS_VOIP",
-            "client": "c"
+            "client": "c",
+            "token": "\u000c\u0007",
+            "transport": "APNS_VOIP"
         },
         {
-            "token": "",
             "app": "\u000e\u0015",
-            "transport": "GCM",
-            "client": "8"
-        },
-        {
-            "token": "𓇳%",
-            "app": "j\n𛆳>_\u001e}",
-            "transport": "APNS_VOIP",
-            "client": "16"
-        },
-        {
-            "token": "󴌛􍎌z􎺆YY",
-            "app": "󺒶$㬑\u0019Qw",
-            "transport": "GCM",
-            "client": "15"
-        },
-        {
-            "token": "\u0004𤾷nUJY",
-            "app": "tu窭@󼉓",
-            "transport": "APNS_VOIP",
-            "client": "1c"
-        },
-        {
-            "token": "d𡋩\u001aL",
-            "app": "󿕼",
-            "transport": "GCM",
-            "client": "11"
-        },
-        {
-            "token": "]\u0012",
-            "app": "\u0005𦥧4",
-            "transport": "GCM",
-            "client": "6"
-        },
-        {
-            "token": "􍽳xf(",
-            "app": "뷹\u0016󰇦1⏌@",
-            "transport": "GCM",
-            "client": "17"
-        },
-        {
-            "token": "i!l)E\u000eg",
-            "app": "\u001e",
-            "transport": "APNS",
-            "client": "5"
-        },
-        {
+            "client": "8",
             "token": "",
+            "transport": "GCM"
+        },
+        {
+            "app": "j\n𛆳>_\u001e}",
+            "client": "16",
+            "token": "𓇳%",
+            "transport": "APNS_VOIP"
+        },
+        {
+            "app": "󺒶$㬑\u0019Qw",
+            "client": "15",
+            "token": "󴌛􍎌z􎺆YY",
+            "transport": "GCM"
+        },
+        {
+            "app": "tu窭@󼉓",
+            "client": "1c",
+            "token": "\u0004𤾷nUJY",
+            "transport": "APNS_VOIP"
+        },
+        {
+            "app": "󿕼",
+            "client": "11",
+            "token": "d𡋩\u001aL",
+            "transport": "GCM"
+        },
+        {
+            "app": "\u0005𦥧4",
+            "client": "6",
+            "token": "]\u0012",
+            "transport": "GCM"
+        },
+        {
+            "app": "뷹\u0016󰇦1⏌@",
+            "client": "17",
+            "token": "􍽳xf(",
+            "transport": "GCM"
+        },
+        {
+            "app": "\u001e",
+            "client": "5",
+            "token": "i!l)E\u000eg",
+            "transport": "APNS"
+        },
+        {
             "app": "+~?lH􃨰4",
-            "transport": "APNS_VOIP",
-            "client": "1"
+            "client": "1",
+            "token": "",
+            "transport": "APNS_VOIP"
         },
         {
-            "token": "`􅈇",
             "app": "􉉛𫌒L枣󾦘",
-            "transport": "APNS",
-            "client": "b"
+            "client": "b",
+            "token": "`􅈇",
+            "transport": "APNS"
         },
         {
-            "token": "_􆢕Bm",
             "app": "j`8?\u001b^",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "5"
+            "client": "5",
+            "token": "_􆢕Bm",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "\u0001𧯾<",
             "app": "t \u001fE[",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "1e"
+            "client": "1e",
+            "token": "\u0001𧯾<",
+            "transport": "APNS_VOIP_SANDBOX"
         }
     ]
 }

@@ -4,16 +4,16 @@
         "code"
     ],
     "access_role": "team",
-    "users": [
-        "00000001-0000-0000-0000-000000000001",
-        "00000000-0000-0000-0000-000100000000"
-    ],
     "conversation_role": "4ek91n56al0j6mc3ovtreftmizb2qoh05m_zozgr6ar1vorbh2gdx3b72gm_q65h815zuy_2qehwf9t20l3mabd53813168ccg",
+    "message_timer": 7043412511612101,
     "name": "",
+    "qualified_users": [],
     "team": {
         "managed": true,
         "teamid": "00000000-0000-0001-0000-000100000000"
     },
-    "message_timer": 7043412511612101,
-    "qualified_users": []
+    "users": [
+        "00000001-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000100000000"
+    ]
 }

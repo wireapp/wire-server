@@ -1,14 +1,13 @@
 {
     "accent_id": 6,
-    "picture": [],
     "assets": [
         {
             "key": ")E𘥋",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "c\u0012/",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -16,9 +15,10 @@
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "B",
+            "size": "complete",
             "type": "image"
         }
-    ]
+    ],
+    "picture": []
 }

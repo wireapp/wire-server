@@ -1,9 +1,9 @@
 {
-    "hidden_ref": "!",
-    "otr_muted_ref": "",
     "conversation_role": "_p1ctmxajl8_xxe9_5vzwv4g7gcw_efe75x55n5qv5mokpe10ddg9cfkdjv0tx1fwg9w3ppw9jtpyj8_da5ptc",
     "hidden": false,
+    "hidden_ref": "!",
     "otr_archived": true,
-    "otr_muted_status": 1,
-    "otr_muted": false
+    "otr_muted": false,
+    "otr_muted_ref": "",
+    "otr_muted_status": 1
 }

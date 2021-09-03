@@ -1,24 +1,24 @@
 {
+    "conversation": "000031c2-0000-108c-0000-10a500000882",
+    "data": {
+        "conversation_role": "spkf0ayk4c4obgc_l2lj54cljtj25ph",
+        "hidden": false,
+        "hidden_ref": "D",
+        "otr_archived": true,
+        "otr_archived_ref": "v6",
+        "otr_muted_ref": "v󼡲",
+        "otr_muted_status": 0,
+        "target": "00000001-0000-0002-0000-000100000000"
+    },
+    "from": "00005335-0000-2983-0000-46460000082f",
     "qualified_conversation": {
         "domain": "faraway.example.com",
         "id": "000031c2-0000-108c-0000-10a500000882"
     },
-    "conversation": "000031c2-0000-108c-0000-10a500000882",
-    "time": "1864-05-03T06:49:41.178Z",
-    "data": {
-        "hidden_ref": "D",
-        "otr_muted_ref": "v󼡲",
-        "conversation_role": "spkf0ayk4c4obgc_l2lj54cljtj25ph",
-        "hidden": false,
-        "otr_archived": true,
-        "otr_muted_status": 0,
-        "otr_archived_ref": "v6",
-        "target": "00000001-0000-0002-0000-000100000000"
-    },
-    "from": "00005335-0000-2983-0000-46460000082f",
     "qualified_from": {
         "domain": "faraway.example.com",
         "id": "00005335-0000-2983-0000-46460000082f"
     },
+    "time": "1864-05-03T06:49:41.178Z",
     "type": "conversation.member-update"
 }
