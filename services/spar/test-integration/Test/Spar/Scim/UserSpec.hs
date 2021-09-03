@@ -693,7 +693,7 @@ testScimCreateVsUserRef = do
       resp <- createViaSamlResp idp privCreds uref
       liftIO $ do
         maybe (error "no body") cs (responseBody resp)
-          `shouldContain` "<title>wire:sso:error:forbidden</title>"
+          `shouldNotContain` "<title>wire:sso:error:success</title>"
     createViaSaml :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
     createViaSaml idp privCreds uref = do
       resp <- createViaSamlResp idp privCreds uref
