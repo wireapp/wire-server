@@ -37,10 +37,43 @@ import Text.PrettyPrint (render)
 import Type.Reflection (typeRep)
 import Wire.API.ServantProto
 
+-- TODO(md): Rewrite such that 'testObjectWithOutcome' is used instead of
+-- 'testObject'. Make sure to match error messages from 'testObject'.
 testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
 testObjects objs = do
   allFilesExist <- and <$> traverse (uncurry testObject) objs
   assertBool "Some golden JSON files do not exist" allFilesExist
+
+-- | A testing outcome
+data TestOutcome a
+  = Pass
+  | FileDoesNotExist FilePath
+  | FailedToDecode String
+  | AesonValueMismatch
+      Value
+      -- ^ Expected value
+      Value
+      -- ^ Actual value
+  | FailedToParse a (Result a)
+
+testObjectWithOutcome :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO (TestOutcome a)
+testObjectWithOutcome obj path = do
+  let actualValue = toJSON obj :: Value
+      actualJson = encodePretty actualValue
+      dir = "test/golden"
+      fullPath = dir <> "/" <> path
+  createDirectoryIfMissing True dir
+  doesFileExist fullPath >>= \case
+    False -> do
+      ByteString.writeFile fullPath (LBS.toStrict actualJson)
+      pure . FileDoesNotExist $ path
+    True ->
+      eitherDecodeFileStrict fullPath >>= \case
+        Left err -> pure . FailedToDecode $ err
+        Right expectedValue | expectedValue /= actualValue -> pure $ AesonValueMismatch expectedValue actualValue
+        Right _ -> do
+          let p = fromJSON actualValue
+          pure $ if Success obj == p then Pass else FailedToParse obj p
 
 testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
 testObject obj path = do
