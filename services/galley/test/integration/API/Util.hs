@@ -967,6 +967,24 @@ putOtherMember from to m c = do
       . zType "access"
       . json m
 
+putQualifiedConversationName :: UserId -> Qualified ConvId -> Text -> TestM ResponseLBS
+putQualifiedConversationName u c n = do
+  g <- view tsGalley
+  let update = ConversationRename n
+  put
+    ( g
+        . paths
+          [ "conversations",
+            toByteString' (qDomain c),
+            toByteString' (qUnqualified c),
+            "name"
+          ]
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . json update
+    )
+
 putConversationName :: UserId -> ConvId -> Text -> TestM ResponseLBS
 putConversationName u c n = do
   g <- view tsGalley
