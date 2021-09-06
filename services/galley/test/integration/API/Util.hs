@@ -973,7 +973,7 @@ putConversationName u c n = do
   let update = ConversationRename n
   put
     ( g
-        . paths ["conversations", toByteString' c]
+        . paths ["conversations", toByteString' c, "name"]
         . zUser u
         . zConn "conn"
         . zType "access"
