@@ -1,13 +1,9 @@
 {
-    "expires_in": 406641,
-    "locale": "ig",
-    "managed_by": "wire",
     "accent_id": 30744,
-    "name": "IO󹧈K􏓲g􍔍J\tiZJ\u001e}0'A\u000f\u001f𓇝𠜊`𠪒zNo􈰃nb󳹝@\u0017\u00158ᇾyCz贛?!\\똼S\u000c󳛂H𡩕b\u001dv\u001d𠀛狽o扻}䡅'\u0008*M_}\u001f𝕍􌬳裕V\u000c*钬K2𝧞K_#77]-&𗋂𢏇뀱`𐭠􃯟L\u0002-󾎣>𘒲𥲴QC]+wqU",
     "assets": [
         {
-            "size": "preview",
             "key": "[z\u00179)",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -15,18 +11,18 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "{",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "r𒐔Y􍮅\u0014\u0006",
-            "type": "image"
-        },
-        {
             "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "r𒐔Y􍮅\u0014\u0006",
+            "size": "complete",
+            "type": "image"
+        },
+        {
             "key": "\u0017v8*C",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -34,33 +30,33 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "\u000e􎘙P𪎆;t&g󹩽(",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "0i\u000c\u0008-E\u0005R睫2j",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "\u0002BK𐐶#\u000b'䗜\u0018z𨒘󾁟$jH",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "@>r\u000c%",
-            "type": "image"
-        },
-        {
             "size": "complete",
-            "key": "\"9\u0015𢂿ci󼡆3\u0003ARh\u001eX",
             "type": "image"
         },
         {
+            "key": "@>r\u000c%",
             "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "\"9\u0015𢂿ci󼡆3\u0003ARh\u001eX",
+            "size": "complete",
+            "type": "image"
+        },
+        {
             "key": ".",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -68,13 +64,13 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "FO5A",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -82,23 +78,23 @@
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "󽽘\\1󺺢d睾q\u0014𒎇",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": ")RU1?󽫛r ^$Wq",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "h76F\u001b",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "'궦\t􍎰",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -107,6 +103,10 @@
         }
     ],
     "email_code": "pwYYlQn1WDrF_I02s6jDhkfLyudwpqrum063eTo=",
-    "phone_code": "0fz6tQ==",
-    "label": "cz\u0018*[|&󴓈\u0019E\u001dW"
+    "expires_in": 406641,
+    "label": "cz\u0018*[|&󴓈\u0019E\u001dW",
+    "locale": "ig",
+    "managed_by": "wire",
+    "name": "IO󹧈K􏓲g􍔍J\tiZJ\u001e}0'A\u000f\u001f𓇝𠜊`𠪒zNo􈰃nb󳹝@\u0017\u00158ᇾyCz贛?!\\똼S\u000c󳛂H𡩕b\u001dv\u001d𠀛狽o扻}䡅'\u0008*M_}\u001f𝕍􌬳裕V\u000c*钬K2𝧞K_#77]-&𗋂𢏇뀱`𐭠􃯟L\u0002-󾎣>𘒲𥲴QC]+wqU",
+    "phone_code": "0fz6tQ=="
 }

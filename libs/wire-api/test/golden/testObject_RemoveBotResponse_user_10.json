@@ -1,19 +1,19 @@
 {
     "event": {
-        "qualified_conversation": {
-            "domain": "faraway.example.com",
-            "id": "00005788-0000-327b-0000-7ef80000017e"
-        },
         "conversation": "00005788-0000-327b-0000-7ef80000017e",
-        "time": "1864-04-11T02:49:27.442Z",
         "data": {
             "status": "started"
         },
         "from": "0000588d-0000-6704-0000-153f00001692",
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00005788-0000-327b-0000-7ef80000017e"
+        },
         "qualified_from": {
             "domain": "faraway.example.com",
             "id": "0000588d-0000-6704-0000-153f00001692"
         },
+        "time": "1864-04-11T02:49:27.442Z",
         "type": "conversation.typing"
     }
 }

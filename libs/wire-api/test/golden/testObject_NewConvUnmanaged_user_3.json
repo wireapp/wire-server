@@ -5,14 +5,14 @@
         "code"
     ],
     "access_role": "activated",
-    "users": [],
     "conversation_role": "y3otpiwu615lvvccxsq0315jj75jquw01flhtuf49t6mzfurvwe3_sh51f4s257e2x47zo85rif_xyiyfldpan3g4r6zr35rbwnzm0k",
+    "message_timer": 6764297310186120,
     "name": "f",
+    "qualified_users": [],
+    "receipt_mode": 0,
     "team": {
         "managed": false,
         "teamid": "00000000-0000-0001-0000-000000000001"
     },
-    "receipt_mode": 0,
-    "message_timer": 6764297310186120,
-    "qualified_users": []
+    "users": []
 }

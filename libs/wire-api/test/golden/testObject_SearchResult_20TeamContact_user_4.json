@@ -1,55 +1,55 @@
 {
-    "took": 2,
-    "found": -2,
     "documents": [
         {
+            "accent_id": null,
+            "created_at": null,
             "email": "@",
             "handle": null,
-            "managed_by": "wire",
-            "role": "owner",
-            "accent_id": null,
-            "name": "",
-            "created_at": null,
-            "team": "00000001-0000-0000-0000-000000000001",
             "id": "00000000-0000-0000-0000-000000000001",
-            "saml_idp": null
+            "managed_by": "wire",
+            "name": "",
+            "role": "owner",
+            "saml_idp": null,
+            "team": "00000001-0000-0000-0000-000000000001"
         },
         {
+            "accent_id": 0,
+            "created_at": "1864-05-09T01:29:06.597Z",
             "email": null,
             "handle": "",
-            "managed_by": "scim",
-            "role": "admin",
-            "accent_id": 0,
-            "name": "",
-            "created_at": "1864-05-09T01:29:06.597Z",
-            "team": null,
             "id": "00000000-0000-0001-0000-000100000001",
-            "saml_idp": ""
+            "managed_by": "scim",
+            "name": "",
+            "role": "admin",
+            "saml_idp": "",
+            "team": null
         },
         {
+            "accent_id": null,
+            "created_at": "1864-05-09T17:38:20.677Z",
             "email": null,
             "handle": null,
-            "managed_by": "wire",
-            "role": "partner",
-            "accent_id": null,
-            "name": "",
-            "created_at": "1864-05-09T17:38:20.677Z",
-            "team": "00000001-0000-0000-0000-000100000000",
             "id": "00000000-0000-0001-0000-000100000001",
-            "saml_idp": ""
+            "managed_by": "wire",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": "00000001-0000-0000-0000-000100000000"
         },
         {
+            "accent_id": 0,
+            "created_at": null,
             "email": "@",
             "handle": "",
-            "managed_by": "scim",
-            "role": "partner",
-            "accent_id": 0,
-            "name": "",
-            "created_at": null,
-            "team": null,
             "id": "00000001-0000-0000-0000-000100000000",
-            "saml_idp": ""
+            "managed_by": "scim",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": null
         }
     ],
-    "returned": 4
+    "found": -2,
+    "returned": 4,
+    "took": 2
 }

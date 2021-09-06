@@ -1,24 +1,19 @@
 {
-    "phone": "+8057919910",
-    "locale": "hu-CG",
-    "managed_by": "scim",
     "accent_id": -20961,
-    "name": ";􌞇𘣣\u000f𣺗\u0001",
-    "invitation_code": "EXZtnNu96rBu0DQCJ_vGdZkjhH1SSzT2MAHgTQ==",
     "assets": [
         {
-            "size": "complete",
             "key": "\u0003󼙩8pq",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "鄬c9}+}T",
-            "type": "image"
-        },
-        {
             "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "鄬c9}+}T",
+            "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "7𢁻ui%4􈪳𢘅",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -30,18 +25,18 @@
             "type": "image"
         },
         {
+            "key": "",
             "size": "preview",
-            "key": "",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "Q􏄏𦇯𤇧\u0004x}$",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -49,38 +44,38 @@
             "type": "image"
         },
         {
-            "size": "complete",
             "key": ">\r塀)",
-            "type": "image"
-        },
-        {
             "size": "complete",
-            "key": "",
             "type": "image"
         },
         {
-            "size": "preview",
+            "key": "",
+            "size": "complete",
+            "type": "image"
+        },
+        {
             "key": "?<󾒣\u0015r𩉖\u0016Qi",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": ",-&b𤰒1cw<={",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "x7\u0008#",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "\\\u00068p\u0006",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -88,61 +83,66 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "󼗷\nlᕻ\r?",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "\u0019u󹚬",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "8𡷪\n8:\u0006W%M",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "!\u0014\u0001\u000f𢳵\u0007𭼈\u0017|",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "󲷾\u001a덣􎡋􇿬:𫖆",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "𘊊饩Ub",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "v}\u001a跳􁲼\n~y\u0008\u001fk",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "\u000fX^􀍷f",
-            "type": "image"
-        },
-        {
             "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "\u000fX^􀍷f",
+            "size": "complete",
+            "type": "image"
+        },
+        {
             "key": "",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "󷽼𡄼󸩿f6f)S𠛾􆨺\"",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "Xbj\u000c\u0010",
+            "size": "complete",
             "type": "image"
         }
     ],
     "email_code": "RZICMcCOzqyRTB0d17Rbsw==",
-    "label": "𭔀"
+    "invitation_code": "EXZtnNu96rBu0DQCJ_vGdZkjhH1SSzT2MAHgTQ==",
+    "label": "𭔀",
+    "locale": "hu-CG",
+    "managed_by": "scim",
+    "name": ";􌞇𘣣\u000f𣺗\u0001",
+    "phone": "+8057919910"
 }

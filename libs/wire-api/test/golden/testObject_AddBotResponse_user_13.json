@@ -1,50 +1,50 @@
 {
-    "event": {
-        "qualified_conversation": {
-            "domain": "faraway.example.com",
-            "id": "00000000-0000-0003-0000-000100000001"
+    "accent_id": -1,
+    "assets": [
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
         },
+        {
+            "key": "",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "",
+            "size": "preview",
+            "type": "image"
+        }
+    ],
+    "client": "9",
+    "event": {
         "conversation": "00000000-0000-0003-0000-000100000001",
-        "time": "1864-05-13T05:09:37.371Z",
         "data": {
             "receipt_mode": 3
         },
         "from": "00000004-0000-0001-0000-000400000002",
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000000-0000-0003-0000-000100000001"
+        },
         "qualified_from": {
             "domain": "faraway.example.com",
             "id": "00000004-0000-0001-0000-000400000002"
         },
+        "time": "1864-05-13T05:09:37.371Z",
         "type": "conversation.receipt-mode-update"
     },
-    "accent_id": -1,
-    "name": "k퍴㤁u<svb\u001d\u001c􏉋aA>􉚗.\u001bOR&@i>ᚓ2䈈F=\u0014N􉁇!8\u0012毀\u0019\u001d\u0001􃥓𨮊JuD\u0006\u000fg]\u0016Z\u001c\u0013󼇍4&𭘯F7f􎌻n\n~X\u0000^A\u0010\\󾼃=\u0018.<\u0019zR\n\u001dK􉃦\u001d𭕤󳿃\u000c\u0002!𗁴^\u0008h􊩪?ኒ𢟹\u001dF󷋯􉃆{\u001b>$書\u0001R􏈣-#U𠋍􄵹9",
     "id": "00000004-0000-0002-0000-000100000003",
-    "assets": [
-        {
-            "size": "preview",
-            "key": "",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "",
-            "type": "image"
-        }
-    ],
-    "client": "9"
+    "name": "k퍴㤁u<svb\u001d\u001c􏉋aA>􉚗.\u001bOR&@i>ᚓ2䈈F=\u0014N􉁇!8\u0012毀\u0019\u001d\u0001􃥓𨮊JuD\u0006\u000fg]\u0016Z\u001c\u0013󼇍4&𭘯F7f􎌻n\n~X\u0000^A\u0010\\󾼃=\u0018.<\u0019zR\n\u001dK􉃦\u001d𭕤󳿃\u000c\u0002!𗁴^\u0008h􊩪?ኒ𢟹\u001dF󷋯􉃆{\u001b>$書\u0001R􏈣-#U𠋍􄵹9"
 }

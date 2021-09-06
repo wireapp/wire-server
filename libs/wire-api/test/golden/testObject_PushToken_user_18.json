@@ -1,6 +1,6 @@
 {
-    "token": "#󰄯VH􁓰𗅠",
     "app": "􂅯;𠺲v4\u00086",
-    "transport": "GCM",
-    "client": "1e"
+    "client": "1e",
+    "token": "#󰄯VH􁓰𗅠",
+    "transport": "GCM"
 }

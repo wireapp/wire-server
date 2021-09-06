@@ -1,7 +1,7 @@
 {
+    "client": "fd8",
     "prekey": {
-        "key": "KA",
-        "id": 4
-    },
-    "client": "fd8"
+        "id": 4,
+        "key": "KA"
+    }
 }

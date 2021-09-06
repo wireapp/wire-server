@@ -1,24 +1,24 @@
 {
+    "accent_id": 3,
+    "assets": [],
+    "client": "e",
     "event": {
-        "qualified_conversation": {
-            "domain": "faraway.example.com",
-            "id": "00000000-0000-0002-0000-000300000001"
-        },
         "conversation": "00000000-0000-0002-0000-000300000001",
-        "time": "1864-05-08T19:02:58.600Z",
         "data": {
             "status": "started"
         },
         "from": "00000004-0000-0000-0000-000300000001",
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000000-0000-0002-0000-000300000001"
+        },
         "qualified_from": {
             "domain": "faraway.example.com",
             "id": "00000004-0000-0000-0000-000300000001"
         },
+        "time": "1864-05-08T19:02:58.600Z",
         "type": "conversation.typing"
     },
-    "accent_id": 3,
-    "name": "𧲅t\\\u0012쳄Jn􄿪󳦝t!\u001b\u0002󶚐~jP]}|8􎎃⭨\u0016R󰡩8H􁷞\u0017L𮖾V𘑩Q󷢱𠣇\u0004M\u0014kc\u0007 V",
     "id": "00000001-0000-0003-0000-000200000004",
-    "assets": [],
-    "client": "e"
+    "name": "𧲅t\\\u0012쳄Jn􄿪󳦝t!\u001b\u0002󶚐~jP]}|8􎎃⭨\u0016R󰡩8H􁷞\u0017L𮖾V𘑩Q󷢱𠣇\u0004M\u0014kc\u0007 V"
 }

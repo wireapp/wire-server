@@ -2,16 +2,16 @@
     "access": [
         "link"
     ],
-    "users": [
-        "00000001-0000-0001-0000-000100000001"
-    ],
     "conversation_role": "vakyrex99a9vi36iemc7wj4gu39s4wf30c2r_mqatgyer4y4dzypd_y7x3i9embufwc6e4nfuqvuvu9p72r8xdnmho615wrlkcr1h4e8tnokdio9t",
+    "message_timer": 8061252799624904,
     "name": "z􏭅",
+    "qualified_users": [],
+    "receipt_mode": 1,
     "team": {
         "managed": true,
         "teamid": "00000001-0000-0001-0000-000000000001"
     },
-    "receipt_mode": 1,
-    "message_timer": 8061252799624904,
-    "qualified_users": []
+    "users": [
+        "00000001-0000-0001-0000-000100000001"
+    ]
 }

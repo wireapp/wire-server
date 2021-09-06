@@ -1,6 +1,6 @@
 {
-    "token": "\u0001$\u0016W",
     "app": "C%\u0001\u000b􊡵H󹣎",
-    "transport": "APNS_SANDBOX",
-    "client": "b"
+    "client": "b",
+    "token": "\u0001$\u0016W",
+    "transport": "APNS_SANDBOX"
 }

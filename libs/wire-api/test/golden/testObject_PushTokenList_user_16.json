@@ -1,136 +1,136 @@
 {
     "tokens": [
         {
-            "token": "",
             "app": "T𨾰騏󷻠",
-            "transport": "APNS",
-            "client": "c"
+            "client": "c",
+            "token": "",
+            "transport": "APNS"
         },
         {
-            "token": "/",
             "app": "r|",
-            "transport": "APNS_VOIP",
-            "client": "b"
+            "client": "b",
+            "token": "/",
+            "transport": "APNS_VOIP"
         },
         {
-            "token": "귈i牢2\u0015",
             "app": "",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "a"
+            "client": "a",
+            "token": "귈i牢2\u0015",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "",
             "app": "\u001e|d#w\u001a",
-            "transport": "APNS",
-            "client": "f"
-        },
-        {
-            "token": "\u001e",
-            "app": "y\u000f\u000c{",
-            "transport": "GCM",
-            "client": "e"
-        },
-        {
-            "token": "=",
-            "app": "\u000e󷷶J",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "20"
-        },
-        {
-            "token": "䋗\u0008𩠠\u001e𗾲Bz",
-            "app": "x",
-            "transport": "APNS_VOIP",
-            "client": "0"
-        },
-        {
+            "client": "f",
             "token": "",
+            "transport": "APNS"
+        },
+        {
+            "app": "y\u000f\u000c{",
+            "client": "e",
+            "token": "\u001e",
+            "transport": "GCM"
+        },
+        {
+            "app": "\u000e󷷶J",
+            "client": "20",
+            "token": "=",
+            "transport": "APNS_VOIP_SANDBOX"
+        },
+        {
+            "app": "x",
+            "client": "0",
+            "token": "䋗\u0008𩠠\u001e𗾲Bz",
+            "transport": "APNS_VOIP"
+        },
+        {
             "app": "\u000f",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "13"
+            "client": "13",
+            "token": "",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "FoT7\n𢪏􉷪",
             "app": "\u001b苂ug肄\u0017\\",
-            "transport": "APNS_SANDBOX",
-            "client": "d"
+            "client": "d",
+            "token": "FoT7\n𢪏􉷪",
+            "transport": "APNS_SANDBOX"
         },
         {
-            "token": "#-NY𮆚\u0006",
             "app": "8q揂k\u0019𭍁#",
-            "transport": "GCM",
-            "client": "13"
+            "client": "13",
+            "token": "#-NY𮆚\u0006",
+            "transport": "GCM"
         },
         {
-            "token": "􄳲!N*\u001fi",
             "app": "𠭗EwvK!z",
-            "transport": "GCM",
-            "client": "a"
+            "client": "a",
+            "token": "􄳲!N*\u001fi",
+            "transport": "GCM"
         },
         {
-            "token": "􉯌+",
             "app": "\u001bꭘ",
-            "transport": "GCM",
-            "client": "19"
+            "client": "19",
+            "token": "􉯌+",
+            "transport": "GCM"
         },
         {
-            "token": "𡬣#<󻬎",
             "app": "0\u0001n\u0015",
-            "transport": "APNS_VOIP",
-            "client": "e"
+            "client": "e",
+            "token": "𡬣#<󻬎",
+            "transport": "APNS_VOIP"
         },
         {
-            "token": ",fkyy􄥀",
             "app": "-퐌󼹝\u001c\u000e",
-            "transport": "APNS",
-            "client": "1d"
+            "client": "1d",
+            "token": ",fkyy􄥀",
+            "transport": "APNS"
         },
         {
-            "token": "\u0001kr韷󹍿",
             "app": "\u0001\\",
-            "transport": "APNS",
-            "client": "2"
+            "client": "2",
+            "token": "\u0001kr韷󹍿",
+            "transport": "APNS"
         },
         {
-            "token": "rt",
             "app": "􎺍\u001ar",
-            "transport": "APNS_SANDBOX",
-            "client": "1d"
+            "client": "1d",
+            "token": "rt",
+            "transport": "APNS_SANDBOX"
         },
         {
-            "token": "\"\u00046",
             "app": "𢒀𗑨",
-            "transport": "GCM",
-            "client": "1c"
+            "client": "1c",
+            "token": "\"\u00046",
+            "transport": "GCM"
         },
         {
-            "token": "􆆌]𭷭c􄑡M",
             "app": "9^y5",
-            "transport": "APNS",
-            "client": "2"
+            "client": "2",
+            "token": "􆆌]𭷭c􄑡M",
+            "transport": "APNS"
         },
         {
-            "token": "Y:\u0005\u0013\u000e",
             "app": "s",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "1a"
+            "client": "1a",
+            "token": "Y:\u0005\u0013\u000e",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "7",
             "app": "6𩪌𩔄󺫮N嶃A",
-            "transport": "APNS_SANDBOX",
-            "client": "1d"
+            "client": "1d",
+            "token": "7",
+            "transport": "APNS_SANDBOX"
         },
         {
-            "token": "􋋚𭅄𪣵O?;",
             "app": "􌾶{B;\u000f",
-            "transport": "APNS",
-            "client": "16"
+            "client": "16",
+            "token": "􋋚𭅄𪣵O?;",
+            "transport": "APNS"
         },
         {
-            "token": "q<;%",
             "app": "𮉰~r􉁾i",
-            "transport": "APNS_SANDBOX",
-            "client": "7"
+            "client": "7",
+            "token": "q<;%",
+            "transport": "APNS_SANDBOX"
         }
     ]
 }

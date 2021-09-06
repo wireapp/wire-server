@@ -1,21 +1,21 @@
 {
     "event": {
+        "conversation": "0000067f-0000-0d9b-0000-039f0000033f",
+        "data": {
+            "code": "=X8_OGM09",
+            "key": "E=ljiXAMvwAYiYxy3jSG",
+            "uri": "https://example.com"
+        },
+        "from": "0000030b-0000-5943-0000-6cd900006eae",
         "qualified_conversation": {
             "domain": "faraway.example.com",
             "id": "0000067f-0000-0d9b-0000-039f0000033f"
         },
-        "conversation": "0000067f-0000-0d9b-0000-039f0000033f",
-        "time": "1864-04-27T19:16:49.866Z",
-        "data": {
-            "uri": "https://example.com",
-            "key": "E=ljiXAMvwAYiYxy3jSG",
-            "code": "=X8_OGM09"
-        },
-        "from": "0000030b-0000-5943-0000-6cd900006eae",
         "qualified_from": {
             "domain": "faraway.example.com",
             "id": "0000030b-0000-5943-0000-6cd900006eae"
         },
+        "time": "1864-04-27T19:16:49.866Z",
         "type": "conversation.code-update"
     }
 }

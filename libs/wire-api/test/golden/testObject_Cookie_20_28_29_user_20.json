@@ -1,8 +1,8 @@
 {
     "created": "1864-05-13T12:22:12.980555635796Z",
     "expires": "1864-05-06T11:24:34.525397249315Z",
-    "successor": 0,
     "id": 2,
-    "type": "persistent",
-    "label": "􈀶0\u0014W"
+    "label": "􈀶0\u0014W",
+    "successor": 0,
+    "type": "persistent"
 }

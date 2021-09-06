@@ -1,19 +1,13 @@
 {
-    "last_prekey": {
-        "key": "F!i㦢󱀌",
-        "id": 65535
-    },
-    "name": "o#o󴏪l\u0006𭲻k\u0007owꑒ\u001di >󿭋*Am䨥\u0015d󲺸1\u0012o\nRo/󸡈L\u001f:h󴐊󲙌M\r28r\n3𢐅\u0003\u000b􊸢􁲤3󻹐\u001ce\r􃂤U\u0017𬓈󶂞b죴\u0004yMtg\u0015F\u0008󺨡2𨆐#&װ\u0005r󺑟Dx",
-    "prekeys": [],
     "assets": [
         {
-            "size": "preview",
             "key": "ᘻ~",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "i𗳫",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -21,9 +15,15 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "%o",
+            "size": "preview",
             "type": "image"
         }
-    ]
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "F!i㦢󱀌"
+    },
+    "name": "o#o󴏪l\u0006𭲻k\u0007owꑒ\u001di >󿭋*Am䨥\u0015d󲺸1\u0012o\nRo/󸡈L\u001f:h󴐊󲙌M\r28r\n3𢐅\u0003\u000b􊸢􁲤3󻹐\u001ce\r􃂤U\u0017𬓈󶂞b죴\u0004yMtg\u0015F\u0008󺨡2𨆐#&װ\u0005r󺑟Dx",
+    "prekeys": []
 }

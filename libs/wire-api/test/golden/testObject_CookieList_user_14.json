@@ -3,18 +3,18 @@
         {
             "created": "1864-05-08T13:06:48.101997018718Z",
             "expires": "1864-05-09T12:29:39.285437577229Z",
-            "successor": 0,
             "id": 2,
-            "type": "persistent",
-            "label": null
+            "label": null,
+            "successor": 0,
+            "type": "persistent"
         },
         {
             "created": "1864-05-11T18:36:14.96072575364Z",
             "expires": "1864-05-08T20:00:26.995784443177Z",
-            "successor": 2,
             "id": 2,
-            "type": "persistent",
-            "label": "y뛷"
+            "label": "y뛷",
+            "successor": 2,
+            "type": "persistent"
         }
     ]
 }

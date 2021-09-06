@@ -1,19 +1,19 @@
 {
-    "uuid": "00000000-0000-0000-0000-000000000000",
-    "locale": "uz",
-    "managed_by": "scim",
     "accent_id": -32104,
-    "picture": [],
-    "name": "􍢟mx0Dꅼ􃄁󴳥\u0012\u0007\u0008W\u0011PY\n𥞞A_𥭱jiL\u0015󾬬;~_\u0011y|\u000fp\u0019=\u0019𤍝𨍞K\u0019\u0008VV\u0003l\u0001p󴩝V\u0011𫱹0`xPp:d􆛆\u0003󶔱\u000f􄦂Kb󲚘󻔤\u000c𢡲k􏁔𧪴+\u0014\u0007c𮃫𭺚G𛅑\rC0;gKQ痖:Sl\u0000\u001a\u0001\u001c\u0012TBm$\u001dO\u0015BRw厦\u0018󸺬㷠",
-    "password": "K\u0008U󰇪W􇓛i%\u0016i\u0008􄷿\u001a\u001bP󴛧N\u0008󽯞\u000e\naqJ𣝶eH\u001fH좁􌉡􌀎x􁧗󷞡\"}: 𬑤\"𥚀󷎫7lZ.􃧝H\t𬚟l:rt4x4𩲏,󱂟`",
-    "team": {
-        "icon": "KH\u0010繯\"󱘱\\k$l𮋤\u000f5[rG?􏵂첼g^󼾐kW󷒷7+􍖿\u00123W,bἱ#W)\\󵵭󼌆󾇻K]s\u000b𧏥\\92\u0013\u0002L坱\u0013O󻐽\u0015谽[􎛳E􄦬媑",
-        "name": "[3Y\u001eF$r9,/1\u0014쨊*弉\u0011􊥝蓯I]\u000c#\u0018\u0019ITc𧍷󶱙􁡾\u001b#\t󾡄ic\u0008U􂖓\u0016'􏶱谢0xC󿔦\u001b𦐵1U뼏</i2\u000c\u0013\u0018)\u0004\u000bB􅩮Gv𪭸L🐈@5\u0017嬞M\r&oٌHBKᕉ𤚘\u0004+\u0004}󷛨\u000b\u0006\u0005􏽨\u0002\u000e\\􇞜\u001amN🞍\u001e~􎷞󱅧8J\u00105I𭒦O󼝄\u0003\u00182FZ󹘭B\u0011\u0016聰\u001fh𔕉潏ゝ+\\V󼍚D67􎧫C𨥤R\u0012\u001a󺒥pJTN]䤰\u0005j𤳛jAy\u0013r\u0019zLH쀼en[F𗮎aቘ9I*\u0019x󴹃n\u0011ZZ\\\u001d_ wwM7\rMប2M짔󸨔y\u000c!唢\u001bV\u000b;󿁁\u000bq}켷J\u0001.S󺻏8觯",
-        "currency": "VEF",
-        "icon_key": "󺰝𨙮@\u0010𫍍>'𨛬/\u000bV<^zu\u0019\u0003\u001b>𪢗𗛇A"
-    },
     "assets": [],
     "email_code": "8XW3_eppEXD038Pz14guN-pLnL6rR1538NZxVA==",
+    "label": "^\u0010􊘑󸯿\t𣻨6Th𘗒􍴷I<UgH𫕶𪦶C",
+    "locale": "uz",
+    "managed_by": "scim",
+    "name": "􍢟mx0Dꅼ􃄁󴳥\u0012\u0007\u0008W\u0011PY\n𥞞A_𥭱jiL\u0015󾬬;~_\u0011y|\u000fp\u0019=\u0019𤍝𨍞K\u0019\u0008VV\u0003l\u0001p󴩝V\u0011𫱹0`xPp:d􆛆\u0003󶔱\u000f􄦂Kb󲚘󻔤\u000c𢡲k􏁔𧪴+\u0014\u0007c𮃫𭺚G𛅑\rC0;gKQ痖:Sl\u0000\u001a\u0001\u001c\u0012TBm$\u001dO\u0015BRw厦\u0018󸺬㷠",
+    "password": "K\u0008U󰇪W􇓛i%\u0016i\u0008􄷿\u001a\u001bP󴛧N\u0008󽯞\u000e\naqJ𣝶eH\u001fH좁􌉡􌀎x􁧗󷞡\"}: 𬑤\"𥚀󷎫7lZ.􃧝H\t𬚟l:rt4x4𩲏,󱂟`",
     "phone_code": "byyj1Wn5lFbsGpe3VZ7pERkfpOujdm5UzTIy2ok=",
-    "label": "^\u0010􊘑󸯿\t𣻨6Th𘗒􍴷I<UgH𫕶𪦶C"
+    "picture": [],
+    "team": {
+        "currency": "VEF",
+        "icon": "KH\u0010繯\"󱘱\\k$l𮋤\u000f5[rG?􏵂첼g^󼾐kW󷒷7+􍖿\u00123W,bἱ#W)\\󵵭󼌆󾇻K]s\u000b𧏥\\92\u0013\u0002L坱\u0013O󻐽\u0015谽[􎛳E􄦬媑",
+        "icon_key": "󺰝𨙮@\u0010𫍍>'𨛬/\u000bV<^zu\u0019\u0003\u001b>𪢗𗛇A",
+        "name": "[3Y\u001eF$r9,/1\u0014쨊*弉\u0011􊥝蓯I]\u000c#\u0018\u0019ITc𧍷󶱙􁡾\u001b#\t󾡄ic\u0008U􂖓\u0016'􏶱谢0xC󿔦\u001b𦐵1U뼏</i2\u000c\u0013\u0018)\u0004\u000bB􅩮Gv𪭸L🐈@5\u0017嬞M\r&oٌHBKᕉ𤚘\u0004+\u0004}󷛨\u000b\u0006\u0005􏽨\u0002\u000e\\􇞜\u001amN🞍\u001e~􎷞󱅧8J\u00105I𭒦O󼝄\u0003\u00182FZ󹘭B\u0011\u0016聰\u001fh𔕉潏ゝ+\\V󼍚D67􎧫C𨥤R\u0012\u001a󺒥pJTN]䤰\u0005j𤳛jAy\u0013r\u0019zLH쀼en[F𗮎aቘ9I*\u0019x󴹃n\u0011ZZ\\\u001d_ wwM7\rMប2M짔󸨔y\u000c!唢\u001bV\u000b;󿁁\u000bq}켷J\u0001.S󺻏8觯"
+    },
+    "uuid": "00000000-0000-0000-0000-000000000000"
 }

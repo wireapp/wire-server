@@ -4,19 +4,19 @@
         "code"
     ],
     "access_role": "non_activated",
+    "conversation_role": "5uxmr3gdwwipozxh",
+    "message_timer": 1166285470102499,
+    "qualified_users": [],
+    "receipt_mode": 2,
+    "team": {
+        "managed": true,
+        "teamid": "00000001-0000-0001-0000-000000000000"
+    },
     "users": [
         "00000001-0000-0000-0000-000000000000",
         "00000000-0000-0001-0000-000000000001",
         "00000000-0000-0001-0000-000100000001",
         "00000000-0000-0000-0000-000000000001",
         "00000000-0000-0000-0000-000000000000"
-    ],
-    "conversation_role": "5uxmr3gdwwipozxh",
-    "team": {
-        "managed": true,
-        "teamid": "00000001-0000-0001-0000-000000000000"
-    },
-    "receipt_mode": 2,
-    "message_timer": 1166285470102499,
-    "qualified_users": []
+    ]
 }

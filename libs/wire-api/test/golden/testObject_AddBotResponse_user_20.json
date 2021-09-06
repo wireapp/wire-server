@@ -1,30 +1,30 @@
 {
+    "accent_id": -1,
+    "assets": [
+        {
+            "key": "』",
+            "size": "complete",
+            "type": "image"
+        }
+    ],
+    "client": "b",
     "event": {
-        "qualified_conversation": {
-            "domain": "faraway.example.com",
-            "id": "00000003-0000-0002-0000-000200000004"
-        },
         "conversation": "00000003-0000-0002-0000-000200000004",
-        "time": "1864-05-08T05:48:34.348Z",
         "data": {
             "message_timer": 3346692440762670
         },
         "from": "00000002-0000-0003-0000-000200000004",
+        "qualified_conversation": {
+            "domain": "faraway.example.com",
+            "id": "00000003-0000-0002-0000-000200000004"
+        },
         "qualified_from": {
             "domain": "faraway.example.com",
             "id": "00000002-0000-0003-0000-000200000004"
         },
+        "time": "1864-05-08T05:48:34.348Z",
         "type": "conversation.message-timer-update"
     },
-    "accent_id": -1,
-    "name": "hn<t\u001bF􀑬1⇀󷡯\rHo꒦2il+𥳍%E󹹭痘q𑊩6\u0014-x\u001b\u000c\rf縷钊e6=󺮙x亸䝭󷤃􏊢\"쩩\u0010뷐琎Uty+?[#R󶧯<<娆9󰀯\u0002P\u001ah\u0013\t\u0007\u000f\u000f[@\\\".\u001b𥗮;􌍦𦔻􃢿^D3!dVo:\"wM\u0017",
     "id": "00000004-0000-0004-0000-000000000001",
-    "assets": [
-        {
-            "size": "complete",
-            "key": "』",
-            "type": "image"
-        }
-    ],
-    "client": "b"
+    "name": "hn<t\u001bF􀑬1⇀󷡯\rHo꒦2il+𥳍%E󹹭痘q𑊩6\u0014-x\u001b\u000c\rf縷钊e6=󺮙x亸䝭󷤃􏊢\"쩩\u0010뷐琎Uty+?[#R󶧯<<娆9󰀯\u0002P\u001ah\u0013\t\u0007\u000f\u000f[@\\\".\u001b𥗮;􌍦𦔻􃢿^D3!dVo:\"wM\u0017"
 }
