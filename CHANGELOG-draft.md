@@ -50,6 +50,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Remove leftover auto-connect internal endpoint and code (#1716)
 * Clean up JSON golden tests (#1729)
 * Make regenerated JSON output deterministic (#1734)
+* Import fix for snappy linker issue (#1736)
 
 ## Federation changes
 
