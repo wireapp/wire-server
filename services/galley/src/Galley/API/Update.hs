@@ -281,7 +281,8 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   case removedUsers of
     [] -> return ()
     x : xs -> do
-      -- FUTUREWORK: deal with remote members, too, see removeMembers
+      -- FUTUREWORK: deal with remote members, too, see removeMembers (Jira
+      -- SQCORE-903)
       e <- Data.removeLocalMembersFromLocalConv localDomain conv (Qualified usr localDomain) (x :| xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
@@ -476,20 +477,6 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
--- FUTUREWORK(federation): we need the following checks/implementation:
---  - (1) [DONE] Remote qualified users must exist before they can be added (a
---  call to the respective backend should be made): Avoid clients making up random
---  Ids, and increase the chances that the updateConversationMemberships call
---  suceeds
---  - (2) [DONE] A call must be made to the remote backend informing it that this user is
---  now part of that conversation. Use and implement 'updateConversationMemberships'.
---    - that call should probably be made *after* inserting the conversation membership
---    happens in this backend.
---    - 'updateConversationMemberships' should send an event to the affected
---    users informing them they have joined a remote conversation.
---  - (3) Events should support remote / qualified users, too.
---  These checks need tests :)
-addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let mems = localBotsAndUsers (Data.convLocalMembers conv)

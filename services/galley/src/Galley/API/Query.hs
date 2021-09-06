@@ -214,7 +214,6 @@ getConversationsInternal :: UserId -> Maybe (Range 1 32 (CommaSeparatedList Conv
 getConversationsInternal user mids mstart msize = do
   (more, ids) <- getIds mids
   let localConvIds = ids
-  -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
   cs <-
     Data.conversations localConvIds
       >>= filterM removeDeleted
