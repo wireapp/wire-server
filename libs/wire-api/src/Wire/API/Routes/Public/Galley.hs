@@ -298,9 +298,26 @@ data Api routes = Api
              RemoveFromConversationResponse,
     -- This endpoint can lead to the following events being sent:
     -- - ConvRename event to members
+    updateConversationNameDeprecated ::
+      routes
+        :- Summary "Update conversation name (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/name` instead."
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
     updateConversationNameUnqualified ::
       routes
-        :- Summary "Update conversation name"
+        :- Summary "Update conversation name (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/name` instead."
         :> ZUser
         :> ZConn
         :> "conversations"
