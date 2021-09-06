@@ -95,6 +95,8 @@ servantSitemap =
         GalleyAPI.updateConversationNameDeprecated = Update.updateLocalConversationName,
         GalleyAPI.updateConversationNameUnqualified = Update.updateLocalConversationName,
         GalleyAPI.updateConversationName = Update.updateConversationName,
+        GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
+        GalleyAPI.getConversationSelf = Query.getSelf,
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
@@ -717,16 +719,6 @@ sitemap = do
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
-
-  get "/conversations/:cnv/self" (continue Query.getSelfH) $
-    zauthUserId
-      .&. capture "cnv"
-  document "GET" "getSelf" $ do
-    summary "Get self membership properties"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelMember)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberStateUpdate event to self

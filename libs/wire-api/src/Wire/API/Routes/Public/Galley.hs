@@ -347,6 +347,28 @@ data Api routes = Api
                Respond 200 "Conversation updated" Event
              ]
              (Maybe Event),
+    getConversationSelfUnqualified ::
+      routes
+        :- Summary "Get self membership properties"
+        :> ZUser
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> Get '[JSON] (Maybe Member),
+    getConversationSelf ::
+      routes
+        :- Summary "Get self membership properties"
+        :> ZUser
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Membership information" Member
+             ]
+             (Maybe Member),
     -- Team Conversations
 
     getTeamConversationRoles ::
