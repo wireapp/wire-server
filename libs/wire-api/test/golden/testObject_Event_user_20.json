@@ -33,6 +33,112 @@
             "0000357d-0000-2963-0000-7bb000002734",
             "00000f40-0000-657c-0000-7d25000019df",
             "00006350-0000-630b-0000-5f560000503e"
+        ],
+        "qualified_user_ids": [
+            {
+                "domain": "faraway.example.com",
+                "id": "00002e78-0000-23d9-0000-1cba00005025"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00003293-0000-6991-0000-533700000e73"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "000075b1-0000-2e89-0000-6262000067a9"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00007f94-0000-39fc-0000-28c5000028ed"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "000041f3-0000-3886-0000-735900007499"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00004014-0000-675c-0000-688600003ed7"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00002e75-0000-74cd-0000-529a000008c7"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00000cea-0000-4b67-0000-4a2600007dae"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00006b72-0000-1fae-0000-6647000025d0"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00003c64-0000-4b1f-0000-7bc900001c31"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00002cd3-0000-4520-0000-0d8c00004a16"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00003e8f-0000-66a2-0000-067600002d8f"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00004544-0000-0ce2-0000-1c2300007fbc"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "000071ef-0000-44f4-0000-7dc500002e5f"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00007e40-0000-7f3a-0000-45a300002aee"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00006eec-0000-4bb0-0000-271000001e9f"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00001893-0000-272e-0000-5ccc0000561f"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00004d81-0000-2d5f-0000-43ec00005771"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00002521-0000-1a18-0000-3bc200005ce2"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "000005f2-0000-3b01-0000-070000005296"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "0000411b-0000-224b-0000-32650000061a"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00004880-0000-3a0b-0000-56b10000398a"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00002d6b-0000-4f28-0000-11110000309a"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "0000357d-0000-2963-0000-7bb000002734"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00000f40-0000-657c-0000-7d25000019df"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00006350-0000-630b-0000-5f560000503e"
+            }
         ]
     },
     "from": "00007547-0000-26d8-0000-52280000157c",

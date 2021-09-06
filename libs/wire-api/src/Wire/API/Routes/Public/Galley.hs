@@ -22,7 +22,7 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
-import Data.Id (ConvId, TeamId)
+import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP (I (..), NS (..))
@@ -40,6 +40,7 @@ import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public.Galley.Responses
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
@@ -187,12 +188,25 @@ data Api routes = Api
         :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
     listConversations ::
       routes
-        :- Summary "Get all conversations (also returns remote conversations)"
-        :> Description "Like GET /conversations, but allows specifying a list of remote conversations in its request body. Will return all or the requested qualified conversations, including remote ones. WIP: Size parameter is not yet honoured for remote conversations."
+        :- Summary "[deprecated] Get all conversations (also returns remote conversations)"
+        :> Description
+             "Like GET /conversations, but allows specifying a list of remote conversations in its request body. \
+             \Will return all or the requested qualified conversations, including remote ones. \
+             \Size parameter is not yet honoured for remote conversations.\n\
+             \**NOTE** This endpoint will soon be removed."
         :> ZUser
         :> "list-conversations"
         :> ReqBody '[Servant.JSON] Public.ListConversations
         :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
+    listConversationsV2 ::
+      routes
+        :- Summary "Get conversation metadata for a list of conversation ids"
+        :> ZUser
+        :> "conversations"
+        :> "list"
+        :> "v2"
+        :> ReqBody '[Servant.JSON] Public.ListConversationsV2
+        :> Post '[Servant.JSON] Public.ConversationsResponse,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     getConversationByReusableCode ::
@@ -250,6 +264,38 @@ data Api routes = Api
         :> "v2"
         :> ReqBody '[Servant.JSON] Public.InviteQualified
         :> MultiVerb 'POST '[Servant.JSON] UpdateResponses UpdateResult,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members
+    removeMemberUnqualified ::
+      routes
+        :- Summary "Remove a member from a conversation (deprecated)"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> Capture' '[Description "Target User ID"] "usr" UserId
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             RemoveFromConversationHTTPResponse
+             RemoveFromConversationResponse,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members
+    removeMember ::
+      routes
+        :- Summary "Remove a member from a conversation"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             RemoveFromConversationHTTPResponse
+             RemoveFromConversationResponse,
     -- Team Conversations
 
     getTeamConversationRoles ::

@@ -317,13 +317,6 @@ packages:
   original:
     hackage: HaskellNet-0.5.2
 - completed:
-    hackage: snappy-0.2.0.2@sha256:2931b03c5fdab2dac8d7eadb3be2f4ef8906666e43f1f1db65a06efd57ea701b,1591
-    pantry-tree:
-      size: 709
-      sha256: cd05c6ddfbbd3969adab3869d38d161e5ec8e72b1a72e00ca08f5e39538368cf
-  original:
-    hackage: snappy-0.2.0.2
-- completed:
     hackage: smtp-mail-0.2.0.0@sha256:b91c81f6dbb41a9ceee8c443385118684ecec55006b77f7d3c0e49cffd2468cf,1211
     pantry-tree:
       size: 449
@@ -519,6 +512,20 @@ packages:
       sha256: 137680a15ee0147cd19634d8296d90c2150ca4fd62ed3d56f7e07ccd8823810c
   original:
     hackage: servant-swagger-ui-0.3.4.3.36.1
+- completed:
+    hackage: tls-1.5.5@sha256:f6681d6624071211edd509a8f56e0c96b4f003bb349b7dc706d4333775a373c5,6996
+    pantry-tree:
+      size: 4897
+      sha256: 6400901a8f8ddd0c7d2fb30c95857753a654a60a63fcec38aab4a08b23e0984f
+  original:
+    hackage: tls-1.5.5
+- completed:
+    hackage: cryptonite-0.28@sha256:b6c75e62b4c655d4cb1bcbb80d01430d136aac32bd6962c86c84738935cc8f9d,18195
+    pantry-tree:
+      size: 23132
+      sha256: d80d7be9b1d0799a8e401ca5d4f4f424e0d8c42d4a30cc37bf6f82970232bfcf
+  original:
+    hackage: cryptonite-0.28
 - completed:
     name: servant-swagger
     version: 1.1.11
@@ -778,6 +785,17 @@ packages:
   original:
     git: https://github.com/wireapp/http2
     commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
+- completed:
+    name: snappy
+    version: 0.2.0.2
+    git: https://github.com/wireapp/snappy
+    pantry-tree:
+      size: 989
+      sha256: ae7fdf1988910fa026279052e85ade0a99962a3e7812ace104797e12ead0cd1d
+    commit: b0e5c08af48911caecffa4fa6a3e74872018b258
+  original:
+    git: https://github.com/wireapp/snappy
+    commit: b0e5c08af48911caecffa4fa6a3e74872018b258
 - completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:

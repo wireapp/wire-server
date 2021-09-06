@@ -1,41 +1,42 @@
-<!--
 
-# [2021-xx-xx]
+<!-- if you're not the release manager, do your edits to changelog in CHANGELOG-draft.md -->
 
-[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
-[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
+# [2021-08-27]
 
 ## Release Notes
 
 ## API Changes
 
-## Features
-
-## Bug fixes and other updates
-
-## Documentation
-
-## Internal changes
-
--->
-
-
-# [unreleased]
-
-[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
-[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
-
-## Release Notes
-
-## API Changes
+* Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
+* Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
 
 ## Features
 
 ## Bug fixes and other updates
 
+* Fix case sensitivity in schema parser in hscim library (#1714)
+* [helm charts] resolve a rate-limiting issue when using certificate-manager alongside wire-server and nginx-ingress-services helm charts (#1715)
+
 ## Documentation
 
+* Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
+
 ## Internal changes
+
+* Integration test script now displays output interactively (#1700)
+* Fixed a few issues with error response documentation in Swagger (#1707)
+* Make mapping between (team) permissions and roles more lenient (#1711)
+* The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
+* Remove leftover auto-connect internal endpoint and code (#1716)
+* Bump wire-webapp (#1720)
+* Bump team-settings (#1721)
+* Bump account-pages (#1666)
+
+## Federation changes
+
+* Added client certificate support for server to server authentication (#1682)
+* Implemented full server-to-server authentication (#1687)
+* Add an endpoint for removing a qualified user from a local conversation (#1697)
 
 
 # [2021-08-16]
@@ -71,7 +72,6 @@ This is a routine release requiring only the routine upgrade steps.
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * Integration test coverage (#1696, #1704)
-
 
 # [2021-08-02]
 
@@ -123,7 +123,6 @@ Upgrade nginz (#1658)
 * Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
 * Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
 * Added golden tests for protobuf serialisation / deserialisation (#1644).
-
 
 # [2021-07-09]
 

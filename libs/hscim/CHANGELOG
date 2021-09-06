@@ -1,2 +1,5 @@
+0.3.6:
+  - fix serialization: json attributes in scim are case-insensitive
+
 0.3.4:
   - initial version

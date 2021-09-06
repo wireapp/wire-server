@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7ae942605e2cd7ddc1fc423b068b429970064332a02e90994295385a0722d1b9
+-- hash: aef5b26595440dc41b2afea5b58468827dd4bdc290b406e49e8e2263ad2a81ad
 
 name:           federator
 version:        1.0.0
@@ -17,13 +17,19 @@ license:        AGPL-3
 build-type:     Simple
 extra-source-files:
     test/resources/integration-ca.pem
+    test/resources/integration-leaf-key.pem
+    test/resources/integration-leaf.pem
+    test/resources/unit/example.com.pem
     test/resources/unit/gen-certs.sh
+    test/resources/unit/invalid.pem
     test/resources/unit/localhost-dot-key.pem
     test/resources/unit/localhost-dot.pem
     test/resources/unit/localhost-key.pem
     test/resources/unit/localhost.example.com-key.pem
     test/resources/unit/localhost.example.com.pem
     test/resources/unit/localhost.pem
+    test/resources/unit/second-federator.example.com-key.pem
+    test/resources/unit/second-federator.example.com.pem
     test/resources/unit/unit-ca-key.pem
     test/resources/unit/unit-ca.pem
 
@@ -73,6 +79,7 @@ library
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -86,7 +93,9 @@ library
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
     , x509
@@ -131,6 +140,7 @@ executable federator
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -144,7 +154,9 @@ executable federator
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
     , x509
@@ -196,6 +208,7 @@ executable federator-integration
     , mu-rpc
     , network-uri
     , optparse-applicative
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , random
@@ -212,7 +225,9 @@ executable federator-integration
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
     , x509
@@ -256,6 +271,7 @@ test-suite federator-tests
     , http2-client
     , http2-client-grpc
     , imports
+    , interpolate
     , lens
     , metrics-core
     , metrics-wai
@@ -264,6 +280,7 @@ test-suite federator-tests
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-mocks
     , polysemy-wire-zoo

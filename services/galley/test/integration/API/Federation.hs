@@ -14,13 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.Federation where
 
 import API.Util
 import Bilge
 import Bilge.Assert
-import qualified Cassandra as Cql
 import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
@@ -29,6 +29,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id (ConvId, Id (..), newClientId, randomId)
 import Data.Json.Util (Base64ByteString (..), toBase64Text)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -38,7 +39,6 @@ import qualified Data.Set as Set
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
-import qualified Galley.Data.Queries as Cql
 import Galley.Types
 import Gundeck.Types.Notification
 import Imports
@@ -62,14 +62,11 @@ tests s =
     "federation"
     [ test s "POST /federation/get-conversations : All Found" getConversationsAllFound,
       test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
-      test
-        s
-        "POST /federation/update-conversation-memberships : Add local user to remote conversation"
-        addLocalUser,
-      test
-        s
-        "POST /federation/update-conversation-memberships : Notify local user about other members joining"
-        notifyLocalUser,
+      test s "POST /federation/update-conversation-memberships : Add local user to remote conversation" addLocalUser,
+      test s "POST /federation/update-conversation-memberships : Remove a local user from a remote conversation" removeLocalUser,
+      test s "POST /federation/update-conversation-memberships : Remove a remote user from a remote conversation" removeRemoteUser,
+      test s "POST /federation/update-conversation-memberships : Notify local user about other members joining" notifyLocalUser,
+      test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/receive-message : Receive a message from another backend" receiveMessage,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
     ]
@@ -143,33 +140,140 @@ addLocalUser = do
   c <- view tsCannon
   alice <- randomUser
   let qalice = Qualified alice localDomain
-  let dom = Domain "bobland.example.com"
+  let remoteDomain = Domain "bobland.example.com"
   bob <- randomId
-  let qbob = Qualified bob dom
+  let qbob = Qualified bob remoteDomain
   conv <- randomId
-  let qconv = Qualified conv dom
+  let qconv = Qualified conv remoteDomain
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cmu =
         FedGalley.ConversationMemberUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qbob,
-            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuConvId = conv,
             FedGalley.cmuAlreadyPresentUsers = [],
-            FedGalley.cmuUsersAdd = [(qalice, roleNameWireMember)],
-            FedGalley.cmuUsersRemove = []
+            FedGalley.cmuAction =
+              FedGalley.ConversationMembersActionAdd (pure (qalice, roleNameWireMember))
           }
   WS.bracketR c alice $ \ws -> do
-    FedGalley.updateConversationMemberships fedGalleyClient cmu
+    FedGalley.updateConversationMemberships fedGalleyClient remoteDomain cmu
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertMemberJoinWithRole qconv qbob [qalice] roleNameWireMember
-  cassState <- view tsCass
-  convs <-
-    Cql.runClient cassState
-      . Cql.query Cql.selectUserRemoteConvs
-      $ Cql.params Cql.Quorum (Identity alice)
-  liftIO $ convs @?= [(dom, conv)]
+  convs <- listRemoteConvs remoteDomain alice
+  liftIO $ convs @?= [Qualified conv remoteDomain]
+
+-- | This test invokes the federation endpoint:
+--
+--   'POST /federation/update-conversation-memberships'
+--
+-- two times in a row: first adding a remote user to a local conversation, and
+-- then removing them. The test asserts the expected list of conversations in
+-- between the calls and after everything, and that a local conversation member
+-- got notified of the removal.
+removeLocalUser :: TestM ()
+removeLocalUser = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  bob <- randomId
+  let qAlice = Qualified alice localDomain
+  let remoteDomain = Domain "bobland.example.com"
+  let qBob = bob `Qualified` remoteDomain
+  conv <- randomId
+  let qconv = Qualified conv remoteDomain
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cmuAdd =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qBob,
+            FedGalley.cmuConvId = conv,
+            FedGalley.cmuAlreadyPresentUsers = [],
+            FedGalley.cmuAction =
+              FedGalley.ConversationMembersActionAdd (pure (qAlice, roleNameWireMember))
+          }
+      cmuRemove =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = addUTCTime (secondsToNominalDiffTime 5) now,
+            FedGalley.cmuOrigUserId = qBob,
+            FedGalley.cmuConvId = conv,
+            FedGalley.cmuAlreadyPresentUsers = [alice],
+            FedGalley.cmuAction =
+              FedGalley.ConversationMembersActionRemove (pure qAlice)
+          }
+
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.updateConversationMemberships fedGalleyClient remoteDomain cmuAdd
+    afterAddition <- listRemoteConvs remoteDomain alice
+    FedGalley.updateConversationMemberships fedGalleyClient remoteDomain cmuRemove
+    liftIO $ do
+      void . WS.assertMatch (3 # Second) ws $
+        wsAssertMemberJoinWithRole qconv qBob [qAlice] roleNameWireMember
+      void . WS.assertMatch (3 # Second) ws $
+        wsAssertMembersLeave qconv qBob [qAlice]
+    afterRemoval <- listRemoteConvs remoteDomain alice
+    liftIO $ do
+      afterAddition @?= [qconv]
+      afterRemoval @?= []
+
+-- | This test invokes the federation endpoint:
+--
+--   'POST /federation/update-conversation-memberships'
+--
+-- two times in a row: first adding a local and a remote user to a remote
+-- conversation, and then removing the remote user. The test asserts the
+-- expected list of conversations in between the calls and at the end from the
+-- point of view of the local backend and that the local conversation member got
+-- notified of the removal.
+removeRemoteUser :: TestM ()
+removeRemoteUser = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  [bob, eve] <- replicateM 2 randomId
+  let qAlice = Qualified alice localDomain
+      remoteDomain = Domain "bobland.example.com"
+      qBob = Qualified bob remoteDomain
+      qEve = Qualified eve remoteDomain
+  conv <- randomId
+  let qconv = Qualified conv remoteDomain
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cmuAdd =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qBob,
+            FedGalley.cmuConvId = conv,
+            FedGalley.cmuAlreadyPresentUsers = [],
+            FedGalley.cmuAction =
+              FedGalley.ConversationMembersActionAdd
+                ((qAlice, roleNameWireMember) :| [(qEve, roleNameWireMember)])
+          }
+      cmuRemove =
+        FedGalley.ConversationMemberUpdate
+          { FedGalley.cmuTime = addUTCTime (secondsToNominalDiffTime 5) now,
+            FedGalley.cmuOrigUserId = qBob,
+            FedGalley.cmuConvId = conv,
+            FedGalley.cmuAlreadyPresentUsers = [alice],
+            FedGalley.cmuAction =
+              FedGalley.ConversationMembersActionRemove (pure qEve)
+          }
+
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.updateConversationMemberships fedGalleyClient remoteDomain cmuAdd
+    afterAddition <- listRemoteConvs remoteDomain alice
+    void . liftIO . WS.assertMatch (3 # Second) ws $
+      wsAssertMemberJoinWithRole qconv qBob [qAlice, qEve] roleNameWireMember
+    FedGalley.updateConversationMemberships fedGalleyClient remoteDomain cmuRemove
+    afterRemoval <- listRemoteConvs remoteDomain alice
+    void . liftIO $
+      WS.assertMatch (3 # Second) ws $
+        wsAssertMembersLeave qconv qBob [qEve]
+    liftIO $ do
+      afterAddition @?= [qconv]
+      afterRemoval @?= [qconv]
 
 notifyLocalUser :: TestM ()
 notifyLocalUser = do
@@ -189,16 +293,75 @@ notifyLocalUser = do
         FedGalley.ConversationMemberUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qbob,
-            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuConvId = conv,
             FedGalley.cmuAlreadyPresentUsers = [alice],
-            FedGalley.cmuUsersAdd = [(qcharlie, roleNameWireMember)],
-            FedGalley.cmuUsersRemove = []
+            FedGalley.cmuAction =
+              FedGalley.ConversationMembersActionAdd (pure (qcharlie, roleNameWireMember))
           }
   WS.bracketR c alice $ \ws -> do
-    FedGalley.updateConversationMemberships fedGalleyClient cmu
+    FedGalley.updateConversationMemberships fedGalleyClient bdom cmu
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertMemberJoinWithRole qconv qbob [qcharlie] roleNameWireMember
+
+leaveConversationSuccess :: TestM ()
+leaveConversationSuccess = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  [alice, bob] <- randomUsers 2
+  let qBob = Qualified bob localDomain
+      remoteDomain1 = Domain "far-away-1.example.com"
+      remoteDomain2 = Domain "far-away-2.example.com"
+  qChad <- (`Qualified` remoteDomain1) <$> randomId
+  qDee <- (`Qualified` remoteDomain1) <$> randomId
+  qEve <- (`Qualified` remoteDomain2) <$> randomId
+  connectUsers alice (singleton bob)
+
+  opts <- view tsGConf
+  let mockedResponse fedReq = do
+        let success :: ToJSON a => a -> IO F.OutwardResponse
+            success = pure . F.OutwardResponseBody . LBS.toStrict . A.encode
+            getUsersPath = Just "/federation/get-users-by-ids"
+        case (F.domain fedReq, F.path <$> F.request fedReq) of
+          (d, mp)
+            | d == domainText remoteDomain1 && mp == getUsersPath ->
+              success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
+          (d, mp)
+            | d == domainText remoteDomain2 && mp == getUsersPath ->
+              success [mkProfile qEve (Name "Eve")]
+          _ -> success ()
+
+  (convId, _) <-
+    withTempMockFederator' opts remoteDomain1 mockedResponse $
+      decodeConvId <$> postConvQualified alice [qBob, qChad, qDee, qEve] Nothing [] Nothing Nothing
+  let qconvId = Qualified convId localDomain
+
+  (_, federatedRequests) <-
+    WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
+      withTempMockFederator' opts remoteDomain1 mockedResponse $ do
+        g <- viewGalley
+        let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
+        respBS <-
+          post
+            ( g
+                . paths ["federation", "leave-conversation"]
+                . content "application/json"
+                . header "Wire-Origin-Domain" (toByteString' remoteDomain1)
+                . json leaveRequest
+            )
+            <!! const 200 === statusCode
+        parsedResp <- responseJsonError respBS
+        liftIO $ do
+          FedGalley.leaveResponse parsedResp @?= Right ()
+          void . WS.assertMatch (3 # Second) wsAlice $
+            wsAssertMembersLeave qconvId qChad [qChad]
+          void . WS.assertMatch (3 # Second) wsBob $
+            wsAssertMembersLeave qconvId qChad [qChad]
+
+  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 F.Galley federatedRequests
+      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 F.Galley federatedRequests
+  assertRemoveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
+  assertRemoveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
 
 receiveMessage :: TestM ()
 receiveMessage = do
@@ -223,12 +386,12 @@ receiveMessage = do
         FedGalley.ConversationMemberUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qbob,
-            FedGalley.cmuConvId = qconv,
+            FedGalley.cmuConvId = conv,
             FedGalley.cmuAlreadyPresentUsers = [],
-            FedGalley.cmuUsersAdd = [(qalice, roleNameWireMember)],
-            FedGalley.cmuUsersRemove = []
+            FedGalley.cmuAction =
+              FedGalley.ConversationMembersActionAdd (pure (qalice, roleNameWireMember))
           }
-  FedGalley.updateConversationMemberships fedGalleyClient cmu
+  FedGalley.updateConversationMemberships fedGalleyClient bdom cmu
 
   let txt = "Hello from another backend"
       msg client = Map.fromList [(client, txt)]

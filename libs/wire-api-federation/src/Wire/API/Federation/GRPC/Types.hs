@@ -155,10 +155,11 @@ data InwardError = InwardError
 
 data InwardErrorType
   = IOther
-  | IInvalidDomain
+  | IAuthenticationFailed
   | IFederationDeniedByRemote
   | IInvalidEndpoint
   | IForbiddenEndpoint
+  | IDiscoveryFailed
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "InwardError.ErrorType", FromSchema Router "InwardError.ErrorType")
   deriving (Arbitrary) via (GenericUniform InwardErrorType)
 

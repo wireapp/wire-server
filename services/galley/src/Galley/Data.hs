@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -60,9 +58,10 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
+    localConversationIdsOf,
+    remoteConversationIdOf,
     localConversationIdsPageFrom,
     conversationIdRowsForPagination,
-    conversationIdsOf,
     conversationMeta,
     conversations,
     conversationsRemote,
@@ -87,8 +86,9 @@ module Galley.Data
     members,
     lookupRemoteMembers,
     removeMember,
-    removeMembers,
-    removeLocalMembers,
+    removeLocalMembersFromLocalConv,
+    removeRemoteMembersFromLocalConv,
+    removeLocalMembersFromRemoteConv,
     updateMember,
     filterRemoteConvMembers,
 
@@ -126,6 +126,7 @@ import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
@@ -575,12 +576,22 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
       Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
       Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
-conversationIdsOf ::
-  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
-  UserId ->
-  [ConvId] ->
-  m [ConvId]
-conversationIdsOf usr cids = runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+-- | Takes a list of conversation ids and returns those found for the given
+-- user.
+localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -> [ConvId] -> m [ConvId]
+localConversationIdsOf usr cids = do
+  runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+
+-- | Takes a list of remote conversation ids and splits them by those found for
+-- the given user
+remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m [Remote ConvId]
+remoteConversationIdOf usr cnvs = do
+  concat <$$> pooledMapConcurrentlyN 8 findRemoteConvs . Map.assocs . partitionQualified . map unTagged $ cnvs
+  where
+    findRemoteConvs :: (Domain, [ConvId]) -> m [Remote ConvId]
+    findRemoteConvs (domain, remoteConvIds) = do
+      foundCnvs <- runIdentity <$$> query Cql.selectRemoteConvMembershipIn (params Quorum (usr, domain, remoteConvIds))
+      pure $ toRemote . (`Qualified` domain) <$> foundCnvs
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
@@ -929,29 +940,56 @@ filterRemoteConvMembers users (Qualified conv dom) =
       let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
       map runIdentity <$> retry x1 q
 
-removeLocalMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> m Event
-removeLocalMembers localDomain conv orig localVictims = removeMembers localDomain conv orig localVictims []
-
-removeMembers :: MonadClient m => Domain -> Conversation -> UserId -> List1 UserId -> [Remote UserId] -> m Event
-removeMembers localDomain conv orig localVictims remoteVictims = do
+removeLocalMembersFromLocalConv ::
+  MonadClient m =>
+  Domain ->
+  Conversation ->
+  Qualified UserId ->
+  NonEmpty UserId ->
+  m Event
+removeLocalMembersFromLocalConv localDomain conv orig localVictims = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ remoteVictims $ \u -> do
-      let rUser = unTagged u
-      addPrepQuery Cql.removeRemoteMember (convId conv, qDomain rUser, qUnqualified rUser)
-    for_ (toList localVictims) $ \u -> do
-      addPrepQuery Cql.removeMember (convId conv, u)
-      addPrepQuery Cql.deleteUserConv (u, convId conv)
-
-  -- FUTUREWORK: the user's conversation has to be deleted on their own backend for federation
+    for_ localVictims $ \localVictim -> do
+      addPrepQuery Cql.removeMember (convId conv, localVictim)
+      addPrepQuery Cql.deleteUserConv (localVictim, convId conv)
   let qconvId = Qualified (convId conv) localDomain
-      qorig = Qualified orig localDomain
-  return $ Event MemberLeave qconvId qorig t (EdMembersLeave leavingMembers)
-  where
-    -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
-    leavingMembers = UserIdList . toList $ localVictims
+      qualifiedVictims = QualifiedUserIdList . map (`Qualified` localDomain) . toList $ localVictims
+  return $ Event MemberLeave qconvId orig t (EdMembersLeave qualifiedVictims)
+
+removeRemoteMembersFromLocalConv ::
+  MonadClient m =>
+  Domain ->
+  Conversation ->
+  Qualified UserId ->
+  NonEmpty (Remote UserId) ->
+  m Event
+removeRemoteMembersFromLocalConv localDomain conv orig remoteVictims = do
+  t <- liftIO getCurrentTime
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    for_ remoteVictims $ \remoteVictim -> do
+      let rUser = unTagged remoteVictim
+      addPrepQuery Cql.removeRemoteMember (convId conv, qDomain rUser, qUnqualified rUser)
+  let qconvId = Qualified (convId conv) localDomain
+      qualifiedVictims = QualifiedUserIdList . map unTagged . toList $ remoteVictims
+  return $ Event MemberLeave qconvId orig t (EdMembersLeave qualifiedVictims)
+
+removeLocalMembersFromRemoteConv ::
+  MonadClient m =>
+  -- | The conversation to remove members from
+  Qualified ConvId ->
+  -- | Members to remove local to this backend
+  List1 UserId ->
+  m ()
+removeLocalMembersFromRemoteConv (Qualified conv convDomain) victims =
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 . batch $ do

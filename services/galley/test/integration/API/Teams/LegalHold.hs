@@ -985,18 +985,18 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
       LegalholderIsAdmin -> do
         assertConvMember legalholder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
       PeerIsAdmin -> do
         assertConvMember peer convId
         assertNotConvMember legalholder convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) legalholder legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) legalholder peerWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) peerWs
       BothAreAdmins -> do
         assertConvMember legalholder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)

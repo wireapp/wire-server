@@ -81,7 +81,7 @@ instance ToJSON BulkConfig where
   toJSON = genericToJSON serializeOptions
 
 instance FromJSON BulkConfig where
-  parseJSON = genericParseJSON serializeOptions
+  parseJSON = genericParseJSON parseOptions . jsonLower
 
 data FilterConfig = FilterConfig
   { maxResults :: Int
@@ -92,7 +92,7 @@ instance ToJSON FilterConfig where
   toJSON = genericToJSON serializeOptions
 
 instance FromJSON FilterConfig where
-  parseJSON = genericParseJSON serializeOptions
+  parseJSON = genericParseJSON parseOptions . jsonLower
 
 data Configuration = Configuration
   { documentationUri :: Maybe URI,
@@ -111,7 +111,7 @@ instance ToJSON Configuration where
   toJSON = genericToJSON serializeOptions
 
 instance FromJSON Configuration where
-  parseJSON = genericParseJSON serializeOptions
+  parseJSON = genericParseJSON parseOptions . jsonLower
 
 empty :: Configuration
 empty =

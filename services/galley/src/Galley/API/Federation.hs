@@ -17,10 +17,12 @@
 module Galley.API.Federation where
 
 import Control.Monad.Catch (throwM)
+import Control.Monad.Except (runExceptT)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.Id (ConvId)
 import Data.Json.Util (Base64ByteString (..))
+import Data.List1 (list1)
 import Data.Qualified (Qualified (..))
 import Data.Tagged
 import qualified Data.Text.Lazy as LT
@@ -41,6 +43,8 @@ import Wire.API.Federation.API.Galley
   ( ConversationMemberUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
+    LeaveConversationRequest (..),
+    LeaveConversationResponse (..),
     MessageSendRequest (..),
     MessageSendResponse (..),
     RegisterConversation (..),
@@ -56,6 +60,7 @@ federationSitemap =
       { FederationAPIGalley.registerConversation = registerConversation,
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
+        FederationAPIGalley.leaveConversation = leaveConversation,
         FederationAPIGalley.receiveMessage = receiveMessage,
         FederationAPIGalley.sendMessage = sendMessage
       }
@@ -87,27 +92,56 @@ getConversations (GetConversationsRequest qUid gcrConvIds) = do
   let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
   pure $ GetConversationsResponse . catMaybes $ convViews
 
--- FUTUREWORK: also remove users from conversation
-updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
-updateConversationMemberships cmu = do
+-- | Update the local database with information on conversation members joining
+-- or leaving. Finally, push out notifications to local users.
+updateConversationMemberships :: Domain -> ConversationMemberUpdate -> Galley ()
+updateConversationMemberships requestingDomain cmu = do
   localDomain <- viewFederationDomain
-  let localUsers = filter ((== localDomain) . qDomain . fst) (cmuUsersAdd cmu)
-      localUserIds = map (qUnqualified . fst) localUsers
-  when (not (null localUsers)) $ do
-    Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
-  let mems = SimpleMembers (map (uncurry SimpleMember) (cmuUsersAdd cmu))
-  let event =
+  let users = case cmuAction cmu of
+        FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
+        FederationAPIGalley.ConversationMembersActionRemove toRemove -> toRemove
+      localUsers = filter ((== localDomain) . qDomain) . toList $ users
+      localUserIds = qUnqualified <$> localUsers
+      targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
+      qconvId = Qualified (cmuConvId cmu) requestingDomain
+  event <- case cmuAction cmu of
+    FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
+      unless (null localUsers) $
+        Data.addLocalMembersToRemoteConv localUserIds qconvId
+      let mems = SimpleMembers (map (uncurry SimpleMember) . toList $ toAdd)
+      pure $
         Event
           MemberJoin
-          (cmuConvId cmu)
+          qconvId
           (cmuOrigUserId cmu)
           (cmuTime cmu)
           (EdMembersJoin mems)
-
-  -- send notifications
-  let targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
+    FederationAPIGalley.ConversationMembersActionRemove toRemove -> do
+      case localUserIds of
+        [] -> pure ()
+        (h : t) ->
+          Data.removeLocalMembersFromRemoteConv
+            qconvId
+            (list1 h t)
+      pure $
+        Event
+          MemberLeave
+          qconvId
+          (cmuOrigUserId cmu)
+          (cmuTime cmu)
+          (EdMembersLeave . QualifiedUserIdList . toList $ toRemove)
   -- FUTUREWORK: support bots?
+  -- send notifications
   pushConversationEvent Nothing event targets []
+
+leaveConversation ::
+  Domain ->
+  LeaveConversationRequest ->
+  Galley LeaveConversationResponse
+leaveConversation requestingDomain lc = do
+  let leaver = Qualified (lcLeaver lc) requestingDomain
+  fmap LeaveConversationResponse . runExceptT . void $
+    API.removeMemberFromLocalConv leaver Nothing (lcConvId lc) leaver
 
 -- FUTUREWORK: report errors to the originating backend
 receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()

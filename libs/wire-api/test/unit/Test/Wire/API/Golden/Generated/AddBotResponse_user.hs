@@ -137,9 +137,9 @@ import Wire.API.Event.Conversation
         misOtrMutedStatus,
         misTarget
       ),
+    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
     SimpleMember (..),
     SimpleMembers (SimpleMembers, mMembers),
-    UserIdList (UserIdList, mUsers),
   )
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User
@@ -494,7 +494,7 @@ testObject_AddBotResponse_user_10 =
             (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000400000001"))) (Domain "faraway.example.com"))
             (Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))) (Domain "faraway.example.com"))
             (read "1864-05-04 10:22:33.842 UTC")
-            ((EdMembersLeave (UserIdList {mUsers = []})))
+            ((EdMembersLeave (QualifiedUserIdList {qualifiedUserIdList = []})))
         )
     }
 

@@ -7,7 +7,8 @@
         "conversation": "00000002-0000-0004-0000-000400000001",
         "time": "1864-05-04T10:22:33.842Z",
         "data": {
-            "user_ids": []
+            "user_ids": [],
+            "qualified_user_ids": []
         },
         "from": "00000002-0000-0001-0000-000200000000",
         "qualified_from": {

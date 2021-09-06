@@ -53,7 +53,7 @@ import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified)
+import Data.Qualified (Qualified (qDomain, qUnqualified))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -535,6 +535,13 @@ getConversation galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' cnv]
+      . zAuthAccess usr "conn"
+
+getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
+getConversationQualified galley usr cnv =
+  get $
+    galley
+      . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
 
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS

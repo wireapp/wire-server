@@ -42,10 +42,10 @@ import Data.String.Conversions
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Data.X509.CertificateStore
 import qualified Data.Yaml as Yaml
+import Federator.Env (TLSSettings (..))
 import Federator.Options
-import Federator.Run (mkCAStore)
+import Federator.Run (mkTLSSettings)
 import Imports
 import Mu.GRpc.Client.TyApps
 import qualified Options.Applicative as OPA
@@ -86,7 +86,7 @@ runTestFederator env = flip runReaderT env . unwrapTestFederator
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
   { _teMgr :: Manager,
-    _teCAStore :: CertificateStore,
+    _teTLSSettings :: TLSSettings,
     _teBrig :: BrigReq,
     -- | federator config
     _teOpts :: Opts,
@@ -99,7 +99,8 @@ type Select = TestEnv -> (Request -> Request)
 data IntegrationConfig = IntegrationConfig
   { cfgBrig :: Endpoint,
     cfgFederatorExternal :: Endpoint,
-    cfgNginxIngress :: Endpoint
+    cfgNginxIngress :: Endpoint,
+    cfgOriginDomain :: Text
   }
   deriving (Show, Generic)
 
@@ -143,7 +144,7 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-  _teCAStore <- mkCAStore (optSettings _teOpts)
+  _teTLSSettings <- mkTLSSettings (optSettings _teOpts)
   pure TestEnv {..}
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()

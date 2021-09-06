@@ -25,10 +25,13 @@ import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationPagingState
+import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
+import Test.Wire.API.Golden.Manual.ListConversationsV2
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
 
 tests :: TestTree
@@ -88,5 +91,15 @@ tests =
           [ (testObject_FeatureConfigEvent_1, "testObject_FeatureConfigEvent_1.json"),
             (testObject_FeatureConfigEvent_2, "testObject_FeatureConfigEvent_2.json"),
             (testObject_FeatureConfigEvent_3, "testObject_FeatureConfigEvent_3.json")
-          ]
+          ],
+      testCase "UserIdsList" $
+        testObjects
+          [ (testObject_UserIdList_1, "testObject_UserIdList_1.json"),
+            (testObject_UserIdList_2, "testObject_UserIdList_2.json")
+          ],
+      testCase "ListConversationsV2" $
+        testObjects
+          [(testObject_ListConversationsV2_1, "testObject_ListConversationsV2_1.json")],
+      testCase "ConversationsResponse" $
+        testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")]
     ]

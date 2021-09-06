@@ -31,17 +31,31 @@
             "otr_muted": true,
             "otr_archived_ref": null
         },
-        "others": []
+        "others": [
+            {
+                "status": 0,
+                "service": {
+                    "id": "00000001-0000-0000-0000-000000000000",
+                    "provider": "00000001-0000-0000-0000-000000000001"
+                },
+                "conversation_role": "r1rg526serx51g15n99y1bw_9q0qrcwck3jxl7ocjsjqcoux7d1zbkz9nnczy92t2oyogxrx3cyh_b8yv44l61mx9uzdnv6",
+                "qualified_id": {
+                    "domain": "golden.example.com",
+                    "id": "00000001-0000-0001-0000-000100000001"
+                },
+                "id": "00000001-0000-0001-0000-000100000001"
+            }
+        ]
     },
-    "name": "",
-    "team": "00000000-0000-0001-0000-000200000000",
     "qualified_id": {
         "domain": "golden.example.com",
         "id": "00000000-0000-0000-0000-000000000002"
     },
+    "name": "",
+    "team": null,
     "id": "00000000-0000-0000-0000-000000000002",
     "type": 1,
-    "receipt_mode": 2,
+    "receipt_mode": null,
     "last_event_time": "1970-01-01T00:00:00.000Z",
     "message_timer": 1319272593797015,
     "last_event": "0.0"

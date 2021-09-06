@@ -123,6 +123,7 @@ data FederationError
   | FederationNotImplemented
   | FederationNotConfigured
   | FederationCallFailure FederationClientFailure
+  deriving (Show, Eq)
 
 data FederationClientFailure = FederationClientFailure
   { fedFailDomain :: Domain,
