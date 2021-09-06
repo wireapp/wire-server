@@ -56,7 +56,6 @@ data InwardResponse
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform InwardResponse)
 
--- FUTUREWORK: add roundtrip tests for these to/from schema definitions.
 instance ToSchema Router "InwardResponse" InwardResponse where
   toSchema r =
     let protoChoice = case r of
