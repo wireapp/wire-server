@@ -296,6 +296,40 @@ data Api routes = Api
              '[JSON]
              RemoveFromConversationHTTPResponse
              RemoveFromConversationResponse,
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvRename event to members
+    updateConversationNameUnqualified ::
+      routes
+        :- Summary "Update conversation name"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "name"
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
+    updateConversationName ::
+      routes
+        :- Summary "Update conversation name"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "name"
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
     -- Team Conversations
 
     getTeamConversationRoles ::
