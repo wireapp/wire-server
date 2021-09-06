@@ -19,7 +19,7 @@ dependencies:
 library:
   source-dirs: .
   ghc-prof-options: -fprof-auto-exported
-  exposed-modules:
+  generated-exposed-modules:
   # do not remove this list!  stack won't be able to generate it from the protobuf source files!
   - Proto.Otr
   - Proto.Otr_Fields

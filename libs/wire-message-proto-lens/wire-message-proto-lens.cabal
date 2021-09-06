@@ -1,10 +1,10 @@
-cabal-version: 1.24
+cabal-version: 2.0
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6340f0411146156e837457d65bb4936309fac1b9b2706bc99013fbc7b146c821
+-- hash: 45371620f58f78a0a6e5a2f2aebeb21163269bcc9bdbe45e4a9a30d6c496fa65
 
 name:           wire-message-proto-lens
 version:        0.1.0
@@ -31,6 +31,9 @@ library
       Proto.Otr_Fields
   other-modules:
       Paths_wire_message_proto_lens
+  autogen-modules:
+      Proto.Otr
+      Proto.Otr_Fields
   hs-source-dirs:
       ./.
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
