@@ -477,6 +477,7 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
+addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let mems = localBotsAndUsers (Data.convLocalMembers conv)
