@@ -97,6 +97,10 @@ dev-pdf: pdf
 	$(OPEN) build/pdf/wire_federation.pdf 2>&1 > /dev/null &
 	find src/ | entr make pdf
 
+.PHONY: latex-pdf
+latex-pdf: latex
+	make -C build/latex all && echo "" && echo "Resulting PDF can be found in ./build/latex/main.pdf"
+
 .PHONY: help
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
