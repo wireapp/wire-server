@@ -372,8 +372,9 @@ receiveMessage = do
   bob <- randomId
   conv <- randomId
   let fromc = newClientId 0
-      alicec = newClientId 0
-      evec = newClientId 0
+      aliceC1 = newClientId 0
+      aliceC2 = newClientId 1
+      eveC = newClientId 0
       bdom = Domain "bob.example.com"
       qconv = Qualified conv bdom
       qbob = Qualified bob bdom
@@ -397,7 +398,7 @@ receiveMessage = do
       msg client = Map.fromList [(client, txt)]
       rcpts =
         UserClientMap $
-          Map.fromList [(alice, msg alicec), (eve, msg evec)]
+          Map.fromListWith (<>) [(alice, msg aliceC1), (alice, msg aliceC2), (eve, msg eveC)]
       rm =
         FedGalley.RemoteMessage
           { FedGalley.rmTime = now,
@@ -412,18 +413,33 @@ receiveMessage = do
           }
 
   -- send message to alice and check reception
-  WS.bracketR2 c alice eve $ \(wsA, wsE) -> do
+  WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
     FedGalley.receiveMessage fedGalleyClient bdom rm
     liftIO $ do
-      -- alice should receive the message
-      WS.assertMatch_ (5 # Second) wsA $ \n ->
-        do
-          let e = List1.head (WS.unpackPayload n)
-          ntfTransient n @?= False
-          evtConv e @?= qconv
-          evtType e @?= OtrMessageAdd
-          evtFrom e @?= qbob
-          evtData e @?= EdOtrMessage (OtrMessage fromc alicec txt Nothing)
+      -- alice should receive the message on her first client
+      WS.assertMatch_ (5 # Second) wsA1 $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconv
+        evtType e @?= OtrMessageAdd
+        evtFrom e @?= qbob
+        evtData e @?= EdOtrMessage (OtrMessage fromc aliceC1 txt Nothing)
+
+      -- alice should receive the message on her second client
+      WS.assertMatch_ (5 # Second) wsA2 $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconv
+        evtType e @?= OtrMessageAdd
+        evtFrom e @?= qbob
+        evtData e @?= EdOtrMessage (OtrMessage fromc aliceC2 txt Nothing)
+
+      -- These should be the only events for each device of alice. This verifies
+      -- that targetted delivery to the clients was used so that client 2 does
+      -- not recieve the message encrypted for client 1 and vice versa.
+      WS.assertNoEvent (1 # Second) [wsA1]
+      WS.assertNoEvent (1 # Second) [wsA2]
+
       -- eve should not receive the message
       WS.assertNoEvent (1 # Second) [wsE]
 
