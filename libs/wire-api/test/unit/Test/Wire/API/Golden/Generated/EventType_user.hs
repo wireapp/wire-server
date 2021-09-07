@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -27,69 +25,54 @@ import Wire.API.Event.Conversation
         ConvCreate,
         ConvDelete,
         ConvMessageTimerUpdate,
+        ConvReceiptModeUpdate,
+        ConvRename,
         MemberJoin,
         MemberLeave,
+        MemberStateUpdate,
         OtrMessageAdd,
         Typing
       ),
   )
 
 testObject_EventType_user_1 :: EventType
-testObject_EventType_user_1 = Typing
+testObject_EventType_user_1 = MemberJoin
 
 testObject_EventType_user_2 :: EventType
-testObject_EventType_user_2 = ConvCodeDelete
+testObject_EventType_user_2 = MemberLeave
 
 testObject_EventType_user_3 :: EventType
-testObject_EventType_user_3 = ConvCreate
+testObject_EventType_user_3 = MemberStateUpdate
 
 testObject_EventType_user_4 :: EventType
-testObject_EventType_user_4 = MemberLeave
+testObject_EventType_user_4 = ConvRename
 
 testObject_EventType_user_5 :: EventType
-testObject_EventType_user_5 = Typing
+testObject_EventType_user_5 = ConvAccessUpdate
 
 testObject_EventType_user_6 :: EventType
-testObject_EventType_user_6 = Typing
+testObject_EventType_user_6 = ConvMessageTimerUpdate
 
 testObject_EventType_user_7 :: EventType
-testObject_EventType_user_7 = ConvDelete
+testObject_EventType_user_7 = ConvCodeUpdate
 
 testObject_EventType_user_8 :: EventType
-testObject_EventType_user_8 = Typing
+testObject_EventType_user_8 = ConvCodeDelete
 
 testObject_EventType_user_9 :: EventType
-testObject_EventType_user_9 = MemberJoin
+testObject_EventType_user_9 = ConvCreate
 
 testObject_EventType_user_10 :: EventType
-testObject_EventType_user_10 = ConvAccessUpdate
+testObject_EventType_user_10 = ConvConnect
 
 testObject_EventType_user_11 :: EventType
-testObject_EventType_user_11 = ConvCodeDelete
+testObject_EventType_user_11 = ConvDelete
 
 testObject_EventType_user_12 :: EventType
-testObject_EventType_user_12 = MemberJoin
+testObject_EventType_user_12 = ConvReceiptModeUpdate
 
 testObject_EventType_user_13 :: EventType
-testObject_EventType_user_13 = Typing
+testObject_EventType_user_13 = OtrMessageAdd
 
 testObject_EventType_user_14 :: EventType
-testObject_EventType_user_14 = ConvAccessUpdate
-
-testObject_EventType_user_15 :: EventType
-testObject_EventType_user_15 = OtrMessageAdd
-
-testObject_EventType_user_16 :: EventType
-testObject_EventType_user_16 = ConvCodeUpdate
-
-testObject_EventType_user_17 :: EventType
-testObject_EventType_user_17 = ConvConnect
-
-testObject_EventType_user_18 :: EventType
-testObject_EventType_user_18 = ConvMessageTimerUpdate
-
-testObject_EventType_user_19 :: EventType
-testObject_EventType_user_19 = OtrMessageAdd
-
-testObject_EventType_user_20 :: EventType
-testObject_EventType_user_20 = MemberLeave
+testObject_EventType_user_14 = Typing

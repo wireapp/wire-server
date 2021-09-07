@@ -1,10 +1,10 @@
 {
     "data": {
-        "status": "disabled",
         "config": {
             "enforceAppLock": true,
             "inactivityTimeoutSecs": 300
-        }
+        },
+        "status": "disabled"
     },
     "name": "appLock",
     "type": "feature-config.update"

@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Federation.Golden.ConversationMemberUpdate where
+module Test.Wire.API.Federation.Golden.ConversationMemberUpdate
+  ( testObject_ConversationMemberUpdate1,
+    testObject_ConversationMemberUpdate2,
+  )
+where
 
 import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id), UserId)

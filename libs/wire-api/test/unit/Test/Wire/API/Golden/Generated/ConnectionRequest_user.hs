@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -27,7 +25,7 @@ import Wire.API.Connection (ConnectionRequest (..))
 testObject_ConnectionRequest_user_1 :: ConnectionRequest
 testObject_ConnectionRequest_user_1 =
   ConnectionRequest
-    { crUser = (Id (fromJust (UUID.fromString "00005686-0000-796a-0000-712b00006414"))),
+    { crUser = Id (fromJust (UUID.fromString "00005686-0000-796a-0000-712b00006414")),
       crName =
         unsafeRange
           "$Sz%e\27856\&9\28268NfG a\SUB\1104240\22763\NULkF\SOq\99222W\DC4K\DLE\EOTF1e\v\EOTQ1D\1011215\169864R\983712\b\DLEQNvP!i\1045156A\63817\DC1f\63319E\1055845\96023\1087467+g~r%'J\990559s\DC39/'\1032622\993992\78178w\GS\ACK\12632\1079109<(o\1051052"

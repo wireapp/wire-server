@@ -1,13 +1,9 @@
 {
-    "status": 0,
-    "service": {
-        "id": "00000002-0000-0000-0000-000100000000",
-        "provider": "00000000-0000-0000-0000-000200000000"
-    },
     "conversation_role": "y9z93u3kbwt873eghekqgmy0ho8hgrtlo3f5e6nq9icedmjbzx7ao0ycr5_gyunq4uuw",
+    "id": "0000001f-0000-000c-0000-001c0000000f",
     "qualified_id": {
         "domain": "golden.example.com",
         "id": "0000001f-0000-000c-0000-001c0000000f"
     },
-    "id": "0000001f-0000-000c-0000-001c0000000f"
+    "status": 0
 }

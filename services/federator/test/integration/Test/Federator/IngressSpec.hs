@@ -29,12 +29,13 @@ import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
 import Federator.Env (caStore)
 import Federator.Options
-import Federator.Remote (blessedCiphers, mkGrpcClient)
+import Federator.Remote (RemoteError, blessedCiphers, mkGrpcClient)
 import Imports
 import Mu.GRpc.Client.TyApps
 import Network.GRPC.Client.Helpers (_grpcClientConfigTLS)
 import qualified Network.TLS as TLS
 import qualified Polysemy
+import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (discardLogs)
 import Test.Federator.Util
@@ -102,7 +103,14 @@ inwardBrigCallViaIngress requestPath payload = do
   let target = SrvTarget (cs ingressHost) ingressPort
   runSettings <- optSettings . view teOpts <$> ask
   tlsSettings <- view teTLSSettings
-  c <- liftIO . Polysemy.runM . discardLogs . Polysemy.runReader tlsSettings . Polysemy.runReader runSettings $ mkGrpcClient target
+  c <-
+    liftIO
+      . Polysemy.runM
+      . Polysemy.runError @RemoteError
+      . discardLogs
+      . Polysemy.runReader tlsSettings
+      . Polysemy.runReader runSettings
+      $ mkGrpcClient target
   client <- case c of
     Left clientErr -> liftIO $ assertFailure (show clientErr)
     Right cli -> pure cli

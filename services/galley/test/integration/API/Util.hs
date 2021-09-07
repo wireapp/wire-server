@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -63,6 +64,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
+import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Galley.Intra.User (chunkify)
@@ -803,6 +805,17 @@ listConvs u req = do
       . zType "access"
       . json req
 
+listConvsV2 :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversationsV2 -> m ResponseLBS
+listConvsV2 u req = do
+  g <- viewGalley
+  post $
+    g
+      . path "/conversations/list/v2"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json req
+
 getConv :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ConvId -> m ResponseLBS
 getConv u c = do
   g <- viewGalley
@@ -1128,6 +1141,26 @@ getTeamQueue' zusr msince msize onlyLast = do
           ]
     )
 
+registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set OtherMember -> TestM ()
+registerRemoteConv convId originUser name othMembers = do
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  FederatedGalley.registerConversation
+    fedGalleyClient
+    ( FederatedGalley.MkRegisterConversation
+        { rcTime = now,
+          rcOrigUserId = originUser,
+          rcCnvId = convId,
+          rcCnvType = RegularConv,
+          rcCnvAccess = [],
+          rcCnvAccessRole = ActivatedAccessRole,
+          rcCnvName = name,
+          rcMembers = othMembers,
+          rcMessageTimer = Nothing,
+          rcReceiptMode = Nothing
+        }
+    )
+
 -------------------------------------------------------------------------------
 -- Common Assertions
 
@@ -1355,7 +1388,10 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvId = qUnqualified . cnvQualifiedId . responseJsonUnsafe
+decodeConvId = qUnqualified . decodeQualifiedConvId
+
+decodeQualifiedConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> Qualified ConvId
+decodeQualifiedConvId = cnvQualifiedId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
@@ -1510,6 +1546,9 @@ randomUser = qUnqualified <$> randomUser' False True True
 
 randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
 randomQualifiedUser = randomUser' False True True
+
+randomQualifiedId :: MonadIO m => Domain -> m (Qualified (Id a))
+randomQualifiedId domain = flip Qualified domain <$> randomId
 
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
@@ -1810,6 +1849,21 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFggtNO/hrwzt9M/1X6eK2sG6YFmA7BDqlFMEipbZOsg0vcDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==",
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
+
+mkConv :: Qualified ConvId -> UserId -> Member -> [OtherMember] -> Conversation
+mkConv cnvId creator selfMember otherMembers =
+  Conversation
+    { cnvQualifiedId = cnvId,
+      cnvType = RegularConv,
+      cnvCreator = creator,
+      cnvAccess = [],
+      cnvAccessRole = ActivatedAccessRole,
+      cnvName = Just "federated gossip",
+      cnvMembers = ConvMembers selfMember otherMembers,
+      cnvTeam = Nothing,
+      cnvMessageTimer = Nothing,
+      cnvReceiptMode = Nothing
+    }
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()

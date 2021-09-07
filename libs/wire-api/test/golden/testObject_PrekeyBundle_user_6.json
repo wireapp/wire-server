@@ -1,47 +1,47 @@
 {
-    "user": "0000004c-0000-007e-0000-004300000034",
     "clients": [
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "0"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "1"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "1"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "0"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "1"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 1
-            },
-            "client": "0"
+                "id": 1,
+                "key": ""
+            }
         }
-    ]
+    ],
+    "user": "0000004c-0000-007e-0000-004300000034"
 }

@@ -1,45 +1,45 @@
 {
+    "hasMore": true,
     "members": [
         {
-            "user": "00000001-0000-0001-0000-000100000001",
+            "created_at": null,
             "created_by": null,
             "legalhold_status": "enabled",
-            "created_at": null,
             "permissions": {
                 "copy": 0,
                 "self": 0
-            }
+            },
+            "user": "00000001-0000-0001-0000-000100000001"
         },
         {
-            "user": "00000000-0000-0001-0000-000100000001",
+            "created_at": "1864-05-09T15:59:09.462Z",
             "created_by": "00000000-0000-0001-0000-000000000001",
             "legalhold_status": "pending",
-            "created_at": "1864-05-09T15:59:09.462Z",
             "permissions": {
                 "copy": 0,
                 "self": 0
-            }
+            },
+            "user": "00000000-0000-0001-0000-000100000001"
         },
         {
-            "user": "00000001-0000-0001-0000-000000000001",
+            "created_at": null,
             "created_by": null,
             "legalhold_status": "enabled",
-            "created_at": null,
             "permissions": {
                 "copy": 0,
                 "self": 0
-            }
+            },
+            "user": "00000001-0000-0001-0000-000000000001"
         },
         {
-            "user": "00000000-0000-0001-0000-000000000001",
+            "created_at": "1864-05-09T00:27:17.631Z",
             "created_by": "00000000-0000-0000-0000-000000000001",
             "legalhold_status": "enabled",
-            "created_at": "1864-05-09T00:27:17.631Z",
             "permissions": {
                 "copy": 0,
                 "self": 0
-            }
+            },
+            "user": "00000000-0000-0001-0000-000000000001"
         }
-    ],
-    "hasMore": true
+    ]
 }

@@ -1,0 +1,12 @@
+{
+    "qualified_ids": [
+        {
+            "domain": "domain.example.com",
+            "id": "00000018-0000-0020-0000-000e00000002"
+        },
+        {
+            "domain": "domain2.example.com",
+            "id": "00000018-0000-0020-0000-111111111112"
+        }
+    ]
+}

@@ -1,26 +1,26 @@
 {
-    "locale": "lu-VG",
-    "qualified_id": {
-        "domain": "1.z6lionkv7",
-        "id": "00000001-0000-0000-0000-000100000001"
-    },
     "accent_id": 1,
-    "picture": [],
-    "legalhold_status": "no_consent",
-    "name": "u\u0013蘇T\t\u001f;󱨲[\"n`\"\u0000D\r𧵣 Vj\u000ej>Pb􀡭]𣉾󳄵I\n\u0018􇎒6\u0001x\"p阞E\u0018@w􌹗𘢑R\u000bX𦕪𫁉􍻮@K|K󽮦4쬈𨦏\u0002o9",
-    "expires_at": "1864-05-07T18:04:28.203Z",
-    "id": "00000001-0000-0000-0000-000100000001",
-    "deleted": true,
     "assets": [
         {
-            "size": "preview",
             "key": "",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "",
+            "size": "preview",
             "type": "image"
         }
-    ]
+    ],
+    "deleted": true,
+    "expires_at": "1864-05-07T18:04:28.203Z",
+    "id": "00000001-0000-0000-0000-000100000001",
+    "legalhold_status": "no_consent",
+    "locale": "lu-VG",
+    "name": "u\u0013蘇T\t\u001f;󱨲[\"n`\"\u0000D\r𧵣 Vj\u000ej>Pb􀡭]𣉾󳄵I\n\u0018􇎒6\u0001x\"p阞E\u0018@w􌹗𘢑R\u000bX𦕪𫁉􍻮@K|K󽮦4쬈𨦏\u0002o9",
+    "picture": [],
+    "qualified_id": {
+        "domain": "1.z6lionkv7",
+        "id": "00000001-0000-0000-0000-000100000001"
+    }
 }

@@ -1,7 +1,7 @@
 {
-    "status": "disabled",
     "last_prekey": {
-        "key": "jO𨶜\rT󻁣",
-        "id": 65535
-    }
+        "id": 65535,
+        "key": "jO𨶜\rT󻁣"
+    },
+    "status": "disabled"
 }

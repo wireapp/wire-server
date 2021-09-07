@@ -27,10 +27,12 @@ module Wire.API.Conversation
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
+    ListConversationsV2 (..),
     GetPaginatedConversationIds (..),
     ConversationPagingState (..),
     ConversationPagingTable (..),
     ConvIdsPage (..),
+    ConversationsResponse (..),
 
     -- * Conversation properties
     Access (..),
@@ -87,9 +89,10 @@ import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
-import Data.Range (Range, toRange)
+import Data.Range (Range, fromRange, rangedSchema, toRange)
 import Data.Schema
 import qualified Data.Set as Set
+import Data.Singletons (sing)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -342,8 +345,6 @@ instance ToSchema GetPaginatedConversationIds where
             <$> gpciPagingState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema
             <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
 
--- | Used on the POST /list-conversations endpoint
--- FUTUREWORK: add to golden tests (how to generate them?)
 data ListConversations = ListConversations
   { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
     lStartId :: Maybe (Qualified ConvId),
@@ -361,6 +362,41 @@ instance ToSchema ListConversations where
         <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
         <*> lStartId .= optField "start_id" Nothing schema
         <*> lSize .= optField "size" Nothing schema
+
+-- | Used on the POST /conversations/list/v2 endpoint
+newtype ListConversationsV2 = ListConversationsV2
+  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversationsV2
+
+instance ToSchema ListConversationsV2 where
+  schema =
+    objectWithDocModifier
+      "ListConversations"
+      (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
+      $ ListConversationsV2
+        <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
+
+data ConversationsResponse = ConversationsResponse
+  { crFound :: [Conversation],
+    crNotFound :: [Qualified ConvId],
+    crFailed :: [Qualified ConvId]
+  }
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse
+
+instance ToSchema ConversationsResponse where
+  schema =
+    let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
+        failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
+     in objectWithDocModifier
+          "ConversationsResponse"
+          (description ?~ "Response object for getting metadata of a list of conversations")
+          $ ConversationsResponse
+            <$> crFound .= field "found" (array schema)
+            <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
+            <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
 --------------------------------------------------------------------------------
 -- Conversation properties
