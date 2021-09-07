@@ -37,6 +37,7 @@ module Galley.API.Update
     addMembersH,
     addMembers,
     updateLocalSelfMember,
+    updateSelfMember,
     updateOtherMemberH,
     removeMember,
     removeMemberQualified,
@@ -126,7 +127,7 @@ import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Error
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import Wire.API.Routes.Public.Galley.Responses
@@ -553,6 +554,13 @@ addMembers zusr zcon convId invite = do
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
+
+updateSelfMember :: UserId -> ConnId -> Qualified ConvId -> Public.MemberUpdate -> Galley ()
+updateSelfMember zusr zcon qcnv update = do
+  localDomain <- viewFederationDomain
+  if qDomain qcnv == localDomain
+    then updateLocalSelfMember zusr zcon (qUnqualified qcnv) update
+    else throwM federationNotImplemented
 
 updateLocalSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
 updateLocalSelfMember zusr zcon cid update = do

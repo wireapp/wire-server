@@ -349,7 +349,8 @@ data Api routes = Api
              (Maybe Event),
     getConversationSelfUnqualified ::
       routes
-        :- Summary "Get self membership properties"
+        :- Summary "Get self membership properties (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/self` instead."
         :> ZUser
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -371,14 +372,31 @@ data Api routes = Api
              (Maybe Member),
     updateConversationSelfUnqualified ::
       routes
-        :- Summary "Update self membership properties"
-        :> Description "At least one field has to be provided."
+        :- Summary "Update self membership properties (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/self` instead."
         :> CanThrow ConvNotFound
         :> CanThrow ConvAccessDenied
         :> ZUser
         :> ZConn
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
+    updateConversationSelf ::
+      routes
+        :- Summary "Update self membership properties"
+        :> Description "**Note**: at least one field has to be provided."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
         :> "self"
         :> ReqBody '[JSON] MemberUpdate
         :> MultiVerb
