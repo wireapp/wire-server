@@ -21,7 +21,7 @@ import Wire.API.Push.Token
   ( AppName (AppName, appNameText),
     PushToken,
     Token (Token, tokenText),
-    Transport (APNS, APNSSandbox, APNSVoIP, APNSVoIPSandbox, GCM),
+    Transport (APNSSandbox),
     pushToken,
   )
 

@@ -23,7 +23,7 @@ import Wire.API.Push.Token
   ( AppName (AppName, appNameText),
     PushTokenList (..),
     Token (Token, tokenText),
-    Transport (APNS, APNSSandbox, APNSVoIP, APNSVoIPSandbox, GCM),
+    Transport (GCM),
     pushToken,
   )
 
@@ -31,7 +31,7 @@ testObject_PushTokenList_user_1 :: PushTokenList
 testObject_PushTokenList_user_1 =
   PushTokenList
     { pushTokens =
-        [ (pushToken (GCM) (AppName {appNameText = "p\DELU2r"}) (Token {tokenText = "MK8p\f"}) (ClientId {client = "4"}))
+        [ pushToken GCM (AppName {appNameText = "p\DELU2r"}) (Token {tokenText = "MK8p\f"}) (ClientId {client = "4"})
         ]
     }
 
