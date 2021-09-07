@@ -36,7 +36,7 @@ module Galley.API.Update
     -- * Managing Members
     addMembersH,
     addMembers,
-    updateSelfMemberH,
+    updateLocalSelfMember,
     updateOtherMemberH,
     removeMember,
     removeMemberQualified,
@@ -554,14 +554,8 @@ addMembers zusr zcon convId invite = do
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
 
-updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
-updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
-  update <- fromJsonBody req
-  updateSelfMember zusr zcon cid update
-  return empty
-
-updateSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
-updateSelfMember zusr zcon cid update = do
+updateLocalSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
+updateLocalSelfMember zusr zcon cid update = do
   conv <- getConversationAndCheckMembership zusr cid
   m <- getSelfMemberFromLocalsLegacy zusr (Data.convLocalMembers conv)
   -- Ensure no self role upgrades

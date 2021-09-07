@@ -369,6 +369,23 @@ data Api routes = Api
                Respond 200 "Membership information" Member
              ]
              (Maybe Member),
+    updateConversationSelfUnqualified ::
+      routes
+        :- Summary "Update self membership properties"
+        :> Description "At least one field has to be provided."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
     -- Team Conversations
 
     getTeamConversationRoles ::
