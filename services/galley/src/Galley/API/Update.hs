@@ -733,9 +733,6 @@ postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMes
 postBotMessage zbot zcnv val message =
   postNewOtrMessage Bot (botUserId zbot) Nothing zcnv val message
 
--- | FUTUREWORK: Send message to remote users, as of now this function fails if
--- the conversation is not hosted on current backend. If the conversation is
--- hosted on current backend, it completely ignores remote users.
 postProteusMessage :: UserId -> ConnId -> Qualified ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage zusr zcon conv msg = do
   localDomain <- viewFederationDomain
@@ -824,7 +821,9 @@ postNewOtrMessage utype usr con cnv val msg = do
       mapM_ (deleteBot cnv . botMemId) gone
 
 -- | Locally post a message originating from a remote conversation
+--
 -- FUTUREWORK: error handling for missing / mismatched clients
+-- (https://wearezeta.atlassian.net/browse/SQCORE-894)
 postRemoteToLocal :: RemoteMessage (Remote ConvId) -> Galley ()
 postRemoteToLocal rm = do
   localDomain <- viewFederationDomain

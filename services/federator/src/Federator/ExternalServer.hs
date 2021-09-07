@@ -55,7 +55,7 @@ import Wire.Network.DNS.Effect as Polysemy
 
 -- FUTUREWORK(federation): Versioning of the federation API. See
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
--- for versioning schemas here.
+-- for versioning schemas here. See https://wearezeta.atlassian.net/browse/SQCORE-883.
 
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
 callLocal ::
