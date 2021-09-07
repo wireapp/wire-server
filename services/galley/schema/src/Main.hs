@@ -98,6 +98,9 @@ main = do
       V52_FeatureConferenceCalling.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
+      --
+      -- FUTUREWORK: once #1726 has made its way to master/production,
+      -- the 'message' field in connections table can be dropped.
     ]
     `finally` Log.close l
   where
