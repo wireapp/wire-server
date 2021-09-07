@@ -1,52 +1,52 @@
 {
     "tokens": [
         {
-            "token": ",|\u0003",
             "app": "/𦺌",
-            "transport": "APNS",
-            "client": "0"
+            "client": "0",
+            "token": ",|\u0003",
+            "transport": "APNS"
         },
         {
-            "token": "[\\iS",
             "app": "\u0010",
-            "transport": "GCM",
-            "client": "6"
+            "client": "6",
+            "token": "[\\iS",
+            "transport": "GCM"
         },
         {
-            "token": "NEUoxG",
             "app": "\u001d􏑜\u0004S𫕌",
-            "transport": "GCM",
-            "client": "1c"
+            "client": "1c",
+            "token": "NEUoxG",
+            "transport": "GCM"
         },
         {
-            "token": "𦾹R",
             "app": "]ᴮ􇺓}",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "10"
+            "client": "10",
+            "token": "𦾹R",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "\u0001!􄀦𢣥\u001e",
             "app": "󸡁l𠑑􆳅\u001e䰇",
-            "transport": "APNS_VOIP",
-            "client": "14"
+            "client": "14",
+            "token": "\u0001!􄀦𢣥\u001e",
+            "transport": "APNS_VOIP"
         },
         {
-            "token": "E\"7𡊄\u001f",
             "app": "",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "1"
+            "client": "1",
+            "token": "E\"7𡊄\u001f",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "'",
             "app": "􁶉K!",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "1a"
+            "client": "1a",
+            "token": "'",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "\u0000󸢮",
             "app": "c􄃚㼉␔\u001e􈌴",
-            "transport": "APNS",
-            "client": "1"
+            "client": "1",
+            "token": "\u0000󸢮",
+            "transport": "APNS"
         }
     ]
 }

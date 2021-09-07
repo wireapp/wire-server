@@ -1,20 +1,20 @@
 {
+    "class": "legalhold",
     "cookie": "\u001c\rz",
     "lastkey": {
-        "key": "i",
-        "id": 65535
+        "id": 65535,
+        "key": "i"
     },
     "password": "󽪩\u0019𮀹SyAf\u001e󸀻Xﱝ~RZ}􃚰6}󾈳ke󽲰v$By𡞔􃫄,\u0002y𡹝~􌛤9sr􅶑\r_􅆾\u0006쑔􇙨󵪒7􌰆l<c󼜳)B1\u0000󿊙W/>􇙯쐤|󶣒𧸜\n􀾝\u0017)u􌳈􍧂%縉\u0017󲇜P)eE:sR􈯉\u0001@󽨅y\u001f冹v𨚀󸓽\u0011[9b|\u0003HNQ|=󻏡3Q7麯􍕩\u0010noh9)J\u001c𭥻P풥cN\u000eVꏼ𧇻O4S\u000e\u001dR\u0001\u001fBn\"D𦆂3c]Npy𗈟𑐽𪤇k𦡛<\u0017􏂯H\t􃊓𨑑\u0011o\u000c/w\u0019>%𝑙\u0001𣘀,𖠎i\u000bZ[I덉\u001aN1mZ狻綀H􂣋Imv#JR/;\u0006K\u0010妁⍌{ZR\u000796G\u0005y𥊭+􆺞𐃮=!\u0019\u000b\u0014\u001d󺷐󾕖<􀣙𓎲𭨓𣬕$󺓺\u0018-;\u00034v\u001e􈲾\r􆪩q􈗒4_C𧌒\u0015U.PD\u0014NYI\u0010v\u0008\r\u001cxH󷞦%mxC󿘝\u001a􀅢\u0018#cE􈬨;j`𡖉I[ABy󶤸f0𡯯t󷪧\u000f𥟾?\u0016~(Z\u000b\u0013E!\u0004󻉉[TW󲝇\u001fn\u000e啞+&\u0002𬫨\u001c+𠋾\u001cv\u001e􅋑D󽌔$<@\u0017\u000cCEb𥌼&󺏔e\u0011\u0018gN\u0012]\u001e\\A:*\u0006tV\u0007jD3􎿃zBA4\u00195\u001a\u0016󲟘\u0018:%󵴟읕\u000e𬽔{\u000bT_~0\u001d\u0012\u0004V0􄘣K7xI/󼢠폋\u0002􂹢\u0019𠎩⃥.m𒔤\u0010<A\u0013𧸥>󹐣a갚|\u001a᧷R\u001br~𮬙\u0004\u0010Frvb𛉝\u0003z\u0008I\\o+'Q\u0004l :?𑚍r\u001f𣳚􉓨o+𩘵Jn󾨫.*𧩣_7:󾟶\u00153T\u0005\t𥽏b/q\u0016@OmA𗮒xZ춦\u0018\u001eh\u001fg\u0007E_K\u000f{􀽳􁆌&􏢲N )𦞈zB\u0017\u000f󿿴F􈕑\"\u0006B𐑙\u0005𬨫S\u001dX檊􂺔yHAi𦍟 \u0013婅F8A/e.8$𘋌\u0010Ou-Mw󶔞4zb𨘊BC􇍱􅔯\u0002Y%Bg\u001e37v~2\u001b\u00188\u0018\u0011\u001cz#q?ADm4\u000bBK&Z\u0018K􏬜f!*/\u0006\u0012iVTs𢢠􂤎􉾊𥫴OQ𥦤-듙[J󾗉䜺󿪵H1K􍃖\u001f𝣈􄀭1\u000fk+EB?󳥵󻨦􏉯y,\u0018\u0000\u001ffT\u0010{\u0015󼅻\u0016討E,\u0001y襔?󻲺$ll%󿚗\u0001`)𒋍􇕮u𥊄􍎧𤓨A\u0016pDoz]L䶢/󸷐􄥌&f`AX=RA\u000b􍓕%,O􀕎\u0015B𝑮@\u0019\u0005󿫄􇿀-󳧟T󳮦l6\u0015'𪈠^􁓒('2AP&?\u001f\u0010\u000f0fߜ\u001b$\u0012籺5v_􀰩\u0005𥗖> [3h)?윷󽯊𡠑m󰍓cBD߫󸒎󷪿\u001a%X\u0000:Pib\\sષt𦉱󵡼{Sz+O\u001d\u0014\u0010\u0013.\u0019;2S\u000fF􍊰\u0014ftF}3G\u0000$wR]\u001fYpY\u000c\u000e𢢘;\u0003e渫陞$\u0013(\u000fw\u0017Bp🗨\u0005\u0010𥰐󾃝\u000b:젽V󰌖.\u0001N<$\tj3쬖\u001f䢖E,$\u0007\n\u0016\u001a%󹩮P󰉆,󼝅k\u0000𠭺E𔐛\u0005'\u0018wrhj?9􊐴󸘡\u0018#𬐁\u0005\u0013I\u000c\"\u0005탩^𣓭}T𨈩<d󺭿\\",
-    "type": "permanent",
     "prekeys": [
         {
-            "key": "",
-            "id": 1
+            "id": 1,
+            "key": ""
         },
         {
-            "key": "",
-            "id": 0
+            "id": 0,
+            "key": ""
         }
     ],
-    "class": "legalhold"
+    "type": "permanent"
 }

@@ -1,55 +1,55 @@
 {
-    "took": -3,
-    "found": 2,
     "documents": [
         {
+            "accent_id": 0,
+            "created_at": null,
             "email": null,
             "handle": "",
-            "managed_by": "wire",
-            "role": "member",
-            "accent_id": 0,
-            "name": "",
-            "created_at": null,
-            "team": null,
             "id": "00000001-0000-0000-0000-000100000000",
-            "saml_idp": ""
+            "managed_by": "wire",
+            "name": "",
+            "role": "member",
+            "saml_idp": "",
+            "team": null
         },
         {
+            "accent_id": 0,
+            "created_at": "1864-05-09T16:22:05.429Z",
             "email": "@",
             "handle": "",
-            "managed_by": "scim",
-            "role": null,
-            "accent_id": 0,
-            "name": "",
-            "created_at": "1864-05-09T16:22:05.429Z",
-            "team": "00000000-0000-0000-0000-000000000001",
             "id": "00000001-0000-0000-0000-000100000001",
-            "saml_idp": ""
-        },
-        {
-            "email": null,
-            "handle": "",
             "managed_by": "scim",
-            "role": "member",
-            "accent_id": 0,
             "name": "",
-            "created_at": "1864-05-09T17:19:11.439Z",
-            "team": "00000001-0000-0000-0000-000100000000",
-            "id": "00000000-0000-0001-0000-000100000001",
-            "saml_idp": ""
+            "role": null,
+            "saml_idp": "",
+            "team": "00000000-0000-0000-0000-000000000001"
         },
         {
+            "accent_id": 0,
+            "created_at": "1864-05-09T17:19:11.439Z",
             "email": null,
             "handle": "",
-            "managed_by": "wire",
-            "role": "partner",
-            "accent_id": null,
+            "id": "00000000-0000-0001-0000-000100000001",
+            "managed_by": "scim",
             "name": "",
+            "role": "member",
+            "saml_idp": "",
+            "team": "00000001-0000-0000-0000-000100000000"
+        },
+        {
+            "accent_id": null,
             "created_at": "1864-05-09T05:44:15.175Z",
-            "team": "00000000-0000-0000-0000-000100000001",
+            "email": null,
+            "handle": "",
             "id": "00000000-0000-0001-0000-000000000001",
-            "saml_idp": ""
+            "managed_by": "wire",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": "00000000-0000-0000-0000-000100000001"
         }
     ],
-    "returned": 3
+    "found": 2,
+    "returned": 3,
+    "took": -3
 }

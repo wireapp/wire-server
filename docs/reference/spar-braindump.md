@@ -113,7 +113,12 @@ export IDP_ID=...
 
 Copy the new metadata file to one of your spar instances.
 
-Ssh into it.
+Ssh into it.  If you can't, [the scim
+docs](provisioning/scim-via-curl.md) explain how you can create a
+bearer token if you have the admin's login credentials.  If you follow
+that approach, you need to replace all mentions of `-H'Z-User ...'`
+with `-H'Authorization: Bearer ...'` in the following, and you won't need
+`$ADMIN_ID`, but something like `$BEARER`.
 
 There are two ways to update an IDP, described below, each with their own tradeoffs that affect users.
 
@@ -132,7 +137,7 @@ Effects:
   created for them, or they are blocked (both not what you want).
 
 ```shell
-curl -v
+curl -v \
      -XPUT http://localhost:8080/identity-providers/${IDP_ID} \
      -H"Z-User: ${ADMIN_ID}" \
      -H'Content-type: application/xml' \
@@ -165,12 +170,40 @@ Effects:
   https://github.com/wireapp/wire-team-settings/issues/3465).
 
 ```shell
-curl -v
+curl -v \
      -XPOST http://localhost:8080/identity-providers'?replaces='${IDP_ID} \
      -H"Z-User: ${ADMIN_ID}" \
      -H'Content-type: application/xml' \
      -d@"${METADATA_FILE}"
 ```
+
+
+### deleting an idp via curl
+
+Read the beginning of the last section up to "Option 1".  You need
+`ADMIN_ID` (or `BEARER`) and `IDP_ID`, but not `METADATA_FILE`.
+
+```shell
+curl -v
+     -XDELETE http://localhost:8080/identity-providers/${IDP_ID} \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/json
+```
+
+If there are still users in your team with SAML credentials associated
+with this IdP, you will get an error.  You can either move these users
+elsewhere, delete them manually, or purge them implicitly during
+deletion of the IdP:
+
+```shell
+curl -v
+     -XDELETE http://localhost:8080/identity-providers/${IDP_ID}?purge=true \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/json
+```
+
+Haskell code: https://github.com/wireapp/wire-server/blob/d231550f67c117b7d100c7c8c6c01b5ad13b5a7e/services/spar/src/Spar/API.hs#L217-L271
+
 
 ### setting a default SSO code
 
@@ -277,13 +310,7 @@ clients; and does currently not affect deletability of users.
 
 #### delete via deleting idp
 
-[Currently](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/services/spar/src/Spar/API.hs#L172-L187),
-deleting an IdP does not delete any user data.  In particular:
-
-- cookies of users that have authenticated via an IdP will remain valid if the IdP gets deleted.
-- if a user authenticates via an IdP that has been deleted to obtain a new cookie, the login code will not work, and the user will never be able to login again.
-- the user will still show in the team settings, and can be manually deleted from there.
-- if a new idp is registered, and a user authenticates via that idp, the old user is unreachable.  (spar will look up the wire `UserId` under the saml user id that consists partly of the id of the new IdP, come up empty, and [create a fresh user on brig](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/services/spar/src/Spar/App.hs#L306).)
+[Currently](https://github.com/wireapp/wire-server/blob/d231550f67c117b7d100c7c8c6c01b5ad13b5a7e/services/spar/src/Spar/API.hs#L217-L271), we only have the rest API for this.  Team settings will follow with a button.
 
 
 #### user deletes herself

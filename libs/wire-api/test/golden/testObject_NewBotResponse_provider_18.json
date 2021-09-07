@@ -1,25 +1,25 @@
 {
-    "last_prekey": {
-        "key": "剡N|.\u001d",
-        "id": 65535
-    },
     "accent_id": 8,
-    "prekeys": [],
     "assets": [
         {
-            "size": "complete",
             "key": "\u001c",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "𖫳󰑑",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "",
+            "size": "preview",
             "type": "image"
         }
-    ]
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "剡N|.\u001d"
+    },
+    "prekeys": []
 }

@@ -1,17 +1,17 @@
 {
-    "qualified_conversation": {
-        "domain": "faraway.example.com",
-        "id": "00001fdb-0000-3127-0000-23ef00007183"
-    },
     "conversation": "00001fdb-0000-3127-0000-23ef00007183",
-    "time": "1864-05-09T05:44:41.382Z",
     "data": {
         "message_timer": 5029817038083912
     },
     "from": "0000705a-0000-0b62-0000-425c000049c8",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00001fdb-0000-3127-0000-23ef00007183"
+    },
     "qualified_from": {
         "domain": "faraway.example.com",
         "id": "0000705a-0000-0b62-0000-425c000049c8"
     },
+    "time": "1864-05-09T05:44:41.382Z",
     "type": "conversation.message-timer-update"
 }

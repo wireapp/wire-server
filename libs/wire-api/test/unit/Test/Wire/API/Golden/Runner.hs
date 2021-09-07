@@ -26,7 +26,7 @@ module Test.Wire.API.Golden.Runner
 where
 
 import Data.Aeson
-import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.Aeson.Encode.Pretty (Config (..), defConfig, encodePretty')
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import Data.ProtoLens.Encoding (decodeMessage, encodeMessage)
@@ -47,7 +47,7 @@ testObjects objs = do
 testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
 testObject obj path = do
   let actualValue = toJSON obj :: Value
-      actualJson = encodePretty actualValue
+      actualJson = encodePretty' config actualValue
       dir = "test/golden"
       fullPath = dir <> "/" <> path
   createDirectoryIfMissing True dir
@@ -65,6 +65,8 @@ testObject obj path = do
     (fromJSON actualValue)
 
   pure exists
+  where
+    config = defConfig {confCompare = compare, confTrailingNewline = True}
 
 protoTestObjects ::
   forall m a.

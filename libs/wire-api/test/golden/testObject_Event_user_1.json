@@ -1,15 +1,15 @@
 {
+    "conversation": "00005d81-0000-0d71-0000-1d8f00007d32",
+    "data": null,
+    "from": "00003b8b-0000-3395-0000-076a00007830",
     "qualified_conversation": {
         "domain": "faraway.example.com",
         "id": "00005d81-0000-0d71-0000-1d8f00007d32"
     },
-    "conversation": "00005d81-0000-0d71-0000-1d8f00007d32",
-    "time": "1864-05-22T09:51:07.104Z",
-    "data": null,
-    "from": "00003b8b-0000-3395-0000-076a00007830",
     "qualified_from": {
         "domain": "faraway.example.com",
         "id": "00003b8b-0000-3395-0000-076a00007830"
     },
+    "time": "1864-05-22T09:51:07.104Z",
     "type": "conversation.delete"
 }

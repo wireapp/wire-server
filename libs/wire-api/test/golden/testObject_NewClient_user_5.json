@@ -1,16 +1,16 @@
 {
     "cookie": "",
+    "label": "A𩥗)",
     "lastkey": {
-        "key": "?&#",
-        "id": 65535
+        "id": 65535,
+        "key": "?&#"
     },
     "model": "Y5>",
-    "type": "temporary",
     "prekeys": [
         {
-            "key": "􊹣",
-            "id": 0
+            "id": 0,
+            "key": "􊹣"
         }
     ],
-    "label": "A𩥗)"
+    "type": "temporary"
 }

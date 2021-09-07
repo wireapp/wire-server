@@ -1,16 +1,16 @@
 {
     "tokens": [
         {
-            "token": "󼹟\u0011]",
             "app": "!J^l",
-            "transport": "APNS_VOIP_SANDBOX",
-            "client": "b"
+            "client": "b",
+            "token": "󼹟\u0011]",
+            "transport": "APNS_VOIP_SANDBOX"
         },
         {
-            "token": "􇍄􁰳f𮈕\u0012Pc",
             "app": "\u0017f",
-            "transport": "GCM",
-            "client": "15"
+            "client": "15",
+            "token": "􇍄􁰳f𮈕\u0012Pc",
+            "transport": "GCM"
         }
     ]
 }

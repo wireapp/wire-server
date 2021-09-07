@@ -1,17 +1,17 @@
 {
-    "qualified_conversation": {
-        "domain": "faraway.example.com",
-        "id": "00000838-0000-1bc6-0000-686d00003565"
-    },
     "conversation": "00000838-0000-1bc6-0000-686d00003565",
-    "time": "1864-05-12T20:29:47.483Z",
     "data": {
         "name": "New conversation name"
     },
     "from": "0000114a-0000-7da8-0000-40cb00007fcf",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "00000838-0000-1bc6-0000-686d00003565"
+    },
     "qualified_from": {
         "domain": "faraway.example.com",
         "id": "0000114a-0000-7da8-0000-40cb00007fcf"
     },
+    "time": "1864-05-12T20:29:47.483Z",
     "type": "conversation.rename"
 }

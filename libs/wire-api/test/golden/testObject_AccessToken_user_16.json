@@ -1,6 +1,6 @@
 {
-    "expires_in": 18,
     "access_token": "p\"􂣑\u000b-\u0003\u0008<𓍀+\u000e􃬐",
-    "user": "0000633c-0000-6653-0000-772e00005669",
-    "token_type": "Bearer"
+    "expires_in": 18,
+    "token_type": "Bearer",
+    "user": "0000633c-0000-6653-0000-772e00005669"
 }

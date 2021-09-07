@@ -1,12 +1,12 @@
 {
     "lastkey": {
-        "key": "'S\u0007sm",
-        "id": 65535
+        "id": 65535,
+        "key": "'S\u0007sm"
     },
     "prekeys": [
         {
-            "key": "1h",
-            "id": 0
+            "id": 0,
+            "key": "1h"
         }
     ]
 }

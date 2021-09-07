@@ -1,7 +1,7 @@
 {
+    "credential": "d1VUzpxZ3TeM",
     "urls": [
         "turn:108.37.81.160:0?transport=tcp"
     ],
-    "credential": "d1VUzpxZ3TeM",
     "username": "d=3.v=5.k=24.t=\u0001.r=a8kdffu4"
 }

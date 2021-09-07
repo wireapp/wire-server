@@ -1,10 +1,5 @@
 {
-    "qualified_conversation": {
-        "domain": "faraway.example.com",
-        "id": "000019e1-0000-1dc6-0000-68de0000246d"
-    },
     "conversation": "000019e1-0000-1dc6-0000-68de0000246d",
-    "time": "1864-05-29T19:31:31.226Z",
     "data": {
         "access": [
             "invite",
@@ -15,56 +10,61 @@
             "invite",
             "link"
         ],
-        "creator": "00000000-0000-0000-0000-000200000001",
         "access_role": "non_activated",
+        "creator": "00000000-0000-0000-0000-000200000001",
+        "id": "00000000-0000-0000-0000-000100000001",
+        "last_event": "0.0",
+        "last_event_time": "1970-01-01T00:00:00.000Z",
         "members": {
-            "self": {
-                "hidden_ref": "",
-                "status": 0,
-                "service": {
-                    "id": "00000001-0000-0000-0000-000000000001",
-                    "provider": "00000000-0000-0000-0000-000100000001"
-                },
-                "otr_muted_ref": "",
-                "conversation_role": "kf_7rcnb2oilvdmd9nelmwf52gikr4aqkhktyn5vjzg7lq1dnzym812q1innmegmx9a",
-                "status_time": "1970-01-01T00:00:00.000Z",
-                "hidden": true,
-                "status_ref": "0.0",
-                "id": "00000001-0000-0000-0000-000000000001",
-                "otr_archived": true,
-                "otr_muted_status": 0,
-                "otr_muted": false,
-                "otr_archived_ref": ""
-            },
             "others": [
                 {
-                    "status": 0,
                     "conversation_role": "4190csbyn6n7ooa8w4d7y9na9_a4m5hgvvmfnowu9zib_29nepamxsxl0gvq2hrfzp7obu_mtj43j0rd38jyd9r5j7xvf2ujge7s0pnt43g9cyal_ak2alwyf8uda",
+                    "id": "00000000-0000-0001-0000-000100000001",
                     "qualified_id": {
                         "domain": "golden.example.com",
                         "id": "00000000-0000-0001-0000-000100000001"
                     },
-                    "id": "00000000-0000-0001-0000-000100000001"
+                    "status": 0
                 }
-            ]
+            ],
+            "self": {
+                "conversation_role": "kf_7rcnb2oilvdmd9nelmwf52gikr4aqkhktyn5vjzg7lq1dnzym812q1innmegmx9a",
+                "hidden": true,
+                "hidden_ref": "",
+                "id": "00000001-0000-0000-0000-000000000001",
+                "otr_archived": true,
+                "otr_archived_ref": "",
+                "otr_muted": false,
+                "otr_muted_ref": "",
+                "otr_muted_status": 0,
+                "service": {
+                    "id": "00000001-0000-0000-0000-000000000001",
+                    "provider": "00000000-0000-0000-0000-000100000001"
+                },
+                "status": 0,
+                "status_ref": "0.0",
+                "status_time": "1970-01-01T00:00:00.000Z"
+            }
         },
+        "message_timer": 283898987885780,
+        "name": "\u0007\u000e\r",
         "qualified_id": {
             "domain": "golden.example.com",
             "id": "00000000-0000-0000-0000-000100000001"
         },
-        "name": "\u0007\u000e\r",
-        "team": "00000000-0000-0002-0000-000100000001",
-        "id": "00000000-0000-0000-0000-000100000001",
-        "type": 0,
         "receipt_mode": -1,
-        "last_event_time": "1970-01-01T00:00:00.000Z",
-        "message_timer": 283898987885780,
-        "last_event": "0.0"
+        "team": "00000000-0000-0002-0000-000100000001",
+        "type": 0
     },
     "from": "00000457-0000-0689-0000-77a00000021c",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "000019e1-0000-1dc6-0000-68de0000246d"
+    },
     "qualified_from": {
         "domain": "faraway.example.com",
         "id": "00000457-0000-0689-0000-77a00000021c"
     },
+    "time": "1864-05-29T19:31:31.226Z",
     "type": "conversation.create"
 }

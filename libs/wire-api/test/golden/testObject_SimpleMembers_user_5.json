@@ -1,126 +1,4 @@
 {
-    "users": [
-        {
-            "conversation_role": "rus8lexaw6nztct_zjcjucxjrs4_atd_3spmbofo3nzlh5ia3llctfiqjs46jw8l6mqazv2pwp93akrkbh6ialmv23yk58_52c34qnbkgdvvephp28",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "00000053-0000-0076-0000-00100000004e"
-            },
-            "id": "00000053-0000-0076-0000-00100000004e"
-        },
-        {
-            "conversation_role": "rirdp8hwy4qbgbjktu7oonchq2s_kpntqqffd7eh24isbfkwwq0lgmeo3o7rxbuehhwe6dt99xhao3fswgm0xqa2_ag5as",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "00000001-0000-0075-0000-006500000014"
-            },
-            "id": "00000001-0000-0075-0000-006500000014"
-        },
-        {
-            "conversation_role": "48idob6a3qg0k4cyr4x5b3gvqafdeogqtnh_69ov347xwn54j",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000000a-0000-0068-0000-00100000000c"
-            },
-            "id": "0000000a-0000-0068-0000-00100000000c"
-        },
-        {
-            "conversation_role": "u4ruh9mhqk3m_u6e4guj7ee40_svakap_92pwi89sdme0pkh6inwk4ttg1xmoottx1uy6ryv52w_2lf340g7ohndxa2r3iwue2k3r6c084kifr914ulcon",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "00000070-0000-000f-0000-002400000032"
-            },
-            "id": "00000070-0000-000f-0000-002400000032"
-        },
-        {
-            "conversation_role": "rc779wbhz5nabuxyzdrv6n9oiq06olf0",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000002c-0000-0000-0000-007500000037"
-            },
-            "id": "0000002c-0000-0000-0000-007500000037"
-        },
-        {
-            "conversation_role": "1yeunp1yvablh18tnsoaa8xnggbpbviyabkfh6abd9vw0mrcy3x3gu3m2jvnjhroe44y55c9",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000005c-0000-0009-0000-001700000033"
-            },
-            "id": "0000005c-0000-0009-0000-001700000033"
-        },
-        {
-            "conversation_role": "opmdgq5u1h4ersm_ydrpyydfv2cdlsj7uwkqaz892ajcmuwi28c197",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "00000011-0000-004f-0000-007400000055"
-            },
-            "id": "00000011-0000-004f-0000-007400000055"
-        },
-        {
-            "conversation_role": "nkencc_183b83h8xpvgbgub80wyn9y2mrdj4b3at0t1iuc39e4szcufloiluzpfm1p63ozppoj_xrd0yen3ain9jpmb6nbhjw",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000005b-0000-0076-0000-007f00000034"
-            },
-            "id": "0000005b-0000-0076-0000-007f00000034"
-        },
-        {
-            "conversation_role": "q12f4o68fsu7kmvmha9h7pqadr37mr7anszmrm4gzyij_ejo78kbtxr85ko8ewzbrz6wuuzm1fwjir67o_0x66_gca2up99w4dzvtjhwsonumkcxx8ffhkln2y7i",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "00000044-0000-0065-0000-004f00000039"
-            },
-            "id": "00000044-0000-0065-0000-004f00000039"
-        },
-        {
-            "conversation_role": "d87qu8t82u8q8isnqw_0_55hpuuwnjfvra2ieaogqqdn6iwv8b",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000000f-0000-0059-0000-002100000019"
-            },
-            "id": "0000000f-0000-0059-0000-002100000019"
-        },
-        {
-            "conversation_role": "flgbw825uiqbe3zydw97iha4be77fnoey3ppqzf6nmwkm8w8gqlwidk6dubc6id4iqqrxb8gbgdrfwwiye1j371xkb2_786vzon9",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "00000076-0000-0044-0000-00110000002b"
-            },
-            "id": "00000076-0000-0044-0000-00110000002b"
-        },
-        {
-            "conversation_role": "g43z_vqs1w3nubu3uuvq7eycshex3ug1mz7h50o8k4mu9q1tm_z",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000007c-0000-0016-0000-001200000027"
-            },
-            "id": "0000007c-0000-0016-0000-001200000027"
-        },
-        {
-            "conversation_role": "toatgflm9kmzec4xpbt596ti99yjqh96g4tp",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000003b-0000-0005-0000-002a00000003"
-            },
-            "id": "0000003b-0000-0005-0000-002a00000003"
-        },
-        {
-            "conversation_role": "xgpcwa43",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000002c-0000-005d-0000-005e0000005e"
-            },
-            "id": "0000002c-0000-005d-0000-005e0000005e"
-        },
-        {
-            "conversation_role": "jpp1rdcx0mto46xxx26moxicgo2c2voj_ufk9czxpjt9na71urpd9pyllrnpot4cfj7hjqr1renpy0d2tntwnsq303mws_vxbiyitlavo9yszzlv4s4b996336bt",
-            "qualified_id": {
-                "domain": "faraway.example.com",
-                "id": "0000004b-0000-004c-0000-001300000001"
-            },
-            "id": "0000004b-0000-004c-0000-001300000001"
-        }
-    ],
     "user_ids": [
         "00000053-0000-0076-0000-00100000004e",
         "00000001-0000-0075-0000-006500000014",
@@ -137,5 +15,127 @@
         "0000003b-0000-0005-0000-002a00000003",
         "0000002c-0000-005d-0000-005e0000005e",
         "0000004b-0000-004c-0000-001300000001"
+    ],
+    "users": [
+        {
+            "conversation_role": "rus8lexaw6nztct_zjcjucxjrs4_atd_3spmbofo3nzlh5ia3llctfiqjs46jw8l6mqazv2pwp93akrkbh6ialmv23yk58_52c34qnbkgdvvephp28",
+            "id": "00000053-0000-0076-0000-00100000004e",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "00000053-0000-0076-0000-00100000004e"
+            }
+        },
+        {
+            "conversation_role": "rirdp8hwy4qbgbjktu7oonchq2s_kpntqqffd7eh24isbfkwwq0lgmeo3o7rxbuehhwe6dt99xhao3fswgm0xqa2_ag5as",
+            "id": "00000001-0000-0075-0000-006500000014",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "00000001-0000-0075-0000-006500000014"
+            }
+        },
+        {
+            "conversation_role": "48idob6a3qg0k4cyr4x5b3gvqafdeogqtnh_69ov347xwn54j",
+            "id": "0000000a-0000-0068-0000-00100000000c",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000000a-0000-0068-0000-00100000000c"
+            }
+        },
+        {
+            "conversation_role": "u4ruh9mhqk3m_u6e4guj7ee40_svakap_92pwi89sdme0pkh6inwk4ttg1xmoottx1uy6ryv52w_2lf340g7ohndxa2r3iwue2k3r6c084kifr914ulcon",
+            "id": "00000070-0000-000f-0000-002400000032",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "00000070-0000-000f-0000-002400000032"
+            }
+        },
+        {
+            "conversation_role": "rc779wbhz5nabuxyzdrv6n9oiq06olf0",
+            "id": "0000002c-0000-0000-0000-007500000037",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000002c-0000-0000-0000-007500000037"
+            }
+        },
+        {
+            "conversation_role": "1yeunp1yvablh18tnsoaa8xnggbpbviyabkfh6abd9vw0mrcy3x3gu3m2jvnjhroe44y55c9",
+            "id": "0000005c-0000-0009-0000-001700000033",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000005c-0000-0009-0000-001700000033"
+            }
+        },
+        {
+            "conversation_role": "opmdgq5u1h4ersm_ydrpyydfv2cdlsj7uwkqaz892ajcmuwi28c197",
+            "id": "00000011-0000-004f-0000-007400000055",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "00000011-0000-004f-0000-007400000055"
+            }
+        },
+        {
+            "conversation_role": "nkencc_183b83h8xpvgbgub80wyn9y2mrdj4b3at0t1iuc39e4szcufloiluzpfm1p63ozppoj_xrd0yen3ain9jpmb6nbhjw",
+            "id": "0000005b-0000-0076-0000-007f00000034",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000005b-0000-0076-0000-007f00000034"
+            }
+        },
+        {
+            "conversation_role": "q12f4o68fsu7kmvmha9h7pqadr37mr7anszmrm4gzyij_ejo78kbtxr85ko8ewzbrz6wuuzm1fwjir67o_0x66_gca2up99w4dzvtjhwsonumkcxx8ffhkln2y7i",
+            "id": "00000044-0000-0065-0000-004f00000039",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "00000044-0000-0065-0000-004f00000039"
+            }
+        },
+        {
+            "conversation_role": "d87qu8t82u8q8isnqw_0_55hpuuwnjfvra2ieaogqqdn6iwv8b",
+            "id": "0000000f-0000-0059-0000-002100000019",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000000f-0000-0059-0000-002100000019"
+            }
+        },
+        {
+            "conversation_role": "flgbw825uiqbe3zydw97iha4be77fnoey3ppqzf6nmwkm8w8gqlwidk6dubc6id4iqqrxb8gbgdrfwwiye1j371xkb2_786vzon9",
+            "id": "00000076-0000-0044-0000-00110000002b",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "00000076-0000-0044-0000-00110000002b"
+            }
+        },
+        {
+            "conversation_role": "g43z_vqs1w3nubu3uuvq7eycshex3ug1mz7h50o8k4mu9q1tm_z",
+            "id": "0000007c-0000-0016-0000-001200000027",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000007c-0000-0016-0000-001200000027"
+            }
+        },
+        {
+            "conversation_role": "toatgflm9kmzec4xpbt596ti99yjqh96g4tp",
+            "id": "0000003b-0000-0005-0000-002a00000003",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000003b-0000-0005-0000-002a00000003"
+            }
+        },
+        {
+            "conversation_role": "xgpcwa43",
+            "id": "0000002c-0000-005d-0000-005e0000005e",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000002c-0000-005d-0000-005e0000005e"
+            }
+        },
+        {
+            "conversation_role": "jpp1rdcx0mto46xxx26moxicgo2c2voj_ufk9czxpjt9na71urpd9pyllrnpot4cfj7hjqr1renpy0d2tntwnsq303mws_vxbiyitlavo9yszzlv4s4b996336bt",
+            "id": "0000004b-0000-004c-0000-001300000001",
+            "qualified_id": {
+                "domain": "faraway.example.com",
+                "id": "0000004b-0000-004c-0000-001300000001"
+            }
+        }
     ]
 }

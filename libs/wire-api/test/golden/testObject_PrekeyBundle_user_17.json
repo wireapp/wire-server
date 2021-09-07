@@ -1,75 +1,75 @@
 {
-    "user": "0000006f-0000-0036-0000-00560000002d",
     "clients": [
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 1
-            },
-            "client": "1"
+                "id": 1,
+                "key": ""
+            }
         },
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "0"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "0"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 1
-            },
-            "client": "1"
+                "id": 1,
+                "key": ""
+            }
         },
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "0"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "0"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 0
-            },
-            "client": "1"
+                "id": 0,
+                "key": ""
+            }
         },
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 1
-            },
-            "client": "1"
+                "id": 1,
+                "key": ""
+            }
         },
         {
+            "client": "0",
             "prekey": {
-                "key": "",
-                "id": 1
-            },
-            "client": "0"
+                "id": 1,
+                "key": ""
+            }
         },
         {
+            "client": "1",
             "prekey": {
-                "key": "",
-                "id": 1
-            },
-            "client": "1"
+                "id": 1,
+                "key": ""
+            }
         }
-    ]
+    ],
+    "user": "0000006f-0000-0036-0000-00560000002d"
 }

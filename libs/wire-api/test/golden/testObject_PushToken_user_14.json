@@ -1,6 +1,6 @@
 {
-    "token": "@",
     "app": "寤䒑𣣎?L",
-    "transport": "APNS_VOIP_SANDBOX",
-    "client": "1a"
+    "client": "1a",
+    "token": "@",
+    "transport": "APNS_VOIP_SANDBOX"
 }

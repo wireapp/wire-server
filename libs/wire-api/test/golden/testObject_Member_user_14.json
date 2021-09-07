@@ -1,18 +1,18 @@
 {
+    "conversation_role": "uuttutvr4y5qhlbn1u94e0u74zei_zilbp9bk5is3cvkqywo1cmmb6heqodku7poq2_y",
+    "hidden": true,
     "hidden_ref": "\"",
-    "status": 0,
+    "id": "00000001-0000-0000-0000-000000000001",
+    "otr_archived": false,
+    "otr_archived_ref": "Iv",
+    "otr_muted": true,
+    "otr_muted_ref": "*&",
+    "otr_muted_status": null,
     "service": {
         "id": "00000000-0000-0001-0000-000100000001",
         "provider": "00000001-0000-0001-0000-000000000000"
     },
-    "otr_muted_ref": "*&",
-    "conversation_role": "uuttutvr4y5qhlbn1u94e0u74zei_zilbp9bk5is3cvkqywo1cmmb6heqodku7poq2_y",
-    "status_time": "1970-01-01T00:00:00.000Z",
-    "hidden": true,
+    "status": 0,
     "status_ref": "0.0",
-    "id": "00000001-0000-0000-0000-000000000001",
-    "otr_archived": false,
-    "otr_muted_status": null,
-    "otr_muted": true,
-    "otr_archived_ref": "Iv"
+    "status_time": "1970-01-01T00:00:00.000Z"
 }

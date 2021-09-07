@@ -1,6 +1,6 @@
 {
-    "took": -2,
-    "found": -6,
     "documents": [],
-    "returned": -1
+    "found": -6,
+    "returned": -1,
+    "took": -2
 }

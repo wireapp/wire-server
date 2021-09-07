@@ -1,1 +1,11 @@
-{"time":"1864-05-06T19:39:12.770Z","model":"󳇚;􇻫","id":"2","type":"permanent","class":"desktop","capabilities":{"capabilities":[]},"label":"%*"}
+{
+    "capabilities": {
+        "capabilities": []
+    },
+    "class": "desktop",
+    "id": "2",
+    "label": "%*",
+    "model": "󳇚;􇻫",
+    "time": "1864-05-06T19:39:12.770Z",
+    "type": "permanent"
+}

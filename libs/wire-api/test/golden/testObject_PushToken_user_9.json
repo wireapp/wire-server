@@ -1,6 +1,6 @@
 {
-    "token": "󱯀Fm􉑙􀢳",
     "app": "",
-    "transport": "APNS_VOIP_SANDBOX",
-    "client": "8"
+    "client": "8",
+    "token": "󱯀Fm􉑙􀢳",
+    "transport": "APNS_VOIP_SANDBOX"
 }
