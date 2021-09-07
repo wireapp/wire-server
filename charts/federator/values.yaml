@@ -14,7 +14,8 @@ tls:
   useSharedFederatorSecret: false
 
 resources:
-  # FUTUREWORK: come up with numbers which didn't appear out of thin air
+  # FUTUREWORK: come up with numbers which didn't appear out of thin air (See
+  # https://wearezeta.atlassian.net/browse/BE-518)
   requests:
     memory: "256Mi"
     cpu: "100m"

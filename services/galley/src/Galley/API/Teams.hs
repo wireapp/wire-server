@@ -865,7 +865,7 @@ ensureNotTooLarge tid = do
 -- If LegalHold is configured for whitelisted teams only we consider the team
 -- size unlimited, because we make the assumption that these teams won't turn
 -- LegalHold off after activation.
--- FUTUREWORK: Find a way around the fanout limit.
+--  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold :: TeamId -> Int -> Galley ()
 ensureNotTooLargeForLegalHold tid teamSize = do
   whenM (isLegalHoldEnabledForTeam tid) $ do
