@@ -29,6 +29,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 * Add `POST /conversations/list/v2` (#1703)
 * Deprecate `POST /list-conversations` (#1703)
+* Remove the long-deprecated `message` field in `POST /connections` (#1726)
 
 ## Features
 
@@ -47,6 +48,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Fixed a few issues with error response documentation in Swagger (#1707)
 * Make mapping between (team) permissions and roles more lenient (#1711)
 * The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
+* The `POST /connections` endpoint rewritten to Servant (#1726)
 * Remove leftover auto-connect internal endpoint and code (#1716)
 * Clean up JSON golden tests (#1729, #1732, #1733)
 * Make regenerated JSON output deterministic (#1734)
