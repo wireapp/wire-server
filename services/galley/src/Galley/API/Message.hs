@@ -422,14 +422,18 @@ newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
 
 runMessagePush :: Qualified ConvId -> MessagePush -> Galley ()
 runMessagePush cnv mp = do
-  localDomain <- viewFederationDomain
   pushSome (userPushes mp)
-  if localDomain /= qDomain cnv
-    then unless (null (botPushes mp)) $ do
-      Log.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show cnv)
-    else void . forkIO $ do
-      gone <- External.deliver (botPushes mp)
-      mapM_ (deleteBot (qUnqualified cnv) . botMemId) gone
+  pushToBots (botPushes mp)
+  where
+    pushToBots :: [(BotMember, Event)] -> Galley ()
+    pushToBots pushes = do
+      localDomain <- viewFederationDomain
+      if localDomain /= qDomain cnv
+        then unless (null pushes) $ do
+          Log.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show cnv)
+        else void . forkIO $ do
+          gone <- External.deliver pushes
+          mapM_ (deleteBot (qUnqualified cnv) . botMemId) gone
 
 newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
 newMessageEvent convId sender senderClient dat time receiverClient cipherText =
