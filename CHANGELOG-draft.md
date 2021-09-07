@@ -60,4 +60,4 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Refactored remote error handling in federator (#1681)
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
 * Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
-* Ensure clients only recieve messages meant for them in remote convs (#1739)
+* Ensure clients only receive messages meant for them in remote convs (#1739)

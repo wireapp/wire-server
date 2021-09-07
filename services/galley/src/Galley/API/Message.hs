@@ -432,11 +432,11 @@ runMessagePush cnv mp = do
       mapM_ (deleteBot (qUnqualified cnv) . botMemId) gone
 
 newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
-newMessageEvent convId sender senderClient dat time recieverClient cipherText =
+newMessageEvent convId sender senderClient dat time receiverClient cipherText =
   Event OtrMessageAdd convId sender time . EdOtrMessage $
     OtrMessage
       { otrSender = senderClient,
-        otrRecipient = recieverClient,
+        otrRecipient = receiverClient,
         otrCiphertext = cipherText,
         otrData = dat
       }

@@ -436,7 +436,7 @@ receiveMessage = do
 
       -- These should be the only events for each device of alice. This verifies
       -- that targetted delivery to the clients was used so that client 2 does
-      -- not recieve the message encrypted for client 1 and vice versa.
+      -- not receive the message encrypted for client 1 and vice versa.
       WS.assertNoEvent (1 # Second) [wsA1]
       WS.assertNoEvent (1 # Second) [wsA2]
 
