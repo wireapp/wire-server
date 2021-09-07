@@ -38,7 +38,7 @@ import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
-import System.FilePath (dropTrailingPathSeparator, splitFileName)
+import System.FilePath
 import System.INotify
 import System.Logger (Logger)
 import qualified System.Logger.Message as Log
@@ -286,7 +286,12 @@ resolveSymlink path' = do
   let path = dropTrailingPathSeparator path'
   status <- getSymbolicLinkStatus path
   if isSymbolicLink status
-    then Just <$> readSymbolicLink path
+    then do
+      target <- readSymbolicLink path
+      pure . Just $
+        if isRelative target
+          then takeDirectory path </> target
+          else target
     else pure Nothing
 
 watchedPaths :: (FilePath -> IO (Maybe FilePath)) -> FilePath -> IO [WatchedPath]
