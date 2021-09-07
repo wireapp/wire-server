@@ -26,16 +26,22 @@ module Test.Tasty.Cannon
     -- * WebSockets
     WebSocket,
     connect,
+    connectAsClient,
     close,
     bracket,
+    bracketAsClient,
     bracketN,
+    bracketAsClientN,
 
     -- ** Random Connection IDs
     connectR,
+    connectAsClientR,
     bracketR,
+    bracketAsClientR,
     bracketR2,
     bracketR3,
     bracketRN,
+    bracketAsClientRN,
 
     -- * Awaiting & Asserting on Notifications
     MatchTimeout (..),
@@ -63,6 +69,7 @@ module Test.Tasty.Cannon
   )
 where
 
+import Bilge.Request (queryItem)
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (asyncExceptionFromException, throwIO)
@@ -96,10 +103,16 @@ data WebSocket = WebSocket
   }
 
 connect :: MonadIO m => Cannon -> UserId -> ConnId -> m WebSocket
-connect can uid cid = liftIO $ do
+connect can uid = connectAsMaybeClient can uid Nothing
+
+connectAsClient :: MonadIO m => Cannon -> UserId -> ClientId -> ConnId -> m WebSocket
+connectAsClient can uid client = connectAsMaybeClient can uid (Just client)
+
+connectAsMaybeClient :: MonadIO m => Cannon -> UserId -> Maybe ClientId -> ConnId -> m WebSocket
+connectAsMaybeClient can uid client conn = liftIO $ do
   nchan <- newTChanIO
   latch <- newEmptyMVar
-  wsapp <- run can uid cid (clientApp nchan latch)
+  wsapp <- run can uid client conn (clientApp nchan latch)
   return $ WebSocket nchan latch wsapp
 
 close :: MonadIO m => WebSocket -> m ()
@@ -114,7 +127,19 @@ bracket ::
   ConnId ->
   (WebSocket -> m a) ->
   m a
-bracket can uid cid = Catch.bracket (connect can uid cid) close
+bracket can uid conn =
+  Catch.bracket (connect can uid conn) close
+
+bracketAsClient ::
+  (MonadMask m, MonadIO m) =>
+  Cannon ->
+  UserId ->
+  ClientId ->
+  ConnId ->
+  (WebSocket -> m a) ->
+  m a
+bracketAsClient can uid client conn =
+  Catch.bracket (connectAsClient can uid client conn) close
 
 bracketN ::
   (MonadIO m, MonadMask m) =>
@@ -127,15 +152,34 @@ bracketN c us f = go [] us
     go wss [] = f (reverse wss)
     go wss ((x, y) : xs) = bracket c x y (\ws -> go (ws : wss) xs)
 
+bracketAsClientN ::
+  (MonadMask m, MonadIO m) =>
+  Cannon ->
+  [(UserId, ClientId, ConnId)] ->
+  ([WebSocket] -> m a) ->
+  m a
+bracketAsClientN c us f = go [] us
+  where
+    go wss [] = f (reverse wss)
+    go wss ((x, y, z) : xs) = bracketAsClient c x y z (\ws -> go (ws : wss) xs)
+
 -- Random Connection IDs
 
 connectR :: MonadIO m => Cannon -> UserId -> m WebSocket
 connectR can uid = randomConnId >>= connect can uid
 
+connectAsClientR :: MonadIO m => Cannon -> UserId -> ClientId -> m WebSocket
+connectAsClientR can uid clientId = randomConnId >>= connectAsClient can uid clientId
+
 bracketR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> (WebSocket -> m a) -> m a
 bracketR can usr f = do
   cid <- randomConnId
   bracket can usr cid f
+
+bracketAsClientR :: (MonadIO m, MonadMask m) => Cannon -> UserId -> ClientId -> (WebSocket -> m a) -> m a
+bracketAsClientR can usr clientId f = do
+  connId <- randomConnId
+  bracketAsClient can usr clientId connId f
 
 bracketR2 ::
   (MonadIO m, MonadMask m) =>
@@ -173,6 +217,17 @@ bracketRN c us f = go [] us
   where
     go wss [] = f (reverse wss)
     go wss (x : xs) = bracketR c x (\ws -> go (ws : wss) xs)
+
+bracketAsClientRN ::
+  (MonadIO m, MonadMask m) =>
+  Cannon ->
+  [(UserId, ClientId)] ->
+  ([WebSocket] -> m a) ->
+  m a
+bracketAsClientRN can us f = go [] us
+  where
+    go wss [] = f (reverse wss)
+    go wss ((u, c) : xs) = bracketAsClientR can u c (\ws -> go (ws : wss) xs)
 
 -----------------------------------------------------------------------------
 -- Awaiting & Asserting on Notifications
@@ -336,8 +391,8 @@ randomConnId = liftIO $ do
 
 -- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
 --   for the connection to register with Gundeck, and return the 'Async' thread.
-run :: MonadIO m => Cannon -> UserId -> ConnId -> WS.ClientApp () -> m (Async ())
-run (($ Http.defaultRequest) -> ca) uid cid app = liftIO $ do
+run :: MonadIO m => Cannon -> UserId -> Maybe ClientId -> ConnId -> WS.ClientApp () -> m (Async ())
+run cannon@(($ Http.defaultRequest) -> ca) uid client connId app = liftIO $ do
   latch <- newEmptyMVar
   wsapp <-
     async $
@@ -359,9 +414,10 @@ run (($ Http.defaultRequest) -> ca) uid cid app = liftIO $ do
   where
     caHost = C.unpack (Http.host ca)
     caPort = Http.port ca
-    caPath = "/await" ++ C.unpack (Http.queryString ca)
+    caPath = "/await" ++ C.unpack caQuery
+    caQuery = Http.queryString . cannon . maybe id (queryItem "client" . toByteString') client $ Http.defaultRequest
     caOpts = WS.defaultConnectionOptions
-    caHdrs = [("Z-User", toByteString' uid), ("Z-Connection", toByteString' cid)]
+    caHdrs = [("Z-User", toByteString' uid), ("Z-Connection", toByteString' connId)]
     numRetries = 30
     waitForRegistry 0 = throwIO $ RegistrationTimeout numRetries
     waitForRegistry (n :: Int) = do
@@ -369,7 +425,7 @@ run (($ Http.defaultRequest) -> ca) uid cid app = liftIO $ do
       let ca' =
             ca
               { method = "HEAD",
-                path = "/i/presences/" <> toByteString' uid <> "/" <> toByteString' cid
+                path = "/i/presences/" <> toByteString' uid <> "/" <> toByteString' connId
               }
       res <- httpLbs ca' man
       unless (responseStatus res == status200) $ do
