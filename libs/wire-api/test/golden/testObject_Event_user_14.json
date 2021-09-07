@@ -1,17 +1,18 @@
 {
-    "conversation": "00000b98-0000-618d-0000-19e200004651",
+    "conversation": "00000838-0000-1bc6-0000-686d00003565",
     "data": {
-        "receipt_mode": -10505
+        "code": "lLz-9vR8ENum0kI-xWJs",
+        "key": "NEN=eLUWHXclTp=_2Nap"
     },
-    "from": "00004bee-0000-45a0-0000-2c0300005726",
+    "from": "0000114a-0000-7da8-0000-40cb00007fcf",
     "qualified_conversation": {
         "domain": "faraway.example.com",
-        "id": "00000b98-0000-618d-0000-19e200004651"
+        "id": "00000838-0000-1bc6-0000-686d00003565"
     },
     "qualified_from": {
         "domain": "faraway.example.com",
-        "id": "00004bee-0000-45a0-0000-2c0300005726"
+        "id": "0000114a-0000-7da8-0000-40cb00007fcf"
     },
-    "time": "1864-05-01T11:57:35.123Z",
-    "type": "conversation.receipt-mode-update"
+    "time": "1864-05-12T20:29:47.483Z",
+    "type": "conversation.code-update"
 }
