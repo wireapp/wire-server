@@ -50,10 +50,8 @@ import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription (missingLegalholdConsent)
-import Wire.API.Routes.Public.Galley
-  ( ConversationResponse,
-    ConversationResponseFor (..),
-  )
+import Wire.API.Routes.Public.Galley (ConversationResponse)
+import Wire.API.Routes.Public.Util
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 
 ----------------------------------------------------------------------------
@@ -307,15 +305,15 @@ createConnectConversation usr conn j = do
 -- Helpers
 
 conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationCreated usr cnv = ConversationCreated <$> conversationView usr cnv
+conversationCreated usr cnv = Created201 <$> conversationView usr cnv
 
 conversationExisted :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationExisted usr cnv = ConversationExisted <$> conversationView usr cnv
+conversationExisted usr cnv = Existed200 <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
-  ConversationCreated cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
-  ConversationExisted cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
+  Created201 cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
+  Existed200 cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
 notifyCreatedConversation dtime usr conn c = do
