@@ -1,10 +1,10 @@
 {
     "tokens": [
         {
-            "token": "MK8p\u000c",
             "app": "pU2r",
-            "transport": "GCM",
-            "client": "4"
+            "client": "4",
+            "token": "MK8p\u000c",
+            "transport": "GCM"
         }
     ]
 }

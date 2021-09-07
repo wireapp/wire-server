@@ -1,20 +1,20 @@
 {
+    "conversation": "00006f8c-0000-00d6-0000-1568000001e9",
+    "data": {
+        "data": ">脈\u000f睸",
+        "recipient": "f",
+        "sender": "c",
+        "text": ""
+    },
+    "from": "00004b11-0000-5504-0000-55d800002188",
     "qualified_conversation": {
         "domain": "faraway.example.com",
         "id": "00006f8c-0000-00d6-0000-1568000001e9"
     },
-    "conversation": "00006f8c-0000-00d6-0000-1568000001e9",
-    "time": "1864-04-27T15:44:23.844Z",
-    "data": {
-        "text": "",
-        "data": ">脈\u000f睸",
-        "sender": "c",
-        "recipient": "f"
-    },
-    "from": "00004b11-0000-5504-0000-55d800002188",
     "qualified_from": {
         "domain": "faraway.example.com",
         "id": "00004b11-0000-5504-0000-55d800002188"
     },
+    "time": "1864-04-27T15:44:23.844Z",
     "type": "conversation.otr-message-add"
 }

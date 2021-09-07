@@ -317,13 +317,6 @@ packages:
   original:
     hackage: HaskellNet-0.5.2
 - completed:
-    hackage: snappy-0.2.0.2@sha256:2931b03c5fdab2dac8d7eadb3be2f4ef8906666e43f1f1db65a06efd57ea701b,1591
-    pantry-tree:
-      size: 709
-      sha256: cd05c6ddfbbd3969adab3869d38d161e5ec8e72b1a72e00ca08f5e39538368cf
-  original:
-    hackage: snappy-0.2.0.2
-- completed:
     hackage: smtp-mail-0.2.0.0@sha256:b91c81f6dbb41a9ceee8c443385118684ecec55006b77f7d3c0e49cffd2468cf,1211
     pantry-tree:
       size: 449
@@ -792,6 +785,17 @@ packages:
   original:
     git: https://github.com/wireapp/http2
     commit: 7c465be1201e0945b106f7cc6176ac1b1193be13
+- completed:
+    name: snappy
+    version: 0.2.0.2
+    git: https://github.com/wireapp/snappy
+    pantry-tree:
+      size: 989
+      sha256: ae7fdf1988910fa026279052e85ade0a99962a3e7812ace104797e12ead0cd1d
+    commit: b0e5c08af48911caecffa4fa6a3e74872018b258
+  original:
+    git: https://github.com/wireapp/snappy
+    commit: b0e5c08af48911caecffa4fa6a3e74872018b258
 - completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:

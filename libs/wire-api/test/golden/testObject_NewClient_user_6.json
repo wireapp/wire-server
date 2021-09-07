@@ -1,10 +1,10 @@
 {
     "cookie": "",
+    "label": "{\u0017",
     "lastkey": {
-        "key": "􍠗",
-        "id": 65535
+        "id": 65535,
+        "key": "􍠗"
     },
-    "type": "temporary",
     "prekeys": [],
-    "label": "{\u0017"
+    "type": "temporary"
 }

@@ -1,0 +1,11 @@
+{
+    "native_priority": "low",
+    "native_push": false,
+    "recipients": {
+        "00000002-0000-0000-0000-000300000002": {
+            "0": "g2"
+        }
+    },
+    "sender": "7",
+    "transient": true
+}

@@ -1,0 +1,16 @@
+{
+    "tokens": [
+        {
+            "app": "0\t",
+            "client": "10",
+            "token": "q\u0004􂻅G\u0007𗖰f",
+            "transport": "APNS_VOIP"
+        },
+        {
+            "app": "󰐌𫮜󴔗h\\:",
+            "client": "0",
+            "token": "\u001aZ󳧯[",
+            "transport": "GCM"
+        }
+    ]
+}

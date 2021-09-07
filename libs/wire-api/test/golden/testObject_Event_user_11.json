@@ -1,15 +1,6 @@
 {
-    "qualified_conversation": {
-        "domain": "faraway.example.com",
-        "id": "0000303b-0000-23a9-0000-25de00002f80"
-    },
     "conversation": "0000303b-0000-23a9-0000-25de00002f80",
-    "time": "1864-04-12T01:28:25.705Z",
     "data": {
-        "user_ids": [
-            "00003fab-0000-40b8-0000-3b0c000014ef",
-            "00001c48-0000-29ae-0000-62fc00001479"
-        ],
         "qualified_user_ids": [
             {
                 "domain": "faraway.example.com",
@@ -19,12 +10,21 @@
                 "domain": "faraway.example.com",
                 "id": "00001c48-0000-29ae-0000-62fc00001479"
             }
+        ],
+        "user_ids": [
+            "00003fab-0000-40b8-0000-3b0c000014ef",
+            "00001c48-0000-29ae-0000-62fc00001479"
         ]
     },
     "from": "000043a6-0000-1627-0000-490300002017",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "0000303b-0000-23a9-0000-25de00002f80"
+    },
     "qualified_from": {
         "domain": "faraway.example.com",
         "id": "000043a6-0000-1627-0000-490300002017"
     },
+    "time": "1864-04-12T01:28:25.705Z",
     "type": "conversation.member-leave"
 }

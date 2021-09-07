@@ -1,0 +1,34 @@
+{
+    "tokens": [
+        {
+            "app": "󷬗",
+            "client": "e",
+            "token": "즨\u0012$\u0012w",
+            "transport": "APNS_VOIP"
+        },
+        {
+            "app": "50",
+            "client": "c",
+            "token": "M",
+            "transport": "APNS_VOIP_SANDBOX"
+        },
+        {
+            "app": "",
+            "client": "e",
+            "token": "\u001bl􇍅<Z\u0006",
+            "transport": "GCM"
+        },
+        {
+            "app": "􇅱,\u0012X\u000e󺝃",
+            "client": "1d",
+            "token": "*\t",
+            "transport": "APNS_VOIP_SANDBOX"
+        },
+        {
+            "app": "➖$",
+            "client": "12",
+            "token": "\\𬰥&\u000fq",
+            "transport": "APNS"
+        }
+    ]
+}

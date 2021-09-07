@@ -1,43 +1,43 @@
 {
-    "took": -5,
-    "found": 2,
     "documents": [
         {
-            "email": "@",
-            "handle": "",
-            "managed_by": "wire",
-            "role": "admin",
             "accent_id": 0,
-            "name": "",
             "created_at": "1864-05-09T23:38:23.560Z",
-            "team": null,
+            "email": "@",
+            "handle": "",
             "id": "00000001-0000-0000-0000-000000000001",
-            "saml_idp": ""
+            "managed_by": "wire",
+            "name": "",
+            "role": "admin",
+            "saml_idp": "",
+            "team": null
         },
         {
-            "email": "@",
-            "handle": "",
-            "managed_by": "scim",
-            "role": "admin",
             "accent_id": null,
-            "name": "",
             "created_at": null,
-            "team": "00000000-0000-0000-0000-000100000001",
-            "id": "00000001-0000-0001-0000-000000000000",
-            "saml_idp": null
-        },
-        {
             "email": "@",
             "handle": "",
+            "id": "00000001-0000-0001-0000-000000000000",
             "managed_by": "scim",
-            "role": "admin",
-            "accent_id": 0,
             "name": "",
+            "role": "admin",
+            "saml_idp": null,
+            "team": "00000000-0000-0000-0000-000100000001"
+        },
+        {
+            "accent_id": 0,
             "created_at": "1864-05-09T18:46:45.154Z",
-            "team": "00000000-0000-0001-0000-000000000000",
+            "email": "@",
+            "handle": "",
             "id": "00000001-0000-0000-0000-000000000000",
-            "saml_idp": ""
+            "managed_by": "scim",
+            "name": "",
+            "role": "admin",
+            "saml_idp": "",
+            "team": "00000000-0000-0001-0000-000000000000"
         }
     ],
-    "returned": 2
+    "found": 2,
+    "returned": 2,
+    "took": -5
 }

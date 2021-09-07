@@ -2,13 +2,13 @@
     "accent_id": 8,
     "assets": [
         {
-            "size": "complete",
             "key": "EGD",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "6􎙜\u0012",
+            "size": "preview",
             "type": "image"
         }
     ]

@@ -1,0 +1,15 @@
+{
+    "conversation_role": "1bgt0uzs1sao2otf76egq864wn0sj0wxlj_bdak6a6adkpfiphoihxs3q55ao66w0_07yavk5kfxiazxbo2caba6pzuqfl2ce_dhgj3dc0nkcyasw0weid__v1ycd",
+    "hidden": false,
+    "hidden_ref": null,
+    "id": "00000001-0000-0001-0000-000200000000",
+    "otr_archived": false,
+    "otr_archived_ref": "\u0012\tn",
+    "otr_muted": false,
+    "otr_muted_ref": "R",
+    "otr_muted_status": null,
+    "service": null,
+    "status": 0,
+    "status_ref": "0.0",
+    "status_time": "1970-01-01T00:00:00.000Z"
+}

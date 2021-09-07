@@ -1,7 +1,7 @@
 {
     "data": "data",
     "native_push": true,
+    "recipients": {},
     "sender": "6",
-    "transient": false,
-    "recipients": {}
+    "transient": false
 }
