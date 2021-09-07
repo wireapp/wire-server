@@ -43,6 +43,7 @@ import System.INotify
 import System.Logger (Logger)
 import qualified System.Logger.Message as Log
 import System.Posix.ByteString (RawFilePath)
+import System.Posix.Files
 import System.X509
 import Wire.API.Arbitrary
 
@@ -277,26 +278,37 @@ certificatePaths rs =
 certificateWatchPaths :: RunSettings -> IO (Set WatchedPath)
 certificateWatchPaths =
   fmap (mergePaths . concat)
-    . traverse watchedPaths
+    . traverse (watchedPaths resolveSymlink)
     . certificatePaths
 
-watchedPaths :: FilePath -> IO [WatchedPath]
-watchedPaths path' = do
+resolveSymlink :: FilePath -> IO (Maybe FilePath)
+resolveSymlink path' = do
+  let path = dropTrailingPathSeparator path'
+  status <- getSymbolicLinkStatus path
+  if isSymbolicLink status
+    then Just <$> readSymbolicLink path
+    else pure Nothing
+
+watchedPaths :: (FilePath -> IO (Maybe FilePath)) -> FilePath -> IO [WatchedPath]
+watchedPaths resolve path' = do
   path <- makeAbsolute path'
   rpath <- rawPath path
-  dirs <- watchedDirs path
+  dirs <- watchedDirs resolve path
   pure $ WatchedFile rpath : dirs
 
-watchedDirs :: FilePath -> IO [WatchedPath]
-watchedDirs path = do
+watchedDirs :: (FilePath -> IO (Maybe FilePath)) -> FilePath -> IO [WatchedPath]
+watchedDirs resolve path = do
+  dirs0 <- resolve path >>= maybe (pure []) (watchedDirs resolve)
   let (dir, base) = splitFileName (dropTrailingPathSeparator path)
-  if dir == path
-    then pure [] -- base case: root directory
-    else do
-      wds <- watchedDirs dir
-      rdir <- rawPath (dropTrailingPathSeparator dir)
-      rbase <- rawPath base
-      pure $ WatchedDir rdir (Set.singleton rbase) : wds
+  dirs1 <-
+    if dir == path
+      then pure [] -- base case: root directory
+      else do
+        wds <- watchedDirs resolve dir
+        rdir <- rawPath (dropTrailingPathSeparator dir)
+        rbase <- rawPath base
+        pure $ WatchedDir rdir (Set.singleton rbase) : wds
+  pure (dirs0 ++ dirs1)
 
 data FederationSetupError
   = InvalidCAStore FilePath

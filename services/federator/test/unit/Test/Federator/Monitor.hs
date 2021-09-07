@@ -52,6 +52,7 @@ tests =
       testMonitorOverwriteUpdate,
       testMonitorSymlinkUpdate,
       testMonitorNestedUpdate,
+      testMonitorKubernetesUpdate,
       testMonitorDeepUpdate,
       testMonitorError,
       testMergeWatchedPaths,
@@ -96,6 +97,19 @@ withNestedSettings n = do
     copyFile "test/resources/unit/localhost.pem" cert
     copyFile "test/resources/unit/localhost-key.pem" key
     pure $ defRunSettings cert key
+
+withKubernetesSettings :: ContT r IO RunSettings
+withKubernetesSettings = do
+  root <- ContT $ withSystemTempDirectory "secrets"
+  liftIO $ do
+    createDirectory (root </> "..foo")
+    copyFile "test/resources/unit/localhost.pem" (root </> "..foo/cert.pem")
+    copyFile "test/resources/unit/localhost-key.pem" (root </> "..foo/key.pem")
+
+    createSymbolicLink (root </> "..foo") (root </> "..data")
+    createSymbolicLink (root </> "..data/cert.pem") (root </> "cert.pem")
+    createSymbolicLink (root </> "..data/key.pem") (root </> "key.pem")
+    pure $ defRunSettings (root </> "cert.pem") (root </> "key.pem")
 
 withSilentMonitor ::
   Chan (Maybe FederationSetupError) ->
@@ -301,6 +315,35 @@ testMonitorDeepUpdate =
             assertFailure "expected non-empty certificate chain"
           _ -> pure ()
 
+testMonitorKubernetesUpdate :: TestTree
+testMonitorKubernetesUpdate = do
+  testCase "monitor updates on a kubernetes secret mount" $ do
+    reloads <- newChan
+    evalContT $ do
+      settings <- withKubernetesSettings
+      tlsVar <- withSilentMonitor reloads settings
+      liftIO $ do
+        let root = takeDirectory (clientCertificate settings)
+        createDirectory (root </> "..foo2")
+        copyFile "test/resources/unit/localhost-dot.pem" (root </> "..foo2/cert.pem")
+        copyFile "test/resources/unit/localhost-dot-key.pem" (root </> "..foo2/key.pem")
+
+        removeFile (root </> "..data")
+        createSymbolicLink (root </> "..foo2") (root </> "..data")
+
+        timeout timeoutMicroseconds (readChan reloads) >>= \case
+          Nothing -> assertFailure "certificate not updated once within the allotted time"
+          Just (Just err) ->
+            assertFailure
+              ("unexpected exception " <> displayException err)
+          _ -> pure ()
+
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
+
 testMonitorError :: TestTree
 testMonitorError =
   testCase "monitor returns an error when settings cannot be updated" $ do
@@ -362,6 +405,9 @@ instance Arbitrary Path where
     where
       ch = arbitrary `suchThat` (/= '/')
 
+trivialResolve :: FilePath -> IO (Maybe FilePath)
+trivialResolve _ = pure Nothing
+
 testDirectoryTraversal :: TestTree
 testDirectoryTraversal =
   testGroup
@@ -369,13 +415,23 @@ testDirectoryTraversal =
     [ testProperty "the number of entries is the same as the number of path components" $
         \(path' :: Path) -> ioProperty $ do
           path <- makeAbsolute ("/" <> getPath path')
-          wpaths <- watchedPaths path
+          wpaths <- watchedPaths trivialResolve path
           pure (length wpaths == length (splitPath path)),
       testProperty "relative paths are resolved correctly" $
         \(path' :: Path) -> ioProperty $ do
           dir <- getWorkingDirectory
           let path = getPath path'
-          wpaths <- watchedPaths path
-          wpaths' <- watchedPaths (dir </> path)
-          pure $ wpaths == wpaths'
+          wpaths <- watchedPaths trivialResolve path
+          wpaths' <- watchedPaths trivialResolve (dir </> path)
+          pure $ wpaths == wpaths',
+      testCase "symlinked paths are resolved" $
+        evalContT $ do
+          settings <- withKubernetesSettings
+          liftIO $ do
+            rroot <- rawPath $ takeDirectory (clientCertificate settings)
+            wpaths <- mergePaths <$> watchedPaths resolveSymlink (clientCertificate settings)
+            assertBool "symlink targets should be watched" $
+              Set.member
+                (WatchedDir rroot (Set.fromList ["cert.pem", "..data", "..foo"]))
+                wpaths
     ]
