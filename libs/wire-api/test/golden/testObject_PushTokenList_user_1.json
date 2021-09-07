@@ -5,60 +5,6 @@
             "client": "4",
             "token": "MK8p\u000c",
             "transport": "GCM"
-        },
-        {
-            "app": "",
-            "client": "1a",
-            "token": "\n𧼵`􌋰>𮬇",
-            "transport": "APNS_SANDBOX"
-        },
-        {
-            "app": "\u0019\u0003",
-            "client": "0",
-            "token": "𬖅",
-            "transport": "APNS_VOIP"
-        },
-        {
-            "app": "玆Y􋬭O",
-            "client": "13",
-            "token": "",
-            "transport": "APNS_VOIP_SANDBOX"
-        },
-        {
-            "app": ">8C9E",
-            "client": "18",
-            "token": "\u0002󺖟\u001bW󺈞2\u0001",
-            "transport": "APNS_VOIP"
-        },
-        {
-            "app": "\u000cn\u0005E\u001e",
-            "client": "16",
-            "token": "􀵒阼㈽􈨹􆘺\"",
-            "transport": "APNS"
-        },
-        {
-            "app": "H>8\u0003",
-            "client": "12",
-            "token": ")\u0008 v",
-            "transport": "APNS_VOIP_SANDBOX"
-        },
-        {
-            "app": "V",
-            "client": "16",
-            "token": "",
-            "transport": "GCM"
-        },
-        {
-            "app": "􋄪\u0017",
-            "client": "1a",
-            "token": "\u00193",
-            "transport": "APNS_VOIP"
-        },
-        {
-            "app": "`B𡛪\\",
-            "client": "1c",
-            "token": ">",
-            "transport": "APNS_SANDBOX"
         }
     ]
 }

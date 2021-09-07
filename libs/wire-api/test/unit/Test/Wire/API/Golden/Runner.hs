@@ -106,7 +106,7 @@ protoTestObject obj path = do
 
   pure exists
 
-testFromJSONObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
+testFromJSONObjects :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
 testFromJSONObjects = traverse_ (uncurry testFromJSONObject)
 
 testFromJSONObject :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO ()
