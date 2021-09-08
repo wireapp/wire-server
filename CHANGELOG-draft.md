@@ -51,6 +51,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 * Clean up JSON golden tests (#1729, #1732, #1733)
 * Make regenerated JSON output deterministic (#1734)
 * Import fix for snappy linker issue (#1736)
+* Report all failures for golden tests at once (#1746)
 
 ## Federation changes
 
