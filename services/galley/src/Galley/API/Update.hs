@@ -27,7 +27,8 @@ module Galley.API.Update
     rmCodeH,
     getCodeH,
     updateConversationDeprecatedH,
-    updateConversationNameH,
+    updateLocalConversationName,
+    updateConversationName,
     updateConversationAccessH,
     updateConversationReceiptModeH,
     updateConversationMessageTimerH,
@@ -121,6 +122,7 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import Wire.API.Routes.Public.Galley.Responses
@@ -853,32 +855,52 @@ newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
 updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationRename -> Galley Response
 updateConversationDeprecatedH (zusr ::: zcon ::: cnv ::: req) = do
   convRename <- fromJsonBody req
-  setStatus status200 . json <$> updateConversationName zusr zcon cnv convRename
+  setStatus status200 . json <$> updateLocalConversationName zusr zcon cnv convRename
 
-updateConversationNameH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationRename -> Galley Response
-updateConversationNameH (zusr ::: zcon ::: cnv ::: req) = do
-  convRename <- fromJsonBody req
-  setStatus status200 . json <$> updateConversationName zusr zcon cnv convRename
+updateConversationName ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Public.ConversationRename ->
+  Galley (Maybe Public.Event)
+updateConversationName usr zcon qcnv convRename = do
+  localDomain <- viewFederationDomain
+  if qDomain qcnv == localDomain
+    then updateLocalConversationName usr zcon (qUnqualified qcnv) convRename
+    else throwM federationNotImplemented
 
-updateConversationName :: UserId -> ConnId -> ConvId -> Public.ConversationRename -> Galley Public.Event
-updateConversationName zusr zcon cnv convRename = do
+updateLocalConversationName ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.ConversationRename ->
+  Galley (Maybe Public.Event)
+updateLocalConversationName usr zcon cnv convRename = do
+  alive <- Data.isConvAlive cnv
+  if alive
+    then Just <$> updateLiveLocalConversationName usr zcon cnv convRename
+    else Nothing <$ Data.deleteConversation cnv
+
+updateLiveLocalConversationName ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.ConversationRename ->
+  Galley Public.Event
+updateLiveLocalConversationName usr zcon cnv convRename = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
-      qusr = Qualified zusr localDomain
-  alive <- Data.isConvAlive cnv
-  unless alive $ do
-    Data.deleteConversation cnv
-    throwErrorDescription convNotFound
+      qusr = Qualified usr localDomain
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowedThrowing ModifyConversationName =<< getSelfMemberFromLocalsLegacy zusr users
+  ensureActionAllowedThrowing ModifyConversationName =<< getSelfMemberFromLocalsLegacy usr users
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
   let e = Event ConvRename qcnv qusr now (EdConvRename convRename)
-  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-  return e
+  pure e
 
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do
