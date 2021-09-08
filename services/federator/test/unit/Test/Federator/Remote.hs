@@ -30,7 +30,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as WarpTLS
 import Polysemy
 import qualified Polysemy.Error as Polysemy
-import qualified Polysemy.Reader as Polysemy
+import qualified Polysemy.Input as Polysemy
 import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -75,20 +75,20 @@ testValidatesCertificateSuccess =
     "can get response with valid certificate"
     [ testCase "when hostname=localhost and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
-          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port)),
+          tlsSettings <- mkTLSSettingsOrThrow settings
+          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runInputConst tlsSettings $ mkGrpcClient (SrvTarget "localhost" (fromIntegral port)),
       testCase "when hostname=localhost. and certificate-for=localhost" $ do
         bracket (startMockServer certForLocalhost) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
-          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runReader tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port)),
+          tlsSettings <- mkTLSSettingsOrThrow settings
+          void . Polysemy.runM . assertNoError @RemoteError . Polysemy.runInputConst tlsSettings $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port)),
       -- This is a limitation of the TLS library, this test just exists to document that.
       testCase "when hostname=localhost. and certificate-for=localhost." $ do
         bracket (startMockServer certForLocalhostDot) (\(serverThread, _) -> Async.cancel serverThread) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
+          tlsSettings <- mkTLSSettingsOrThrow settings
           eitherClient <-
             Polysemy.runM
               . Polysemy.runError @RemoteError
-              . Polysemy.runReader tlsSettings
+              . Polysemy.runInputConst tlsSettings
               $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
           case eitherClient of
             Left _ -> pure ()
@@ -101,11 +101,11 @@ testValidatesCertificateWrongHostname =
     "refuses to connect with server"
     [ testCase "when the server's certificate doesn't match the hostname" $
         bracket (startMockServer certForWrongDomain) (Async.cancel . fst) $ \(_, port) -> do
-          tlsSettings <- mkTLSSettingsOrThrow settings >>= newIORef
+          tlsSettings <- mkTLSSettingsOrThrow settings
           eitherClient <-
             Polysemy.runM
               . Polysemy.runError
-              . Polysemy.runReader tlsSettings
+              . Polysemy.runInputConst tlsSettings
               $ mkGrpcClient (SrvTarget "localhost." (fromIntegral port))
           case eitherClient of
             Left (RemoteErrorTLSException _ _) -> pure ()

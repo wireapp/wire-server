@@ -36,6 +36,7 @@ import Network.GRPC.Client.Helpers (_grpcClientConfigTLS)
 import qualified Network.TLS as TLS
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
+import qualified Polysemy.Input as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (discardLogs)
 import Test.Federator.Util
@@ -102,13 +103,13 @@ inwardBrigCallViaIngress requestPath payload = do
   Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> ask
   let target = SrvTarget (cs ingressHost) ingressPort
   runSettings <- optSettings . view teOpts <$> ask
-  tlsSettings <- view teTLSSettings >>= newIORef
+  tlsSettings <- view teTLSSettings
   c <-
     liftIO
       . Polysemy.runM
       . Polysemy.runError @RemoteError
       . discardLogs
-      . Polysemy.runReader tlsSettings
+      . Polysemy.runInputConst tlsSettings
       . Polysemy.runReader runSettings
       $ mkGrpcClient target
   client <- case c of

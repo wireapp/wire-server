@@ -41,6 +41,7 @@ import qualified Mu.Server as Mu
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
+import qualified Polysemy.Input as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
@@ -102,9 +103,9 @@ serveOutward env port = do
            TinyLog,
            DNSLookup,
            Polysemy.Error ServerError,
-           Embed IO,
            Polysemy.Reader RunSettings,
-           Polysemy.Reader (IORef TLSSettings),
+           Polysemy.Input TLSSettings,
+           Embed IO,
            Embed Federator
          ]
         a ->
@@ -112,9 +113,9 @@ serveOutward env port = do
     transformer action =
       runAppT env
         . runM -- Embed Federator
-        . Polysemy.runReader (view tls env) -- Reader TLSSettings
-        . Polysemy.runReader (view runSettings env) -- Reader RunSettings
         . embedToMonadIO @Federator -- Embed IO
+        . Polysemy.runInputSem (embed @IO (readIORef (view tls env))) -- Input TLSSettings
+        . Polysemy.runReader (view runSettings env) -- Reader RunSettings
         . absorbServerError
         . Lookup.runDNSLookupWithResolver (view dnsResolver env)
         . Log.runTinyLog (view applog env)
