@@ -170,12 +170,12 @@ spec = do
       it "getIdPConfigByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) Nothing
+        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPIdByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) Nothing
+        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         teamid <- nextWireId
@@ -195,10 +195,10 @@ spec = do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) Nothing
+          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) Nothing
+          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
           liftIO $ midp `shouldBe` Nothing
         do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
@@ -302,7 +302,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer Nothing
+    mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer
     liftIO $ mbIdp `shouldBe` Nothing
   -- The config from 'team_idp':
   do

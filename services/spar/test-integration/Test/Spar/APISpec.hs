@@ -129,7 +129,7 @@ specMisc = do
 
 specMetadata :: SpecWith TestEnv
 specMetadata = do
-  focus . describe "metadata" $ do
+  describe "metadata" $ do
     it "metadata (legacy)" $ do
       env <- ask
       get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
@@ -235,16 +235,8 @@ specFinalizeLogin = do
             bdy `shouldContain` "<title>wire:sso:success</title>"
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Right ()
-      focus . context "happy flow (legacy, each EntityID is mapped on at most one team)" $ do
+      context "happy flow" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
-          (_, _, idp, (_, privcreds)) <- registerTestIdPWithMeta
-          spmeta <- getTestSPMetadata
-          authnreq <- negotiateAuthnRequest idp
-          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
-          loginSuccess =<< submitAuthnResponse authnresp
-      focus . context "happy flow (allow one IdP EntityID to be shared by two teams)" $ do
-        it "responds with a very peculiar 'allowed' HTTP response" $ do
-          () <- error "TODO"
           (_, _, idp, (_, privcreds)) <- registerTestIdPWithMeta
           spmeta <- getTestSPMetadata
           authnreq <- negotiateAuthnRequest idp
