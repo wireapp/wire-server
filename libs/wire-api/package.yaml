@@ -96,11 +96,13 @@ tests:
     - cassava
     - currency-codes
     - directory
+    - extra
     - iso3166-country-codes
     - iso639
     - lens
     - mime
     - pem
+    - polysemy
     - pretty
     - proto-lens
     - QuickCheck

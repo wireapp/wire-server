@@ -25,6 +25,7 @@ module Test.Wire.API.Golden.Runner
   )
 where
 
+import Control.Monad.Extra (eitherM)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (Config (..), defConfig, encodePretty')
 import qualified Data.ByteString as ByteString
@@ -34,70 +35,87 @@ import Data.ProtoLens.Message (Message)
 import Data.ProtoLens.TextFormat (pprintMessage, readMessage)
 import qualified Data.Text.Lazy.IO as LText
 import Imports
+import Polysemy (Embed, Members, Sem, embed, runM)
+import Polysemy.Error (Error, runError, throw)
 import Test.Tasty.HUnit
 import Text.PrettyPrint (render)
 import Type.Reflection (typeRep)
 import Wire.API.ServantProto
 
--- TODO(md): Rewrite such that 'testObjectWithOutcome' is used instead of
--- 'testObject'. Make sure to match error messages from 'testObject'.
-testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
-testObjects objs = do
-  allFilesExist <- and <$> traverse (uncurry testObject) objs
-  assertBool "Some golden JSON files do not exist" allFilesExist
-
--- | A testing outcome
-data TestOutcome a
-  = Pass
-  | FileDoesNotExist FilePath
+data TestOutcomeError a
+  = FileDoesNotExist FilePath
   | FailedToDecode String
   | AesonValueMismatch
       Value
       -- ^ Expected value
       Value
       -- ^ Actual value
-  | FailedToParse a (Result a)
+      FilePath
+      -- ^ The path to the file
+  | FailedToParse a (Result a) FilePath
 
-testObjectWithOutcome :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO (TestOutcome a)
-testObjectWithOutcome obj path = do
-  let actualValue = toJSON obj :: Value
-      actualJson = encodePretty actualValue
-      dir = "test/golden"
-      fullPath = dir <> "/" <> path
-  createDirectoryIfMissing True dir
-  doesFileExist fullPath >>= \case
-    False -> do
-      ByteString.writeFile fullPath (LBS.toStrict actualJson)
-      pure . FileDoesNotExist $ path
-    True ->
-      eitherDecodeFileStrict fullPath >>= \case
-        Left err -> pure . FailedToDecode $ err
-        Right expectedValue | expectedValue /= actualValue -> pure $ AesonValueMismatch expectedValue actualValue
-        Right _ -> do
-          let p = fromJSON actualValue
-          pure $ if Success obj == p then Pass else FailedToParse obj p
+instance (Typeable a, Show a) => Show (TestOutcomeError a) where
+  show = \case
+    FileDoesNotExist path -> "Golden JSON file " <> show path <> " does not exist"
+    FailedToDecode err -> "Failed to decode: " <> err
+    AesonValueMismatch expected actual path ->
+      show (typeRep @a) <> ": ToJSON should match golden file: " <> show path
+        <> "\n"
+        <> "expected: "
+        <> show expected
+        <> "\n"
+        <> " but got: "
+        <> show actual
+    FailedToParse obj result path ->
+      (show (typeRep @a) <> ": FromJSON of " <> show path <> " should match object")
+        <> "\n"
+        <> "expected: "
+        <> show (Success obj)
+        <> "\n"
+        <> " but got: "
+        <> show result
 
-testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
+testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
+testObjects objs = do
+  allResults <- traverse (run . uncurry testObject) objs
+  let errorResults = foldMap (either pure (const [])) allResults
+      errorMsgs = intercalate "\n" . fmap show $ errorResults
+  assertBool errorMsgs . null $ errorResults
+  where
+    run :: Sem '[Error (TestOutcomeError a), Embed IO] () -> IO (Either (TestOutcomeError a) ())
+    run = runM . runError
+
+-- | A passing test returns a '()'. If there is a failure, a 'TestOutcomeError
+-- a' is thrown in the 'Sem r' monad.
+testObject ::
+  forall a r.
+  ( Members '[Error (TestOutcomeError a), Embed IO] r,
+    Typeable a,
+    ToJSON a,
+    FromJSON a,
+    Eq a,
+    Show a
+  ) =>
+  a ->
+  FilePath ->
+  Sem r ()
 testObject obj path = do
   let actualValue = toJSON obj :: Value
       actualJson = encodePretty' config actualValue
       dir = "test/golden"
       fullPath = dir <> "/" <> path
-  createDirectoryIfMissing True dir
-  exists <- doesFileExist fullPath
-  unless exists $ ByteString.writeFile fullPath (LBS.toStrict actualJson)
-
-  expectedValue <- assertRight =<< eitherDecodeFileStrict fullPath
-  assertEqual
-    (show (typeRep @a) <> ": ToJSON should match golden file: " <> path)
-    expectedValue
-    actualValue
-  assertEqual
-    (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
-    (Success obj)
-    (fromJSON actualValue)
-
-  pure exists
+  embed @IO $ createDirectoryIfMissing True dir
+  embed @IO (doesFileExist fullPath) >>= \case
+    False -> do
+      embed . ByteString.writeFile fullPath . LBS.toStrict $ actualJson
+      throw . FileDoesNotExist @a $ path
+    True -> do
+      expectedValue <-
+        eitherM (throw . FailedToDecode @a) pure . embed . eitherDecodeFileStrict $ fullPath
+      unless (expectedValue == actualValue) . throw $
+        AesonValueMismatch @a expectedValue actualValue path
+      let p = fromJSON actualValue
+      unless (Success obj == p) . throw $ FailedToParse obj p path
   where
     config = defConfig {confCompare = compare, confTrailingNewline = True}
 
