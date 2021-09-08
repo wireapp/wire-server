@@ -265,7 +265,7 @@ addWatchAndSave inotify events watchesVar wpath handler = do
   -- remove the old watch
   case mw of
     Nothing -> pure ()
-    Just (w, _) -> removeWatch w
+    Just (w, _) -> void . try @IOException $ removeWatch w
   pure w'
 
 certificatePaths :: RunSettings -> [FilePath]
