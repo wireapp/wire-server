@@ -329,9 +329,7 @@ data Api routes = Api
         :> MultiVerb
              'POST
              '[JSON]
-             '[ Respond 200 "Connection existed" UserConnection,
-                Respond 201 "Connection was created" UserConnection
-              ]
+             (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
              (ResponseForExistedCreated UserConnection),
     searchContacts ::
       routes :- Summary "Search for users"

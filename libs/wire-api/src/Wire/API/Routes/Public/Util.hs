@@ -35,6 +35,14 @@ instance
   fromUnion (S (Z (I x))) = Created x
   fromUnion (S (S x)) = case x of
 
+-- Note: order is important here; if you swap Existed with Created, the wrong
+-- status codes will be returned. Keep the Order in ResponseForExistedCreated
+-- and the corresponding type the same.
 data ResponseForExistedCreated a
   = Existed !a
   | Created !a
+
+type ResponsesForExistedCreated eDesc cDesc a =
+  '[ Respond 200 eDesc a,
+     Respond 201 cDesc a
+   ]
