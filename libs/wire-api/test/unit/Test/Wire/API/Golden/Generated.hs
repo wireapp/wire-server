@@ -402,9 +402,7 @@ tests =
       testCase "Golden: UserConnection_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_1, "testObject_UserConnection_user_1.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_2, "testObject_UserConnection_user_2.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_3, "testObject_UserConnection_user_3.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_4, "testObject_UserConnection_user_4.json")
+            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_2, "testObject_UserConnection_user_2.json")
           ],
       testCase "Golden: UserConnectionList_user" $
         testObjects

@@ -74,7 +74,6 @@ instance P.ToSchema UserConnectionList where
         <$> clConnections P..= P.field "connections" (P.array P.schema)
         <*> clHasMore P..= P.fieldWithDocModifier "has_more" (P.description ?~ "Indicator that the server has more connections than returned.") P.schema
 
--- TODO remove
 modelConnectionList :: Doc.Model
 modelConnectionList = Doc.defineModel "UserConnectionList" $ do
   Doc.description "A list of user connections."
@@ -110,9 +109,8 @@ instance P.ToSchema UserConnection where
         <*> ucTo P..= P.field "to" P.schema
         <*> ucStatus P..= P.field "status" P.schema
         <*> ucLastUpdate P..= P.field "last_update" P.schema
-        <*> ucConvId P..= P.opt (P.field "conversation" P.schema)
+        <*> ucConvId P..= P.optField "conversation" Nothing P.schema
 
--- TODO remove
 modelConnection :: Doc.Model
 modelConnection = Doc.defineModel "Connection" $ do
   Doc.description "Directed connection between two users"
@@ -269,7 +267,6 @@ instance P.ToSchema ConnectionUpdate where
       ConnectionUpdate
         <$> cuStatus P..= P.fieldWithDocModifier "status" (P.description ?~ "New relation status") P.schema
 
--- TODO remove
 modelConnectionUpdate :: Doc.Model
 modelConnectionUpdate = Doc.defineModel "ConnectionUpdate" $ do
   Doc.description "Connection update"

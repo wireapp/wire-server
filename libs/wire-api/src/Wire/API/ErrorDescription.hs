@@ -233,11 +233,8 @@ invalidUser = mkErrorDescription
 
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
 
--- FUTUREWORK: if that additional error number in the message has any importance
--- (it probably doesn't matter), maybe there's a way to add it to the
--- description here.
-noIdentity :: Int -> NoIdentity
-noIdentity _i = mkErrorDescription
+noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc) => Int -> NoIdentity
+noIdentity n = ErrorDescription (Text.pack (symbolVal (Proxy @desc)) <> " (code " <> Text.pack (show n) <> ")")
 
 type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
 

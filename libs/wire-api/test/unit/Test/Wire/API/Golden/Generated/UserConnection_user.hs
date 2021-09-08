@@ -44,23 +44,3 @@ testObject_UserConnection_user_2 =
       ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-11T10:43:38.227Z"),
       ucConvId = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000004")))
     }
-
-testObject_UserConnection_user_3 :: UserConnection
-testObject_UserConnection_user_3 =
-  UserConnection
-    { ucFrom = Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000200000003")),
-      ucTo = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000001")),
-      ucStatus = Pending,
-      ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-07T19:25:59.201Z"),
-      ucConvId = Nothing
-    }
-
-testObject_UserConnection_user_4 :: UserConnection
-testObject_UserConnection_user_4 =
-  UserConnection
-    { ucFrom = Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000300000001")),
-      ucTo = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000400000001")),
-      ucStatus = Cancelled,
-      ucLastUpdate = (fromJust (readUTCTimeMillis "1864-05-08T14:39:50.322Z")),
-      ucConvId = Just (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000200000000")))
-    }

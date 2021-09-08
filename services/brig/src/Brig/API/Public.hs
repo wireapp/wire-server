@@ -195,7 +195,7 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnection = createConnectionH,
+        BrigAPI.createConnection = createConnection,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -1090,12 +1090,9 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnectionH :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createConnectionH self conn cr = do
-  rs <- API.createConnection self cr conn !>> connError
-  return $ case rs of
-    ConnectionCreated c -> Public.Created201 c
-    ConnectionExists c -> Public.Existed200 c
+createConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection self conn cr = do
+  API.createConnection self cr conn !>> connError
 
 updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
