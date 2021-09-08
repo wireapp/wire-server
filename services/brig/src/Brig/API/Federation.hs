@@ -100,9 +100,3 @@ searchUsers (SearchRequest searchTerm) = do
 
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
-
--- FUTUREWORK(federation): currently these API types make use of the same types in the
--- federation server-server API than the client-server API does. E.g.
--- SearchResult Contact, or UserProfile.  This means changing these types in
--- federation or in the client-server API without changing them on the other
--- side may be tricky. Should new types be introduced for that flexibility?

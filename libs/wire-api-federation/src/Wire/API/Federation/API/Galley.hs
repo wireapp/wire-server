@@ -122,6 +122,7 @@ data RegisterConversation = MkRegisterConversation
     -- | The user that created the conversation
     rcOrigUserId :: Qualified UserId,
     -- | The qualified conversation ID
+    -- FUTUREWORK: Make this unqualified, assume the conversation is being hosted by OriginDomain
     rcCnvId :: Qualified ConvId,
     -- | The conversation type
     rcCnvType :: ConvType,

@@ -998,8 +998,6 @@ removeMember usr cnv = retry x5 . batch $ do
   addPrepQuery Cql.removeMember (cnv, usr)
   addPrepQuery Cql.deleteUserConv (usr, cnv)
 
--- FUTUREWORK: the user's conversation has to be deleted on their own backend
-
 newMember :: a -> InternalMember a
 newMember = flip newMemberWithRole roleNameWireAdmin
 

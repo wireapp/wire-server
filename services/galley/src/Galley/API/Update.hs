@@ -27,7 +27,8 @@ module Galley.API.Update
     rmCodeH,
     getCodeH,
     updateConversationDeprecatedH,
-    updateConversationNameH,
+    updateLocalConversationName,
+    updateConversationName,
     updateConversationAccessH,
     updateConversationReceiptModeH,
     updateConversationMessageTimerH,
@@ -48,7 +49,6 @@ module Galley.API.Update
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
     isTypingH,
-    postRemoteToLocal,
 
     -- * External Services
     addServiceH,
@@ -65,7 +65,6 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE, withExceptT)
-import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
 import Data.Either.Extra (mapRight)
@@ -109,7 +108,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
@@ -123,8 +121,8 @@ import Wire.API.ErrorDescription
   )
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
-import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
+import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import Wire.API.Routes.Public.Galley.Responses
@@ -281,7 +279,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   case removedUsers of
     [] -> return ()
     x : xs -> do
-      -- FUTUREWORK: deal with remote members, too, see removeMembers
+      -- FUTUREWORK: deal with remote members, too, see removeMembers (Jira SQCORE-903)
       e <- Data.removeLocalMembersFromLocalConv localDomain conv (Qualified usr localDomain) (x :| xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
@@ -476,19 +474,6 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
--- FUTUREWORK(federation): we need the following checks/implementation:
---  - (1) [DONE] Remote qualified users must exist before they can be added (a
---  call to the respective backend should be made): Avoid clients making up random
---  Ids, and increase the chances that the updateConversationMemberships call
---  suceeds
---  - (2) [DONE] A call must be made to the remote backend informing it that this user is
---  now part of that conversation. Use and implement 'updateConversationMemberships'.
---    - that call should probably be made *after* inserting the conversation membership
---    happens in this backend.
---    - 'updateConversationMemberships' should send an event to the affected
---    users informing them they have joined a remote conversation.
---  - (3) Events should support remote / qualified users, too.
---  These checks need tests :)
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
@@ -745,9 +730,6 @@ postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMes
 postBotMessage zbot zcnv val message =
   postNewOtrMessage Bot (botUserId zbot) Nothing zcnv val message
 
--- | FUTUREWORK: Send message to remote users, as of now this function fails if
--- the conversation is not hosted on current backend. If the conversation is
--- hosted on current backend, it completely ignores remote users.
 postProteusMessage :: UserId -> ConnId -> Qualified ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage zusr zcon conv msg = do
   localDomain <- viewFederationDomain
@@ -835,57 +817,6 @@ postNewOtrMessage utype usr con cnv val msg = do
       gone <- External.deliver toBots
       mapM_ (deleteBot cnv . botMemId) gone
 
--- | Locally post a message originating from a remote conversation
--- FUTUREWORK: error handling for missing / mismatched clients
-postRemoteToLocal :: RemoteMessage (Remote ConvId) -> Galley ()
-postRemoteToLocal rm = do
-  localDomain <- viewFederationDomain
-  let UserClientMap rcpts = rmRecipients rm
-      Tagged conv = rmConversation rm
-  -- FUTUREWORK(authorization) review whether filtering members is appropriate
-  -- at this stage
-  (members, allMembers) <- Data.filterRemoteConvMembers (Map.keys rcpts) conv
-  unless allMembers $
-    Log.warn $
-      Log.field "conversation" (toByteString' (qUnqualified conv))
-        Log.~~ Log.field "domain" (toByteString' (qDomain conv))
-        Log.~~ Log.msg
-          ( "Attempt to send remote message to local\
-            \ users not in the conversation" ::
-              Text
-          )
-  let rcpts' = do
-        m <- members
-        (c, t) <- maybe [] Map.assocs (rcpts ^? ix m)
-        pure (m, c, t)
-  let remoteToLocalPush (rcpt, rcptc, ciphertext) =
-        newPush1
-          ListComplete
-          (guard (localDomain == qDomain (rmSender rm)) $> qUnqualified (rmSender rm))
-          ( ConvEvent
-              ( Event
-                  OtrMessageAdd
-                  conv
-                  (rmSender rm)
-                  (rmTime rm)
-                  ( EdOtrMessage
-                      ( OtrMessage
-                          { otrSender = rmSenderClient rm,
-                            otrRecipient = rcptc,
-                            otrCiphertext = ciphertext,
-                            otrData = rmData rm
-                          }
-                      )
-                  )
-              )
-          )
-          (singleton (userRecipient rcpt))
-          -- FUTUREWORK: unify event creation logic after #1634 is merged
-          & pushNativePriority .~ rmPriority rm
-          & pushRoute .~ bool RouteDirect RouteAny (rmPush rm)
-          & pushTransient .~ rmTransient rm
-  pushSome (map remoteToLocalPush rcpts')
-
 newMessage ::
   Qualified UserId ->
   Maybe ConnId ->
@@ -924,32 +855,52 @@ newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
 updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationRename -> Galley Response
 updateConversationDeprecatedH (zusr ::: zcon ::: cnv ::: req) = do
   convRename <- fromJsonBody req
-  setStatus status200 . json <$> updateConversationName zusr zcon cnv convRename
+  setStatus status200 . json <$> updateLocalConversationName zusr zcon cnv convRename
 
-updateConversationNameH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationRename -> Galley Response
-updateConversationNameH (zusr ::: zcon ::: cnv ::: req) = do
-  convRename <- fromJsonBody req
-  setStatus status200 . json <$> updateConversationName zusr zcon cnv convRename
+updateConversationName ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Public.ConversationRename ->
+  Galley (Maybe Public.Event)
+updateConversationName usr zcon qcnv convRename = do
+  localDomain <- viewFederationDomain
+  if qDomain qcnv == localDomain
+    then updateLocalConversationName usr zcon (qUnqualified qcnv) convRename
+    else throwM federationNotImplemented
 
-updateConversationName :: UserId -> ConnId -> ConvId -> Public.ConversationRename -> Galley Public.Event
-updateConversationName zusr zcon cnv convRename = do
+updateLocalConversationName ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.ConversationRename ->
+  Galley (Maybe Public.Event)
+updateLocalConversationName usr zcon cnv convRename = do
+  alive <- Data.isConvAlive cnv
+  if alive
+    then Just <$> updateLiveLocalConversationName usr zcon cnv convRename
+    else Nothing <$ Data.deleteConversation cnv
+
+updateLiveLocalConversationName ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.ConversationRename ->
+  Galley Public.Event
+updateLiveLocalConversationName usr zcon cnv convRename = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
-      qusr = Qualified zusr localDomain
-  alive <- Data.isConvAlive cnv
-  unless alive $ do
-    Data.deleteConversation cnv
-    throwErrorDescription convNotFound
+      qusr = Qualified usr localDomain
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowedThrowing ModifyConversationName =<< getSelfMemberFromLocalsLegacy zusr users
+  ensureActionAllowedThrowing ModifyConversationName =<< getSelfMemberFromLocalsLegacy usr users
   now <- liftIO getCurrentTime
   cn <- rangeChecked (cupName convRename)
   Data.updateConversation cnv cn
   let e = Event ConvRename qcnv qusr now (EdConvRename convRename)
-  for_ (newPushLocal ListComplete zusr (ConvEvent e) (recipient <$> users)) $ \p ->
+  for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p ->
     push1 $ p & pushConn ?~ zcon
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-  return e
+  pure e
 
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do

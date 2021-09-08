@@ -92,6 +92,9 @@ servantSitemap =
         GalleyAPI.addMembersToConversationV2 = Update.addMembers,
         GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
         GalleyAPI.removeMember = Update.removeMemberQualified,
+        GalleyAPI.updateConversationNameDeprecated = Update.updateLocalConversationName,
+        GalleyAPI.updateConversationNameUnqualified = Update.updateLocalConversationName,
+        GalleyAPI.updateConversationName = Update.updateConversationName,
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
@@ -542,38 +545,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvRename event to members
-  put "/conversations/:cnv/name" (continue Update.updateConversationNameH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationRename
-  document "PUT" "updateConversationName" $ do
-    summary "Update conversation name"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelConversationUpdateName) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvRename event to members
-  put "/conversations/:cnv" (continue Update.updateConversationDeprecatedH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationRename
-  document "PUT" "updateConversationName" $ do
-    summary "DEPRECATED! Please use updateConversationName instead!"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelConversationUpdateName) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members

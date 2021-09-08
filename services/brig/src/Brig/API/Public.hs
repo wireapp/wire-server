@@ -952,7 +952,6 @@ listUsersByIdsOrHandles self q = do
     getIds :: [Handle] -> Handler [Qualified UserId]
     getIds localHandles = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
-      -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: [Qualified UserId] -> Handler [Public.UserProfile]

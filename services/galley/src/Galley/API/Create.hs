@@ -104,7 +104,6 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   ensureConnected zusr locals
   checkRemoteUsersExist remotes
   ensureNoLegalholdConflicts remotes locals
-  -- FUTUREWORK: Implement (3) per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
       localDomain
@@ -166,7 +165,6 @@ createTeamGroupConv zusr zcon tinfo body = do
         pure checkedPartitionedUsers
   checkRemoteUsersExist remotes
   ensureNoLegalholdConflicts remotes localUserIds
-  -- FUTUREWORK: Implement (3) per comments for Update.addMembers.
   conv <-
     Data.createConversation
       localDomain
@@ -319,9 +317,8 @@ notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Con
 notifyCreatedConversation dtime usr conn c = do
   localDomain <- viewFederationDomain
   now <- maybe (liftIO getCurrentTime) pure dtime
-  -- FUTUREWORK: Should these calls that push notifications to local and remote
-  -- users be made in this, or a different order, or in parallel/applicative
-  -- fashion?
+  -- FUTUREWORK: Handle failures in notifying so it does not abort half way
+  -- through (either when notifying remotes or locals)
   --
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation

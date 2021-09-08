@@ -66,6 +66,7 @@ runFederatorDiscovery = interpret $ \case
   where
     -- FUTUREWORK(federation): This string conversion is wrong, we should encode
     -- this using IDNA encoding or expect domain to be bytestring everywhere
+    -- (https://wearezeta.atlassian.net/browse/SQCORE-912)
     domainSrv d = cs $ "_wire-server-federator._tcp." <> domainText d
 
 lookupDomainByDNS :: Members '[DNSLookup, TinyLog] r => ByteString -> Sem r (Either LookupError (NonEmpty SrvTarget))

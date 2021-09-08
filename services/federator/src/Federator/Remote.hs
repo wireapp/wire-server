@@ -89,6 +89,7 @@ callInward client request =
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
 -- FUTUREWORK: get review on blessed ciphers
+-- (https://wearezeta.atlassian.net/browse/SQCORE-910)
 blessedCiphers :: [Cipher]
 blessedCiphers =
   [ TLS.cipher_TLS13_AES128CCM8_SHA256,
@@ -110,7 +111,7 @@ blessedCiphers =
 -- hooks. This might involve forking http2-client: https://github.com/lucasdicioccio/http2-client/issues/76
 -- FUTUREWORK(federation): Use openssl
 --   See also https://github.com/lucasdicioccio/http2-client/issues/76
--- FUTUREWORK(federation): Cache this client and use it for many requests
+-- FUTUREWORK(federation): Cache this client and use it for many requests (https://wearezeta.atlassian.net/browse/SQCORE-901)
 mkGrpcClient ::
   Members
     '[ Embed IO,
@@ -124,8 +125,6 @@ mkGrpcClient target@(SrvTarget host port) = do
   -- grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates
   -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
   --
-  -- FUTUREWORK: load client certificate and client key from disk
-  -- and use it when making a request
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
 
   settings <- Polysemy.ask
