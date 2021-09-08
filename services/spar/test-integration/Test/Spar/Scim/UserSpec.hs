@@ -680,6 +680,7 @@ testScimCreateVsUserRef = do
     samlUserShouldSatisfy uref property = do
       muid <- getUserIdViaRef' uref
       liftIO $ muid `shouldSatisfy` property
+
     createViaSamlResp :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
     createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
       authnReq <- negotiateAuthnRequest idp
@@ -688,12 +689,14 @@ testScimCreateVsUserRef = do
         runSimpleSP $
           SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
       submitAuthnResponse authnResp <!! const 200 === statusCode
+
     createViaSamlFails :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()
     createViaSamlFails idp privCreds uref = do
       resp <- createViaSamlResp idp privCreds uref
       liftIO $ do
         maybe (error "no body") cs (responseBody resp)
           `shouldNotContain` "<title>wire:sso:error:success</title>"
+
     createViaSaml :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
     createViaSaml idp privCreds uref = do
       resp <- createViaSamlResp idp privCreds uref
@@ -701,6 +704,7 @@ testScimCreateVsUserRef = do
         maybe (error "no body") cs (responseBody resp)
           `shouldContain` "<title>wire:sso:success</title>"
       getUserIdViaRef' uref
+
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
       brig <- view teBrig
