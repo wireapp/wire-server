@@ -46,6 +46,7 @@ import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
@@ -75,6 +76,7 @@ import SAML2.WebSSO
     uidTenant,
   )
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
 import qualified Spar.Data as Data
@@ -270,10 +272,10 @@ autoprovisionSamlUserWithId buid suid = do
 -- make brig initiate the email validate procedure.
 validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
 validateEmailIfExists uid = \case
-  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
   _ -> pure ()
   where
-    doValidate :: SAML.Email -> Spar ()
+    doValidate :: SAMLEmail.Email -> Spar ()
     doValidate email = do
       enabled <- do
         tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid

@@ -46,6 +46,7 @@ import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
 import Data.Handle (Handle (Handle), fromHandle)
 import Data.Id (TeamId, UserId, randomId)
@@ -260,7 +261,7 @@ testCsvData tid owner uid mbeid mbsaml = do
 
       let haveSubject :: Text
           haveSubject = case mbsaml of
-            Just (UserSSOId _ subject) -> either (error . show) SAML.unsafeShowNameID $ SAML.decodeElem (cs subject)
+            Just (UserSSOId _ subject) -> either (error . show) (CI.original . SAML.unsafeShowNameID) $ SAML.decodeElem (cs subject)
             Just (UserScimExternalId _) -> ""
             Nothing -> ""
       ('n', CsvExport.tExportSAMLNamedId export) `shouldBe` ('n', haveSubject)
@@ -835,7 +836,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     veidToText :: MonadError String m => ValidExternalId -> m Text
     veidToText veid =
       runValidExternalId
-        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") pure $ SAML.shortShowNameID subj)
+        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") (pure . CI.original) $ SAML.shortShowNameID subj)
         (pure . fromEmail)
         veid
 
