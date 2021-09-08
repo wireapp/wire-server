@@ -757,7 +757,7 @@ newtype ConversationRename = ConversationRename
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
-  deriving (ToJSON, FromJSON) via Schema ConversationRename
+  deriving (S.ToSchema, ToJSON, FromJSON) via Schema ConversationRename
 
 instance ToSchema ConversationRename where
   schema =

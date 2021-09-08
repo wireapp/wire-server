@@ -169,7 +169,10 @@ tests s =
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove local user, fail" removeLocalMemberConvQualifiedFail,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove remote user, fail" removeRemoteMemberConvQualifiedFail,
+          test s "rename conversation (deprecated endpoint)" putConvDeprecatedRenameOk,
           test s "rename conversation" putConvRenameOk,
+          test s "rename qualified conversation" putQualifiedConvRenameOk,
+          test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
           test s "member update (hidden)" putMemberHiddenOk,
@@ -2418,6 +2421,65 @@ deleteMembersUnqualifiedFailO2O = do
   o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
   deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
 
+putQualifiedConvRenameFailure :: TestM ()
+putQualifiedConvRenameFailure = do
+  conv <- randomId
+  qbob <- randomQualifiedUser
+  let qconv = Qualified conv (qDomain qbob)
+  putQualifiedConversationName (qUnqualified qbob) qconv "gossip"
+    !!! do
+      const 404 === statusCode
+      const (Just "no-conversation") === fmap label . responseJsonUnsafe
+
+putQualifiedConvRenameOk :: TestM ()
+putQualifiedConvRenameOk = do
+  c <- view tsCannon
+  alice <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  let qconv = Qualified conv (qDomain qbob)
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    void $ putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvRename
+      evtFrom e @?= qbob
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
+
+putConvDeprecatedRenameOk :: TestM ()
+putConvDeprecatedRenameOk = do
+  c <- view tsCannon
+  g <- view tsGalley
+  alice <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  let qconv = Qualified conv (qDomain qbob)
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    -- This endpoint is deprecated but clients still use it
+    put
+      ( g
+          . paths ["conversations", toByteString' conv]
+          . zUser bob
+          . zConn "conn"
+          . zType "access"
+          . json (ConversationRename "gossip++")
+      )
+      !!! const 200
+      === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvRename
+      evtFrom e @?= qbob
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
+
 putConvRenameOk :: TestM ()
 putConvRenameOk = do
   c <- view tsCannon
@@ -2427,7 +2489,6 @@ putConvRenameOk = do
   connectUsers alice (singleton bob)
   conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
-  -- This endpoint should be deprecated but clients still use it
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do

@@ -29,6 +29,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 * Add `POST /conversations/list/v2` (#1703)
 * Deprecate `POST /list-conversations` (#1703)
+* Add `PUT /conversations/:domain/:cnv/name` (#1737)
+* Deprecate `PUT /conversations/:cnv/name` (#1737)
 
 ## Features
 
