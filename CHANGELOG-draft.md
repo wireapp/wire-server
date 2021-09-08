@@ -35,6 +35,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Bug fixes and other updates
 
 * Remove support for managed conversations in member removal (#1718)
+* Update the webapp to correct labeling on CBR calling (#1743)
 
 ## Documentation
 
