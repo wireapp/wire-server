@@ -1478,7 +1478,7 @@ connectUsersWith fn u = mapM connectTo
               . zUser u
               . zConn "conn"
               . path "/connections"
-              . json (ConnectionRequest v "chat" (Message "Y"))
+              . json (ConnectionRequest v (unsafeRange "chat"))
               . fn
           )
       r2 <-
@@ -1506,7 +1506,7 @@ postConnection from to = do
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest to "some conv name" (Message "some message")
+        ConnectionRequest to (unsafeRange "some conv name")
 
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS

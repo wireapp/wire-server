@@ -41,6 +41,7 @@ import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.Public.Galley.Responses
+import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team.Conversation
@@ -51,22 +52,7 @@ instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
   toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
   fromHeaders = getResponse
 
-instance
-  (ResponseType r1 ~ a, ResponseType r2 ~ a) =>
-  AsUnion '[r1, r2] (ConversationResponseFor a)
-  where
-  toUnion (ConversationExisted x) = Z (I x)
-  toUnion (ConversationCreated x) = S (Z (I x))
-
-  fromUnion (Z (I x)) = ConversationExisted x
-  fromUnion (S (Z (I x))) = ConversationCreated x
-  fromUnion (S (S x)) = case x of
-
-data ConversationResponseFor a
-  = ConversationExisted !a
-  | ConversationCreated !a
-
-type ConversationResponse = ConversationResponseFor Conversation
+type ConversationResponse = ResponseForExistedCreated Conversation
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 

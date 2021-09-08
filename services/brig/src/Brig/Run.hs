@@ -107,11 +107,11 @@ mkApp o = do
   return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
     rtree :: Tree (App Handler)
-    rtree = compile (sitemap o)
+    rtree = compile sitemap
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      Metrics.servantPlusWAIPrometheusMiddleware (sitemap o) (Proxy @ServantCombinedAPI)
+      Metrics.servantPlusWAIPrometheusMiddleware sitemap (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]

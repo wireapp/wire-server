@@ -221,6 +221,21 @@ type NotConnected = ErrorDescription 403 "not-connected" "Users are not connecte
 notConnected :: NotConnected
 notConnected = mkErrorDescription
 
+type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many sent/accepted connections."
+
+connectionLimitReached :: ConnectionLimitReached
+connectionLimitReached = mkErrorDescription
+
+type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
+
+invalidUser :: InvalidUser
+invalidUser = mkErrorDescription
+
+type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
+
+noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc) => Int -> NoIdentity
+noIdentity n = ErrorDescription (Text.pack (symbolVal (Proxy @desc)) <> " (code " <> Text.pack (show n) <> ")")
+
 type OperationDenied = ErrorDescription 403 "operation-denied" "Insufficient permissions"
 
 operationDenied :: Show perm => perm -> OperationDenied

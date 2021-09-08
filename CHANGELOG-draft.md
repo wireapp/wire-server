@@ -6,6 +6,7 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## API Changes
 
+* Remove the long-deprecated `message` field in `POST /connections` (#1726)
 * Add `PUT /conversations/:domain/:cnv/name` (#1737)
 * Deprecate `PUT /conversations/:cnv/name` (#1737)
 
@@ -16,6 +17,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Documentation
 
 ## Internal changes
+
+* Rewrite the `POST /connections` endpoint to Servant (#1726)
 
 ## Federation changes
 

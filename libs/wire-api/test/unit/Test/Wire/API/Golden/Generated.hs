@@ -108,7 +108,6 @@ import qualified Test.Wire.API.Golden.Generated.ManagedBy_user
 import qualified Test.Wire.API.Golden.Generated.MemberUpdateData_user
 import qualified Test.Wire.API.Golden.Generated.MemberUpdate_user
 import qualified Test.Wire.API.Golden.Generated.Member_user
-import qualified Test.Wire.API.Golden.Generated.Message_user
 import qualified Test.Wire.API.Golden.Generated.MutedStatus_user
 import qualified Test.Wire.API.Golden.Generated.NameUpdate_user
 import qualified Test.Wire.API.Golden.Generated.Name_user
@@ -388,10 +387,7 @@ tests =
       testCase "Golden: ConnectionRequest_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_1, "testObject_ConnectionRequest_user_1.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_2, "testObject_ConnectionRequest_user_2.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_3, "testObject_ConnectionRequest_user_3.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_4, "testObject_ConnectionRequest_user_4.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_8, "testObject_ConnectionRequest_user_8.json")
+            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_2, "testObject_ConnectionRequest_user_2.json")
           ],
       testCase "Golden: Relation_user" $
         testObjects
@@ -403,18 +399,10 @@ tests =
             (Test.Wire.API.Golden.Generated.Relation_user.testObject_Relation_user_6, "testObject_Relation_user_6.json"),
             (Test.Wire.API.Golden.Generated.Relation_user.testObject_Relation_user_7, "testObject_Relation_user_7.json")
           ],
-      testCase "Golden: Message_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.Message_user.testObject_Message_user_1, "testObject_Message_user_1.json"),
-            (Test.Wire.API.Golden.Generated.Message_user.testObject_Message_user_2, "testObject_Message_user_2.json"),
-            (Test.Wire.API.Golden.Generated.Message_user.testObject_Message_user_3, "testObject_Message_user_3.json")
-          ],
       testCase "Golden: UserConnection_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_1, "testObject_UserConnection_user_1.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_2, "testObject_UserConnection_user_2.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_3, "testObject_UserConnection_user_3.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_4, "testObject_UserConnection_user_4.json")
+            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_2, "testObject_UserConnection_user_2.json")
           ],
       testCase "Golden: UserConnectionList_user" $
         testObjects

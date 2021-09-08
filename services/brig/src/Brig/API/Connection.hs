@@ -59,12 +59,13 @@ import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
 import qualified Wire.API.Conversation as Conv
 import Wire.API.ErrorDescription
+import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 createConnection ::
   UserId ->
   ConnectionRequest ->
   ConnId ->
-  ExceptT ConnectionError AppIO ConnectionResult
+  ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
 createConnection self req conn =
   createConnectionToLocalUser self (crUser req) req conn
 
@@ -73,8 +74,8 @@ createConnectionToLocalUser ::
   UserId ->
   ConnectionRequest ->
   ConnId ->
-  ExceptT ConnectionError AppIO ConnectionResult
-createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} conn = do
+  ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
+createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
   when (self == crUser) $
     throwE $
       InvalidUser crUser
@@ -97,28 +98,28 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
     Just rs -> rs
     Nothing -> do
       checkLimit self
-      ConnectionCreated <$> insert Nothing Nothing
+      Created <$> insert Nothing Nothing
   where
     insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError AppIO UserConnection
     insert s2o o2s = lift $ do
       Log.info $
         logConnection self crUser
           . msg (val "Creating connection")
-      cnv <- Intra.createConnectConv self crUser (Just crName) (Just crMessage) (Just conn)
-      s2o' <- Data.insertConnection self crUser SentWithHistory (Just crMessage) cnv
-      o2s' <- Data.insertConnection crUser self PendingWithHistory (Just crMessage) cnv
+      cnv <- Intra.createConnectConv self crUser (Just (fromRange crName)) (Just conn)
+      s2o' <- Data.insertConnection self crUser SentWithHistory cnv
+      o2s' <- Data.insertConnection crUser self PendingWithHistory cnv
       e2o <- ConnectionUpdated o2s' (ucStatus <$> o2s) <$> Data.lookupName self
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
       mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
       return s2o'
 
-    update :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ConnectionResult
+    update :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
       (MissingLegalholdConsent, _) -> throwE $ InvalidTransition self Sent
       (_, MissingLegalholdConsent) -> throwE $ InvalidTransition self Sent
-      (Accepted, Accepted) -> return $ ConnectionExists s2o
-      (Accepted, Blocked) -> return $ ConnectionExists s2o
-      (Sent, Blocked) -> return $ ConnectionExists s2o
+      (Accepted, Accepted) -> return $ Existed s2o
+      (Accepted, Blocked) -> return $ Existed s2o
+      (Sent, Blocked) -> return $ Existed s2o
       (Blocked, _) -> throwE $ InvalidTransition self Sent
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
@@ -127,7 +128,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       (_, Pending) -> resend s2o o2s
       (_, Cancelled) -> resend s2o o2s
 
-    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ConnectionResult
+    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     accept s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
@@ -144,9 +145,9 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       e2o <- lift $ ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
       lift $ mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
-      return $ ConnectionExists s2o'
+      return $ Existed s2o'
 
-    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ConnectionResult
+    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     resend s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
@@ -154,10 +155,10 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
         logConnection self (ucTo s2o)
           . msg (val "Resending connection request")
       s2o' <- insert (Just s2o) (Just o2s)
-      return $ ConnectionExists s2o'
+      return $ Existed s2o'
 
-    change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO ConnectionResult
-    change c s = ConnectionExists <$> lift (Data.updateConnection c s)
+    change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
+    change c s = Existed <$> lift (Data.updateConnection c s)
 
     belongSameTeam :: AppIO Bool
     belongSameTeam = do

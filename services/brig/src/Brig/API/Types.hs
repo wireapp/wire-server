@@ -64,10 +64,6 @@ data CreateUserTeam = CreateUserTeam
     createdTeamName :: !Text
   }
 
-data ConnectionResult
-  = ConnectionCreated !UserConnection
-  | ConnectionExists !UserConnection
-
 data ActivationResult
   = -- | The key/code was valid and successfully activated.
     ActivationSuccess !(Maybe UserIdentity) !Bool

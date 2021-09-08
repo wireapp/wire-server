@@ -33,17 +33,11 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
+import Wire.API.Connection
 import Wire.API.ErrorDescription
-  ( CanThrow,
-    EmptyErrorForLegacyReasons,
-    HandleNotFound,
-    MalformedPrekeys,
-    MissingAuth,
-    TooManyClients,
-    UserNotFound,
-  )
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.User
 import Wire.API.User.Client
@@ -309,6 +303,34 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> "prekeys"
         :> Get '[JSON] [PrekeyId],
+    --
+    -- This endpoint can lead to the following events being sent:
+    -- - ConnectionUpdated event to self and other, if any side's connection state changes
+    -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
+    -- - ConvCreate event to self, if creating a connect conversation (via galley)
+    -- - ConvConnect event to self, in some cases (via galley),
+    --   for details see 'Galley.API.Create.createConnectConversation'
+    --
+    createConnection ::
+      routes :- Summary "Create a connection to another user."
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NoIdentity
+        -- Config value 'setUserMaxConnections' value in production/by default
+        -- is currently 1000 and has not changed in the last few years.
+        -- While it would be more correct to use the config value here, that
+        -- might not be time well spent.
+        :> Description "You can have no more than 1000 connections in accepted or sent state"
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> ReqBody '[JSON] ConnectionRequest
+        :> MultiVerb
+             'POST
+             '[JSON]
+             (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
+             (ResponseForExistedCreated UserConnection),
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser

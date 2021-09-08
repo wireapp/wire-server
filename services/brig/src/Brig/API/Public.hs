@@ -98,6 +98,7 @@ import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
+import qualified Wire.API.Routes.Public.Util as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -194,6 +195,7 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
+        BrigAPI.createConnection = createConnection,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -204,8 +206,8 @@ servantSitemap =
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
-sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
-sitemap o = do
+sitemap :: Routes Doc.ApiBuilder Handler ()
+sitemap = do
   -- User Handle API ----------------------------------------------------
 
   post "/users/handles" (continue checkHandlesH) $
@@ -296,7 +298,7 @@ sitemap o = do
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
     Doc.errorResponse badCredentials
-    Doc.errorResponse (noIdentity 4)
+    Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
 
   put "/self/locale" (continue changeLocaleH) $
     zauthUserId
@@ -389,33 +391,6 @@ sitemap o = do
 
   -- Connection API -----------------------------------------------------
 
-  -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to self and other, if any side's connection state changes
-  -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
-  -- - ConvCreate event to self, if creating a connect conversation (via galley)
-  -- - ConvConnect event to self, in some cases (via galley),
-  --   for details see 'Galley.API.Create.createConnectConversation'
-  post "/connections" (continue createConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.ConnectionRequest
-  document "POST" "createConnection" $ do
-    Doc.summary "Create a connection to another user."
-    Doc.notes $
-      "You can have no more than "
-        <> Text.pack (show (setUserMaxConnections $ optSettings o))
-        <> " connections in accepted or sent state."
-    Doc.body (Doc.ref Public.modelConnectionRequest) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "The connection exists." Doc.end
-    Doc.response 201 "The connection was created." Doc.end
-    Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
-    Doc.errorResponse connectionLimitReached
-    Doc.errorResponse invalidUser
-    Doc.errorResponse (noIdentity 5)
-
   -- This endpoint is used to test /i/metrics, when this is servantified, please
   -- make sure some other endpoint is used to test that routes defined in this
   -- function are recorded and reported correctly in /i/metrics.
@@ -456,10 +431,10 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "Connection updated." Doc.end
     Doc.response 204 "No change." Doc.end
-    Doc.errorResponse connectionLimitReached
+    Doc.errorResponse (errorDescriptionToWai connectionLimitReached)
     Doc.errorResponse invalidTransition
     Doc.errorResponse (errorDescriptionToWai notConnected)
-    Doc.errorResponse invalidUser
+    Doc.errorResponse (errorDescriptionToWai invalidUser)
 
   get "/connections/:id" (continue getConnectionH) $
     accept "application" "json"
@@ -667,12 +642,12 @@ sitemap o = do
   Team.routesPublic
   Calling.routesPublic
 
-apiDocs :: Opts -> Routes Doc.ApiBuilder Handler ()
-apiDocs o =
+apiDocs :: Routes Doc.ApiBuilder Handler ()
+apiDocs =
   get
     "/users/api-docs"
     ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models (sitemap o)
+        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models sitemap
          in k $ json doc
     )
     $ accept "application" "json"
@@ -1114,13 +1089,9 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.ConnectionRequest -> Handler Response
-createConnectionH (_ ::: self ::: conn ::: req) = do
-  cr <- parseJsonBody req
-  rs <- API.createConnection self cr conn !>> connError
-  return $ case rs of
-    ConnectionCreated c -> setStatus status201 $ json (c :: Public.UserConnection)
-    ConnectionExists c -> json (c :: Public.UserConnection)
+createConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection self conn cr = do
+  API.createConnection self cr conn !>> connError
 
 updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
