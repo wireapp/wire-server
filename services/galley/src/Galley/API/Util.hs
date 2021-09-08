@@ -556,15 +556,15 @@ fromRegisterConversation d MkRegisterConversation {..} =
       Public.Conversation
         { cnvQualifiedId = rcCnvId,
           cnvType = rcCnvType,
-          -- FUTUREWORK: a UserId from another instance is communicated here, which
-          -- without domain does not make much sense here.
+          -- FUTUREWORK: Document this is the same domain as the conversation
+          -- domain
           cnvCreator = qUnqualified rcOrigUserId,
           cnvAccess = rcCnvAccess,
           cnvAccessRole = rcCnvAccessRole,
           cnvName = rcCnvName,
           cnvMembers = ConvMembers this others,
-          -- FUTUREWORK: Once conversation IDs become qualified, this information
-          -- should be sent from the hosting Galley and stored here in 'cnvTeam'.
+          -- FUTUREWORK: Document this is the same domain as the conversation
+          -- domain.
           cnvTeam = Nothing,
           cnvMessageTimer = rcMessageTimer,
           cnvReceiptMode = rcReceiptMode

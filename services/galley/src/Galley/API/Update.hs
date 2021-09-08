@@ -281,7 +281,8 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   case removedUsers of
     [] -> return ()
     x : xs -> do
-      -- FUTUREWORK: deal with remote members, too, see removeMembers
+      -- FUTUREWORK: deal with remote members, too, see removeMembers (Jira
+      -- SQCORE-903)
       e <- Data.removeLocalMembersFromLocalConv localDomain conv (Qualified usr localDomain) (x :| xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
@@ -476,19 +477,6 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
--- FUTUREWORK(federation): we need the following checks/implementation:
---  - (1) [DONE] Remote qualified users must exist before they can be added (a
---  call to the respective backend should be made): Avoid clients making up random
---  Ids, and increase the chances that the updateConversationMemberships call
---  suceeds
---  - (2) [DONE] A call must be made to the remote backend informing it that this user is
---  now part of that conversation. Use and implement 'updateConversationMemberships'.
---    - that call should probably be made *after* inserting the conversation membership
---    happens in this backend.
---    - 'updateConversationMemberships' should send an event to the affected
---    users informing them they have joined a remote conversation.
---  - (3) Events should support remote / qualified users, too.
---  These checks need tests :)
 addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
@@ -745,9 +733,6 @@ postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMes
 postBotMessage zbot zcnv val message =
   postNewOtrMessage Bot (botUserId zbot) Nothing zcnv val message
 
--- | FUTUREWORK: Send message to remote users, as of now this function fails if
--- the conversation is not hosted on current backend. If the conversation is
--- hosted on current backend, it completely ignores remote users.
 postProteusMessage :: UserId -> ConnId -> Qualified ConvId -> RawProto Public.QualifiedNewOtrMessage -> Galley (Public.PostOtrResponse Public.MessageSendingStatus)
 postProteusMessage zusr zcon conv msg = do
   localDomain <- viewFederationDomain
@@ -836,7 +821,9 @@ postNewOtrMessage utype usr con cnv val msg = do
       mapM_ (deleteBot cnv . botMemId) gone
 
 -- | Locally post a message originating from a remote conversation
+--
 -- FUTUREWORK: error handling for missing / mismatched clients
+-- (https://wearezeta.atlassian.net/browse/SQCORE-894)
 postRemoteToLocal :: RemoteMessage (Remote ConvId) -> Galley ()
 postRemoteToLocal rm = do
   localDomain <- viewFederationDomain

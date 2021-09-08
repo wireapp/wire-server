@@ -1,26 +1,17 @@
 {
-    "conversation": "00004847-0000-1eb9-0000-2973000039ca",
+    "conversation": "00000b98-0000-618d-0000-19e200004651",
     "data": {
-        "access": [
-            "private",
-            "private",
-            "private",
-            "link",
-            "invite",
-            "link",
-            "code"
-        ],
-        "access_role": "non_activated"
+        "receipt_mode": -10505
     },
-    "from": "000044e3-0000-1c36-0000-42fd00006e01",
+    "from": "00004bee-0000-45a0-0000-2c0300005726",
     "qualified_conversation": {
         "domain": "faraway.example.com",
-        "id": "00004847-0000-1eb9-0000-2973000039ca"
+        "id": "00000b98-0000-618d-0000-19e200004651"
     },
     "qualified_from": {
         "domain": "faraway.example.com",
-        "id": "000044e3-0000-1c36-0000-42fd00006e01"
+        "id": "00004bee-0000-45a0-0000-2c0300005726"
     },
-    "time": "1864-05-21T16:22:14.886Z",
-    "type": "conversation.access-update"
+    "time": "1864-05-01T11:57:35.123Z",
+    "type": "conversation.receipt-mode-update"
 }

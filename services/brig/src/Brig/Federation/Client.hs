@@ -18,6 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client where
 
 import Brig.App (AppIO)
@@ -74,10 +75,6 @@ claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc
 
--- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:
---       decoding error should not throw a 404 most likely
---       and non-200, non-404 should also not become 404s. Looks like some tests are missing and
---       https://wearezeta.atlassian.net/browse/SQCORE-491 is not quite done yet.
 searchUsers :: Domain -> SearchRequest -> FederationAppIO (Public.SearchResult Public.Contact)
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"

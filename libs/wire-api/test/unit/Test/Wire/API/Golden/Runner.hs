@@ -19,6 +19,8 @@ module Test.Wire.API.Golden.Runner
   ( testObjects,
     protoTestObjects,
     testFromJSONFailure,
+    testFromJSONFailureWithMsg,
+    testFromJSONObject,
     testFromJSONObjects,
   )
 where
@@ -137,7 +139,7 @@ protoTestObject obj path = do
 
   pure exists
 
-testFromJSONObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
+testFromJSONObjects :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
 testFromJSONObjects = traverse_ (uncurry testFromJSONObject)
 
 testFromJSONObject :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO ()
@@ -148,13 +150,27 @@ testFromJSONObject expected path = do
   assertEqual (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object") (Right expected) parsed
 
 testFromJSONFailure :: forall a. (Typeable a, FromJSON a, Show a) => FilePath -> IO ()
-testFromJSONFailure path = do
+testFromJSONFailure = testFromJSONFailureWithMsg @a Nothing
+
+testFromJSONFailureWithMsg :: forall a. (Typeable a, FromJSON a, Show a) => Maybe String -> FilePath -> IO ()
+testFromJSONFailureWithMsg msg path = do
   let dir = "test/golden/fromJSON"
       fullPath = dir <> "/" <> path
   parsed <- eitherDecodeFileStrict @a fullPath
   case parsed of
-    Right x -> assertFailure $ show (typeRep @a) <> ": FromJSON of " <> path <> ": expected failure, got " <> show x
-    Left _ -> pure ()
+    Right x -> assertFailure $ failurePrefix <> ": expected failure, got " <> show x
+    Left err -> case msg of
+      Nothing -> pure ()
+      Just m ->
+        assertBool
+          ( failurePrefix <> " had a wrong failure: "
+              <> show m
+              <> " is not contained in "
+              <> show err
+          )
+          (m `isSuffixOf` err)
+  where
+    failurePrefix = show (typeRep @a) <> ": FromJSON of " <> path
 
 assertRight :: Show a => Either a b -> IO b
 assertRight =

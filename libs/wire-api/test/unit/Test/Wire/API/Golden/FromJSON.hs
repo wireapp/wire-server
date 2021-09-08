@@ -20,12 +20,13 @@ module Test.Wire.API.Golden.FromJSON where
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Wire.API.Golden.Generated.Invite_user (testObject_Invite_user_2)
 import Test.Wire.API.Golden.Generated.NewConvUnmanaged_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Runner
-import Wire.API.Conversation (Conversation)
+import Wire.API.Conversation (Conversation, MemberUpdate, NewConvManaged, NewConvUnmanaged, OtherMemberUpdate)
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -37,17 +38,45 @@ tests =
           [(testObject_NewOtrMessage_user_1, "testObject_NewOtrMessage_user_1.json")],
       testCase "SimpleMember" $
         testFromJSONObjects
-          [(testObject_SimpleMember_user_1, "testObject_SimpleMember_user_1.json")],
-      testCase "NewConv" $
-        testFromJSONObjects
-          [ (testObject_NewConvUnmanaged_user_1, "testObject_NewConvUnmanaged_user_1.json"),
-            (testObject_NewConvUnmanaged_user_21, "testObject_NewConvUnmanaged_user_21.json")
+          [ (testObject_SimpleMember_user_2, "testObject_SimpleMember_user_2.json"),
+            (testObject_SimpleMember_user_2, "testObject_SimpleMember_user_2-2.json")
           ],
-      testCase "RmClient" $
-        testFromJSONObjects
+      testGroup
+        "NewConvUnmanaged"
+        [ testCase "success" $
+            testFromJSONObject
+              testObject_NewConvUnmanaged_user_1
+              "testObject_NewConvUnmanaged_user_1.json",
+          testCase
+            "failure"
+            $ testFromJSONFailureWithMsg
+              @NewConvUnmanaged
+              (Just "managed conversations have been deprecated")
+              "testObject_NewConvUnmanaged_user_2.json"
+        ],
+      testCase
+        "NewConvManaged failure"
+        $ testFromJSONFailureWithMsg
+          @NewConvManaged
+          (Just "only managed conversations are allowed here")
+          "testObject_NewConvManaged_user_2.json",
+      testCase
+        "RmClient"
+        $ testFromJSONObjects
           [(testObject_RmClient_user_4, "testObject_RmClient_user_4.json")],
       testCase "RmClient failure" $
         testFromJSONFailure @RmClient "testObject_RmClient_failure.json",
       testCase "QualifiedConversationId" $
-        testFromJSONFailure @Conversation "testObject_Conversation_qualifiedId.json"
+        testFromJSONFailure @Conversation "testObject_Conversation_qualifiedId.json",
+      testCase "Invite" $
+        testFromJSONObject testObject_Invite_user_2 "testObject_Invite_user_2.json",
+      testCase "MemberUpdate" $
+        testFromJSONFailureWithMsg @MemberUpdate
+          ( Just $
+              "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', "
+                <> "'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
+          )
+          "testObject_MemberUpdate_user_3.json",
+      testCase "OtherMemberUpdate" $
+        testFromJSONFailure @OtherMemberUpdate "testObject_OtherMemberUpdate_user_2.json"
     ]

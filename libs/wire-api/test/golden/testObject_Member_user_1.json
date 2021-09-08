@@ -6,7 +6,7 @@
     "otr_archived": false,
     "otr_archived_ref": "𢖖",
     "otr_muted": false,
-    "otr_muted_ref": null,
+    "otr_muted_ref": "ref",
     "otr_muted_status": -2,
     "service": {
         "id": "00000000-0000-0000-0000-000000000001",
