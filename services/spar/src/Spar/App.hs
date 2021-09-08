@@ -146,6 +146,7 @@ instance SPStoreID Assertion Spar where
 
 instance SPStoreIdP SparError Spar where
   type IdPConfigExtra Spar = WireIdP
+  type IdPConfigSPId Spar = TeamId
 
   storeIdPConfig :: IdP -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
@@ -153,8 +154,8 @@ instance SPStoreIdP SparError Spar where
   getIdPConfig :: IdPId -> Spar IdP
   getIdPConfig = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar IdP
-  getIdPConfigByIssuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
+  getIdPConfigByIssuer :: Issuer -> Maybe TeamId -> Spar IdP
+  getIdPConfigByIssuer issuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer issuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
 -- don't need either of those, 'wrapMonadClient' will suffice.

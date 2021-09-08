@@ -85,10 +85,12 @@ api opts =
 
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts =
-  SAML.meta appName sparSPIssuer sparResponseURI
+  SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
+    :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
-    :<|> authresp
+    :<|> authresp Nothing
+    :<|> authresp . Just
     :<|> ssoSettings
 
 apiIDP :: ServerT APIIDP Spar
@@ -130,7 +132,9 @@ authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _ = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
-  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
+  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
+    mbidp :: Maybe IdP <- wrapMonadClient (Data.getIdPConfig idpid)
+    SAML.authreq authreqttl (sparSPIssuer (mbidp <&> view (SAML.idpExtraInfo . wiTeam))) idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
@@ -168,8 +172,8 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
-authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI go arbody
+authresp :: Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar Void
+authresp mbtid ckyraw arbody = logErrors $ SAML.authresp (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader

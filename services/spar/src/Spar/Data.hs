@@ -120,7 +120,7 @@ import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 14
+schemaVersion = 15
 
 ----------------------------------------------------------------------
 -- helpers
@@ -510,23 +510,45 @@ getIdPConfig idpid =
 getIdPConfigByIssuer ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
+  Maybe TeamId ->
   m (Maybe IdP)
-getIdPConfigByIssuer issuer = do
-  getIdPIdByIssuer issuer >>= \case
+getIdPConfigByIssuer issuer mbteam = do
+  getIdPIdByIssuer issuer mbteam >>= \case
     Nothing -> pure Nothing
     Just idpid -> getIdPConfig idpid
 
+-- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
+-- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
 getIdPIdByIssuer ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
+  Maybe TeamId ->
   m (Maybe SAML.IdPId)
-getIdPIdByIssuer issuer = do
-  retry x1 (query1 sel $ params Quorum (Identity issuer)) <&> \case
-    Nothing -> Nothing
-    Just (Identity idpid) -> Just idpid
+getIdPIdByIssuer issuer mbteam = do
+  mbv2 <- maybe (pure Nothing) (getIdPIdByIssuerV2 issuer) mbteam
+  mbboth <- maybe (getIdPIdByIssuerOld issuer) (pure . Just) mbv2
+  pure mbboth
+
+getIdPIdByIssuerOld ::
+  (HasCallStack, MonadClient m) =>
+  SAML.Issuer ->
+  m (Maybe SAML.IdPId)
+getIdPIdByIssuerOld issuer = do
+  runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
+
+getIdPIdByIssuerV2 ::
+  (HasCallStack, MonadClient m) =>
+  SAML.Issuer ->
+  TeamId ->
+  m (Maybe SAML.IdPId)
+getIdPIdByIssuerV2 issuer tid = do
+  runIdentity <$$> retry x1 (query1 sel $ params Quorum (issuer, tid))
+  where
+    sel :: PrepQuery R (SAML.Issuer, TeamId) (Identity SAML.IdPId)
+    sel = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ? and team = ?"
 
 getIdPConfigsByTeam ::
   (HasCallStack, MonadClient m) =>

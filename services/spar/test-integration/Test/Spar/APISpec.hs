@@ -130,7 +130,7 @@ specMisc = do
 specMetadata :: SpecWith TestEnv
 specMetadata = do
   describe "metadata" $ do
-    it "metadata" $ do
+    it "metadata (legacy)" $ do
       env <- ask
       get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
         `shouldRespondWith` ( \(responseBody -> Just (cs -> bdy)) ->
@@ -138,7 +138,20 @@ specMetadata = do
                                   (`isInfixOf` bdy)
                                   [ "md:SPSSODescriptor",
                                     "validUntil",
-                                    "WantAssertionsSigned=\"true\""
+                                    "WantAssertionsSigned=\"true\"",
+                                    "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"http://localhost:8088/sso/finalize-login\" index=\"0\" isDefault=\"true\"/>"
+                                  ]
+                            )
+    it "metadata (with team-id)" $ do
+      env <- ask
+      get ((env ^. teSpar) . path "/sso/metadata/3f1a01e2-1092-11ec-846d-3344b58840fe" . expect2xx)
+        `shouldRespondWith` ( \(responseBody -> Just (cs -> bdy)) ->
+                                all
+                                  (`isInfixOf` bdy)
+                                  [ "md:SPSSODescriptor",
+                                    "validUntil",
+                                    "WantAssertionsSigned=\"true\"",
+                                    "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"http://localhost:8088/sso/finalize-login/3f1a01e2-1092-11ec-846d-3344b58840fe\" index=\"0\" isDefault=\"true\"/>"
                                   ]
                             )
 
