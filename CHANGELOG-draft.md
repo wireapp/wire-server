@@ -25,3 +25,4 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Federation changes
 
 * Ensure clients only receive messages meant for them in remote convs (#1739)
+* Federator CA store and client credentials are now automatically reloaded (#1730)
