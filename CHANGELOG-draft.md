@@ -18,3 +18,5 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Internal changes
 
 ## Federation changes
+
+* Ensure clients only receive messages meant for them in remote convs (#1739)

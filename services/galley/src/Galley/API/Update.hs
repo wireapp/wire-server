@@ -49,7 +49,6 @@ module Galley.API.Update
     postOtrBroadcastH,
     postProtoOtrBroadcastH,
     isTypingH,
-    postRemoteToLocal,
 
     -- * External Services
     addServiceH,
@@ -66,7 +65,6 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.State
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE, withExceptT)
-import Data.ByteString.Conversion (toByteString')
 import Data.Code
 import Data.Domain (Domain)
 import Data.Either.Extra (mapRight)
@@ -110,7 +108,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
-import qualified System.Logger.Class as Log
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
@@ -124,7 +121,6 @@ import Wire.API.ErrorDescription
   )
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
-import Wire.API.Federation.API.Galley (RemoteMessage (..))
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Public
@@ -283,8 +279,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   case removedUsers of
     [] -> return ()
     x : xs -> do
-      -- FUTUREWORK: deal with remote members, too, see removeMembers (Jira
-      -- SQCORE-903)
+      -- FUTUREWORK: deal with remote members, too, see removeMembers (Jira SQCORE-903)
       e <- Data.removeLocalMembersFromLocalConv localDomain conv (Qualified usr localDomain) (x :| xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
@@ -821,59 +816,6 @@ postNewOtrMessage utype usr con cnv val msg = do
     void . forkIO $ do
       gone <- External.deliver toBots
       mapM_ (deleteBot cnv . botMemId) gone
-
--- | Locally post a message originating from a remote conversation
---
--- FUTUREWORK: error handling for missing / mismatched clients
--- (https://wearezeta.atlassian.net/browse/SQCORE-894)
-postRemoteToLocal :: RemoteMessage (Remote ConvId) -> Galley ()
-postRemoteToLocal rm = do
-  localDomain <- viewFederationDomain
-  let UserClientMap rcpts = rmRecipients rm
-      Tagged conv = rmConversation rm
-  -- FUTUREWORK(authorization) review whether filtering members is appropriate
-  -- at this stage
-  (members, allMembers) <- Data.filterRemoteConvMembers (Map.keys rcpts) conv
-  unless allMembers $
-    Log.warn $
-      Log.field "conversation" (toByteString' (qUnqualified conv))
-        Log.~~ Log.field "domain" (toByteString' (qDomain conv))
-        Log.~~ Log.msg
-          ( "Attempt to send remote message to local\
-            \ users not in the conversation" ::
-              Text
-          )
-  let rcpts' = do
-        m <- members
-        (c, t) <- maybe [] Map.assocs (rcpts ^? ix m)
-        pure (m, c, t)
-  let remoteToLocalPush (rcpt, rcptc, ciphertext) =
-        newPush1
-          ListComplete
-          (guard (localDomain == qDomain (rmSender rm)) $> qUnqualified (rmSender rm))
-          ( ConvEvent
-              ( Event
-                  OtrMessageAdd
-                  conv
-                  (rmSender rm)
-                  (rmTime rm)
-                  ( EdOtrMessage
-                      ( OtrMessage
-                          { otrSender = rmSenderClient rm,
-                            otrRecipient = rcptc,
-                            otrCiphertext = ciphertext,
-                            otrData = rmData rm
-                          }
-                      )
-                  )
-              )
-          )
-          (singleton (userRecipient rcpt))
-          -- FUTUREWORK: unify event creation logic after #1634 is merged
-          & pushNativePriority .~ rmPriority rm
-          & pushRoute .~ bool RouteDirect RouteAny (rmPush rm)
-          & pushTransient .~ rmTransient rm
-  pushSome (map remoteToLocalPush rcpts')
 
 newMessage ::
   Qualified UserId ->
