@@ -173,7 +173,7 @@ validateRedirectURL uri = do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 authresp :: Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar Void
-authresp mbtid ckyraw arbody = logErrors $ SAML.authresp (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
+authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader
@@ -273,7 +273,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Spar ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       wrapMonadClient $ do
-        iid <- Data.getIdPIdByIssuer oldIssuer
+        iid <- Data.getIdPIdByIssuer oldIssuer Nothing
         mapM_ (Data.clearReplacedBy . Data.Replaced) iid
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
@@ -340,7 +340,7 @@ validateNewIdP _idpMetadata teamId mReplaces = do
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId oldIssuers Nothing
   enforceHttps requri
-  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
+  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer) Nothing) >>= \case
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
   pure SAML.IdPConfig {..}
@@ -387,7 +387,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
     if previousIssuer == newIssuer
       then pure $ previousIdP ^. SAML.idpExtraInfo
       else do
-        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuer newIssuer)
+        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuer newIssuer Nothing)
         let notInUseByOthers = case foundConfig of
               Nothing -> True
               Just c -> c ^. SAML.idpId == _idpId

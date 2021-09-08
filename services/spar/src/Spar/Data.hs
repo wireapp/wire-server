@@ -447,6 +447,8 @@ storeIdPConfig idp = retry x5 . batch $ do
   where
     ins :: PrepQuery W IdPConfigRow ()
     ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    -- TODO: only insert into issuer_idp_v2, not into the old table!
+    -- FUTUREWORK: migrate the old table away, we don't need it any more.
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()

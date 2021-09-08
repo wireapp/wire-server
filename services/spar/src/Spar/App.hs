@@ -232,7 +232,7 @@ getUserByScimExternalId tid email = do
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
 createSamlUserWithId :: UserId -> SAML.UserRef -> Spar ()
 createSamlUserWithId buid suid = do
-  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant) Nothing
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- Intra.createBrigUserSAML suid buid teamid uname ManagedByWire
   assert (buid == buid') $ pure ()
@@ -249,7 +249,7 @@ autoprovisionSamlUser suid = do
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
 autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Spar ()
 autoprovisionSamlUserWithId buid suid = do
-  idp <- getIdPConfigByIssuer (suid ^. uidTenant)
+  idp <- getIdPConfigByIssuer (suid ^. uidTenant) Nothing
   guardReplacedIdP idp
   guardScimTokens idp
   createSamlUserWithId buid suid
@@ -295,7 +295,7 @@ bindUser buid userref = do
   oldStatus <- do
     let err :: Spar a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
-    teamid :: TeamId <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+    teamid :: TeamId <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant) Nothing
     acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
     teamid' :: TeamId <- userTeam (accountUser acc) & maybe err pure
     unless (teamid' == teamid) err
@@ -393,7 +393,7 @@ catchVerdictErrors = (`catchError` hndlr)
 -- traverse the old IdPs in search for the old entry.  Return that old entry.
 findUserWithOldIssuer :: SAML.UserRef -> Spar (Maybe (SAML.UserRef, UserId))
 findUserWithOldIssuer (SAML.UserRef issuer subject) = do
-  idp <- getIdPConfigByIssuer issuer
+  idp <- getIdPConfigByIssuer issuer Nothing
   let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar (Maybe (SAML.UserRef, UserId))
       tryFind found@(Just _) _ = pure found
       tryFind Nothing oldIssuer = (uref,) <$$> getUserByUref uref

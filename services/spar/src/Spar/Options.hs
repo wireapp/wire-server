@@ -53,7 +53,7 @@ getOpts = do
 deriveOpts :: OptsRaw -> IO Opts
 deriveOpts raw = do
   derived <- do
-    let respuri = runWithConfig raw sparResponseURI
+    let respuri = runWithConfig raw (sparResponseURI Nothing) -- TODO: where is this used?
         derivedOptsBindCookiePath = URI.uriPath respuri
     -- We could also make this selectable in the config file, but it seems easier to derive it from
     -- the SAML base uri.
