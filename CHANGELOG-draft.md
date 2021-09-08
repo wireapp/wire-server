@@ -32,6 +32,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Features
 
+* Bump SFTD to 2.0.127 (#1745)
+
 ## Bug fixes and other updates
 
 * Remove support for managed conversations in member removal (#1718)
