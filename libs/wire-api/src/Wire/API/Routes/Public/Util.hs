@@ -28,13 +28,13 @@ instance
   (ResponseType r1 ~ a, ResponseType r2 ~ a) =>
   AsUnion '[r1, r2] (ResponseForExistedCreated a)
   where
-  toUnion (Existed200 x) = Z (I x)
-  toUnion (Created201 x) = S (Z (I x))
+  toUnion (Existed x) = Z (I x)
+  toUnion (Created x) = S (Z (I x))
 
-  fromUnion (Z (I x)) = Existed200 x
-  fromUnion (S (Z (I x))) = Created201 x
+  fromUnion (Z (I x)) = Existed x
+  fromUnion (S (Z (I x))) = Created x
   fromUnion (S (S x)) = case x of
 
 data ResponseForExistedCreated a
-  = Existed200 !a
-  | Created201 !a
+  = Existed !a
+  | Created !a

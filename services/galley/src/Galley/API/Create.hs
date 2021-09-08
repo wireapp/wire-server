@@ -305,15 +305,15 @@ createConnectConversation usr conn j = do
 -- Helpers
 
 conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationCreated usr cnv = Created201 <$> conversationView usr cnv
+conversationCreated usr cnv = Created <$> conversationView usr cnv
 
 conversationExisted :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationExisted usr cnv = Existed200 <$> conversationView usr cnv
+conversationExisted usr cnv = Existed <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
-  Created201 cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
-  Existed200 cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
+  Created cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
+  Existed cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
 notifyCreatedConversation dtime usr conn c = do

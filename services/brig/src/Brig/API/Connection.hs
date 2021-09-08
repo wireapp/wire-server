@@ -98,7 +98,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
     Just rs -> rs
     Nothing -> do
       checkLimit self
-      Created201 <$> insert Nothing Nothing
+      Created <$> insert Nothing Nothing
   where
     insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError AppIO UserConnection
     insert s2o o2s = lift $ do
@@ -117,9 +117,9 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
       (MissingLegalholdConsent, _) -> throwE $ InvalidTransition self Sent
       (_, MissingLegalholdConsent) -> throwE $ InvalidTransition self Sent
-      (Accepted, Accepted) -> return $ Existed200 s2o
-      (Accepted, Blocked) -> return $ Existed200 s2o
-      (Sent, Blocked) -> return $ Existed200 s2o
+      (Accepted, Accepted) -> return $ Existed s2o
+      (Accepted, Blocked) -> return $ Existed s2o
+      (Sent, Blocked) -> return $ Existed s2o
       (Blocked, _) -> throwE $ InvalidTransition self Sent
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
@@ -145,7 +145,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
       e2o <- lift $ ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
       lift $ mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
-      return $ Existed200 s2o'
+      return $ Existed s2o'
 
     resend :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     resend s2o o2s = do
@@ -155,10 +155,10 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
         logConnection self (ucTo s2o)
           . msg (val "Resending connection request")
       s2o' <- insert (Just s2o) (Just o2s)
-      return $ Existed200 s2o'
+      return $ Existed s2o'
 
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
-    change c s = Existed200 <$> lift (Data.updateConnection c s)
+    change c s = Existed <$> lift (Data.updateConnection c s)
 
     belongSameTeam :: AppIO Bool
     belongSameTeam = do
