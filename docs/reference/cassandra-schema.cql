@@ -105,6 +105,12 @@ CREATE TABLE galley_test.user_remote_conv (
     user uuid,
     conv_remote_domain text,
     conv_remote_id uuid,
+    hidden boolean,
+    hidden_ref text,
+    otr_archived boolean,
+    otr_archived_ref text,
+    otr_muted_ref text,
+    otr_muted_status int,
     PRIMARY KEY (user, conv_remote_domain, conv_remote_id)
 ) WITH CLUSTERING ORDER BY (conv_remote_domain ASC, conv_remote_id ASC)
     AND bloom_filter_fp_chance = 0.1
