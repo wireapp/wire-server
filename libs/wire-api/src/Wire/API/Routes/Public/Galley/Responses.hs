@@ -31,7 +31,6 @@ import Wire.API.ErrorDescription
     InvalidOpConnectConv,
     InvalidOpOne2OneConv,
     InvalidOpSelfConv,
-    ManagedRemovalNotAllowed,
   )
 import qualified Wire.API.Event.Conversation as Public
 import Wire.API.Routes.MultiVerb (AsUnion (..), GenericAsUnion (..), Respond, RespondEmpty, ResponseType, eitherFromUnion, eitherToUnion)
@@ -42,7 +41,6 @@ import Wire.API.Util.Aeson (CustomEncoded (CustomEncoded))
 -- outcome reflecting a change.
 data RemoveFromConversationError
   = RemoveFromConversationErrorRemovalNotAllowed
-  | RemoveFromConversationErrorManagedConvNotAllowed
   | RemoveFromConversationErrorNotFound
   | RemoveFromConversationErrorCustomRolesNotSupported
   | RemoveFromConversationErrorSelfConv
@@ -61,7 +59,6 @@ instance GSOP.Generic RemoveFromConversationError
 
 type RemovalNotPerformedHTTPResponses =
   '[ ConvMemberRemovalDenied,
-     ManagedRemovalNotAllowed,
      ConvNotFound,
      CustomRolesNotSupported,
      InvalidOpSelfConv,

@@ -294,15 +294,6 @@ type MissingLegalholdConsent =
 missingLegalholdConsent :: MissingLegalholdConsent
 missingLegalholdConsent = mkErrorDescription
 
-type ManagedRemovalNotAllowed =
-  ErrorDescription
-    403
-    "invalid-op"
-    "Users can not be removed from managed conversations."
-
-managedRemovalNotAllowed :: ManagedRemovalNotAllowed
-managedRemovalNotAllowed = mkErrorDescription
-
 type CustomRolesNotSupported =
   ErrorDescription
     400

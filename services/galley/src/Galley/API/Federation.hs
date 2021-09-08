@@ -94,8 +94,8 @@ getConversations (GetConversationsRequest qUid gcrConvIds) = do
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
-updateConversationMemberships :: ConversationMemberUpdate -> Galley ()
-updateConversationMemberships cmu = do
+updateConversationMemberships :: Domain -> ConversationMemberUpdate -> Galley ()
+updateConversationMemberships requestingDomain cmu = do
   localDomain <- viewFederationDomain
   let users = case cmuAction cmu of
         FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
@@ -103,15 +103,16 @@ updateConversationMemberships cmu = do
       localUsers = filter ((== localDomain) . qDomain) . toList $ users
       localUserIds = qUnqualified <$> localUsers
       targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
+      qconvId = Qualified (cmuConvId cmu) requestingDomain
   event <- case cmuAction cmu of
     FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
       unless (null localUsers) $
-        Data.addLocalMembersToRemoteConv localUserIds (cmuConvId cmu)
+        Data.addLocalMembersToRemoteConv localUserIds qconvId
       let mems = SimpleMembers (map (uncurry SimpleMember) . toList $ toAdd)
       pure $
         Event
           MemberJoin
-          (cmuConvId cmu)
+          qconvId
           (cmuOrigUserId cmu)
           (cmuTime cmu)
           (EdMembersJoin mems)
@@ -120,12 +121,12 @@ updateConversationMemberships cmu = do
         [] -> pure ()
         (h : t) ->
           Data.removeLocalMembersFromRemoteConv
-            (cmuConvId cmu)
+            qconvId
             (list1 h t)
       pure $
         Event
           MemberLeave
-          (cmuConvId cmu)
+          qconvId
           (cmuOrigUserId cmu)
           (cmuTime cmu)
           (EdMembersLeave . QualifiedUserIdList . toList $ toRemove)

@@ -1,12 +1,12 @@
 {
+    "class": "phone",
     "cookie": "𭔙 ",
+    "label": "\u000e􁖂󰫋",
     "lastkey": {
-        "key": "译믳",
-        "id": 65535
+        "id": 65535,
+        "key": "译믳"
     },
     "model": "􎮏",
-    "type": "legalhold",
     "prekeys": [],
-    "class": "phone",
-    "label": "\u000e􁖂󰫋"
+    "type": "legalhold"
 }

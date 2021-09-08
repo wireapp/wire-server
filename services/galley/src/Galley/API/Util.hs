@@ -556,15 +556,15 @@ fromRegisterConversation d MkRegisterConversation {..} =
       Public.Conversation
         { cnvQualifiedId = rcCnvId,
           cnvType = rcCnvType,
-          -- FUTUREWORK: a UserId from another instance is communicated here, which
-          -- without domain does not make much sense here.
+          -- FUTUREWORK: Document this is the same domain as the conversation
+          -- domain
           cnvCreator = qUnqualified rcOrigUserId,
           cnvAccess = rcCnvAccess,
           cnvAccessRole = rcCnvAccessRole,
           cnvName = rcCnvName,
           cnvMembers = ConvMembers this others,
-          -- FUTUREWORK: Once conversation IDs become qualified, this information
-          -- should be sent from the hosting Galley and stored here in 'cnvTeam'.
+          -- FUTUREWORK: Document this is the same domain as the conversation
+          -- domain.
           cnvTeam = Nothing,
           cnvMessageTimer = rcMessageTimer,
           cnvReceiptMode = rcReceiptMode
@@ -614,19 +614,22 @@ notifyRemoteAboutConvUpdate ::
   Galley ()
 notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let qconvId = Qualified convId localDomain
-      mkUpdate oth = ConversationMemberUpdate time origUser qconvId oth action
-  traverse_ (uncurry (notificationRPC . mkUpdate) . swap)
+  let mkUpdate oth = ConversationMemberUpdate time origUser convId oth action
+  traverse_ (uncurry (notificationRPC localDomain . mkUpdate) . swap)
     . Map.assocs
     . partitionQualified
     . nubOrd
     . map unTagged
     $ remotesToNotify
   where
-    notificationRPC :: ConversationMemberUpdate -> Domain -> Galley ()
-    notificationRPC cmu domain = do
-      let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
-      runFederated domain rpc
+    notificationRPC :: Domain -> ConversationMemberUpdate -> Domain -> Galley ()
+    notificationRPC sendingDomain cmu receivingDomain = do
+      let rpc =
+            FederatedGalley.updateConversationMemberships
+              FederatedGalley.clientRoutes
+              sendingDomain
+              cmu
+      runFederated receivingDomain rpc
 
 --------------------------------------------------------------------------------
 -- Legalhold

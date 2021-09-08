@@ -1,11 +1,6 @@
 THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
-<!--
-
 # [2021-xx-xx]
-
-[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
-[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
 
 ## Release Notes
 
@@ -19,4 +14,4 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 
 ## Internal changes
 
--->
+## Federation changes

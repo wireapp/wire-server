@@ -1,29 +1,24 @@
 {
-    "phone": "+43575413322561",
-    "locale": "tg-BD",
     "accent_id": 174052,
-    "picture": [],
-    "name": "hG\u0013碡e-󿲗f5\u000c󶭗\u0018d󺚌𫌻bR\u000c󳟢􊍽􎧏pJ",
-    "invitation_code": "w1bhwQG7MiCYb7O4aguK7iSgND5JBw==",
     "assets": [
         {
-            "size": "preview",
             "key": "~\u0005􎒛ld=\u0000Jc\u0011\tw􎨸\u000eh\u001e\u0016",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "E2p\u0017h􌑰",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "𦈖,𫩝󸅨ޏ\u0000|@Q",
-            "type": "image"
-        },
-        {
             "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "E2p\u0017h􌑰",
+            "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "𦈖,𫩝󸅨ޏ\u0000|@Q",
+            "size": "complete",
+            "type": "image"
+        },
+        {
             "key": "\u001a-/􅠒𭳮􀒐'*\u00131󰏀\t􎲷􂥱\u00018\u0000",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -31,23 +26,23 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "pEf",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "`󾿁𧣭PX\u0018󲵈\u001e{",
-            "type": "image"
-        },
-        {
             "size": "preview",
-            "key": "4A\u000bj脘oc",
             "type": "image"
         },
         {
-            "size": "complete",
+            "key": "4A\u000bj脘oc",
+            "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "\u0007\u0012B􆃹J󳍍V2?G",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -55,18 +50,18 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "ጅ󽆑+ᬝFMEp􀔌H\t\u0005",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "\u0001;\u0013\u0013\u0006\u0004b5^s:\u001c\u0005󰩐y\u0011\u0017",
-            "type": "image"
-        },
-        {
             "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "\u0001;\u0013\u0013\u0006\u0004b5^s:\u001c\u0005󰩐y\u0011\u0017",
+            "size": "complete",
+            "type": "image"
+        },
+        {
             "key": "v􃮞",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -74,18 +69,18 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "^ 𘡣藝\u001e@",
-            "type": "image"
-        },
-        {
             "size": "preview",
-            "key": "8ﶱ𩳢\u0010E𒌍󻀏\\Z\u001b5<c𧅒2",
             "type": "image"
         },
         {
-            "size": "complete",
+            "key": "8ﶱ𩳢\u0010E𒌍󻀏\\Z\u001b5<c𧅒2",
+            "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "\u0010󽨻𦤩Gc",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -93,8 +88,8 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "􏹌Q\u001fh%1\u000c𝨝溬:`",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -102,11 +97,16 @@
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "瀷\\Q<\u0001X44鮚d􁎺",
+            "size": "complete",
             "type": "image"
         }
     ],
     "email_code": "Z-Zl_Qv7tQ2uarU-IzTDMXzogSXj",
-    "phone_code": "XnBOrq6YI4Q_OfxeADfxgHnlqFMQaauOlT003dC1JCCI"
+    "invitation_code": "w1bhwQG7MiCYb7O4aguK7iSgND5JBw==",
+    "locale": "tg-BD",
+    "name": "hG\u0013碡e-󿲗f5\u000c󶭗\u0018d󺚌𫌻bR\u000c󳟢􊍽􎧏pJ",
+    "phone": "+43575413322561",
+    "phone_code": "XnBOrq6YI4Q_OfxeADfxgHnlqFMQaauOlT003dC1JCCI",
+    "picture": []
 }

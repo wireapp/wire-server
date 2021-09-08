@@ -1,12 +1,12 @@
 {
+    "accent_id": -3,
+    "created_at": "1864-05-10T11:20:36.673Z",
     "email": "N@",
     "handle": null,
-    "managed_by": null,
-    "role": "partner",
-    "accent_id": -3,
-    "name": "",
-    "created_at": "1864-05-10T11:20:36.673Z",
-    "team": "00000001-0000-0002-0000-000200000002",
     "id": "00000001-0000-0002-0000-000200000002",
-    "saml_idp": null
+    "managed_by": null,
+    "name": "",
+    "role": "partner",
+    "saml_idp": null,
+    "team": "00000001-0000-0002-0000-000200000002"
 }

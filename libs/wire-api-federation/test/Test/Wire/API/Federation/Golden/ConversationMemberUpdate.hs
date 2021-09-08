@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Federation.Golden.ConversationMemberUpdate where
+module Test.Wire.API.Federation.Golden.ConversationMemberUpdate
+  ( testObject_ConversationMemberUpdate1,
+    testObject_ConversationMemberUpdate2,
+  )
+where
 
 import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id), UserId)
@@ -49,9 +53,7 @@ testObject_ConversationMemberUpdate1 =
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
       cmuConvId =
-        Qualified
-          (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")))
-          (Domain "golden2.example.com"),
+        Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cmuAlreadyPresentUsers = [],
       cmuAction = ConversationMembersActionAdd ((qAlice, roleNameWireMember) :| [(qBob, roleNameWireAdmin)])
     }
@@ -65,9 +67,7 @@ testObject_ConversationMemberUpdate2 =
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
       cmuConvId =
-        Qualified
-          (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")))
-          (Domain "golden2.example.com"),
+        Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cmuAlreadyPresentUsers = [chad, dee],
       cmuAction = ConversationMembersActionRemove (qAlice :| [qBob])
     }

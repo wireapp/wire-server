@@ -1,34 +1,28 @@
 {
-    "email": "R𡭷쥢􊿊\nTAS5z|q﨟z}㊟;\u00178\u0010@𐐒𠀘ZBqrtK\u000ct􀦁h\u00088iU.&",
-    "uuid": "00000000-0000-0000-0000-000000000000",
-    "locale": "xh-TM",
-    "managed_by": "scim",
-    "name": "\u0002nH󠀯\u0013􅊎\u0014\n𤧠󺋠𤡖\u0019`I~Q{\\:󲬆\u0013H\u001dem􂕵!󵕣\r\u000f\u0011B􊓲i\u001d\u0015\u001bY𧘒􀝡軝G𩚆UOB*Q\u001d]M\u0016",
-    "invitation_code": "krEHX0N2tg==",
     "assets": [
         {
-            "size": "preview",
             "key": "\u0013󿴱\u0006!FC",
-            "type": "image"
-        },
-        {
             "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "f{\u0005",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "Hl\u000e\n8\u0005~\u0019􋨱B",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "􎺞mᢎ𨓙x\u00114c⚨o%:",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "\\57FFJ􄘤8F",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -36,13 +30,13 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "(E哈hxM\"_",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "\u0016Q\u000f7z.zs𐨗Z",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -50,13 +44,13 @@
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "h\u0005R󴽃𠤑w]sc󻙏쥒\u0011`!",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "p\u000f𪖀",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -64,8 +58,8 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "I(",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -73,23 +67,23 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "\u0017􉡇㇢𤀣󳃢#2{6Gwz",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "\\󿱢8n[m𝆁𖢑󺰎L𩌤\u0016Yᴀ'",
-            "type": "image"
-        },
-        {
             "size": "preview",
-            "key": "\u0000/dn\u0010",
             "type": "image"
         },
         {
+            "key": "\\󿱢8n[m𝆁𖢑󺰎L𩌤\u0016Yᴀ'",
             "size": "complete",
+            "type": "image"
+        },
+        {
+            "key": "\u0000/dn\u0010",
+            "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "󿛏𦵱8i\u001a",
+            "size": "complete",
             "type": "image"
         },
         {
@@ -109,27 +103,33 @@
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "󿷇v5󳞳'",
-            "type": "image"
-        },
-        {
             "size": "preview",
+            "type": "image"
+        },
+        {
             "key": "3\u0008\u001f󱗈𦏞󴷻\u0018\u0001?𪿼\u0001",
+            "size": "preview",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "rZ𠪹l𭤫k𥥤\u000b􉰋繩Jt\u001d",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "2𡨘-",
+            "size": "complete",
             "type": "image"
         }
     ],
+    "email": "R𡭷쥢􊿊\nTAS5z|q﨟z}㊟;\u00178\u0010@𐐒𠀘ZBqrtK\u000ct􀦁h\u00088iU.&",
     "email_code": "sQZw_A==",
+    "invitation_code": "krEHX0N2tg==",
+    "label": "𧳡ਉ\u001b`c&𦷐캻9b\t",
+    "locale": "xh-TM",
+    "managed_by": "scim",
+    "name": "\u0002nH󠀯\u0013􅊎\u0014\n𤧠󺋠𤡖\u0019`I~Q{\\:󲬆\u0013H\u001dem􂕵!󵕣\r\u000f\u0011B􊓲i\u001d\u0015\u001bY𧘒􀝡軝G𩚆UOB*Q\u001d]M\u0016",
     "phone_code": "5dy6ya1yHl7TyDF03xClFXFT",
-    "label": "𧳡ਉ\u001b`c&𦷐캻9b\t"
+    "uuid": "00000000-0000-0000-0000-000000000000"
 }

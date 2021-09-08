@@ -1,19 +1,19 @@
 {
-    "took": -6,
-    "found": 2,
     "documents": [
         {
+            "accent_id": null,
+            "created_at": null,
             "email": "@",
             "handle": "",
-            "managed_by": "wire",
-            "role": "owner",
-            "accent_id": null,
-            "name": "",
-            "created_at": null,
-            "team": "00000001-0000-0000-0000-000100000000",
             "id": "00000000-0000-0000-0000-000100000001",
-            "saml_idp": null
+            "managed_by": "wire",
+            "name": "",
+            "role": "owner",
+            "saml_idp": null,
+            "team": "00000001-0000-0000-0000-000100000000"
         }
     ],
-    "returned": 6
+    "found": 2,
+    "returned": 6,
+    "took": -6
 }

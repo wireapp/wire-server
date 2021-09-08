@@ -1,6 +1,5 @@
 {
     "accent_id": 2,
-    "picture": [],
     "assets": [
         {
             "key": "",
@@ -10,5 +9,6 @@
             "key": "",
             "type": "image"
         }
-    ]
+    ],
+    "picture": []
 }

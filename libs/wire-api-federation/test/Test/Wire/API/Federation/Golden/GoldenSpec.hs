@@ -48,6 +48,5 @@ spec =
         (LeaveConversationResponse.testObject_LeaveConversationResponse5, "testObject_LeaveConversationResponse5.json"),
         (LeaveConversationResponse.testObject_LeaveConversationResponse6, "testObject_LeaveConversationResponse6.json"),
         (LeaveConversationResponse.testObject_LeaveConversationResponse7, "testObject_LeaveConversationResponse7.json"),
-        (LeaveConversationResponse.testObject_LeaveConversationResponse8, "testObject_LeaveConversationResponse8.json"),
-        (LeaveConversationResponse.testObject_LeaveConversationResponse9, "testObject_LeaveConversationResponse9.json")
+        (LeaveConversationResponse.testObject_LeaveConversationResponse8, "testObject_LeaveConversationResponse8.json")
       ]

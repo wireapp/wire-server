@@ -1,17 +1,17 @@
 {
-    "cookie": "",
-    "time": "1864-05-06T18:43:52.483Z",
-    "location": {
-        "lat": 2.8672347564452996,
-        "lon": -0.9990390825956594
-    },
-    "id": "1",
-    "type": "legalhold",
-    "class": "phone",
     "capabilities": {
         "capabilities": [
             "legalhold-implicit-consent"
         ]
     },
-    "label": "-󼊣v"
+    "class": "phone",
+    "cookie": "",
+    "id": "1",
+    "label": "-󼊣v",
+    "location": {
+        "lat": 2.8672347564452996,
+        "lon": -0.9990390825956594
+    },
+    "time": "1864-05-06T18:43:52.483Z",
+    "type": "legalhold"
 }
