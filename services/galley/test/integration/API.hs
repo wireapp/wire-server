@@ -2427,7 +2427,9 @@ putQualifiedConvRenameFailure = do
   qbob <- randomQualifiedUser
   let qconv = Qualified conv (qDomain qbob)
   putQualifiedConversationName (qUnqualified qbob) qconv "gossip"
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "no-conversation") === fmap label . responseJsonUnsafe
 
 putQualifiedConvRenameOk :: TestM ()
 putQualifiedConvRenameOk = do
