@@ -22,6 +22,8 @@ import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
+import qualified Data.Binary.Builder as BSB
+import qualified Data.ByteString.Conversion as BSC
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id (TeamId)
@@ -67,6 +69,29 @@ makeLenses ''WireIdP
 
 deriveJSON deriveJSONOptions ''WireIdPAPIVersion
 deriveJSON deriveJSONOptions ''WireIdP
+
+instance BSC.ToByteString WireIdPAPIVersion where
+  builder =
+    BSB.fromByteString . \case
+      WireIdPAPIV1 -> "v1"
+      WireIdPAPIV2 -> "v2"
+
+instance BSC.FromByteString WireIdPAPIVersion where
+  parser = _
+
+instance FromHttpApiData WireIdPAPIVersion where
+  parseQueryParam = maybe (Left _) Right . BSC.fromByteString' . cs
+
+instance ToHttpApiData WireIdPAPIVersion where
+  toQueryParam = cs . BSC.toByteString'
+
+instance ToParamSchema WireIdPAPIVersion where
+  toParamSchema Proxy =
+    mempty
+      { _paramSchemaDefault = Just "v2",
+        _paramSchemaType = Just SwaggerString,
+        _paramSchemaEnum = Just (String . toQueryParam <$> [(minBound :: WireIdPAPIVersion) ..])
+      }
 
 instance Cql.Cql WireIdPAPIVersion where
   ctype = Cql.Tagged Cql.IntColumn
