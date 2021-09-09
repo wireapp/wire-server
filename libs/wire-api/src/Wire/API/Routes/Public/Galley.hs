@@ -333,6 +333,63 @@ data Api routes = Api
                Respond 200 "Conversation updated" Event
              ]
              (Maybe Event),
+    getConversationSelfUnqualified ::
+      routes
+        :- Summary "Get self membership properties (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/self` instead."
+        :> ZUser
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> Get '[JSON] (Maybe Member),
+    getConversationSelf ::
+      routes
+        :- Summary "Get self membership properties"
+        :> ZUser
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Membership information" Member
+             ]
+             (Maybe Member),
+    updateConversationSelfUnqualified ::
+      routes
+        :- Summary "Update self membership properties (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/self` instead."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
+    updateConversationSelf ::
+      routes
+        :- Summary "Update self membership properties"
+        :> Description "**Note**: at least one field has to be provided."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
     -- Team Conversations
 
     getTeamConversationRoles ::

@@ -36,7 +36,8 @@ module Galley.API.Update
     -- * Managing Members
     addMembersH,
     addMembers,
-    updateSelfMemberH,
+    updateLocalSelfMember,
+    updateSelfMember,
     updateOtherMemberH,
     removeMember,
     removeMemberQualified,
@@ -122,7 +123,7 @@ import Wire.API.ErrorDescription
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Error
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import Wire.API.Routes.Public.Galley.Responses
@@ -549,14 +550,15 @@ addMembers zusr zcon convId invite = do
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
 
-updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
-updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
-  update <- fromJsonBody req
-  updateSelfMember zusr zcon cid update
-  return empty
+updateSelfMember :: UserId -> ConnId -> Qualified ConvId -> Public.MemberUpdate -> Galley ()
+updateSelfMember zusr zcon qcnv update = do
+  localDomain <- viewFederationDomain
+  if qDomain qcnv == localDomain
+    then updateLocalSelfMember zusr zcon (qUnqualified qcnv) update
+    else throwM federationNotImplemented
 
-updateSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
-updateSelfMember zusr zcon cid update = do
+updateLocalSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
+updateLocalSelfMember zusr zcon cid update = do
   conv <- getConversationAndCheckMembership zusr cid
   m <- getSelfMemberFromLocalsLegacy zusr (Data.convLocalMembers conv)
   -- Ensure no self role upgrades

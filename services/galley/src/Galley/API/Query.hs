@@ -27,7 +27,8 @@ module Galley.API.Query
     listConversations,
     listConversationsV2,
     iterateConversations,
-    getSelfH,
+    getLocalSelf,
+    getSelf,
     internalGetMemberH,
     getConversationMetaH,
     getConversationByReusableCode,
@@ -344,27 +345,23 @@ iterateConversations uid pageSize handleConvs = go Nothing
         _ -> pure []
       pure $ resultHead : resultTail
 
-getSelfH :: UserId ::: ConvId -> Galley Response
-getSelfH (zusr ::: cnv) = do
-  json <$> getSelf zusr cnv
-
-getSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
-getSelf zusr cnv =
-  internalGetMember cnv zusr
+getSelf :: UserId -> Qualified ConvId -> Galley (Maybe Public.Member)
+getSelf zusr qcnv = do
+  localDomain <- viewFederationDomain
+  if localDomain == qDomain qcnv
+    then getLocalSelf zusr (qUnqualified qcnv)
+    else throwM federationNotImplemented
 
 internalGetMemberH :: ConvId ::: UserId -> Galley Response
 internalGetMemberH (cnv ::: usr) = do
-  json <$> internalGetMember cnv usr
+  json <$> getLocalSelf usr cnv
 
-internalGetMember :: ConvId -> UserId -> Galley (Maybe Public.Member)
-internalGetMember cnv usr = do
+getLocalSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
+getLocalSelf usr cnv = do
   alive <- Data.isConvAlive cnv
   if alive
-    then do
-      fmap Mapping.toMember <$> Data.member cnv usr
-    else do
-      Data.deleteConversation cnv
-      pure Nothing
+    then Mapping.toMember <$$> Data.member cnv usr
+    else Nothing <$ Data.deleteConversation cnv
 
 getConversationMetaH :: ConvId -> Galley Response
 getConversationMetaH cnv = do
