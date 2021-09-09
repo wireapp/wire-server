@@ -18,7 +18,24 @@ for d in "$DIR"/*; do
     echo ""
     for f in "$d"/*; do
         pr=$(getPRNumber $f)
-        sed -r -e '1 { s/^/\* /; }' -e '1 !{ s/^/  /; }' -e "s/##/$pr/g" -e "$ { /^.*\((#.*)\)$/ ! { s/$/ ($pr)/; } }" -e 's/\s+$//' -e '$ a\' "$f"
+        sed -r '
+          # create a bullet point on the first line
+          1 { s/^/\* /; }
+
+          # indent subsequent lines
+          1 !{ s/^/  /; }
+
+          # replace ## with PR number throughout
+          s/##/'"$pr"'/g
+
+          # add PR number at the end (unless already present)
+          $ { /^.*\((#.*)\)$/ ! { s/$/ ('"$pr"')/; } }
+
+          # remove trailing whitespace
+          s/\s+$//
+
+          # make sure there is a trailing newline
+          $ a\' "$f"
     done
     echo ""
 done
