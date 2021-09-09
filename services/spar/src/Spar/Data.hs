@@ -354,10 +354,6 @@ getSAMLUser uref = do
         sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
         sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
--- TODO: can the same Issuer send the same NameID to two different teams?  we should assume it
--- can, and handle it properly.  (in that case, we will either have the team id from the HTTP
--- request, or we won't have made it here because the issuer cannot be uniquely determined.)
-
 deleteSAMLUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
 deleteSAMLUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
   where
