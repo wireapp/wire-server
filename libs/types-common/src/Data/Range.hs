@@ -121,7 +121,7 @@ instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
 
 rangedSchema ::
-  (Within a n m, Bounds b, HasRangedSchemaDocModifier d b) =>
+  (Within a n m, HasRangedSchemaDocModifier d b) =>
   SNat n ->
   SNat m ->
   SchemaP d v w a b ->
@@ -132,7 +132,7 @@ rangedSchema sn sm sch = Range <$> untypedRangedSchema (get sn) (get sm) sch
 
 untypedRangedSchema ::
   forall d v w a b.
-  (Bounds b, HasRangedSchemaDocModifier d b) =>
+  (HasRangedSchemaDocModifier d b) =>
   Integer ->
   Integer ->
   SchemaP d v w a b ->
