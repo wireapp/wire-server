@@ -55,7 +55,7 @@ module Data.Range
 where
 
 import Cassandra (ColumnType, Cql (..), Tagged, retag)
-import Control.Lens ((?~))
+import Control.Lens ((%~), (?~))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson.Types as Aeson (Parser)
 import qualified Data.Attoparsec.ByteString as Atto
@@ -121,7 +121,7 @@ instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
 
 rangedSchema ::
-  (Within a n m, Bounds b) =>
+  (Within a n m, Bounds b, HasRangedSchemaDocModifier d b) =>
   SNat n ->
   SNat m ->
   SchemaP d v w a b ->
@@ -131,18 +131,55 @@ rangedSchema sn sm sch = Range <$> untypedRangedSchema (get sn) (get sm) sch
     get = toInteger . fromSing
 
 untypedRangedSchema ::
-  Bounds b =>
+  forall d v w a b.
+  (Bounds b, HasRangedSchemaDocModifier d b) =>
   Integer ->
   Integer ->
   SchemaP d v w a b ->
   SchemaP d v w a b
-untypedRangedSchema n m sch = sch `withParser` check
+untypedRangedSchema n m sch = (sch `withParser` check) & doc %~ rangedSchemaDocModifier (Proxy @b) n m
   where
     check x =
       x <$ guard (within x n m)
         <|> fail (errorMsg n m "")
 
-instance (Within a n m, ToSchema a) => ToSchema (Range n m a) where
+class Bounds a => HasRangedSchemaDocModifier d a where
+  rangedSchemaDocModifier :: Proxy a -> Integer -> Integer -> d -> d
+
+listRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+listRangedSchemaDocModifier n m = S.schema %~ ((S.minItems ?~ n) . (S.maxItems ?~ m))
+
+stringRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+stringRangedSchemaDocModifier n m = S.schema %~ ((S.minLength ?~ n) . (S.maxLength ?~ m))
+
+numRangedSchemaDocModifier :: S.HasSchema d S.Schema => Integer -> Integer -> d -> d
+numRangedSchemaDocModifier n m = S.schema %~ ((S.minimum_ ?~ fromIntegral n) . (S.maximum_ ?~ fromIntegral m))
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d [a] where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Text where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d String where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d (AsciiText c) where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Int where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Int32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Integer where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word8 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word16 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word32 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word64 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
+
+instance (Within a n m, ToSchema a, HasRangedSchemaDocModifier NamedSwaggerDoc a) => ToSchema (Range n m a) where
   schema = fromRange .= rangedSchema sing sing schema
 
 instance (Within a n m, Cql a) => Cql (Range n m a) where
