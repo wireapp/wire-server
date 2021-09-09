@@ -6,7 +6,7 @@ shopt -s nullglob
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 getPRNumber() {
-    git log --format=%s -- $1 | sed -rn '/\((#.*)\)$/ s|^.*\((#.*)\)$|\1|p' | grep "" ||
+    git log --reverse --format=%s -- $1 | sed -rn '1 { /\((#.*)\)$/ s|^.*\((#.*)\)$|\1|p; }' | grep "" ||
       echo "#PR_NOT_FOUND"
 }
 
