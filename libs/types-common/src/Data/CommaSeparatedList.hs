@@ -41,6 +41,7 @@ instance FromByteString (List a) => FromHttpApiData (CommaSeparatedList a) where
 instance ToParamSchema (CommaSeparatedList a) where
   toParamSchema _ = mempty & type_ ?~ SwaggerString
 
+-- | TODO: is this obsoleted by the instances in "Data.Range"?
 instance (ToParamSchema a, ToParamSchema (Range n m [a])) => ToParamSchema (Range n m (CommaSeparatedList a)) where
   toParamSchema _ =
     toParamSchema (Proxy @(Range n m [a]))
