@@ -326,3 +326,55 @@ TODO (probably little difference between this and "user deletes herself"?)
 #### delete via scim
 
 TODO
+
+
+## using the same IdP (same entityID, or Issuer) with different teams
+
+Some SAML IdP vendors do not allow to set up fresh entityIDs for fresh
+apps.  The way...
+
+
+changes:
+
+- a few end-points have been make more flexible by adding an optional
+  teamid to the path: ...
+- /sso/initiate-login returns an AuthnReq with the response url that
+  contains the teamid.
+
+
+we make sure that it doesn't matter whether an IdP calls the
+end-point(s) *with* teamid or *without*.  but we may confuse some bad
+idps by sending them a url with the teamid init, where they expect one
+without it.
+
+we could change /sso/initiate-login to contain the teamid based on
+which table the idp comes from, and make sure that we insert idps into
+the old table if the metadata sais that's what the idp expects.  it's
+annoying and awkward, though.
+
+ya, we need to make sure idps set up without teamid will still present with the old urls everywhere, especially in the initiate-login resp body.
+
+this leaves the complication that people may create new idps based on the metadata they pulled from /metadata (without teamid).  can we accomodate this, too?
+
+
+
+
+
+- authnreq needs to have an sp issuer that matches the expectation of the idp.
+- store in old table to state that legacy api should be used, this is set via a query param in `POST /identity-provider`.  this "ensures" that people do it only when they got the new metadata file.  (no typesafe way to accomplish that, it happens outside of our power.)
+- add flag to IdP type to state which api is used.
+
+
+
+
+
+next steps:
+- write integration tests.  make them fail for good reasons.
+- read the above ideas.
+- finish the implementation.
+
+
+
+TODO:
+- in 'getIdPIdByIssuerOld', provide a better error to the UI if two idps are found for different teams.
+- call `skipIdPAPIVersions [WireIdPAPIV1]` everywhere /a
