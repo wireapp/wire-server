@@ -105,7 +105,7 @@ getConversation zusr cnv = do
   where
     getRemoteConversation :: Remote ConvId -> Galley Public.Conversation
     getRemoteConversation remoteConvId = do
-      (foundConvs, _) <- Data.remoteConversationIdOf zusr [remoteConvId]
+      foundConvs <- Data.remoteConversationIdOf zusr [remoteConvId]
       unless (remoteConvId `elem` foundConvs) $
         throwErrorDescription convNotFound
       conversations <- getRemoteConversations zusr [remoteConvId]
