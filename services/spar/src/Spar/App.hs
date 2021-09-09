@@ -154,8 +154,11 @@ instance SPStoreIdP SparError Spar where
   getIdPConfig :: IdPId -> Spar IdP
   getIdPConfig = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Maybe TeamId -> Spar IdP
+  getIdPConfigByIssuer :: Issuer -> TeamId -> Spar IdP
   getIdPConfigByIssuer issuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer issuer
+
+  getIdPConfigByIssuerOptionalSPId :: Issuer -> Maybe TeamId -> Spar IdP
+  getIdPConfigByIssuerOptionalSPId issuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuerAllowOld issuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
 -- don't need either of those, 'wrapMonadClient' will suffice.

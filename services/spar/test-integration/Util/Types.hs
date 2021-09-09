@@ -31,11 +31,12 @@ module Util.Types
     teSparEnv,
     teOpts,
     teTstOpts,
-    teLegacySAMLEndPoints,
+    teWireIdPAPIVersion,
     Select,
     ResponseLBS,
     IntegrationConfig (..),
     TestErrorLabel (..),
+    skipIdPAPIVersions,
   )
 where
 
@@ -54,6 +55,7 @@ import Spar.API ()
 import qualified Spar.App as Spar
 import Test.Hspec (pendingWith)
 import Util.Options
+import Wire.API.User.IdentityProvider (WireIdPAPIVersion)
 import Wire.API.User.Saml
 
 type BrigReq = Request -> Request
@@ -85,7 +87,7 @@ data TestEnv = TestEnv
     --
     -- NB: this has no impact on the tested spar code; the rest API supports both legacy and
     -- multi-sp mode.  this falg merely determines how the rest API is used.
-    _teLegacySAMLEndPoints :: Bool
+    _teWireIdPAPIVersion :: WireIdPAPIVersion
   }
 
 type Select = TestEnv -> (Request -> Request)
@@ -118,8 +120,7 @@ _unitTestTestErrorLabel = do
     throwIO . ErrorCall . show $
       val
 
-skipInLegacyRun :: (MonadIO m, MonadReader TestEnv m) => m ()
-skipInLegacyRun = do
-  asks (^. teLegacySAMLEndPoints) >>= \case
-    True -> liftIO $ pendingWith "skipping this test case in legacy run (makes no difference)"
-    False -> pure ()
+skipIdPAPIVersions :: (MonadIO m, MonadReader TestEnv m) => [WireIdPAPIVersion] -> m ()
+skipIdPAPIVersions skip = do
+  asks (^. teWireIdPAPIVersion) >>= \vers -> when (vers `elem` skip) . liftIO $ do
+    pendingWith $ "skipping " <> show vers <> " for this test case (behavior covered by other versions)"

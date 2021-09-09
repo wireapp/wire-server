@@ -273,7 +273,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Spar ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       wrapMonadClient $ do
-        iid <- Data.getIdPIdByIssuer oldIssuer
+        iid <- Data.getIdPIdByIssuerAllowOld oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam)
         mapM_ (Data.clearReplacedBy . Data.Replaced) iid
 
 -- | This handler only does the json parsing, and leaves all authorization checks and

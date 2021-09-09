@@ -122,7 +122,7 @@ specMisc = do
             pure $ nonfresh & edIssuer .~ issuer
           env <- ask
           uid <- fst <$> call (createUserWithTeam (env ^. teBrig) (env ^. teGalley))
-          resp <- call $ callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just uid) somemeta
+          resp <- call $ callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) somemeta
           liftIO $ statusCode resp `shouldBe` if isHttps then 201 else 400
     it "does not trigger on https urls" $ check True
     it "does trigger on http urls" $ check False
@@ -509,7 +509,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         reBindDifferent uid = do
           env <- ask
           (SampleIdP metadata privcreds _ _) <- makeSampleIdPMetadata
-          idp <- call $ callIdpCreate (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just uid) metadata
+          idp <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) metadata
           (_, authnResp, sparAuthnResp) <- initialBind uid idp privcreds
           pure (authnResp, sparAuthnResp)
     context "initial bind" $ do
@@ -768,7 +768,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
         (SampleIdP idpmeta2 _ _ _) <- makeSampleIdPMetadata
-        _ <- call $ callIdpCreate (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just owner1) idpmeta2
+        _ <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2
         let idpmeta1' = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta1') undefined)
           `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
@@ -948,7 +948,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (uid, _tid) <- call $ createUserWithTeamDisableSSO (env ^. teBrig) (env ^. teGalley)
         (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
-        callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just uid) metadata
+        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) metadata
           `shouldRespondWith` checkErrHspec 403 "sso-disabled"
     context "bad xml" $ do
       it "responds with a 'client error'" $ do
@@ -959,14 +959,14 @@ specCRUDIdentityProvider = do
       it "responds with 'client error'" $ do
         env <- ask
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
-        callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) Nothing idpmeta
+        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) Nothing idpmeta
           `shouldRespondWith` checkErrHspec 400 "client-error"
     context "zuser has no team" $ do
       it "responds with 'no team member'" $ do
         env <- ask
         (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
-        callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just uid) idpmeta
+        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid) idpmeta
           `shouldRespondWith` checkErrHspec 403 "no-team-member"
     context "zuser is a team member, but not a team owner" $ do
       it "responds with 'insufficient-permissions' and a helpful message" $ do
@@ -975,7 +975,7 @@ specCRUDIdentityProvider = do
         newmember <-
           let perms = Galley.noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-        callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
+        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "idp (identified by issuer) is in use by other team" $ do
       it "rejects" $ do
@@ -983,9 +983,9 @@ specCRUDIdentityProvider = do
         (SampleIdP newMetadata _ _ _) <- makeSampleIdPMetadata
         (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-        resp1 <- call $ callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just uid1) newMetadata
-        resp2 <- call $ callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just uid1) newMetadata
-        resp3 <- call $ callIdpCreate' (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just uid2) newMetadata
+        resp1 <- call $ callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid1) newMetadata
+        resp2 <- call $ callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid1) newMetadata
+        resp3 <- call $ callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid2) newMetadata
         liftIO $ do
           statusCode resp1 `shouldBe` 201
           statusCode resp2 `shouldBe` 400
@@ -997,7 +997,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
-        idp <- call $ callIdpCreate (env ^. teLegacySAMLEndPoints) (env ^. teSpar) (Just owner) metadata
+        idp <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata
         idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
         rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
         liftIO $ do

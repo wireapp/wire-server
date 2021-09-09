@@ -55,13 +55,11 @@ main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   let env = withArgs wireArgs mkEnvFromOptions
   withArgs hspecArgs . hspec $ do
-    beforeAll env . afterAll destroyEnv $ do
-      mkspecMisc
-      mkspecSaml
-      mkspecScim
-    beforeAll (env <&> teLegacySAMLEndPoints .~ True) . afterAll destroyEnv $ do
-      mkspecSaml
-      mkspecScim
+    for_ [minBound ..] $ \idpApiVersion -> do
+      describe (show idpApiVersion) . beforeAll (env <&> teWireIdPAPIVersion .~ idpApiVersion) . afterAll destroyEnv $ do
+        mkspecMisc
+        mkspecSaml
+        mkspecScim
     mkspecHscimAcceptance env destroyEnv
 
 partitionArgs :: [String] -> ([String], [String])

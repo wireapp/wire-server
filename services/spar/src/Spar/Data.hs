@@ -58,7 +58,9 @@ module Spar.Data
     clearReplacedBy,
     getIdPConfig,
     getIdPConfigByIssuer,
+    getIdPConfigByIssuerAllowOld,
     getIdPIdByIssuer,
+    getIdPIdByIssuerAllowOld,
     getIdPConfigsByTeam,
     deleteIdPConfig,
     deleteTeam,
@@ -409,7 +411,7 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, [SAML.Issuer], Maybe SAML.IdPId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId)
 
 -- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
 -- FUTUREWORK: enforce that wiReplacedby is Nothing, or throw an error.  there is no
@@ -431,12 +433,14 @@ storeIdPConfig idp = retry x5 . batch $ do
       NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse),
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
       idp ^. SAML.idpExtraInfo . wiTeam,
+      idp ^. SAML.idpExtraInfo . wiApiVersion,
       idp ^. SAML.idpExtraInfo . wiOldIssuers,
       idp ^. SAML.idpExtraInfo . wiReplacedBy
     )
   addPrepQuery
     byIssuer
     ( idp ^. SAML.idpId,
+      idp ^. SAML.idpExtraInfo . wiTeam,
       idp ^. SAML.idpMetadata . SAML.edIssuer
     )
   addPrepQuery
@@ -446,9 +450,12 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
-    byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+    -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
+    byIssuer :: PrepQuery W (SAML.IdPId, TeamId, SAML.Issuer) ()
+    byIssuer = "INSERT INTO issuer_idp_v2 (idp, team, issuer) VALUES (?, ? ?)"
+
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
@@ -497,23 +504,36 @@ getIdPConfig idpid =
         certsTail,
         -- extras
         teamId,
+        apiVersion,
         oldIssuers,
         replacedBy
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
-            _idpExtraInfo = WireIdP teamId oldIssuers replacedBy
+            _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, old_issuers, replaced_by FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
+-- | See 'getIdPIdByIssuer'.
 getIdPConfigByIssuer ::
+  (HasCallStack, MonadClient m) =>
+  SAML.Issuer ->
+  TeamId ->
+  m (Maybe IdP)
+getIdPConfigByIssuer issuer team = do
+  getIdPIdByIssuer issuer team >>= \case
+    Nothing -> pure Nothing
+    Just idpid -> getIdPConfig idpid
+
+-- | See 'getIdPIdByIssuerAllowOld'.
+getIdPConfigByIssuerAllowOld ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   Maybe TeamId ->
   m (Maybe IdP)
-getIdPConfigByIssuer issuer mbteam = do
-  getIdPIdByIssuer issuer mbteam >>= \case
+getIdPConfigByIssuerAllowOld issuer mbteam = do
+  getIdPIdByIssuerAllowOld issuer mbteam >>= \case
     Nothing -> pure Nothing
     Just idpid -> getIdPConfig idpid
 
@@ -522,22 +542,45 @@ getIdPConfigByIssuer issuer mbteam = do
 getIdPIdByIssuer ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
+  TeamId ->
+  m (Maybe SAML.IdPId)
+getIdPIdByIssuer issuer team = do
+  mbv2 <- getIdPIdByIssuerV2 issuer team
+  mbboth <- maybe (getIdPIdByIssuerOld issuer) (pure . Just) mbv2
+  pure mbboth
+
+-- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
+-- single solution can be found without.
+getIdPIdByIssuerAllowOld ::
+  (HasCallStack, MonadClient m) =>
+  SAML.Issuer ->
   Maybe TeamId ->
   m (Maybe SAML.IdPId)
-getIdPIdByIssuer issuer mbteam = do
+getIdPIdByIssuerAllowOld issuer mbteam = do
   mbv2 <- maybe (pure Nothing) (getIdPIdByIssuerV2 issuer) mbteam
   mbboth <- maybe (getIdPIdByIssuerOld issuer) (pure . Just) mbv2
   pure mbboth
 
+-- | Find 'IdPId' without team.  Search both `issuer_idp` and `issuer_idp_v2`; in the latter,
+-- make sure the result is unique (no two IdPs for two different teams).
 getIdPIdByIssuerOld ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   m (Maybe SAML.IdPId)
 getIdPIdByIssuerOld issuer = do
-  runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))
+  (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
+    Just idpid -> pure $ Just idpid
+    Nothing ->
+      (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
+        [] -> pure Nothing
+        [idpid] -> pure $ Just idpid
+        (_ : _ : _) -> pure Nothing -- TODO: this should produce a better error!
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
+
+    selv2 :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
+    selv2 = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ?"
 
 getIdPIdByIssuerV2 ::
   (HasCallStack, MonadClient m) =>

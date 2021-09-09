@@ -134,9 +134,9 @@ testNumIdPs = do
   let addSomeIdP :: TestSpar ()
       addSomeIdP = do
         let spar = env ^. teSpar
-            legacyMode = env ^. teLegacySAMLEndPoints
+            apiversion = env ^. teWireIdPAPIVersion
         SAML.SampleIdP metadata _ _ _ <- SAML.makeSampleIdPMetadata
-        void $ call $ Util.callIdpCreate legacyMode spar (Just owner) metadata
+        void $ call $ Util.callIdpCreate apiversion spar (Just owner) metadata
 
   createToken owner (CreateScimToken "eins" (Just defPassword))
     >>= deleteToken owner . stiId . createScimTokenResponseInfo

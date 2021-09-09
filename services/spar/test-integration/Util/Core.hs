@@ -253,7 +253,7 @@ mkEnv _teTstOpts _teOpts = do
       _teGalley = endpointToReq (cfgGalley _teTstOpts)
       _teSpar = endpointToReq (cfgSpar _teTstOpts)
       _teSparEnv = Spar.Env {..}
-      _teLegacySAMLEndPoints = False
+      _teWireIdPAPIVersion = WireIdPAPIV2
       sparCtxOpts = _teOpts
       sparCtxCas = _teCql
       sparCtxHttpManager = _teMgr
@@ -521,8 +521,8 @@ deleteUserNoWait brigreq uid =
 nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
-nextWireIdP :: MonadIO m => m WireIdP
-nextWireIdP = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure [] <*> pure Nothing
+nextWireIdP :: MonadIO m => WireIdPAPIVersion -> m WireIdP
+nextWireIdP version = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure (Just version) <*> pure [] <*> pure Nothing
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
@@ -737,13 +737,14 @@ call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
 ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
-makeTestIdP :: (HasCallStack, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
+makeTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
 makeTestIdP = do
+  apiversion <- asks (^. teWireIdPAPIVersion)
   SampleIdP md _ _ _ <- makeSampleIdPMetadata
   IdPConfig
     <$> (IdPId <$> liftIO UUID.nextRandom)
     <*> (pure md)
-    <*> nextWireIdP
+    <*> nextWireIdP apiversion
 
 getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => TeamId -> m SPMetadata
 getTestSPMetadata tid = do
@@ -751,9 +752,9 @@ getTestSPMetadata tid = do
   resp <-
     call . get $
       (env ^. teSpar)
-        . ( if env ^. teLegacySAMLEndPoints
-              then path "/sso/metadata"
-              else paths ["/sso/metadata", toByteString' tid]
+        . ( case env ^. teWireIdPAPIVersion of
+              WireIdPAPIV1 -> path "/sso/metadata"
+              WireIdPAPIV2 -> paths ["/sso/metadata", toByteString' tid]
           )
         . expect2xx
   raw <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
@@ -790,7 +791,7 @@ registerTestIdPFrom ::
   SparReq ->
   m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do
-  legacyMode <- asks (^. teLegacySAMLEndPoints)
+  legacyMode <- asks (^. teWireIdPAPIVersion)
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
     (uid,tid,) <$> callIdpCreate legacyMode spar (Just uid) metadata
@@ -926,9 +927,9 @@ submitAuthnResponse' reqmod tid (SignedAuthnResponse authnresp) = do
   req :: Request <-
     formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
   let p =
-        if env ^. teLegacySAMLEndPoints
-          then path "/sso/finalize-login/"
-          else paths ["/sso/finalize-login", toByteString' tid]
+        case env ^. teWireIdPAPIVersion of
+          WireIdPAPIV1 -> path "/sso/finalize-login/"
+          WireIdPAPIV2 -> paths ["/sso/finalize-login", toByteString' tid]
   call $ post' req (reqmod . (env ^. teSpar) . p)
 
 loginSsoUserFirstTime ::
@@ -1069,19 +1070,22 @@ callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m Respo
 callIdpGetAll' sparreq_ muid = do
   get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => Bool -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m IdP
-callIdpCreate legacyMode sparreq_ muid metadata = do
-  resp <- callIdpCreate' legacyMode (sparreq_ . expect2xx) muid metadata
+callIdpCreate :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m IdP
+callIdpCreate apiversion sparreq_ muid metadata = do
+  resp <- callIdpCreate' apiversion (sparreq_ . expect2xx) muid metadata
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => Bool -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
-callIdpCreate' legacyMode sparreq_ muid metadata = do
+callIdpCreate' :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
+callIdpCreate' apiversion sparreq_ muid metadata = do
   post $
     sparreq_
       . maybe id zUser muid
       . path "/identity-providers/"
-      . Bilge.query [("legacy", Just "true") | legacyMode]
+      . ( case apiversion of
+            WireIdPAPIV1 -> Bilge.query [("api", Just "v1")]
+            WireIdPAPIV2 -> id
+        )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 

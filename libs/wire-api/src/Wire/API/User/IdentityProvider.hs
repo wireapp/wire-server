@@ -17,6 +17,8 @@
 
 module Wire.API.User.IdentityProvider where
 
+import qualified Cassandra as Cql
+import Control.Exception (assert)
 import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
@@ -57,12 +59,27 @@ data WireIdPAPIVersion
     WireIdPAPIV1
   | -- | support for different SP entityIDs per team
     WireIdPAPIV2
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Enum, Bounded, Generic)
+
+defWireIdPAPIVersion :: WireIdPAPIVersion
+defWireIdPAPIVersion = WireIdPAPIV2
 
 makeLenses ''WireIdP
 
 deriveJSON deriveJSONOptions ''WireIdPAPIVersion
 deriveJSON deriveJSONOptions ''WireIdP
+
+instance Cql.Cql WireIdPAPIVersion where
+  ctype = Cql.Tagged Cql.IntColumn
+
+  toCql WireIdPAPIV1 = Cql.CqlInt 1
+  toCql WireIdPAPIV2 = Cql.CqlInt 2
+
+  fromCql (Cql.CqlInt i) = case i of
+    1 -> return WireIdPAPIV1
+    2 -> return WireIdPAPIV2
+    n -> Left $ "Unexpected ClientCapability value: " ++ show n
+  fromCql _ = Left "ClientCapability value: int expected"
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.
