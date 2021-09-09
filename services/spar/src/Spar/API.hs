@@ -173,7 +173,7 @@ validateRedirectURL uri = do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 authresp :: Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar Void
-authresp mbtid ckyraw arbody = logErrors $ SAML.authresp (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
+authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader

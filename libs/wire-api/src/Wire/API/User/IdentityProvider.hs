@@ -43,6 +43,7 @@ data WireIdP = WireIdP
     -- | list of issuer names that this idp has replaced, most recent first.  this is used
     -- for finding users that are still stored under the old issuer, see
     -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
+    _wiApiVersion :: Maybe WireIdPAPIVersion,
     _wiOldIssuers :: [SAML.Issuer],
     -- | the issuer that has replaced this one.  this is set iff a new issuer is created
     -- with the @"replaces"@ query parameter, and it is used to decide whether users not
@@ -51,8 +52,16 @@ data WireIdP = WireIdP
   }
   deriving (Eq, Show, Generic)
 
+data WireIdPAPIVersion
+  = -- | initial API
+    WireIdPAPIV1
+  | -- | support for different SP entityIDs per team
+    WireIdPAPIV2
+  deriving (Eq, Show, Generic)
+
 makeLenses ''WireIdP
 
+deriveJSON deriveJSONOptions ''WireIdPAPIVersion
 deriveJSON deriveJSONOptions ''WireIdP
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
@@ -102,6 +111,9 @@ instance ToJSON IdPMetadataInfo where
 -- Swagger instances
 
 instance ToSchema IdPList where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema WireIdPAPIVersion where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema WireIdP where
