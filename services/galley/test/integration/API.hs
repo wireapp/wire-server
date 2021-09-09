@@ -880,7 +880,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+            { FederatedGalley.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
             }
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -914,7 +914,7 @@ postMessageQualifiedRemoteOwningBackendFailure = do
 
   let galleyApi =
         emptyFederatedGalley
-          { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+          { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
           }
 
   (resp2, _requests) <-
