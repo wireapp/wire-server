@@ -1083,7 +1083,7 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
       . maybe id zUser muid
       . path "/identity-providers/"
       . ( case apiversion of
-            WireIdPAPIV1 -> Bilge.query [("api", Just "v1")]
+            WireIdPAPIV1 -> Bilge.query [("api-version", Just "v1")]
             WireIdPAPIV2 -> id
         )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)

@@ -273,21 +273,21 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Spar ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       wrapMonadClient $ do
-        iid <- Data.getIdPIdByIssuerAllowOld oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam)
+        iid <- Data.getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam)
         mapM_ (Data.clearReplacedBy . Data.Replaced) iid
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Spar IdP
-idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml midpid
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar IdP
+idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar IdP
-idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar IdP
+idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
-  idp <- validateNewIdP idpmeta teamid mReplaces
+  idp <- validateNewIdP apiversion idpmeta teamid mReplaces
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
   forM_ mReplaces $ \replaces -> wrapMonadClient $ do
@@ -326,11 +326,12 @@ assertNoScimOrNoIdP teamid = do
 validateNewIdP ::
   forall m.
   (HasCallStack, m ~ Spar) =>
+  WireIdPAPIVersion ->
   SAML.IdPMetadata ->
   TeamId ->
   Maybe SAML.IdPId ->
   m IdP
-validateNewIdP _idpMetadata teamId mReplaces = do
+validateNewIdP apiversion _idpMetadata teamId mReplaces = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
@@ -338,9 +339,9 @@ validateNewIdP _idpMetadata teamId mReplaces = do
       idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar SparIdPNotFound) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId oldIssuers Nothing
+      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
-  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
+  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer) teamId) >>= \case
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
   pure SAML.IdPConfig {..}
@@ -387,7 +388,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
     if previousIssuer == newIssuer
       then pure $ previousIdP ^. SAML.idpExtraInfo
       else do
-        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuer newIssuer)
+        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuerAllowOld newIssuer (Just teamId))
         let notInUseByOthers = case foundConfig of
               Nothing -> True
               Just c -> c ^. SAML.idpId == _idpId

@@ -53,7 +53,10 @@ getOpts = do
 deriveOpts :: OptsRaw -> IO Opts
 deriveOpts raw = do
   derived <- do
-    let respuri = runWithConfig raw sparResponseURI
+    let respuri =
+          -- respuri is only needed for 'derivedOptsBindCookiePath'; we want the prefix of the
+          -- V2 path that includes the team id.
+          runWithConfig raw (sparResponseURI Nothing)
         derivedOptsBindCookiePath = URI.uriPath respuri
     -- We could also make this selectable in the config file, but it seems easier to derive it from
     -- the SAML base uri.

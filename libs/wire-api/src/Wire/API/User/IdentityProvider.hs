@@ -18,7 +18,6 @@
 module Wire.API.User.IdentityProvider where
 
 import qualified Cassandra as Cql
-import Control.Exception (assert)
 import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
