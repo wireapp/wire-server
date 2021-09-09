@@ -466,7 +466,7 @@ storeIdPConfig idp = retry x5 . batch $ do
 
     -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
     byIssuer :: PrepQuery W (SAML.IdPId, TeamId, SAML.Issuer) ()
-    byIssuer = "INSERT INTO issuer_idp_v2 (idp, team, issuer) VALUES (?, ? ?)"
+    byIssuer = "INSERT INTO issuer_idp_v2 (idp, team, issuer) VALUES (?, ?, ?)"
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
