@@ -19,6 +19,8 @@ THIS FILE ACCUMULATES THE RELEASE NOTES FOR THE UPCOMING RELEASE.
 ## Documentation
 
 * Added documentation of federation errors (#1674)
+* Better swagger schema for the Range type (#1748)
+* Add better example for Domain in swagger (#1748)
 
 ## Internal changes
 
