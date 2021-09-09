@@ -253,6 +253,7 @@ mkEnv _teTstOpts _teOpts = do
       _teGalley = endpointToReq (cfgGalley _teTstOpts)
       _teSpar = endpointToReq (cfgSpar _teTstOpts)
       _teSparEnv = Spar.Env {..}
+      _teLegacySAMLEndPoints = False
       sparCtxOpts = _teOpts
       sparCtxCas = _teCql
       sparCtxHttpManager = _teMgr
@@ -744,10 +745,17 @@ makeTestIdP = do
     <*> (pure md)
     <*> nextWireIdP
 
-getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
-getTestSPMetadata = do
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => TeamId -> m SPMetadata
+getTestSPMetadata tid = do
   env <- ask
-  resp <- call . get $ (env ^. teSpar) . path "/sso/metadata" . expect2xx
+  resp <-
+    call . get $
+      (env ^. teSpar)
+        . ( if env ^. teLegacySAMLEndPoints
+              then path "/sso/metadata"
+              else paths ["/sso/metadata", toByteString' tid]
+          )
+        . expect2xx
   raw <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
   either (crash_ . show) pure (SAML.decode raw)
   where
@@ -774,7 +782,7 @@ registerTestIdPWithMeta = do
 
 -- | Helper for 'registerTestIdP'.
 registerTestIdPFrom ::
-  (HasCallStack, MonadIO m) =>
+  (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdPMetadata ->
   Manager ->
   BrigReq ->
@@ -782,9 +790,10 @@ registerTestIdPFrom ::
   SparReq ->
   m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do
+  legacyMode <- asks (^. teLegacySAMLEndPoints)
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
-    (uid,tid,) <$> callIdpCreate spar (Just uid) metadata
+    (uid,tid,) <$> callIdpCreate legacyMode spar (Just uid) metadata
 
 getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
 getCookie proxy rsp = do
@@ -838,10 +847,11 @@ isSetBindCookie (SetBindCookie (SimpleSetCookie cky)) = do
 tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
 tryLogin privkey idp userSubject = do
   env <- ask
-  spmeta <- getTestSPMetadata
+  let tid = idp ^. idpExtraInfo . wiTeam
+  spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
   idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
-  sparresp <- submitAuthnResponse idpresp
+  sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     statusCode sparresp `shouldBe` 200
     let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
@@ -852,10 +862,11 @@ tryLogin privkey idp userSubject = do
 tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
 tryLoginFail privkey idp userSubject bodyShouldContain = do
   env <- ask
-  spmeta <- getTestSPMetadata
+  let tid = idp ^. idpExtraInfo . wiTeam
+  spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
   idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
-  sparresp <- submitAuthnResponse idpresp
+  sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
     bdy `shouldContain` bodyShouldContain
@@ -899,6 +910,7 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
 
 submitAuthnResponse ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
+  TeamId ->
   SignedAuthnResponse ->
   m ResponseLBS
 submitAuthnResponse = submitAuthnResponse' id
@@ -906,13 +918,18 @@ submitAuthnResponse = submitAuthnResponse' id
 submitAuthnResponse' ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   (Request -> Request) ->
+  TeamId ->
   SignedAuthnResponse ->
   m ResponseLBS
-submitAuthnResponse' reqmod (SignedAuthnResponse authnresp) = do
+submitAuthnResponse' reqmod tid (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request <-
     formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req (reqmod . (env ^. teSpar) . path "/sso/finalize-login/")
+  let p =
+        if env ^. teLegacySAMLEndPoints
+          then path "/sso/finalize-login/"
+          else paths ["/sso/finalize-login", toByteString' tid]
+  call $ post' req (reqmod . (env ^. teSpar) . p)
 
 loginSsoUserFirstTime ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
@@ -938,10 +955,11 @@ loginCreatedSsoUser ::
   m (UserId, Cookie)
 loginCreatedSsoUser nameid idp privCreds = do
   env <- ask
+  let tid = idp ^. idpExtraInfo . wiTeam
   authnReq <- negotiateAuthnRequest idp
-  spmeta <- getTestSPMetadata
+  spmeta <- getTestSPMetadata tid
   authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta authnReq True
-  sparAuthnResp <- submitAuthnResponse authnResp
+  sparAuthnResp <- submitAuthnResponse tid authnResp
 
   let wireCookie = maybe (error (show sparAuthnResp)) id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
   accessResp :: ResponseLBS <-
@@ -1051,18 +1069,19 @@ callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m Respo
 callIdpGetAll' sparreq_ muid = do
   get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPMetadata -> m IdP
-callIdpCreate sparreq_ muid metadata = do
-  resp <- callIdpCreate' (sparreq_ . expect2xx) muid metadata
+callIdpCreate :: (MonadIO m, MonadHttp m) => Bool -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m IdP
+callIdpCreate legacyMode sparreq_ muid metadata = do
+  resp <- callIdpCreate' legacyMode (sparreq_ . expect2xx) muid metadata
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
-callIdpCreate' sparreq_ muid metadata = do
+callIdpCreate' :: (MonadIO m, MonadHttp m) => Bool -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
+callIdpCreate' legacyMode sparreq_ muid metadata = do
   post $
     sparreq_
       . maybe id zUser muid
       . path "/identity-providers/"
+      . Bilge.query [("legacy", Just "true") | legacyMode]
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
