@@ -22,6 +22,7 @@ import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
+import qualified Data.Attoparsec.ByteString as AP
 import qualified Data.Binary.Builder as BSB
 import qualified Data.ByteString.Conversion as BSC
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
@@ -36,6 +37,7 @@ import SAML2.WebSSO (IdPConfig)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 import Wire.API.User.Orphans (samlSchemaOptions)
 
 -- | The identity provider type used in Spar.
@@ -60,7 +62,8 @@ data WireIdPAPIVersion
     WireIdPAPIV1
   | -- | support for different SP entityIDs per team
     WireIdPAPIV2
-  deriving (Eq, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform WireIdPAPIVersion)
 
 defWireIdPAPIVersion :: WireIdPAPIVersion
 defWireIdPAPIVersion = WireIdPAPIV2
@@ -77,10 +80,14 @@ instance BSC.ToByteString WireIdPAPIVersion where
       WireIdPAPIV2 -> "v2"
 
 instance BSC.FromByteString WireIdPAPIVersion where
-  parser = _
+  parser =
+    (AP.string "v1" >> pure WireIdPAPIV1)
+      <|> (AP.string "v2" >> pure WireIdPAPIV2)
 
 instance FromHttpApiData WireIdPAPIVersion where
-  parseQueryParam = maybe (Left _) Right . BSC.fromByteString' . cs
+  parseQueryParam txt = maybe err Right $ BSC.fromByteString' (cs txt)
+    where
+      err = Left $ "FromHttpApiData WireIdPAPIVersion: " <> txt
 
 instance ToHttpApiData WireIdPAPIVersion where
   toQueryParam = cs . BSC.toByteString'
