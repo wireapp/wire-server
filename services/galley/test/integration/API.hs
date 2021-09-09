@@ -1854,7 +1854,7 @@ testGetQualifiedLocalConvNotFound = do
   convId <- (`Qualified` localDomain) <$> randomId
   getConvQualified alice convId !!! do
     const 404 === statusCode
-    const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
+    const (Right (Just "no-conversation")) === fmap (view (at "label")) . responseJsonEither @Object
 
 testGetQualifiedLocalConvNotParticipating :: TestM ()
 testGetQualifiedLocalConvNotParticipating = do
