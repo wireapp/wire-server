@@ -1,1 +1,1 @@
-Remove the long-deprecated `message` field in `POST /connections` (#1726)
+Remove the deprecated `message` field in `POST /connections`
