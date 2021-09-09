@@ -25,7 +25,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 15 "Optionally index IdP by teamid (add. to entityID)" $ do
+migration = Migration 15 "Optionally index IdP by teamid (in addition to entityID); add idp api version." $ do
   void $
     schema'
       [r|
@@ -35,4 +35,9 @@ migration = Migration 15 "Optionally index IdP by teamid (add. to entityID)" $ d
             , idp           uuid
             , PRIMARY KEY (issuer, team)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
+        |]
+  void $
+    schema'
+      [r|
+        ALTER TABLE idp ADD api_version int;
         |]
