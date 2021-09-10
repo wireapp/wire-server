@@ -56,6 +56,7 @@ module Spar.Data
     Replacing (..),
     setReplacedBy,
     clearReplacedBy,
+    GetIdPResult (..),
     getIdPConfig,
     getIdPConfigByIssuer,
     getIdPConfigByIssuerAllowOld,
@@ -527,27 +528,53 @@ getIdPConfig idpid =
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
 
+data GetIdPResult a
+  = GetIdPFound a
+  | GetIdPNotFound
+  | -- | you were looking for an idp by just providing issuer, not teamid, and `issuer_idp_v2`
+    --   has more than one entry (for different teams).
+    GetIdPNonUniqueAnyTeam [a]
+  | -- | If you provide a teamid, and the idp retrieved is found just by issuer, and lives in
+    --   another team.  this should be handled similarly to NotFound in most cases.
+    GetIdPWrongTeam a
+  deriving (Eq, Show)
+
+-- | we don't need the functor property, this is just for fun.
+instance Functor GetIdPResult where
+  fmap f (GetIdPFound a) = GetIdPFound (f a)
+  fmap _ GetIdPNotFound = GetIdPNotFound
+  fmap f (GetIdPNonUniqueAnyTeam as) = GetIdPNonUniqueAnyTeam (f <$> as)
+  fmap f (GetIdPWrongTeam a) = GetIdPWrongTeam (f a)
+
+_mapGetIdPResult_simple :: (HasCallStack, MonadClient m) => (a -> m b) -> GetIdPResult a -> m (GetIdPResult b)
+_mapGetIdPResult_simple f (GetIdPFound a) = GetIdPFound <$> f a
+_mapGetIdPResult_simple _ GetIdPNotFound = pure GetIdPNotFound
+_mapGetIdPResult_simple f (GetIdPNonUniqueAnyTeam as) = GetIdPNonUniqueAnyTeam <$> (f `mapM` as)
+_mapGetIdPResult_simple f (GetIdPWrongTeam a) = GetIdPWrongTeam <$> f a
+
+mapGetIdPResult :: (HasCallStack, MonadClient m) => (a -> m (Maybe b)) -> GetIdPResult a -> m (GetIdPResult b)
+mapGetIdPResult = do
+  -- TODO: the simple one doesn't work, but this one is stupid.  we want to throw something if
+  -- we have an id, but can't find the idp for it.
+  undefined
+
 -- | See 'getIdPIdByIssuer'.
 getIdPConfigByIssuer ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   TeamId ->
-  m (Maybe IdP)
-getIdPConfigByIssuer issuer team = do
-  getIdPIdByIssuer issuer team >>= \case
-    Nothing -> pure Nothing
-    Just idpid -> getIdPConfig idpid
+  m (GetIdPResult IdP)
+getIdPConfigByIssuer issuer =
+  getIdPIdByIssuer issuer >=> mapGetIdPResult getIdPConfig
 
 -- | See 'getIdPIdByIssuerAllowOld'.
 getIdPConfigByIssuerAllowOld ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   Maybe TeamId ->
-  m (Maybe IdP)
-getIdPConfigByIssuerAllowOld issuer mbteam = do
-  getIdPIdByIssuerAllowOld issuer mbteam >>= \case
-    Nothing -> pure Nothing
-    Just idpid -> getIdPConfig idpid
+  m (GetIdPResult IdP)
+getIdPConfigByIssuerAllowOld issuer = do
+  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult getIdPConfig
 
 -- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
 -- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
@@ -555,11 +582,8 @@ getIdPIdByIssuer ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   TeamId ->
-  m (Maybe SAML.IdPId)
-getIdPIdByIssuer issuer team = do
-  mbv2 <- getIdPIdByIssuerV2 issuer team
-  mbboth <- maybe (getIdPIdByIssuerOld issuer) (pure . Just) mbv2
-  pure mbboth
+  m (GetIdPResult SAML.IdPId)
+getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
 
 -- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
 -- single solution can be found without.
@@ -567,26 +591,33 @@ getIdPIdByIssuerAllowOld ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   Maybe TeamId ->
-  m (Maybe SAML.IdPId)
+  m (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerAllowOld issuer mbteam = do
   mbv2 <- maybe (pure Nothing) (getIdPIdByIssuerV2 issuer) mbteam
-  mbboth <- maybe (getIdPIdByIssuerOld issuer) (pure . Just) mbv2
-  pure mbboth
+  mbv1v2 <- maybe (getIdPIdByIssuerOld issuer) (pure . GetIdPFound) mbv2
+  case (mbv1v2, mbteam) of
+    (GetIdPFound idpid, Just team) -> do
+      idp <- getIdPConfig idpid >>= error "TODO: handle nothing better" -- maybe (error "TODO: database inconsistency") pure
+      pure $
+        if idp ^. SAML.idpExtraInfo . wiTeam /= team
+          then GetIdPWrongTeam idpid
+          else mbv1v2
+    _ -> pure mbv1v2
 
 -- | Find 'IdPId' without team.  Search both `issuer_idp` and `issuer_idp_v2`; in the latter,
 -- make sure the result is unique (no two IdPs for two different teams).
 getIdPIdByIssuerOld ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
-  m (Maybe SAML.IdPId)
+  m (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerOld issuer = do
   (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
-    Just idpid -> pure $ Just idpid
+    Just idpid -> pure $ GetIdPFound idpid
     Nothing ->
       (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
-        [] -> pure Nothing
-        [idpid] -> pure $ Just idpid
-        (_ : _ : _) -> pure Nothing -- TODO: this should produce a better error!
+        [] -> pure GetIdPNotFound
+        [idpid] -> pure $ GetIdPFound idpid
+        idpids@(_ : _ : _) -> pure $ GetIdPNonUniqueAnyTeam idpids
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
