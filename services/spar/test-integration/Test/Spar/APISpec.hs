@@ -54,6 +54,7 @@ import SAML2.WebSSO
     edCertAuthnResponse,
     edIssuer,
     edRequestURI,
+    fromIssuer,
     getUserRef,
     idPIdToST,
     idpExtraInfo,
@@ -61,6 +62,7 @@ import SAML2.WebSSO
     idpMetadata,
     mkNameID,
     parseFromDocument,
+    rqIssuer,
     (-/),
   )
 import qualified SAML2.WebSSO as SAML
@@ -70,6 +72,7 @@ import SAML2.WebSSO.Test.Util
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
+import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util.Core
 import qualified Util.Scim as ScimT
@@ -240,6 +243,11 @@ specFinalizeLogin = do
           (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
           spmeta <- getTestSPMetadata tid
           authnreq <- negotiateAuthnRequest idp
+          audiencePath <- do
+            asks (^. teWireIdPAPIVersion) <&> \case
+              WireIdPAPIV1 -> "/sso/finalize-login/"
+              WireIdPAPIV2 -> "/sso/finalize-login/" <> toByteString' tid
+          liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           loginSuccess =<< submitAuthnResponse tid authnresp
       context "user is created once, then deleted in team settings, then can login again." $ do
