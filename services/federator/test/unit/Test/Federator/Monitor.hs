@@ -41,7 +41,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 timeoutMicroseconds :: Int
-timeoutMicroseconds = 1000000
+timeoutMicroseconds = 10000000
 
 tests :: TestTree
 tests =
