@@ -218,9 +218,6 @@ memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Noth
 modelMemberUpdate :: Doc.Model
 modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
   Doc.description "Update user properties relative to a conversation"
-  Doc.property "otr_muted" Doc.bool' $ do
-    Doc.description "Whether to notify on conversation updates"
-    Doc.optional
   Doc.property "otr_muted_ref" Doc.bytes' $ do
     Doc.description "A reference point for (un)muting"
     Doc.optional
@@ -271,8 +268,8 @@ validateMemberUpdate u =
     then Right u
     else
       Left
-        "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', \
-        \'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
+        "One of { 'otr_muted_ref', 'otr_archived', 'otr_archived_ref', \
+        \'hidden', 'hidden_ref', 'conversation_role'} required."
 
 -- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
 -- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
