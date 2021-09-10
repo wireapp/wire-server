@@ -252,6 +252,28 @@ specFinalizeLogin = do
           liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           loginSuccess =<< submitAuthnResponse tid authnresp
+      context "happy flow (two teams, fixed IdP entityID)" $ do
+        it "works" $ do
+          skipIdPAPIVersions
+            [ WireIdPAPIV1
+            -- (In fact, to get this to work was the reason to introduce 'WireIdPAPIVesion'.)
+            ]
+          env <- ask
+          (_, tid1, idp1, (IdPMetadataValue _ metadata, privcreds)) <- registerTestIdPWithMeta
+          (tid2, idp2) <- liftIO . runHttpT (env ^. teMgr) $ do
+            (owner2, tid2) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            idp2 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner2) metadata
+            pure (tid2, idp2)
+          do
+            spmeta <- getTestSPMetadata tid1
+            authnreq <- negotiateAuthnRequest idp1
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse tid1 authnresp
+          do
+            spmeta <- getTestSPMetadata tid2
+            authnreq <- negotiateAuthnRequest idp2
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp2 spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse tid2 authnresp
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
           (ownerid, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
