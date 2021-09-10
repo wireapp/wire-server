@@ -19,7 +19,6 @@ module Test.Wire.API.Golden.Generated where
 
 import Imports
 import Test.Tasty
-import Test.Tasty.HUnit
 import qualified Test.Wire.API.Golden.Generated.AccessRole_user
 import qualified Test.Wire.API.Golden.Generated.AccessToken_user
 import qualified Test.Wire.API.Golden.Generated.Access_user
