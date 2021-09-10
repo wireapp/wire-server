@@ -129,7 +129,7 @@ specMisc = do
 
 specMetadata :: SpecWith TestEnv
 specMetadata = do
-  focus . describe "metadata" $ do
+  describe "metadata" $ do
     it "metadata (legacy)" $ do
       env <- ask
       get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
@@ -235,7 +235,7 @@ specFinalizeLogin = do
             bdy `shouldContain` "<title>wire:sso:success</title>"
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Right ()
-      focus . context "happy flow" $ do
+      context "happy flow" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
           spmeta <- getTestSPMetadata tid

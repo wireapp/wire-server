@@ -776,7 +776,7 @@ specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
   it "lists all SCIM users in a team" $ testListProvisionedUsers
   context "1 SAML IdP" $ do
-    focus . it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
+    it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
     it "finds a user autoprovisioned via saml by externalId via email" $ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by externalId via email" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by UserId" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId

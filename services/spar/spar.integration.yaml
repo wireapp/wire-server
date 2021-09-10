@@ -1,6 +1,6 @@
 saml:
   version:   SAML2.0
-  logLevel:  Debug
+  logLevel:  Info
 
   spHost:    0.0.0.0
   spPort:    8088

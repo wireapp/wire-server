@@ -177,8 +177,7 @@ spec = do
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` Just (idp ^. idpId)
-      focus . it "getIdPConfigsByTeam works" $ do
-        skipIdPAPIVersions [WireIdPAPIV1]
+      it "getIdPConfigsByTeam works" $ do
         teamid <- nextWireId
         idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid Nothing [] Nothing)
         () <- runSparCass $ Data.storeIdPConfig idp
