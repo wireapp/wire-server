@@ -29,8 +29,6 @@ module Spar.App
     getUserByUref,
     getUserByScimExternalId,
     insertUser,
-    autoprovisionSamlUser,
-    autoprovisionSamlUserWithId,
     validateEmailIfExists,
     errorPage,
   )
@@ -48,6 +46,7 @@ import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
@@ -77,6 +76,7 @@ import SAML2.WebSSO
     uidTenant,
   )
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
 import qualified Spar.Data as Data
@@ -229,47 +229,53 @@ getUserByScimExternalId tid email = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
-createSamlUserWithId buid suid managedBy = do
+createSamlUserWithId :: UserId -> SAML.UserRef -> Spar ()
+createSamlUserWithId buid suid = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- Intra.createBrigUserSAML suid buid teamid uname managedBy
+  buid' <- Intra.createBrigUserSAML suid buid teamid uname ManagedByWire
   assert (buid == buid') $ pure ()
   insertUser suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: SAML.UserRef -> ManagedBy -> Spar UserId
-autoprovisionSamlUser suid managedBy = do
+autoprovisionSamlUser :: SAML.UserRef -> Spar UserId
+autoprovisionSamlUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
-  autoprovisionSamlUserWithId buid suid managedBy
+  autoprovisionSamlUserWithId buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
-autoprovisionSamlUserWithId buid suid managedBy = do
+autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Spar ()
+autoprovisionSamlUserWithId buid suid = do
   idp <- getIdPConfigByIssuer (suid ^. uidTenant)
-  unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
-    throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
-  let teamid = idp ^. idpExtraInfo . wiTeam
-  scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
-  if null scimtoks
-    then do
-      createSamlUserWithId buid suid managedBy
-      validateEmailIfExists buid suid
-    else
-      throwError . SAML.Forbidden $
-        "bad credentials (note that your team uses SCIM, "
-          <> "which disables saml auto-provisioning)"
+  guardReplacedIdP idp
+  guardScimTokens idp
+  createSamlUserWithId buid suid
+  validateEmailIfExists buid suid
+  where
+    -- Replaced IdPs are not allowed to create new wire accounts.
+    guardReplacedIdP :: IdP -> Spar ()
+    guardReplacedIdP idp = do
+      unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
+        throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
+
+    -- IdPs in teams with scim tokens are not allowed to auto-provision.
+    guardScimTokens :: IdP -> Spar ()
+    guardScimTokens idp = do
+      let teamid = idp ^. idpExtraInfo . wiTeam
+      scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
+      unless (null scimtoks) $ do
+        throwSpar SparSamlCredentialsNotFound
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
 validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
 validateEmailIfExists uid = \case
-  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
   _ -> pure ()
   where
-    doValidate :: SAML.Email -> Spar ()
+    doValidate :: SAMLEmail.Email -> Spar ()
     doValidate email = do
       enabled <- do
         tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
@@ -421,7 +427,7 @@ verdictHandlerResultCore bindCky = \case
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref ManagedByWire
+        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref
         -- If the user is only found under an old (previous) issuer, move it here.
         (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
         -- SSO re-authentication (the most common case).

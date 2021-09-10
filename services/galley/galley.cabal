@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8728b07d9aff8cd747ea5ca33259f9168c966ae28ca76825e0a073e166d43213
+-- hash: 0acb724202f4ba39242c1ebbe5f5db555404624b7a6be922d5a4148d38c5786d
 
 name:           galley
 version:        0.83.0
@@ -89,6 +89,7 @@ library
     , brig-types >=0.73.1
     , bytestring >=0.9
     , bytestring-conversion >=0.2
+    , case-insensitive
     , cassandra-util >=0.16.2
     , cassava >=0.5.2
     , cereal >=0.4
@@ -167,6 +168,7 @@ executable galley
   build-depends:
       HsOpenSSL
     , base
+    , case-insensitive
     , extended
     , galley
     , galley-types
@@ -299,6 +301,7 @@ executable galley-migrate-data
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
+    , case-insensitive
     , cassandra-util
     , conduit
     , containers
@@ -365,6 +368,7 @@ executable galley-schema
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
+    , case-insensitive
     , cassandra-util
     , extended
     , imports
@@ -397,6 +401,7 @@ test-suite galley-types-tests
   build-depends:
       QuickCheck
     , base
+    , case-insensitive
     , containers
     , extended
     , galley
