@@ -206,14 +206,13 @@ data MemberUpdate = MemberUpdate
     mupOtrArchive :: Maybe Bool,
     mupOtrArchiveRef :: Maybe Text,
     mupHidden :: Maybe Bool,
-    mupHiddenRef :: Maybe Text,
-    mupConvRoleName :: Maybe RoleName
+    mupHiddenRef :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MemberUpdate
 
 memberUpdate :: MemberUpdate
-memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing
 
 modelMemberUpdate :: Doc.Model
 modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
@@ -233,9 +232,6 @@ modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
   Doc.property "hidden_ref" Doc.bytes' $ do
     Doc.description "A reference point for (un)hiding"
     Doc.optional
-  Doc.property "conversation_role" Doc.string' $ do
-    Doc.description "Name of the conversation role to update to"
-    Doc.optional
 
 instance ToSchema MemberUpdate where
   schema =
@@ -248,7 +244,6 @@ instance ToSchema MemberUpdate where
         <*> mupOtrArchiveRef .= opt (field "otr_archived_ref" schema)
         <*> mupHidden .= opt (field "hidden" schema)
         <*> mupHiddenRef .= opt (field "hidden_ref" schema)
-        <*> mupConvRoleName .= opt (field "conversation_role" schema)
 
 instance Arbitrary MemberUpdate where
   arbitrary =
@@ -263,7 +258,6 @@ validateMemberUpdate u =
          || isJust (mupOtrArchiveRef u)
          || isJust (mupHidden u)
          || isJust (mupHiddenRef u)
-         || isJust (mupConvRoleName u)
      )
     then Right u
     else
@@ -272,7 +266,7 @@ validateMemberUpdate u =
         \'hidden', 'hidden_ref', 'conversation_role'} required."
 
 -- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
--- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
+-- 'MemberUpdateData' - that event is meant to be sent to all users in a conversation.
 data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }

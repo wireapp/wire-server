@@ -2599,7 +2599,7 @@ putMemberOk update = do
             memOtrArchivedRef = mupOtrArchiveRef update,
             memHidden = Just True == mupHidden update,
             memHiddenRef = mupHiddenRef update,
-            memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
+            memConvRoleName = roleNameWireAdmin
           }
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do
@@ -2629,7 +2629,7 @@ putMemberOk update = do
     assertEqual "otr_archived" (memOtrArchived memberBob) (memOtrArchived newBob)
     assertEqual "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
     assertEqual "hidden" (memHidden memberBob) (memHidden newBob)
-    assertEqual "hidden__ref" (memHiddenRef memberBob) (memHiddenRef newBob)
+    assertEqual "hidden_ref" (memHiddenRef memberBob) (memHiddenRef newBob)
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do
