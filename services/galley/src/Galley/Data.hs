@@ -814,8 +814,8 @@ memberLists convs = do
     insert (Just (conv, mem)) acc =
       let f = (Just . maybe [mem] (mem :))
        in Map.alter f conv acc
-    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn) =
-      fmap (cnv,) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
+    mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn) =
+      fmap (cnv,) <$> toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn)
 
 members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [LocalMember]
 members conv = join <$> memberLists [conv]
@@ -903,8 +903,6 @@ updateMember cid uid mup = do
   retry x5 . batch $ do
     setType BatchUnLogged
     setConsistency Quorum
-    for_ (mupOtrMute mup) $ \m ->
-      addPrepQuery Cql.updateOtrMemberMuted (m, mupOtrMuteRef mup, cid, uid)
     for_ (mupOtrMuteStatus mup) $ \ms ->
       addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
     for_ (mupOtrArchive mup) $ \a ->
@@ -916,7 +914,6 @@ updateMember cid uid mup = do
   return
     MemberUpdateData
       { misTarget = Just uid,
-        misOtrMuted = mupOtrMute mup,
         misOtrMutedStatus = mupOtrMuteStatus mup,
         misOtrMutedRef = mupOtrMuteRef mup,
         misOtrArchived = mupOtrArchive mup,
@@ -1006,7 +1003,6 @@ newMemberWithRole u r =
   InternalMember
     { memId = u,
       memService = Nothing,
-      memOtrMuted = False,
       memOtrMutedStatus = Nothing,
       memOtrMutedRef = Nothing,
       memOtrArchived = False,
@@ -1023,7 +1019,6 @@ toMember ::
     Maybe ProviderId,
     Maybe Cql.MemberStatus,
     -- otr muted
-    Maybe Bool,
     Maybe MutedStatus,
     Maybe Text,
     -- otr archived
@@ -1036,7 +1031,7 @@ toMember ::
     Maybe RoleName
   ) ->
   m (Maybe LocalMember) -- FUTUREWORK: remove monad
-toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
+toMember (usr, srv, prv, sta, omus, omur, oar, oarr, hid, hidr, crn) =
   pure $
     if sta /= Just 0
       then Nothing
@@ -1045,7 +1040,6 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
           InternalMember
             { memId = usr,
               memService = newServiceRef <$> srv <*> prv,
-              memOtrMuted = fromMaybe False omu,
               memOtrMutedStatus = omus,
               memOtrMutedRef = omur,
               memOtrArchived = fromMaybe False oar,

@@ -40,7 +40,6 @@ import Wire.API.Conversation
         memId,
         memOtrArchived,
         memOtrArchivedRef,
-        memOtrMuted,
         memOtrMutedRef,
         memOtrMutedStatus,
         memService
@@ -67,7 +66,6 @@ testObject_ConversationList_20Conversation_user_1 =
                       Member
                         { memId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
                           memService = Nothing,
-                          memOtrMuted = True,
                           memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}),
                           memOtrMutedRef = Just "",
                           memOtrArchived = True,

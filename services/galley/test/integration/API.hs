@@ -1876,7 +1876,7 @@ testGetQualifiedRemoteConv = do
       remoteConvId = Qualified convId remoteDomain
       aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      aliceAsMember = Member aliceId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      aliceAsMember = Member aliceId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
@@ -1950,7 +1950,7 @@ testListRemoteConvs = do
       remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-      bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      bobAsMember = Member bobId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
       mockConversation =
         Conversation
           { cnvQualifiedId = remoteConvId,
@@ -2038,7 +2038,7 @@ testBulkGetQualifiedConvs = do
   registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
       mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
@@ -2552,8 +2552,8 @@ putConvRenameOk = do
 
 putMemberOtrMuteOk :: TestM ()
 putMemberOtrMuteOk = do
-  putMemberOk (memberUpdate {mupOtrMute = Just True, mupOtrMuteStatus = Just 0, mupOtrMuteRef = Just "ref"})
-  putMemberOk (memberUpdate {mupOtrMute = Just False})
+  putMemberOk (memberUpdate {mupOtrMuteStatus = Just 1, mupOtrMuteRef = Just "ref"})
+  putMemberOk (memberUpdate {mupOtrMuteStatus = Just 0})
 
 putMemberOtrArchiveOk :: TestM ()
 putMemberOtrArchiveOk = do
@@ -2569,8 +2569,7 @@ putMemberAllOk :: TestM ()
 putMemberAllOk =
   putMemberOk
     ( memberUpdate
-        { mupOtrMute = Just True,
-          mupOtrMuteStatus = Just 0,
+        { mupOtrMuteStatus = Just 0,
           mupOtrMuteRef = Just "mref",
           mupOtrArchive = Just True,
           mupOtrArchiveRef = Just "aref",
@@ -2594,7 +2593,6 @@ putMemberOk update = do
         Member
           { memId = bob,
             memService = Nothing,
-            memOtrMuted = Just True == mupOtrMute update,
             memOtrMutedStatus = mupOtrMuteStatus update,
             memOtrMutedRef = mupOtrMuteRef update,
             memOtrArchived = Just True == mupOtrArchive update,
@@ -2614,7 +2612,6 @@ putMemberOk update = do
       evtFrom e @?= qbob
       case evtData e of
         EdMemberUpdate mis -> do
-          assertEqual "otr_muted" (mupOtrMute update) (misOtrMuted mis)
           assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
           assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
           assertEqual "otr_archived_ref" (mupOtrArchiveRef update) (misOtrArchivedRef mis)
@@ -2628,7 +2625,6 @@ putMemberOk update = do
     assertBool "user" (isJust bob')
     let newBob = fromJust bob'
     assertEqual "id" (memId memberBob) (memId newBob)
-    assertEqual "otr_muted" (memOtrMuted memberBob) (memOtrMuted newBob)
     assertEqual "otr_muted_ref" (memOtrMutedRef memberBob) (memOtrMutedRef newBob)
     assertEqual "otr_archived" (memOtrArchived memberBob) (memOtrArchived newBob)
     assertEqual "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)

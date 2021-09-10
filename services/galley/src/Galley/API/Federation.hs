@@ -188,7 +188,6 @@ receiveMessage domain rmUnqualified = do
         InternalMember
           { memId = m,
             memService = Nothing,
-            memOtrMuted = False,
             memOtrMutedStatus = Nothing,
             memOtrMutedRef = Nothing,
             memOtrArchived = False,

@@ -96,7 +96,6 @@ mainBotNet n = do
     let update =
           MemberUpdateData
             { misTarget = Just $ botId bill,
-              misOtrMuted = Nothing,
               misOtrMutedStatus = Nothing,
               misOtrMutedRef = Nothing,
               misOtrArchived = Just True,
