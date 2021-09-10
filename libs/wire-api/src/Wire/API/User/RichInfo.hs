@@ -54,6 +54,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable (Hashable)
 import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
+import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
@@ -278,8 +279,8 @@ instance FromJSON RichField where
 instance Arbitrary RichField where
   arbitrary =
     RichField
-      <$> arbitrary
-      <*> (arbitrary `QC.suchThat` (/= "")) -- This is required because FromJSON calls @normalizeRichInfo@ and roundtrip tests fail
+      <$> (CI.mk . cs . QC.getPrintableString <$> arbitrary)
+      <*> (cs . QC.getPrintableString <$> arbitrary `QC.suchThat` (/= QC.PrintableString "")) -- This is required because FromJSON calls @normalizeRichInfo*@ and roundtrip tests fail
 
 --------------------------------------------------------------------------------
 -- convenience functions
