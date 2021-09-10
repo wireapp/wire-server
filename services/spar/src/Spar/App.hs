@@ -430,7 +430,7 @@ verdictHandlerResultCore bindCky = \case
       case (viaBindCookie, viaSparCassandra, viaSparCassandraOldIssuer) of
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
-        -- "reauthentication" branch, so we pass 'ManagedByWire'.
+        -- "reauthentication" branch.
         (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref
         -- If the user is only found under an old (previous) issuer, move it here.
         (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
