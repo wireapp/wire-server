@@ -66,7 +66,7 @@ data WireIdPAPIVersion
   deriving (Arbitrary) via (GenericUniform WireIdPAPIVersion)
 
 defWireIdPAPIVersion :: WireIdPAPIVersion
-defWireIdPAPIVersion = WireIdPAPIV2
+defWireIdPAPIVersion = WireIdPAPIV1
 
 makeLenses ''WireIdP
 
