@@ -226,7 +226,7 @@ emptyFederatedGalley =
       e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
    in FederatedGalley.Api
         { FederatedGalley.onConversationCreated = \_ _ -> e "onConversationCreated",
-          FederatedGalley.getConversations = \_ -> e "getConversations",
+          FederatedGalley.getConversations = \_ _ -> e "getConversations",
           FederatedGalley.onConversationMembershipsChanged = \_ _ -> e "onConversationMembershipsChanged",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",

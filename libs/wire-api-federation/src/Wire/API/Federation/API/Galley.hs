@@ -60,6 +60,7 @@ data Api routes = Api
       routes
         :- "federation"
         :> "get-conversations"
+        :> OriginDomainHeader
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
     -- used by backend that owns the conversation to inform the backend about
@@ -100,7 +101,7 @@ data Api routes = Api
   deriving (Generic)
 
 data GetConversationsRequest = GetConversationsRequest
-  { gcrUserId :: Qualified UserId,
+  { gcrUserId :: UserId,
     gcrConvIds :: [ConvId]
   }
   deriving stock (Eq, Show, Generic)

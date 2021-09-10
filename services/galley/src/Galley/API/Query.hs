@@ -116,22 +116,20 @@ getConversation zusr cnv = do
 getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
 getRemoteConversations zusr remoteConvs = do
   localDomain <- viewFederationDomain
-  let qualifiedZUser = Qualified zusr localDomain
   let convsByDomain = partitionRemote remoteConvs
   convs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> do
-    let req = FederatedGalley.GetConversationsRequest qualifiedZUser convIds
-        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+    let req = FederatedGalley.GetConversationsRequest zusr convIds
+        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
     gcresConvs <$> runFederatedGalley remoteDomain rpc
   pure $ concat convs
 
 getRemoteConversationsWithFailures :: UserId -> [Remote ConvId] -> Galley ([Qualified ConvId], [Public.Conversation])
 getRemoteConversationsWithFailures zusr remoteConvs = do
   localDomain <- viewFederationDomain
-  let qualifiedZUser = Qualified zusr localDomain
   let convsByDomain = partitionRemote remoteConvs
   convs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> handleFailures remoteDomain convIds $ do
-    let req = FederatedGalley.GetConversationsRequest qualifiedZUser convIds
-        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes req
+    let req = FederatedGalley.GetConversationsRequest zusr convIds
+        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
     gcresConvs <$> executeFederated remoteDomain rpc
   pure $ concatEithers convs
   where

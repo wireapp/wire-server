@@ -96,11 +96,12 @@ onConversationCreated domain rc = do
             (EdConversation c)
     pushConversationEvent Nothing event [Public.memId mem] []
 
-getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
-getConversations (GetConversationsRequest qUid gcrConvIds) = do
-  domain <- viewFederationDomain
+getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
+getConversations domain (GetConversationsRequest uid gcrConvIds) = do
+  let qUid = Qualified uid domain
+  localDomain <- viewFederationDomain
   convs <- Data.conversations gcrConvIds
-  let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
+  let convViews = Mapping.conversationViewMaybeQualified localDomain qUid <$> convs
   pure $ GetConversationsResponse . catMaybes $ convViews
 
 -- | Update the local database with information on conversation members joining

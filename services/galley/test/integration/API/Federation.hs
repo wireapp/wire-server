@@ -92,11 +92,11 @@ getConversationsAllFound = do
 
   fedGalleyClient <- view tsFedGalleyClient
   localDomain <- viewFederationDomain
-  let aliceQualified = Qualified alice localDomain
   GetConversationsResponse cs <-
     FedGalley.getConversations
       fedGalleyClient
-      (GetConversationsRequest aliceQualified $ qUnqualified . cnvQualifiedId <$> [cnv1, cnv2])
+      localDomain
+      (GetConversationsRequest alice $ qUnqualified . cnvQualifiedId <$> [cnv1, cnv2])
   let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) cs
   let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) cs
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
@@ -127,11 +127,11 @@ getConversationsNotPartOf = do
   fedGalleyClient <- view tsFedGalleyClient
   localDomain <- viewFederationDomain
   rando <- Id <$> liftIO nextRandom
-  let randoQualified = Qualified rando localDomain
   GetConversationsResponse cs <-
     FedGalley.getConversations
       fedGalleyClient
-      (GetConversationsRequest randoQualified [qUnqualified . cnvQualifiedId $ cnv1])
+      localDomain
+      (GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1])
   liftIO $ assertEqual "conversation list not empty" [] cs
 
 addLocalUser :: TestM ()
