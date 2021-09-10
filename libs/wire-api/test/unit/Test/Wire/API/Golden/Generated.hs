@@ -850,7 +850,32 @@ tests =
             )
           ],
       testCase "Golden: NewUser_user" $
-        testObjects [(Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_1, "testObject_NewUser_user_1.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_2, "testObject_NewUser_user_2.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_3, "testObject_NewUser_user_3.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_4, "testObject_NewUser_user_4.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_5, "testObject_NewUser_user_5.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_6, "testObject_NewUser_user_6.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_7, "testObject_NewUser_user_7.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_8, "testObject_NewUser_user_8.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_9, "testObject_NewUser_user_9.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_10, "testObject_NewUser_user_10.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_11, "testObject_NewUser_user_11.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_12, "testObject_NewUser_user_12.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_13, "testObject_NewUser_user_13.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_14, "testObject_NewUser_user_14.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_15, "testObject_NewUser_user_15.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_16, "testObject_NewUser_user_16.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_17, "testObject_NewUser_user_17.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_18, "testObject_NewUser_user_18.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_19, "testObject_NewUser_user_19.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_20, "testObject_NewUser_user_20.json")],
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_1,
+              "testObject_NewUser_user_1.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_2,
+              "testObject_NewUser_user_2.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_3,
+              "testObject_NewUser_user_3.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_4,
+              "testObject_NewUser_user_4.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_5,
+              "testObject_NewUser_user_5.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_6,
+              "testObject_NewUser_user_6.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_7,
+              "testObject_NewUser_user_7.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_8,
+              "testObject_NewUser_user_8.json"
+            )
+          ],
       testCase "Golden: NewUserPublic_user" $
         testObjects [(Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_1, "testObject_NewUserPublic_user_1.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_2, "testObject_NewUserPublic_user_2.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_3, "testObject_NewUserPublic_user_3.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_4, "testObject_NewUserPublic_user_4.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_5, "testObject_NewUserPublic_user_5.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_6, "testObject_NewUserPublic_user_6.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_7, "testObject_NewUserPublic_user_7.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_8, "testObject_NewUserPublic_user_8.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_9, "testObject_NewUserPublic_user_9.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_10, "testObject_NewUserPublic_user_10.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_11, "testObject_NewUserPublic_user_11.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_12, "testObject_NewUserPublic_user_12.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_13, "testObject_NewUserPublic_user_13.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_14, "testObject_NewUserPublic_user_14.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_15, "testObject_NewUserPublic_user_15.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_16, "testObject_NewUserPublic_user_16.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_17, "testObject_NewUserPublic_user_17.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_18, "testObject_NewUserPublic_user_18.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_19, "testObject_NewUserPublic_user_19.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_20, "testObject_NewUserPublic_user_20.json")],
       testCase "Golden: LimitedQualifiedUserIdList_2020_user" $
