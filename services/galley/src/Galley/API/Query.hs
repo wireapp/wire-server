@@ -85,10 +85,10 @@ getBotConversation zbot zcnv = do
   where
     mkMember :: Domain -> LocalMember -> Maybe OtherMember
     mkMember domain m
-      | memId m == botUserId zbot =
+      | lmId m == botUserId zbot =
         Nothing -- no need to list the bot itself
       | otherwise =
-        Just (OtherMember (Qualified (memId m) domain) (memService m) (memConvRoleName m))
+        Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation :: UserId -> ConvId -> Galley Public.Conversation
 getUnqualifiedConversation zusr cnv = do
@@ -355,7 +355,7 @@ getLocalSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
 getLocalSelf usr cnv = do
   alive <- Data.isConvAlive cnv
   if alive
-    then Mapping.toMember <$$> Data.member cnv usr
+    then Mapping.localToSelf <$$> Data.member cnv usr
     else Nothing <$ Data.deleteConversation cnv
 
 getConversationMetaH :: ConvId -> Galley Response

@@ -33,9 +33,8 @@ module Galley.Types
     cnvTeam,
     cnvMessageTimer,
     cnvReceiptMode,
-    LocalMember,
-    RemoteMember,
-    InternalMember (..),
+    RemoteMember (..),
+    LocalMember (..),
     ConvMembers (..),
     OtherMember (..),
     Connect (..),
@@ -85,7 +84,7 @@ where
 import Data.Aeson
 import Data.Id (ClientId, UserId)
 import qualified Data.Map.Strict as Map
-import Galley.Types.Conversations.Members (InternalMember (..), LocalMember, RemoteMember)
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..))
 import Imports
 import Wire.API.Conversation hiding (Member (..))
 import Wire.API.Conversation.Code

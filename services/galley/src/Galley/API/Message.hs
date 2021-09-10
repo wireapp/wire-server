@@ -225,9 +225,9 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   localMembers <- lift $ Data.members convId
   remoteMembers <- Data.lookupRemoteMembers convId
 
-  let localMemberIds = memId <$> localMembers
+  let localMemberIds = lmId <$> localMembers
       localMemberMap :: Map UserId LocalMember
-      localMemberMap = Map.fromList (map (\mem -> (memId mem, mem)) localMembers)
+      localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
       members :: Set (Qualified UserId)
       members =
         Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
@@ -246,7 +246,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
         else Data.lookupClients localMemberIds
   let qualifiedLocalClients =
         Map.mapKeys (localDomain,)
-          . makeUserMap (Set.fromList (map memId localMembers))
+          . makeUserMap (Set.fromList (map lmId localMembers))
           . Clients.toMap
           $ localClients
 
@@ -463,7 +463,7 @@ newMessagePush localDomain members mconn mm (k, client) e = fromMaybe mempty $ d
     newUserMessagePush :: LocalMember -> Maybe MessagePush
     newUserMessagePush member =
       fmap newUserPush $
-        newConversationEventPush localDomain e [memId member]
+        newConversationEventPush localDomain e [lmId member]
           <&> set pushConn mconn
             . set pushNativePriority (mmNativePriority mm)
             . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))

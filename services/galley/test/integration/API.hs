@@ -60,7 +60,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Galley.Options (Opts, optFederator)
-import Galley.Types hiding (InternalMember (..))
+import Galley.Types hiding (LocalMember (..))
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification

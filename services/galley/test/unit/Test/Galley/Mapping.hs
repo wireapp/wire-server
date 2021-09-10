@@ -26,8 +26,7 @@ import Data.Qualified
 import Galley.API ()
 import Galley.API.Mapping
 import qualified Galley.Data as Data
-import Galley.Types (LocalMember, RemoteMember)
-import qualified Galley.Types.Conversations.Members as I
+import Galley.Types.Conversations.Members
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -154,7 +153,7 @@ mkOtherMember :: Qualified UserId -> OtherMember
 mkOtherMember u = OtherMember u Nothing roleNameWireAdmin
 
 mkRemoteMember :: Qualified UserId -> RemoteMember
-mkRemoteMember u = I.RemoteMember (toRemote u) roleNameWireAdmin
+mkRemoteMember u = RemoteMember (toRemote u) roleNameWireAdmin
 
 mkInternalConv :: [LocalMember] -> [RemoteMember] -> IO Data.Conversation
 mkInternalConv locals remotes = do
@@ -193,14 +192,9 @@ mkMember (Qualified userId _domain) =
 
 mkInternalMember :: Qualified UserId -> LocalMember
 mkInternalMember (Qualified userId _domain) =
-  I.InternalMember
-    { I.memId = userId,
-      I.memService = Nothing,
-      I.memOtrMutedStatus = Nothing,
-      I.memOtrMutedRef = Nothing,
-      I.memOtrArchived = False,
-      I.memOtrArchivedRef = Nothing,
-      I.memHidden = False,
-      I.memHiddenRef = Nothing,
-      I.memConvRoleName = roleNameWireAdmin
+  LocalMember
+    { lmId = userId,
+      lmService = Nothing,
+      lmStatus = defMemberStatus,
+      lmConvRoleName = roleNameWireAdmin
     }

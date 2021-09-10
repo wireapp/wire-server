@@ -24,12 +24,11 @@ import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import qualified Data.List as List
 import Data.Qualified (Qualified (..))
-import Data.Tagged (unTagged)
 import Galley.API.Util (viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import Galley.Data.Types (convId)
-import qualified Galley.Types.Conversations.Members as Internal
+import Galley.Types.Conversations.Members
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -62,18 +61,18 @@ conversationViewMaybe u conv = do
 -- Returns 'Nothing' when the user is not part of the conversation.
 conversationViewMaybeQualified :: Domain -> Qualified UserId -> Data.Conversation -> Maybe Public.Conversation
 conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
-  let localMembers = localToOther localDomain <$> convLocalMembers
-  let remoteMembers = remoteToOther <$> convRemoteMembers
+  let localMembers = localMemberToOther localDomain <$> convLocalMembers
+  let remoteMembers = remoteMemberToOther <$> convRemoteMembers
   let me = List.find ((qUid ==) . Public.omQualifiedId) (localMembers <> remoteMembers)
   let otherMembers = filter ((qUid /=) . Public.omQualifiedId) (localMembers <> remoteMembers)
-  let userAndConvOnSameBackend = find ((qUnqualified qUid ==) . Internal.memId) convLocalMembers
+  let userAndConvOnSameBackend = find ((qUnqualified qUid ==) . lmId) convLocalMembers
   let selfMember =
         -- if the user and the conversation are on the same backend, we can create a real self member
         -- otherwise, we need to fall back to a default self member (see futurework)
         -- (Note: the extra domain check is done to catch the edge case where two users in a conversation have the same unqualified UUID)
         if isJust userAndConvOnSameBackend && localDomain == qDomain qUid
-          then toMember <$> userAndConvOnSameBackend
-          else incompleteSelfMember <$> me
+          then localToSelf <$> userAndConvOnSameBackend
+          else remoteToSelf <$> me
   selfMember <&> \m -> do
     let mems = Public.ConvMembers m otherMembers
     Public.mkConversation
@@ -87,39 +86,35 @@ conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
       convTeam
       convMessageTimer
       convReceiptMode
+
+-- FUTUREWORK(federation): we currently don't store muted, archived etc status for users who are on a different backend than a conversation
+-- but we should. Once this information is available, the code should be changed to use the stored information, rather than these defaults.
+remoteToSelf :: Public.OtherMember -> Public.Member
+remoteToSelf m =
+  Public.Member
+    { memId = qUnqualified (Public.omQualifiedId m),
+      memService = Nothing,
+      memOtrMutedStatus = Nothing,
+      memOtrMutedRef = Nothing,
+      memOtrArchived = False,
+      memOtrArchivedRef = Nothing,
+      memHidden = False,
+      memHiddenRef = Nothing,
+      memConvRoleName = Public.omConvRoleName m
+    }
+
+localToSelf :: LocalMember -> Public.Member
+localToSelf lm =
+  Public.Member
+    { memId = lmId lm,
+      memService = lmService lm,
+      memOtrMutedStatus = msOtrMutedStatus st,
+      memOtrMutedRef = msOtrMutedRef st,
+      memOtrArchived = msOtrArchived st,
+      memOtrArchivedRef = msOtrArchivedRef st,
+      memHidden = msHidden st,
+      memHiddenRef = msHiddenRef st,
+      memConvRoleName = lmConvRoleName lm
+    }
   where
-    localToOther :: Domain -> Internal.LocalMember -> Public.OtherMember
-    localToOther domain x =
-      Public.OtherMember
-        { Public.omQualifiedId = Qualified (Internal.memId x) domain,
-          Public.omService = Internal.memService x,
-          Public.omConvRoleName = Internal.memConvRoleName x
-        }
-
-    remoteToOther :: Internal.RemoteMember -> Public.OtherMember
-    remoteToOther x =
-      Public.OtherMember
-        { Public.omQualifiedId = unTagged (Internal.rmId x),
-          Public.omService = Nothing,
-          Public.omConvRoleName = Internal.rmConvRoleName x
-        }
-
-    -- FUTUREWORK(federation): we currently don't store muted, archived etc status for users who are on a different backend than a conversation
-    -- but we should. Once this information is available, the code should be changed to use the stored information, rather than these defaults.
-    incompleteSelfMember :: Public.OtherMember -> Public.Member
-    incompleteSelfMember m =
-      Public.Member
-        { memId = qUnqualified (Public.omQualifiedId m),
-          memService = Nothing,
-          memOtrMutedStatus = Nothing,
-          memOtrMutedRef = Nothing,
-          memOtrArchived = False,
-          memOtrArchivedRef = Nothing,
-          memHidden = False,
-          memHiddenRef = Nothing,
-          memConvRoleName = Public.omConvRoleName m
-        }
-
-toMember :: Internal.LocalMember -> Public.Member
-toMember x@Internal.InternalMember {..} =
-  Public.Member {memId = Internal.memId x, ..}
+    st = lmStatus lm

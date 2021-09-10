@@ -711,7 +711,7 @@ deleteConversation :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId
 deleteConversation cid = do
   retry x5 $ write Cql.markConvDeleted (params Quorum (Identity cid))
   mm <- members cid
-  for_ mm $ \m -> removeMember (memId m) cid
+  for_ mm $ \m -> removeMember (lmId m) cid
   retry x5 $ write Cql.deleteConv (params Quorum (Identity cid))
 
 acceptConnect :: MonadClient m => ConvId -> m ()
@@ -791,8 +791,8 @@ member ::
   UserId ->
   m (Maybe LocalMember)
 member cnv usr =
-  fmap (join @Maybe) . traverse toMember
-    =<< retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
+  (toMember =<<)
+    <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
 
 remoteMemberLists ::
   (MonadClient m) =>
@@ -817,15 +817,15 @@ memberLists ::
   m [[LocalMember]]
 memberLists convs = do
   mems <- retry x1 $ query Cql.selectMembers (params Quorum (Identity convs))
-  convMembers <- foldrM (\m acc -> liftA2 insert (mkMem m) (pure acc)) Map.empty mems
+  let convMembers = foldr (\m acc -> insert (mkMem m) acc) mempty mems
   return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
   where
-    insert Nothing acc = acc
-    insert (Just (conv, mem)) acc =
+    insert (_, Nothing) acc = acc
+    insert (conv, Just mem) acc =
       let f = (Just . maybe [mem] (mem :))
        in Map.alter f conv acc
     mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn) =
-      fmap (cnv,) <$> toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn)
+      (cnv, toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn))
 
 members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [LocalMember]
 members conv = join <$> memberLists [conv]
@@ -1025,25 +1025,19 @@ removeMember usr cnv = retry x5 . batch $ do
   addPrepQuery Cql.removeMember (cnv, usr)
   addPrepQuery Cql.deleteUserConv (usr, cnv)
 
-newMember :: a -> InternalMember a
+newMember :: UserId -> LocalMember
 newMember = flip newMemberWithRole roleNameWireAdmin
 
-newMemberWithRole :: a -> RoleName -> InternalMember a
+newMemberWithRole :: UserId -> RoleName -> LocalMember
 newMemberWithRole u r =
-  InternalMember
-    { memId = u,
-      memService = Nothing,
-      memOtrMutedStatus = Nothing,
-      memOtrMutedRef = Nothing,
-      memOtrArchived = False,
-      memOtrArchivedRef = Nothing,
-      memHidden = False,
-      memHiddenRef = Nothing,
-      memConvRoleName = r
+  LocalMember
+    { lmId = u,
+      lmService = Nothing,
+      lmStatus = defMemberStatus,
+      lmConvRoleName = r
     }
 
 toMember ::
-  (Log.MonadLogger m, MonadThrow m) =>
   ( UserId,
     Maybe ServiceId,
     Maybe ProviderId,
@@ -1060,24 +1054,24 @@ toMember ::
     -- conversation role name
     Maybe RoleName
   ) ->
-  m (Maybe LocalMember) -- FUTUREWORK: remove monad
-toMember (usr, srv, prv, sta, omus, omur, oar, oarr, hid, hidr, crn) =
-  pure $
-    if sta /= Just 0
-      then Nothing
-      else
-        Just $
-          InternalMember
-            { memId = usr,
-              memService = newServiceRef <$> srv <*> prv,
-              memOtrMutedStatus = omus,
-              memOtrMutedRef = omur,
-              memOtrArchived = fromMaybe False oar,
-              memOtrArchivedRef = oarr,
-              memHidden = fromMaybe False hid,
-              memHiddenRef = hidr,
-              memConvRoleName = fromMaybe roleNameWireAdmin crn
-            }
+  Maybe LocalMember
+toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
+  Just $
+    LocalMember
+      { lmId = usr,
+        lmService = newServiceRef <$> srv <*> prv,
+        lmStatus =
+          MemberStatus
+            { msOtrMutedStatus = omus,
+              msOtrMutedRef = omur,
+              msOtrArchived = fromMaybe False oar,
+              msOtrArchivedRef = oarr,
+              msHidden = fromMaybe False hid,
+              msHiddenRef = hidr
+            },
+        lmConvRoleName = fromMaybe roleNameWireAdmin crn
+      }
+toMember _ = Nothing
 
 -- Clients ------------------------------------------------------------------
 

@@ -38,7 +38,7 @@ import qualified Galley.API.Update as API
 import Galley.API.Util (fromNewRemoteConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
-import Galley.Types.Conversations.Members (InternalMember (..), LocalMember)
+import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
@@ -186,16 +186,11 @@ onMessageSent domain rmUnqualified = do
     mkLocalMember :: UserId -> Galley LocalMember
     mkLocalMember m =
       pure $
-        InternalMember
-          { memId = m,
-            memService = Nothing,
-            memOtrMutedStatus = Nothing,
-            memOtrMutedRef = Nothing,
-            memOtrArchived = False,
-            memOtrArchivedRef = Nothing,
-            memHidden = False,
-            memHiddenRef = Nothing,
-            memConvRoleName = Public.roleNameWireMember
+        LocalMember
+          { lmId = m,
+            lmService = Nothing,
+            lmStatus = defMemberStatus,
+            lmConvRoleName = Public.roleNameWireMember
           }
 
 sendMessage :: Domain -> MessageSendRequest -> Galley MessageSendResponse
