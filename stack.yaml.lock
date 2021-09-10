@@ -18,17 +18,6 @@ packages:
     git: https://github.com/fimad/prometheus-haskell
     commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
 - completed:
-    name: saml2-web-sso
-    version: '0.18'
-    git: https://github.com/wireapp/saml2-web-sso
-    pantry-tree:
-      size: 4887
-      sha256: 12be9a699749b9ebe63fb2e04113c2f2160a63494e8a2ba005792a02d0571f47
-    commit: f56b5ffc10ec5ceab9a508cbb9f8fbaa017bbf2c
-  original:
-    git: https://github.com/wireapp/saml2-web-sso
-    commit: f56b5ffc10ec5ceab9a508cbb9f8fbaa017bbf2c
-- completed:
     name: collectd
     version: 0.0.0.2
     git: https://github.com/kim/hs-collectd
