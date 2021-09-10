@@ -133,8 +133,12 @@ authreq _ DoInitiateBind Nothing _ _ _ = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
-    mbidp :: Maybe IdP <- wrapMonadClient (Data.getIdPConfig idpid)
-    SAML.authreq authreqttl (sparSPIssuer (mbidp <&> view (SAML.idpExtraInfo . wiTeam))) idpid
+    idp :: IdP <- wrapMonadClient (Data.getIdPConfig idpid) >>= maybe (throwSpar SparIdPNotFound) pure
+    let mbtid :: Maybe TeamId
+        mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
+          WireIdPAPIV1 -> Nothing
+          WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
+    SAML.authreq authreqttl (sparSPIssuer mbtid) idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
