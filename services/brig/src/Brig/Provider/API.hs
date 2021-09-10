@@ -1086,7 +1086,7 @@ maybeInvalidBot :: Maybe a -> Handler a
 maybeInvalidBot = maybe (throwStd invalidBot) return
 
 maybeInvalidUser :: Maybe a -> Handler a
-maybeInvalidUser = maybe (throwStd invalidUser) return
+maybeInvalidUser = maybe (throwStd (errorDescriptionToWai invalidUser)) return
 
 rangeChecked :: Within a n m => a -> Handler (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither

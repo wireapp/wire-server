@@ -57,7 +57,6 @@ models =
     Call.Config.modelRtcIceServer,
     Connection.modelConnectionList,
     Connection.modelConnection,
-    Connection.modelConnectionRequest,
     Connection.modelConnectionUpdate,
     Conversation.modelConversation,
     Conversation.modelConversations,

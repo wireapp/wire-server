@@ -96,7 +96,6 @@ tests =
       testRoundTrip @Call.Config.SFTServer,
       testRoundTrip @Connection.ConnectionRequest,
       testRoundTrip @Connection.Relation,
-      testRoundTrip @Connection.Message,
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,

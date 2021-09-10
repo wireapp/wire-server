@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aef5b26595440dc41b2afea5b58468827dd4bdc290b406e49e8e2263ad2a81ad
+-- hash: 9a181e3a92130220d845ad959ca6e02a217b07a38602513bff4c9376a4ffe145
 
 name:           federator
 version:        1.0.0
@@ -40,6 +40,8 @@ library
       Federator.Env
       Federator.ExternalServer
       Federator.InternalServer
+      Federator.Monitor
+      Federator.Monitor.Internal
       Federator.Options
       Federator.Remote
       Federator.Run
@@ -59,12 +61,15 @@ library
     , base
     , bilge
     , bytestring
+    , containers
     , data-default
     , dns
     , dns-util
     , either
     , exceptions
     , extended
+    , filepath
+    , hinotify
     , http-client
     , http-client-openssl
     , http-types
@@ -90,6 +95,7 @@ library
     , tinylog
     , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
@@ -119,6 +125,7 @@ executable federator
     , base
     , bilge
     , bytestring
+    , containers
     , data-default
     , dns
     , dns-util
@@ -126,6 +133,8 @@ executable federator
     , exceptions
     , extended
     , federator
+    , filepath
+    , hinotify
     , http-client
     , http-client-openssl
     , http-types
@@ -151,6 +160,7 @@ executable federator
     , tinylog
     , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
@@ -184,6 +194,7 @@ executable federator-integration
     , base
     , bilge
     , bytestring
+    , containers
     , cryptonite
     , data-default
     , dns
@@ -192,6 +203,8 @@ executable federator-integration
     , exceptions
     , extended
     , federator
+    , filepath
+    , hinotify
     , hspec
     , http-client
     , http-client-openssl
@@ -222,6 +235,7 @@ executable federator-integration
     , tinylog
     , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
@@ -243,6 +257,7 @@ test-suite federator-tests
   other-modules:
       Test.Federator.ExternalServer
       Test.Federator.InternalServer
+      Test.Federator.Monitor
       Test.Federator.Options
       Test.Federator.Remote
       Test.Federator.Validation
@@ -258,13 +273,17 @@ test-suite federator-tests
     , base
     , bilge
     , bytestring
+    , containers
     , data-default
+    , directory
     , dns
     , dns-util
     , either
     , exceptions
     , extended
     , federator
+    , filepath
+    , hinotify
     , http-client
     , http-client-openssl
     , http-types
@@ -291,10 +310,14 @@ test-suite federator-tests
     , string-conversions
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
+    , temporary
     , text
     , tinylog
     , tls
+    , transformers
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid

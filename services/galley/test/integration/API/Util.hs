@@ -967,13 +967,31 @@ putOtherMember from to m c = do
       . zType "access"
       . json m
 
+putQualifiedConversationName :: UserId -> Qualified ConvId -> Text -> TestM ResponseLBS
+putQualifiedConversationName u c n = do
+  g <- view tsGalley
+  let update = ConversationRename n
+  put
+    ( g
+        . paths
+          [ "conversations",
+            toByteString' (qDomain c),
+            toByteString' (qUnqualified c),
+            "name"
+          ]
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . json update
+    )
+
 putConversationName :: UserId -> ConvId -> Text -> TestM ResponseLBS
 putConversationName u c n = do
   g <- view tsGalley
   let update = ConversationRename n
   put
     ( g
-        . paths ["conversations", toByteString' c]
+        . paths ["conversations", toByteString' c, "name"]
         . zUser u
         . zConn "conn"
         . zType "access"
@@ -1460,7 +1478,7 @@ connectUsersWith fn u = mapM connectTo
               . zUser u
               . zConn "conn"
               . path "/connections"
-              . json (ConnectionRequest v "chat" (Message "Y"))
+              . json (ConnectionRequest v (unsafeRange "chat"))
               . fn
           )
       r2 <-
@@ -1488,7 +1506,7 @@ postConnection from to = do
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest to "some conv name" (Message "some message")
+        ConnectionRequest to (unsafeRange "some conv name")
 
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
@@ -2105,7 +2123,7 @@ makeFedRequestToServant originDomain server fedRequest =
       if Test.simpleStatus response == status200
         then pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
         else do
-          pure (F.OutwardResponseError (F.OutwardError F.RemoteFederatorError (Just (F.ErrorPayload "mock-error" (cs (Test.simpleBody response))))))
+          pure (F.OutwardResponseError (F.OutwardError F.GrpcError (cs (Test.simpleBody response))))
 
     toRequestWithoutBody :: F.Request -> Wai.Request
     toRequestWithoutBody req =

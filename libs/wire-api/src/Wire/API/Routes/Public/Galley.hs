@@ -33,40 +33,26 @@ import Servant
 import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Conversation as Public
-import qualified Wire.API.Conversation.Role as Public
+import Wire.API.Conversation
+import Wire.API.Conversation.Role
 import Wire.API.ErrorDescription
-import qualified Wire.API.Event.Conversation as Public
+import Wire.API.Event.Conversation
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.Public.Galley.Responses
+import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
-import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 
 instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
   -- FUTUREWORK: use addHeader
-  toHeaders c = Headers c (HCons (Header (qUnqualified (Public.cnvQualifiedId c))) HNil)
+  toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
   fromHeaders = getResponse
 
-instance
-  (ResponseType r1 ~ a, ResponseType r2 ~ a) =>
-  AsUnion '[r1, r2] (ConversationResponseFor a)
-  where
-  toUnion (ConversationExisted x) = Z (I x)
-  toUnion (ConversationCreated x) = S (Z (I x))
-
-  fromUnion (Z (I x)) = ConversationExisted x
-  fromUnion (S (Z (I x))) = ConversationCreated x
-  fromUnion (S (S x)) = case x of
-
-data ConversationResponseFor a
-  = ConversationExisted !a
-  | ConversationCreated !a
-
-type ConversationResponse = ConversationResponseFor Conversation
+type ConversationResponse = ResponseForExistedCreated Conversation
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
@@ -87,12 +73,12 @@ type ConversationVerb =
 
 type UpdateResponses =
   '[ RespondEmpty 204 "Conversation unchanged",
-     Respond 200 "Conversation updated" Public.Event
+     Respond 200 "Conversation updated" Event
    ]
 
 data UpdateResult
   = Unchanged
-  | Updated Public.Event
+  | Updated Event
 
 instance AsUnion UpdateResponses UpdateResult where
   toUnion Unchanged = inject (I ())
@@ -111,14 +97,14 @@ data Api routes = Api
         :> ZUser
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> Get '[Servant.JSON] Public.Conversation,
+        :> Get '[Servant.JSON] Conversation,
     getConversation ::
       routes
         :- Summary "Get a conversation by ID"
         :> ZUser
         :> "conversations"
         :> QualifiedCapture "cnv" ConvId
-        :> Get '[Servant.JSON] Public.Conversation,
+        :> Get '[Servant.JSON] Conversation,
     getConversationRoles ::
       routes
         :- Summary "Get existing roles available for the given conversation"
@@ -126,7 +112,7 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "roles"
-        :> Get '[Servant.JSON] Public.ConversationRolesList,
+        :> Get '[Servant.JSON] ConversationRolesList,
     listConversationIdsUnqualified ::
       routes
         :- Summary "[deprecated] Get all local conversation IDs."
@@ -148,7 +134,7 @@ data Api routes = Api
              ]
              "size"
              (Range 1 1000 Int32)
-        :> Get '[Servant.JSON] (Public.ConversationList ConvId),
+        :> Get '[Servant.JSON] (ConversationList ConvId),
     listConversationIds ::
       routes
         :- Summary "Get all conversation IDs."
@@ -156,8 +142,8 @@ data Api routes = Api
           :> ZUser
           :> "conversations"
           :> "list-ids"
-          :> ReqBody '[Servant.JSON] Public.GetPaginatedConversationIds
-          :> Post '[Servant.JSON] Public.ConvIdsPage,
+          :> ReqBody '[Servant.JSON] GetPaginatedConversationIds
+          :> Post '[Servant.JSON] ConvIdsPage,
     getConversations ::
       routes
         :- Summary "Get all *local* conversations."
@@ -185,7 +171,7 @@ data Api routes = Api
              ]
              "size"
              (Range 1 500 Int32)
-        :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
+        :> Get '[Servant.JSON] (ConversationList Conversation),
     listConversations ::
       routes
         :- Summary "[deprecated] Get all conversations (also returns remote conversations)"
@@ -196,8 +182,8 @@ data Api routes = Api
              \**NOTE** This endpoint will soon be removed."
         :> ZUser
         :> "list-conversations"
-        :> ReqBody '[Servant.JSON] Public.ListConversations
-        :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
+        :> ReqBody '[Servant.JSON] ListConversations
+        :> Post '[Servant.JSON] (ConversationList Conversation),
     listConversationsV2 ::
       routes
         :- Summary "Get conversation metadata for a list of conversation ids"
@@ -205,8 +191,8 @@ data Api routes = Api
         :> "conversations"
         :> "list"
         :> "v2"
-        :> ReqBody '[Servant.JSON] Public.ListConversationsV2
-        :> Post '[Servant.JSON] Public.ConversationsResponse,
+        :> ReqBody '[Servant.JSON] ListConversationsV2
+        :> Post '[Servant.JSON] ConversationsResponse,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     getConversationByReusableCode ::
@@ -221,7 +207,7 @@ data Api routes = Api
         :> "join"
         :> QueryParam' [Required, Strict] "key" Code.Key
         :> QueryParam' [Required, Strict] "code" Code.Value
-        :> Get '[Servant.JSON] Public.ConversationCoverView,
+        :> Get '[Servant.JSON] ConversationCoverView,
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
@@ -232,7 +218,7 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
+        :> ReqBody '[Servant.JSON] NewConvUnmanaged
         :> ConversationVerb,
     createSelfConversation ::
       routes
@@ -251,7 +237,7 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> "one2one"
-        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
+        :> ReqBody '[Servant.JSON] NewConvUnmanaged
         :> ConversationVerb,
     addMembersToConversationV2 ::
       routes
@@ -262,7 +248,7 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "members"
         :> "v2"
-        :> ReqBody '[Servant.JSON] Public.InviteQualified
+        :> ReqBody '[Servant.JSON] InviteQualified
         :> MultiVerb 'POST '[Servant.JSON] UpdateResponses UpdateResult,
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
@@ -296,6 +282,114 @@ data Api routes = Api
              '[JSON]
              RemoveFromConversationHTTPResponse
              RemoveFromConversationResponse,
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvRename event to members
+    updateConversationNameDeprecated ::
+      routes
+        :- Summary "Update conversation name (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/name` instead."
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
+    updateConversationNameUnqualified ::
+      routes
+        :- Summary "Update conversation name (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/name` instead."
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "name"
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
+    updateConversationName ::
+      routes
+        :- Summary "Update conversation name"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "name"
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
+    getConversationSelfUnqualified ::
+      routes
+        :- Summary "Get self membership properties (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/self` instead."
+        :> ZUser
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> Get '[JSON] (Maybe Member),
+    getConversationSelf ::
+      routes
+        :- Summary "Get self membership properties"
+        :> ZUser
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Membership information" Member
+             ]
+             (Maybe Member),
+    updateConversationSelfUnqualified ::
+      routes
+        :- Summary "Update self membership properties (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/self` instead."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
+    updateConversationSelf ::
+      routes
+        :- Summary "Update self membership properties"
+        :> Description "**Note**: at least one field has to be provided."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -307,7 +401,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> "roles"
-        :> Get '[Servant.JSON] Public.ConversationRolesList,
+        :> Get '[Servant.JSON] ConversationRolesList,
     getTeamConversations ::
       routes
         :- Summary "Get team conversations"
@@ -316,7 +410,7 @@ data Api routes = Api
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
-        :> Get '[Servant.JSON] Public.TeamConversationList,
+        :> Get '[Servant.JSON] TeamConversationList,
     getTeamConversation ::
       routes
         :- Summary "Get one team conversation"
@@ -326,7 +420,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Get '[Servant.JSON] Public.TeamConversation,
+        :> Get '[Servant.JSON] TeamConversation,
     deleteTeamConversation ::
       routes
         :- Summary "Remove a team conversation"

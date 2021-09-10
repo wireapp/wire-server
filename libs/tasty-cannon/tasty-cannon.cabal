@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b7fca22ffa51fd956424d50af91793bd16e3d1b5170e6ccc48b26bf821793358
+-- hash: 3e4d6b79f93c721b5df897b6653023feaa197910713bf3a2a759ea37ca05427f
 
 name:           tasty-cannon
 version:        0.4.0
@@ -30,6 +30,7 @@ library
       aeson
     , async
     , base >=4.6 && <5
+    , bilge
     , bytestring
     , bytestring-conversion
     , data-timeout

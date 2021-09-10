@@ -92,6 +92,13 @@ servantSitemap =
         GalleyAPI.addMembersToConversationV2 = Update.addMembers,
         GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
         GalleyAPI.removeMember = Update.removeMemberQualified,
+        GalleyAPI.updateConversationNameDeprecated = Update.updateLocalConversationName,
+        GalleyAPI.updateConversationNameUnqualified = Update.updateLocalConversationName,
+        GalleyAPI.updateConversationName = Update.updateConversationName,
+        GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
+        GalleyAPI.getConversationSelf = Query.getSelf,
+        GalleyAPI.updateConversationSelfUnqualified = Update.updateLocalSelfMember,
+        GalleyAPI.updateConversationSelf = Update.updateSelfMember,
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,
         GalleyAPI.getTeamConversations = Teams.getTeamConversations,
         GalleyAPI.getTeamConversation = Teams.getTeamConversation,
@@ -544,38 +551,6 @@ sitemap = do
   -- Conversation API ---------------------------------------------------
 
   -- This endpoint can lead to the following events being sent:
-  -- - ConvRename event to members
-  put "/conversations/:cnv/name" (continue Update.updateConversationNameH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationRename
-  document "PUT" "updateConversationName" $ do
-    summary "Update conversation name"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelConversationUpdateName) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvRename event to members
-  put "/conversations/:cnv" (continue Update.updateConversationDeprecatedH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationRename
-  document "PUT" "updateConversationName" $ do
-    summary "DEPRECATED! Please use updateConversationName instead!"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelConversationUpdateName) $
-      description "JSON body"
-    returns (ref Public.modelEvent)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-
-  -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
   post "/conversations/:cnv/join" (continue Update.joinConversationByIdH) $
     zauthUserId
@@ -746,32 +721,6 @@ sitemap = do
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
-
-  get "/conversations/:cnv/self" (continue Query.getSelfH) $
-    zauthUserId
-      .&. capture "cnv"
-  document "GET" "getSelf" $ do
-    summary "Get self membership properties"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelMember)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberStateUpdate event to self
-  put "/conversations/:cnv/self" (continue Update.updateSelfMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.MemberUpdate
-  document "PUT" "updateSelf" $ do
-    summary "Update self membership properties"
-    notes "Even though all fields are optional, at least one needs to be given."
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    body (ref Public.modelMemberUpdate) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberStateUpdate event to members

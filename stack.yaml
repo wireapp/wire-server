@@ -243,6 +243,12 @@ extra-deps:
 - git: https://github.com/wireapp/snappy
   commit: b0e5c08af48911caecffa4fa6a3e74872018b258 # master (Sep 03, 2021)
 
+# Error handling fix: https://github.com/vincenthz/hs-certificate/pull/125
+- git: https://github.com/wireapp/hs-certificate
+  commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1 # master (Aug 31, 2021)
+  subdirs:
+    - x509-store
+
 ############################################################
 # Development tools
 ############################################################

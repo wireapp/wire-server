@@ -55,6 +55,7 @@ library
       Wire.API.Routes.Public.Galley.Responses
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
+      Wire.API.Routes.Public.Util
       Wire.API.Routes.QualifiedCapture
       Wire.API.ServantProto
       Wire.API.Swagger
@@ -260,7 +261,6 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.Member_user
       Test.Wire.API.Golden.Generated.MemberUpdate_user
       Test.Wire.API.Golden.Generated.MemberUpdateData_user
-      Test.Wire.API.Golden.Generated.Message_user
       Test.Wire.API.Golden.Generated.MutedStatus_user
       Test.Wire.API.Golden.Generated.Name_user
       Test.Wire.API.Golden.Generated.NameUpdate_user

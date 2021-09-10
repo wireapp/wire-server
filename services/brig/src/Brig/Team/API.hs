@@ -64,6 +64,7 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
@@ -88,7 +89,7 @@ routesPublic = do
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 201 "Invitation was created and sent." Doc.end
     Doc.errorResponse noEmail
-    Doc.errorResponse (noIdentity 6)
+    Doc.errorResponse (errorDescriptionToWai (noIdentity 6))
     Doc.errorResponse invalidEmail
     Doc.errorResponse blacklistedEmail
     Doc.errorResponse tooManyTeamInvitations
@@ -256,7 +257,7 @@ createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
-    idt <- maybe (throwStd (noIdentity 7)) return =<< lift (fetchUserIdentity uid)
+    idt <- maybe (throwStd (errorDescriptionToWai (noIdentity 7))) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail) return (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from

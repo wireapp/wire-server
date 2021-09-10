@@ -337,6 +337,9 @@ instance ToSchema SimpleMember where
 
 data Connect = Connect
   { cRecipient :: UserId,
+    -- FUTUREWORK: As a follow-up from
+    -- https://github.com/wireapp/wire-server/pull/1726, the message field can
+    -- be removed from this event.
     cMessage :: Maybe Text,
     cName :: Maybe Text,
     cEmail :: Maybe Text
