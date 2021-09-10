@@ -1867,19 +1867,26 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
-mkConv :: Qualified ConvId -> UserId -> Member -> [OtherMember] -> Conversation
-mkConv cnvId creator selfMember otherMembers =
-  mkConversation
-    cnvId
-    RegularConv
-    creator
-    []
-    ActivatedAccessRole
-    (Just "federated gossip")
-    (ConvMembers selfMember otherMembers)
-    Nothing
-    Nothing
-    Nothing
+mkConv ::
+  Qualified ConvId ->
+  UserId ->
+  RoleName ->
+  [OtherMember] ->
+  FederatedGalley.RemoteConversation
+mkConv cnvId creator selfRole otherMembers =
+  FederatedGalley.RemoteConversation
+    ( ConversationMetadata
+        cnvId
+        RegularConv
+        creator
+        []
+        ActivatedAccessRole
+        (Just "federated gossip")
+        Nothing
+        Nothing
+        Nothing
+    )
+    (FederatedGalley.RemoteConvMembers selfRole otherMembers)
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()

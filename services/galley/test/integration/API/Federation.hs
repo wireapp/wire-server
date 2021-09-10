@@ -48,8 +48,9 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role
-import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
@@ -97,21 +98,21 @@ getConversationsAllFound = do
       fedGalleyClient
       localDomain
       (GetConversationsRequest alice $ qUnqualified . cnvQualifiedId <$> [cnv1, cnv2])
-  let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) cs
-  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) cs
+  let c1 = find ((== cnvQualifiedId cnv1) . cnvmQualifiedId . rcnvMetadata) cs
+  let c2 = find ((== cnvQualifiedId cnv2) . cnvmQualifiedId . rcnvMetadata) cs
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
       (Just $ cnvName expected)
-      (cnvName <$> actual)
+      (cnvmName . rcnvMetadata <$> actual)
     assertEqual
-      "self member mismatch"
-      (Just . cmSelf $ cnvMembers expected)
-      (cmSelf . cnvMembers <$> actual)
+      "self member role mismatch"
+      (Just . memConvRoleName . cmSelf $ cnvMembers expected)
+      (rcmSelfRole . rcnvMembers <$> actual)
     assertEqual
       "other members mismatch"
       (Just [])
-      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+      ((\c -> rcmOthers (rcnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
 
 getConversationsNotPartOf :: TestM ()
 getConversationsNotPartOf = do

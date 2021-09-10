@@ -30,8 +30,7 @@ import Servant.API (JSON, Post, ReqBody, Summary, (:>))
 import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.Conversation (Access, AccessRole, ConvType, Conversation, ReceiptMode)
-import Wire.API.Conversation.Member (OtherMember)
+import Wire.API.Conversation
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
@@ -108,8 +107,28 @@ data GetConversationsRequest = GetConversationsRequest
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
 
+data RemoteConvMembers = RemoteConvMembers
+  { rcmSelfRole :: RoleName,
+    rcmOthers :: [OtherMember]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConvMembers)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConvMembers)
+
+-- | A conversation hosted on a remote backend. This contains the same
+-- information as a 'Conversation', with the exception that conversation status
+-- fields (muted/archived/hidden) are omitted, since they are not known by the
+-- remote backend.
+data RemoteConversation = RemoteConversation
+  { rcnvMetadata :: ConversationMetadata,
+    rcnvMembers :: RemoteConvMembers
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteConversation)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversation)
+
 newtype GetConversationsResponse = GetConversationsResponse
-  { gcresConvs :: [Conversation]
+  { gcresConvs :: [RemoteConversation]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)

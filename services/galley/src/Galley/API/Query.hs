@@ -54,6 +54,7 @@ import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.Types as Data
 import Galley.Types
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Imports
 import Network.HTTP.Types
@@ -66,7 +67,7 @@ import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (convNotFound)
-import Wire.API.Federation.API.Galley (gcresConvs)
+import Wire.API.Federation.API.Galley (RemoteConversation, gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationError, executeFederated)
 import Wire.API.Federation.Error
@@ -113,25 +114,38 @@ getConversation zusr cnv = do
         [conv] -> pure conv
         _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
+mapRemoteConversations :: UserId -> [(MemberStatus, RemoteConversation)] -> [Public.Conversation]
+mapRemoteConversations uid = catMaybes . map (uncurry (Mapping.remoteConversationView uid))
+
 getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
 getRemoteConversations zusr remoteConvs = do
   localDomain <- viewFederationDomain
   let convsByDomain = partitionRemote remoteConvs
-  convs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> do
+  rconvs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> do
     let req = FederatedGalley.GetConversationsRequest zusr convIds
         rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
     gcresConvs <$> runFederatedGalley remoteDomain rpc
-  pure $ concat convs
+  -- TODO: read member status from the database
+  pure
+    . mapRemoteConversations zusr
+    . (map (defMemberStatus,))
+    . concat
+    $ rconvs
 
 getRemoteConversationsWithFailures :: UserId -> [Remote ConvId] -> Galley ([Qualified ConvId], [Public.Conversation])
 getRemoteConversationsWithFailures zusr remoteConvs = do
   localDomain <- viewFederationDomain
   let convsByDomain = partitionRemote remoteConvs
-  convs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> handleFailures remoteDomain convIds $ do
+  rconvs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> handleFailures remoteDomain convIds $ do
     let req = FederatedGalley.GetConversationsRequest zusr convIds
         rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
     gcresConvs <$> executeFederated remoteDomain rpc
-  pure $ concatEithers convs
+  pure
+    -- TODO: read member status from the database
+    . fmap (mapRemoteConversations zusr . map (defMemberStatus,))
+    . bimap concat concat
+    . partitionEithers
+    $ (rconvs :: [Either [Qualified ConvId] [RemoteConversation]])
   where
     handleFailures :: Domain -> [ConvId] -> ExceptT FederationError Galley a -> Galley (Either [Qualified ConvId] a)
     handleFailures domain convIds action = do
@@ -143,8 +157,6 @@ getRemoteConversationsWithFailures zusr remoteConvs = do
             Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
               . Logger.field "error" (show e)
           pure . Left $ map (`Qualified` domain) convIds
-    concatEithers :: (Monoid a, Monoid b) => [Either a b] -> (a, b)
-    concatEithers = bimap mconcat mconcat . partitionEithers
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do
@@ -353,7 +365,7 @@ getLocalSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
 getLocalSelf usr cnv = do
   alive <- Data.isConvAlive cnv
   if alive
-    then Mapping.localToSelf <$$> Data.member cnv usr
+    then Mapping.localMemberToSelf <$$> Data.member cnv usr
     else Nothing <$ Data.deleteConversation cnv
 
 getConversationMetaH :: ConvId -> Galley Response

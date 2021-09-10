@@ -55,6 +55,7 @@ module Galley.Data
 
     -- * Conversations
     Conversation (..),
+    convMetadata,
     acceptConnect,
     conversation,
     conversationIdsFrom,
@@ -62,8 +63,8 @@ module Galley.Data
     remoteConversationIdOf,
     localConversationIdsPageFrom,
     conversationIdRowsForPagination,
-    conversationMeta,
     conversations,
+    conversationMeta,
     conversationsRemote,
     createConnectConversation,
     createConversation,
@@ -752,6 +753,19 @@ newConv cid ct usr mems rMems acc role name tid mtimer rMode =
       convMessageTimer = mtimer,
       convReceiptMode = rMode
     }
+
+convMetadata :: Domain -> Conversation -> ConversationMetadata
+convMetadata localDomain c =
+  ConversationMetadata
+    (Qualified (convId c) localDomain)
+    (convType c)
+    (convCreator c)
+    (convAccess c)
+    (convAccessRole c)
+    (convName c)
+    (convTeam c)
+    (convMessageTimer c)
+    (convReceiptMode c)
 
 defAccess :: ConvType -> Maybe (Set Access) -> [Access]
 defAccess SelfConv Nothing = [PrivateAccess]

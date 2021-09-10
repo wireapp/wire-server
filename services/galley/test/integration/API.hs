@@ -59,8 +59,10 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
+import Galley.API.Mapping
 import Galley.Options (Opts, optFederator)
 import Galley.Types hiding (LocalMember (..))
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
@@ -79,7 +81,11 @@ import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley
+  ( GetConversationsResponse (..),
+    RemoteConvMembers (..),
+    RemoteConversation (..),
+  )
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
@@ -1886,14 +1892,19 @@ testGetQualifiedRemoteConv = do
   let remoteDomain = Domain "far-away.example.com"
       bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
-      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      aliceAsMember = Member aliceId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      aliceAsLocal = LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
+      aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
+      aliceAsSelfMember = localMemberToSelf aliceAsLocal
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let mockConversation = mkConv remoteConvId bobId aliceAsMember [bobAsOtherMember]
+  let mockConversation = mkConv remoteConvId bobId roleNameWireAdmin [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
+      expected =
+        Conversation
+          (rcnvMetadata mockConversation)
+          (ConvMembers aliceAsSelfMember (rcmOthers (rcnvMembers mockConversation)))
 
   opts <- view tsGConf
   (respAll, _) <-
@@ -1906,7 +1917,7 @@ testGetQualifiedRemoteConv = do
   conv <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   -- FUTUREWORK: The backend should augment returned conversation data with
   -- Alice's membership data stored locally
-  liftIO $ assertEqual "conversation" mockConversation conv
+  liftIO $ do assertEqual "conversation metadata" expected conv
 
 testGetQualifiedRemoteConvNotFound :: TestM ()
 testGetQualifiedRemoteConvNotFound = do
@@ -1950,8 +1961,7 @@ testListRemoteConvs = do
       remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-      bobAsMember = Member bobId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      mockConversation = mkConv remoteConvId alice bobAsMember [aliceAsOtherMember]
+      mockConversation = mkConv remoteConvId alice roleNameWireAdmin [aliceAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
 
@@ -1968,9 +1978,9 @@ testListRemoteConvs = do
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do
     -- FUTUREWORK: Expect membership metadata to change
-    let expected = mockConversation
+    let expected = remoteConversationView alice defMemberStatus mockConversation
     let actual = find ((== remoteConvId) . cnvQualifiedId) (convList convs)
-    assertEqual "conversations" (Just expected) actual
+    assertEqual "conversations" expected actual
     assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
 -- | Tests getting many converations given their ids.
@@ -2026,11 +2036,10 @@ testBulkGetQualifiedConvs = do
   registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
+  let bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
-      mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
-      mockConversationB = mkConv remoteConvIdB carlId aliceAsSelfMember [carlAsOtherMember]
+      mockConversationA = mkConv remoteConvIdA bobId roleNameWireAdmin [bobAsOtherMember]
+      mockConversationB = mkConv remoteConvIdB carlId roleNameWireAdmin [carlAsOtherMember]
       req =
         ListConversationsV2 . unsafeRange $
           [ localConvId,
@@ -2059,7 +2068,12 @@ testBulkGetQualifiedConvs = do
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
 
   liftIO $ do
-    let expectedFound = sortOn cnvQualifiedId [localConv, mockConversationA, mockConversationB]
+    let expectedFound =
+          sortOn
+            cnvQualifiedId
+            $ maybeToList (remoteConversationView alice defMemberStatus mockConversationA)
+              <> maybeToList (remoteConversationView alice defMemberStatus mockConversationB)
+              <> [localConv]
         actualFound = sortOn cnvQualifiedId $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
 

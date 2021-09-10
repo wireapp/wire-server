@@ -27,7 +27,7 @@ import Data.Json.Util (Base64ByteString (..))
 import Data.List1 (list1)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), toRemote)
 import qualified Data.Set as Set
 import Data.Tagged
 import qualified Data.Text.Lazy as LT
@@ -97,12 +97,13 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event [Public.memId mem] []
 
 getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
-getConversations domain (GetConversationsRequest uid gcrConvIds) = do
-  let qUid = Qualified uid domain
+getConversations domain (GetConversationsRequest uid cids) = do
+  let ruid = toRemote $ Qualified uid domain
   localDomain <- viewFederationDomain
-  convs <- Data.conversations gcrConvIds
-  let convViews = Mapping.conversationViewMaybeQualified localDomain qUid <$> convs
-  pure $ GetConversationsResponse . catMaybes $ convViews
+  GetConversationsResponse
+    . catMaybes
+    . map (Mapping.conversationToRemote localDomain ruid)
+    <$> Data.conversations cids
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
