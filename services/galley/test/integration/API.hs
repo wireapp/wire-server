@@ -2612,6 +2612,7 @@ putMemberOk update = do
       evtFrom e @?= qbob
       case evtData e of
         EdMemberUpdate mis -> do
+          assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
           assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
           assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
           assertEqual "otr_archived_ref" (mupOtrArchiveRef update) (misOtrArchivedRef mis)
@@ -2625,11 +2626,12 @@ putMemberOk update = do
     assertBool "user" (isJust bob')
     let newBob = fromJust bob'
     assertEqual "id" (memId memberBob) (memId newBob)
+    assertEqual "otr_muted_status" (memOtrMutedStatus memberBob) (memOtrMutedStatus newBob)
     assertEqual "otr_muted_ref" (memOtrMutedRef memberBob) (memOtrMutedRef newBob)
     assertEqual "otr_archived" (memOtrArchived memberBob) (memOtrArchived newBob)
     assertEqual "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
     assertEqual "hidden" (memHidden memberBob) (memHidden newBob)
-    assertEqual "hidden__ref" (memHiddenRef memberBob) (memHiddenRef newBob)
+    assertEqual "hidden_ref" (memHiddenRef memberBob) (memHiddenRef newBob)
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do
