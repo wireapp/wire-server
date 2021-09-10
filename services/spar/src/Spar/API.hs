@@ -345,9 +345,16 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = do
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
-  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer) teamId) >>= \case
+  wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId) >>= \case
     Nothing -> pure ()
-    Just _ -> throwSpar SparNewIdPAlreadyInUse
+    Just idp' -> case apiversion of
+      WireIdPAPIV1 -> do
+        throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
+      WireIdPAPIV2 -> do
+        when (fromMaybe defWireIdPAPIVersion (idp' ^. SAML.idpExtraInfo . wiApiVersion) == WireIdPAPIV1) $ do
+          throwSpar $ SparNewIdPAlreadyInUse "only allow all-new IdPs, no combination of old and new IdPs."
+        when ((idp' ^. SAML.idpExtraInfo . wiTeam) == teamId) $ do
+          throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
   pure SAML.IdPConfig {..}
 
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with

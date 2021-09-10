@@ -93,7 +93,7 @@ data SparCustomError
   | SparCassandraTTLError TTLError
   | SparNewIdPBadMetadata LT
   | SparNewIdPPubkeyMismatch
-  | SparNewIdPAlreadyInUse
+  | SparNewIdPAlreadyInUse LT
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
   | SparIdPIssuerInUse
@@ -172,7 +172,7 @@ renderSparError (SAML.InvalidCert msg) = Right $ Wai.mkError status500 "invalid-
 -- Errors related to IdP creation
 renderSparError (SAML.CustomError (SparNewIdPBadMetadata msg)) = Right $ Wai.mkError status400 "invalid-metadata" msg
 renderSparError (SAML.CustomError SparNewIdPPubkeyMismatch) = Right $ Wai.mkError status400 "key-mismatch" "public keys in body, metadata do not match"
-renderSparError (SAML.CustomError SparNewIdPAlreadyInUse) = Right $ Wai.mkError status400 "idp-already-in-use" "an idp issuer can only be used within one team"
+renderSparError (SAML.CustomError (SparNewIdPAlreadyInUse msg)) = Right $ Wai.mkError status400 "idp-already-in-use" msg
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.mkError status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.mkError status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
 renderSparError (SAML.CustomError SparIdPIssuerInUse) = Right $ Wai.mkError status400 "idp-issuer-in-use" "The issuer of your IdP is already in use.  Remove the entry in the team that uses it, or construct a new IdP issuer."
