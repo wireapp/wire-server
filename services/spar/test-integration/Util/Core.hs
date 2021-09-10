@@ -791,10 +791,10 @@ registerTestIdPFrom ::
   SparReq ->
   m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do
-  legacyMode <- asks (^. teWireIdPAPIVersion)
+  apiVersion <- asks (^. teWireIdPAPIVersion)
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
-    (uid,tid,) <$> callIdpCreate legacyMode spar (Just uid) metadata
+    (uid,tid,) <$> callIdpCreate apiVersion spar (Just uid) metadata
 
 getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
 getCookie proxy rsp = do
@@ -1078,13 +1078,17 @@ callIdpCreate apiversion sparreq_ muid metadata = do
 
 callIdpCreate' :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
 callIdpCreate' apiversion sparreq_ muid metadata = do
+  explicitQueryParam <- do
+    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- both, and not spend extra time on it.
+    liftIO $ randomRIO (True, False)
   post $
     sparreq_
       . maybe id zUser muid
       . path "/identity-providers/"
       . ( case apiversion of
-            WireIdPAPIV1 -> Bilge.query [("api-version", Just "v1")]
-            WireIdPAPIV2 -> id
+            WireIdPAPIV1 -> Bilge.query [("api-version", Just "v1") | explicitQueryParam]
+            WireIdPAPIV2 -> Bilge.query [("api-version", Just "v2")]
         )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"

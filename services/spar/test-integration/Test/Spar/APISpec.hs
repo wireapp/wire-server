@@ -241,11 +241,13 @@ specFinalizeLogin = do
       context "happy flow" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+          asks (^. teWireIdPAPIVersion) >>= \apiVersion -> do
+            liftIO $ fromMaybe defWireIdPAPIVersion (idp ^. idpExtraInfo . wiApiVersion) `shouldBe` apiVersion
           spmeta <- getTestSPMetadata tid
           authnreq <- negotiateAuthnRequest idp
           audiencePath <- do
             asks (^. teWireIdPAPIVersion) <&> \case
-              WireIdPAPIV1 -> "/sso/finalize-login/"
+              WireIdPAPIV1 -> "/sso/finalize-login"
               WireIdPAPIV2 -> "/sso/finalize-login/" <> toByteString' tid
           liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
