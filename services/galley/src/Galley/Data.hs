@@ -535,12 +535,22 @@ toConv cid mms remoteMems conv =
   where
     f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
-conversationMeta :: MonadClient m => ConvId -> m (Maybe ConversationMeta)
-conversationMeta conv =
+conversationMeta :: MonadClient m => Domain -> ConvId -> m (Maybe ConversationMetadata)
+conversationMeta localDomain conv =
   fmap toConvMeta
     <$> retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
+    toConvMeta (t, c, a, r, n, i, _, mt, rm) =
+      ConversationMetadata
+        (Qualified conv localDomain)
+        t
+        c
+        (defAccess t a)
+        (maybeRole t r)
+        n
+        i
+        mt
+        rm
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::

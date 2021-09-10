@@ -1870,18 +1870,17 @@ someLastPrekeys =
 
 mkConv :: Qualified ConvId -> UserId -> Member -> [OtherMember] -> Conversation
 mkConv cnvId creator selfMember otherMembers =
-  Conversation
-    { cnvQualifiedId = cnvId,
-      cnvType = RegularConv,
-      cnvCreator = creator,
-      cnvAccess = [],
-      cnvAccessRole = ActivatedAccessRole,
-      cnvName = Just "federated gossip",
-      cnvMembers = ConvMembers selfMember otherMembers,
-      cnvTeam = Nothing,
-      cnvMessageTimer = Nothing,
-      cnvReceiptMode = Nothing
-    }
+  mkConversation
+    cnvId
+    RegularConv
+    creator
+    []
+    ActivatedAccessRole
+    (Just "federated gossip")
+    (ConvMembers selfMember otherMembers)
+    Nothing
+    Nothing
+    Nothing
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()

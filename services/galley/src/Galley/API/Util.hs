@@ -553,21 +553,22 @@ fromNewRemoteConversation d NewRemoteConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        { cnvQualifiedId = rcCnvId,
-          cnvType = rcCnvType,
-          -- FUTUREWORK: Document this is the same domain as the conversation
-          -- domain
-          cnvCreator = qUnqualified rcOrigUserId,
-          cnvAccess = rcCnvAccess,
-          cnvAccessRole = rcCnvAccessRole,
-          cnvName = rcCnvName,
-          cnvMembers = ConvMembers this others,
-          -- FUTUREWORK: Document this is the same domain as the conversation
-          -- domain.
-          cnvTeam = Nothing,
-          cnvMessageTimer = rcMessageTimer,
-          cnvReceiptMode = rcReceiptMode
-        }
+        ConversationMetadata
+          { cnvmQualifiedId = rcCnvId,
+            cnvmType = rcCnvType,
+            -- FUTUREWORK: Document this is the same domain as the conversation
+            -- domain
+            cnvmCreator = qUnqualified rcOrigUserId,
+            cnvmAccess = rcCnvAccess,
+            cnvmAccessRole = rcCnvAccessRole,
+            cnvmName = rcCnvName,
+            -- FUTUREWORK: Document this is the same domain as the conversation
+            -- domain.
+            cnvmTeam = Nothing,
+            cnvmMessageTimer = rcMessageTimer,
+            cnvmReceiptMode = rcReceiptMode
+          }
+        (ConvMembers this others)
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::

@@ -364,11 +364,12 @@ getConversationMetaH cnv = do
     Nothing -> setStatus status404 empty
     Just meta -> json meta
 
-getConversationMeta :: ConvId -> Galley (Maybe ConversationMeta)
+getConversationMeta :: ConvId -> Galley (Maybe ConversationMetadata)
 getConversationMeta cnv = do
   alive <- Data.isConvAlive cnv
+  localDomain <- viewFederationDomain
   if alive
-    then Data.conversationMeta cnv
+    then Data.conversationMeta localDomain cnv
     else do
       Data.deleteConversation cnv
       pure Nothing

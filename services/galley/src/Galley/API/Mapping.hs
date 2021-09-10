@@ -76,7 +76,7 @@ conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
           else incompleteSelfMember <$> me
   selfMember <&> \m -> do
     let mems = Public.ConvMembers m otherMembers
-    Public.Conversation
+    Public.mkConversation
       (Qualified convId localDomain)
       convType
       convCreator

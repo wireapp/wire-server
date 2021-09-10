@@ -1774,13 +1774,24 @@ getConvQualifiedOk = do
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
+  localDomain <- viewFederationDomain
   g <- view tsGalley
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing Nothing
+  let meta =
+        ConversationMetadata
+          (Qualified conv localDomain)
+          RegularConv
+          alice
+          [InviteAccess]
+          ActivatedAccessRole
+          (Just "gossip")
+          Nothing
+          Nothing
+          Nothing
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)
@@ -1881,19 +1892,7 @@ testGetQualifiedRemoteConv = do
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let mockConversation =
-        Conversation
-          { cnvQualifiedId = remoteConvId,
-            cnvType = RegularConv,
-            cnvCreator = bobId,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers aliceAsMember [bobAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
+  let mockConversation = mkConv remoteConvId bobId aliceAsMember [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
 
   opts <- view tsGConf
@@ -1952,19 +1951,7 @@ testListRemoteConvs = do
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsMember = Member bobId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      mockConversation =
-        Conversation
-          { cnvQualifiedId = remoteConvId,
-            cnvType = RegularConv,
-            cnvCreator = alice,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
+      mockConversation = mkConv remoteConvId alice bobAsMember [aliceAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
 
