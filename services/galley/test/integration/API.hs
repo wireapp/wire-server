@@ -181,6 +181,7 @@ tests s =
           test s "member update (otr archive)" putMemberOtrArchiveOk,
           test s "member update (hidden)" putMemberHiddenOk,
           test s "member update (everything b)" putMemberAllOk,
+          test s "remote conversation member update (otr mute)" putRemoteConvMemberOtrMuteOk,
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
@@ -2578,6 +2579,10 @@ putMemberAllOk =
         }
     )
 
+putRemoteConvMemberOtrMuteOk :: TestM ()
+putRemoteConvMemberOtrMuteOk =
+  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 0, mupOtrMuteRef = Just "ref"})
+
 putMemberOk :: MemberUpdate -> TestM ()
 putMemberOk update = do
   c <- view tsCannon
@@ -2603,7 +2608,7 @@ putMemberOk update = do
           }
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do
-    putMember bob update conv !!! const 200 === statusCode
+    putMember bob update qconv !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
@@ -2632,6 +2637,74 @@ putMemberOk update = do
     assertEqual "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
     assertEqual "hidden" (memHidden memberBob) (memHidden newBob)
     assertEqual "hidden_ref" (memHiddenRef memberBob) (memHiddenRef newBob)
+
+putRemoteConvMemberOk :: MemberUpdate -> TestM ()
+putRemoteConvMemberOk update = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+
+  -- create a remote conversation with alice
+  let remoteDomain = Domain "bobland.example.com"
+  qbob <- Qualified <$> randomId <*> pure remoteDomain
+  qconv <- Qualified <$> randomId <*> pure remoteDomain
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cmu =
+        FederatedGalley.ConversationMemberUpdate
+          { cmuTime = now,
+            cmuOrigUserId = qbob,
+            cmuConvId = qUnqualified qconv,
+            cmuAlreadyPresentUsers = [],
+            cmuAction =
+              FederatedGalley.ConversationMembersActionAdd (pure (qalice, roleNameWireMember))
+          }
+  FederatedGalley.onConversationMembershipsChanged fedGalleyClient remoteDomain cmu
+
+  -- Expected member state
+  let memberAlice =
+        Member
+          { memId = alice,
+            memService = Nothing,
+            memOtrMutedStatus = mupOtrMuteStatus update,
+            memOtrMutedRef = mupOtrMuteRef update,
+            memOtrArchived = Just True == mupOtrArchive update,
+            memOtrArchivedRef = mupOtrArchiveRef update,
+            memHidden = Just True == mupHidden update,
+            memHiddenRef = mupHiddenRef update,
+            memConvRoleName = roleNameWireMember
+          }
+  -- Update member state & verify push notification
+  WS.bracketR c alice $ \ws -> do
+    putMember alice update qconv !!! const 200 === statusCode
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qalice
+      case evtData e of
+        EdMemberUpdate mis -> do
+          assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
+          assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
+          assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
+          assertEqual "otr_archived_ref" (mupOtrArchiveRef update) (misOtrArchivedRef mis)
+          assertEqual "hidden" (mupHidden update) (misHidden mis)
+          assertEqual "hidden_ref" (mupHiddenRef update) (misHiddenRef mis)
+        x -> assertFailure $ "Unexpected event data: " ++ show x
+  -- Verify new member state
+  rs <- getConvQualified alice qconv <!! const 200 === statusCode
+  let alice' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
+  liftIO $ do
+    assertBool "user" (isJust alice')
+    let newAlice = fromJust alice'
+    assertEqual "id" (memId memberAlice) (memId newAlice)
+    assertEqual "otr_muted_status" (memOtrMutedStatus memberAlice) (memOtrMutedStatus newAlice)
+    assertEqual "otr_muted_ref" (memOtrMutedRef memberAlice) (memOtrMutedRef newAlice)
+    assertEqual "otr_archived" (memOtrArchived memberAlice) (memOtrArchived newAlice)
+    assertEqual "otr_archived_ref" (memOtrArchivedRef memberAlice) (memOtrArchivedRef newAlice)
+    assertEqual "hidden" (memHidden memberAlice) (memHidden newAlice)
+    assertEqual "hidden_ref" (memHiddenRef memberAlice) (memHiddenRef newAlice)
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do

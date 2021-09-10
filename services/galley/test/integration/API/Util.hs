@@ -945,12 +945,12 @@ getSelfMember u c = do
       . zConn "conn"
       . zType "access"
 
-putMember :: UserId -> MemberUpdate -> ConvId -> TestM ResponseLBS
-putMember u m c = do
+putMember :: UserId -> MemberUpdate -> Qualified ConvId -> TestM ResponseLBS
+putMember u m (Qualified c dom) = do
   g <- view tsGalley
   put $
     g
-      . paths ["conversations", toByteString' c, "self"]
+      . paths ["conversations", toByteString' dom, toByteString' c, "self"]
       . zUser u
       . zConn "conn"
       . zType "access"
