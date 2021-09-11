@@ -38,7 +38,7 @@ import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
 import Wire.API.Team (BindingNewTeam (..), NewTeam (..))
 import Wire.API.User
   ( Asset (ImageAsset),
-    AssetSize (AssetPreview),
+    AssetSize (..),
     BindingNewTeamUser (..),
     ColourId (ColourId, fromColourId),
     Country (Country, fromCountry),
@@ -76,6 +76,7 @@ testObject_NewUser_user_1 =
       newUserPict = Just (Pict {fromPict = []}),
       newUserAssets =
         [ ImageAsset "\5112\&5\DC4\1019826\95472`\a\SUBG{?" (Just AssetPreview),
+          ImageAsset "something" (Just AssetComplete),
           ImageAsset "KE" Nothing
         ],
       newUserAccentId = Just (ColourId {fromColourId = -7404}),
