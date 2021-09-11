@@ -356,9 +356,9 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = do
         when ((idp' ^. SAML.idpExtraInfo . wiTeam) == teamId) $ do
           throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
     Data.GetIdPNotFound -> pure ()
-    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res
-    res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res
-    res@(Data.GetIdPWrongTeam _) -> throwSpar . SparIdPNotFound . cs . show $ res
+    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res -- database inconsistency
+    res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible
+    Data.GetIdPWrongTeam _ -> pure () -- (it's ok to use the same IdP issuer / entityID in different teams.)
   pure SAML.IdPConfig {..}
 
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with

@@ -534,11 +534,11 @@ data GetIdPResult a
   | -- | IdPId has been found, but no IdPConfig matching that Id.  (Database
     --   inconsistency or race condition.)
     GetIdPDanglingId SAML.IdPId
-  | -- | you were looking for an idp by just providing issuer, not teamid, and `issuer_idp_v2`
+  | -- | You were looking for an idp by just providing issuer, not teamid, and `issuer_idp_v2`
     --   has more than one entry (for different teams).
     GetIdPNonUnique [SAML.IdPId]
-  | -- | If you provide a teamid, and the idp retrieved is found just by issuer, and lives in
-    --   another team.  this should be handled similarly to NotFound in most cases.
+  | -- | An IdP was found, but it lives in another team than the one you were looking for.
+    --   This should be handled similarly to NotFound in most cases.
     GetIdPWrongTeam SAML.IdPId
   deriving (Eq, Show)
 
