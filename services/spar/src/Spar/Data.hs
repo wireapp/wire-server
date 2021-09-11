@@ -94,6 +94,7 @@ import Control.Arrow (Arrow ((&&&)))
 import Control.Lens
 import Control.Monad.Except
 import Data.CaseInsensitive (foldCase)
+import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.List.NonEmpty as NL
@@ -104,8 +105,8 @@ import GHC.TypeLits (KnownSymbol)
 import Imports
 import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import qualified Text.Email.Parser as Email
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
@@ -283,7 +284,7 @@ normalizeUnqualifiedNameId = NormalizedUNameID . foldCase . nameIdTxt
   where
     nameIdTxt :: SAML.UnqualifiedNameID -> ST
     nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
-    nameIdTxt (SAML.UNameIDEmail (SAML.Email txt)) = cs $ Email.toByteString txt
+    nameIdTxt (SAML.UNameIDEmail email) = SAMLEmail.render $ CI.original email
     nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt
     nameIdTxt (SAML.UNameIDWindows txt) = SAML.unsafeFromXmlText txt
     nameIdTxt (SAML.UNameIDKerberos txt) = SAML.unsafeFromXmlText txt

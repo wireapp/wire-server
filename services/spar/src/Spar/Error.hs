@@ -69,6 +69,7 @@ throwSpar = throwError . SAML.CustomError
 
 data SparCustomError
   = SparIdPNotFound
+  | SparSamlCredentialsNotFound
   | SparMissingZUsr
   | SparNotInTeam
   | SparNoPermission LT
@@ -158,6 +159,7 @@ renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.mkError status400
 renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: assertion without ID")
 renderSparError (SAML.BadSamlResponseInvalidSignature msg) = Right $ Wai.mkError status400 "bad-response-signature" (cs msg)
 renderSparError (SAML.CustomError SparIdPNotFound) = Right $ Wai.mkError status404 "not-found" "Could not find IdP."
+renderSparError (SAML.CustomError SparSamlCredentialsNotFound) = Right $ Wai.mkError status404 "not-found" "Could not find SAML credentials, and auto-provisioning is disabled."
 renderSparError (SAML.CustomError SparMissingZUsr) = Right $ Wai.mkError status400 "client-error" "[header] 'Z-User' required"
 renderSparError (SAML.CustomError SparNotInTeam) = Right $ Wai.mkError status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
 renderSparError (SAML.CustomError (SparNoPermission perm)) = Right $ Wai.mkError status403 "insufficient-permissions" ("You need permission " <> cs perm <> ".")

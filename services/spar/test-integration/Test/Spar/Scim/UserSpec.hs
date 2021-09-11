@@ -46,6 +46,7 @@ import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
 import Data.Handle (Handle (Handle), fromHandle)
 import Data.Id (TeamId, UserId, randomId)
@@ -260,7 +261,7 @@ testCsvData tid owner uid mbeid mbsaml = do
 
       let haveSubject :: Text
           haveSubject = case mbsaml of
-            Just (UserSSOId _ subject) -> either (error . show) SAML.unsafeShowNameID $ SAML.decodeElem (cs subject)
+            Just (UserSSOId _ subject) -> either (error . show) (CI.original . SAML.unsafeShowNameID) $ SAML.decodeElem (cs subject)
             Just (UserScimExternalId _) -> ""
             Nothing -> ""
       ('n', CsvExport.tExportSAMLNamedId export) `shouldBe` ('n', haveSubject)
@@ -359,6 +360,11 @@ testCreateUserNoIdP = do
   let eid = Scim.User.externalId scimUser
       sml = Nothing
    in testCsvData tid owner userid eid sml
+
+  -- members table contains an entry
+  -- (this really shouldn't be tested here, but by the type system!)
+  members <- getTeamMembers userid tid
+  liftIO $ members `shouldContain` [userid]
   where
     -- cloned from brig's integration tests
 
@@ -430,6 +436,11 @@ testCreateUserWithSamlIdP = do
       sml :: HasCallStack => UserSSOId
       sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
    in testCsvData tid owner uid eid (Just sml)
+
+  -- members table contains an entry
+  -- (this really shouldn't be tested here, but by the type system!)
+  members <- getTeamMembers userid tid
+  liftIO $ members `shouldContain` [userid]
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
@@ -670,6 +681,7 @@ testScimCreateVsUserRef = do
     samlUserShouldSatisfy uref property = do
       muid <- getUserIdViaRef' uref
       liftIO $ muid `shouldSatisfy` property
+
     createViaSamlResp :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
     createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
       authnReq <- negotiateAuthnRequest idp
@@ -678,12 +690,14 @@ testScimCreateVsUserRef = do
         runSimpleSP $
           SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
       submitAuthnResponse authnResp <!! const 200 === statusCode
+
     createViaSamlFails :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()
     createViaSamlFails idp privCreds uref = do
       resp <- createViaSamlResp idp privCreds uref
       liftIO $ do
         maybe (error "no body") cs (responseBody resp)
-          `shouldContain` "<title>wire:sso:error:forbidden</title>"
+          `shouldNotContain` "<title>wire:sso:error:success</title>"
+
     createViaSaml :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
     createViaSaml idp privCreds uref = do
       resp <- createViaSamlResp idp privCreds uref
@@ -691,6 +705,7 @@ testScimCreateVsUserRef = do
         maybe (error "no body") cs (responseBody resp)
           `shouldContain` "<title>wire:sso:success</title>"
       getUserIdViaRef' uref
+
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
       brig <- view teBrig
@@ -821,7 +836,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     veidToText :: MonadError String m => ValidExternalId -> m Text
     veidToText veid =
       runValidExternalId
-        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") pure $ SAML.shortShowNameID subj)
+        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") (pure . CI.original) $ SAML.shortShowNameID subj)
         (pure . fromEmail)
         veid
 

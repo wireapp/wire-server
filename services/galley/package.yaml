@@ -11,6 +11,7 @@ license: AGPL-3
 
 dependencies:
 - imports
+- case-insensitive
 - extended
 - safe >=0.3
 - ssl-util
