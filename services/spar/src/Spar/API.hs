@@ -133,7 +133,7 @@ authreq _ DoInitiateBind Nothing _ _ _ = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
-    idp :: IdP <- wrapMonadClient (Data.getIdPConfig idpid) >>= maybe (throwSpar SparIdPNotFound) pure
+    idp :: IdP <- wrapMonadClient (Data.getIdPConfig idpid) >>= maybe (throwSpar (SparIdPNotFound (cs $ show idpid))) pure
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
           WireIdPAPIV1 -> Nothing
@@ -216,7 +216,7 @@ idpGetRaw zusr idpid = do
   _ <- authorizeIdP zusr idp
   wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
-    Nothing -> throwSpar SparIdPNotFound
+    Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
 
 idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
@@ -277,8 +277,9 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Spar ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       wrapMonadClient $ do
-        iid <- Data.getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam)
-        mapM_ (Data.clearReplacedBy . Data.Replaced) iid
+        Data.getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
+          Data.GetIdPFound iid -> Data.clearReplacedBy $ Data.Replaced iid
+          _ -> pure ()
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
@@ -340,14 +341,13 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = do
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
-      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar SparIdPNotFound) pure
+      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar (SparIdPNotFound (cs $ show mReplaces))) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
   wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId) >>= \case
-    Nothing -> pure ()
-    Just idp' -> case apiversion of
+    Data.GetIdPFound idp' -> case apiversion of
       WireIdPAPIV1 -> do
         throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
       WireIdPAPIV2 -> do
@@ -355,6 +355,10 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = do
           throwSpar $ SparNewIdPAlreadyInUse "only allow all-new IdPs, no combination of old and new IdPs."
         when ((idp' ^. SAML.idpExtraInfo . wiTeam) == teamId) $ do
           throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
+    Data.GetIdPNotFound -> pure ()
+    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res
+    res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res
+    res@(Data.GetIdPWrongTeam _) -> throwSpar . SparIdPNotFound . cs . show $ res
   pure SAML.IdPConfig {..}
 
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
@@ -400,9 +404,12 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
       then pure $ previousIdP ^. SAML.idpExtraInfo
       else do
         foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuerAllowOld newIssuer (Just teamId))
-        let notInUseByOthers = case foundConfig of
-              Nothing -> True
-              Just c -> c ^. SAML.idpId == _idpId
+        notInUseByOthers <- case foundConfig of
+          Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
+          Data.GetIdPNotFound -> pure $ True
+          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res
+          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res
+          res@(Data.GetIdPWrongTeam _) -> throwSpar . SparIdPNotFound . cs . show $ res
         if notInUseByOthers
           then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSpar SparIdPIssuerInUse
@@ -463,7 +470,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
       -- this will return a 404, which is not quite right,
       -- but it's an internal endpoint and the message clearly says
       -- "Could not find IdP".
-      throwSpar SparIdPNotFound
+      throwSpar $ SparIdPNotFound mempty
     Just _ -> do
       wrapMonadClient $ Data.storeDefaultSsoCode code
       pure NoContent

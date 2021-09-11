@@ -152,13 +152,16 @@ instance SPStoreIdP SparError Spar where
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
   getIdPConfig :: IdPId -> Spar IdP
-  getIdPConfig = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
-
-  getIdPConfigByIssuer :: Issuer -> TeamId -> Spar IdP
-  getIdPConfigByIssuer issuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer issuer
+  getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
   getIdPConfigByIssuerOptionalSPId :: Issuer -> Maybe TeamId -> Spar IdP
-  getIdPConfigByIssuerOptionalSPId issuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuerAllowOld issuer
+  getIdPConfigByIssuerOptionalSPId issuer mbteam = do
+    wrapMonadClientWithEnv (Data.getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
+      Data.GetIdPFound idp -> pure idp
+      Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
+      res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
+      res@(Data.GetIdPNonUnique _) -> throwSpar $ SparIdPNotFound (cs $ show res)
+      res@(Data.GetIdPWrongTeam _) -> throwSpar $ SparIdPNotFound (cs $ show res)
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
 -- don't need either of those, 'wrapMonadClient' will suffice.
