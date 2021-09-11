@@ -531,32 +531,25 @@ getIdPConfig idpid =
 data GetIdPResult a
   = GetIdPFound a
   | GetIdPNotFound
+  | -- | IdPId has been found, but no IdPConfig matching that Id.  (Database
+    --   inconsistency or race condition.)
+    GetIdPDanglingId SAML.IdPId
   | -- | you were looking for an idp by just providing issuer, not teamid, and `issuer_idp_v2`
     --   has more than one entry (for different teams).
-    GetIdPNonUniqueAnyTeam [a]
+    GetIdPNonUnique [SAML.IdPId]
   | -- | If you provide a teamid, and the idp retrieved is found just by issuer, and lives in
     --   another team.  this should be handled similarly to NotFound in most cases.
-    GetIdPWrongTeam a
+    GetIdPWrongTeam SAML.IdPId
   deriving (Eq, Show)
 
--- | we don't need the functor property, this is just for fun.
-instance Functor GetIdPResult where
-  fmap f (GetIdPFound a) = GetIdPFound (f a)
-  fmap _ GetIdPNotFound = GetIdPNotFound
-  fmap f (GetIdPNonUniqueAnyTeam as) = GetIdPNonUniqueAnyTeam (f <$> as)
-  fmap f (GetIdPWrongTeam a) = GetIdPWrongTeam (f a)
-
-_mapGetIdPResult_simple :: (HasCallStack, MonadClient m) => (a -> m b) -> GetIdPResult a -> m (GetIdPResult b)
-_mapGetIdPResult_simple f (GetIdPFound a) = GetIdPFound <$> f a
-_mapGetIdPResult_simple _ GetIdPNotFound = pure GetIdPNotFound
-_mapGetIdPResult_simple f (GetIdPNonUniqueAnyTeam as) = GetIdPNonUniqueAnyTeam <$> (f `mapM` as)
-_mapGetIdPResult_simple f (GetIdPWrongTeam a) = GetIdPWrongTeam <$> f a
-
-mapGetIdPResult :: (HasCallStack, MonadClient m) => (a -> m (Maybe b)) -> GetIdPResult a -> m (GetIdPResult b)
-mapGetIdPResult = do
-  -- TODO: the simple one doesn't work, but this one is stupid.  we want to throw something if
-  -- we have an id, but can't find the idp for it.
-  undefined
+-- | (There are probably category theoretical models for what we're doing here, but it's more
+-- straight-forward to just handle the one instance we need.)
+mapGetIdPResult :: (HasCallStack, MonadClient m) => (SAML.IdPId -> m (Maybe IdP)) -> GetIdPResult SAML.IdPId -> m (GetIdPResult IdP)
+mapGetIdPResult f (GetIdPFound i) = f i <&> maybe (GetIdPDanglingId i) GetIdPFound
+mapGetIdPResult _ GetIdPNotFound = pure GetIdPNotFound
+mapGetIdPResult _ (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
+mapGetIdPResult _ (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
+mapGetIdPResult _ (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
 
 -- | See 'getIdPIdByIssuer'.
 getIdPConfigByIssuer ::
@@ -597,11 +590,14 @@ getIdPIdByIssuerAllowOld issuer mbteam = do
   mbv1v2 <- maybe (getIdPIdByIssuerOld issuer) (pure . GetIdPFound) mbv2
   case (mbv1v2, mbteam) of
     (GetIdPFound idpid, Just team) -> do
-      idp <- getIdPConfig idpid >>= error "TODO: handle nothing better" -- maybe (error "TODO: database inconsistency") pure
-      pure $
-        if idp ^. SAML.idpExtraInfo . wiTeam /= team
-          then GetIdPWrongTeam idpid
-          else mbv1v2
+      getIdPConfig idpid >>= \case
+        Nothing -> do
+          pure $ GetIdPDanglingId idpid
+        Just idp ->
+          pure $
+            if idp ^. SAML.idpExtraInfo . wiTeam /= team
+              then GetIdPWrongTeam idpid
+              else mbv1v2
     _ -> pure mbv1v2
 
 -- | Find 'IdPId' without team.  Search both `issuer_idp` and `issuer_idp_v2`; in the latter,
@@ -617,7 +613,7 @@ getIdPIdByIssuerOld issuer = do
       (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
         [] -> pure GetIdPNotFound
         [idpid] -> pure $ GetIdPFound idpid
-        idpids@(_ : _ : _) -> pure $ GetIdPNonUniqueAnyTeam idpids
+        idpids@(_ : _ : _) -> pure $ GetIdPNonUnique idpids
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
