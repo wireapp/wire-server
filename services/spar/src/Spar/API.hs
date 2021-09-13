@@ -418,10 +418,10 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
         foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuerAllowOld newIssuer (Just teamId))
         notInUseByOthers <- case foundConfig of
           Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
-          Data.GetIdPNotFound -> pure $ True
-          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res
-          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res
-          res@(Data.GetIdPWrongTeam _) -> throwSpar . SparIdPNotFound . cs . show $ res
+          Data.GetIdPNotFound -> pure True
+          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible
+          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible (because team id was used in lookup)
+          Data.GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
           then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSpar SparIdPIssuerInUse
