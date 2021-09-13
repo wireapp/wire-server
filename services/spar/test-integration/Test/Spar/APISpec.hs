@@ -332,7 +332,7 @@ specFinalizeLogin = do
       it "rejects" $ do
         (_, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         authnreq <- negotiateAuthnRequest idp
-        spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . wiTeam)
+        spmeta <- getTestSPMetadata teamid
         authnresp <-
           runSimpleSP $
             mkAuthnResponse
