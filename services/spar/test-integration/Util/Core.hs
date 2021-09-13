@@ -498,7 +498,7 @@ deleteUserOnBrig ::
   m ()
 deleteUserOnBrig brigreq uid = do
   deleteUserNoWait brigreq uid
-  recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
+  recoverAll (exponentialBackoff 500000 <> limitRetries 5) $ \_ -> do
     profile <- getSelfProfile brigreq uid
     liftIO $ selfUser profile `shouldSatisfy` Brig.userDeleted
 
