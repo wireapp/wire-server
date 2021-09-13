@@ -19,6 +19,7 @@
 
 module Galley.API.Mapping
   ( conversationView,
+    conversationViewMaybe,
     remoteConversationView,
     conversationToRemote,
     localMemberToSelf,

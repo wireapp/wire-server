@@ -20,185 +20,142 @@
 
 module Test.Galley.Mapping where
 
--- import Data.Domain
--- import Data.Id
--- import Data.Qualified
--- import Galley.API ()
--- import Galley.API.Mapping
--- import qualified Galley.Data as Data
--- import Galley.Types.Conversations.Members
--- import Imports
+import Data.Domain
+import Data.Id
+import Data.Qualified
+import Data.Tagged
+import Galley.API.Mapping
+import qualified Galley.Data as Data
+import Galley.Types.Conversations.Members
+import Imports
 import Test.Tasty
-
+import Test.Tasty.QuickCheck
 -- import Test.Tasty.HUnit
--- import Wire.API.Conversation
--- import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Conversation
+import Wire.API.Conversation.Role
+import Wire.API.Federation.API.Galley
+  ( RemoteConvMembers (..),
+    RemoteConversation (..),
+  )
 
 tests :: TestTree
 tests =
   testGroup
     "ConversationMapping"
-    []
+    [ testProperty "conversation view for a valid user is non-empty" $
+        \(ConvWithLocalUser c uid) dom -> isJust (conversationViewMaybe dom uid c),
+      testProperty "self user in conversation view is correct" $
+        \(ConvWithLocalUser c uid) dom ->
+          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe dom uid c)
+            == Just uid,
+      testProperty "conversation view metadata is correct" $
+        \(ConvWithLocalUser c uid) dom ->
+          fmap cnvMetadata (conversationViewMaybe dom uid c)
+            == Just (Data.convMetadata dom c),
+      testProperty "other members in conversation view do not contain self" $
+        \(ConvWithLocalUser c uid) dom -> case conversationViewMaybe dom uid c of
+          Nothing -> False
+          Just cnv ->
+            not
+              ( Qualified uid dom
+                  `elem` (map omQualifiedId (cmOthers (cnvMembers cnv)))
+              ),
+      testProperty "conversation view contains all users" $
+        \(ConvWithLocalUser c uid) dom ->
+          fmap (sort . cnvUids dom) (conversationViewMaybe dom uid c)
+            == Just (sort (convUids dom c)),
+      testProperty "conversation view for an invalid user is empty" $
+        \(RandomConversation c) dom uid ->
+          not (elem uid (map lmId (Data.convLocalMembers c)))
+            ==> isNothing (conversationViewMaybe dom uid c),
+      testProperty "remote conversation view for a valid user is non-empty" $
+        \(ConvWithRemoteUser c ruid) dom ->
+          qDomain (unTagged ruid) /= dom
+            ==> isJust (conversationToRemote dom ruid c),
+      testProperty "self user role in remote conversation view is correct" $
+        \(ConvWithRemoteUser c ruid) dom ->
+          qDomain (unTagged ruid) /= dom
+            ==> fmap (rcmSelfRole . rcnvMembers) (conversationToRemote dom ruid c)
+              == Just roleNameWireMember,
+      testProperty "remote conversation view metadata is correct" $
+        \(ConvWithRemoteUser c ruid) dom ->
+          qDomain (unTagged ruid) /= dom
+            ==> fmap (rcnvMetadata) (conversationToRemote dom ruid c)
+              == Just (Data.convMetadata dom c),
+      testProperty "remote conversation view does not contain self" $
+        \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
+          Nothing -> False
+          Just rcnv ->
+            not
+              ( unTagged ruid
+                  `elem` (map omQualifiedId (rcmOthers (rcnvMembers rcnv)))
+              )
+    ]
 
--- TODO: make these unit tests
--- [ testCase "Alice@A Conv@A" runMappingSimple,
---   testCase "Alice@A Conv@A requester=not a member@A" runMappingNotAMemberA,
---   testCase "Alice@A Conv@A requester=not a member@B" runMappingNotAMemberB,
---   testCase "Alice@A Conv@A Bob@B" runMappingRemoteUser,
---   testCase "Alice@A Conv@B Bob@B" runMappingRemoteConv,
---   testCase "Alice@A Conv@B Bob@B bobUUID=aliceUUID" runMappingSameUnqualifiedUUID
--- ]
+cnvUids :: Domain -> Conversation -> [Qualified UserId]
+cnvUids dom c =
+  let mems = cnvMembers c
+   in Qualified (memId (cmSelf mems)) dom :
+      map omQualifiedId (cmOthers mems)
 
---runMappingSimple :: HasCallStack => IO ()
---runMappingSimple = do
---  let convDomain = Domain "backendA.example.com"
---  let userDomain = Domain "backendA.example.com"
---  alice <- randomId
---  let requester = Qualified alice userDomain
---  let expectedSelf = Just $ mkMember requester
---  let expectedOthers = Just []
+convUids :: Domain -> Data.Conversation -> [Qualified UserId]
+convUids dom c =
+  map ((`Qualified` dom) . lmId) (Data.convLocalMembers c)
+    <> map (unTagged . rmId) (Data.convRemoteMembers c)
 
---  let locals = [mkInternalMember requester]
---  let remotes = []
---  conv <- mkInternalConv locals remotes
---  let actual = cnvMembers <$> conversationViewMaybeQualified convDomain requester conv
+genLocalMember :: Gen LocalMember
+genLocalMember =
+  LocalMember
+    <$> arbitrary
+    <*> pure defMemberStatus
+    <*> pure Nothing
+    <*> pure roleNameWireAdmin
 
---  assertEqual "self:" expectedSelf (cmSelf <$> actual)
---  assertEqual "others:" expectedOthers (cmOthers <$> actual)
+genRemoteMember :: Gen RemoteMember
+genRemoteMember = RemoteMember <$> arbitrary <*> pure roleNameWireMember
 
---runMappingNotAMemberA :: HasCallStack => IO ()
---runMappingNotAMemberA = do
---  let convDomain = Domain "backendA.example.com"
---  let aliceDomain = Domain "backendA.example.com"
---  alice <- flip Qualified aliceDomain <$> randomId
---  requester <- flip Qualified aliceDomain <$> randomId
+genConversation :: [LocalMember] -> [RemoteMember] -> Gen Data.Conversation
+genConversation locals remotes =
+  Data.Conversation
+    <$> arbitrary
+    <*> pure RegularConv
+    <*> arbitrary
+    <*> arbitrary
+    <*> pure []
+    <*> pure ActivatedAccessRole
+    <*> pure locals
+    <*> pure remotes
+    <*> pure Nothing
+    <*> pure (Just False)
+    <*> pure Nothing
+    <*> pure Nothing
 
---  let locals = [mkInternalMember alice]
---  let remotes = []
---  conv <- mkInternalConv locals remotes
---  let actual = cnvMembers <$> conversationViewMaybeQualified convDomain requester conv
+newtype RandomConversation = RandomConversation Data.Conversation
+  deriving (Show)
 
---  assertEqual "members:" Nothing actual
+instance Arbitrary RandomConversation where
+  arbitrary =
+    RandomConversation <$> do
+      locals <- listOf genLocalMember
+      remotes <- listOf genRemoteMember
+      genConversation locals remotes
 
---runMappingNotAMemberB :: HasCallStack => IO ()
---runMappingNotAMemberB = do
---  let convDomain = Domain "backendA.example.com"
---  let aliceDomain = Domain "backendA.example.com"
---  let requesterDomain = Domain "backendB.example.com"
---  alice <- flip Qualified aliceDomain <$> randomId
---  requester <- flip Qualified requesterDomain <$> randomId
+data ConvWithLocalUser = ConvWithLocalUser Data.Conversation UserId
+  deriving (Show)
 
---  let locals = [mkInternalMember alice]
---  let remotes = []
---  conv <- mkInternalConv locals remotes
---  let actual = cnvMembers <$> conversationViewMaybeQualified convDomain requester conv
+instance Arbitrary ConvWithLocalUser where
+  arbitrary = do
+    RandomConversation conv <- arbitrary
+    member <- genLocalMember
+    let conv' = conv {Data.convLocalMembers = member : Data.convLocalMembers conv}
+    pure $ ConvWithLocalUser conv' (lmId member)
 
---  assertEqual "members:" Nothing actual
+data ConvWithRemoteUser = ConvWithRemoteUser Data.Conversation (Remote UserId)
+  deriving (Show)
 
---runMappingRemoteUser :: HasCallStack => IO ()
---runMappingRemoteUser = do
---  let aliceDomain = Domain "backendA.example.com"
---  let convDomain = Domain "backendA.example.com"
---  let bobDomain = Domain "backendB.example.com"
---  alice <- flip Qualified aliceDomain <$> randomId
---  bob <- flip Qualified bobDomain <$> randomId
---  let expectedSelf = Just $ mkMember alice
---  let expectedOthers = Just [mkOtherMember bob]
-
---  let locals = [mkInternalMember alice]
---  let remotes = [mkRemoteMember bob]
---  conv <- mkInternalConv locals remotes
---  let actual = cnvMembers <$> conversationViewMaybeQualified convDomain alice conv
-
---  assertEqual "self:" expectedSelf (cmSelf <$> actual)
---  assertEqual "others:" expectedOthers (cmOthers <$> actual)
-
---runMappingRemoteConv :: HasCallStack => IO ()
---runMappingRemoteConv = do
---  let aliceDomain = Domain "backendA.example.com"
---  let convDomain = Domain "backendB.example.com"
---  let bobDomain = Domain "backendB.example.com"
---  alice <- flip Qualified aliceDomain <$> randomId
---  bob <- flip Qualified bobDomain <$> randomId
---  let expectedSelf = Just $ mkMember alice
---  let expectedOthers = Just [mkOtherMember bob]
-
---  let locals = [mkInternalMember bob]
---  let remotes = [mkRemoteMember alice]
---  conv <- mkInternalConv locals remotes
---  let actual = cnvMembers <$> conversationViewMaybeQualified convDomain alice conv
-
---  assertEqual "self:" expectedSelf (cmSelf <$> actual)
---  assertEqual "others:" expectedOthers (cmOthers <$> actual)
-
----- Here we expect the conversationView to return nothing, because Alice (the
----- requester) is not part of the conversation (Her unqualified UUID is part of
----- the conversation, but the function should catch this possibly malicious
----- edge case)
---runMappingSameUnqualifiedUUID :: HasCallStack => IO ()
---runMappingSameUnqualifiedUUID = do
---  let aliceDomain = Domain "backendA.example.com"
---  let convDomain = Domain "backendB.example.com"
---  let bobDomain = Domain "backendB.example.com"
---  uuid <- randomId
---  let alice = Qualified uuid aliceDomain
---  let bob = Qualified uuid bobDomain
-
---  let locals = [mkInternalMember bob]
---  let remotes = []
---  conv <- mkInternalConv locals remotes
---  let actual = cnvMembers <$> conversationViewMaybeQualified convDomain alice conv
-
---  assertEqual "members:" Nothing actual
-
-----------------------------------------------------------------
-
---mkOtherMember :: Qualified UserId -> OtherMember
---mkOtherMember u = OtherMember u Nothing roleNameWireAdmin
-
---mkRemoteMember :: Qualified UserId -> RemoteMember
---mkRemoteMember u = RemoteMember (toRemote u) roleNameWireAdmin
-
---mkInternalConv :: [LocalMember] -> [RemoteMember] -> IO Data.Conversation
---mkInternalConv locals remotes = do
---  -- for the conversationView unit tests, the creator plays no importance, so for simplicity this is set to a random value.
---  creator <- randomId
---  cnv <- randomId
---  pure $
---    Data.Conversation
---      { Data.convId = cnv,
---        Data.convType = RegularConv,
---        Data.convCreator = creator,
---        Data.convName = Just "unit testing gossip",
---        Data.convAccess = [],
---        Data.convAccessRole = ActivatedAccessRole,
---        Data.convLocalMembers = locals,
---        Data.convRemoteMembers = remotes,
---        Data.convTeam = Nothing,
---        Data.convDeleted = Just False,
---        Data.convMessageTimer = Nothing,
---        Data.convReceiptMode = Nothing
---      }
-
---mkMember :: Qualified UserId -> Member
---mkMember (Qualified userId _domain) =
---  Member
---    { memId = userId,
---      memService = Nothing,
---      memOtrMutedStatus = Nothing,
---      memOtrMutedRef = Nothing,
---      memOtrArchived = False,
---      memOtrArchivedRef = Nothing,
---      memHidden = False,
---      memHiddenRef = Nothing,
---      memConvRoleName = roleNameWireAdmin
---    }
-
---mkInternalMember :: Qualified UserId -> LocalMember
---mkInternalMember (Qualified userId _domain) =
---  LocalMember
---    { lmId = userId,
---      lmService = Nothing,
---      lmStatus = defMemberStatus,
---      lmConvRoleName = roleNameWireAdmin
---    }
+instance Arbitrary ConvWithRemoteUser where
+  arbitrary = do
+    RandomConversation conv <- arbitrary
+    member <- genRemoteMember
+    let conv' = conv {Data.convRemoteMembers = member : Data.convRemoteMembers conv}
+    pure $ ConvWithRemoteUser conv' (rmId member)

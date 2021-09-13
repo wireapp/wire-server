@@ -18,6 +18,7 @@ dependencies:
 - raw-strings-qq >=1.0
 - wire-api
 - wire-api-federation
+- tagged
 
 library:
   source-dirs: src
@@ -76,7 +77,6 @@ library:
   - string-conversions
   - swagger >=0.1
   - swagger2
-  - tagged
   - text >=0.11
   - time >=1.4
   - tinylog >=0.10
