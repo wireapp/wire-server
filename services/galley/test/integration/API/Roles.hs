@@ -218,10 +218,6 @@ wireMemberChecks cid mem admin otherMem = do
   putOtherMember mem mem sneakyOtherMemberUpdate cid !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
-  let selfMemberUpdate = memberUpdate {mupConvRoleName = Just roleNameWireAdmin}
-  putMember mem selfMemberUpdate cid !!! do
-    const 403 === statusCode
-    const (Just "invalid-actions") === fmap label . responseJsonUnsafe
   -- No updates for message timer, receipt mode or access
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied

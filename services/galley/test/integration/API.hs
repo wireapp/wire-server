@@ -2599,7 +2599,7 @@ putMemberOk update = do
             memOtrArchivedRef = mupOtrArchiveRef update,
             memHidden = Just True == mupHidden update,
             memHiddenRef = mupHiddenRef update,
-            memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
+            memConvRoleName = roleNameWireAdmin
           }
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do

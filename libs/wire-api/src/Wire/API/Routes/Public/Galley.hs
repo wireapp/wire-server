@@ -336,26 +336,11 @@ data Api routes = Api
     getConversationSelfUnqualified ::
       routes
         :- Summary "Get self membership properties (deprecated)"
-        :> Description "Use `/conversations/:domain/:conv/self` instead."
         :> ZUser
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
         :> "self"
         :> Get '[JSON] (Maybe Member),
-    getConversationSelf ::
-      routes
-        :- Summary "Get self membership properties"
-        :> ZUser
-        :> "conversations"
-        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
-        :> "self"
-        :> MultiVerb
-             'GET
-             '[JSON]
-             [ ConvNotFound,
-               Respond 200 "Membership information" Member
-             ]
-             (Maybe Member),
     updateConversationSelfUnqualified ::
       routes
         :- Summary "Update self membership properties (deprecated)"

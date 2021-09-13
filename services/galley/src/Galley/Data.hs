@@ -89,7 +89,7 @@ module Galley.Data
     removeLocalMembersFromLocalConv,
     removeRemoteMembersFromLocalConv,
     removeLocalMembersFromRemoteConv,
-    updateMember,
+    IsMemberUpdate (..),
     filterRemoteConvMembers,
 
     -- * Conversation Codes
@@ -898,30 +898,50 @@ addLocalMembersToRemoteConv users qconv = do
           Cql.insertUserRemoteConv
           (u, qDomain qconv, qUnqualified qconv)
 
-updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
-updateMember cid uid mup = do
-  retry x5 . batch $ do
-    setType BatchUnLogged
-    setConsistency Quorum
-    for_ (mupOtrMuteStatus mup) $ \ms ->
-      addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
-    for_ (mupOtrArchive mup) $ \a ->
-      addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
-    for_ (mupHidden mup) $ \h ->
-      addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
-    for_ (mupConvRoleName mup) $ \r ->
-      addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
-  return
-    MemberUpdateData
-      { misTarget = Just uid,
-        misOtrMutedStatus = mupOtrMuteStatus mup,
-        misOtrMutedRef = mupOtrMuteRef mup,
-        misOtrArchived = mupOtrArchive mup,
-        misOtrArchivedRef = mupOtrArchiveRef mup,
-        misHidden = mupHidden mup,
-        misHiddenRef = mupHiddenRef mup,
-        misConvRoleName = mupConvRoleName mup
-      }
+class IsMemberUpdate mu where
+  updateMember :: MonadClient m => ConvId -> UserId -> mu -> m MemberUpdateData
+
+instance IsMemberUpdate MemberUpdate where
+  updateMember cid uid mup = do
+    retry x5 . batch $ do
+      setType BatchUnLogged
+      setConsistency Quorum
+      for_ (mupOtrMuteStatus mup) $ \ms ->
+        addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
+      for_ (mupOtrArchive mup) $ \a ->
+        addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
+      for_ (mupHidden mup) $ \h ->
+        addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
+    return
+      MemberUpdateData
+        { misTarget = Just uid,
+          misOtrMutedStatus = mupOtrMuteStatus mup,
+          misOtrMutedRef = mupOtrMuteRef mup,
+          misOtrArchived = mupOtrArchive mup,
+          misOtrArchivedRef = mupOtrArchiveRef mup,
+          misHidden = mupHidden mup,
+          misHiddenRef = mupHiddenRef mup,
+          misConvRoleName = Nothing
+        }
+
+instance IsMemberUpdate OtherMemberUpdate where
+  updateMember cid uid omu = do
+    retry x5 . batch $ do
+      setType BatchUnLogged
+      setConsistency Quorum
+      for_ (omuConvRoleName omu) $ \r ->
+        addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
+    pure
+      MemberUpdateData
+        { misTarget = Just uid,
+          misOtrMutedStatus = Nothing,
+          misOtrMutedRef = Nothing,
+          misOtrArchived = Nothing,
+          misOtrArchivedRef = Nothing,
+          misHidden = Nothing,
+          misHiddenRef = Nothing,
+          misConvRoleName = omuConvRoleName omu
+        }
 
 -- | Select only the members of a remote conversation from a list of users.
 -- Return the filtered list and a boolean indicating whether the all the input
