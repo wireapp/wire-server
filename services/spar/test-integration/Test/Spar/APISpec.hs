@@ -277,7 +277,7 @@ specFinalizeLogin = do
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
           (ownerid, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
-          spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . wiTeam)
+          spmeta <- getTestSPMetadata teamid
           -- first login
           newUserAuthnResp :: SignedAuthnResponse <- do
             authnreq <- negotiateAuthnRequest idp
