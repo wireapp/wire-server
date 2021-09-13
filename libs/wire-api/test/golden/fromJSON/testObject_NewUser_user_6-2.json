@@ -1,6 +1,9 @@
 {
     "assets": [],
     "name": "test name",
-    "password": "123456",
+    "sso_id": {
+        "subject": "thing",
+        "tenant": "some"
+    },
     "team_code": "RUne0vse27qsm5jxGmL0xQaeuEOqcqr65rU="
 }
