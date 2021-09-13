@@ -23,6 +23,7 @@ module Test.Spar.APISpec
 where
 
 import Bilge
+import Brig.Types.Intra (AccountStatus (Deleted))
 import Brig.Types.User
 import Cassandra hiding (Value)
 import Control.Lens hiding ((.=))
@@ -1184,8 +1185,9 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
       brig <- view teBrig
-      resp <- (call . delete $ brig . paths ["i", "users", toByteString' uid])
+      resp <- call . delete $ brig . paths ["i", "users", toByteString' uid]
       liftIO $ responseStatus resp `shouldBe` status202
+      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Deleted)
 
 specScimAndSAML :: SpecWith TestEnv
 specScimAndSAML = do
