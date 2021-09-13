@@ -184,7 +184,7 @@ authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbt
 
     go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Spar Void
     go resp verdict = do
-      result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
+      result :: SAML.ResponseVerdict <- verdictHandler cky mbtid resp verdict
       throwError $ SAML.CustomServant result
 
     logErrors :: Spar Void -> Spar Void
