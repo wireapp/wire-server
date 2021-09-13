@@ -326,3 +326,54 @@ TODO (probably little difference between this and "user deletes herself"?)
 #### delete via scim
 
 TODO
+
+
+## using the same IdP (same entityID, or Issuer) with different teams
+
+Some SAML IdP vendors do not allow to set up fresh entityIDs for fresh
+apps.  The way...
+
+
+changes:
+
+- a few end-points have been make more flexible by adding an optional
+  teamid to the path: ...
+- /sso/initiate-login returns an AuthnReq with the response url that
+  contains the teamid.
+- schema changes: ...
+
+we make sure that it doesn't matter whether an IdP calls the
+end-point(s) *with* teamid or *without*.  but the url of the
+finalize-login end-point in the authnreq must match the one the idp
+knows, or there will be an "audience mismatch" error.
+
+we solve this by introducing an IdP API version that is associated
+with every IdP.  the default is V1 (IdP issuer must be unique accross
+the wire instance); V2 (IdP issuer must be unique in the scope of one
+team only, and the API carries the team-id in the places where it's
+needed; see above) can be set actively in `POST /identity-providers`
+by adding query param `api-version=v2`.  this "ensures" that people do
+it only when they got the new metadata file.  (no typesafe way to
+accomplish that, it happens outside of our power.)
+
+
+
+TODO:
+- test creating a v1-idp, then a v2-idp, and then using the two according to their protocol.  (do we need this?  possibly.)
+- finish haddocks above 'Spar.Data.getSAMLUser'.
+  - make sure that we implement the check that user is always a team belonging to the idp.
+  - make sure that we fail with a good error if the idp attempts to provide the user to two teams (or can that even happen?  what *does* happen now in that case?)
+- fix all spar integration tests.
+- add integration test: register same issuer for two teams, provision *different* nameids to both teams.  run full auth flow.
+- in 'getIdPIdByIssuerOld', provide a better error to the UI if two idps are found for different teams.
+- write this section.
+- NTH: call `skipIdPAPIVersions [WireIdPAPIV1]` everywhere /a
+
+
+
+    :> QueryParam' '[Optional, Strict] "api-version" WireIdPAPIVersion
+
+
++-- NB: It is not allowed for two distinct wire users from two different teams to have the same
++-- 'UserRef'.  RATIONALE: this allows us to implement 'getSAMLUser' without adding 'TeamId' to
++-- 'UserRef' (which in turn would break the (admittedly leaky) abstarctions of saml2-web-sso).
