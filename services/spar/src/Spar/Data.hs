@@ -655,14 +655,21 @@ deleteIdPConfig idp issuer team = retry x5 . batch $ do
   addPrepQuery delDefaultIdp (Identity idp)
   addPrepQuery delIdp (Identity idp)
   addPrepQuery delIssuerIdp (Identity issuer)
+  addPrepQuery delIssuerIdpV2 (Identity issuer)
   addPrepQuery delTeamIdp (team, idp)
   where
     delDefaultIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delDefaultIdp = "DELETE FROM default_idp WHERE partition_key_always_default = 'default' AND idp = ?"
+
     delIdp :: PrepQuery W (Identity SAML.IdPId) ()
     delIdp = "DELETE FROM idp WHERE idp = ?"
+
     delIssuerIdp :: PrepQuery W (Identity SAML.Issuer) ()
     delIssuerIdp = "DELETE FROM issuer_idp WHERE issuer = ?"
+
+    delIssuerIdpV2 :: PrepQuery W (Identity SAML.Issuer) ()
+    delIssuerIdpV2 = "DELETE FROM issuer_idp_v2 WHERE issuer = ?"
+
     delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
 
