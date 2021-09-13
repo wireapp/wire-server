@@ -1015,15 +1015,25 @@ specCRUDIdentityProvider = do
         (SampleIdP newMetadata _ _ _) <- makeSampleIdPMetadata
         (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        -- first idp
         resp1 <- call $ callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid1) newMetadata
+        -- same idp issuer, same team
         resp2 <- call $ callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid1) newMetadata
+        -- same idp issuer, different team
         resp3 <- call $ callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just uid2) newMetadata
         liftIO $ do
           statusCode resp1 `shouldBe` 201
-          statusCode resp2 `shouldBe` 400
-          responseJsonEither resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
-          statusCode resp3 `shouldBe` 400
-          responseJsonEither resp3 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
+          do
+            -- always fail if we're trying same (SP entityID, IdP entityID, team)
+            statusCode resp2 `shouldBe` 400
+            responseJsonEither resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
+          case env ^. teWireIdPAPIVersion of
+            -- fail in the old api only if we're trying same (SP entityID, IdP entityID) on different teams
+            WireIdPAPIV1 -> do
+              statusCode resp3 `shouldBe` 400
+              responseJsonEither resp3 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
+            WireIdPAPIV2 -> do
+              statusCode resp3 `shouldBe` 201
     context "client is owner with email" $ do
       it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
         env <- ask

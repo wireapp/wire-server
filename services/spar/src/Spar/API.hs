@@ -336,7 +336,7 @@ validateNewIdP ::
   TeamId ->
   Maybe SAML.IdPId ->
   m IdP
-validateNewIdP apiversion _idpMetadata teamId mReplaces = do
+validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
@@ -346,19 +346,31 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = do
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
-  wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId) >>= \case
-    Data.GetIdPFound idp' -> case apiversion of
-      WireIdPAPIV1 -> do
-        throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
-      WireIdPAPIV2 -> do
-        when (fromMaybe defWireIdPAPIVersion (idp' ^. SAML.idpExtraInfo . wiApiVersion) == WireIdPAPIV1) $ do
-          throwSpar $ SparNewIdPAlreadyInUse "only allow all-new IdPs, no combination of old and new IdPs."
-        when ((idp' ^. SAML.idpExtraInfo . wiTeam) == teamId) $ do
-          throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
+  idp <- wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId)
+  SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
+
+  let handleIdPClash :: Either SAML.IdPId IdP -> m ()
+      handleIdPClash (Right idp') = case apiversion of
+        WireIdPAPIV1 -> do
+          throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
+        WireIdPAPIV2 -> do
+          when (fromMaybe defWireIdPAPIVersion (idp' ^. SAML.idpExtraInfo . wiApiVersion) == WireIdPAPIV1) $ do
+            throwSpar $ SparNewIdPAlreadyInUse "only allow all-new IdPs, no combination of old and new IdPs."
+          when ((idp' ^. SAML.idpExtraInfo . wiTeam) == teamId) $ do
+            throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
+      handleIdPClash (Left id') = do
+        let err = throwSpar . SparIdPNotFound . cs . show $ id' -- database inconsistency
+        idp' <- wrapMonadClient (Data.getIdPConfig id') >>= maybe err pure
+        handleIdPClash (Right idp')
+
+  case idp of
+    Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
     Data.GetIdPNotFound -> pure ()
     res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res -- database inconsistency
     res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible
-    Data.GetIdPWrongTeam _ -> pure () -- (it's ok to use the same IdP issuer / entityID in different teams.)
+    Data.GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
+
   pure SAML.IdPConfig {..}
 
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
@@ -389,7 +401,7 @@ validateIdPUpdate ::
   SAML.IdPMetadata ->
   SAML.IdPId ->
   m (TeamId, IdP)
-validateIdPUpdate zusr _idpMetadata _idpId = do
+validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <-
     wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
       Nothing -> throwError errUnknownIdPId
