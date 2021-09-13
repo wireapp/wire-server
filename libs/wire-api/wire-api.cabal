@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 589fcea6af01382a2fedf9d9bc0415015a96dfdbffd0376a2b58123e391eb2a1
+-- hash: b225ee25604ad590c2886cca427ff3612767c72e49039963f1fbafbb94a807bd
 
 name:           wire-api
 version:        0.1.0
@@ -249,7 +249,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.LastPrekey_user
       Test.Wire.API.Golden.Generated.LegalHoldServiceConfirm_team
       Test.Wire.API.Golden.Generated.LegalHoldServiceRemove_team
-      Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user
+      Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user
       Test.Wire.API.Golden.Generated.ListType_team
       Test.Wire.API.Golden.Generated.Locale_user
       Test.Wire.API.Golden.Generated.LocaleUpdate_user
