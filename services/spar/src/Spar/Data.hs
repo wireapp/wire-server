@@ -325,18 +325,11 @@ getSAMLSomeUsersByIssuer issuer =
     sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
     sel = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ? LIMIT 2000"
 
--- | ...
+-- | Lookup a brig 'UserId' by IdP issuer and NameID.
 --
--- NB: It is not allowed for two distinct wire users from two different teams to ahave the
--- same 'UserRef'.  Rationale: with saml auto-provisioning, the users would be required to
--- add distinguishing handles themselves, which would be at best confusing.  with scim
--- provisioning, the two accounts have to be distinct in the user data source, so it
--- /should/ be straight-forward to give the two accounts different 'UserRef' values, even
--- if the 'Issuer' is the same.
---
--- ...  this means we can get away with `user_v2`: pull `UserId`, assume it's always unique,
--- get the `TeamId` from brig, pull all `TeamId`s associated with the given `Issuer` from
--- `issuer_idp_v2`, and make sure the one from brig is in there.  (if not: what's the error?)
+-- NB: It is not allowed for two distinct wire users from two different teams to have the same
+-- 'UserRef'.  RATIONALE: this allows us to implement 'getSAMLUser' without adding 'TeamId' to
+-- 'UserRef' (which in turn would break the (admittedly leaky) abstarctions of saml2-web-sso).
 getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getSAMLUser uref = do
   mbUid <- getSAMLUserNew uref
