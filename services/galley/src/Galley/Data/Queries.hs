@@ -303,14 +303,8 @@ insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, 
 selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
 selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
 
-selectRemoteConvMembership :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
-selectRemoteConvMembership = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
-
-selectRemoteConvMember :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectRemoteConvMember = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
-
-selectRemoteConvMembershipIn :: PrepQuery R (UserId, Domain, [ConvId]) (Identity ConvId)
-selectRemoteConvMembershipIn = "select conv_remote_id from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id in ?"
+selectRemoteConvMembers :: PrepQuery R (UserId, Domain, [ConvId]) (ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectRemoteConvMembers = "select conv_remote_id, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id in ?"
 
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
@@ -324,7 +318,10 @@ updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, 
 updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteMemberHidden = "update user_remote_conv set otr_hidden = ?, otr_hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+
+selectRemoteMemberStatus :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectRemoteMemberStatus = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------
 

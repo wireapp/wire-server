@@ -36,12 +36,13 @@ where
 
 import qualified Cassandra as C
 import Control.Monad.Catch (throwM)
-import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Trans.Except
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
+import qualified Data.Map as Map
 import Data.Proxy
 import Data.Qualified (Qualified (..), Remote, partitionRemote, partitionRemoteOrLocalIds', toRemote)
 import Data.Range
@@ -61,13 +62,14 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Utilities
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified System.Logger.Class as Logger
 import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (convNotFound)
-import Wire.API.Federation.API.Galley (RemoteConversation, gcresConvs)
+import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationError, executeFederated)
 import Wire.API.Federation.Error
@@ -105,58 +107,97 @@ getConversation zusr cnv = do
   where
     getRemoteConversation :: Remote ConvId -> Galley Public.Conversation
     getRemoteConversation remoteConvId = do
-      foundConvs <- Data.remoteConversationIdOf zusr [remoteConvId]
-      unless (remoteConvId `elem` foundConvs) $
-        throwErrorDescription convNotFound
       conversations <- getRemoteConversations zusr [remoteConvId]
       case conversations of
         [] -> throwErrorDescription convNotFound
         [conv] -> pure conv
         _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
-mapRemoteConversations :: UserId -> [(MemberStatus, RemoteConversation)] -> [Public.Conversation]
-mapRemoteConversations uid = catMaybes . map (uncurry (Mapping.remoteConversationView uid))
-
 getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
-getRemoteConversations zusr remoteConvs = do
-  localDomain <- viewFederationDomain
-  let convsByDomain = partitionRemote remoteConvs
-  rconvs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> do
-    let req = FederatedGalley.GetConversationsRequest zusr convIds
-        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
-    gcresConvs <$> runFederatedGalley remoteDomain rpc
-  -- TODO: read member status from the database
-  pure
-    . mapRemoteConversations zusr
-    . (map (defMemberStatus,))
-    . concat
-    $ rconvs
+getRemoteConversations zusr remoteConvs =
+  getRemoteConversationsWithFailures zusr remoteConvs >>= \case
+    -- throw first error
+    (failed : _, _) -> throwM (fgcError failed)
+    ([], result) -> pure result
 
-getRemoteConversationsWithFailures :: UserId -> [Remote ConvId] -> Galley ([Qualified ConvId], [Public.Conversation])
-getRemoteConversationsWithFailures zusr remoteConvs = do
-  localDomain <- viewFederationDomain
-  let convsByDomain = partitionRemote remoteConvs
-  rconvs <- pooledForConcurrentlyN 8 convsByDomain $ \(remoteDomain, convIds) -> handleFailures remoteDomain convIds $ do
-    let req = FederatedGalley.GetConversationsRequest zusr convIds
-        rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
-    gcresConvs <$> executeFederated remoteDomain rpc
-  pure
-    -- TODO: read member status from the database
-    . fmap (mapRemoteConversations zusr . map (defMemberStatus,))
-    . bimap concat concat
-    . partitionEithers
-    $ (rconvs :: [Either [Qualified ConvId] [RemoteConversation]])
+data FailedGetConversationReason
+  = FailedGetConversationLocally
+  | FailedGetConversationRemotely FederationError
+
+fgcrError :: FailedGetConversationReason -> Wai.Error
+fgcrError FailedGetConversationLocally = errorDescriptionToWai convNotFound
+fgcrError (FailedGetConversationRemotely e) = federationErrorToWai e
+
+data FailedGetConversation
+  = FailedGetConversation
+      [Qualified ConvId]
+      FailedGetConversationReason
+
+fgcError :: FailedGetConversation -> Wai.Error
+fgcError (FailedGetConversation _ r) = fgcrError r
+
+failedGetConversationRemotely ::
+  [Qualified ConvId] -> FederationError -> FailedGetConversation
+failedGetConversationRemotely qconvs =
+  FailedGetConversation qconvs . FailedGetConversationRemotely
+
+failedGetConversationLocally ::
+  [Qualified ConvId] -> FailedGetConversation
+failedGetConversationLocally qconvs =
+  FailedGetConversation qconvs FailedGetConversationLocally
+
+partitionGetConversationFailures ::
+  [FailedGetConversation] -> ([Qualified ConvId], [Qualified ConvId])
+partitionGetConversationFailures = bimap concat concat . partitionEithers . map split
   where
-    handleFailures :: Domain -> [ConvId] -> ExceptT FederationError Galley a -> Galley (Either [Qualified ConvId] a)
-    handleFailures domain convIds action = do
-      res <- runExceptT action
-      case res of
-        Right a -> pure $ Right a
-        Left e -> do
-          Logger.warn $
-            Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
-              . Logger.field "error" (show e)
-          pure . Left $ map (`Qualified` domain) convIds
+    split (FailedGetConversation convs FailedGetConversationLocally) = Left convs
+    split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
+
+getRemoteConversationsWithFailures ::
+  UserId ->
+  [Remote ConvId] ->
+  Galley ([FailedGetConversation], [Public.Conversation])
+getRemoteConversationsWithFailures zusr convs = do
+  localDomain <- viewFederationDomain
+
+  -- get self member statuses from the database
+  statusMap <- Data.remoteConversationStatus zusr convs
+  let remoteView rconv =
+        Mapping.remoteConversationView
+          zusr
+          ( Map.findWithDefault
+              defMemberStatus
+              (toRemote (cnvmQualifiedId (FederatedGalley.rcnvMetadata rconv)))
+              statusMap
+          )
+          rconv
+      (locallyFound, locallyNotFound) = partition (flip Map.member statusMap) convs
+      localFailures
+        | null locallyNotFound = []
+        | otherwise = [failedGetConversationLocally (map unTagged locallyNotFound)]
+
+  -- request conversations from remote backends
+  fmap (bimap (localFailures <>) concat . partitionEithers)
+    . pooledForConcurrentlyN 8 (partitionRemote locallyFound)
+    $ \(domain, someConvs) -> do
+      let req = FederatedGalley.GetConversationsRequest zusr someConvs
+          rpc = FederatedGalley.getConversations FederatedGalley.clientRoutes localDomain req
+      handleFailures (map (flip Qualified domain) someConvs) $ do
+        rconvs <- gcresConvs <$> executeFederated domain rpc
+        pure $ catMaybes (map remoteView rconvs)
+  where
+    handleFailures ::
+      [Qualified ConvId] ->
+      ExceptT FederationError Galley a ->
+      Galley (Either FailedGetConversation a)
+    handleFailures qconvs action = runExceptT
+      . withExceptT (failedGetConversationRemotely qconvs)
+      . catchE action
+      $ \e -> do
+        lift . Logger.warn $
+          Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
+            . Logger.field "error" (show e)
+        throwE e
 
 getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr cnv = do
@@ -302,7 +343,6 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
 
   let (remoteIds, localIds) = partitionRemoteOrLocalIds' localDomain (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <- foundsAndNotFounds (Data.localConversationIdsOf user) localIds
-  (foundRemoteIds, locallyNotFoundRemoteIds) <- foundsAndNotFounds (Data.remoteConversationIdOf user) remoteIds
 
   localInternalConversations <-
     Data.conversations foundLocalIds
@@ -310,9 +350,11 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
       >>= filterM (pure . isMember user . Data.convLocalMembers)
   localConversations <- mapM (Mapping.conversationView user) localInternalConversations
 
-  (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures user foundRemoteIds
-  let fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> remoteFailures
-      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map unTagged foundRemoteIds
+  (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures user remoteIds
+  let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
+      failedConvs = failedConvsLocally <> failedConvsRemotely
+      fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
+      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map unTagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
@@ -326,10 +368,10 @@ listConversationsV2 user (Public.ListConversationsV2 ids) = do
     Public.ConversationsResponse
       { crFound = allConvs,
         crNotFound =
-          map unTagged locallyNotFoundRemoteIds
+          failedConvsLocally
             <> remoteNotFoundRemoteIds
             <> map (`Qualified` localDomain) notFoundLocalIds,
-        crFailed = remoteFailures
+        crFailed = failedConvsRemotely
       }
   where
     removeDeleted :: Data.Conversation -> Galley Bool
