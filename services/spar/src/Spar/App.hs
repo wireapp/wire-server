@@ -301,7 +301,13 @@ bindUser buid userref = do
   oldStatus <- do
     let err :: Spar a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
-    teamid :: TeamId <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuerOptionalSPId (userref ^. uidTenant) Nothing
+    teamid :: TeamId <-
+      wrapMonadClient (Data.getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing) >>= \case
+        Data.GetIdPFound idp -> pure $ idp ^. idpExtraInfo . wiTeam
+        Data.GetIdPNotFound -> err
+        Data.GetIdPDanglingId _ -> err -- database inconsistency
+        Data.GetIdPNonUnique is -> throwSpar $ SparUserRefInMultipleTeams (cs $ show (buid, is))
+        Data.GetIdPWrongTeam _ -> err -- impossible
     acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
     teamid' :: TeamId <- userTeam (accountUser acc) & maybe err pure
     unless (teamid' == teamid) err
