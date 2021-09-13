@@ -544,12 +544,12 @@ data GetIdPResult a
 
 -- | (There are probably category theoretical models for what we're doing here, but it's more
 -- straight-forward to just handle the one instance we need.)
-mapGetIdPResult :: (HasCallStack, MonadClient m) => (SAML.IdPId -> m (Maybe IdP)) -> GetIdPResult SAML.IdPId -> m (GetIdPResult IdP)
-mapGetIdPResult f (GetIdPFound i) = f i <&> maybe (GetIdPDanglingId i) GetIdPFound
-mapGetIdPResult _ GetIdPNotFound = pure GetIdPNotFound
-mapGetIdPResult _ (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
-mapGetIdPResult _ (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
-mapGetIdPResult _ (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
+mapGetIdPResult :: (HasCallStack, MonadClient m) => GetIdPResult SAML.IdPId -> m (GetIdPResult IdP)
+mapGetIdPResult (GetIdPFound i) = getIdPConfig i <&> maybe (GetIdPDanglingId i) GetIdPFound
+mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
+mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
+mapGetIdPResult (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
+mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
 
 -- | See 'getIdPIdByIssuer'.
 getIdPConfigByIssuer ::
@@ -558,7 +558,7 @@ getIdPConfigByIssuer ::
   TeamId ->
   m (GetIdPResult IdP)
 getIdPConfigByIssuer issuer =
-  getIdPIdByIssuer issuer >=> mapGetIdPResult getIdPConfig
+  getIdPIdByIssuer issuer >=> mapGetIdPResult
 
 -- | See 'getIdPIdByIssuerAllowOld'.
 getIdPConfigByIssuerAllowOld ::
@@ -567,7 +567,7 @@ getIdPConfigByIssuerAllowOld ::
   Maybe TeamId ->
   m (GetIdPResult IdP)
 getIdPConfigByIssuerAllowOld issuer = do
-  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult getIdPConfig
+  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
 
 -- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
 -- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
@@ -586,8 +586,8 @@ getIdPIdByIssuerAllowOld ::
   Maybe TeamId ->
   m (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerAllowOld issuer mbteam = do
-  mbv2 <- maybe (pure Nothing) (getIdPIdByIssuerV2 issuer) mbteam
-  mbv1v2 <- maybe (getIdPIdByIssuerOld issuer) (pure . GetIdPFound) mbv2
+  mbv2 <- maybe (pure Nothing) (getIdPIdByIssuerWithTeam issuer) mbteam
+  mbv1v2 <- maybe (getIdPIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
   case (mbv1v2, mbteam) of
     (GetIdPFound idpid, Just team) -> do
       getIdPConfig idpid >>= \case
@@ -602,11 +602,11 @@ getIdPIdByIssuerAllowOld issuer mbteam = do
 
 -- | Find 'IdPId' without team.  Search both `issuer_idp` and `issuer_idp_v2`; in the latter,
 -- make sure the result is unique (no two IdPs for two different teams).
-getIdPIdByIssuerOld ::
+getIdPIdByIssuerWithoutTeam ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   m (GetIdPResult SAML.IdPId)
-getIdPIdByIssuerOld issuer = do
+getIdPIdByIssuerWithoutTeam issuer = do
   (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
     Just idpid -> pure $ GetIdPFound idpid
     Nothing ->
@@ -621,12 +621,12 @@ getIdPIdByIssuerOld issuer = do
     selv2 :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     selv2 = "SELECT idp FROM issuer_idp_v2 WHERE issuer = ?"
 
-getIdPIdByIssuerV2 ::
+getIdPIdByIssuerWithTeam ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   TeamId ->
   m (Maybe SAML.IdPId)
-getIdPIdByIssuerV2 issuer tid = do
+getIdPIdByIssuerWithTeam issuer tid = do
   runIdentity <$$> retry x1 (query1 sel $ params Quorum (issuer, tid))
   where
     sel :: PrepQuery R (SAML.Issuer, TeamId) (Identity SAML.IdPId)
