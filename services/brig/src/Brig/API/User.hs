@@ -604,19 +604,26 @@ changeEmail u email allowScim = do
 
 changePhone :: UserId -> Phone -> ExceptT ChangePhoneError AppIO (Activation, Phone)
 changePhone u phone = do
-  ph <-
+  canonical <-
     maybe
       (throwE $ InvalidNewPhone phone)
       return
       =<< lift (validatePhone phone)
-  let pk = userPhoneKey ph
+  let pk = userPhoneKey canonical
   available <- lift $ Data.keyAvailable pk (Just u)
   unless available $
     throwE $
       PhoneExists phone
   timeout <- setActivationTimeout <$> view settings
+  blacklisted <- lift $ Blacklist.exists pk
+  when blacklisted $
+    throwE (BlacklistedNewPhone canonical)
+  -- check if any prefixes of this phone number are blocked
+  prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
+  when prefixExcluded $
+    throwE (BlacklistedNewPhone canonical)
   act <- lift $ Data.newActivation pk timeout (Just u)
-  return (act, ph)
+  return (act, canonical)
 
 -------------------------------------------------------------------------------
 -- Remove Email

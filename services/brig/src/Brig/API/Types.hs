@@ -161,6 +161,7 @@ data ChangePasswordError
 data ChangePhoneError
   = PhoneExists !Phone
   | InvalidNewPhone !Phone
+  | BlacklistedNewPhone !Phone
 
 data ChangeEmailError
   = InvalidNewEmail !Email !String
