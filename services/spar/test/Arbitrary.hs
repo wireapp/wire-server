@@ -41,7 +41,7 @@ instance Arbitrary IdPList where
     pure $ IdPList {..}
 
 instance Arbitrary WireIdP where
-  arbitrary = WireIdP <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = WireIdP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 deriving instance Arbitrary ScimToken
 

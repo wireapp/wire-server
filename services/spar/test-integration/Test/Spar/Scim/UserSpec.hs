@@ -78,6 +78,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.IdentityProvider (IdP)
+import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
 import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
@@ -685,11 +686,12 @@ testScimCreateVsUserRef = do
     createViaSamlResp :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
     createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
       authnReq <- negotiateAuthnRequest idp
-      spmeta <- getTestSPMetadata
+      let tid = idp ^. SAML.idpExtraInfo . User.wiTeam
+      spmeta <- getTestSPMetadata tid
       authnResp <-
         runSimpleSP $
           SAML.mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
-      submitAuthnResponse authnResp <!! const 200 === statusCode
+      submitAuthnResponse tid authnResp <!! const 200 === statusCode
 
     createViaSamlFails :: HasCallStack => IdP -> SAML.SignPrivCreds -> SAML.UserRef -> TestSpar ()
     createViaSamlFails idp privCreds uref = do
