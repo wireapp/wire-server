@@ -353,7 +353,9 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
   SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
 
-  let handleIdPClash :: Either SAML.IdPId IdP -> m ()
+  let -- FUTUREWORK: some database lookups here are unnecessary, this could be made more
+      -- efficient rather easily.
+      handleIdPClash :: Either SAML.IdPId IdP -> m ()
       handleIdPClash (Right idp') = case apiversion of
         WireIdPAPIV1 -> do
           throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
