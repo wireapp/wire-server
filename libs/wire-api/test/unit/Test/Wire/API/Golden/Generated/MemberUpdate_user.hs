@@ -24,8 +24,7 @@ import Wire.API.Conversation.Role (parseRoleName)
 testObject_MemberUpdate_user_1 :: MemberUpdate
 testObject_MemberUpdate_user_1 =
   MemberUpdate
-    { mupOtrMute = Just False,
-      mupOtrMuteStatus = Just . MutedStatus $ 0,
+    { mupOtrMuteStatus = Just . MutedStatus $ 0,
       mupOtrMuteRef = Just "h\52974N",
       mupOtrArchive = Just True,
       mupOtrArchiveRef = Just "ref",
@@ -43,8 +42,7 @@ testObject_MemberUpdate_user_1 =
 testObject_MemberUpdate_user_2 :: MemberUpdate
 testObject_MemberUpdate_user_2 =
   MemberUpdate
-    { mupOtrMute = Nothing,
-      mupOtrMuteStatus = Nothing,
+    { mupOtrMuteStatus = Nothing,
       mupOtrMuteRef = Nothing,
       mupOtrArchive = Nothing,
       mupOtrArchiveRef = Nothing,

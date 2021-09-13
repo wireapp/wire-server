@@ -542,7 +542,6 @@ fromRegisterConversation d MkRegisterConversation {..} =
       Public.Member
         { memId = qUnqualified . omQualifiedId $ m,
           memService = omService m,
-          memOtrMuted = False,
           memOtrMutedStatus = Nothing,
           memOtrMutedRef = Nothing,
           memOtrArchived = False,

@@ -73,8 +73,8 @@ tests =
       testCase "MemberUpdate" $
         testFromJSONFailureWithMsg @MemberUpdate
           ( Just $
-              "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', "
-                <> "'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
+              "One of { 'otr_muted_ref', 'otr_archived', 'otr_archived_ref', \
+              \'hidden', 'hidden_ref', 'conversation_role'} required."
           )
           "testObject_MemberUpdate_user_3.json",
       testCase "OtherMemberUpdate" $

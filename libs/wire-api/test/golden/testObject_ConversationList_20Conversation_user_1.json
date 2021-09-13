@@ -16,7 +16,6 @@
                     "id": "00000000-0000-0000-0000-000100000000",
                     "otr_archived": true,
                     "otr_archived_ref": null,
-                    "otr_muted": true,
                     "otr_muted_ref": "",
                     "otr_muted_status": 0,
                     "service": null,

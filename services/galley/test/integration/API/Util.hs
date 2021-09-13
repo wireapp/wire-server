@@ -70,7 +70,7 @@ import Data.UUID.V4
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types hiding (InternalMember, MemberJoin, MemberLeave, memConvRoleName, memId, memOtrArchived, memOtrArchivedRef, memOtrMuted, memOtrMutedRef)
+import Galley.Types hiding (InternalMember, MemberJoin, MemberLeave, memConvRoleName, memId, memOtrArchived, memOtrArchivedRef, memOtrMutedRef)
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
@@ -1253,7 +1253,6 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map (qUnqualified . omQualifiedId) . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
     assertBool "others role" (all (== role) $ maybe (error "Cannot be null") (map omConvRoleName . toList) others)
-    assertBool "otr muted not false" (Just False == (memOtrMuted <$> _self))
     assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
     assertBool "otr archived not false" (Just False == (memOtrArchived <$> _self))
     assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef =<< _self))

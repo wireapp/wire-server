@@ -182,7 +182,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   let activatedAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
-  let memUpdate = memberUpdate {mupOtrMute = Just True}
+  let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember admin memUpdate cid !!! assertActionSucceeded
   -- You can also leave a conversation
   deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
@@ -230,7 +230,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- Finally, you can still do the following actions:
 
   -- Update your own member state
-  let memUpdate = memberUpdate {mupOtrMute = Just True}
+  let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember mem memUpdate cid !!! assertActionSucceeded
   -- Last option is to leave a conversation
   deleteMemberUnqualified mem mem cid !!! assertActionSucceeded

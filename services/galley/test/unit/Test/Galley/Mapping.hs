@@ -182,7 +182,6 @@ mkMember (Qualified userId _domain) =
   Member
     { memId = userId,
       memService = Nothing,
-      memOtrMuted = False,
       memOtrMutedStatus = Nothing,
       memOtrMutedRef = Nothing,
       memOtrArchived = False,
@@ -197,7 +196,6 @@ mkInternalMember (Qualified userId _domain) =
   I.InternalMember
     { I.memId = userId,
       I.memService = Nothing,
-      I.memOtrMuted = False,
       I.memOtrMutedStatus = Nothing,
       I.memOtrMutedRef = Nothing,
       I.memOtrArchived = False,
