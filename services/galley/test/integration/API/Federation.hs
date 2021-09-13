@@ -122,7 +122,6 @@ getConversationsAllFound = do
     assertEqual
       "other members mismatch"
       (Just (sort [bob, qUnqualified carlQ]))
-      -- (fmap (sort . (map (qUnqualified . omQualifiedId) . rcmOthers . rcnvMembers) cnv2))
       (fmap (sort . map (qUnqualified . omQualifiedId) . rcmOthers . rcnvMembers) c2)
 
 getConversationsNotPartOf :: TestM ()

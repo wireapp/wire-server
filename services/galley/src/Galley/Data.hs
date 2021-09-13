@@ -935,6 +935,20 @@ addLocalMembersToRemoteConv users qconv = do
 
 class IsMemberUpdate mu where
   updateMember :: MonadClient m => ConvId -> UserId -> mu -> m MemberUpdateData
+  updateMemberRemoteConv :: MonadClient m => Remote ConvId -> UserId -> mu -> m MemberUpdateData
+
+memberUpdateToData :: UserId -> MemberUpdate -> MemberUpdateData
+memberUpdateToData uid mup =
+  MemberUpdateData
+    { misTarget = Just uid,
+      misOtrMutedStatus = mupOtrMuteStatus mup,
+      misOtrMutedRef = mupOtrMuteRef mup,
+      misOtrArchived = mupOtrArchive mup,
+      misOtrArchivedRef = mupOtrArchiveRef mup,
+      misHidden = mupHidden mup,
+      misHiddenRef = mupHiddenRef mup,
+      misConvRoleName = Nothing
+    }
 
 instance IsMemberUpdate MemberUpdate where
   updateMember cid uid mup = do
@@ -947,17 +961,24 @@ instance IsMemberUpdate MemberUpdate where
         addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
       for_ (mupHidden mup) $ \h ->
         addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
-    return
-      MemberUpdateData
-        { misTarget = Just uid,
-          misOtrMutedStatus = mupOtrMuteStatus mup,
-          misOtrMutedRef = mupOtrMuteRef mup,
-          misOtrArchived = mupOtrArchive mup,
-          misOtrArchivedRef = mupOtrArchiveRef mup,
-          misHidden = mupHidden mup,
-          misHiddenRef = mupHiddenRef mup,
-          misConvRoleName = Nothing
-        }
+    pure (memberUpdateToData uid mup)
+  updateMemberRemoteConv (Tagged (Qualified cid domain)) uid mup = do
+    retry x5 . batch $ do
+      setType BatchUnLogged
+      setConsistency Quorum
+      for_ (mupOtrMuteStatus mup) $ \ms ->
+        addPrepQuery
+          Cql.updateRemoteOtrMemberMutedStatus
+          (ms, mupOtrMuteRef mup, domain, cid, uid)
+      for_ (mupOtrArchive mup) $ \a ->
+        addPrepQuery
+          Cql.updateRemoteOtrMemberArchived
+          (a, mupOtrArchiveRef mup, domain, cid, uid)
+      for_ (mupHidden mup) $ \h ->
+        addPrepQuery
+          Cql.updateRemoteOtrMemberArchived
+          (h, mupHiddenRef mup, domain, cid, uid)
+    pure (memberUpdateToData uid mup)
 
 instance IsMemberUpdate OtherMemberUpdate where
   updateMember cid uid omu = do
@@ -976,6 +997,20 @@ instance IsMemberUpdate OtherMemberUpdate where
           misHidden = Nothing,
           misHiddenRef = Nothing,
           misConvRoleName = omuConvRoleName omu
+        }
+
+  -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-887
+  updateMemberRemoteConv _ _ _ =
+    pure
+      MemberUpdateData
+        { misTarget = Nothing,
+          misOtrMutedStatus = Nothing,
+          misOtrMutedRef = Nothing,
+          misOtrArchived = Nothing,
+          misOtrArchivedRef = Nothing,
+          misHidden = Nothing,
+          misHiddenRef = Nothing,
+          misConvRoleName = Nothing
         }
 
 -- | Select only the members of a remote conversation from a list of users.
