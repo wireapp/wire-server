@@ -27,7 +27,6 @@ testObject_MemberUpdateData_user_1 :: MemberUpdateData
 testObject_MemberUpdateData_user_1 =
   MemberUpdateData
     { misTarget = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
-      misOtrMuted = Just False,
       misOtrMutedStatus = Just (MutedStatus {fromMutedStatus = -1}),
       misOtrMutedRef = Just "#M\95696",
       misOtrArchived = Just False,
@@ -47,7 +46,6 @@ testObject_MemberUpdateData_user_2 :: MemberUpdateData
 testObject_MemberUpdateData_user_2 =
   MemberUpdateData
     { misTarget = Nothing,
-      misOtrMuted = Nothing,
       misOtrMutedStatus = Nothing,
       misOtrMutedRef = Nothing,
       misOtrArchived = Nothing,

@@ -438,20 +438,24 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
           Just uidViaSpar <- ssoToUidSpar tid ssoidViaAuthResp
           liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
+
         checkGrantingAuthnResp' :: HasCallStack => ResponseLBS -> TestSpar ()
         checkGrantingAuthnResp' sparresp = do
           liftIO $ do
             (cs @_ @String . fromJust . responseBody $ sparresp)
               `shouldContain` "<title>wire:sso:success</title>"
             hasPersistentCookieHeader sparresp `shouldBe` Right ()
+
         checkDenyingAuthnResp :: HasCallStack => ResponseLBS -> ST -> TestSpar ()
         checkDenyingAuthnResp sparresp errorlabel = do
           liftIO $ do
             (cs @_ @String . fromJust . responseBody $ sparresp)
               `shouldContain` ("<title>wire:sso:error:" <> cs errorlabel <> "</title>")
             hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
+
         initialBind :: HasCallStack => UserId -> IdP -> SignPrivCreds -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
         initialBind = initialBind' Just
+
         initialBind' ::
           HasCallStack =>
           (Cky.Cookies -> Maybe Cky.Cookies) ->
@@ -463,8 +467,10 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           subj <- nextSubject
           (authnResp, sparAuthnResp) <- reBindSame' tweakcookies uid idp privcreds subj
           pure (subj, authnResp, sparAuthnResp)
+
         reBindSame :: HasCallStack => UserId -> IdP -> SignPrivCreds -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
         reBindSame = reBindSame' Just
+
         reBindSame' ::
           HasCallStack =>
           (Cky.Cookies -> Maybe Cky.Cookies) ->
@@ -484,6 +490,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           sparAuthnResp :: ResponseLBS <-
             submitAuthnResponse' cookiehdr authnResp
           pure (authnResp, sparAuthnResp)
+
         reBindDifferent :: HasCallStack => UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
         reBindDifferent uid = do
           env <- ask
@@ -1156,6 +1163,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     samlUserShouldSatisfy uref property = do
       muid <- getUserIdViaRef' uref
       liftIO $ muid `shouldSatisfy` property
+
     createViaSamlResp :: HasCallStack => IdP -> SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
     createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
       authnReq <- negotiateAuthnRequest idp
@@ -1164,6 +1172,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       createResp <- submitAuthnResponse authnResp
       liftIO $ responseStatus createResp `shouldBe` status200
       pure createResp
+
     createViaSaml :: HasCallStack => IdP -> SignPrivCreds -> SAML.UserRef -> TestSpar (Maybe UserId)
     createViaSaml idp privcreds uref = do
       resp <- createViaSamlResp idp privcreds uref
@@ -1171,6 +1180,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
         maybe (error "no body") cs (responseBody resp)
           `shouldContain` "<title>wire:sso:success</title>"
       getUserIdViaRef' uref
+
     deleteViaBrig :: UserId -> TestSpar ()
     deleteViaBrig uid = do
       brig <- view teBrig

@@ -104,6 +104,8 @@ main = do
       -- the 'message' field in connections table can be dropped.
       -- See also https://github.com/wireapp/wire-server/pull/1747/files
       -- for an explanation
+      -- FUTUREWORK: once #1751 has made its way to master/production,
+      -- the 'otr_muted' field in the member table can be dropped.
     ]
     `finally` Log.close l
   where

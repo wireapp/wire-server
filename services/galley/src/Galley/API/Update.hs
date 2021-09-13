@@ -561,8 +561,6 @@ updateLocalSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Ga
 updateLocalSelfMember zusr zcon cid update = do
   conv <- getConversationAndCheckMembership zusr cid
   m <- getSelfMemberFromLocalsLegacy zusr (Data.convLocalMembers conv)
-  -- Ensure no self role upgrades
-  for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
   void $ processUpdateMemberEvent zusr zcon cid [m] m update
 
 updateOtherMemberH :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest Public.OtherMemberUpdate -> Galley Response
@@ -579,7 +577,7 @@ updateOtherMember zusr zcon cid victim update = do
   let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
   ensureActionAllowedThrowing ModifyOtherConversationMember =<< getSelfMemberFromLocalsLegacy zusr users
   memTarget <- getOtherMemberLegacy victim users
-  e <- processUpdateMemberEvent zusr zcon cid users memTarget (memberUpdate {mupConvRoleName = omuConvRoleName update})
+  e <- processUpdateMemberEvent zusr zcon cid users memTarget update
   void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
 -- | A general conversation member removal function used both by the unqualified
@@ -1077,12 +1075,13 @@ ensureConvMember users usr =
     throwErrorDescription convNotFound
 
 processUpdateMemberEvent ::
+  Data.IsMemberUpdate mu =>
   UserId ->
   ConnId ->
   ConvId ->
   [LocalMember] ->
   LocalMember ->
-  MemberUpdate ->
+  mu ->
   Galley Event
 processUpdateMemberEvent zusr zcon cid users target update = do
   localDomain <- viewFederationDomain

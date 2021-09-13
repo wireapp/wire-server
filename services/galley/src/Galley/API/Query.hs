@@ -28,7 +28,6 @@ module Galley.API.Query
     listConversationsV2,
     iterateConversations,
     getLocalSelf,
-    getSelf,
     internalGetMemberH,
     getConversationMetaH,
     getConversationByReusableCode,
@@ -347,13 +346,6 @@ iterateConversations uid pageSize handleConvs = go Nothing
             else pure []
         _ -> pure []
       pure $ resultHead : resultTail
-
-getSelf :: UserId -> Qualified ConvId -> Galley (Maybe Public.Member)
-getSelf zusr qcnv = do
-  localDomain <- viewFederationDomain
-  if localDomain == qDomain qcnv
-    then getLocalSelf zusr (qUnqualified qcnv)
-    else throwM federationNotImplemented
 
 internalGetMemberH :: ConvId ::: UserId -> Galley Response
 internalGetMemberH (cnv ::: usr) = do

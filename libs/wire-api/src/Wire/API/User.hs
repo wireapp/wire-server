@@ -101,6 +101,7 @@ import Control.Lens (over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Domain (Domain (Domain))
@@ -413,7 +414,10 @@ userSCIMExternalId usr = userSSOId >=> ssoIdExtId $ usr
     ssoIdExtId :: UserSSOId -> Maybe Text
     ssoIdExtId (UserSSOId _ nameIdXML) = case userManagedBy usr of
       ManagedByWire -> Nothing
-      ManagedByScim -> SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (TL.fromStrict nameIdXML))
+      ManagedByScim ->
+        -- FUTUREWORK: keep the CI value, store the original in the database, but always use
+        -- the CI value for processing.
+        CI.original . SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (TL.fromStrict nameIdXML))
     ssoIdExtId (UserScimExternalId extId) = pure extId
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile

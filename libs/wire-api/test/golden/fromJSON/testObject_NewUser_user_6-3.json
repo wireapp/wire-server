@@ -1,9 +1,5 @@
 {
     "assets": [],
     "name": "test name",
-    "sso_id": {
-        "subject": "thing",
-        "tenant": "some"
-    },
     "team_id": "00007b0e-0000-3489-0000-075c00005be7"
 }

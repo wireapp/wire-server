@@ -27,6 +27,7 @@ import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Runner
 import Wire.API.Conversation (Conversation, MemberUpdate, NewConvManaged, NewConvUnmanaged, OtherMemberUpdate)
+import Wire.API.User (NewUser)
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -73,10 +74,32 @@ tests =
       testCase "MemberUpdate" $
         testFromJSONFailureWithMsg @MemberUpdate
           ( Just $
-              "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', "
-                <> "'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
+              "One of { 'otr_muted_ref', 'otr_archived', 'otr_archived_ref', \
+              \'hidden', 'hidden_ref', 'conversation_role'} required."
           )
           "testObject_MemberUpdate_user_3.json",
       testCase "OtherMemberUpdate" $
-        testFromJSONFailure @OtherMemberUpdate "testObject_OtherMemberUpdate_user_2.json"
+        testFromJSONFailure @OtherMemberUpdate "testObject_OtherMemberUpdate_user_2.json",
+      testGroup "NewUser: failure" $
+        [ testCase "testObject_NewUser_user_3-2.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "Only users without an identity can expire")
+              "testObject_NewUser_user_3-2.json",
+          testCase "testObject_NewUser_user_5-2.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "all team users must set a password on creation")
+              "testObject_NewUser_user_5-2.json",
+          testCase "testObject_NewUser_user_6-2.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "sso_id, team_id must be either both present or both absent.")
+              "testObject_NewUser_user_6-2.json",
+          testCase "testObject_NewUser_user_6-3.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "sso_id, team_id must be either both present or both absent.")
+              "testObject_NewUser_user_6-3.json",
+          testCase "testObject_NewUser_user_6-4.json" $
+            testFromJSONFailureWithMsg @NewUser
+              (Just "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive")
+              "testObject_NewUser_user_6-4.json"
+        ]
     ]

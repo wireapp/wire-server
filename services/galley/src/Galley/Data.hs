@@ -89,7 +89,7 @@ module Galley.Data
     removeLocalMembersFromLocalConv,
     removeRemoteMembersFromLocalConv,
     removeLocalMembersFromRemoteConv,
-    updateMember,
+    IsMemberUpdate (..),
     filterRemoteConvMembers,
 
     -- * Conversation Codes
@@ -814,8 +814,8 @@ memberLists convs = do
     insert (Just (conv, mem)) acc =
       let f = (Just . maybe [mem] (mem :))
        in Map.alter f conv acc
-    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn) =
-      fmap (cnv,) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
+    mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn) =
+      fmap (cnv,) <$> toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn)
 
 members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [LocalMember]
 members conv = join <$> memberLists [conv]
@@ -898,33 +898,50 @@ addLocalMembersToRemoteConv users qconv = do
           Cql.insertUserRemoteConv
           (u, qDomain qconv, qUnqualified qconv)
 
-updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
-updateMember cid uid mup = do
-  retry x5 . batch $ do
-    setType BatchUnLogged
-    setConsistency Quorum
-    for_ (mupOtrMute mup) $ \m ->
-      addPrepQuery Cql.updateOtrMemberMuted (m, mupOtrMuteRef mup, cid, uid)
-    for_ (mupOtrMuteStatus mup) $ \ms ->
-      addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
-    for_ (mupOtrArchive mup) $ \a ->
-      addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
-    for_ (mupHidden mup) $ \h ->
-      addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
-    for_ (mupConvRoleName mup) $ \r ->
-      addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
-  return
-    MemberUpdateData
-      { misTarget = Just uid,
-        misOtrMuted = mupOtrMute mup,
-        misOtrMutedStatus = mupOtrMuteStatus mup,
-        misOtrMutedRef = mupOtrMuteRef mup,
-        misOtrArchived = mupOtrArchive mup,
-        misOtrArchivedRef = mupOtrArchiveRef mup,
-        misHidden = mupHidden mup,
-        misHiddenRef = mupHiddenRef mup,
-        misConvRoleName = mupConvRoleName mup
-      }
+class IsMemberUpdate mu where
+  updateMember :: MonadClient m => ConvId -> UserId -> mu -> m MemberUpdateData
+
+instance IsMemberUpdate MemberUpdate where
+  updateMember cid uid mup = do
+    retry x5 . batch $ do
+      setType BatchUnLogged
+      setConsistency Quorum
+      for_ (mupOtrMuteStatus mup) $ \ms ->
+        addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
+      for_ (mupOtrArchive mup) $ \a ->
+        addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
+      for_ (mupHidden mup) $ \h ->
+        addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
+    return
+      MemberUpdateData
+        { misTarget = Just uid,
+          misOtrMutedStatus = mupOtrMuteStatus mup,
+          misOtrMutedRef = mupOtrMuteRef mup,
+          misOtrArchived = mupOtrArchive mup,
+          misOtrArchivedRef = mupOtrArchiveRef mup,
+          misHidden = mupHidden mup,
+          misHiddenRef = mupHiddenRef mup,
+          misConvRoleName = Nothing
+        }
+
+instance IsMemberUpdate OtherMemberUpdate where
+  updateMember cid uid omu = do
+    retry x5 . batch $ do
+      setType BatchUnLogged
+      setConsistency Quorum
+      for_ (omuConvRoleName omu) $ \r ->
+        addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
+    pure
+      MemberUpdateData
+        { misTarget = Just uid,
+          misOtrMutedStatus = Nothing,
+          misOtrMutedRef = Nothing,
+          misOtrArchived = Nothing,
+          misOtrArchivedRef = Nothing,
+          misHidden = Nothing,
+          misHiddenRef = Nothing,
+          misConvRoleName = omuConvRoleName omu
+        }
 
 -- | Select only the members of a remote conversation from a list of users.
 -- Return the filtered list and a boolean indicating whether the all the input
@@ -1006,7 +1023,6 @@ newMemberWithRole u r =
   InternalMember
     { memId = u,
       memService = Nothing,
-      memOtrMuted = False,
       memOtrMutedStatus = Nothing,
       memOtrMutedRef = Nothing,
       memOtrArchived = False,
@@ -1023,7 +1039,6 @@ toMember ::
     Maybe ProviderId,
     Maybe Cql.MemberStatus,
     -- otr muted
-    Maybe Bool,
     Maybe MutedStatus,
     Maybe Text,
     -- otr archived
@@ -1036,7 +1051,7 @@ toMember ::
     Maybe RoleName
   ) ->
   m (Maybe LocalMember) -- FUTUREWORK: remove monad
-toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
+toMember (usr, srv, prv, sta, omus, omur, oar, oarr, hid, hidr, crn) =
   pure $
     if sta /= Just 0
       then Nothing
@@ -1045,7 +1060,6 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
           InternalMember
             { memId = usr,
               memService = newServiceRef <$> srv <*> prv,
-              memOtrMuted = fromMaybe False omu,
               memOtrMutedStatus = omus,
               memOtrMutedRef = omur,
               memOtrArchived = fromMaybe False oar,

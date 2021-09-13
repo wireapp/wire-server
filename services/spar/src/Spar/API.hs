@@ -173,10 +173,12 @@ authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI 
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader
+
     go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Spar Void
     go resp verdict = do
       result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
       throwError $ SAML.CustomServant result
+
     logErrors :: Spar Void -> Spar Void
     logErrors = flip catchError $ \case
       e@(SAML.CustomServant _) -> throwError e

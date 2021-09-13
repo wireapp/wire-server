@@ -58,7 +58,6 @@ import Wire.API.Event.Conversation
         misHiddenRef,
         misOtrArchived,
         misOtrArchivedRef,
-        misOtrMuted,
         misOtrMutedRef,
         misOtrMutedStatus,
         misTarget
@@ -139,7 +138,6 @@ testObject_Event_user_5 =
     ( EdMemberUpdate
         ( MemberUpdateData
             { misTarget = Nothing,
-              misOtrMuted = Just False,
               misOtrMutedStatus = Nothing,
               misOtrMutedRef = Just "\94957",
               misOtrArchived = Just False,
@@ -203,7 +201,6 @@ testObject_Event_user_8 =
                                       Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))
                                   }
                               ),
-                          memOtrMuted = False,
                           memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = 0}),
                           memOtrMutedRef = Just "",
                           memOtrArchived = True,

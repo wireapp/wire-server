@@ -96,7 +96,6 @@ servantSitemap =
         GalleyAPI.updateConversationNameUnqualified = Update.updateLocalConversationName,
         GalleyAPI.updateConversationName = Update.updateConversationName,
         GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
-        GalleyAPI.getConversationSelf = Query.getSelf,
         GalleyAPI.updateConversationSelfUnqualified = Update.updateLocalSelfMember,
         GalleyAPI.updateConversationSelf = Update.updateSelfMember,
         GalleyAPI.getTeamConversationRoles = Teams.getTeamConversationRoles,

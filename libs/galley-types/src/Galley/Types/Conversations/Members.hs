@@ -43,8 +43,6 @@ data RemoteMember = RemoteMember
 data InternalMember id = InternalMember
   { memId :: id,
     memService :: Maybe ServiceRef,
-    -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
-    memOtrMuted :: Bool,
     memOtrMutedStatus :: Maybe MutedStatus,
     memOtrMutedRef :: Maybe Text,
     memOtrArchived :: Bool,

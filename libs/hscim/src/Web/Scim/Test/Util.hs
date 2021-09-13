@@ -101,6 +101,7 @@ shouldEventuallyRespondWith action matcher =
 
 data AcceptanceConfig tag = AcceptanceConfig
   { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag),
+    -- TODO: add a destructor, something like: @destroy :: CustomEnv tag -> IO ()@,
     genUserName :: IO Text,
     -- | some acceptance tests match against a fully rendered
     -- response body, which will not work when running the test
