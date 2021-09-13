@@ -1108,20 +1108,34 @@ callIdpCreateRaw' sparreq_ muid ctyp metadata = do
       . body (RequestBodyLBS metadata)
       . header "Content-Type" ctyp
 
-callIdpCreateReplace :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m IdP
-callIdpCreateReplace sparreq_ muid metadata idpid = do
-  resp <- callIdpCreateReplace' (sparreq_ . expect2xx) muid metadata idpid
+callIdpCreateReplace :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m IdP
+callIdpCreateReplace apiversion sparreq_ muid metadata idpid = do
+  resp <- callIdpCreateReplace' apiversion (sparreq_ . expect2xx) muid metadata idpid
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpCreateReplace' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
-callIdpCreateReplace' sparreq_ muid metadata idpid = do
+callIdpCreateReplace' :: (HasCallStack, MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
+callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
+  explicitQueryParam <- do
+    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- both, and not spend extra time on it.
+    liftIO $ randomRIO (True, False)
   post $
     sparreq_
       . maybe id zUser muid
       . path "/identity-providers/"
+      . Bilge.query
+        ( [ ( "api-version",
+              case apiversion of
+                WireIdPAPIV1 -> if explicitQueryParam then Just "v1" else Nothing
+                WireIdPAPIV2 -> Just "v2"
+            ),
+            ( "replaces",
+              Just . cs . idPIdToST $ idpid
+            )
+          ]
+        )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
-      . queryItem "replaces" (cs $ idPIdToST idpid)
       . header "Content-Type" "application/xml"
 
 callIdpUpdate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS

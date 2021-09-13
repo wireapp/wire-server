@@ -1064,7 +1064,7 @@ specCRUDIdentityProvider = do
         issuer2 <- makeIssuer
         idp2 <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+           in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
         idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
         idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
         liftIO $ do
@@ -1094,7 +1094,7 @@ specCRUDIdentityProvider = do
         issuer2 <- makeIssuer
         _ <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+           in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
         newuref <- tryLogin privkey1 idp1 userSubject
         newuid <- getUserIdViaRef' newuref
         liftIO $ do
@@ -1113,7 +1113,7 @@ specCRUDIdentityProvider = do
         issuer2 <- makeIssuer
         idp2 <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+           in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
         newuref <- tryLogin privkey2 idp2 userSubject
         newuid <- getUserIdViaRef' newuref
         liftIO $ do
@@ -1130,7 +1130,7 @@ specCRUDIdentityProvider = do
         issuer2 <- makeIssuer
         idp2 <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-           in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+           in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
         newuref <- tryLogin privkey2 idp2 userSubject
         newuid <- getUserIdViaRef' newuref
         liftIO $ do
@@ -1152,7 +1152,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       uref `shouldBe` (SAML.UserRef issuer1 userSubject)
     idp2 <-
       let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-       in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+       in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
     call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
     uref' <- tryLogin privkey1 idp1 userSubject
     uid' <- getUserIdViaRef' uref'
@@ -1166,7 +1166,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     issuer2 <- makeIssuer
     idp2 <-
       let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-       in call $ callIdpCreateReplace (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+       in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
     call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
     let userSubject = SAML.unspecifiedNameID "bloob"
     uref <- tryLogin privkey1 idp1 userSubject
