@@ -16,9 +16,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Wire.API.Routes.Public.Brig where
 
+import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
@@ -26,6 +28,7 @@ import Data.Id as Id
 import Data.Misc (IpAddr)
 import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
 import Servant (JSON)
@@ -65,6 +68,18 @@ type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
+type DeleteSelfResponses =
+  '[ RespondEmpty 200 "Deletion is initiated.",
+     Respond 202 "Deletion is pending verification with a code." DeletionCodeTimeout
+   ]
+
+instance AsUnion DeleteSelfResponses (Maybe Timeout) where
+  toUnion Nothing = Z (I ())
+  toUnion (Just t) = S (Z (I (DeletionCodeTimeout t)))
+  fromUnion (Z (I ())) = Nothing
+  fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
+  fromUnion (S (S x)) = case x of
+
 data Api routes = Api
   { -- See Note [ephemeral user sideeffect]
     getUserUnqualified ::
@@ -88,6 +103,27 @@ data Api routes = Api
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile,
+    deleteSelf ::
+      routes
+        -- TODO: Add custom AsUnion
+        :- Summary "Initiate account deletion."
+        :> Description
+             "if the account has a verified identity, a verification \
+             \code is sent and needs to be confirmed to authorise the \
+             \deletion. if the account has no verified identity but a \
+             \password, it must be provided. if password is correct, or if neither \
+             \a verified identity nor a password exists, account deletion \
+             \is scheduled immediately."
+        :> CanThrow InvalidUser
+        :> CanThrow InvalidCode
+        :> CanThrow BadCredentials
+        :> CanThrow MissingAuth
+        :> CanThrow DeleteCodePending
+        :> CanThrow OwnerDeletingSelf
+        :> ZUser
+        :> "self"
+        :> ReqBody '[JSON] DeleteUser
+        :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
     getHandleInfoUnqualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"

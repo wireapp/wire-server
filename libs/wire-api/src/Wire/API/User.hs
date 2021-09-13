@@ -978,6 +978,13 @@ newtype DeleteUser = DeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema DeleteUser)
+
+instance ToSchema DeleteUser where
+  schema =
+    object "DeleteUser" $
+      DeleteUser
+        <$> deleteUserPassword .= opt (field "password" schema)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
@@ -1036,6 +1043,13 @@ newtype DeletionCodeTimeout = DeletionCodeTimeout
   {fromDeletionCodeTimeout :: Code.Timeout}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema DeletionCodeTimeout)
+
+instance ToSchema DeletionCodeTimeout where
+  schema =
+    object "DeletionCodeTimeout" $
+      DeletionCodeTimeout
+        <$> fromDeletionCodeTimeout .= field "expires_in" schema
 
 instance ToJSON DeletionCodeTimeout where
   toJSON (DeletionCodeTimeout t) = A.object ["expires_in" A..= t]

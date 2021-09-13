@@ -231,6 +231,15 @@ type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 invalidUser :: InvalidUser
 invalidUser = mkErrorDescription
 
+type InvalidCode =
+  ErrorDescription
+    403
+    "invalid-code"
+    "Invalid verification code"
+
+invalidCode :: InvalidCode
+invalidCode = mkErrorDescription
+
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
 
 noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc) => Int -> NoIdentity
@@ -293,6 +302,33 @@ type MissingAuth =
 
 missingAuthError :: MissingAuth
 missingAuthError = mkErrorDescription
+
+type BadCredentials =
+  ErrorDescription
+    403
+    "invalid-credentials"
+    "Authentication failed."
+
+badCredentials :: BadCredentials
+badCredentials = mkErrorDescription
+
+type DeleteCodePending =
+  ErrorDescription
+    403
+    "pending-delete"
+    "A verification code for account deletion is still pending."
+
+deleteCodePending :: DeleteCodePending
+deleteCodePending = mkErrorDescription
+
+type OwnerDeletingSelf =
+  ErrorDescription
+    403
+    "no-self-delete-for-team-owner"
+    "Team owners are not allowed to delete themselves.  Ask a fellow owner."
+
+ownerDeletingSelf :: OwnerDeletingSelf
+ownerDeletingSelf = mkErrorDescription
 
 type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys uploaded"
 
