@@ -360,16 +360,19 @@ verdictHandler cky aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
+  SAML.logger SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
-  case format of
+  resp <- case format of
     Just (VerdictFormatWeb) ->
       verdictHandlerResult cky verdict >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied) ->
       verdictHandlerResult cky verdict >>= verdictHandlerMobile granted denied
-    Nothing -> throwSpar SparNoSuchRequest
-
--- (this shouldn't happen too often, see 'storeVerdictFormat')
+    Nothing ->
+      -- (this shouldn't happen too often, see 'storeVerdictFormat')
+      throwSpar SparNoSuchRequest
+  SAML.logger SAML.Debug $ "leaving verdictHandler: " <> show resp
+  pure resp
 
 data VerdictHandlerResult
   = VerifyHandlerGranted {_vhrCookie :: SetCookie, _vhrUserId :: UserId}
@@ -379,8 +382,9 @@ data VerdictHandlerResult
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult bindCky verdict = do
+  SAML.logger SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
-  SAML.logger SAML.Debug (show result)
+  SAML.logger SAML.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
 catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
