@@ -139,16 +139,17 @@ specMetadata = do
           it ("metadata (" <> mdpath <> ")") $ do
             env <- ask
             let sparHost = env ^. teOpts . to WireAPI.saml . SAML.cfgSPSsoURI . to (cs . SAML.renderURI)
+                fragments =
+                  [ "md:SPSSODescriptor",
+                    "validUntil",
+                    "WantAssertionsSigned=\"true\"",
+                    "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\""
+                      <> sparHost
+                      <> finalizepath
+                      <> "\" index=\"0\" isDefault=\"true\"/>"
+                  ]
             get ((env ^. teSpar) . path (cs mdpath) . expect2xx)
-              `shouldRespondWith` ( \(responseBody -> Just (cs -> bdy)) ->
-                                      all
-                                        (`isInfixOf` bdy)
-                                        [ "md:SPSSODescriptor",
-                                          "validUntil",
-                                          "WantAssertionsSigned=\"true\"",
-                                          "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" <> sparHost <> finalizepath <> "\" index=\"0\" isDefault=\"true\"/>"
-                                        ]
-                                  )
+              `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy) fragments)
 
     mkit "/sso/metadata" "/finalize-login"
     mkit "/sso/metadata/208f5cc4-14cd-11ec-b969-db4fdf0173d5" "/finalize-login/208f5cc4-14cd-11ec-b969-db4fdf0173d5"
