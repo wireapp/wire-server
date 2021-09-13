@@ -82,6 +82,7 @@ import qualified Web.Scim.Schema.User as Scim
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
+import qualified Wire.API.User.Saml as WireAPI (saml)
 import Wire.API.User.Scim
 
 spec :: SpecWith TestEnv
@@ -137,6 +138,7 @@ specMetadata = do
         mkit mdpath finalizepath = do
           it ("metadata (" <> mdpath <> ")") $ do
             env <- ask
+            let sparHost = env ^. teOpts . to WireAPI.saml . SAML.cfgSPSsoURI . to (cs . SAML.renderURI)
             get ((env ^. teSpar) . path (cs mdpath) . expect2xx)
               `shouldRespondWith` ( \(responseBody -> Just (cs -> bdy)) ->
                                       all
@@ -144,12 +146,12 @@ specMetadata = do
                                         [ "md:SPSSODescriptor",
                                           "validUntil",
                                           "WantAssertionsSigned=\"true\"",
-                                          "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" <> finalizepath <> "\" index=\"0\" isDefault=\"true\"/>"
+                                          "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" <> sparHost <> finalizepath <> "\" index=\"0\" isDefault=\"true\"/>"
                                         ]
                                   )
 
-    mkit "/sso/metadata" "http://localhost:8088/sso/finalize-login"
-    mkit "/sso/metadata/208f5cc4-14cd-11ec-b969-db4fdf0173d5" "http://localhost:8088/sso/finalize-login/208f5cc4-14cd-11ec-b969-db4fdf0173d5"
+    mkit "/sso/metadata" "/finalize-login"
+    mkit "/sso/metadata/208f5cc4-14cd-11ec-b969-db4fdf0173d5" "/finalize-login/208f5cc4-14cd-11ec-b969-db4fdf0173d5"
 
 specInitiateLogin :: SpecWith TestEnv
 specInitiateLogin = do
