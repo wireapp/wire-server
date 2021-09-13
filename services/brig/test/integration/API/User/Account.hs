@@ -105,6 +105,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
       test' aws p "put /access/self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
+      test' aws p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
@@ -761,6 +762,22 @@ testPhoneUpdate brig = do
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just phn) === (userPhone <=< responseJsonMaybe)
+
+testPhoneUpdateBlacklisted :: Brig -> Http ()
+testPhoneUpdateBlacklisted brig = do
+  uid <- userId <$> randomUser brig
+  phn <- randomPhone
+  let prefix = mkPrefix $ T.take 5 (fromPhone phn)
+
+  insertPrefix brig prefix
+  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
+    !!! (const 403 === statusCode)
+
+  -- check that phone is not updated
+  get (brig . path "/self" . zUser uid) !!! do
+    const 200 === statusCode
+    const (Right Nothing) === fmap userPhone . responseJsonEither
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
