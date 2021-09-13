@@ -74,45 +74,56 @@ tests s =
 
 getConversationsAllFound :: TestM ()
 getConversationsAllFound = do
-  -- FUTUREWORK: make alice / bob remote users
   [alice, bob] <- randomUsers 2
-  connectUsers alice (singleton bob)
-  -- create & get one2one conv
-  cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
-    const 200 === statusCode
-    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
+  let aliceQ = Qualified alice (Domain "far-away.example.com")
+
   -- create & get group conv
-  carl <- randomUser
-  connectUsers alice (singleton carl)
-  cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
+  localDomain <- viewFederationDomain
+  carlQ <- Qualified <$> randomUser <*> pure localDomain
+  connectUsers bob (singleton (qUnqualified carlQ))
+
+  putStrLn $ "alice: " <> show (qUnqualified aliceQ)
+  putStrLn $ "bob: " <> show bob
+  putStrLn $ "carl: " <> show (qUnqualified carlQ)
+
+  cnv2 <-
+    responseJsonError
+      =<< postConvWithRemoteUser (qDomain aliceQ) (mkProfile aliceQ (Name "alice")) bob [aliceQ, carlQ]
+
+  getConvs bob (Just $ Left [qUnqualified (cnvQualifiedId cnv2)]) Nothing !!! do
     const 200 === statusCode
-    const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
-  -- get both
+    const (Just (Just [cnvQualifiedId cnv2]))
+      === fmap (fmap (map cnvQualifiedId . convList)) . responseJsonMaybe
+
+  -- FUTUREWORK: also create a one2one conversation
+
+  -- get conversations
 
   fedGalleyClient <- view tsFedGalleyClient
-  localDomain <- viewFederationDomain
   GetConversationsResponse cs <-
     FedGalley.getConversations
       fedGalleyClient
-      localDomain
-      (GetConversationsRequest alice $ qUnqualified . cnvQualifiedId <$> [cnv1, cnv2])
-  let c1 = find ((== cnvQualifiedId cnv1) . cnvmQualifiedId . rcnvMetadata) cs
+      (qDomain aliceQ)
+      (GetConversationsRequest alice $ qUnqualified . cnvQualifiedId <$> [cnv2])
+
   let c2 = find ((== cnvQualifiedId cnv2) . cnvmQualifiedId . rcnvMetadata) cs
-  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
+
+  liftIO $ do
     assertEqual
       "name mismatch"
-      (Just $ cnvName expected)
-      (cnvmName . rcnvMetadata <$> actual)
+      (Just $ cnvName cnv2)
+      (cnvmName . rcnvMetadata <$> c2)
     assertEqual
       "self member role mismatch"
-      (Just . memConvRoleName . cmSelf $ cnvMembers expected)
-      (rcmSelfRole . rcnvMembers <$> actual)
+      (Just . memConvRoleName . cmSelf $ cnvMembers cnv2)
+      (rcmSelfRole . rcnvMembers <$> c2)
+    putStrLn $ "actual members " <> show (fmap (rcmOthers . rcnvMembers) c2)
+    putStrLn $ "expected members " <> show (cmOthers (cnvMembers cnv2))
     assertEqual
       "other members mismatch"
-      (Just [])
-      ((\c -> rcmOthers (rcnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+      (Just (sort [bob, qUnqualified carlQ]))
+      -- (fmap (sort . (map (qUnqualified . omQualifiedId) . rcmOthers . rcnvMembers) cnv2))
+      (fmap (sort . map (qUnqualified . omQualifiedId) . rcmOthers . rcnvMembers) c2)
 
 getConversationsNotPartOf :: TestM ()
 getConversationsNotPartOf = do
