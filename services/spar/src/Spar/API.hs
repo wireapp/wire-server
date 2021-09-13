@@ -279,7 +279,10 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
       wrapMonadClient $ do
         Data.getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
           Data.GetIdPFound iid -> Data.clearReplacedBy $ Data.Replaced iid
-          _ -> pure ()
+          Data.GetIdPNotFound -> pure ()
+          Data.GetIdPDanglingId _ -> pure ()
+          Data.GetIdPNonUnique _ -> pure ()
+          Data.GetIdPWrongTeam _ -> pure ()
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
