@@ -26,7 +26,7 @@ import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSetti
 import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
 import Imports
 import Mu.GRpc.Client.Record
-import Network.HTTP2.Client (TooMuchConcurrency (TooMuchConcurrency))
+import qualified Network.HTTP2.Client as HTTP2
 import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
 import Test.Federator.Options (noClientCertSettings)
@@ -78,7 +78,7 @@ federatedRequestFailureTMC :: TestTree
 federatedRequestFailureTMC =
   testCase "should respond with error when facing GRpcTooMuchConcurrency" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (TooMuchConcurrency 2))))
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (HTTP2.TooMuchConcurrency 2))))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
@@ -87,7 +87,7 @@ federatedRequestFailureTMC =
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
       embed $ do
         assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType RemoteFederatorError res
+        assertResponseErrorWithType TooMuchConcurrency res
 
 federatedRequestFailureErrCode :: TestTree
 federatedRequestFailureErrCode =
@@ -102,7 +102,7 @@ federatedRequestFailureErrCode =
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
       embed $ do
         assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType RemoteFederatorError res
+        assertResponseErrorWithType GrpcError res
 
 federatedRequestFailureErrStr :: TestTree
 federatedRequestFailureErrStr =
@@ -117,7 +117,7 @@ federatedRequestFailureErrStr =
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
       embed $ do
         assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType RemoteFederatorError res
+        assertResponseErrorWithType GrpcError res
 
 federatedRequestFailureNoRemote :: TestTree
 federatedRequestFailureNoRemote =

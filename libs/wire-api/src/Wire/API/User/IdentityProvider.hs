@@ -17,10 +17,14 @@
 
 module Wire.API.User.IdentityProvider where
 
+import qualified Cassandra as Cql
 import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
+import qualified Data.Attoparsec.ByteString as AP
+import qualified Data.Binary.Builder as BSB
+import qualified Data.ByteString.Conversion as BSC
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id (TeamId)
@@ -33,6 +37,7 @@ import SAML2.WebSSO (IdPConfig)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 import Wire.API.User.Orphans (samlSchemaOptions)
 
 -- | The identity provider type used in Spar.
@@ -43,6 +48,7 @@ data WireIdP = WireIdP
     -- | list of issuer names that this idp has replaced, most recent first.  this is used
     -- for finding users that are still stored under the old issuer, see
     -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
+    _wiApiVersion :: Maybe WireIdPAPIVersion,
     _wiOldIssuers :: [SAML.Issuer],
     -- | the issuer that has replaced this one.  this is set iff a new issuer is created
     -- with the @"replaces"@ query parameter, and it is used to decide whether users not
@@ -51,9 +57,60 @@ data WireIdP = WireIdP
   }
   deriving (Eq, Show, Generic)
 
+data WireIdPAPIVersion
+  = -- | initial API
+    WireIdPAPIV1
+  | -- | support for different SP entityIDs per team
+    WireIdPAPIV2
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform WireIdPAPIVersion)
+
+defWireIdPAPIVersion :: WireIdPAPIVersion
+defWireIdPAPIVersion = WireIdPAPIV1
+
 makeLenses ''WireIdP
 
+deriveJSON deriveJSONOptions ''WireIdPAPIVersion
 deriveJSON deriveJSONOptions ''WireIdP
+
+instance BSC.ToByteString WireIdPAPIVersion where
+  builder =
+    BSB.fromByteString . \case
+      WireIdPAPIV1 -> "v1"
+      WireIdPAPIV2 -> "v2"
+
+instance BSC.FromByteString WireIdPAPIVersion where
+  parser =
+    (AP.string "v1" >> pure WireIdPAPIV1)
+      <|> (AP.string "v2" >> pure WireIdPAPIV2)
+
+instance FromHttpApiData WireIdPAPIVersion where
+  parseQueryParam txt = maybe err Right $ BSC.fromByteString' (cs txt)
+    where
+      err = Left $ "FromHttpApiData WireIdPAPIVersion: " <> txt
+
+instance ToHttpApiData WireIdPAPIVersion where
+  toQueryParam = cs . BSC.toByteString'
+
+instance ToParamSchema WireIdPAPIVersion where
+  toParamSchema Proxy =
+    mempty
+      { _paramSchemaDefault = Just "v2",
+        _paramSchemaType = Just SwaggerString,
+        _paramSchemaEnum = Just (String . toQueryParam <$> [(minBound :: WireIdPAPIVersion) ..])
+      }
+
+instance Cql.Cql WireIdPAPIVersion where
+  ctype = Cql.Tagged Cql.IntColumn
+
+  toCql WireIdPAPIV1 = Cql.CqlInt 1
+  toCql WireIdPAPIV2 = Cql.CqlInt 2
+
+  fromCql (Cql.CqlInt i) = case i of
+    1 -> return WireIdPAPIV1
+    2 -> return WireIdPAPIV2
+    n -> Left $ "Unexpected ClientCapability value: " ++ show n
+  fromCql _ = Left "ClientCapability value: int expected"
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.
@@ -102,6 +159,9 @@ instance ToJSON IdPMetadataInfo where
 -- Swagger instances
 
 instance ToSchema IdPList where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema WireIdPAPIVersion where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema WireIdP where

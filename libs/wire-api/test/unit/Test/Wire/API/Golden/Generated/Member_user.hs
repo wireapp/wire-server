@@ -34,7 +34,6 @@ testObject_Member_user_1 =
                 _serviceRefProvider = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))
               }
           ),
-      memOtrMuted = False,
       memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = -2}),
       memOtrMutedRef = Just "ref",
       memOtrArchived = False,
@@ -50,7 +49,6 @@ testObject_Member_user_2 =
   Member
     { memId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000002")),
       memService = Nothing,
-      memOtrMuted = False,
       memOtrMutedStatus = Nothing,
       memOtrMutedRef = Nothing,
       memOtrArchived = True,

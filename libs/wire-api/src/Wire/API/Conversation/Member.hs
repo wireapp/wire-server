@@ -94,8 +94,6 @@ modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
 data Member = Member
   { memId :: UserId,
     memService :: Maybe ServiceRef,
-    -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
-    memOtrMuted :: Bool,
     memOtrMutedStatus :: Maybe MutedStatus,
     memOtrMutedRef :: Maybe Text,
     memOtrArchived :: Bool,
@@ -124,7 +122,6 @@ instance ToSchema Member where
                 (c ("1970-01-01T00:00:00.000Z" :: Text))
             )
         -- ... until here
-        <*> memOtrMuted .= (field "otr_muted" schema <|> pure False)
         <*> memOtrMutedStatus .= lax (field "otr_muted_status" (optWithDefault A.Null schema))
         <*> memOtrMutedRef .= lax (field "otr_muted_ref" (optWithDefault A.Null schema))
         <*> memOtrArchived .= (field "otr_archived" schema <|> pure False)
@@ -140,9 +137,6 @@ modelMember :: Doc.Model
 modelMember = Doc.defineModel "Member" $ do
   Doc.property "id" Doc.bytes' $
     Doc.description "User ID"
-  Doc.property "otr_muted" Doc.bool' $ do
-    Doc.description "Whether the conversation is muted"
-    Doc.optional
   Doc.property "otr_muted_ref" Doc.bytes' $ do
     Doc.description "A reference point for (un)muting"
     Doc.optional
@@ -207,27 +201,22 @@ modelOtherMember = Doc.defineModel "OtherMember" $ do
 -- | Inbound self member updates.  This is what galley expects on its endpoint.  See also
 -- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
 data MemberUpdate = MemberUpdate
-  { mupOtrMute :: Maybe Bool,
-    mupOtrMuteStatus :: Maybe MutedStatus,
+  { mupOtrMuteStatus :: Maybe MutedStatus,
     mupOtrMuteRef :: Maybe Text,
     mupOtrArchive :: Maybe Bool,
     mupOtrArchiveRef :: Maybe Text,
     mupHidden :: Maybe Bool,
-    mupHiddenRef :: Maybe Text,
-    mupConvRoleName :: Maybe RoleName
+    mupHiddenRef :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MemberUpdate
 
 memberUpdate :: MemberUpdate
-memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing
 
 modelMemberUpdate :: Doc.Model
 modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
   Doc.description "Update user properties relative to a conversation"
-  Doc.property "otr_muted" Doc.bool' $ do
-    Doc.description "Whether to notify on conversation updates"
-    Doc.optional
   Doc.property "otr_muted_ref" Doc.bytes' $ do
     Doc.description "A reference point for (un)muting"
     Doc.optional
@@ -243,23 +232,18 @@ modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
   Doc.property "hidden_ref" Doc.bytes' $ do
     Doc.description "A reference point for (un)hiding"
     Doc.optional
-  Doc.property "conversation_role" Doc.string' $ do
-    Doc.description "Name of the conversation role to update to"
-    Doc.optional
 
 instance ToSchema MemberUpdate where
   schema =
     (`withParser` (either fail pure . validateMemberUpdate))
       . object "MemberUpdate"
       $ MemberUpdate
-        <$> mupOtrMute .= opt (field "otr_muted" schema)
-        <*> mupOtrMuteStatus .= opt (field "otr_muted_status" schema)
+        <$> mupOtrMuteStatus .= opt (field "otr_muted_status" schema)
         <*> mupOtrMuteRef .= opt (field "otr_muted_ref" schema)
         <*> mupOtrArchive .= opt (field "otr_archived" schema)
         <*> mupOtrArchiveRef .= opt (field "otr_archived_ref" schema)
         <*> mupHidden .= opt (field "hidden" schema)
         <*> mupHiddenRef .= opt (field "hidden_ref" schema)
-        <*> mupConvRoleName .= opt (field "conversation_role" schema)
 
 instance Arbitrary MemberUpdate where
   arbitrary =
@@ -268,23 +252,21 @@ instance Arbitrary MemberUpdate where
 
 validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
 validateMemberUpdate u =
-  if ( isJust (mupOtrMute u)
-         || isJust (mupOtrMuteStatus u)
+  if ( isJust (mupOtrMuteStatus u)
          || isJust (mupOtrMuteRef u)
          || isJust (mupOtrArchive u)
          || isJust (mupOtrArchiveRef u)
          || isJust (mupHidden u)
          || isJust (mupHiddenRef u)
-         || isJust (mupConvRoleName u)
      )
     then Right u
     else
       Left
-        "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', \
-        \'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
+        "One of { 'otr_muted_ref', 'otr_archived', 'otr_archived_ref', \
+        \'hidden', 'hidden_ref', 'conversation_role'} required."
 
 -- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
--- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
+-- 'MemberUpdateData' - that event is meant to be sent to all users in a conversation.
 data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }

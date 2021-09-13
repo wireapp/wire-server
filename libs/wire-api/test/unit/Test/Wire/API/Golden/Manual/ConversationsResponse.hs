@@ -41,7 +41,6 @@ conv1 =
               Member
                 { memId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
                   memService = Nothing,
-                  memOtrMuted = True,
                   memOtrMutedStatus = Nothing,
                   memOtrMutedRef = Nothing,
                   memOtrArchived = False,
@@ -85,7 +84,6 @@ conv2 =
               Member
                 { memId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
                   memService = Nothing,
-                  memOtrMuted = True,
                   memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = -1}),
                   memOtrMutedRef = Nothing,
                   memOtrArchived = False,

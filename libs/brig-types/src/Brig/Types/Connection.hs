@@ -29,7 +29,6 @@ module Brig.Types.Connection
     UpdateConnectionsInternal (..),
 
     -- * re-exports
-    Message (..),
     Relation (..),
     UserConnection (..),
     ConnectionRequest (..),

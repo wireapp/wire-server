@@ -170,22 +170,24 @@ spec = do
       it "getIdPConfigByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
-        liftIO $ midp `shouldBe` Just idp
+        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        liftIO $ midp `shouldBe` GetIdPFound idp
       it "getIdPIdByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
-        liftIO $ midp `shouldBe` Just (idp ^. idpId)
+        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        liftIO $ midp `shouldBe` GetIdPFound (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
+        skipIdPAPIVersions [WireIdPAPIV1]
         teamid <- nextWireId
-        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid [] Nothing)
+        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid Nothing [] Nothing)
         () <- runSparCass $ Data.storeIdPConfig idp
         idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
-        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid [] Nothing)
+        idpApiVersion <- asks (^. teWireIdPAPIVersion)
+        idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid (Just idpApiVersion) [] Nothing)
         () <- runSparCass $ Data.storeIdPConfig idp
         do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
@@ -195,11 +197,11 @@ spec = do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
-          liftIO $ midp `shouldBe` Nothing
+          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          liftIO $ midp `shouldBe` GetIdPNotFound
         do
-          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
-          liftIO $ midp `shouldBe` Nothing
+          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          liftIO $ midp `shouldBe` GetIdPNotFound
         do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
@@ -302,8 +304,8 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer
-    liftIO $ mbIdp `shouldBe` Nothing
+    mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
+    liftIO $ mbIdp `shouldBe` GetIdPNotFound
   -- The config from 'team_idp':
   do
     idps <- runSparCass $ Data.getIdPConfigsByTeam tid

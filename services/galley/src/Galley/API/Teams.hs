@@ -63,6 +63,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
 import Data.ByteString.Lazy.Builder (lazyByteString)
+import qualified Data.CaseInsensitive as CI
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import qualified Data.Handle as Handle
 import Data.Id
@@ -488,7 +489,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     samlNamedId :: User -> Maybe Text
     samlNamedId =
       userSSOId >=> \case
-        (UserSSOId _idp nameId) -> SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
+        (UserSSOId _idp nameId) -> CI.original . SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
         (UserScimExternalId _) -> Nothing
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response

@@ -253,6 +253,7 @@ mkEnv _teTstOpts _teOpts = do
       _teGalley = endpointToReq (cfgGalley _teTstOpts)
       _teSpar = endpointToReq (cfgSpar _teTstOpts)
       _teSparEnv = Spar.Env {..}
+      _teWireIdPAPIVersion = WireIdPAPIV2
       sparCtxOpts = _teOpts
       sparCtxCas = _teCql
       sparCtxHttpManager = _teMgr
@@ -497,7 +498,7 @@ deleteUserOnBrig ::
   m ()
 deleteUserOnBrig brigreq uid = do
   deleteUserNoWait brigreq uid
-  recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
+  recoverAll (exponentialBackoff 500000 <> limitRetries 5) $ \_ -> do
     profile <- getSelfProfile brigreq uid
     liftIO $ selfUser profile `shouldSatisfy` Brig.userDeleted
 
@@ -520,8 +521,8 @@ deleteUserNoWait brigreq uid =
 nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
-nextWireIdP :: MonadIO m => m WireIdP
-nextWireIdP = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure [] <*> pure Nothing
+nextWireIdP :: MonadIO m => WireIdPAPIVersion -> m WireIdP
+nextWireIdP version = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure (Just version) <*> pure [] <*> pure Nothing
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
@@ -736,18 +737,26 @@ call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
 ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
-makeTestIdP :: (HasCallStack, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
+makeTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
 makeTestIdP = do
+  apiversion <- asks (^. teWireIdPAPIVersion)
   SampleIdP md _ _ _ <- makeSampleIdPMetadata
   IdPConfig
     <$> (IdPId <$> liftIO UUID.nextRandom)
     <*> (pure md)
-    <*> nextWireIdP
+    <*> nextWireIdP apiversion
 
-getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
-getTestSPMetadata = do
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => TeamId -> m SPMetadata
+getTestSPMetadata tid = do
   env <- ask
-  resp <- call . get $ (env ^. teSpar) . path "/sso/metadata" . expect2xx
+  resp <-
+    call . get $
+      (env ^. teSpar)
+        . ( case env ^. teWireIdPAPIVersion of
+              WireIdPAPIV1 -> path "/sso/metadata"
+              WireIdPAPIV2 -> paths ["/sso/metadata", toByteString' tid]
+          )
+        . expect2xx
   raw <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
   either (crash_ . show) pure (SAML.decode raw)
   where
@@ -774,7 +783,7 @@ registerTestIdPWithMeta = do
 
 -- | Helper for 'registerTestIdP'.
 registerTestIdPFrom ::
-  (HasCallStack, MonadIO m) =>
+  (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdPMetadata ->
   Manager ->
   BrigReq ->
@@ -782,9 +791,10 @@ registerTestIdPFrom ::
   SparReq ->
   m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do
+  apiVersion <- asks (^. teWireIdPAPIVersion)
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
-    (uid,tid,) <$> callIdpCreate spar (Just uid) metadata
+    (uid,tid,) <$> callIdpCreate apiVersion spar (Just uid) metadata
 
 getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
 getCookie proxy rsp = do
@@ -838,10 +848,11 @@ isSetBindCookie (SetBindCookie (SimpleSetCookie cky)) = do
 tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
 tryLogin privkey idp userSubject = do
   env <- ask
-  spmeta <- getTestSPMetadata
+  let tid = idp ^. idpExtraInfo . wiTeam
+  spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
   idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
-  sparresp <- submitAuthnResponse idpresp
+  sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     statusCode sparresp `shouldBe` 200
     let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
@@ -852,10 +863,11 @@ tryLogin privkey idp userSubject = do
 tryLoginFail :: HasCallStack => SignPrivCreds -> IdP -> NameID -> String -> TestSpar ()
 tryLoginFail privkey idp userSubject bodyShouldContain = do
   env <- ask
-  spmeta <- getTestSPMetadata
+  let tid = idp ^. idpExtraInfo . wiTeam
+  spmeta <- getTestSPMetadata tid
   (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
   idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
-  sparresp <- submitAuthnResponse idpresp
+  sparresp <- submitAuthnResponse tid idpresp
   liftIO $ do
     let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
     bdy `shouldContain` bodyShouldContain
@@ -899,6 +911,7 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
 
 submitAuthnResponse ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
+  TeamId ->
   SignedAuthnResponse ->
   m ResponseLBS
 submitAuthnResponse = submitAuthnResponse' id
@@ -906,13 +919,18 @@ submitAuthnResponse = submitAuthnResponse' id
 submitAuthnResponse' ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   (Request -> Request) ->
+  TeamId ->
   SignedAuthnResponse ->
   m ResponseLBS
-submitAuthnResponse' reqmod (SignedAuthnResponse authnresp) = do
+submitAuthnResponse' reqmod tid (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request <-
     formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req (reqmod . (env ^. teSpar) . path "/sso/finalize-login/")
+  let p =
+        case env ^. teWireIdPAPIVersion of
+          WireIdPAPIV1 -> path "/sso/finalize-login/"
+          WireIdPAPIV2 -> paths ["/sso/finalize-login", toByteString' tid]
+  call $ post' req (reqmod . (env ^. teSpar) . p)
 
 loginSsoUserFirstTime ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
@@ -938,10 +956,11 @@ loginCreatedSsoUser ::
   m (UserId, Cookie)
 loginCreatedSsoUser nameid idp privCreds = do
   env <- ask
+  let tid = idp ^. idpExtraInfo . wiTeam
   authnReq <- negotiateAuthnRequest idp
-  spmeta <- getTestSPMetadata
+  spmeta <- getTestSPMetadata tid
   authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta authnReq True
-  sparAuthnResp <- submitAuthnResponse authnResp
+  sparAuthnResp <- submitAuthnResponse tid authnResp
 
   let wireCookie = maybe (error (show sparAuthnResp)) id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
   accessResp :: ResponseLBS <-
@@ -1051,18 +1070,26 @@ callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m Respo
 callIdpGetAll' sparreq_ muid = do
   get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPMetadata -> m IdP
-callIdpCreate sparreq_ muid metadata = do
-  resp <- callIdpCreate' (sparreq_ . expect2xx) muid metadata
+callIdpCreate :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m IdP
+callIdpCreate apiversion sparreq_ muid metadata = do
+  resp <- callIdpCreate' apiversion (sparreq_ . expect2xx) muid metadata
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
-callIdpCreate' sparreq_ muid metadata = do
+callIdpCreate' :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
+callIdpCreate' apiversion sparreq_ muid metadata = do
+  explicitQueryParam <- do
+    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- both, and not spend extra time on it.
+    liftIO $ randomRIO (True, False)
   post $
     sparreq_
       . maybe id zUser muid
       . path "/identity-providers/"
+      . ( case apiversion of
+            WireIdPAPIV1 -> Bilge.query [("api-version", Just "v1") | explicitQueryParam]
+            WireIdPAPIV2 -> Bilge.query [("api-version", Just "v2")]
+        )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
@@ -1081,20 +1108,34 @@ callIdpCreateRaw' sparreq_ muid ctyp metadata = do
       . body (RequestBodyLBS metadata)
       . header "Content-Type" ctyp
 
-callIdpCreateReplace :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m IdP
-callIdpCreateReplace sparreq_ muid metadata idpid = do
-  resp <- callIdpCreateReplace' (sparreq_ . expect2xx) muid metadata idpid
+callIdpCreateReplace :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m IdP
+callIdpCreateReplace apiversion sparreq_ muid metadata idpid = do
+  resp <- callIdpCreateReplace' apiversion (sparreq_ . expect2xx) muid metadata idpid
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpCreateReplace' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
-callIdpCreateReplace' sparreq_ muid metadata idpid = do
+callIdpCreateReplace' :: (HasCallStack, MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
+callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
+  explicitQueryParam <- do
+    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- both, and not spend extra time on it.
+    liftIO $ randomRIO (True, False)
   post $
     sparreq_
       . maybe id zUser muid
       . path "/identity-providers/"
+      . Bilge.query
+        ( [ ( "api-version",
+              case apiversion of
+                WireIdPAPIV1 -> if explicitQueryParam then Just "v1" else Nothing
+                WireIdPAPIV2 -> Just "v2"
+            ),
+            ( "replaces",
+              Just . cs . idPIdToST $ idpid
+            )
+          ]
+        )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
-      . queryItem "replaces" (cs $ idPIdToST idpid)
       . header "Content-Type" "application/xml"
 
 callIdpUpdate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS

@@ -1,5 +1,44 @@
+<!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
-<!-- if you're not the release manager, do your edits to changelog in CHANGELOG-draft.md -->
+# [2021-09-14]
+
+## API changes
+
+* Remove the long-deprecated `message` field in `POST /connections` (#1726)
+* Add `PUT /conversations/:domain/:cnv/name` (#1737)
+* Deprecate `PUT /conversations/:cnv/name` (#1737)
+* Add `GET & PUT /conversations/:domain/:cnv/self` (#1740)
+* Deprecate `GET & PUT /conversations/:cnv/self` (#1740)
+* Remove endpoint `GET /conversations/:domain/:cnv/self` (#1752)
+* The `otr_muted` field in `Member` and `MemberUpdate` has been removed. (#1751)
+* Removed the ability to update one's own role (#1752)
+
+## Features
+
+* Disallow changing phone number to a black listed phone number (#1758)
+* Support using a single IDP with a single EntityID (aka issuer ID) to set up two teams. Required to support multiple teams in environments where the IDP software cannot present anything but one EntityID (E.G.: DualShield). (#1755)
+
+## Documentation
+
+* Added documentation of federation errors (#1674)
+* Better swagger schema for the Range type (#1748)
+* Add better example for Domain in swagger (#1748)
+
+## Internal changes
+
+* Introduce new process for writing changelogs (#1749)
+* Clean up JSON golden tests (Part 4, Part 5) (#1756, #1762)
+* Increased timeout on certificate update tests to 10s (#1750)
+* Fix for flaky test in spar (#1760)
+* Rewrite the `POST /connections` endpoint to Servant (#1726)
+* Various improvements and fixes around SAML/SCIM (#1735)
+
+## Federation changes
+
+* Avoid remote calls to get conversation when it is not found locally (#1749)
+* Federator CA store and client credentials are now automatically reloaded (#1730)
+* Ensure clients only receive messages meant for them in remote convs (#1739)
+
 
 # [2021-09-08]
 

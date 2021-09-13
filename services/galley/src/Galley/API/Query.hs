@@ -27,7 +27,7 @@ module Galley.API.Query
     listConversations,
     listConversationsV2,
     iterateConversations,
-    getSelfH,
+    getLocalSelf,
     internalGetMemberH,
     getConversationMetaH,
     getConversationByReusableCode,
@@ -100,15 +100,18 @@ getConversation zusr cnv = do
   localDomain <- viewFederationDomain
   if qDomain cnv == localDomain
     then getUnqualifiedConversation zusr (qUnqualified cnv)
-    else getRemoteConversation zusr (toRemote cnv)
-
-getRemoteConversation :: UserId -> Remote ConvId -> Galley Public.Conversation
-getRemoteConversation zusr remoteConvId = do
-  conversations <- getRemoteConversations zusr [remoteConvId]
-  case conversations of
-    [] -> throwErrorDescription convNotFound
-    [conv] -> pure conv
-    _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
+    else getRemoteConversation (toRemote cnv)
+  where
+    getRemoteConversation :: Remote ConvId -> Galley Public.Conversation
+    getRemoteConversation remoteConvId = do
+      foundConvs <- Data.remoteConversationIdOf zusr [remoteConvId]
+      unless (remoteConvId `elem` foundConvs) $
+        throwErrorDescription convNotFound
+      conversations <- getRemoteConversations zusr [remoteConvId]
+      case conversations of
+        [] -> throwErrorDescription convNotFound
+        [conv] -> pure conv
+        _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
 getRemoteConversations :: UserId -> [Remote ConvId] -> Galley [Public.Conversation]
 getRemoteConversations zusr remoteConvs = do
@@ -344,27 +347,16 @@ iterateConversations uid pageSize handleConvs = go Nothing
         _ -> pure []
       pure $ resultHead : resultTail
 
-getSelfH :: UserId ::: ConvId -> Galley Response
-getSelfH (zusr ::: cnv) = do
-  json <$> getSelf zusr cnv
-
-getSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
-getSelf zusr cnv =
-  internalGetMember cnv zusr
-
 internalGetMemberH :: ConvId ::: UserId -> Galley Response
 internalGetMemberH (cnv ::: usr) = do
-  json <$> internalGetMember cnv usr
+  json <$> getLocalSelf usr cnv
 
-internalGetMember :: ConvId -> UserId -> Galley (Maybe Public.Member)
-internalGetMember cnv usr = do
+getLocalSelf :: UserId -> ConvId -> Galley (Maybe Public.Member)
+getLocalSelf usr cnv = do
   alive <- Data.isConvAlive cnv
   if alive
-    then do
-      fmap Mapping.toMember <$> Data.member cnv usr
-    else do
-      Data.deleteConversation cnv
-      pure Nothing
+    then Mapping.toMember <$$> Data.member cnv usr
+    else Nothing <$ Data.deleteConversation cnv
 
 getConversationMetaH :: ConvId -> Galley Response
 getConversationMetaH cnv = do

@@ -182,7 +182,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   let activatedAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
-  let memUpdate = memberUpdate {mupOtrMute = Just True}
+  let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember admin memUpdate cid !!! assertActionSucceeded
   -- You can also leave a conversation
   deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
@@ -218,10 +218,6 @@ wireMemberChecks cid mem admin otherMem = do
   putOtherMember mem mem sneakyOtherMemberUpdate cid !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
-  let selfMemberUpdate = memberUpdate {mupConvRoleName = Just roleNameWireAdmin}
-  putMember mem selfMemberUpdate cid !!! do
-    const 403 === statusCode
-    const (Just "invalid-actions") === fmap label . responseJsonUnsafe
   -- No updates for message timer, receipt mode or access
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
@@ -230,7 +226,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- Finally, you can still do the following actions:
 
   -- Update your own member state
-  let memUpdate = memberUpdate {mupOtrMute = Just True}
+  let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember mem memUpdate cid !!! assertActionSucceeded
   -- Last option is to leave a conversation
   deleteMemberUnqualified mem mem cid !!! assertActionSucceeded

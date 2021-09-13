@@ -70,7 +70,7 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: ac88b934bb4a91d4d4bb90c620277188e4087043  # https://github.com/wireapp/saml2-web-sso/pull/73  (Feb 18, 2021)
+  commit: 60398f375987b74d6b855b5d225e45dc3a96ac06  # https://github.com/wireapp/saml2-web-sso/pull/75  (Sep 10, 2021)
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
@@ -242,6 +242,12 @@ extra-deps:
 # Fix in PR: https://github.com/bos/snappy/pull/7
 - git: https://github.com/wireapp/snappy
   commit: b0e5c08af48911caecffa4fa6a3e74872018b258 # master (Sep 03, 2021)
+
+# Error handling fix: https://github.com/vincenthz/hs-certificate/pull/125
+- git: https://github.com/wireapp/hs-certificate
+  commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1 # master (Aug 31, 2021)
+  subdirs:
+    - x509-store
 
 ############################################################
 # Development tools

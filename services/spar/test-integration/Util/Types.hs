@@ -31,17 +31,19 @@ module Util.Types
     teSparEnv,
     teOpts,
     teTstOpts,
+    teWireIdPAPIVersion,
     Select,
     ResponseLBS,
     IntegrationConfig (..),
     TestErrorLabel (..),
+    skipIdPAPIVersions,
   )
 where
 
 import Bilge
 import Cassandra as Cas
 import Control.Exception
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Crypto.Random.Types (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
@@ -51,7 +53,9 @@ import Imports
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import qualified Spar.App as Spar
+import Test.Hspec (pendingWith)
 import Util.Options
+import Wire.API.User.IdentityProvider (WireIdPAPIVersion)
 import Wire.API.User.Saml
 
 type BrigReq = Request -> Request
@@ -76,7 +80,14 @@ data TestEnv = TestEnv
     -- | spar config
     _teOpts :: Opts,
     -- | integration test config
-    _teTstOpts :: IntegrationConfig
+    _teTstOpts :: IntegrationConfig,
+    -- | If True, run tests against legacy SAML API where team is derived from idp issuer
+    -- instead of teamid.  See Section "using the same IdP (same entityID, or Issuer) with
+    -- different teams" in "/docs/reference/spar-braindump.md" for more details.
+    --
+    -- NB: this has no impact on the tested spar code; the rest API supports both legacy and
+    -- multi-sp mode.  this falg merely determines how the rest API is used.
+    _teWireIdPAPIVersion :: WireIdPAPIVersion
   }
 
 type Select = TestEnv -> (Request -> Request)
@@ -108,3 +119,8 @@ _unitTestTestErrorLabel = do
   unless (val == Right "not-found") $
     throwIO . ErrorCall . show $
       val
+
+skipIdPAPIVersions :: (MonadIO m, MonadReader TestEnv m) => [WireIdPAPIVersion] -> m ()
+skipIdPAPIVersions skip = do
+  asks (^. teWireIdPAPIVersion) >>= \vers -> when (vers `elem` skip) . liftIO $ do
+    pendingWith $ "skipping " <> show vers <> " for this test case (behavior covered by other versions)"

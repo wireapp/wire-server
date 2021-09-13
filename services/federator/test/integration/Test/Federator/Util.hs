@@ -45,7 +45,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified Data.Yaml as Yaml
 import Federator.Env (TLSSettings (..))
 import Federator.Options
-import Federator.Run (mkTLSSettings)
+import Federator.Run (mkTLSSettingsOrThrow)
 import Imports
 import Mu.GRpc.Client.TyApps
 import qualified Options.Applicative as OPA
@@ -144,7 +144,7 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-  _teTLSSettings <- mkTLSSettings (optSettings _teOpts)
+  _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
   pure TestEnv {..}
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()

@@ -96,7 +96,7 @@ import qualified Test.Wire.API.Golden.Generated.Invite_user
 import qualified Test.Wire.API.Golden.Generated.LastPrekey_user
 import qualified Test.Wire.API.Golden.Generated.LegalHoldServiceConfirm_team
 import qualified Test.Wire.API.Golden.Generated.LegalHoldServiceRemove_team
-import qualified Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user
+import qualified Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user
 import qualified Test.Wire.API.Golden.Generated.ListType_team
 import qualified Test.Wire.API.Golden.Generated.LocaleUpdate_user
 import qualified Test.Wire.API.Golden.Generated.Locale_user
@@ -108,7 +108,6 @@ import qualified Test.Wire.API.Golden.Generated.ManagedBy_user
 import qualified Test.Wire.API.Golden.Generated.MemberUpdateData_user
 import qualified Test.Wire.API.Golden.Generated.MemberUpdate_user
 import qualified Test.Wire.API.Golden.Generated.Member_user
-import qualified Test.Wire.API.Golden.Generated.Message_user
 import qualified Test.Wire.API.Golden.Generated.MutedStatus_user
 import qualified Test.Wire.API.Golden.Generated.NameUpdate_user
 import qualified Test.Wire.API.Golden.Generated.Name_user
@@ -388,10 +387,7 @@ tests =
       testCase "Golden: ConnectionRequest_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_1, "testObject_ConnectionRequest_user_1.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_2, "testObject_ConnectionRequest_user_2.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_3, "testObject_ConnectionRequest_user_3.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_4, "testObject_ConnectionRequest_user_4.json"),
-            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_8, "testObject_ConnectionRequest_user_8.json")
+            (Test.Wire.API.Golden.Generated.ConnectionRequest_user.testObject_ConnectionRequest_user_2, "testObject_ConnectionRequest_user_2.json")
           ],
       testCase "Golden: Relation_user" $
         testObjects
@@ -403,18 +399,10 @@ tests =
             (Test.Wire.API.Golden.Generated.Relation_user.testObject_Relation_user_6, "testObject_Relation_user_6.json"),
             (Test.Wire.API.Golden.Generated.Relation_user.testObject_Relation_user_7, "testObject_Relation_user_7.json")
           ],
-      testCase "Golden: Message_user" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.Message_user.testObject_Message_user_1, "testObject_Message_user_1.json"),
-            (Test.Wire.API.Golden.Generated.Message_user.testObject_Message_user_2, "testObject_Message_user_2.json"),
-            (Test.Wire.API.Golden.Generated.Message_user.testObject_Message_user_3, "testObject_Message_user_3.json")
-          ],
       testCase "Golden: UserConnection_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_1, "testObject_UserConnection_user_1.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_2, "testObject_UserConnection_user_2.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_3, "testObject_UserConnection_user_3.json"),
-            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_4, "testObject_UserConnection_user_4.json")
+            (Test.Wire.API.Golden.Generated.UserConnection_user.testObject_UserConnection_user_2, "testObject_UserConnection_user_2.json")
           ],
       testCase "Golden: UserConnectionList_user" $
         testObjects
@@ -856,15 +844,71 @@ tests =
             )
           ],
       testCase "Golden: NameUpdate_user" $
-        testObjects [(Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_1, "testObject_NameUpdate_user_1.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_2, "testObject_NameUpdate_user_2.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_3, "testObject_NameUpdate_user_3.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_4, "testObject_NameUpdate_user_4.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_5, "testObject_NameUpdate_user_5.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_6, "testObject_NameUpdate_user_6.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_7, "testObject_NameUpdate_user_7.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_8, "testObject_NameUpdate_user_8.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_9, "testObject_NameUpdate_user_9.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_10, "testObject_NameUpdate_user_10.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_11, "testObject_NameUpdate_user_11.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_12, "testObject_NameUpdate_user_12.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_13, "testObject_NameUpdate_user_13.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_14, "testObject_NameUpdate_user_14.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_15, "testObject_NameUpdate_user_15.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_16, "testObject_NameUpdate_user_16.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_17, "testObject_NameUpdate_user_17.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_18, "testObject_NameUpdate_user_18.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_19, "testObject_NameUpdate_user_19.json"), (Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_20, "testObject_NameUpdate_user_20.json")],
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.NameUpdate_user.testObject_NameUpdate_user_1,
+              "testObject_NameUpdate_user_1.json"
+            )
+          ],
       testCase "Golden: NewUser_user" $
-        testObjects [(Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_1, "testObject_NewUser_user_1.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_2, "testObject_NewUser_user_2.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_3, "testObject_NewUser_user_3.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_4, "testObject_NewUser_user_4.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_5, "testObject_NewUser_user_5.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_6, "testObject_NewUser_user_6.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_7, "testObject_NewUser_user_7.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_8, "testObject_NewUser_user_8.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_9, "testObject_NewUser_user_9.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_10, "testObject_NewUser_user_10.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_11, "testObject_NewUser_user_11.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_12, "testObject_NewUser_user_12.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_13, "testObject_NewUser_user_13.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_14, "testObject_NewUser_user_14.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_15, "testObject_NewUser_user_15.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_16, "testObject_NewUser_user_16.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_17, "testObject_NewUser_user_17.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_18, "testObject_NewUser_user_18.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_19, "testObject_NewUser_user_19.json"), (Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_20, "testObject_NewUser_user_20.json")],
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_1,
+              "testObject_NewUser_user_1.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_2,
+              "testObject_NewUser_user_2.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_3,
+              "testObject_NewUser_user_3.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_4,
+              "testObject_NewUser_user_4.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_5,
+              "testObject_NewUser_user_5.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_6,
+              "testObject_NewUser_user_6.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_7,
+              "testObject_NewUser_user_7.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.NewUser_user.testObject_NewUser_user_8,
+              "testObject_NewUser_user_8.json"
+            )
+          ],
       testCase "Golden: NewUserPublic_user" $
-        testObjects [(Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_1, "testObject_NewUserPublic_user_1.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_2, "testObject_NewUserPublic_user_2.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_3, "testObject_NewUserPublic_user_3.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_4, "testObject_NewUserPublic_user_4.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_5, "testObject_NewUserPublic_user_5.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_6, "testObject_NewUserPublic_user_6.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_7, "testObject_NewUserPublic_user_7.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_8, "testObject_NewUserPublic_user_8.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_9, "testObject_NewUserPublic_user_9.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_10, "testObject_NewUserPublic_user_10.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_11, "testObject_NewUserPublic_user_11.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_12, "testObject_NewUserPublic_user_12.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_13, "testObject_NewUserPublic_user_13.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_14, "testObject_NewUserPublic_user_14.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_15, "testObject_NewUserPublic_user_15.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_16, "testObject_NewUserPublic_user_16.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_17, "testObject_NewUserPublic_user_17.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_18, "testObject_NewUserPublic_user_18.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_19, "testObject_NewUserPublic_user_19.json"), (Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_20, "testObject_NewUserPublic_user_20.json")],
-      testCase "Golden: LimitedQualifiedUserIdList_2020_user" $
-        testObjects [(Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_1, "testObject_LimitedQualifiedUserIdList_2020_user_1.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_2, "testObject_LimitedQualifiedUserIdList_2020_user_2.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_3, "testObject_LimitedQualifiedUserIdList_2020_user_3.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_4, "testObject_LimitedQualifiedUserIdList_2020_user_4.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_5, "testObject_LimitedQualifiedUserIdList_2020_user_5.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_6, "testObject_LimitedQualifiedUserIdList_2020_user_6.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_7, "testObject_LimitedQualifiedUserIdList_2020_user_7.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_8, "testObject_LimitedQualifiedUserIdList_2020_user_8.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_9, "testObject_LimitedQualifiedUserIdList_2020_user_9.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_10, "testObject_LimitedQualifiedUserIdList_2020_user_10.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_11, "testObject_LimitedQualifiedUserIdList_2020_user_11.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_12, "testObject_LimitedQualifiedUserIdList_2020_user_12.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_13, "testObject_LimitedQualifiedUserIdList_2020_user_13.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_14, "testObject_LimitedQualifiedUserIdList_2020_user_14.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_15, "testObject_LimitedQualifiedUserIdList_2020_user_15.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_16, "testObject_LimitedQualifiedUserIdList_2020_user_16.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_17, "testObject_LimitedQualifiedUserIdList_2020_user_17.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_18, "testObject_LimitedQualifiedUserIdList_2020_user_18.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_19, "testObject_LimitedQualifiedUserIdList_2020_user_19.json"), (Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user.testObject_LimitedQualifiedUserIdList_2020_user_20, "testObject_LimitedQualifiedUserIdList_2020_user_20.json")],
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.NewUserPublic_user.testObject_NewUserPublic_user_1,
+              "testObject_NewUserPublic_user_1.json"
+            )
+          ],
+      testCase "Golden: LimitedQualifiedUserIdList_user_1" $
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user.testObject_LimitedQualifiedUserIdList_user_1,
+              "testObject_LimitedQualifiedUserIdList_user_1.json"
+            )
+          ],
+      testCase "Golden: LimitedQualifiedUserIdList_user_2" $
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user.testObject_LimitedQualifiedUserIdList_user_2,
+              "testObject_LimitedQualifiedUserIdList_user_2.json"
+            )
+          ],
+      testCase "Golden: LimitedQualifiedUserIdList_user_3" $
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user.testObject_LimitedQualifiedUserIdList_user_3,
+              "testObject_LimitedQualifiedUserIdList_user_3.json"
+            )
+          ],
       testCase "Golden: UserProfile_user" $
-        testObjects [(Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_1, "testObject_UserProfile_user_1.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_2, "testObject_UserProfile_user_2.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_3, "testObject_UserProfile_user_3.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_4, "testObject_UserProfile_user_4.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_5, "testObject_UserProfile_user_5.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_6, "testObject_UserProfile_user_6.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_7, "testObject_UserProfile_user_7.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_8, "testObject_UserProfile_user_8.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_9, "testObject_UserProfile_user_9.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_10, "testObject_UserProfile_user_10.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_11, "testObject_UserProfile_user_11.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_12, "testObject_UserProfile_user_12.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_13, "testObject_UserProfile_user_13.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_14, "testObject_UserProfile_user_14.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_15, "testObject_UserProfile_user_15.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_16, "testObject_UserProfile_user_16.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_17, "testObject_UserProfile_user_17.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_18, "testObject_UserProfile_user_18.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_19, "testObject_UserProfile_user_19.json"), (Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_20, "testObject_UserProfile_user_20.json")],
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_1,
+              "testObject_UserProfile_user_1.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.UserProfile_user.testObject_UserProfile_user_2,
+              "testObject_UserProfile_user_2.json"
+            )
+          ],
       testCase "Golden: User_user" $
         testObjects [(Test.Wire.API.Golden.Generated.User_user.testObject_User_user_1, "testObject_User_user_1.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_2, "testObject_User_user_2.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_3, "testObject_User_user_3.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_4, "testObject_User_user_4.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_5, "testObject_User_user_5.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_6, "testObject_User_user_6.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_7, "testObject_User_user_7.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_8, "testObject_User_user_8.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_9, "testObject_User_user_9.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_10, "testObject_User_user_10.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_11, "testObject_User_user_11.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_12, "testObject_User_user_12.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_13, "testObject_User_user_13.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_14, "testObject_User_user_14.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_15, "testObject_User_user_15.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_16, "testObject_User_user_16.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_17, "testObject_User_user_17.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_18, "testObject_User_user_18.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_19, "testObject_User_user_19.json"), (Test.Wire.API.Golden.Generated.User_user.testObject_User_user_20, "testObject_User_user_20.json")],
       testCase "Golden: SelfProfile_user" $

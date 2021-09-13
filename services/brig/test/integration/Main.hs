@@ -143,7 +143,7 @@ runTests iConf brigOpts otherArgs = do
             assertEqual
               "inconcistent sitemap"
               mempty
-              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap brigOpts),
+              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap),
           userApi,
           providerApi,
           searchApis,

@@ -33,7 +33,6 @@ import Wire.API.Conversation
         memId,
         memOtrArchived,
         memOtrArchivedRef,
-        memOtrMuted,
         memOtrMutedRef,
         memOtrMutedStatus,
         memService
@@ -59,7 +58,6 @@ testObject_ConvMembers_user_1 =
                       _serviceRefProvider = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))
                     }
                 ),
-            memOtrMuted = True,
             memOtrMutedStatus = Nothing,
             memOtrMutedRef = Just "",
             memOtrArchived = True,
@@ -102,7 +100,6 @@ testObject_ConvMembers_user_2 =
                       _serviceRefProvider = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))
                     }
                 ),
-            memOtrMuted = False,
             memOtrMutedStatus = Nothing,
             memOtrMutedRef = Just "",
             memOtrArchived = False,
