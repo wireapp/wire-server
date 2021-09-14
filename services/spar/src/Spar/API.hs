@@ -315,19 +315,23 @@ assertNoScimOrNoIdP teamid = do
       SparProvisioningMoreThanOneIdP
         "Teams with SCIM tokens can only have at most one IdP"
 
--- | Check that issuer is not used for any team in the system (it is a database keys for
--- finding IdPs), and request URI is https.
+-- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
+-- database keys for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
+-- URI is https, that the replacement IdPId, if present, points to our team, and possibly
+-- other things (see source code for the definitive answer).
 --
 -- About the @mReplaces@ argument: the information whether the idp is replacing an old one is
 -- in query parameter, because the body can be both XML and JSON.  The JSON body could carry
 -- the replaced idp id fine, but the XML is defined in the SAML standard and cannot be
--- changed.
+-- changed.  NB: if you want to replace an IdP by one with the same issuer, you probably
+-- want to use `PUT` instead of `POST`.
 --
 -- FUTUREWORK: find out if anybody uses the XML body type and drop it if not.
 --
--- FUTUREWORK: using the same issuer for two teams may be possible, but only if we stop
--- supporting implicit user creating via SAML.  If unknown users present IdP credentials, the
--- issuer is our only way of finding the team in which the user must be created.
+-- FUTUREWORK: using the same issuer for two teams even in `WireIdPAPIV1` may be possible, but
+-- only if we stop supporting implicit user creating via SAML.  If unknown users present IdP
+-- credentials, the issuer is our only way of finding the team in which the user must be
+-- created.
 --
 -- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
 -- update, delete of idps.)
