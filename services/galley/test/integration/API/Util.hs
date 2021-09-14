@@ -1165,10 +1165,11 @@ registerRemoteConv convId originUser name othMembers = do
   now <- liftIO getCurrentTime
   FederatedGalley.onConversationCreated
     fedGalleyClient
+    (qDomain convId)
     ( FederatedGalley.NewRemoteConversation
         { rcTime = now,
           rcOrigUserId = originUser,
-          rcCnvId = convId,
+          rcCnvId = qUnqualified convId,
           rcCnvType = RegularConv,
           rcCnvAccess = [],
           rcCnvAccessRole = ActivatedAccessRole,
