@@ -45,14 +45,15 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
 -- for the current list we need.
 
+-- | For conventions see /docs/developer/federation-api-conventions.md
 data Api routes = Api
   { -- | Register a new conversation
-    registerConversation ::
+    onConversationCreated ::
       routes
         :- "federation"
         :> Summary "Register users to be in a new remote conversation"
-        :> "register-conversation"
-        :> ReqBody '[JSON] RegisterConversation
+        :> "on-conversation-created"
+        :> ReqBody '[JSON] NewRemoteConversation
         :> Post '[JSON] (),
     getConversations ::
       routes
@@ -62,10 +63,10 @@ data Api routes = Api
         :> Post '[JSON] GetConversationsResponse,
     -- used by backend that owns the conversation to inform the backend about
     -- add/removal of its users to the conversation
-    updateConversationMemberships ::
+    onConversationMembershipsChanged ::
       routes
         :- "federation"
-        :> "update-conversation-memberships"
+        :> "on-conversation-memberships-changed"
         :> OriginDomainHeader
         :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] (),
@@ -78,10 +79,10 @@ data Api routes = Api
         :> Post '[JSON] LeaveConversationResponse,
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
-    receiveMessage ::
+    onMessageSent ::
       routes
         :- "federation"
-        :> "receive-message"
+        :> "on-message-sent"
         :> OriginDomainHeader
         :> ReqBody '[JSON] (RemoteMessage ConvId)
         :> Post '[JSON] (),
@@ -116,7 +117,7 @@ newtype GetConversationsResponse = GetConversationsResponse
 --
 -- FUTUREWORK: Think about extracting common conversation metadata into a
 -- separarate data type that can be reused in several data types in this module.
-data RegisterConversation = MkRegisterConversation
+data NewRemoteConversation = NewRemoteConversation
   { -- | The time when the conversation was created
     rcTime :: UTCTime,
     -- | The user that created the conversation
@@ -136,7 +137,7 @@ data RegisterConversation = MkRegisterConversation
     rcReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded RegisterConversation)
+  deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
 
 -- | A conversation membership update, as given by ' ConversationMemberUpdate',
 -- can be either a member addition or removal.

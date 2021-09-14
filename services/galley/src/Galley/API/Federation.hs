@@ -35,7 +35,7 @@ import Galley.API.Error (invalidPayload)
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtrMessage, sendLocalMessages)
 import qualified Galley.API.Update as API
-import Galley.API.Util (fromRegisterConversation, pushConversationEvent, viewFederationDomain)
+import Galley.API.Util (fromNewRemoteConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Galley.Types.Conversations.Members (InternalMember (..), LocalMember)
@@ -56,7 +56,7 @@ import Wire.API.Federation.API.Galley
     LeaveConversationResponse (..),
     MessageSendRequest (..),
     MessageSendResponse (..),
-    RegisterConversation (..),
+    NewRemoteConversation (..),
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
@@ -67,16 +67,16 @@ federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      { FederationAPIGalley.registerConversation = registerConversation,
+      { FederationAPIGalley.onConversationCreated = onConversationCreated,
         FederationAPIGalley.getConversations = getConversations,
-        FederationAPIGalley.updateConversationMemberships = updateConversationMemberships,
+        FederationAPIGalley.onConversationMembershipsChanged = onConversationMembershipsChanged,
         FederationAPIGalley.leaveConversation = leaveConversation,
-        FederationAPIGalley.receiveMessage = receiveMessage,
+        FederationAPIGalley.onMessageSent = onMessageSent,
         FederationAPIGalley.sendMessage = sendMessage
       }
 
-registerConversation :: RegisterConversation -> Galley ()
-registerConversation rc = do
+onConversationCreated :: NewRemoteConversation -> Galley ()
+onConversationCreated rc = do
   localDomain <- viewFederationDomain
   let localUsers =
         foldMap (\om -> guard (qDomain (omQualifiedId om) == localDomain) $> omQualifiedId om)
@@ -85,7 +85,7 @@ registerConversation rc = do
       localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
     Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
-  forM_ (fromRegisterConversation localDomain rc) $ \(mem, c) -> do
+  forM_ (fromNewRemoteConversation localDomain rc) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate
@@ -104,8 +104,8 @@ getConversations (GetConversationsRequest qUid gcrConvIds) = do
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
-updateConversationMemberships :: Domain -> ConversationMemberUpdate -> Galley ()
-updateConversationMemberships requestingDomain cmu = do
+onConversationMembershipsChanged :: Domain -> ConversationMemberUpdate -> Galley ()
+onConversationMembershipsChanged requestingDomain cmu = do
   localDomain <- viewFederationDomain
   let users = case cmuAction cmu of
         FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
@@ -155,8 +155,8 @@ leaveConversation requestingDomain lc = do
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
-receiveMessage :: Domain -> RemoteMessage ConvId -> Galley ()
-receiveMessage domain rmUnqualified = do
+onMessageSent :: Domain -> RemoteMessage ConvId -> Galley ()
+onMessageSent domain rmUnqualified = do
   let rm = fmap (Tagged . (`Qualified` domain)) rmUnqualified
   let convId = unTagged $ rmConversation rm
       msgMetadata =

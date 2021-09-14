@@ -224,11 +224,11 @@ emptyFederatedGalley =
   let e :: Text -> Handler a
       e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
    in FederatedGalley.Api
-        { FederatedGalley.registerConversation = \_ -> e "registerConversation",
+        { FederatedGalley.onConversationCreated = \_ -> e "onConversationCreated",
           FederatedGalley.getConversations = \_ -> e "getConversations",
-          FederatedGalley.updateConversationMemberships = \_ _ -> e "updateConversationMemberships",
+          FederatedGalley.onConversationMembershipsChanged = \_ _ -> e "onConversationMembershipsChanged",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
-          FederatedGalley.receiveMessage = \_ _ -> e "receiveMessage",
+          FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
         }
 
@@ -538,7 +538,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            { FederatedGalley.onMessageSent = \_ _ -> pure ()
             }
 
     (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -549,7 +549,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
     liftIO $ do
       let expectedRequests =
             [ (F.Brig, "get-user-clients"),
-              (F.Galley, "receive-message")
+              (F.Galley, "on-message-sent")
             ]
       forM_ (zip requests expectedRequests) $ \(req, (component, rpcPath)) -> do
         F.domain req @?= domainText (qDomain deeRemote)
@@ -679,7 +679,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.receiveMessage = \_ _ -> pure ()
+            { FederatedGalley.onMessageSent = \_ _ -> pure ()
             }
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -880,7 +880,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.receiveMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+            { FederatedGalley.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
             }
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -1309,7 +1309,7 @@ paginateConvListIds = do
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient chadDomain cmu
+    FederatedGalley.onConversationMembershipsChanged fedGalleyClient chadDomain cmu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1324,7 +1324,7 @@ paginateConvListIds = do
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient deeDomain cmu
+    FederatedGalley.onConversationMembershipsChanged fedGalleyClient deeDomain cmu
 
   -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
   -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
@@ -1367,7 +1367,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient chadDomain cmu
+    FederatedGalley.onConversationMembershipsChanged fedGalleyClient chadDomain cmu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1383,7 +1383,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cmuAlreadyPresentUsers = [],
               FederatedGalley.cmuAction = FederatedGalley.ConversationMembersActionAdd $ pure (qAlice, roleNameWireMember)
             }
-    FederatedGalley.updateConversationMemberships fedGalleyClient deeDomain cmu
+    FederatedGalley.onConversationMembershipsChanged fedGalleyClient deeDomain cmu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
@@ -1816,7 +1816,7 @@ testAddRemoteMember = do
     map F.domain reqs @?= replicate 2 (domainText remoteDomain)
     map (fmap F.path . F.request) reqs
       @?= [ Just "/federation/get-users-by-ids",
-            Just "/federation/update-conversation-memberships"
+            Just "/federation/on-conversation-memberships-changed"
           ]
 
   e <- responseJsonUnsafe <$> (pure resp <!! const 200 === statusCode)
