@@ -353,34 +353,19 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
   SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
 
-  let handleIdPClash :: Either SAML.IdPId IdP -> m ()
+  let handleIdPClash :: Either id idp -> m ()
+      -- (HINT: using type vars above instead of the actual types constitutes a proof that
+      -- we're not using any properties of the arguments in this function.)
       handleIdPClash = case apiversion of
         WireIdPAPIV1 -> const $ do
           throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
         WireIdPAPIV2 -> \case
-          (Right idp') -> do
-            guardSameTeam idp'
-            guardReplaceeV2
-          (Left id') -> do
-            idp' <- do
-              let err = throwSpar $ SparIdPNotFound (cs $ show id') -- database inconsistency
-              wrapMonadClient (Data.getIdPConfig id') >>= maybe err pure
-            handleIdPClash (Right idp')
-
-      guardSameTeam :: IdP -> m ()
-      guardSameTeam idp' = do
-        when ((idp' ^. SAML.idpExtraInfo . wiTeam) == teamId) $ do
-          throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
-
-      guardReplaceeV2 :: m ()
-      guardReplaceeV2 = forM_ mReplaces $ \rid -> do
-        ridp <- do
-          let err = throwSpar $ SparIdPNotFound (cs $ show rid) -- database inconsistency
-          wrapMonadClient (Data.getIdPConfig rid) >>= maybe err pure
-        when (fromMaybe defWireIdPAPIVersion (ridp ^. SAML.idpExtraInfo . wiApiVersion) /= WireIdPAPIV2) $ do
-          throwSpar $
-            SparNewIdPAlreadyInUse
-              (cs $ "api-version mismatch: " <> show ((ridp ^. SAML.idpExtraInfo . wiApiVersion), WireIdPAPIV2))
+          (Right _) -> do
+            -- idp' was found by lookup with teamid, so it's in the same team.
+            throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
+          (Left _) -> do
+            -- this idp *id* is from a different team, and we're in the 'WireIdPAPIV2' case, so this is fine.
+            pure ()
 
   case idp of
     Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
