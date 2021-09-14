@@ -82,9 +82,6 @@ getConversationsAllFound = do
   carlQ <- Qualified <$> randomUser <*> pure localDomain
   connectUsers bob (singleton (qUnqualified carlQ))
 
-  putStrLn $ "alice: " <> show (qUnqualified aliceQ)
-  putStrLn $ "bob: " <> show bob
-  putStrLn $ "carl: " <> show (qUnqualified carlQ)
 
   cnv2 <-
     responseJsonError
@@ -117,8 +114,6 @@ getConversationsAllFound = do
       "self member role mismatch"
       (Just . memConvRoleName . cmSelf $ cnvMembers cnv2)
       (rcmSelfRole . rcnvMembers <$> c2)
-    putStrLn $ "actual members " <> show (fmap (rcmOthers . rcnvMembers) c2)
-    putStrLn $ "expected members " <> show (cmOthers (cnvMembers cnv2))
     assertEqual
       "other members mismatch"
       (Just (sort [bob, qUnqualified carlQ]))
