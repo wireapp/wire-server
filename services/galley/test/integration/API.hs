@@ -2693,8 +2693,27 @@ putRemoteConvMemberOk update = do
           assertEqual "hidden" (mupHidden update) (misHidden mis)
           assertEqual "hidden_ref" (mupHiddenRef update) (misHiddenRef mis)
         x -> assertFailure $ "Unexpected event data: " ++ show x
+
+  -- Fetch remote conversation
+
+  let bobAsLocal = LocalMember (qUnqualified qbob) defMemberStatus Nothing roleNameWireAdmin
+  let mockConversation =
+        mkConv
+          qconv
+          (qUnqualified qbob)
+          roleNameWireMember
+          [localMemberToOther remoteDomain bobAsLocal]
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
+  opts <- view tsGConf
+  (rs, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const remoteConversationResponse)
+      $ getConvQualified alice qconv
+        <!! const 200 === statusCode
+
   -- Verify new member state
-  rs <- getConvQualified alice qconv <!! const 200 === statusCode
   let alice' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
   liftIO $ do
     assertBool "user" (isJust alice')
