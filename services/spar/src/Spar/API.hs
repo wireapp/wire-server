@@ -362,7 +362,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
       -- we're not using any properties of the arguments in this function.)
       handleIdPClash = case apiversion of
         WireIdPAPIV1 -> const $ do
-          throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
+          throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api_version v1 if the issuer is already in use on the wire instance."
         WireIdPAPIV2 -> \case
           (Right _) -> do
             -- idp' was found by lookup with teamid, so it's in the same team.

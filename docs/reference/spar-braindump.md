@@ -367,7 +367,7 @@ If you feel up to calling the rest API, try the following:
 - Use the above end-point `GET /sso/metadata/:tid` with your `TeamId`
   for pulling the SP metadata.
 - When calling `POST /identity-provider`, make sure to add
-  `?api-version=v2`.  (`?api-version=v1` or no omission of the query
+  `?api_version=v2`.  (`?api_version=v1` or no omission of the query
   param both invoke the old behavior.)
 
 NB: Neither version of the API allows you to provision a user with the
@@ -378,11 +378,11 @@ would break the (admittedly leaky) abstarctions of saml2-web-sso.
 
 ### API changes in more detail
 
-- New query param `api-version=<v1|v2>` for `POST
+- New query param `api_version=<v1|v2>` for `POST
   /identity-providers`.  The version is stored in `spar.idp` together
   with the rest of the IdP setup, and is used by `GET
   /sso/initiate-login` (see below).
-- `GET /sso/initiate-login` sends audience based on api-version stored
+- `GET /sso/initiate-login` sends audience based on api_version stored
   in `spar.idp`: for v1, the audience is `/sso/finalize-login`; for
   v2, it's `/sso/finalize-login/:tid`.
 - New end-point `POST /sso/finalize-login/:tid` that behaves
