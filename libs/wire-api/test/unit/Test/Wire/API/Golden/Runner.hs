@@ -34,17 +34,16 @@ import Data.ProtoLens.Message (Message)
 import Data.ProtoLens.TextFormat (pprintMessage, readMessage)
 import qualified Data.Text.Lazy.IO as LText
 import Imports
+import Test.Tasty (TestTree)
 import Test.Tasty.HUnit
 import Text.PrettyPrint (render)
 import Type.Reflection (typeRep)
 import Wire.API.ServantProto
 
-testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
-testObjects objs = do
-  allFilesExist <- and <$> traverse (uncurry testObject) objs
-  assertBool "Some golden JSON files do not exist" allFilesExist
+testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> [TestTree]
+testObjects = fmap (\(obj, path) -> testCase path $ testObject obj path)
 
-testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
+testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> Assertion
 testObject obj path = do
   let actualValue = toJSON obj :: Value
       actualJson = encodePretty' config actualValue
@@ -63,8 +62,7 @@ testObject obj path = do
     (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
     (Success obj)
     (fromJSON actualValue)
-
-  pure exists
+  assertBool ("JSON golden file " <> path <> " does not exist") exists
   where
     config = defConfig {confCompare = compare, confTrailingNewline = True}
 

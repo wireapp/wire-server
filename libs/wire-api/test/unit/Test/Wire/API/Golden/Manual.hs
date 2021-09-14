@@ -19,7 +19,6 @@ module Test.Wire.API.Golden.Manual where
 
 import Imports
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.ConvIdsPage
@@ -38,7 +37,7 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testCase "UserClientPrekeyMap" $
+    [ testGroup "UserClientPrekeyMap" $
         testObjects
           [ (testObject_UserClientPrekeyMap_1, "testObject_UserClientPrekeyMap_1.json"),
             (testObject_UserClientPrekeyMap_2, "testObject_UserClientPrekeyMap_2.json"),
@@ -49,57 +48,57 @@ tests =
             (testObject_UserClientPrekeyMap_7, "testObject_UserClientPrekeyMap_7.json"),
             (testObject_UserClientPrekeyMap_8, "testObject_UserClientPrekeyMap_8.json")
           ],
-      testCase "QualifiedUserClientPrekeyMap" $
+      testGroup "QualifiedUserClientPrekeyMap" $
         testObjects
           [ (testObject_QualifiedUserClientPrekeyMap_1, "testObject_QualifiedUserClientPrekeyMap_1.json"),
             (testObject_QualifiedUserClientPrekeyMap_2, "testObject_QualifiedUserClientPrekeyMap_2.json")
           ],
-      testCase "ConversationCoverView" $
+      testGroup "ConversationCoverView" $
         testObjects
           [ (testObject_ConversationCoverView_1, "testObject_ConversationCoverView_1.json"),
             (testObject_ConversationCoverView_2, "testObject_ConversationCoverView_2.json"),
             (testObject_ConversationCoverView_3, "testObject_ConversationCoverView_3.json")
           ],
-      testCase "GetPaginatedConversationIds" $
+      testGroup "GetPaginatedConversationIds" $
         testObjects
           [ (testObject_GetPaginatedConversationIds_1, "testObject_GetPaginatedConversationIds_1.json"),
             (testObject_GetPaginatedConversationIds_2, "testObject_GetPaginatedConversationIds_2.json")
           ],
-      testCase "ConversationPagingState" $
+      testGroup "ConversationPagingState" $
         testObjects
           [ (testObject_ConversationPagingState_1, "testObject_ConversationPagingState_1.json"),
             (testObject_ConversationPagingState_2, "testObject_ConversationPagingState_2.json"),
             (testObject_ConversationPagingState_3, "testObject_ConversationPagingState_3.json"),
             (testObject_ConversationPagingState_4, "testObject_ConversationPagingState_4.json")
           ],
-      testCase "ConvIdsPage" $
+      testGroup "ConvIdsPage" $
         testObjects
           [ (testObject_ConvIdsPage_1, "testObject_ConvIdsPage_1.json"),
             (testObject_ConvIdsPage_2, "testObject_ConvIdsPage_2.json")
           ],
-      testCase "ClientCapability" $
+      testGroup "ClientCapability" $
         testObjects
           [(testObject_ClientCapability_1, "testObject_ClientCapability_1.json")],
-      testCase "ClientCapabilityList" $
+      testGroup "ClientCapabilityList" $
         testObjects
           [ (testObject_ClientCapabilityList_1, "testObject_ClientCapabilityList_1.json"),
             (testObject_ClientCapabilityList_2, "testObject_ClientCapabilityList_2.json")
           ],
-      testCase
+      testGroup
         "Event.FeatureConfig.Event"
         $ testObjects
           [ (testObject_FeatureConfigEvent_1, "testObject_FeatureConfigEvent_1.json"),
             (testObject_FeatureConfigEvent_2, "testObject_FeatureConfigEvent_2.json"),
             (testObject_FeatureConfigEvent_3, "testObject_FeatureConfigEvent_3.json")
           ],
-      testCase "UserIdsList" $
+      testGroup "UserIdsList" $
         testObjects
           [ (testObject_UserIdList_1, "testObject_UserIdList_1.json"),
             (testObject_UserIdList_2, "testObject_UserIdList_2.json")
           ],
-      testCase "ListConversationsV2" $
+      testGroup "ListConversationsV2" $
         testObjects
           [(testObject_ListConversationsV2_1, "testObject_ListConversationsV2_1.json")],
-      testCase "ConversationsResponse" $
+      testGroup "ConversationsResponse" $
         testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")]
     ]
