@@ -34,7 +34,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), Remote, partitionQualified, toRemote)
+import Data.Qualified (Local, Qualified (..), Remote, partitionQualified, toLocal, toRemote)
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -391,7 +391,7 @@ canDeleteMember deleter deletee
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
--- | Notify local users and bots of being added to a conversation
+-- | Send an event to local users and bots
 pushConversationEvent :: Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
 pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
@@ -426,6 +426,9 @@ ensureAccess conv access =
 
 viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
+
+qualifyLocal :: MonadReader Env m => a -> m (Local a)
+qualifyLocal a = fmap (toLocal . Qualified a) viewFederationDomain
 
 checkRemoteUsersExist :: [Remote UserId] -> Galley ()
 checkRemoteUsersExist =

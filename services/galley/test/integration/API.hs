@@ -2747,7 +2747,7 @@ putRemoteConvMemberOk update = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cmu =
-        FederatedGalley.ConversationMemberUpdate
+        FederatedGalley.ConversationUpdate
           { cmuTime = now,
             cmuOrigUserId = qbob,
             cmuConvId = qUnqualified qconv,

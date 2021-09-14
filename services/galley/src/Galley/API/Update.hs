@@ -26,8 +26,7 @@ module Galley.API.Update
     addCodeH,
     rmCodeH,
     getCodeH,
-    updateConversationDeprecatedH,
-    updateLocalConversationName,
+    updateUnqualifiedConversationName,
     updateConversationName,
     updateConversationAccessH,
     updateConversationReceiptModeH,
@@ -110,6 +109,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
+import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (InviteQualified (invQRoleName))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
@@ -124,6 +124,7 @@ import Wire.API.ErrorDescription
   )
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
+import Wire.API.Federation.API.Galley (ConversationMetadataAction (..))
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
@@ -893,55 +894,110 @@ newMessage qusr con qcnv msg now (m, c, t) ~(toBots, toUsers) =
                     . set pushTransient (newOtrTransient msg)
            in (toBots, p : toUsers)
 
-updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationRename -> Galley Response
-updateConversationDeprecatedH (zusr ::: zcon ::: cnv ::: req) = do
-  convRename <- fromJsonBody req
-  setStatus status200 . json <$> updateLocalConversationName zusr zcon cnv convRename
-
 updateConversationName ::
   UserId ->
   ConnId ->
   Qualified ConvId ->
   Public.ConversationRename ->
   Galley (Maybe Public.Event)
-updateConversationName usr zcon qcnv convRename = do
-  localDomain <- viewFederationDomain
-  if qDomain qcnv == localDomain
-    then updateLocalConversationName usr zcon (qUnqualified qcnv) convRename
+updateConversationName zusr zcon qcnv convRename = do
+  lusr <- qualifyLocal zusr
+  if qDomain qcnv == lDomain lusr
+    then updateLocalConversationName lusr zcon (toLocal qcnv) convRename
     else throwM federationNotImplemented
 
-updateLocalConversationName ::
+updateUnqualifiedConversationName ::
   UserId ->
   ConnId ->
   ConvId ->
   Public.ConversationRename ->
   Galley (Maybe Public.Event)
-updateLocalConversationName usr zcon cnv convRename = do
-  alive <- Data.isConvAlive cnv
+updateUnqualifiedConversationName zusr zcon cnv rename = do
+  lusr <- qualifyLocal zusr
+  lcnv <- qualifyLocal cnv
+  updateLocalConversationName lusr zcon lcnv rename
+
+updateLocalConversationName ::
+  Local UserId ->
+  ConnId ->
+  Local ConvId ->
+  Public.ConversationRename ->
+  Galley (Maybe Public.Event)
+updateLocalConversationName lusr zcon lcnv convRename = do
+  alive <- Data.isConvAlive (lUnqualified lcnv)
   if alive
-    then Just <$> updateLiveLocalConversationName usr zcon cnv convRename
-    else Nothing <$ Data.deleteConversation cnv
+    then Just <$> updateLiveLocalConversationName lusr zcon lcnv convRename
+    else Nothing <$ Data.deleteConversation (lUnqualified lcnv)
 
 updateLiveLocalConversationName ::
-  UserId ->
+  Local UserId ->
   ConnId ->
-  ConvId ->
+  Local ConvId ->
   Public.ConversationRename ->
   Galley Public.Event
-updateLiveLocalConversationName usr zcon cnv convRename = do
-  localDomain <- viewFederationDomain
-  let qcnv = Qualified cnv localDomain
-      qusr = Qualified usr localDomain
-  (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowedThrowing ModifyConversationName =<< getSelfMemberFromLocalsLegacy usr users
-  now <- liftIO getCurrentTime
+updateLiveLocalConversationName lusr zcon lcnv convRename = do
+  -- get local members and bots
+  (bots, lusers) <- localBotsAndUsers <$> Data.members (lUnqualified lcnv)
+
+  -- perform update
+  ensureActionAllowedThrowing ModifyConversationName
+    =<< getSelfMemberFromLocalsLegacy (lUnqualified lusr) lusers
   cn <- rangeChecked (cupName convRename)
-  Data.updateConversation cnv cn
-  let e = Event ConvRename qcnv qusr now (EdConvRename convRename)
-  for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p ->
-    push1 $ p & pushConn ?~ zcon
-  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
-  pure e
+  Data.updateConversation (lUnqualified lcnv) cn
+
+  -- send notifications
+  rusers <- Data.lookupRemoteMembers (lUnqualified lcnv)
+  let targets =
+        NotificationTargets
+          { ntLocals = map lmId lusers,
+            ntRemotes = map rmId rusers,
+            ntBots = bots
+          }
+  now <- liftIO getCurrentTime
+  let action = ConversationMetadataActionRename convRename
+  notifyConversationMetadataUpdate now (unTagged lusr) (Just zcon) (unTagged lcnv) targets action
+
+data NotificationTargets = NotificationTargets
+  { ntLocals :: [UserId],
+    ntRemotes :: [Remote UserId],
+    ntBots :: [BotMember]
+  }
+
+metadataActionToEvent ::
+  UTCTime ->
+  Qualified UserId ->
+  Qualified ConvId ->
+  ConversationMetadataAction ->
+  Event
+metadataActionToEvent now quid qcnv (ConversationMetadataActionRename rename) =
+  Event ConvRename qcnv quid now (EdConvRename rename)
+
+notifyConversationMetadataUpdate ::
+  UTCTime ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  NotificationTargets ->
+  ConversationMetadataAction ->
+  Galley Event
+notifyConversationMetadataUpdate now quid mcon qcnv targets action = do
+  localDomain <- viewFederationDomain
+  let e = metadataActionToEvent now quid qcnv action
+
+  -- if the conversation is local, notify remote participants
+  when (qDomain qcnv == localDomain) $ do
+    let rusersByDomain = partitionRemote (ntRemotes targets)
+    void . pooledForConcurrentlyN 8 rusersByDomain $ \(domain, uids) -> do
+      let req = FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) uids action
+          rpc =
+            FederatedGalley.onConversationMetadataUpdated
+              FederatedGalley.clientRoutes
+              localDomain
+              req
+      runFederatedGalley domain rpc
+
+  -- notify local participants and bots
+  pushConversationEvent mcon e (ntLocals targets) (ntBots targets) $> e
 
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do

@@ -179,7 +179,8 @@ data ConversationMembersAction
 
 type ConversationMemberUpdate = ConversationUpdate ConversationMembersAction
 
-data ConversationMetadataAction = ConversationMetadataActionRename Text
+data ConversationMetadataAction
+  = ConversationMetadataActionRename ConversationRename
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadataAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMetadataAction)
