@@ -444,12 +444,19 @@ testSearchOtherDomain opts brig = do
   user <- randomUser brig
   -- We cannot assert on a real federated request here, so we make a request to
   -- a mocked federator started and stopped during this test
-  otherSearchResult :: SearchResult Contact <- liftIO $ generate arbitrary
+  otherSearchResult :: [Contact] <- liftIO $ generate arbitrary
   let mockResponse = OutwardResponseBody (cs $ Aeson.encode otherSearchResult)
   (results, _) <- liftIO . withTempMockFederator opts (Domain "non-existent.example.com") mockResponse $ do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
+  let expectedResult =
+        SearchResult
+          { searchResults = otherSearchResult,
+            searchFound = length otherSearchResult,
+            searchReturned = length otherSearchResult,
+            searchTook = 0
+          }
   liftIO $ do
-    assertEqual "The search request should get its result from federator" otherSearchResult results
+    assertEqual "The search request should get its result from federator" expectedResult results
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices

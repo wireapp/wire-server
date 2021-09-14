@@ -80,22 +80,18 @@ testSearchSuccess brig fedBrigClient = do
 
   searchResult <- FedBrig.searchUsers fedBrigClient (SearchRequest (fromHandle handle))
   liftIO $ do
-    let contacts = contactQualifiedId <$> searchResults searchResult
+    let contacts = contactQualifiedId <$> searchResult
     assertEqual "should return only the first user id but not the identityThief" [quid] contacts
 
 testSearchNotFound :: FedBrigClient -> Http ()
 testSearchNotFound fedBrigClient = do
   searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest "this-handle-should-not-exist"
-  liftIO $ do
-    let contacts = searchResults searchResult
-    assertEqual "should return empty array of users" [] contacts
+  liftIO $ assertEqual "should return empty array of users" [] searchResult
 
 testSearchNotFoundEmpty :: FedBrigClient -> Http ()
 testSearchNotFoundEmpty fedBrigClient = do
   searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest ""
-  liftIO $ do
-    let contacts = searchResults searchResult
-    assertEqual "should return empty array of users" [] contacts
+  liftIO $ assertEqual "should return empty array of users" [] searchResult
 
 testGetUserByHandleSuccess :: Brig -> FedBrigClient -> Http ()
 testGetUserByHandleSuccess brig fedBrigClient = do

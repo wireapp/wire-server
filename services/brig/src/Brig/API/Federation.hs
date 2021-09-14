@@ -81,22 +81,13 @@ claimMultiPrekeyBundle uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFedera
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: SearchRequest -> Handler (SearchResult Contact)
+searchUsers :: SearchRequest -> Handler [Contact]
 searchUsers (SearchRequest searchTerm) = do
   let maybeHandle = parseHandle searchTerm
   maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
-  exactLookupProfile <- case maybeOwnerId of
+  case maybeOwnerId of
     Nothing -> pure []
     Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
-
-  let exactHandleMatchCount = length exactLookupProfile
-  pure $
-    SearchResult
-      { searchResults = exactLookupProfile,
-        searchFound = exactHandleMatchCount,
-        searchReturned = exactHandleMatchCount,
-        searchTook = 0
-      }
 
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
