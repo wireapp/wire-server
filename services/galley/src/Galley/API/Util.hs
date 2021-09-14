@@ -598,7 +598,7 @@ notifyRemoteAboutConvUpdate ::
   Galley ()
 notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let mkUpdate oth = ConversationMemberUpdate time origUser convId oth action
+  let mkUpdate oth = ConversationUpdate time origUser convId oth action
   traverse_ (uncurry (notificationRPC localDomain . mkUpdate) . swap)
     . Map.assocs
     . partitionQualified

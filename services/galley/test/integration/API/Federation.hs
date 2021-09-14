@@ -155,7 +155,7 @@ addLocalUser = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cmu =
-        FedGalley.ConversationMemberUpdate
+        FedGalley.ConversationUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qbob,
             FedGalley.cmuConvId = conv,
@@ -193,7 +193,7 @@ removeLocalUser = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cmuAdd =
-        FedGalley.ConversationMemberUpdate
+        FedGalley.ConversationUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = conv,
@@ -202,7 +202,7 @@ removeLocalUser = do
               FedGalley.ConversationMembersActionAdd (pure (qAlice, roleNameWireMember))
           }
       cmuRemove =
-        FedGalley.ConversationMemberUpdate
+        FedGalley.ConversationUpdate
           { FedGalley.cmuTime = addUTCTime (secondsToNominalDiffTime 5) now,
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = conv,
@@ -249,7 +249,7 @@ removeRemoteUser = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cmuAdd =
-        FedGalley.ConversationMemberUpdate
+        FedGalley.ConversationUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = conv,
@@ -259,7 +259,7 @@ removeRemoteUser = do
                 ((qAlice, roleNameWireMember) :| [(qEve, roleNameWireMember)])
           }
       cmuRemove =
-        FedGalley.ConversationMemberUpdate
+        FedGalley.ConversationUpdate
           { FedGalley.cmuTime = addUTCTime (secondsToNominalDiffTime 5) now,
             FedGalley.cmuOrigUserId = qBob,
             FedGalley.cmuConvId = conv,
@@ -297,7 +297,7 @@ notifyLocalUser = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   let cmu =
-        FedGalley.ConversationMemberUpdate
+        FedGalley.ConversationUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qbob,
             FedGalley.cmuConvId = conv,
@@ -391,7 +391,7 @@ onMessageSent = do
 
   -- only add alice to the remote conversation
   let cmu =
-        FedGalley.ConversationMemberUpdate
+        FedGalley.ConversationUpdate
           { FedGalley.cmuTime = now,
             FedGalley.cmuOrigUserId = qbob,
             FedGalley.cmuConvId = conv,

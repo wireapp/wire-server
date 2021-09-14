@@ -49,7 +49,9 @@ import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-  ( ConversationMemberUpdate (..),
+  ( ConversationMemberUpdate,
+    ConversationMetadataUpdate,
+    ConversationUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
     LeaveConversationRequest (..),
@@ -70,6 +72,7 @@ federationSitemap =
       { FederationAPIGalley.onConversationCreated = onConversationCreated,
         FederationAPIGalley.getConversations = getConversations,
         FederationAPIGalley.onConversationMembershipsChanged = onConversationMembershipsChanged,
+        FederationAPIGalley.onConversationMetadataUpdated = onConversationMetadataUpdated,
         FederationAPIGalley.leaveConversation = leaveConversation,
         FederationAPIGalley.onMessageSent = onMessageSent,
         FederationAPIGalley.sendMessage = sendMessage
@@ -146,6 +149,9 @@ onConversationMembershipsChanged requestingDomain cmu = do
   -- FUTUREWORK: support bots?
   -- send notifications
   pushConversationEvent Nothing event targets []
+
+onConversationMetadataUpdated :: Domain -> ConversationMetadataUpdate -> Galley ()
+onConversationMetadataUpdated _ _ = pure () -- TODO
 
 leaveConversation ::
   Domain ->

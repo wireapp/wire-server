@@ -239,6 +239,7 @@ emptyFederatedGalley =
         { FederatedGalley.onConversationCreated = \_ _ -> e "onConversationCreated",
           FederatedGalley.getConversations = \_ _ -> e "getConversations",
           FederatedGalley.onConversationMembershipsChanged = \_ _ -> e "onConversationMembershipsChanged",
+          FederatedGalley.onConversationMetadataUpdated = \_ _ -> e "onConversationMetadataUpdated",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",
           FederatedGalley.sendMessage = \_ _ -> e "sendMessage"
@@ -1314,7 +1315,7 @@ paginateConvListIds = do
   replicateM_ 25 $ do
     conv <- randomId
     let cmu =
-          FederatedGalley.ConversationMemberUpdate
+          FederatedGalley.ConversationUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qChad,
               FederatedGalley.cmuConvId = conv,
@@ -1329,7 +1330,7 @@ paginateConvListIds = do
   replicateM_ 31 $ do
     conv <- randomId
     let cmu =
-          FederatedGalley.ConversationMemberUpdate
+          FederatedGalley.ConversationUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qDee,
               FederatedGalley.cmuConvId = conv,
@@ -1372,7 +1373,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   replicateM_ 16 $ do
     conv <- randomId
     let cmu =
-          FederatedGalley.ConversationMemberUpdate
+          FederatedGalley.ConversationUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qChad,
               FederatedGalley.cmuConvId = conv,
@@ -1388,7 +1389,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   replicateM_ 16 $ do
     conv <- randomId
     let cmu =
-          FederatedGalley.ConversationMemberUpdate
+          FederatedGalley.ConversationUpdate
             { FederatedGalley.cmuTime = now,
               FederatedGalley.cmuOrigUserId = qDee,
               FederatedGalley.cmuConvId = conv,

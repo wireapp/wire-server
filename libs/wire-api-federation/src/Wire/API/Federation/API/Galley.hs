@@ -71,6 +71,15 @@ data Api routes = Api
         :> OriginDomainHeader
         :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] (),
+    -- used by the backend that owns a conversation to inform this backend of
+    -- changes to the conversation metadata
+    onConversationMetadataUpdated ::
+      routes
+        :- "federation"
+        :> "on-conversation-metadata-updated"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] ConversationMetadataUpdate
+        :> Post '[JSON] (),
     leaveConversation ::
       routes
         :- "federation"
@@ -168,7 +177,16 @@ data ConversationMembersAction
   deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
 
-data ConversationMemberUpdate = ConversationMemberUpdate
+type ConversationMemberUpdate = ConversationUpdate ConversationMembersAction
+
+data ConversationMetadataAction = ConversationMetadataActionRename Text
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMetadataAction)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMetadataAction)
+
+type ConversationMetadataUpdate = ConversationUpdate ConversationMetadataAction
+
+data ConversationUpdate action = ConversationUpdate
   { cmuTime :: UTCTime,
     cmuOrigUserId :: Qualified UserId,
     -- | The unqualified ID of the conversation where the update is happening.
@@ -180,12 +198,12 @@ data ConversationMemberUpdate = ConversationMemberUpdate
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.
     cmuAlreadyPresentUsers :: [UserId],
-    -- | Users that got either added to or removed from the conversation.
-    cmuAction :: ConversationMembersAction
+    -- | Information on the specific action that caused the update.
+    cmuAction :: action
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)
+  deriving (Arbitrary) via (GenericUniform (ConversationUpdate action))
+  deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationUpdate action))
 
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which

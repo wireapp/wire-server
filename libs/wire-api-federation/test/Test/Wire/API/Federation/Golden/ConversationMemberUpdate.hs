@@ -28,7 +28,7 @@ import Data.Qualified (Qualified (Qualified))
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), ConversationMembersAction (..))
+import Wire.API.Federation.API.Galley (ConversationMemberUpdate, ConversationMembersAction (..), ConversationUpdate (..))
 
 qAlice, qBob :: Qualified UserId
 qAlice =
@@ -46,7 +46,7 @@ dee = Id (fromJust (UUID.fromString "00000fff-0000-aaaa-0000-000100005007"))
 
 testObject_ConversationMemberUpdate1 :: ConversationMemberUpdate
 testObject_ConversationMemberUpdate1 =
-  ConversationMemberUpdate
+  ConversationUpdate
     { cmuTime = read "1864-04-12 12:22:43.673 UTC",
       cmuOrigUserId =
         Qualified
@@ -60,7 +60,7 @@ testObject_ConversationMemberUpdate1 =
 
 testObject_ConversationMemberUpdate2 :: ConversationMemberUpdate
 testObject_ConversationMemberUpdate2 =
-  ConversationMemberUpdate
+  ConversationUpdate
     { cmuTime = read "1864-04-12 12:22:43.673 UTC",
       cmuOrigUserId =
         Qualified
