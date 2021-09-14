@@ -448,9 +448,6 @@ sitemap = do
 
   -- Connection API -----------------------------------------------------
 
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
   get "/connections" (continue listConnectionsH) $
     accept "application" "json"
       .&. zauthUserId
@@ -553,6 +550,10 @@ sitemap = do
     Doc.returns (Doc.ref Public.modelPropertyValue)
     Doc.response 200 "The property value." Doc.end
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   get "/properties" (continue listPropertyKeysH) $
     zauthUserId
       .&. accept "application" "json"
