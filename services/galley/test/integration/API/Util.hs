@@ -1163,9 +1163,9 @@ registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set 
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  FederatedGalley.registerConversation
+  FederatedGalley.onConversationCreated
     fedGalleyClient
-    ( FederatedGalley.MkRegisterConversation
+    ( FederatedGalley.NewRemoteConversation
         { rcTime = now,
           rcOrigUserId = originUser,
           rcCnvId = convId,
@@ -1369,7 +1369,7 @@ assertNoMsg ws f = do
 
 assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
-  F.path req @?= "/federation/update-conversation-memberships"
+  F.path req @?= "/federation/on-conversation-memberships-changed"
   F.originDomain req @?= (domainText . qDomain) qconvId
   let Just cmu = decodeStrict (F.body req)
   FederatedGalley.cmuOrigUserId cmu @?= remover

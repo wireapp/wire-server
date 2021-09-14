@@ -45,6 +45,8 @@ instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
 
+-- | For conventions see /docs/developer/federation-api-conventions.md
+--
 -- Maybe this module should be called Brig
 data Api routes = Api
   { getUserByHandle ::

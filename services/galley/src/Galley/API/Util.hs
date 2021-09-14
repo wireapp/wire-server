@@ -464,13 +464,13 @@ runFederated remoteDomain rpc = do
     >>= either (throwM . federationErrorToWai) pure
 
 -- | Convert an internal conversation representation 'Data.Conversation' to
--- 'RegisterConversation' to be sent over the wire to a remote backend that will
+-- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
 -- reconstruct this into multiple public-facing
 -- 'Wire.API.Conversation.Convevrsation' values, one per user from that remote
 -- backend.
 --
 -- FUTUREWORK: Include the team ID as well once it becomes qualified.
-toRegisterConversation ::
+toNewRemoteConversation ::
   -- | The time stamp the conversation was created at
   UTCTime ->
   -- | The domain of the user that created the conversation
@@ -478,9 +478,9 @@ toRegisterConversation ::
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
-  RegisterConversation
-toRegisterConversation now localDomain Data.Conversation {..} =
-  MkRegisterConversation
+  NewRemoteConversation
+toNewRemoteConversation now localDomain Data.Conversation {..} =
+  NewRemoteConversation
     { rcTime = now,
       rcOrigUserId = Qualified convCreator localDomain,
       rcCnvId = Qualified convId localDomain,
@@ -514,16 +514,16 @@ toRegisterConversation now localDomain Data.Conversation {..} =
           omConvRoleName = rmConvRoleName
         }
 
--- | The function converts a 'RegisterConversation' value to a
+-- | The function converts a 'NewRemoteConversation' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
 -- domain/backend. The obtained value can be used in e.g. creating an 'Event' to
 -- be sent out to users informing them that they were added to a new
 -- conversation.
-fromRegisterConversation ::
+fromNewRemoteConversation ::
   Domain ->
-  RegisterConversation ->
+  NewRemoteConversation ->
   [(Public.Member, Public.Conversation)]
-fromRegisterConversation d MkRegisterConversation {..} =
+fromNewRemoteConversation d NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcMembers
    in foldMap
         ( \(me, others) ->
@@ -578,7 +578,7 @@ registerRemoteConversationMemberships ::
   Data.Conversation ->
   Galley ()
 registerRemoteConversationMemberships now localDomain c = do
-  let rc = toRegisterConversation now localDomain c
+  let rc = toNewRemoteConversation now localDomain c
   -- FUTUREWORK: parallelise federated requests
   traverse_ (registerRemoteConversations rc)
     . Map.keys
@@ -589,11 +589,11 @@ registerRemoteConversationMemberships now localDomain c = do
     $ c
   where
     registerRemoteConversations ::
-      RegisterConversation ->
+      NewRemoteConversation ->
       Domain ->
       Galley ()
     registerRemoteConversations rc domain = do
-      let rpc = FederatedGalley.registerConversation FederatedGalley.clientRoutes rc
+      let rpc = FederatedGalley.onConversationCreated FederatedGalley.clientRoutes rc
       runFederated domain rpc
 
 -- | Notify remote backends about changes to the conversation memberships of the
@@ -624,7 +624,7 @@ notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
     notificationRPC :: Domain -> ConversationMemberUpdate -> Domain -> Galley ()
     notificationRPC sendingDomain cmu receivingDomain = do
       let rpc =
-            FederatedGalley.updateConversationMemberships
+            FederatedGalley.onConversationMembershipsChanged
               FederatedGalley.clientRoutes
               sendingDomain
               cmu

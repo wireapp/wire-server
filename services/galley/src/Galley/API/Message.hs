@@ -379,7 +379,7 @@ sendRemoteMessages domain now sender senderClient conv metadata messages = handl
   -- Semantically, the origin domain should be the converation domain. Here one
   -- backend has only one domain so we just pick it from the environment.
   originDomain <- viewFederationDomain
-  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes originDomain rm
+  let rpc = FederatedGalley.onMessageSent FederatedGalley.clientRoutes originDomain rm
   executeFederated domain rpc
   where
     handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
