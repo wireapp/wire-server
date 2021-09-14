@@ -27,7 +27,7 @@ import Test.Wire.API.Golden.Generated.RmClient_user
 import Test.Wire.API.Golden.Generated.SimpleMember_user
 import Test.Wire.API.Golden.Runner
 import Wire.API.Conversation (Conversation, MemberUpdate, NewConvManaged, NewConvUnmanaged, OtherMemberUpdate)
-import Wire.API.User (NewUser)
+import Wire.API.User (NewUser, NewUserPublic)
 import Wire.API.User.Client (RmClient)
 
 tests :: TestTree
@@ -101,5 +101,19 @@ tests =
             testFromJSONFailureWithMsg @NewUser
               (Just "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive")
               "testObject_NewUser_user_6-4.json"
+        ],
+      testGroup "NewUserPublic: failure" $
+        [ testCase "testObject_NewUserPublic_user_1-1.json" $
+            testFromJSONFailureWithMsg @NewUserPublic
+              (Just "SSO-managed users are not allowed here.")
+              "testObject_NewUserPublic_user_1-1.json",
+          testCase "testObject_NewUserPublic_user_1-2.json" $
+            testFromJSONFailureWithMsg @NewUserPublic
+              (Just "it is not allowed to provide a UUID for the users here.")
+              "testObject_NewUserPublic_user_1-2.json",
+          testCase "testObject_NewUserPublic_user_1-3.json" $
+            testFromJSONFailureWithMsg @NewUserPublic
+              (Just "only managed-by-Wire users can be created here.")
+              "testObject_NewUserPublic_user_1-3.json"
         ]
     ]
