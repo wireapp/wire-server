@@ -976,7 +976,7 @@ instance IsMemberUpdate MemberUpdate where
           (a, mupOtrArchiveRef mup, domain, cid, uid)
       for_ (mupHidden mup) $ \h ->
         addPrepQuery
-          Cql.updateRemoteOtrMemberArchived
+          Cql.updateRemoteMemberHidden
           (h, mupHiddenRef mup, domain, cid, uid)
     pure (memberUpdateToData uid mup)
 

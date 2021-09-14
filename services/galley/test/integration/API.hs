@@ -188,6 +188,9 @@ tests s =
           test s "member update (hidden)" putMemberHiddenOk,
           test s "member update (everything b)" putMemberAllOk,
           test s "remote conversation member update (otr mute)" putRemoteConvMemberOtrMuteOk,
+          test s "remote conversation member update (otr archive)" putRemoteConvMemberOtrArchiveOk,
+          test s "remote conversation member update (otr hidden)" putRemoteConvMemberHiddenOk,
+          test s "remote conversation member update (everything)" putRemoteConvMemberAllOk,
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
@@ -2581,8 +2584,32 @@ putMemberAllOk =
     )
 
 putRemoteConvMemberOtrMuteOk :: TestM ()
-putRemoteConvMemberOtrMuteOk =
-  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 0, mupOtrMuteRef = Just "ref"})
+putRemoteConvMemberOtrMuteOk = do
+  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 1, mupOtrMuteRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 0})
+
+putRemoteConvMemberOtrArchiveOk :: TestM ()
+putRemoteConvMemberOtrArchiveOk = do
+  putRemoteConvMemberOk (memberUpdate {mupOtrArchive = Just True, mupOtrArchiveRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupOtrArchive = Just False})
+
+putRemoteConvMemberHiddenOk :: TestM ()
+putRemoteConvMemberHiddenOk = do
+  putRemoteConvMemberOk (memberUpdate {mupHidden = Just True, mupHiddenRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupHidden = Just False})
+
+putRemoteConvMemberAllOk :: TestM ()
+putRemoteConvMemberAllOk =
+  putRemoteConvMemberOk
+    ( memberUpdate
+        { mupOtrMuteStatus = Just 0,
+          mupOtrMuteRef = Just "mref",
+          mupOtrArchive = Just True,
+          mupOtrArchiveRef = Just "aref",
+          mupHidden = Just True,
+          mupHiddenRef = Just "href"
+        }
+    )
 
 putMemberOk :: MemberUpdate -> TestM ()
 putMemberOk update = do
@@ -2695,7 +2722,6 @@ putRemoteConvMemberOk update = do
         x -> assertFailure $ "Unexpected event data: " ++ show x
 
   -- Fetch remote conversation
-
   let bobAsLocal = LocalMember (qUnqualified qbob) defMemberStatus Nothing roleNameWireAdmin
   let mockConversation =
         mkConv
