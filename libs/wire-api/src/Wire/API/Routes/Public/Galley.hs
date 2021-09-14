@@ -25,7 +25,6 @@ import Data.CommaSeparatedList
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.SOP (I (..), NS (..))
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
@@ -71,22 +70,7 @@ type ConversationVerb =
      ]
     ConversationResponse
 
-type UpdateResponses =
-  '[ RespondEmpty 204 "Conversation unchanged",
-     Respond 200 "Conversation updated" Event
-   ]
-
-data UpdateResult
-  = Unchanged
-  | Updated Event
-
-instance AsUnion UpdateResponses UpdateResult where
-  toUnion Unchanged = inject (I ())
-  toUnion (Updated e) = inject (I e)
-
-  fromUnion (Z (I ())) = Unchanged
-  fromUnion (S (Z (I e))) = Updated e
-  fromUnion (S (S x)) = case x of
+type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
 data Api routes = Api
   { -- Conversations
@@ -249,7 +233,7 @@ data Api routes = Api
         :> "members"
         :> "v2"
         :> ReqBody '[Servant.JSON] InviteQualified
-        :> MultiVerb 'POST '[Servant.JSON] UpdateResponses UpdateResult,
+        :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event),
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     removeMemberUnqualified ::

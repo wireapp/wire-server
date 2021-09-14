@@ -65,6 +65,8 @@ type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
+type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
+
 data Api routes = Api
   { -- See Note [ephemeral user sideeffect]
     getUserUnqualified ::
@@ -303,6 +305,7 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> "prekeys"
         :> Get '[JSON] [PrekeyId],
+    -- Connection API -----------------------------------------------------
     --
     -- This endpoint can lead to the following events being sent:
     -- - ConnectionUpdated event to self and other, if any side's connection state changes
@@ -331,6 +334,50 @@ data Api routes = Api
              '[JSON]
              (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
              (ResponseForExistedCreated UserConnection),
+    getConnections ::
+      routes :- Summary "List the connections to other users."
+        :> Description "You can have no more than 1000 connections in accepted or sent state"
+        :> ZUser
+        :> "connections"
+        :> QueryParam' '[Optional, Strict, Description "User ID to start from"] "start" UserId
+        :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
+        :> Get '[JSON] UserConnectionList,
+    getConnection ::
+      routes :- Summary "Get an existing connection to another user."
+        :> ZUser
+        :> "connections"
+        :> CaptureUserId "uid"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ EmptyErrorForLegacyReasons 404 "Connection not found",
+                Respond 200 "Connection found" UserConnection
+              ]
+             (Maybe UserConnection),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConnectionUpdated event to self and other, if their connection states change
+    --
+    -- When changing the connection state to Sent or Accepted, this can cause events to be sent
+    -- when joining the connect conversation:
+    -- - MemberJoin event to self and other (via galley)
+    updateConnection ::
+      routes :- Summary "Update a connection to another user."
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NotConnected
+        :> CanThrow InvalidTransition
+        :> CanThrow NoIdentity
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> CaptureUserId "uid"
+        :> ReqBody '[JSON] ConnectionUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             ConnectionUpdateResponses
+             (UpdateResult UserConnection),
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
