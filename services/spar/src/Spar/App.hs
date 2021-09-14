@@ -236,9 +236,8 @@ getUserByScimExternalId tid email = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: IdP -> UserId -> SAML.UserRef -> Spar ()
-createSamlUserWithId idp buid suid = do
-  let teamid = idp ^. idpExtraInfo . wiTeam
+createSamlUserWithId :: TeamId -> UserId -> SAML.UserRef -> Spar ()
+createSamlUserWithId teamid buid suid = do
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- Intra.createBrigUserSAML suid buid teamid uname ManagedByWire
   assert (buid == buid') $ pure ()
@@ -258,7 +257,7 @@ autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
   guardScimTokens idp
-  createSamlUserWithId idp buid suid
+  createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid
   validateEmailIfExists buid suid
   where
     -- Replaced IdPs are not allowed to create new wire accounts.
