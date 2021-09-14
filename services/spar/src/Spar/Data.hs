@@ -593,20 +593,22 @@ getIdPIdByIssuerAllowOld issuer mbteam = do
               else mbv1v2
     _ -> pure mbv1v2
 
--- | Find 'IdPId' without team.  Search both `issuer_idp` and `issuer_idp_v2`; in the latter,
+-- | Find 'IdPId' without team.  Search both `issuer_idp_v2` and `issuer_idp`; in the former,
 -- make sure the result is unique (no two IdPs for two different teams).
 getIdPIdByIssuerWithoutTeam ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   m (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerWithoutTeam issuer = do
-  (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
-    Just idpid -> pure $ GetIdPFound idpid
-    Nothing ->
-      (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
-        [] -> pure GetIdPNotFound
-        [idpid] -> pure $ GetIdPFound idpid
-        idpids@(_ : _ : _) -> pure $ GetIdPNonUnique idpids
+  (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
+    [] ->
+      (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
+        Just idpid -> pure $ GetIdPFound idpid
+        Nothing -> pure GetIdPNotFound
+    [idpid] ->
+      pure $ GetIdPFound idpid
+    idpids@(_ : _ : _) ->
+      pure $ GetIdPNonUnique idpids
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
