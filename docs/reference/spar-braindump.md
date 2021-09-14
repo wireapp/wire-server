@@ -330,50 +330,76 @@ TODO
 
 ## using the same IdP (same entityID, or Issuer) with different teams
 
-Some SAML IdP vendors do not allow to set up fresh entityIDs for fresh
-apps.  The way...
+Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
+for fresh apps; instead, all apps controlled by the IdP are receiving
+SAML credentials from the same issuer.
+
+In the past, wire has used the a tuple of IdP issuer and 'NameID'
+(Haskell type 'UserRef') to uniquely identity users (tables
+`spar.user_v2` and `spar.issuer_idp`).
+
+In order to allow one IdP to serve more than one team, this has been
+changed: we now allow to identity an IdP by a combination of
+entityID/issuer and wire `TeamId`.  The necessary tweaks to the
+protocol are listed here.
+
+For everybody using IdPs that do not have this limitation, we have
+taken great care to not change the behavior.
 
 
-changes:
+### what you need to know when operating a team or an instance
 
-- a few end-points have been make more flexible by adding an optional
-  teamid to the path: ...
-- /sso/initiate-login returns an AuthnReq with the response url that
-  contains the teamid.
-- schema changes: ...
+No instance-level configuration is required.
 
-we make sure that it doesn't matter whether an IdP calls the
-end-point(s) *with* teamid or *without*.  but the url of the
-finalize-login end-point in the authnreq must match the one the idp
-knows, or there will be an "audience mismatch" error.
+If your IdP supports different entityID / issuer for different apps,
+you don't need to change anything.  We hope to deprecate the old
+flavor of the SAML protocol eventually, but we will keep you posted in
+the release notes, and give you time to react.
 
-we solve this by introducing an IdP API version that is associated
-with every IdP.  the default is V1 (IdP issuer must be unique accross
-the wire instance); V2 (IdP issuer must be unique in the scope of one
-team only, and the API carries the team-id in the places where it's
-needed; see above) can be set actively in `POST /identity-providers`
-by adding query param `api-version=v2`.  this "ensures" that people do
-it only when they got the new metadata file.  (no typesafe way to
-accomplish that, it happens outside of our power.)
+If your IdP does not support different entityID / issuer for different
+apps, keep reading.  At the time of writing this section, there is no
+support for multi-team IdP issuers in team-settings, so you have two
+options: (1) use the rest API directly; or (2) contact our customer
+support and send them the link to this section.
 
+If you feel up to calling the rest API, try the following:
 
+- Use the above end-point `GET /sso/metadata/:tid` with your `TeamId`
+  for pulling the SP metadata.
+- When calling `POST /identity-provider`, make sure to add
+  `?api-version=v2`.  (`?api-version=v1` or no omission of the query
+  param both invoke the old behavior.)
 
-TODO:
-- test creating a v1-idp, then a v2-idp, and then using the two according to their protocol.  (do we need this?  possibly.)
-- finish haddocks above 'Spar.Data.getSAMLUser'.
-  - make sure that we implement the check that user is always a team belonging to the idp.
-  - make sure that we fail with a good error if the idp attempts to provide the user to two teams (or can that even happen?  what *does* happen now in that case?)
-- fix all spar integration tests.
-- add integration test: register same issuer for two teams, provision *different* nameids to both teams.  run full auth flow.
-- in 'getIdPIdByIssuerOld', provide a better error to the UI if two idps are found for different teams.
-- write this section.
-- NTH: call `skipIdPAPIVersions [WireIdPAPIV1]` everywhere /a
+NB: Neither version of the API allows you to provision a user with the
+same Issuer and same NamdID.  RATIONALE: this allows us to implement
+'getSAMLUser' without adding 'TeamId' to 'UserRef', which in turn
+would break the (admittedly leaky) abstarctions of saml2-web-sso.
 
 
+### API changes in more detail
 
-    :> QueryParam' '[Optional, Strict] "api-version" WireIdPAPIVersion
+- New query param `api-version=<v1|v2>` for `POST
+  /identity-providers`.  The version is stored in `spar.idp` together
+  with the rest of the IdP setup, and is used by `GET
+  /sso/initiate-login` (see below).
+- `GET /sso/initiate-login` sends audience based on api-version stored
+  in `spar.idp`: for v1, the audience is `/sso/finalize-login`; for
+  v2, it's `/sso/finalize-login/:tid`.
+- New end-point `POST /sso/finalize-login/:tid` that behaves
+  indistinguishable from `POST /sso/finalize-login`, except when more
+  than one IdP with the same issuer, but different teams are
+  registered.  In that case, this end-point can process the
+  credentials by discriminating on the `TeamId`.
+- `POST /sso/finalize-login/:tid` remains unchanged.
+- New end-point `GET /sso/metadata/:tid` returns the same SP metadata as
+  `GET /sso/metadata`, with the exception that it lists
+  `"/sso/finalize-login/:tid"` as the path of the
+  `AssertionConsumerService` (rather than `"/sso/finalize-login"` as
+  before).
+- `GET /sso/metadata` remains unchanged, and still returns the old SP
+  metadata, without the `TeamId` in the paths.
 
 
-+-- NB: It is not allowed for two distinct wire users from two different teams to have the same
-+-- 'UserRef'.  RATIONALE: this allows us to implement 'getSAMLUser' without adding 'TeamId' to
-+-- 'UserRef' (which in turn would break the (admittedly leaky) abstarctions of saml2-web-sso).
+### database schema changes
+
+[V15](https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43)
