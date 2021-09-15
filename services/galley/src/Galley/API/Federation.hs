@@ -115,7 +115,7 @@ onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
   let qconvId = Qualified (cuConvId cu) requestingDomain
 
-  -- TODO: check that already-present users are indeed in the conversation
+  (presentUsers, allUsersArePresent) <- Data.filterRemoteConvMembers (cuAlreadyPresentUsers cu) qconvId
 
   -- perform action
   extraTargets <- case cuAction cu of
@@ -125,13 +125,22 @@ onConversationUpdated requestingDomain cu = do
       pure localUsers
     Public.ConversationActionRemoveMembers toRemove -> do
       let localUsers = getLocalUsers localDomain toRemove
+      -- TODO: do not remove users that are not in the conversation
       Data.removeLocalMembersFromRemoteConv qconvId localUsers
       pure localUsers
     Public.ConversationActionRename _ -> pure []
 
   -- send notifications
   let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)
-      targets = nubOrd $ cuAlreadyPresentUsers cu <> extraTargets
+      targets = nubOrd $ presentUsers <> extraTargets
+
+  unless allUsersArePresent $
+    Log.warn $
+      Log.field "conversation" (toByteString' (cuConvId cu))
+        Log.~~ Log.field "domain" (toByteString' requestingDomain)
+        Log.~~ Log.msg
+          ("Attempt to notify conversation update to users not in the conversation" :: ByteString)
+
   -- FUTUREWORK: support bots?
   pushConversationEvent Nothing event targets []
 

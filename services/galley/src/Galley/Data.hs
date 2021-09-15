@@ -608,7 +608,7 @@ remoteConversationStatus uid =
 remoteConversationStatusOnDomain :: MonadClient m => UserId -> Domain -> [ConvId] -> m (Map (Remote ConvId) MemberStatus)
 remoteConversationStatusOnDomain uid domain convs =
   Map.fromList . map toPair
-    <$> query Cql.selectRemoteConvMembers (params Quorum (uid, domain, convs))
+    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, domain, convs))
   where
     toPair (conv, omus, omur, oar, oarr, hid, hidr) =
       ( toRemote (Qualified conv domain),
@@ -1025,9 +1025,9 @@ filterRemoteConvMembers users (Qualified conv dom) =
   where
     filterMember :: MonadClient m => UserId -> m [UserId]
     filterMember user =
-      fmap (map (const user))
+      fmap (map runIdentity)
         . retry x1
-        $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, [conv]))
+        $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, conv))
 
 removeLocalMembersFromLocalConv ::
   MonadClient m =>

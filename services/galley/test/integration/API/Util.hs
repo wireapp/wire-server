@@ -107,7 +107,7 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
-import Wire.API.Event.Conversation (_EdMembersLeave)
+import Wire.API.Event.Conversation (_EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
@@ -1327,7 +1327,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
-  evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
+  fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
@@ -1606,7 +1606,7 @@ randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
 randomQualifiedUser = randomUser' False True True
 
 randomQualifiedId :: MonadIO m => Domain -> m (Qualified (Id a))
-randomQualifiedId domain = flip Qualified domain <$> randomId
+randomQualifiedId domain = Qualified <$> randomId <*> pure domain
 
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True

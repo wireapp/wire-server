@@ -64,11 +64,11 @@ tests s =
     "federation"
     [ test s "POST /federation/get-conversations : All Found" getConversationsAllFound,
       test s "POST /federation/get-conversations : Conversations user is not a part of are excluded from result" getConversationsNotPartOf,
-      test s "POST /federation/on-conversation-memberships-changed : Add local user to remote conversation" addLocalUser,
-      test s "POST /federation/on-conversation-memberships-changed : Remove a local user from a remote conversation" removeLocalUser,
-      test s "POST /federation/on-conversation-memberships-changed : Remove a remote user from a remote conversation" removeRemoteUser,
-      test s "POST /federation/on-conversation-memberships-changed : Notify local user about other members joining" notifyLocalUser,
-      test s "POST /federation/on-conversation-metadata-update : Notify local user about conversation rename" notifyConvRename,
+      test s "POST /federation/on-conversation-updated : Add local user to remote conversation" addLocalUser,
+      test s "POST /federation/on-conversation-updated : Notify local user about other members joining" addRemoteUser,
+      test s "POST /federation/on-conversation-updated : Remove a local user from a remote conversation" removeLocalUser,
+      test s "POST /federation/on-conversation-updated : Remove a remote user from a remote conversation" removeRemoteUser,
+      test s "POST /federation/on-conversation-updated : Notify local user about conversation rename" notifyConvRename,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -334,34 +334,57 @@ notifyConvRename = do
         evtData e @?= EdConvRename (ConversationRename "gossip++")
       WS.assertNoEvent (1 # Second) [wsC]
 
-notifyLocalUser :: TestM ()
-notifyLocalUser = do
+-- TODO: test adding non-existing users
+-- TODO: test adding resulting in an empty notification
+
+-- characters:
+--
+-- alice: present local user
+--
+-- bob: present remote user
+--
+-- charlie: not present local user
+--
+-- dee: present local user being added
+--
+-- eve: remote user being added
+--
+-- flo: not present local user being added
+addRemoteUser :: TestM ()
+addRemoteUser = do
   c <- view tsCannon
-  alice <- randomUser
-  bob <- randomId
-  charlie <- randomId
-  conv <- randomId
   let bdom = Domain "bob.example.com"
-      cdom = Domain "charlie.example.com"
-      qbob = Qualified bob bdom
-      qconv = Qualified conv bdom
-      qcharlie = Qualified charlie cdom
+      edom = Domain "eve.example.com"
+  qalice <- randomQualifiedUser
+  qbob <- randomQualifiedId bdom
+  qcharlie <- randomQualifiedUser
+  qdee <- randomQualifiedUser
+  qeve <- randomQualifiedId edom
+  qflo <- randomQualifiedUser
+
+  qconv <- randomQualifiedId bdom
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
+
+  let asOtherMember quid = OtherMember quid Nothing roleNameWireMember
+  registerRemoteConv qconv qbob (Just "gossip") (Set.fromList (map asOtherMember [qalice, qdee, qeve]))
+
+  -- The conversation owning
   let cu =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
             FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [alice],
+            FedGalley.cuConvId = qUnqualified qconv,
+            FedGalley.cuAlreadyPresentUsers = (map qUnqualified [qalice, qcharlie]),
             FedGalley.cuAction =
-              ConversationActionAddMembers (pure (qcharlie, roleNameWireMember))
+              ConversationActionAddMembers ((qdee, roleNameWireMember) :| [(qeve, roleNameWireMember), (qflo, roleNameWireMember)])
           }
-  WS.bracketR c alice $ \ws -> do
+  WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
     FedGalley.onConversationUpdated fedGalleyClient bdom cu
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertMemberJoinWithRole qconv qbob [qcharlie] roleNameWireMember
+    void . liftIO $ do
+      WS.assertMatchN_ (5 # Second) [wsA, wsD, wsF] $
+        wsAssertMemberJoinWithRole qconv qbob [qeve, qdee, qflo] roleNameWireMember
+      WS.assertNoEvent (1 # Second) [wsC]
 
 leaveConversationSuccess :: TestM ()
 leaveConversationSuccess = do

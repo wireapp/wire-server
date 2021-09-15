@@ -336,7 +336,7 @@ data SimpleMember = SimpleMember
   { smQualifiedId :: Qualified UserId,
     smConvRoleName :: RoleName
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SimpleMember)
   deriving (FromJSON, ToJSON) via Schema SimpleMember
 
