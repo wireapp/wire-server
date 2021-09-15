@@ -252,7 +252,10 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnection = createConnection,
+        BrigAPI.createConnectionUnqualified = createConnection,
+        BrigAPI.listConnections = listConnections,
+        BrigAPI.getConnectionUnqualified = getConnection,
+        BrigAPI.updateConnectionUnqualified = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -446,64 +449,6 @@ sitemap = do
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse invalidCode
 
-  -- Connection API -----------------------------------------------------
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  get "/connections" (continue listConnectionsH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. opt (query "start")
-      .&. def (unsafeRange 100) (query "size")
-  document "GET" "connections" $ do
-    Doc.summary "List the connections to other users."
-    Doc.parameter Doc.Query "start" Doc.string' $ do
-      Doc.description "User ID to start from"
-      Doc.optional
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (default 100, max 500)."
-      Doc.optional
-    Doc.returns (Doc.ref Public.modelConnectionList)
-    Doc.response 200 "List of connections" Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to self and other, if their connection states change
-  --
-  -- When changing the connection state to Sent or Accepted, this can cause events to be sent
-  -- when joining the connect conversation:
-  -- - MemberJoin event to self and other (via galley)
-  put "/connections/:id" (continue updateConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. capture "id"
-      .&. jsonRequest @Public.ConnectionUpdate
-  document "PUT" "updateConnection" $ do
-    Doc.summary "Update a connection."
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.body (Doc.ref Public.modelConnectionUpdate) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "Connection updated." Doc.end
-    Doc.response 204 "No change." Doc.end
-    Doc.errorResponse (errorDescriptionToWai connectionLimitReached)
-    Doc.errorResponse invalidTransition
-    Doc.errorResponse (errorDescriptionToWai notConnected)
-    Doc.errorResponse (errorDescriptionToWai invalidUser)
-
-  get "/connections/:id" (continue getConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. capture "id"
-  document "GET" "connection" $ do
-    Doc.summary "Get an existing connection to another user."
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "Connection" Doc.end
-
   -- Properties API -----------------------------------------------------
 
   -- This endpoint can lead to the following events being sent:
@@ -553,6 +498,10 @@ sitemap = do
     Doc.returns (Doc.ref Public.modelPropertyValue)
     Doc.response 200 "The property value." Doc.end
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   get "/properties" (continue listPropertyKeysH) $
     zauthUserId
       .&. accept "application" "json"
@@ -1150,25 +1099,19 @@ createConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Pub
 createConnection self conn cr = do
   API.createConnection self cr conn !>> connError
 
-updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
-updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
-  newStatus <- Public.cuStatus <$> parseJsonBody req
+updateConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection self conn other update = do
+  let newStatus = Public.cuStatus update
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
-  return $ case mc of
-    Just c -> json (c :: Public.UserConnection)
-    Nothing -> setStatus status204 empty
+  return $ maybe Public.Unchanged Public.Updated mc
 
-listConnectionsH :: JSON ::: UserId ::: Maybe UserId ::: Range 1 500 Int32 -> Handler Response
-listConnectionsH (_ ::: uid ::: start ::: size) =
-  json @Public.UserConnectionList
-    <$> lift (API.lookupConnections uid start size)
+listConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
+listConnections uid start msize = do
+  let defaultSize = toRange (Proxy @100)
+  lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
-getConnectionH :: JSON ::: UserId ::: UserId -> Handler Response
-getConnectionH (_ ::: uid ::: uid') = lift $ do
-  conn <- API.lookupConnection uid uid'
-  return $ case conn of
-    Just c -> json (c :: Public.UserConnection)
-    Nothing -> setStatus status404 empty
+getConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
+getConnection uid uid' = lift $ API.lookupConnection uid uid'
 
 deleteUserH :: UserId ::: JsonRequest Public.DeleteUser ::: JSON -> Handler Response
 deleteUserH (u ::: r ::: _) = do

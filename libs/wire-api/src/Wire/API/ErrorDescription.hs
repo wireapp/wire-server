@@ -231,6 +231,11 @@ type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 invalidUser :: InvalidUser
 invalidUser = mkErrorDescription
 
+type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."
+
+invalidTransition :: InvalidTransition
+invalidTransition = mkErrorDescription
+
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
 
 noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc) => Int -> NoIdentity
@@ -274,6 +279,11 @@ type UserNotFound = ErrorDescription 404 "not-found" "User not found"
 
 userNotFound :: UserNotFound
 userNotFound = mkErrorDescription
+
+type ConnectionNotFound = ErrorDescription 404 "not-found" "Connection not found"
+
+connectionNotFound :: ConnectionNotFound
+connectionNotFound = mkErrorDescription
 
 type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
