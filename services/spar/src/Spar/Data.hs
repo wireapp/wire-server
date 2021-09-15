@@ -52,8 +52,6 @@ module Spar.Data
 
     -- * IDPs
     storeIdPConfig,
-    testHotfix1,
-    testHotfix2,
     Replaced (..),
     Replacing (..),
     setReplacedBy,
@@ -466,33 +464,6 @@ storeIdPConfig idp = retry x5 . batch $ do
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
-testHotfix1 ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  TeamId ->
-  m ()
-testHotfix1 issuer team = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency Quorum
-  addPrepQuery del1 (issuer, team)
-  where
-    del1 :: PrepQuery W (SAML.Issuer, TeamId) ()
-    del1 = "DELETE FROM issuer_idp_v2 WHERE issuer = ? and team = ?"
-
-testHotfix2 ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  TeamId ->
-  SAML.IdPId ->
-  m ()
-testHotfix2 issuer team idp = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency Quorum
-  addPrepQuery upd2 (issuer, team, idp)
-  where
-    upd2 :: PrepQuery W (SAML.Issuer, TeamId, SAML.IdPId) ()
-    upd2 = "INSERT INTO issuer_idp_v2 (issuer, team, idp) VALUES (?, ?, ?)"
 
 newtype Replaced = Replaced SAML.IdPId
 
