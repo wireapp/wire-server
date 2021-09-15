@@ -249,6 +249,7 @@ specFinalizeLogin = do
           liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           loginSuccess =<< submitAuthnResponse tid authnresp
+
       context "happy flow (two teams, fixed IdP entityID)" $ do
         it "works" $ do
           skipIdPAPIVersions
@@ -322,18 +323,22 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp
             authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
             loginSuccess =<< submitAuthnResponse teamid authnresp
+
       context "unknown user" $ do
         it "creates the user" $ do
           pending
+
       context "known user A, but client device (probably a browser?) is already authenticated as another (probably non-sso) user B" $ do
         it "logs out user B, logs in user A" $ do
           pending
       -- TODO(arianvp): Ask Matthias what this even means
+
       context "more than one dsig cert" $ do
         it "accepts the first of two certs for signatures" $ do
           pending
         it "accepts the second of two certs for signatures" $ do
           pending
+
     context "unknown IdP Issuer" $ do
       it "rejects" $ do
         (_, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
