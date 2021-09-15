@@ -242,7 +242,8 @@ specFinalizeLogin = do
             let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
             bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-            bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
+            bdy `shouldNotContain` "<title>wire:sso:error:success</title>"
+            bdy `shouldContain` "<title>wire:sso:error:bad-team</title>"
             bdy `shouldContain` "window.opener.postMessage({"
             bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
             bdy `shouldContain` "\"payload\":{"
