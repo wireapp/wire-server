@@ -48,7 +48,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Wire.API.Conversation (ConversationMembersAction (..))
+import Wire.API.Conversation (ConversationMembersAction (..), ConversationMetadataAction (..))
 import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
@@ -68,6 +68,7 @@ tests s =
       test s "POST /federation/on-conversation-memberships-changed : Remove a local user from a remote conversation" removeLocalUser,
       test s "POST /federation/on-conversation-memberships-changed : Remove a remote user from a remote conversation" removeRemoteUser,
       test s "POST /federation/on-conversation-memberships-changed : Notify local user about other members joining" notifyLocalUser,
+      test s "POST /federation/on-conversation-metadata-update : Notify local user about conversation rename" notifyConvRename,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -282,6 +283,37 @@ removeRemoteUser = do
     liftIO $ do
       afterAddition @?= [qconv]
       afterRemoval @?= [qconv]
+
+notifyConvRename :: TestM ()
+notifyConvRename = do
+  c <- view tsCannon
+  alice <- randomUser
+  bob <- randomId
+  conv <- randomId
+  let bdom = Domain "bob.example.com"
+      qbob = Qualified bob bdom
+      qconv = Qualified conv bdom
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cmu =
+        FedGalley.ConversationUpdate
+          { FedGalley.cmuTime = now,
+            FedGalley.cmuOrigUserId = qbob,
+            FedGalley.cmuConvId = conv,
+            FedGalley.cmuAlreadyPresentUsers = [alice],
+            FedGalley.cmuAction =
+              ConversationMetadataActionRename (ConversationRename "gossip++")
+          }
+  WS.bracketR c alice $ \ws -> do
+    FedGalley.onConversationMetadataUpdated fedGalleyClient bdom cmu
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconv
+        evtType e @?= ConvRename
+        evtFrom e @?= qbob
+        evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 notifyLocalUser :: TestM ()
 notifyLocalUser = do
