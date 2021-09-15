@@ -1,5 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures -Wno-unused-imports #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,6 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Federator.InternalServer where
 
 import Control.Lens (view)
@@ -52,6 +54,12 @@ import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 import Wire.Network.DNS.SRV (SrvTarget (..))
+import Prometheus
+import Mu.Rpc (RpcInfo (..), Service (..), Method(..))
+import Control.Monad.Trans.Unlift (MonadBaseControl(StM, liftBaseWith, restoreM))
+import Control.Exception.Lifted (finally)
+import qualified Polysemy.Resource as Polysemy
+import Mu.Instrumentation.Prometheus (prometheus, initPrometheus)
 
 callOutward :: Members '[Remote, Polysemy.Reader RunSettings] r => FederatedRequest -> Sem r OutwardResponse
 callOutward req = do
@@ -121,9 +129,13 @@ mkOutwardErr typ msg = OutwardResponseError $ OutwardError typ msg
 outward :: (Members '[Remote, Polysemy.Error ServerError, Polysemy.Reader RunSettings] r) => SingleServerT info Outward (Sem r) _
 outward = singleService (Mu.method @"call" callOutward)
 
+-- instance MonadMonitor (Sem '[ Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Polysemy.Reader RunSettings, Polysemy.Input TLSSettings, Embed IO, Embed Federator])
+instance MonadMonitor (Sem (r :: '[(* -> *) -> * -> *])) where
+
 serveOutward :: Env -> Int -> IO ()
 serveOutward env port = do
-  runGRpcAppTrans msgProtoBuf port transformer outward
+  muMetrics <- initPrometheus "outward"
+  runGRpcAppTrans msgProtoBuf port transformer (prometheus muMetrics outward)
   where
     transformer ::
       Sem
@@ -151,3 +163,78 @@ serveOutward env port = do
         . runFederatorDiscovery
         . interpretRemote
         $ action
+
+
+
+data MuMetrics
+  = MuMetrics {
+      activeCalls      :: Gauge
+    , messagesSent     :: Vector Label2 Counter
+    , messagesReceived :: Vector Label2 Counter
+    , callsTotal       :: Vector Label2 Histogram
+    }
+
+-- initPrometheus :: Text -> IO MuMetrics
+-- initPrometheus prefix =
+--   MuMetrics <$> register (gauge $ Info (prefix <> "_active_calls") "")
+--             <*> register (vector ("service", "method")
+--                          $ counter $ Info (prefix <> "_messages_sent") "")
+--             <*> register (vector ("service", "method")
+--                          $ counter $ Info (prefix <> "_messages_received") "")
+--             <*> register (vector ("service", "method")
+--                          $ histogram (Info (prefix <> "_calls_total") "")
+--                                      defaultBuckets)
+
+prometheusMetrics :: forall m a info. (MonadMonitor m, MonadBaseControl IO m)
+                  => MuMetrics -> RpcInfo info -> m a -> m a
+prometheusMetrics metrics NoRpcInfo action = do
+  incGauge (activeCalls metrics)
+  action `finally` decGauge (activeCalls metrics)
+prometheusMetrics metrics (RpcInfo _pkg ss mm _ _) action = do
+  let sname' = case ss of
+                 Service sname _ -> sname
+                 OneOf   sname _ -> sname
+      mname' = case mm of
+                 Just (Method mname _ _) -> mname
+                 Nothing                 -> "<noname>"
+  incGauge (activeCalls metrics)
+  withLabel (messagesReceived metrics) (sname', mname') incCounter
+  ( do -- We are forced to use a MVar because 'withLabel' only allows IO ()
+       r <- liftBaseWith $ \runInIO -> do
+         result :: MVar (StM m a) <- newEmptyMVar
+         withLabel (callsTotal metrics) (sname', mname') $ \h ->
+           h `observeDuration` (runInIO action >>= putMVar result)
+         takeMVar result
+       x <- restoreM r
+       withLabel (messagesSent metrics) (sname', mname') incCounter
+       pure x )
+  `finally` decGauge (activeCalls metrics)
+
+
+-- prometheusMetricsNew :: forall r a info. Members [Embed IO, Polysemy.Resource] r
+--                      => MuMetrics -> RpcInfo info -> Sem r a -> Sem r a
+-- prometheusMetricsNew metrics NoRpcInfo action = do
+--   embed @IO $ incGauge (activeCalls metrics)
+--   action `Polysemy.finally` embed @IO (decGauge (activeCalls metrics))
+-- prometheusMetricsNew metrics (RpcInfo _pkg ss mm _ _) action = do
+--   let sname' = case ss of
+--                  Service sname _ -> sname
+--                  OneOf   sname _ -> sname
+--       mname' = case mm of
+--                  Just (Method mname _ _) -> mname
+--                  Nothing                 -> "<noname>"
+--   embed @IO $ incGauge (activeCalls metrics)
+--   embed @IO $ withLabel (messagesReceived metrics) (sname', mname') incCounter
+--   ( do -- We are forced to use a MVar because 'withLabel' only allows IO ()
+--        r <- liftBaseWith $ \runInIO -> do
+--          result :: MVar (StM m a) <- newEmptyMVar
+--          withLabel (callsTotal metrics) (sname', mname') $ \h ->
+--            h `observeDuration` (runInIO action >>= putMVar result)
+--          takeMVar result
+--        x <- restoreM r
+--        withLabel (messagesSent metrics) (sname', mname') incCounter
+--        pure x )
+--   `finally` decGauge (activeCalls metrics)
+
+absorbMonadMonitor :: Member (Embed IO) r => ((MonadMonitor (Sem r), MonadBaseControl IO (Sem r)) => Sem r a) -> Sem r a
+absorbMonadMonitor = undefined

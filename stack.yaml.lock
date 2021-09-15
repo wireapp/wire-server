@@ -657,12 +657,12 @@ packages:
     git: https://github.com/dpwright/HaskellNet-SSL
     commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
 - completed:
-    hackage: mu-rpc-0.4.0.1@sha256:24f2516926a669f860b59d17ed8af6d0704361b5abed30f4e7eb80fb685ae8bc,1383
+    hackage: mu-rpc-0.5.0.1@sha256:6ff07f30d3d8283c71852cb1fa952c9e34a7108b619ec4a92619a96835912f88,1391
     pantry-tree:
       size: 445
-      sha256: 235597681d97b0789bc7437c752658f2585248d889a289c09532e3e535640cfa
+      sha256: bce492cc34a5da696f53482020a216566c053e19091ec779a0b21e1899a74f13
   original:
-    hackage: mu-rpc-0.4.0.1
+    hackage: mu-rpc-0.5.0.1
 - completed:
     hackage: mu-optics-0.3.0.1@sha256:c3494c71c6300e6a0dcb77c9782481150956e912c1b47fccd69cbb795e461d52,1068
     pantry-tree:
@@ -692,12 +692,12 @@ packages:
   original:
     hackage: mu-schema-0.3.1.2
 - completed:
-    hackage: mu-grpc-server-0.4.0.0@sha256:03963b39f5b0887d261106ec03bfabbd4ccd1489e4c59c6cc216b61a4ffdb52c,2682
+    hackage: mu-grpc-server-0.5.0.0@sha256:c67bd7c5dcc87e11ec34ac07b4d18fb1f6de036f58db4176274e6826099fe0a8,2749
     pantry-tree:
       size: 334
-      sha256: e0d51b2551de2ecce35707b3dc3fabfe67cbd206522d363bf2316b08c2ccbfda
+      sha256: e7bed965e015b625216ee54db107f1ecb313ffb6bf2f75898853253d96cf6762
   original:
-    hackage: mu-grpc-server-0.4.0.0
+    hackage: mu-grpc-server-0.5.0.0
 - completed:
     hackage: mu-grpc-client-0.4.0.1@sha256:b09dcf69f0650e0cfd86d6f67544a6350590574f4757f5ee459c57828c3a41ff,2079
     pantry-tree:
@@ -719,6 +719,13 @@ packages:
       sha256: 18996ce535e40483ca2e29397e606aae551552608f96a6a8cc647ce24e24e937
   original:
     hackage: compendium-client-0.2.1.1
+- completed:
+    hackage: mu-prometheus-0.5.0.0@sha256:599e168825eb296df2c17546e2b1d6962d1f17c213226653c2e6de8ee3a32c5f,1209
+    pantry-tree:
+      size: 189
+      sha256: 1785ca2d60e6f3f78d90bbba6c79269193127b3ea75488c9f523bd3b74274745
+  original:
+    hackage: mu-prometheus-0.5.0.0
 - completed:
     hackage: http2-client-0.10.0.0@sha256:85b8771e9e8d4fd0b4327373ebb4a7bc7f9a293e5d7a7dc581ca4153a841da67,2604
     pantry-tree:

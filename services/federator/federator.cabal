@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a181e3a92130220d845ad959ca6e02a217b07a38602513bff4c9376a4ffe145
+-- hash: c8f77756e768d8a5cc8862ab77102c329a2d195d48ee5efdd6c8201bb036d6e5
 
 name:           federator
 version:        1.0.0
@@ -77,16 +77,20 @@ library
     , http2-client-grpc
     , imports
     , lens
+    , lifted-base
     , metrics-core
     , metrics-wai
+    , monad-unlift
     , mtl
     , mu-grpc-client
     , mu-grpc-server
+    , mu-prometheus
     , mu-rpc
     , network-uri
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , prometheus-client
     , retry
     , servant
     , servant-server
@@ -142,16 +146,20 @@ executable federator
     , http2-client-grpc
     , imports
     , lens
+    , lifted-base
     , metrics-core
     , metrics-wai
+    , monad-unlift
     , mtl
     , mu-grpc-client
     , mu-grpc-server
+    , mu-prometheus
     , mu-rpc
     , network-uri
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , prometheus-client
     , retry
     , servant
     , servant-server
@@ -213,17 +221,21 @@ executable federator-integration
     , http2-client-grpc
     , imports
     , lens
+    , lifted-base
     , metrics-core
     , metrics-wai
+    , monad-unlift
     , mtl
     , mu-grpc-client
     , mu-grpc-server
+    , mu-prometheus
     , mu-rpc
     , network-uri
     , optparse-applicative
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , prometheus-client
     , random
     , retry
     , servant
@@ -292,17 +304,21 @@ test-suite federator-tests
     , imports
     , interpolate
     , lens
+    , lifted-base
     , metrics-core
     , metrics-wai
+    , monad-unlift
     , mtl
     , mu-grpc-client
     , mu-grpc-server
+    , mu-prometheus
     , mu-rpc
     , network-uri
     , pem
     , polysemy
     , polysemy-mocks
     , polysemy-wire-zoo
+    , prometheus-client
     , retry
     , servant
     , servant-server

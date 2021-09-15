@@ -210,15 +210,16 @@ extra-deps:
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
 # mu
-- mu-rpc-0.4.0.1
+- mu-rpc-0.5.0.1
 - mu-optics-0.3.0.1
 - mu-avro-0.4.0.4
 - mu-protobuf-0.4.2.0
 - mu-schema-0.3.1.2
-- mu-grpc-server-0.4.0.0
+- mu-grpc-server-0.5.0.0
 - mu-grpc-client-0.4.0.1
 - mu-grpc-common-0.4.0.0
 - compendium-client-0.2.1.1
+- mu-prometheus-0.5.0.0
 # dependencies of mu
 - http2-client-0.10.0.0
 - http2-grpc-types-0.5.0.0
