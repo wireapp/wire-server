@@ -250,7 +250,7 @@ specFinalizeLogin = do
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           loginSuccess =<< submitAuthnResponse tid authnresp
       context "happy flow (two teams, fixed IdP entityID)" $ do
-        it "works" $ do
+        focus . it "works" $ do
           skipIdPAPIVersions
             [ WireIdPAPIV1
             -- (In fact, to get this to work was the reason to introduce 'WireIdPAPIVesion'.)
@@ -261,9 +261,11 @@ specFinalizeLogin = do
             (owner2, tid2) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
             idp2 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner2) metadata
             pure (tid2, idp2)
-          (tid3, idp3) <- liftIO . runHttpT (env ^. teMgr) $ do
-            (owner3, tid3) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            idp3 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner3) metadata
+          (tid3, idp3) <- do
+            (owner3, tid3) <- liftIO . runHttpT (env ^. teMgr) $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            runSparCass $ Data.testHotfix1 (metadata ^. edIssuer) tid2
+            idp3 :: IdP <- liftIO . runHttpT (env ^. teMgr) $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner3) metadata
+            runSparCass $ Data.testHotfix2 (metadata ^. edIssuer) tid2 (idp2 ^. idpId)
             pure (tid3, idp3)
           do
             spmeta <- getTestSPMetadata tid1
