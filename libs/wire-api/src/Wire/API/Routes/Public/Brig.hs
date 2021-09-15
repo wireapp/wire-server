@@ -313,9 +313,8 @@ data Api routes = Api
     -- - ConvCreate event to self, if creating a connect conversation (via galley)
     -- - ConvConnect event to self, in some cases (via galley),
     --   for details see 'Galley.API.Create.createConnectConversation'
-    --
-    createConnection ::
-      routes :- Summary "Create a connection to another user."
+    createConnectionUnqualified ::
+      routes :- Summary "Create a connection to another user. (deprecated)"
         :> CanThrow MissingLegalholdConsent
         :> CanThrow InvalidUser
         :> CanThrow ConnectionLimitReached
@@ -334,7 +333,7 @@ data Api routes = Api
              '[JSON]
              (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
              (ResponseForExistedCreated UserConnection),
-    getConnections ::
+    listConnections ::
       routes :- Summary "List the connections to other users."
         :> Description "You can have no more than 1000 connections in accepted or sent state"
         :> ZUser
@@ -342,8 +341,8 @@ data Api routes = Api
         :> QueryParam' '[Optional, Strict, Description "User ID to start from"] "start" UserId
         :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
         :> Get '[JSON] UserConnectionList,
-    getConnection ::
-      routes :- Summary "Get an existing connection to another user."
+    getConnectionUnqualified ::
+      routes :- Summary "Get an existing connection to another user. (deprecated)"
         :> ZUser
         :> "connections"
         :> CaptureUserId "uid"
@@ -360,8 +359,8 @@ data Api routes = Api
     -- When changing the connection state to Sent or Accepted, this can cause events to be sent
     -- when joining the connect conversation:
     -- - MemberJoin event to self and other (via galley)
-    updateConnection ::
-      routes :- Summary "Update a connection to another user."
+    updateConnectionUnqualified ::
+      routes :- Summary "Update a connection to another user. (deprecated)"
         :> CanThrow MissingLegalholdConsent
         :> CanThrow InvalidUser
         :> CanThrow ConnectionLimitReached

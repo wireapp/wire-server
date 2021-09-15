@@ -252,10 +252,10 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnection = createConnection,
-        BrigAPI.getConnections = listConnections,
-        BrigAPI.getConnection = getConnection,
-        BrigAPI.updateConnection = updateConnection,
+        BrigAPI.createConnectionUnqualified = createConnection,
+        BrigAPI.listConnections = listConnections,
+        BrigAPI.getConnectionUnqualified = getConnection,
+        BrigAPI.updateConnectionUnqualified = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
 
