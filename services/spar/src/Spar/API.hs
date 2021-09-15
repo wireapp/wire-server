@@ -374,8 +374,8 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   case idp of
     Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
     Data.GetIdPNotFound -> pure ()
-    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res -- database inconsistency
-    res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible
+    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
+    res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- impossible
     Data.GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
 
   pure SAML.IdPConfig {..}
@@ -426,8 +426,8 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
         notInUseByOthers <- case foundConfig of
           Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
           Data.GetIdPNotFound -> pure True
-          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible
-          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible (because team id was used in lookup)
+          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible
+          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
           Data.GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
           then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
