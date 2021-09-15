@@ -1,4 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -15,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Wire.API.Routes.Public.Brig where
 
@@ -69,12 +70,19 @@ type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
 type DeleteSelfResponses =
   '[ RespondEmpty 200 "Deletion is initiated.",
-     Respond 202 "Deletion is pending verification with a code." DeletionCodeTimeout
+     RespondWithDeletionCodeTimeout
    ]
 
+newtype RespondWithDeletionCodeTimeout
+  = RespondWithDeletionCodeTimeout
+      (Respond 202 "Deletion is pending verification with a code." DeletionCodeTimeout)
+  deriving (IsResponse '[JSON], IsSwaggerResponse)
+
+type instance ResponseType RespondWithDeletionCodeTimeout = DeletionCodeTimeout
+
 instance AsUnion DeleteSelfResponses (Maybe Timeout) where
-  toUnion Nothing = Z (I ())
   toUnion (Just t) = S (Z (I (DeletionCodeTimeout t)))
+  toUnion Nothing = Z (I ())
   fromUnion (Z (I ())) = Nothing
   fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
   fromUnion (S (S x)) = case x of
