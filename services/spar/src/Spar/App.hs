@@ -214,7 +214,7 @@ getUserByUref mbteam uref = do
         Nothing -> pure GetUserNotFound
         Just user
           | isNothing (userTeam user) -> pure GetUserNoTeam
-          | mbteam /= userTeam user -> pure GetUserWrongTeam
+          | isJust mbteam && mbteam /= userTeam user -> pure GetUserWrongTeam
           | otherwise -> pure $ GetUserFound user
 
 data GetUserResult usr
