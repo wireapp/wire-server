@@ -124,8 +124,8 @@ import qualified Wire.API.Event.Conversation as Public
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
-import Wire.API.Routes.Public.Galley (UpdateResult (..))
 import Wire.API.Routes.Public.Galley.Responses
+import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User.Client
@@ -168,7 +168,7 @@ unblockConv usr conn cnv = do
 
 -- conversation updates
 
-handleUpdateResult :: UpdateResult -> Response
+handleUpdateResult :: UpdateResult Event -> Response
 handleUpdateResult = \case
   Updated ev -> json ev & setStatus status200
   Unchanged -> empty & setStatus status204
@@ -178,7 +178,7 @@ updateConversationAccessH (usr ::: zcon ::: cnv ::: req) = do
   update <- fromJsonBody req
   handleUpdateResult <$> updateConversationAccess usr zcon cnv update
 
-updateConversationAccess :: UserId -> ConnId -> ConvId -> Public.ConversationAccessUpdate -> Galley UpdateResult
+updateConversationAccess :: UserId -> ConnId -> ConvId -> Public.ConversationAccessUpdate -> Galley (UpdateResult Event)
 updateConversationAccess usr zcon cnv update = do
   let targetAccess = Set.fromList (toList (cupAccess update))
       targetRole = cupAccessRole update
@@ -298,7 +298,7 @@ updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
   update <- fromJsonBody req
   handleUpdateResult <$> updateConversationReceiptMode usr zcon cnv update
 
-updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> Public.ConversationReceiptModeUpdate -> Galley UpdateResult
+updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> Public.ConversationReceiptModeUpdate -> Galley (UpdateResult Event)
 updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.ConversationReceiptModeUpdate target) = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
@@ -323,7 +323,7 @@ updateConversationMessageTimerH (usr ::: zcon ::: cnv ::: req) = do
   timerUpdate <- fromJsonBody req
   handleUpdateResult <$> updateConversationMessageTimer usr zcon cnv timerUpdate
 
-updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley UpdateResult
+updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
 updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
@@ -441,7 +441,7 @@ joinConversationByReusableCodeH (zusr ::: zcon ::: req) = do
   convCode <- fromJsonBody req
   handleUpdateResult <$> joinConversationByReusableCode zusr zcon convCode
 
-joinConversationByReusableCode :: UserId -> ConnId -> Public.ConversationCode -> Galley UpdateResult
+joinConversationByReusableCode :: UserId -> ConnId -> Public.ConversationCode -> Galley (UpdateResult Event)
 joinConversationByReusableCode zusr zcon convCode = do
   c <- verifyReusableCode convCode
   joinConversation zusr zcon (codeConversation c) CodeAccess
@@ -450,11 +450,11 @@ joinConversationByIdH :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Respons
 joinConversationByIdH (zusr ::: zcon ::: cnv ::: _) =
   handleUpdateResult <$> joinConversationById zusr zcon cnv
 
-joinConversationById :: UserId -> ConnId -> ConvId -> Galley UpdateResult
+joinConversationById :: UserId -> ConnId -> ConvId -> Galley (UpdateResult Event)
 joinConversationById zusr zcon cnv =
   joinConversation zusr zcon cnv LinkAccess
 
-joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley UpdateResult
+joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley (UpdateResult Event)
 joinConversation zusr zcon cnv access = do
   conv <- ensureConversationAccess zusr cnv access
   let newUsers = filter (notIsMember conv) [zusr]
@@ -474,7 +474,7 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   let qInvite = Public.InviteQualified (flip Qualified domain <$> toNonEmpty u) r
   handleUpdateResult <$> addMembers zusr zcon cid qInvite
 
-addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley UpdateResult
+addMembers :: UserId -> ConnId -> ConvId -> Public.InviteQualified -> Galley (UpdateResult Event)
 addMembers zusr zcon convId invite = do
   conv <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
   let mems = localBotsAndUsers (Data.convLocalMembers conv)
@@ -998,7 +998,7 @@ rmBotH (zusr ::: zcon ::: req) = do
   bot <- fromJsonBody req
   handleUpdateResult <$> rmBot zusr zcon bot
 
-rmBot :: UserId -> Maybe ConnId -> RemoveBot -> Galley UpdateResult
+rmBot :: UserId -> Maybe ConnId -> RemoveBot -> Galley (UpdateResult Event)
 rmBot zusr zcon b = do
   c <- Data.conversation (b ^. rmBotConv) >>= ifNothing (errorDescriptionToWai convNotFound)
   localDomain <- viewFederationDomain
@@ -1038,7 +1038,7 @@ addToConversation ::
   [(Remote UserId, RoleName)] ->
   -- | The conversation to modify
   Data.Conversation ->
-  Galley UpdateResult
+  Galley (UpdateResult Event)
 addToConversation _ _ _ _ [] [] _ = pure Unchanged
 addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn newLocals newRemotes c = do
   ensureGroupConvThrowing c
