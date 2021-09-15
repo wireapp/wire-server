@@ -182,6 +182,7 @@ tests s =
           test s "rename conversation (deprecated endpoint)" putConvDeprecatedRenameOk,
           test s "rename conversation" putConvRenameOk,
           test s "rename qualified conversation" putQualifiedConvRenameOk,
+          test s "rename qualified conversation with remote members" putQualifiedConvRenameWithRemotesOk,
           test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
           test s "other member update role" putOtherMemberOk,
           test s "qualified other member update role" putQualifiedOtherMemberOk,
@@ -2505,6 +2506,44 @@ putQualifiedConvRenameOk = do
       evtType e @?= ConvRename
       evtFrom e @?= qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
+
+putQualifiedConvRenameWithRemotesOk :: TestM ()
+putQualifiedConvRenameWithRemotesOk = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+
+  resp <- postConvWithRemoteUser remoteDomain (mkProfile qalice (Name "Alice")) bob [qalice]
+  let qconv = decodeQualifiedConvId resp
+
+  opts <- view tsGConf
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator opts remoteDomain (const ()) $
+        putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      FederatedGalley.cuConvId cu @?= qUnqualified qconv
+      FederatedGalley.cuAction cu @?= ConversationActionRename (ConversationRename "gossip++")
+
+    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvRename
+      evtFrom e @?= qbob
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
 
 putConvDeprecatedRenameOk :: TestM ()
 putConvDeprecatedRenameOk = do

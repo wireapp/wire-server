@@ -989,9 +989,9 @@ putOtherMember from to m c = do
       . zType "access"
       . json m
 
-putQualifiedConversationName :: UserId -> Qualified ConvId -> Text -> TestM ResponseLBS
+putQualifiedConversationName :: (HasGalley m, MonadIO m, MonadHttp m, MonadMask m) => UserId -> Qualified ConvId -> Text -> m ResponseLBS
 putQualifiedConversationName u c n = do
-  g <- view tsGalley
+  g <- viewGalley
   let update = ConversationRename n
   put
     ( g
