@@ -78,10 +78,8 @@ getConversationsAllFound = do
   let aliceQ = Qualified alice (Domain "far-away.example.com")
 
   -- create & get group conv
-  localDomain <- viewFederationDomain
-  carlQ <- Qualified <$> randomUser <*> pure localDomain
+  carlQ <- randomQualifiedUser
   connectUsers bob (singleton (qUnqualified carlQ))
-
 
   cnv2 <-
     responseJsonError
