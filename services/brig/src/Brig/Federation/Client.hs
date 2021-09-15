@@ -75,7 +75,7 @@ claimMultiPrekeyBundle domain uc = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   executeFederated domain $ FederatedBrig.claimMultiPrekeyBundle clientRoutes uc
 
-searchUsers :: Domain -> SearchRequest -> FederationAppIO (Public.SearchResult Public.Contact)
+searchUsers :: Domain -> SearchRequest -> FederationAppIO [Public.Contact]
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm

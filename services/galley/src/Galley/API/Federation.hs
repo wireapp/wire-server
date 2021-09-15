@@ -75,8 +75,9 @@ federationSitemap =
         FederationAPIGalley.sendMessage = sendMessage
       }
 
-onConversationCreated :: NewRemoteConversation -> Galley ()
-onConversationCreated rc = do
+onConversationCreated :: Domain -> NewRemoteConversation ConvId -> Galley ()
+onConversationCreated domain rc = do
+  let qrc = fmap (`Qualified` domain) rc
   localDomain <- viewFederationDomain
   let localUsers =
         foldMap (\om -> guard (qDomain (omQualifiedId om) == localDomain) $> omQualifiedId om)
@@ -84,12 +85,12 @@ onConversationCreated rc = do
           $ rc
       localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
-    Data.addLocalMembersToRemoteConv localUserIds (rcCnvId rc)
-  forM_ (fromNewRemoteConversation localDomain rc) $ \(mem, c) -> do
+    Data.addLocalMembersToRemoteConv localUserIds (rcCnvId qrc)
+  forM_ (fromNewRemoteConversation localDomain qrc) $ \(mem, c) -> do
     let event =
           Event
             ConvCreate
-            (rcCnvId rc)
+            (rcCnvId qrc)
             (rcOrigUserId rc)
             (rcTime rc)
             (EdConversation c)

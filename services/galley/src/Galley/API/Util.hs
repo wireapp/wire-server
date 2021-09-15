@@ -478,12 +478,12 @@ toNewRemoteConversation ::
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
-  NewRemoteConversation
+  NewRemoteConversation ConvId
 toNewRemoteConversation now localDomain Data.Conversation {..} =
   NewRemoteConversation
     { rcTime = now,
       rcOrigUserId = Qualified convCreator localDomain,
-      rcCnvId = Qualified convId localDomain,
+      rcCnvId = convId,
       rcCnvType = convType,
       rcCnvAccess = convAccess,
       rcCnvAccessRole = convAccessRole,
@@ -521,7 +521,7 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
 -- conversation.
 fromNewRemoteConversation ::
   Domain ->
-  NewRemoteConversation ->
+  NewRemoteConversation (Qualified ConvId) ->
   [(Public.Member, Public.Conversation)]
 fromNewRemoteConversation d NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcMembers
@@ -589,11 +589,11 @@ registerRemoteConversationMemberships now localDomain c = do
     $ c
   where
     registerRemoteConversations ::
-      NewRemoteConversation ->
+      NewRemoteConversation ConvId ->
       Domain ->
       Galley ()
     registerRemoteConversations rc domain = do
-      let rpc = FederatedGalley.onConversationCreated FederatedGalley.clientRoutes rc
+      let rpc = FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
       runFederated domain rpc
 
 -- | Notify remote backends about changes to the conversation memberships of the
