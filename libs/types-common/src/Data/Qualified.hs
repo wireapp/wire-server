@@ -23,6 +23,8 @@ module Data.Qualified
     Qualified (..),
     Remote,
     toRemote,
+    Local,
+    toLocal,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionRemoteOrLocalIds',
@@ -65,6 +67,13 @@ type Remote a = Tagged "remote" (Qualified a)
 -- | Convert a Qualified something to a Remote something.
 toRemote :: Qualified a -> Remote a
 toRemote = Tagged
+
+-- | A type representing a Qualified value where the domain is guaranteed to be
+-- the local one.
+type Local a = Tagged "local" (Qualified a)
+
+toLocal :: Qualified a -> Local a
+toLocal = Tagged
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors

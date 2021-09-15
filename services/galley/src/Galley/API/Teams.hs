@@ -742,7 +742,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       let qconvId = Qualified (Data.convId dc) localDomain
           qusr = Qualified zusr localDomain
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
-      let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
+      let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPushLocal (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon

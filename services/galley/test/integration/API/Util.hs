@@ -70,7 +70,7 @@ import Data.UUID.V4
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types hiding (InternalMember, MemberJoin, MemberLeave, memConvRoleName, memId, memOtrArchived, memOtrArchivedRef, memOtrMutedRef)
+import Galley.Types
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
@@ -107,7 +107,6 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
-import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
@@ -945,12 +944,12 @@ getSelfMember u c = do
       . zConn "conn"
       . zType "access"
 
-putMember :: UserId -> MemberUpdate -> ConvId -> TestM ResponseLBS
-putMember u m c = do
+putMember :: UserId -> MemberUpdate -> Qualified ConvId -> TestM ResponseLBS
+putMember u m (Qualified c dom) = do
   g <- view tsGalley
   put $
     g
-      . paths ["conversations", toByteString' c, "self"]
+      . paths ["conversations", toByteString' dom, toByteString' c, "self"]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -1868,20 +1867,26 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
-mkConv :: Qualified ConvId -> UserId -> Member -> [OtherMember] -> Conversation
-mkConv cnvId creator selfMember otherMembers =
-  Conversation
-    { cnvQualifiedId = cnvId,
-      cnvType = RegularConv,
-      cnvCreator = creator,
-      cnvAccess = [],
-      cnvAccessRole = ActivatedAccessRole,
-      cnvName = Just "federated gossip",
-      cnvMembers = ConvMembers selfMember otherMembers,
-      cnvTeam = Nothing,
-      cnvMessageTimer = Nothing,
-      cnvReceiptMode = Nothing
-    }
+mkConv ::
+  Qualified ConvId ->
+  UserId ->
+  RoleName ->
+  [OtherMember] ->
+  FederatedGalley.RemoteConversation
+mkConv cnvId creator selfRole otherMembers =
+  FederatedGalley.RemoteConversation
+    ( ConversationMetadata
+        cnvId
+        RegularConv
+        creator
+        []
+        ActivatedAccessRole
+        (Just "federated gossip")
+        Nothing
+        Nothing
+        Nothing
+    )
+    (FederatedGalley.RemoteConvMembers selfRole otherMembers)
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()
@@ -2183,7 +2188,7 @@ checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberJoin
+  e ^. eventType @?= TE.MemberJoin
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberJoin uid)
 
@@ -2191,7 +2196,7 @@ checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Test
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberLeave
+  e ^. eventType @?= TE.MemberLeave
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberLeave usr)
 
@@ -2199,7 +2204,7 @@ checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> Tea
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamUpdate
+  e ^. eventType @?= TE.TeamUpdate
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdTeamUpdate upd)
 
@@ -2216,7 +2221,7 @@ checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamDelete
+  e ^. eventType @?= TE.TeamDelete
   e ^. eventTeam @?= tid
   e ^. eventData @?= Nothing
 

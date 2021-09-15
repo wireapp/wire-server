@@ -55,15 +55,16 @@ module Galley.Data
 
     -- * Conversations
     Conversation (..),
+    convMetadata,
     acceptConnect,
     conversation,
     conversationIdsFrom,
     localConversationIdsOf,
-    remoteConversationIdOf,
+    remoteConversationStatus,
     localConversationIdsPageFrom,
     conversationIdRowsForPagination,
-    conversationMeta,
     conversations,
+    conversationMeta,
     conversationsRemote,
     createConnectConversation,
     createConversation,
@@ -191,7 +192,7 @@ mkResultSet page = ResultSet (result page) typ
       | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
-schemaVersion = 52
+schemaVersion = 53
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -535,12 +536,22 @@ toConv cid mms remoteMems conv =
   where
     f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms remoteMems ti del timer rm
 
-conversationMeta :: MonadClient m => ConvId -> m (Maybe ConversationMeta)
-conversationMeta conv =
+conversationMeta :: MonadClient m => Domain -> ConvId -> m (Maybe ConversationMetadata)
+conversationMeta localDomain conv =
   fmap toConvMeta
     <$> retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
+    toConvMeta (t, c, a, r, n, i, _, mt, rm) =
+      ConversationMetadata
+        (Qualified conv localDomain)
+        t
+        c
+        (defAccess t a)
+        (maybeRole t r)
+        n
+        i
+        mt
+        rm
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::
@@ -582,16 +593,27 @@ localConversationIdsOf :: forall m. (MonadClient m, MonadUnliftIO m) => UserId -
 localConversationIdsOf usr cids = do
   runIdentity <$$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
--- | Takes a list of remote conversation ids and splits them by those found for
--- the given user
-remoteConversationIdOf :: forall m. (MonadClient m, MonadLogger m, MonadUnliftIO m) => UserId -> [Remote ConvId] -> m [Remote ConvId]
-remoteConversationIdOf usr cnvs = do
-  concat <$$> pooledMapConcurrentlyN 8 findRemoteConvs . Map.assocs . partitionQualified . map unTagged $ cnvs
+-- | Takes a list of remote conversation ids and fetches member status flags
+-- for the given user
+remoteConversationStatus ::
+  (MonadClient m, MonadUnliftIO m) =>
+  UserId ->
+  [Remote ConvId] ->
+  m (Map (Remote ConvId) MemberStatus)
+remoteConversationStatus uid =
+  fmap mconcat
+    . pooledMapConcurrentlyN 8 (uncurry (remoteConversationStatusOnDomain uid))
+    . partitionRemote
+
+remoteConversationStatusOnDomain :: MonadClient m => UserId -> Domain -> [ConvId] -> m (Map (Remote ConvId) MemberStatus)
+remoteConversationStatusOnDomain uid domain convs =
+  Map.fromList . map toPair
+    <$> query Cql.selectRemoteConvMembers (params Quorum (uid, domain, convs))
   where
-    findRemoteConvs :: (Domain, [ConvId]) -> m [Remote ConvId]
-    findRemoteConvs (domain, remoteConvIds) = do
-      foundCnvs <- runIdentity <$$> query Cql.selectRemoteConvMembershipIn (params Quorum (usr, domain, remoteConvIds))
-      pure $ toRemote . (`Qualified` domain) <$> foundCnvs
+    toPair (conv, omus, omur, oar, oarr, hid, hidr) =
+      ( toRemote (Qualified conv domain),
+        toMemberStatus (omus, omur, oar, oarr, hid, hidr)
+      )
 
 conversationsRemote :: (MonadClient m) => UserId -> m [Remote ConvId]
 conversationsRemote usr = do
@@ -701,7 +723,7 @@ deleteConversation :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId
 deleteConversation cid = do
   retry x5 $ write Cql.markConvDeleted (params Quorum (Identity cid))
   mm <- members cid
-  for_ mm $ \m -> removeMember (memId m) cid
+  for_ mm $ \m -> removeMember (lmId m) cid
   retry x5 $ write Cql.deleteConv (params Quorum (Identity cid))
 
 acceptConnect :: MonadClient m => ConvId -> m ()
@@ -743,6 +765,19 @@ newConv cid ct usr mems rMems acc role name tid mtimer rMode =
       convReceiptMode = rMode
     }
 
+convMetadata :: Domain -> Conversation -> ConversationMetadata
+convMetadata localDomain c =
+  ConversationMetadata
+    (Qualified (convId c) localDomain)
+    (convType c)
+    (convCreator c)
+    (convAccess c)
+    (convAccessRole c)
+    (convName c)
+    (convTeam c)
+    (convMessageTimer c)
+    (convReceiptMode c)
+
 defAccess :: ConvType -> Maybe (Set Access) -> [Access]
 defAccess SelfConv Nothing = [PrivateAccess]
 defAccess ConnectConv Nothing = [PrivateAccess]
@@ -781,8 +816,8 @@ member ::
   UserId ->
   m (Maybe LocalMember)
 member cnv usr =
-  fmap (join @Maybe) . traverse toMember
-    =<< retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
+  (toMember =<<)
+    <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
 
 remoteMemberLists ::
   (MonadClient m) =>
@@ -807,15 +842,15 @@ memberLists ::
   m [[LocalMember]]
 memberLists convs = do
   mems <- retry x1 $ query Cql.selectMembers (params Quorum (Identity convs))
-  convMembers <- foldrM (\m acc -> liftA2 insert (mkMem m) (pure acc)) Map.empty mems
+  let convMembers = foldr (\m acc -> insert (mkMem m) acc) mempty mems
   return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
   where
-    insert Nothing acc = acc
-    insert (Just (conv, mem)) acc =
+    insert (_, Nothing) acc = acc
+    insert (conv, Just mem) acc =
       let f = (Just . maybe [mem] (mem :))
        in Map.alter f conv acc
     mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn) =
-      fmap (cnv,) <$> toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn)
+      (cnv, toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn))
 
 members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [LocalMember]
 members conv = join <$> memberLists [conv]
@@ -900,6 +935,20 @@ addLocalMembersToRemoteConv users qconv = do
 
 class IsMemberUpdate mu where
   updateMember :: MonadClient m => ConvId -> UserId -> mu -> m MemberUpdateData
+  updateMemberRemoteConv :: MonadClient m => Remote ConvId -> UserId -> mu -> m MemberUpdateData
+
+memberUpdateToData :: UserId -> MemberUpdate -> MemberUpdateData
+memberUpdateToData uid mup =
+  MemberUpdateData
+    { misTarget = Just uid,
+      misOtrMutedStatus = mupOtrMuteStatus mup,
+      misOtrMutedRef = mupOtrMuteRef mup,
+      misOtrArchived = mupOtrArchive mup,
+      misOtrArchivedRef = mupOtrArchiveRef mup,
+      misHidden = mupHidden mup,
+      misHiddenRef = mupHiddenRef mup,
+      misConvRoleName = Nothing
+    }
 
 instance IsMemberUpdate MemberUpdate where
   updateMember cid uid mup = do
@@ -912,17 +961,24 @@ instance IsMemberUpdate MemberUpdate where
         addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
       for_ (mupHidden mup) $ \h ->
         addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
-    return
-      MemberUpdateData
-        { misTarget = Just uid,
-          misOtrMutedStatus = mupOtrMuteStatus mup,
-          misOtrMutedRef = mupOtrMuteRef mup,
-          misOtrArchived = mupOtrArchive mup,
-          misOtrArchivedRef = mupOtrArchiveRef mup,
-          misHidden = mupHidden mup,
-          misHiddenRef = mupHiddenRef mup,
-          misConvRoleName = Nothing
-        }
+    pure (memberUpdateToData uid mup)
+  updateMemberRemoteConv (Tagged (Qualified cid domain)) uid mup = do
+    retry x5 . batch $ do
+      setType BatchUnLogged
+      setConsistency Quorum
+      for_ (mupOtrMuteStatus mup) $ \ms ->
+        addPrepQuery
+          Cql.updateRemoteOtrMemberMutedStatus
+          (ms, mupOtrMuteRef mup, domain, cid, uid)
+      for_ (mupOtrArchive mup) $ \a ->
+        addPrepQuery
+          Cql.updateRemoteOtrMemberArchived
+          (a, mupOtrArchiveRef mup, domain, cid, uid)
+      for_ (mupHidden mup) $ \h ->
+        addPrepQuery
+          Cql.updateRemoteMemberHidden
+          (h, mupHiddenRef mup, domain, cid, uid)
+    pure (memberUpdateToData uid mup)
 
 instance IsMemberUpdate OtherMemberUpdate where
   updateMember cid uid omu = do
@@ -943,6 +999,20 @@ instance IsMemberUpdate OtherMemberUpdate where
           misConvRoleName = omuConvRoleName omu
         }
 
+  -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-887
+  updateMemberRemoteConv _ _ _ =
+    pure
+      MemberUpdateData
+        { misTarget = Nothing,
+          misOtrMutedStatus = Nothing,
+          misOtrMutedRef = Nothing,
+          misOtrArchived = Nothing,
+          misOtrArchivedRef = Nothing,
+          misHidden = Nothing,
+          misHiddenRef = Nothing,
+          misConvRoleName = Nothing
+        }
+
 -- | Select only the members of a remote conversation from a list of users.
 -- Return the filtered list and a boolean indicating whether the all the input
 -- users are members.
@@ -953,9 +1023,10 @@ filterRemoteConvMembers users (Qualified conv dom) =
     <$> pooledMapConcurrentlyN 8 filterMember users
   where
     filterMember :: MonadClient m => UserId -> m [UserId]
-    filterMember user = do
-      let q = query Cql.selectRemoteConvMembership (params Quorum (user, dom, conv))
-      map runIdentity <$> retry x1 q
+    filterMember user =
+      fmap (map (const user))
+        . retry x1
+        $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, [conv]))
 
 removeLocalMembersFromLocalConv ::
   MonadClient m =>
@@ -1015,25 +1086,41 @@ removeMember usr cnv = retry x5 . batch $ do
   addPrepQuery Cql.removeMember (cnv, usr)
   addPrepQuery Cql.deleteUserConv (usr, cnv)
 
-newMember :: a -> InternalMember a
+newMember :: UserId -> LocalMember
 newMember = flip newMemberWithRole roleNameWireAdmin
 
-newMemberWithRole :: a -> RoleName -> InternalMember a
+newMemberWithRole :: UserId -> RoleName -> LocalMember
 newMemberWithRole u r =
-  InternalMember
-    { memId = u,
-      memService = Nothing,
-      memOtrMutedStatus = Nothing,
-      memOtrMutedRef = Nothing,
-      memOtrArchived = False,
-      memOtrArchivedRef = Nothing,
-      memHidden = False,
-      memHiddenRef = Nothing,
-      memConvRoleName = r
+  LocalMember
+    { lmId = u,
+      lmService = Nothing,
+      lmStatus = defMemberStatus,
+      lmConvRoleName = r
+    }
+
+toMemberStatus ::
+  ( -- otr muted
+    Maybe MutedStatus,
+    Maybe Text,
+    -- otr archived
+    Maybe Bool,
+    Maybe Text,
+    -- hidden
+    Maybe Bool,
+    Maybe Text
+  ) ->
+  MemberStatus
+toMemberStatus (omus, omur, oar, oarr, hid, hidr) =
+  MemberStatus
+    { msOtrMutedStatus = omus,
+      msOtrMutedRef = omur,
+      msOtrArchived = fromMaybe False oar,
+      msOtrArchivedRef = oarr,
+      msHidden = fromMaybe False hid,
+      msHiddenRef = hidr
     }
 
 toMember ::
-  (Log.MonadLogger m, MonadThrow m) =>
   ( UserId,
     Maybe ServiceId,
     Maybe ProviderId,
@@ -1050,24 +1137,16 @@ toMember ::
     -- conversation role name
     Maybe RoleName
   ) ->
-  m (Maybe LocalMember) -- FUTUREWORK: remove monad
-toMember (usr, srv, prv, sta, omus, omur, oar, oarr, hid, hidr, crn) =
-  pure $
-    if sta /= Just 0
-      then Nothing
-      else
-        Just $
-          InternalMember
-            { memId = usr,
-              memService = newServiceRef <$> srv <*> prv,
-              memOtrMutedStatus = omus,
-              memOtrMutedRef = omur,
-              memOtrArchived = fromMaybe False oar,
-              memOtrArchivedRef = oarr,
-              memHidden = fromMaybe False hid,
-              memHiddenRef = hidr,
-              memConvRoleName = fromMaybe roleNameWireAdmin crn
-            }
+  Maybe LocalMember
+toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
+  Just $
+    LocalMember
+      { lmId = usr,
+        lmService = newServiceRef <$> srv <*> prv,
+        lmStatus = toMemberStatus (omus, omur, oar, oarr, hid, hidr),
+        lmConvRoleName = fromMaybe roleNameWireAdmin crn
+      }
+toMember _ = Nothing
 
 -- Clients ------------------------------------------------------------------
 

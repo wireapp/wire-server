@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0acb724202f4ba39242c1ebbe5f5db555404624b7a6be922d5a4148d38c5786d
+-- hash: 0341ec52f506f40a39b7329c4eeccdccf25bcffc81318f535602bfc17e655f58
 
 name:           galley
 version:        0.83.0
@@ -176,6 +176,7 @@ executable galley
     , raw-strings-qq >=1.0
     , safe >=0.3
     , ssl-util
+    , tagged
     , types-common
     , wire-api
     , wire-api-federation
@@ -314,6 +315,7 @@ executable galley-migrate-data
     , raw-strings-qq >=1.0
     , safe >=0.3
     , ssl-util
+    , tagged
     , text
     , time
     , tinylog
@@ -361,6 +363,7 @@ executable galley-schema
       V50_AddLegalholdWhitelisted
       V51_FeatureFileSharing
       V52_FeatureConferenceCalling
+      V53_AddRemoteConvStatus
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -376,6 +379,7 @@ executable galley-schema
     , raw-strings-qq >=1.0
     , safe >=0.3
     , ssl-util
+    , tagged
     , text
     , tinylog
     , wire-api
@@ -413,6 +417,7 @@ test-suite galley-types-tests
     , safe >=0.3
     , servant-swagger
     , ssl-util
+    , tagged
     , tasty
     , tasty-hspec
     , tasty-hunit

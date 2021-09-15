@@ -59,8 +59,10 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
+import Galley.API.Mapping
 import Galley.Options (Opts, optFederator)
-import Galley.Types hiding (InternalMember (..))
+import Galley.Types hiding (LocalMember (..))
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
@@ -79,7 +81,11 @@ import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.API.Galley (GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley
+  ( GetConversationsResponse (..),
+    RemoteConvMembers (..),
+    RemoteConversation (..),
+  )
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
@@ -181,6 +187,10 @@ tests s =
           test s "member update (otr archive)" putMemberOtrArchiveOk,
           test s "member update (hidden)" putMemberHiddenOk,
           test s "member update (everything b)" putMemberAllOk,
+          test s "remote conversation member update (otr mute)" putRemoteConvMemberOtrMuteOk,
+          test s "remote conversation member update (otr archive)" putRemoteConvMemberOtrArchiveOk,
+          test s "remote conversation member update (otr hidden)" putRemoteConvMemberHiddenOk,
+          test s "remote conversation member update (everything)" putRemoteConvMemberAllOk,
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
@@ -225,7 +235,7 @@ emptyFederatedGalley =
       e s = throwError err501 {errBody = cs ("mock not implemented: " <> s)}
    in FederatedGalley.Api
         { FederatedGalley.onConversationCreated = \_ _ -> e "onConversationCreated",
-          FederatedGalley.getConversations = \_ -> e "getConversations",
+          FederatedGalley.getConversations = \_ _ -> e "getConversations",
           FederatedGalley.onConversationMembershipsChanged = \_ _ -> e "onConversationMembershipsChanged",
           FederatedGalley.leaveConversation = \_ _ -> e "leaveConversation",
           FederatedGalley.onMessageSent = \_ _ -> e "onMessageSent",
@@ -880,7 +890,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             }
         galleyApi =
           emptyFederatedGalley
-            { FederatedGalley.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+            { FederatedGalley.onMessageSent = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
             }
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
@@ -914,7 +924,7 @@ postMessageQualifiedRemoteOwningBackendFailure = do
 
   let galleyApi =
         emptyFederatedGalley
-          { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintanance."}
+          { FederatedGalley.sendMessage = \_ _ -> throwError err503 {errBody = "Down for maintenance."}
           }
 
   (resp2, _requests) <-
@@ -1773,13 +1783,24 @@ getConvQualifiedOk = do
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
+  localDomain <- viewFederationDomain
   g <- view tsGalley
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing Nothing
+  let meta =
+        ConversationMetadata
+          (Qualified conv localDomain)
+          RegularConv
+          alice
+          [InviteAccess]
+          ActivatedAccessRole
+          (Just "gossip")
+          Nothing
+          Nothing
+          Nothing
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)
@@ -1874,26 +1895,19 @@ testGetQualifiedRemoteConv = do
   let remoteDomain = Domain "far-away.example.com"
       bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
-      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      aliceAsMember = Member aliceId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      aliceAsLocal = LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
+      aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
+      aliceAsSelfMember = localMemberToSelf aliceAsLocal
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let mockConversation =
-        Conversation
-          { cnvQualifiedId = remoteConvId,
-            cnvType = RegularConv,
-            cnvCreator = bobId,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers aliceAsMember [bobAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
+  let mockConversation = mkConv remoteConvId bobId roleNameWireAdmin [bobAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
+      expected =
+        Conversation
+          (rcnvMetadata mockConversation)
+          (ConvMembers aliceAsSelfMember (rcmOthers (rcnvMembers mockConversation)))
 
   opts <- view tsGConf
   (respAll, _) <-
@@ -1904,9 +1918,7 @@ testGetQualifiedRemoteConv = do
       (getConvQualified aliceId remoteConvId)
 
   conv <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
-  -- FUTUREWORK: The backend should augment returned conversation data with
-  -- Alice's membership data stored locally
-  liftIO $ assertEqual "conversation" mockConversation conv
+  liftIO $ do assertEqual "conversation metadata" expected conv
 
 testGetQualifiedRemoteConvNotFound :: TestM ()
 testGetQualifiedRemoteConvNotFound = do
@@ -1950,20 +1962,7 @@ testListRemoteConvs = do
       remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-      bobAsMember = Member bobId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      mockConversation =
-        Conversation
-          { cnvQualifiedId = remoteConvId,
-            cnvType = RegularConv,
-            cnvCreator = alice,
-            cnvAccess = [],
-            cnvAccessRole = ActivatedAccessRole,
-            cnvName = Just "federated gossip",
-            cnvMembers = ConvMembers bobAsMember [aliceAsOtherMember],
-            cnvTeam = Nothing,
-            cnvMessageTimer = Nothing,
-            cnvReceiptMode = Nothing
-          }
+      mockConversation = mkConv remoteConvId alice roleNameWireAdmin [aliceAsOtherMember]
       remoteConversationResponse = GetConversationsResponse [mockConversation]
   opts <- view tsGConf
 
@@ -1980,9 +1979,9 @@ testListRemoteConvs = do
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
   liftIO $ do
     -- FUTUREWORK: Expect membership metadata to change
-    let expected = mockConversation
+    let expected = remoteConversationView alice defMemberStatus mockConversation
     let actual = find ((== remoteConvId) . cnvQualifiedId) (convList convs)
-    assertEqual "conversations" (Just expected) actual
+    assertEqual "conversations" expected actual
     assertEqual "expecting two conversation: Alice's self conversation and remote one with Bob" 2 (length (convList convs))
 
 -- | Tests getting many converations given their ids.
@@ -2038,11 +2037,10 @@ testBulkGetQualifiedConvs = do
   registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
-      bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
+  let bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
-      mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
-      mockConversationB = mkConv remoteConvIdB carlId aliceAsSelfMember [carlAsOtherMember]
+      mockConversationA = mkConv remoteConvIdA bobId roleNameWireAdmin [bobAsOtherMember]
+      mockConversationB = mkConv remoteConvIdB carlId roleNameWireAdmin [carlAsOtherMember]
       req =
         ListConversationsV2 . unsafeRange $
           [ localConvId,
@@ -2071,7 +2069,12 @@ testBulkGetQualifiedConvs = do
   convs <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
 
   liftIO $ do
-    let expectedFound = sortOn cnvQualifiedId [localConv, mockConversationA, mockConversationB]
+    let expectedFound =
+          sortOn
+            cnvQualifiedId
+            $ maybeToList (remoteConversationView alice defMemberStatus mockConversationA)
+              <> maybeToList (remoteConversationView alice defMemberStatus mockConversationB)
+              <> [localConv]
         actualFound = sortOn cnvQualifiedId $ crFound convs
     assertEqual "found conversations" expectedFound actualFound
 
@@ -2578,6 +2581,34 @@ putMemberAllOk =
         }
     )
 
+putRemoteConvMemberOtrMuteOk :: TestM ()
+putRemoteConvMemberOtrMuteOk = do
+  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 1, mupOtrMuteRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupOtrMuteStatus = Just 0})
+
+putRemoteConvMemberOtrArchiveOk :: TestM ()
+putRemoteConvMemberOtrArchiveOk = do
+  putRemoteConvMemberOk (memberUpdate {mupOtrArchive = Just True, mupOtrArchiveRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupOtrArchive = Just False})
+
+putRemoteConvMemberHiddenOk :: TestM ()
+putRemoteConvMemberHiddenOk = do
+  putRemoteConvMemberOk (memberUpdate {mupHidden = Just True, mupHiddenRef = Just "ref"})
+  putRemoteConvMemberOk (memberUpdate {mupHidden = Just False})
+
+putRemoteConvMemberAllOk :: TestM ()
+putRemoteConvMemberAllOk =
+  putRemoteConvMemberOk
+    ( memberUpdate
+        { mupOtrMuteStatus = Just 0,
+          mupOtrMuteRef = Just "mref",
+          mupOtrArchive = Just True,
+          mupOtrArchiveRef = Just "aref",
+          mupHidden = Just True,
+          mupHiddenRef = Just "href"
+        }
+    )
+
 putMemberOk :: MemberUpdate -> TestM ()
 putMemberOk update = do
   c <- view tsCannon
@@ -2603,7 +2634,7 @@ putMemberOk update = do
           }
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do
-    putMember bob update conv !!! const 200 === statusCode
+    putMember bob update qconv !!! const 200 === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
@@ -2632,6 +2663,92 @@ putMemberOk update = do
     assertEqual "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
     assertEqual "hidden" (memHidden memberBob) (memHidden newBob)
     assertEqual "hidden_ref" (memHiddenRef memberBob) (memHiddenRef newBob)
+
+putRemoteConvMemberOk :: MemberUpdate -> TestM ()
+putRemoteConvMemberOk update = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+
+  -- create a remote conversation with alice
+  let remoteDomain = Domain "bobland.example.com"
+  qbob <- Qualified <$> randomId <*> pure remoteDomain
+  qconv <- Qualified <$> randomId <*> pure remoteDomain
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cmu =
+        FederatedGalley.ConversationMemberUpdate
+          { cmuTime = now,
+            cmuOrigUserId = qbob,
+            cmuConvId = qUnqualified qconv,
+            cmuAlreadyPresentUsers = [],
+            cmuAction =
+              FederatedGalley.ConversationMembersActionAdd (pure (qalice, roleNameWireMember))
+          }
+  FederatedGalley.onConversationMembershipsChanged fedGalleyClient remoteDomain cmu
+
+  -- Expected member state
+  let memberAlice =
+        Member
+          { memId = alice,
+            memService = Nothing,
+            memOtrMutedStatus = mupOtrMuteStatus update,
+            memOtrMutedRef = mupOtrMuteRef update,
+            memOtrArchived = Just True == mupOtrArchive update,
+            memOtrArchivedRef = mupOtrArchiveRef update,
+            memHidden = Just True == mupHidden update,
+            memHiddenRef = mupHiddenRef update,
+            memConvRoleName = roleNameWireMember
+          }
+  -- Update member state & verify push notification
+  WS.bracketR c alice $ \ws -> do
+    putMember alice update qconv !!! const 200 === statusCode
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qalice
+      case evtData e of
+        EdMemberUpdate mis -> do
+          assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
+          assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
+          assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
+          assertEqual "otr_archived_ref" (mupOtrArchiveRef update) (misOtrArchivedRef mis)
+          assertEqual "hidden" (mupHidden update) (misHidden mis)
+          assertEqual "hidden_ref" (mupHiddenRef update) (misHiddenRef mis)
+        x -> assertFailure $ "Unexpected event data: " ++ show x
+
+  -- Fetch remote conversation
+  let bobAsLocal = LocalMember (qUnqualified qbob) defMemberStatus Nothing roleNameWireAdmin
+  let mockConversation =
+        mkConv
+          qconv
+          (qUnqualified qbob)
+          roleNameWireMember
+          [localMemberToOther remoteDomain bobAsLocal]
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
+  opts <- view tsGConf
+  (rs, _) <-
+    withTempMockFederator
+      opts
+      remoteDomain
+      (const remoteConversationResponse)
+      $ getConvQualified alice qconv
+        <!! const 200 === statusCode
+
+  -- Verify new member state
+  let alice' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
+  liftIO $ do
+    assertBool "user" (isJust alice')
+    let newAlice = fromJust alice'
+    assertEqual "id" (memId memberAlice) (memId newAlice)
+    assertEqual "otr_muted_status" (memOtrMutedStatus memberAlice) (memOtrMutedStatus newAlice)
+    assertEqual "otr_muted_ref" (memOtrMutedRef memberAlice) (memOtrMutedRef newAlice)
+    assertEqual "otr_archived" (memOtrArchived memberAlice) (memOtrArchived newAlice)
+    assertEqual "otr_archived_ref" (memOtrArchivedRef memberAlice) (memOtrArchivedRef newAlice)
+    assertEqual "hidden" (memHidden memberAlice) (memHidden newAlice)
+    assertEqual "hidden_ref" (memHiddenRef memberAlice) (memHiddenRef newAlice)
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do

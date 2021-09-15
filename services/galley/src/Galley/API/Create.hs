@@ -332,7 +332,7 @@ notifyCreatedConversation dtime usr conn c = do
     toPush dom t m = do
       let qconv = Qualified (Data.convId c) dom
           qusr = Qualified usr dom
-      c' <- conversationView (memId m) c
+      c' <- conversationView (lmId m) c
       let e = Event ConvCreate qconv qusr t (EdConversation c')
       return $
         newPushLocal1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])

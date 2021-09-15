@@ -61,7 +61,7 @@ import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
 import Galley.Intra.User (getConnections, putConnectionInternal)
 import qualified Galley.Options as Opts
-import Galley.Types (LocalMember, memConvRoleName, memId)
+import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types (status200, status404)
@@ -492,12 +492,12 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
 
         membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
           let mems = Data.convLocalMembers conv
-          uidsLHStatus <- getLHStatusForUsers (memId <$> mems)
+          uidsLHStatus <- getLHStatusForUsers (lmId <$> mems)
           pure $
             zipWith
               ( \mem (mid, status) ->
-                  assert (memId mem == mid) $
-                    if memId mem == uid
+                  assert (lmId mem == mid) $
+                    if lmId mem == uid
                       then (mem, hypotheticalLHStatus)
                       else (mem, status)
               )
@@ -507,10 +507,10 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
         let qconv = Data.convId conv `Qualified` localDomain
         if any
           ((== ConsentGiven) . consentGiven . snd)
-          (filter ((== roleNameWireAdmin) . memConvRoleName . fst) membersAndLHStatus)
+          (filter ((== roleNameWireAdmin) . lmConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (memId memberNoConsent `Qualified` localDomain) Nothing qconv (Qualified (memId memberNoConsent) localDomain)
+              removeMember (lmId memberNoConsent `Qualified` localDomain) Nothing qconv (Qualified (lmId memberNoConsent) localDomain)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember (memId legalholder `Qualified` localDomain) Nothing qconv (Qualified (memId legalholder) localDomain)
+              removeMember (lmId legalholder `Qualified` localDomain) Nothing qconv (Qualified (lmId legalholder) localDomain)
