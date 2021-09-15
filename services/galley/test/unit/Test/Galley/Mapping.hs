@@ -109,7 +109,7 @@ genLocalMember =
     <$> arbitrary
     <*> pure defMemberStatus
     <*> pure Nothing
-    <*> pure roleNameWireAdmin
+    <*> arbitrary
 
 genRemoteMember :: Gen RemoteMember
 genRemoteMember = RemoteMember <$> arbitrary <*> pure roleNameWireMember
