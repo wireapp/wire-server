@@ -1107,7 +1107,7 @@ updateConnection self conn other update = do
 
 listConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
 listConnections uid start msize = do
-  let defaultSize = unsafeRange 100
+  let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
 getConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)

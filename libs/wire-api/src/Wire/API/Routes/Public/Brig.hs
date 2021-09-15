@@ -335,10 +335,9 @@ data Api routes = Api
              (ResponseForExistedCreated UserConnection),
     listConnections ::
       routes :- Summary "List the connections to other users."
-        :> Description "You can have no more than 1000 connections in accepted or sent state"
         :> ZUser
         :> "connections"
-        :> QueryParam' '[Optional, Strict, Description "User ID to start from"] "start" UserId
+        :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
         :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
         :> Get '[JSON] UserConnectionList,
     getConnectionUnqualified ::
