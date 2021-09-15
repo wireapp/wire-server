@@ -74,10 +74,10 @@ tests s =
 
 getConversationsAllFound :: TestM ()
 getConversationsAllFound = do
-  [alice, bob] <- randomUsers 2
-  let aliceQ = Qualified alice (Domain "far-away.example.com")
+  bob <- randomUser
 
   -- create & get group conv
+  aliceQ <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
   carlQ <- randomQualifiedUser
   connectUsers bob (singleton (qUnqualified carlQ))
 
@@ -99,7 +99,10 @@ getConversationsAllFound = do
     FedGalley.getConversations
       fedGalleyClient
       (qDomain aliceQ)
-      (GetConversationsRequest alice $ qUnqualified . cnvQualifiedId <$> [cnv2])
+      ( GetConversationsRequest
+          (qUnqualified aliceQ)
+          (map (qUnqualified . cnvQualifiedId) [cnv2])
+      )
 
   let c2 = find ((== cnvQualifiedId cnv2) . cnvmQualifiedId . rcnvMetadata) cs
 
