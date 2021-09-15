@@ -375,7 +375,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
     Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
     Data.GetIdPNotFound -> pure ()
     res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
-    res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- impossible
+    Data.GetIdPNonUnique ids' {- same team didn't yield anything, but there are at least two other teams with this issuer already -} -> handleIdPClash (Left ids')
     Data.GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
 
   pure SAML.IdPConfig {..}
