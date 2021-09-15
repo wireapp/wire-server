@@ -235,6 +235,21 @@ specFinalizeLogin = do
             bdy `shouldContain` "<title>wire:sso:success</title>"
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Right ()
+
+      let loginFailure :: HasCallStack => ResponseLBS -> TestSpar ()
+          loginFailure sparresp = liftIO $ do
+            statusCode sparresp `shouldBe` 200
+            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+            bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
+            bdy `shouldContain` "window.opener.postMessage({"
+            bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+            bdy `shouldContain` "\"payload\":{"
+            bdy `shouldContain` "\"label\":\"forbidden\""
+            bdy `shouldContain` "}, receiverOrigin)"
+            hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
+
       context "happy flow" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           env <- ask
@@ -281,6 +296,31 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp3
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid3 authnresp
+
+      context "idp sends user to two teams with same issuer, nameid" $ do
+        it "fails" $ do
+          skipIdPAPIVersions
+            [ WireIdPAPIV1
+            -- (In fact, to get this to work was the reason to introduce 'WireIdPAPIVesion'.)
+            ]
+          env <- ask
+          (_, tid1, idp1, (IdPMetadataValue _ metadata, privcreds)) <- registerTestIdPWithMeta
+          (tid2, idp2) <- liftIO . runHttpT (env ^. teMgr) $ do
+            (owner2, tid2) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            idp2 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner2) metadata
+            pure (tid2, idp2)
+          subj <- liftIO $ SAML.unspecifiedNameID . UUID.toText <$> UUID.nextRandom
+          do
+            spmeta <- getTestSPMetadata tid1
+            authnreq <- negotiateAuthnRequest idp1
+            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp1 spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse tid1 authnresp
+          do
+            spmeta <- getTestSPMetadata tid2
+            authnreq <- negotiateAuthnRequest idp2
+            authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp2 spmeta authnreq True
+            loginFailure =<< submitAuthnResponse tid2 authnresp
+
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
           (ownerid, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
