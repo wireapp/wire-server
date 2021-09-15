@@ -24,6 +24,22 @@ module Wire.API.Event.Conversation
     EventType (..),
     EventData (..),
 
+    -- * Event lenses
+    _EdMembersJoin,
+    _EdMembersLeave,
+    _EdConnect,
+    _EdConvReceiptModeUpdate,
+    _EdConvRename,
+    _EdConvDelete,
+    _EdConvAccessUpdate,
+    _EdConvMessageTimerUpdate,
+    _EdConvCodeUpdate,
+    _EdConvCodeDelete,
+    _EdMemberUpdate,
+    _EdConversation,
+    _EdTyping,
+    _EdOtrMessage,
+
     -- * Event data helpers
     SimpleMember (..),
     smId,

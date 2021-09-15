@@ -107,6 +107,7 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
+import Wire.API.Event.Conversation (_EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
@@ -1355,7 +1356,7 @@ assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  evtData e @?= EdMembersLeave (QualifiedUserIdList leaving)
+  fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave) @?= Just (sort leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1409,7 +1410,7 @@ assertNoMsg ws f = do
 
 assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
-  F.path req @?= "/federation/on-conversation-memberships-changed"
+  F.path req @?= "/federation/on-conversation-updated"
   F.originDomain req @?= (domainText . qDomain) qconvId
   let Just cu = decodeStrict (F.body req)
   FederatedGalley.cuOrigUserId cu @?= remover
