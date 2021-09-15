@@ -1,5 +1,9 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
+{-# LANGUAGE RecordWildCards             #-}
+
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,6 +23,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | The 'Spar' monad and a set of actions (e.g. 'createUser') that can be performed in it.
+{-# OPTIONS_GHC -Wno-missing-methods #-}
 module Spar.App
   ( Spar (..),
     Env (..),
@@ -79,7 +84,7 @@ import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data
+import qualified Spar.Data as Data hiding (insertSAMLUser, getSAMLUser, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, deleteSAMLUsersByIssuer, deleteSAMLUser)
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
@@ -93,9 +98,22 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Polysemy
+import Polysemy.Final
+import Spar.Sem.SAMLUser (SAMLUser)
+import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.Sem.SAMLUser.Cassandra (samlUserToCassandra, interpretClientToIO)
 
-newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
+newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
+  deriving (Functor)
+
+instance Applicative (Spar r)
+instance Monad (Spar r)
+instance MonadReader Env (Spar r)
+instance MonadError SparError (Spar r)
+
+instance MonadIO (Spar r) where
+  liftIO m = Spar $ lift $ lift $ embedFinal m
 
 data Env = Env
   { sparCtxOpts :: Opts,
@@ -107,23 +125,24 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
-instance HasConfig Spar where
+instance HasConfig (Spar r) where
   getConfig = asks (saml . sparCtxOpts)
 
-instance HasNow Spar
+instance HasNow (Spar r)
 
-instance HasCreateUUID Spar
+instance HasCreateUUID (Spar r)
 
-instance HasLogger Spar where
+instance HasLogger (Spar r) where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
   logger lv = log (toLevel lv) . Log.msg
 
-instance MonadLogger Spar where
+instance MonadLogger (Spar r) where
   log level mg = do
     lg <- asks sparCtxLogger
     reqid <- asks sparCtxRequestId
     let fields = Log.field "request" (unRequestId reqid)
-    Spar . Log.log lg level $ fields Log.~~ mg
+    undefined
+    -- Spar $ Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
@@ -134,46 +153,64 @@ toLevel = \case
   SAML.Debug -> Log.Debug
   SAML.Trace -> Log.Trace
 
-instance SPStoreID AuthnRequest Spar where
+instance SPStoreID AuthnRequest (Spar r) where
   storeID i r = wrapMonadClientWithEnv $ Data.storeAReqID i r
   unStoreID r = wrapMonadClient $ Data.unStoreAReqID r
   isAliveID r = wrapMonadClient $ Data.isAliveAReqID r
 
-instance SPStoreID Assertion Spar where
+instance SPStoreID Assertion (Spar r) where
   storeID i r = wrapMonadClientWithEnv $ Data.storeAssID i r
   unStoreID r = wrapMonadClient $ Data.unStoreAssID r
   isAliveID r = wrapMonadClient $ Data.isAliveAssID r
 
-instance SPStoreIdP SparError Spar where
-  type IdPConfigExtra Spar = WireIdP
+instance SPStoreIdP SparError (Spar r) where
+  type IdPConfigExtra (Spar r) = WireIdP
 
-  storeIdPConfig :: IdP -> Spar ()
+  storeIdPConfig :: IdP -> Spar r ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar IdP
+  getIdPConfig :: IdPId -> Spar r IdP
   getIdPConfig = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar IdP
+  getIdPConfigByIssuer :: Issuer -> Spar r IdP
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
 -- don't need either of those, 'wrapMonadClient' will suffice.
-wrapMonadClientWithEnv :: forall a. ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Spar a
+wrapMonadClientWithEnv :: forall r a. ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Spar r a
 wrapMonadClientWithEnv action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
   either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
 
+instance Member (Final IO) r => Catch.MonadThrow (Sem r) where
+  throwM = embedFinal . Catch.throwM @IO
+
+instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
+  catch m handler = withStrategicToFinal @IO $ do
+    m' <- runS m
+    st <- getInitialStateS
+    handler' <- bindS handler
+    pure $ m' `Catch.catch` \e -> handler' $ e <$ st
+
+
+--     embedFinal $ runM m `Catch.catch` (runM . handler)
+
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
-wrapMonadClient :: Cas.Client a -> Spar a
+wrapMonadClient :: Cas.Client a -> Spar r a
 wrapMonadClient action = do
   Spar $ do
     ctx <- asks sparCtxCas
-    runClient ctx action
-      `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
+    -- TODO(sandy): Figure this out!
+    undefined
+    -- runClient ctx action
+    --   `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
-insertUser :: SAML.UserRef -> UserId -> Spar ()
-insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
+wrapMonadClientSem :: Sem r a -> Spar r a
+wrapMonadClientSem action = Spar $ lift $ lift $ action
+
+insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
+insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
 
 -- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
 -- argument), then in brig, then return the 'UserId'.  If either lookup fails, or user is not
@@ -192,9 +229,9 @@ insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 -- the team with valid SAML credentials.
 --
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR.  (in https://github.com/wireapp/wire-server/pull/1410, undo https://github.com/wireapp/wire-server/pull/1418)
-getUserByUref :: SAML.UserRef -> Spar (Maybe UserId)
+getUserByUref :: Member SAMLUser r => SAML.UserRef -> Spar r (Maybe UserId)
 getUserByUref uref = do
-  muid <- wrapMonadClient $ Data.getSAMLUser uref
+  muid <- wrapMonadClientSem $ SAMLUser.get uref
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -203,7 +240,7 @@ getUserByUref uref = do
       pure $ if itis then Just uid else Nothing
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
-getUserByScimExternalId :: TeamId -> Email -> Spar (Maybe UserId)
+getUserByScimExternalId :: TeamId -> Email -> Spar r (Maybe UserId)
 getUserByScimExternalId tid email = do
   muid <- wrapMonadClient $ (Data.lookupScimExternalId tid email)
   case muid of
@@ -229,7 +266,7 @@ getUserByScimExternalId tid email = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
+createSamlUserWithId :: Member SAMLUser r => UserId -> SAML.UserRef -> ManagedBy -> Spar r ()
 createSamlUserWithId buid suid managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
@@ -239,14 +276,14 @@ createSamlUserWithId buid suid managedBy = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: SAML.UserRef -> ManagedBy -> Spar UserId
+autoprovisionSamlUser :: Member SAMLUser r => SAML.UserRef -> ManagedBy -> Spar r UserId
 autoprovisionSamlUser suid managedBy = do
   buid <- Id <$> liftIO UUID.nextRandom
   autoprovisionSamlUserWithId buid suid managedBy
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
+autoprovisionSamlUserWithId :: Member SAMLUser r => UserId -> SAML.UserRef -> ManagedBy -> Spar r ()
 autoprovisionSamlUserWithId buid suid managedBy = do
   idp <- getIdPConfigByIssuer (suid ^. uidTenant)
   unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
@@ -264,12 +301,12 @@ autoprovisionSamlUserWithId buid suid managedBy = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
+validateEmailIfExists :: UserId -> SAML.UserRef -> Spar r ()
 validateEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
   _ -> pure ()
   where
-    doValidate :: SAML.Email -> Spar ()
+    doValidate :: SAML.Email -> Spar r ()
     doValidate email = do
       enabled <- do
         tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
@@ -283,10 +320,10 @@ validateEmailIfExists uid = \case
 --
 -- Before returning, change account status or fail if account is nto active or pending an
 -- invitation.
-bindUser :: UserId -> SAML.UserRef -> Spar UserId
+bindUser :: Member SAMLUser r => UserId -> SAML.UserRef -> Spar r UserId
 bindUser buid userref = do
   oldStatus <- do
-    let err :: Spar a
+    let err :: Spar r a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid :: TeamId <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
     acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
@@ -304,31 +341,31 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance SPHandler SparError Spar where
-  type NTCTX Spar = Env
-  nt :: forall a. Env -> Spar a -> Handler a
+instance (r ~ '[SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+  type NTCTX (Spar r) = Env
+  nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
     err <- actionHandler
     throwErrorAsHandlerException err
     where
       actionHandler :: Handler (Either SparError a)
-      actionHandler = liftIO $ runExceptT $ runReaderT action ctx
+      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO $ samlUserToCassandra @Cas.Client $ runExceptT $ runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
       throwErrorAsHandlerException (Right a) = pure a
 
-instance MonadHttp Spar where
+instance MonadHttp (Spar r) where
   handleRequestWithCont req handler = do
     manager <- asks sparCtxHttpManager
     liftIO $ withResponse req manager handler
 
-instance Intra.MonadSparToBrig Spar where
+instance Intra.MonadSparToBrig (Spar r) where
   call modreq = do
     req <- asks sparCtxHttpBrig
     httpLbs req modreq
 
-instance Intra.MonadSparToGalley Spar where
+instance Intra.MonadSparToGalley (Spar r) where
   call modreq = do
     req <- asks sparCtxHttpGalley
     httpLbs req modreq
@@ -342,7 +379,7 @@ instance Intra.MonadSparToGalley Spar where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => Maybe BindCookie -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
 verdictHandler cky aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
@@ -364,16 +401,16 @@ data VerdictHandlerResult
   | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
   deriving (Eq, Show)
 
-verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResult bindCky verdict = do
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
   SAML.logger SAML.Debug (show result)
   pure result
 
-catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
+catchVerdictErrors :: Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
 catchVerdictErrors = (`catchError` hndlr)
   where
-    hndlr :: SparError -> Spar VerdictHandlerResult
+    hndlr :: SparError -> Spar r VerdictHandlerResult
     hndlr err = do
       logr <- asks sparCtxLogger
       waiErr <- renderSparErrorWithLogging logr err
@@ -384,10 +421,10 @@ catchVerdictErrors = (`catchError` hndlr)
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
 -- traverse the old IdPs in search for the old entry.  Return that old entry.
-findUserWithOldIssuer :: SAML.UserRef -> Spar (Maybe (SAML.UserRef, UserId))
+findUserWithOldIssuer :: forall r. Member SAMLUser r => SAML.UserRef -> Spar r (Maybe (SAML.UserRef, UserId))
 findUserWithOldIssuer (SAML.UserRef issuer subject) = do
   idp <- getIdPConfigByIssuer issuer
-  let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar (Maybe (SAML.UserRef, UserId))
+  let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar r (Maybe (SAML.UserRef, UserId))
       tryFind found@(Just _) _ = pure found
       tryFind Nothing oldIssuer = (uref,) <$$> getUserByUref uref
         where
@@ -396,13 +433,13 @@ findUserWithOldIssuer (SAML.UserRef issuer subject) = do
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
-moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar ()
+moveUserToNewIssuer :: Member SAMLUser r => SAML.UserRef -> SAML.UserRef -> UserId -> Spar r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
-  wrapMonadClient $ Data.insertSAMLUser newUserRef uid
+  wrapMonadClientSem $ SAMLUser.insert newUserRef uid
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
-  wrapMonadClient $ Data.deleteSAMLUser uid oldUserRef
+  wrapMonadClientSem $ SAMLUser.delete uid oldUserRef
 
-verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResultCore :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResultCore bindCky = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
@@ -451,7 +488,7 @@ verdictHandlerResultCore bindCky = \case
 -- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
 --   not be the title of any page sent by the IdP while it negotiates with the user.
 -- - The page broadcasts a message to '*', to be picked up by the app.
-verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
+verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar r SAML.ResponseVerdict
 verdictHandlerWeb =
   pure . \case
     VerifyHandlerGranted cky _uid -> successPage cky
@@ -522,7 +559,7 @@ easyHtml doc =
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
 -- substituted and the client is redirected accordingly.
-verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar SAML.ResponseVerdict
+verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar r SAML.ResponseVerdict
 verdictHandlerMobile granted denied = \case
   VerifyHandlerGranted cky uid ->
     mkVerdictGrantedFormatMobile granted cky uid

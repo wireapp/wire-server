@@ -66,7 +66,6 @@ where
 
 import Control.Lens
 import Control.Monad.Catch (try)
-import Control.Monad.Except
 import Data.String.Conversions (cs)
 import Imports
 import qualified SAML2.WebSSO as SAML
@@ -91,6 +90,9 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
+import Control.Monad.Except
+import Polysemy
+import Spar.Sem.SAMLUser (SAMLUser)
 
 -- | SCIM config for our server.
 --
@@ -99,7 +101,7 @@ import Wire.API.User.Scim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim :: ServerT APIScim Spar
+apiScim :: Member SAMLUser r => ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken
@@ -115,7 +117,7 @@ apiScim =
     -- Let's hope that SCIM clients can handle non-SCIM-formatted errors
     -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
     -- for why it's hard to catch impure exceptions.
-    wrapScimErrors :: Spar a -> Spar a
+    wrapScimErrors :: (Spar r) a -> (Spar r) a
     wrapScimErrors = over _Spar $ \act -> \env -> do
       result :: Either SomeException (Either SparError a) <- try (act env)
       case result of
@@ -160,5 +162,10 @@ server conf =
 
 -- | An isomorphism that unwraps the Spar stack (@Spar . ReaderT . ExceptT@) into a
 -- newtype-less form that's easier to work with.
-_Spar :: Iso' (Spar a) (Env -> IO (Either SparError a))
-_Spar = coerced
+-- TODO(sandy): This iso breaks the abstraction boundary between Spar and its
+-- implementation.
+_Spar :: Iso' ((Spar r) a) (Env -> IO (Either SparError a))
+_Spar = undefined
+-- iso (fmap (runM . runExceptT) . runReaderT . fromSpar)
+--             (Spar . ReaderT . fmap (ExceptT . embed))
+

@@ -14,7 +14,7 @@ description:   'See README.md'
 ghc-options:
 - -j
 - -Wno-redundant-constraints
-- -Werror
+# - -Werror
 
 dependencies:
   - aeson
@@ -52,6 +52,8 @@ dependencies:
   - mtl
   - network-uri
   - optparse-applicative
+  - polysemy
+  - polysemy-plugin
   - raw-strings-qq
   - retry
   - saml2-web-sso >= 0.18

@@ -57,9 +57,9 @@ import Wire.API.User.Saml (maxScimTokens)
 import Wire.API.User.Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
-instance Scim.Class.Auth.AuthDB SparTag Spar where
+instance Scim.Class.Auth.AuthDB SparTag (Spar r) where
   -- Validate and resolve a given token
-  authCheck :: Maybe ScimToken -> Scim.ScimHandler Spar ScimTokenInfo
+  authCheck :: Maybe ScimToken -> Scim.ScimHandler (Spar r) ScimTokenInfo
   authCheck Nothing =
     Scim.throwScim (Scim.unauthorized "Token not provided")
   authCheck (Just token) =
@@ -73,7 +73,7 @@ instance Scim.Class.Auth.AuthDB SparTag Spar where
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: ServerT APIScimToken Spar
+apiScimToken :: ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -87,7 +87,7 @@ createScimToken ::
   Maybe UserId ->
   -- | Request body
   CreateScimToken ->
-  Spar CreateScimTokenResponse
+  Spar r CreateScimTokenResponse
 createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
@@ -98,7 +98,7 @@ createScimToken zusr CreateScimToken {..} = do
     E.throwSpar E.SparProvisioningTokenLimitReached
   idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
 
-  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar CreateScimTokenResponse
+  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
         token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
         tokenid <- randomId
@@ -132,7 +132,7 @@ deleteScimToken ::
   -- | Who is trying to delete a token
   Maybe UserId ->
   ScimTokenId ->
-  Spar NoContent
+  Spar r NoContent
 deleteScimToken zusr tokenid = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   wrapMonadClient $ Data.deleteScimToken teamid tokenid
@@ -145,7 +145,7 @@ deleteScimToken zusr tokenid = do
 listScimTokens ::
   -- | Who is trying to list tokens
   Maybe UserId ->
-  Spar ScimTokenList
+  Spar r ScimTokenList
 listScimTokens zusr = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   ScimTokenList <$> wrapMonadClient (Data.getScimTokens teamid)
