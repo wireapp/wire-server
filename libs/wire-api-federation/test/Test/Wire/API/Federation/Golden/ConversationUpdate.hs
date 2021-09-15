@@ -15,9 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Federation.Golden.ConversationMemberUpdate
-  ( testObject_ConversationMemberUpdate1,
-    testObject_ConversationMemberUpdate2,
+module Test.Wire.API.Federation.Golden.ConversationUpdate
+  ( testObject_ConversationUpdate1,
+    testObject_ConversationUpdate2,
   )
 where
 
@@ -27,9 +27,9 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Qualified (Qualified (Qualified))
 import qualified Data.UUID as UUID
 import Imports
-import Wire.API.Conversation (ConversationMembersAction (..))
+import Wire.API.Conversation (ConversationAction (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate, ConversationUpdate (..))
+import Wire.API.Federation.API.Galley (ConversationUpdate (..))
 
 qAlice, qBob :: Qualified UserId
 qAlice =
@@ -45,30 +45,30 @@ chad, dee :: UserId
 chad = Id (fromJust (UUID.fromString "00000fff-0000-0000-0000-000100005007"))
 dee = Id (fromJust (UUID.fromString "00000fff-0000-aaaa-0000-000100005007"))
 
-testObject_ConversationMemberUpdate1 :: ConversationMemberUpdate
-testObject_ConversationMemberUpdate1 =
+testObject_ConversationUpdate1 :: ConversationUpdate
+testObject_ConversationUpdate1 =
   ConversationUpdate
-    { cmuTime = read "1864-04-12 12:22:43.673 UTC",
-      cmuOrigUserId =
+    { cuTime = read "1864-04-12 12:22:43.673 UTC",
+      cuOrigUserId =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
-      cmuConvId =
+      cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
-      cmuAlreadyPresentUsers = [],
-      cmuAction = ConversationMembersActionAdd ((qAlice, roleNameWireMember) :| [(qBob, roleNameWireAdmin)])
+      cuAlreadyPresentUsers = [],
+      cuAction = ConversationActionAddMembers ((qAlice, roleNameWireMember) :| [(qBob, roleNameWireAdmin)])
     }
 
-testObject_ConversationMemberUpdate2 :: ConversationMemberUpdate
-testObject_ConversationMemberUpdate2 =
+testObject_ConversationUpdate2 :: ConversationUpdate
+testObject_ConversationUpdate2 =
   ConversationUpdate
-    { cmuTime = read "1864-04-12 12:22:43.673 UTC",
-      cmuOrigUserId =
+    { cuTime = read "1864-04-12 12:22:43.673 UTC",
+      cuOrigUserId =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
-      cmuConvId =
+      cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
-      cmuAlreadyPresentUsers = [chad, dee],
-      cmuAction = ConversationMembersActionRemove (qAlice :| [qBob])
+      cuAlreadyPresentUsers = [chad, dee],
+      cuAction = ConversationActionRemoveMembers (qAlice :| [qBob])
     }

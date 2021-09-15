@@ -33,9 +33,8 @@ import Wire.API.Conversation
   ( Access,
     AccessRole,
     ConvType,
-    ConversationMembersAction (..),
+    ConversationAction (..),
     ConversationMetadata,
-    ConversationMetadataAction (..),
     ReceiptMode,
   )
 import Wire.API.Conversation.Member (OtherMember)
@@ -70,23 +69,14 @@ data Api routes = Api
         :> OriginDomainHeader
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] GetConversationsResponse,
-    -- used by backend that owns the conversation to inform the backend about
-    -- add/removal of its users to the conversation
-    onConversationMembershipsChanged ::
-      routes
-        :- "federation"
-        :> "on-conversation-memberships-changed"
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] ConversationMemberUpdate
-        :> Post '[JSON] (),
     -- used by the backend that owns a conversation to inform this backend of
-    -- changes to the conversation metadata
-    onConversationMetadataUpdated ::
+    -- changes to the conversation
+    onConversationUpdated ::
       routes
         :- "federation"
-        :> "on-conversation-metadata-updated"
+        :> "on-conversation-updated"
         :> OriginDomainHeader
-        :> ReqBody '[JSON] ConversationMetadataUpdate
+        :> ReqBody '[JSON] ConversationUpdate
         :> Post '[JSON] (),
     leaveConversation ::
       routes
@@ -176,28 +166,24 @@ data NewRemoteConversation conv = NewRemoteConversation
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
 
-type ConversationMemberUpdate = ConversationUpdate ConversationMembersAction
-
-type ConversationMetadataUpdate = ConversationUpdate ConversationMetadataAction
-
-data ConversationUpdate action = ConversationUpdate
-  { cmuTime :: UTCTime,
-    cmuOrigUserId :: Qualified UserId,
+data ConversationUpdate = ConversationUpdate
+  { cuTime :: UTCTime,
+    cuOrigUserId :: Qualified UserId,
     -- | The unqualified ID of the conversation where the update is happening.
     -- The ID is local to prevent putting arbitrary domain that is different
     -- than that of the backend making a conversation membership update request.
-    cmuConvId :: ConvId,
+    cuConvId :: ConvId,
     -- | A list of users from a remote backend that need to be sent
     -- notifications about this change. This is required as we do not expect a
     -- non-conversation owning backend to have an indexed mapping of
     -- conversation to users.
-    cmuAlreadyPresentUsers :: [UserId],
+    cuAlreadyPresentUsers :: [UserId],
     -- | Information on the specific action that caused the update.
-    cmuAction :: action
+    cuAction :: ConversationAction
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform (ConversationUpdate action))
-  deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationUpdate action))
+  deriving (Arbitrary) via (GenericUniform ConversationUpdate)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationUpdate)
 
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which

@@ -67,8 +67,7 @@ module Wire.API.Conversation
     ConversationAccessUpdate (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
-    ConversationMembersAction (..),
-    ConversationMetadataAction (..),
+    ConversationAction (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -932,15 +931,10 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
 
 -- | A conversation membership update, as given by 'ConversationMemberUpdate',
 -- can be either a member addition or removal.
-data ConversationMembersAction
-  = ConversationMembersActionAdd (NonEmpty (Qualified UserId, RoleName))
-  | ConversationMembersActionRemove (NonEmpty (Qualified UserId))
+data ConversationAction
+  = ConversationActionAddMembers (NonEmpty (Qualified UserId, RoleName))
+  | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
+  | ConversationActionRename ConversationRename
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
-
-data ConversationMetadataAction
-  = ConversationMetadataActionRename ConversationRename
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMetadataAction)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMetadataAction)
+  deriving (Arbitrary) via (GenericUniform ConversationAction)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)

@@ -24,7 +24,7 @@ import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.Id (ConvId, UserId)
 import Data.Json.Util (Base64ByteString (..))
-import Data.List1 (list1)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified (Qualified (..), toRemote)
@@ -49,9 +49,7 @@ import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-  ( ConversationMemberUpdate,
-    ConversationMetadataUpdate,
-    ConversationUpdate (..),
+  ( ConversationUpdate (..),
     GetConversationsRequest (..),
     GetConversationsResponse (..),
     LeaveConversationRequest (..),
@@ -71,8 +69,7 @@ federationSitemap =
     FederationAPIGalley.Api
       { FederationAPIGalley.onConversationCreated = onConversationCreated,
         FederationAPIGalley.getConversations = getConversations,
-        FederationAPIGalley.onConversationMembershipsChanged = onConversationMembershipsChanged,
-        FederationAPIGalley.onConversationMetadataUpdated = onConversationMetadataUpdated,
+        FederationAPIGalley.onConversationUpdated = onConversationUpdated,
         FederationAPIGalley.leaveConversation = leaveConversation,
         FederationAPIGalley.onMessageSent = onMessageSent,
         FederationAPIGalley.sendMessage = sendMessage
@@ -88,7 +85,7 @@ onConversationCreated domain rc = do
           $ rc
       localUserIds = fmap qUnqualified localUsers
   unless (null localUsers) $ do
-    Data.addLocalMembersToRemoteConv localUserIds (rcCnvId qrc)
+    Data.addLocalMembersToRemoteConv (rcCnvId qrc) localUserIds
   forM_ (fromNewRemoteConversation localDomain qrc) $ \(mem, c) -> do
     let event =
           Event
@@ -108,56 +105,35 @@ getConversations domain (GetConversationsRequest uid cids) = do
     . map (Mapping.conversationToRemote localDomain ruid)
     <$> Data.conversations cids
 
+getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
+getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
+
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
-onConversationMembershipsChanged :: Domain -> ConversationMemberUpdate -> Galley ()
-onConversationMembershipsChanged requestingDomain cmu = do
+onConversationUpdated :: Domain -> ConversationUpdate -> Galley ()
+onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
-  let users = case cmuAction cmu of
-        Public.ConversationMembersActionAdd toAdd -> fst <$> toAdd
-        Public.ConversationMembersActionRemove toRemove -> toRemove
-      localUsers = filter ((== localDomain) . qDomain) . toList $ users
-      localUserIds = qUnqualified <$> localUsers
-      targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
-      qconvId = Qualified (cmuConvId cmu) requestingDomain
-  event <- case cmuAction cmu of
-    Public.ConversationMembersActionAdd toAdd -> do
-      unless (null localUsers) $
-        Data.addLocalMembersToRemoteConv localUserIds qconvId
-      let mems = SimpleMembers (map (uncurry SimpleMember) . toList $ toAdd)
-      pure $
-        Event
-          MemberJoin
-          qconvId
-          (cmuOrigUserId cmu)
-          (cmuTime cmu)
-          (EdMembersJoin mems)
-    Public.ConversationMembersActionRemove toRemove -> do
-      case localUserIds of
-        [] -> pure ()
-        (h : t) ->
-          Data.removeLocalMembersFromRemoteConv
-            qconvId
-            (list1 h t)
-      pure $
-        Event
-          MemberLeave
-          qconvId
-          (cmuOrigUserId cmu)
-          (cmuTime cmu)
-          (EdMembersLeave . QualifiedUserIdList . toList $ toRemove)
-  -- FUTUREWORK: support bots?
-  -- send notifications
-  pushConversationEvent Nothing event targets []
+  let qconvId = Qualified (cuConvId cu) requestingDomain
 
-onConversationMetadataUpdated :: Domain -> ConversationMetadataUpdate -> Galley ()
-onConversationMetadataUpdated domain update = do
   -- TODO: check that already-present users are indeed in the conversation
 
+  -- perform action
+  extraTargets <- case cuAction cu of
+    Public.ConversationActionAddMembers toAdd -> do
+      let localUsers = getLocalUsers localDomain (fmap fst toAdd)
+      Data.addLocalMembersToRemoteConv qconvId localUsers
+      pure localUsers
+    Public.ConversationActionRemoveMembers toRemove -> do
+      let localUsers = getLocalUsers localDomain toRemove
+      Data.removeLocalMembersFromRemoteConv qconvId localUsers
+      pure localUsers
+    Public.ConversationActionRename _ -> pure []
+
   -- send notifications
-  let qcnv = Qualified (cmuConvId update) domain
-  let e = metadataActionToEvent (cmuTime update) (cmuOrigUserId update) qcnv (cmuAction update)
-  pushConversationEvent Nothing e (cmuAlreadyPresentUsers update) []
+  let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)
+      targets = nubOrd $ cuAlreadyPresentUsers cu <> extraTargets
+  -- FUTUREWORK: support bots?
+  pushConversationEvent Nothing event targets []
 
 leaveConversation ::
   Domain ->

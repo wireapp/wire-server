@@ -59,7 +59,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
-import Wire.API.Conversation (ConversationMembersAction (..))
+import Wire.API.Conversation (ConversationAction (..))
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
@@ -596,7 +596,7 @@ notifyRemoteAboutConvUpdate ::
   -- | The current time
   UTCTime ->
   -- | Action being performed
-  ConversationMembersAction ->
+  ConversationAction ->
   -- | Remote members that need to be notified
   [Remote UserId] ->
   Galley ()
@@ -610,13 +610,13 @@ notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
     . map unTagged
     $ remotesToNotify
   where
-    notificationRPC :: Domain -> ConversationMemberUpdate -> Domain -> Galley ()
-    notificationRPC sendingDomain cmu receivingDomain = do
+    notificationRPC :: Domain -> ConversationUpdate -> Domain -> Galley ()
+    notificationRPC sendingDomain cu receivingDomain = do
       let rpc =
-            FederatedGalley.onConversationMembershipsChanged
+            FederatedGalley.onConversationUpdated
               FederatedGalley.clientRoutes
               sendingDomain
-              cmu
+              cu
       runFederated receivingDomain rpc
 
 --------------------------------------------------------------------------------
