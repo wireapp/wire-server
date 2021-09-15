@@ -229,16 +229,6 @@ removeLocalUser = do
       afterAddition @?= [qconv]
       afterRemoval @?= []
 
--- | This test invokes the federation endpoint:
---
---   'POST /federation/on-conversation-memberships-changed'
---
--- two times in a row: first adding a local and a remote user to a remote
--- conversation, and then removing the remote user. The test asserts the
--- expected list of conversations in between the calls and at the end from the
--- point of view of the local backend and that the local conversation member got
--- notified of the removal.
---
 -- characters:
 --
 -- alice: present local user
@@ -291,8 +281,9 @@ removeRemoteUser = do
     afterRemoval <- listRemoteConvs remoteDomain alice
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA, wsD] $
-        wsAssertMembersLeave qconv qBob [qDee, qEve]
-      WS.assertNoEvent (1 # Second) [wsC, wsF]
+        wsAssertMembersLeave qconv qBob [qDee, qEve, qFlo]
+      WS.assertNoEvent (1 # Second) [wsC]
+      WS.assertNoEvent (1 # Second) [wsF]
     liftIO $ do
       afterRemoval @?= [qconv]
 

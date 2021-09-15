@@ -115,9 +115,19 @@ onConversationUpdated requestingDomain cu = do
   localDomain <- viewFederationDomain
   let qconvId = Qualified (cuConvId cu) requestingDomain
 
+  -- Note: we generally do not send notifications to users that are not part of
+  -- the conversation (from our point of view), to prevent spam from the remote
+  -- backend. See also the comment below.
   (presentUsers, allUsersArePresent) <- Data.filterRemoteConvMembers (cuAlreadyPresentUsers cu) qconvId
 
-  -- perform action
+  -- Perform action, and determine extra notification targets.
+  --
+  -- When new users are being added to the conversation, we consider them as
+  -- notification targets. Once we start checking connections before letting
+  -- people being added, this will be safe against spam. However, if users that
+  -- are not in the conversations are being removed, we do **not** add them to the
+  -- list of targets, because we have no way to make sure that they are actually
+  -- supposed to receive that notification.
   extraTargets <- case cuAction cu of
     Public.ConversationActionAddMembers toAdd -> do
       let localUsers = getLocalUsers localDomain (fmap fst toAdd)
@@ -125,12 +135,11 @@ onConversationUpdated requestingDomain cu = do
       pure localUsers
     Public.ConversationActionRemoveMembers toRemove -> do
       let localUsers = getLocalUsers localDomain toRemove
-      -- TODO: do not remove users that are not in the conversation
       Data.removeLocalMembersFromRemoteConv qconvId localUsers
-      pure localUsers
+      pure []
     Public.ConversationActionRename _ -> pure []
 
-  -- send notifications
+  -- Send notifications
   let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)
       targets = nubOrd $ presentUsers <> extraTargets
 
@@ -139,7 +148,10 @@ onConversationUpdated requestingDomain cu = do
       Log.field "conversation" (toByteString' (cuConvId cu))
         Log.~~ Log.field "domain" (toByteString' requestingDomain)
         Log.~~ Log.msg
-          ("Attempt to notify conversation update to users not in the conversation" :: ByteString)
+          ( "Attempt to send notification about conversation update \
+            \to users not in the conversation" ::
+              ByteString
+          )
 
   -- FUTUREWORK: support bots?
   pushConversationEvent Nothing event targets []
