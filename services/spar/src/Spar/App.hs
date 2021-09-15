@@ -460,11 +460,14 @@ verdictHandlerResultCore bindCky mbteam = \case
         case viaSparCassandra of
           GetUserFound _ -> pure GetUserNotFound
           _ -> findUserIdWithOldIssuer mbteam userref
+      let err =
+            SparUserRefInNoOrMultipleTeams . cs $
+              show (userref, viaBindCookie, viaSparCassandra, viaSparCassandraOldIssuer)
       case (viaBindCookie, viaSparCassandra, viaSparCassandraOldIssuer) of
-        (_, GetUserNoTeam, _) -> throwSpar $ SparUserRefInNoOrMultipleTeams mempty
-        (_, GetUserWrongTeam, _) -> throwSpar $ SparUserRefInNoOrMultipleTeams mempty
-        (_, _, GetUserNoTeam) -> throwSpar $ SparUserRefInNoOrMultipleTeams mempty
-        (_, _, GetUserWrongTeam) -> throwSpar $ SparUserRefInNoOrMultipleTeams mempty
+        (_, GetUserNoTeam, _) -> throwSpar err
+        (_, GetUserWrongTeam, _) -> throwSpar err
+        (_, _, GetUserNoTeam) -> throwSpar err
+        (_, _, GetUserWrongTeam) -> throwSpar err
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch.
