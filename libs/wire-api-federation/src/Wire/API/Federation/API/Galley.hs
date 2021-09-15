@@ -53,7 +53,8 @@ data Api routes = Api
         :- "federation"
         :> Summary "Register users to be in a new remote conversation"
         :> "on-conversation-created"
-        :> ReqBody '[JSON] NewRemoteConversation
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] (NewRemoteConversation ConvId)
         :> Post '[JSON] (),
     getConversations ::
       routes
@@ -117,14 +118,13 @@ newtype GetConversationsResponse = GetConversationsResponse
 --
 -- FUTUREWORK: Think about extracting common conversation metadata into a
 -- separarate data type that can be reused in several data types in this module.
-data NewRemoteConversation = NewRemoteConversation
+data NewRemoteConversation conv = NewRemoteConversation
   { -- | The time when the conversation was created
     rcTime :: UTCTime,
     -- | The user that created the conversation
     rcOrigUserId :: Qualified UserId,
-    -- | The qualified conversation ID
-    -- FUTUREWORK: Make this unqualified, assume the conversation is being hosted by OriginDomain
-    rcCnvId :: Qualified ConvId,
+    -- | The conversation ID, local to the backend invoking the RPC
+    rcCnvId :: conv,
     -- | The conversation type
     rcCnvType :: ConvType,
     rcCnvAccess :: [Access],
@@ -136,8 +136,8 @@ data NewRemoteConversation = NewRemoteConversation
     rcMessageTimer :: Maybe Milliseconds,
     rcReceiptMode :: Maybe ReceiptMode
   }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
+  deriving stock (Eq, Show, Generic, Functor)
+  deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
 
 -- | A conversation membership update, as given by ' ConversationMemberUpdate',
 -- can be either a member addition or removal.
