@@ -50,8 +50,7 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
-import Galley.Types.Conversations.Members (RemoteMember (..))
-import qualified Galley.Types.Conversations.Members as Members
+import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event)
 import Imports
@@ -143,9 +142,9 @@ ensureActionAllowed action role = case isActionAllowed action role of
 -- is permitted.
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-ensureActionAllowedThrowing :: Action -> InternalMember a -> Galley ()
+ensureActionAllowedThrowing :: Action -> LocalMember -> Galley ()
 ensureActionAllowedThrowing action mem =
-  case ensureActionAllowed action (memConvRoleName mem) of
+  case ensureActionAllowed action (lmConvRoleName mem) of
     ACOAllowed -> return ()
     ACOActionDenied _ -> throwErrorDescription (actionDenied action)
     ACOCustomRolesNotSupported -> throwM (badRequest "Custom roles not supported")
@@ -157,9 +156,9 @@ ensureActionAllowedThrowing action mem =
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
-ensureConvRoleNotElevated :: InternalMember a -> RoleName -> Galley ()
+ensureConvRoleNotElevated :: LocalMember -> RoleName -> Galley ()
 ensureConvRoleNotElevated origMember targetRole = do
-  case (roleNameToActions targetRole, roleNameToActions (memConvRoleName origMember)) of
+  case (roleNameToActions targetRole, roleNameToActions (lmConvRoleName origMember)) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
         throwM invalidActions
@@ -220,7 +219,7 @@ acceptOne2One usr conv conn = do
           throwM badConvState
         now <- liftIO getCurrentTime
         (e, mm) <- Data.addMember localDomain now cid usr
-        conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
+        conv' <- if isJust (find ((usr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
@@ -237,22 +236,19 @@ acceptOne2One usr conv conn = do
         "Connect conversation with more than 2 members: "
           <> LT.pack (show cid)
 
-isBot :: InternalMember a -> Bool
-isBot = isJust . memService
+isBot :: LocalMember -> Bool
+isBot = isJust . lmService
 
-isMember :: (Eq a, Foldable m) => a -> m (InternalMember a) -> Bool
-isMember u = isJust . find ((u ==) . memId)
+isMember :: Foldable m => UserId -> m LocalMember -> Bool
+isMember u = isJust . find ((u ==) . lmId)
 
-isRemoteMember :: (Foldable m) => Remote UserId -> m RemoteMember -> Bool
+isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
-
-findMember :: Data.Conversation -> UserId -> Maybe LocalMember
-findMember c u = find ((u ==) . memId) (Data.convLocalMembers c)
 
 localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
 localBotsAndUsers = foldMap botOrUser
   where
-    botOrUser m = case memService m of
+    botOrUser m = case lmService m of
       -- we drop invalid bots here, which shouldn't happen
       Just _ -> (toList (newBotMember m), [])
       Nothing -> ([], [m])
@@ -261,7 +257,7 @@ location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
 
 nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
-nonTeamMembers cm tm = filter (not . isMemberOfTeam . memId) cm
+nonTeamMembers cm tm = filter (not . isMemberOfTeam . lmId) cm
   where
     -- FUTUREWORK: remote members: teams and their members are always on the same backend
     isMemberOfTeam = \case
@@ -269,7 +265,7 @@ nonTeamMembers cm tm = filter (not . isMemberOfTeam . memId) cm
 
 convMembsAndTeamMembs :: [LocalMember] -> [TeamMember] -> [Recipient]
 convMembsAndTeamMembs convMembs teamMembs =
-  fmap userRecipient . setnub $ map memId convMembs <> map (view userId) teamMembs
+  fmap userRecipient . setnub $ map lmId convMembs <> map (view userId) teamMembs
   where
     setnub = Set.toList . Set.fromList
 
@@ -339,7 +335,7 @@ getLocalMember ::
   UserId ->
   t LocalMember ->
   ExceptT e m LocalMember
-getLocalMember = getMember memId
+getLocalMember = getMember lmId
 
 -- | Since we search by remote user ID, we know that the member must be remote.
 getRemoteMember ::
@@ -498,21 +494,9 @@ toNewRemoteConversation now localDomain Data.Conversation {..} =
       [RemoteMember] ->
       Set OtherMember
     toMembers ls rs =
-      Set.fromList $ fmap localToOther ls <> fmap remoteToOther rs
-    localToOther :: LocalMember -> OtherMember
-    localToOther Members.InternalMember {..} =
-      OtherMember
-        { omQualifiedId = Qualified memId localDomain,
-          omService = Nothing,
-          omConvRoleName = memConvRoleName
-        }
-    remoteToOther :: RemoteMember -> OtherMember
-    remoteToOther RemoteMember {..} =
-      OtherMember
-        { omQualifiedId = unTagged rmId,
-          omService = Nothing,
-          omConvRoleName = rmConvRoleName
-        }
+      Set.fromList $
+        map (localMemberToOther localDomain) ls
+          <> map remoteMemberToOther rs
 
 -- | The function converts a 'NewRemoteConversation' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
@@ -553,21 +537,22 @@ fromNewRemoteConversation d NewRemoteConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        { cnvQualifiedId = rcCnvId,
-          cnvType = rcCnvType,
-          -- FUTUREWORK: Document this is the same domain as the conversation
-          -- domain
-          cnvCreator = qUnqualified rcOrigUserId,
-          cnvAccess = rcCnvAccess,
-          cnvAccessRole = rcCnvAccessRole,
-          cnvName = rcCnvName,
-          cnvMembers = ConvMembers this others,
-          -- FUTUREWORK: Document this is the same domain as the conversation
-          -- domain.
-          cnvTeam = Nothing,
-          cnvMessageTimer = rcMessageTimer,
-          cnvReceiptMode = rcReceiptMode
-        }
+        ConversationMetadata
+          { cnvmQualifiedId = rcCnvId,
+            cnvmType = rcCnvType,
+            -- FUTUREWORK: Document this is the same domain as the conversation
+            -- domain
+            cnvmCreator = qUnqualified rcOrigUserId,
+            cnvmAccess = rcCnvAccess,
+            cnvmAccessRole = rcCnvAccessRole,
+            cnvmName = rcCnvName,
+            -- FUTUREWORK: Document this is the same domain as the conversation
+            -- domain.
+            cnvmTeam = Nothing,
+            cnvmMessageTimer = rcMessageTimer,
+            cnvmReceiptMode = rcReceiptMode
+          }
+        (ConvMembers this others)
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::

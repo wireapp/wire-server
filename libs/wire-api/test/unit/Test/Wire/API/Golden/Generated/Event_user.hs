@@ -28,51 +28,10 @@ import Data.Text.Ascii (validate)
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust, read, undefined)
 import Wire.API.Conversation
-import Wire.API.Conversation.Code (ConversationCode (..), Key (..), Value (..))
+import Wire.API.Conversation.Code (Key (..), Value (..))
 import Wire.API.Conversation.Role (parseRoleName)
-import Wire.API.Conversation.Typing (TypingData (TypingData, tdStatus), TypingStatus (StoppedTyping))
+import Wire.API.Conversation.Typing (TypingStatus (..))
 import Wire.API.Event.Conversation
-  ( Connect (Connect, cEmail, cMessage, cName, cRecipient),
-    Event (Event),
-    EventData (..),
-    EventType
-      ( ConvAccessUpdate,
-        ConvCodeDelete,
-        ConvCodeUpdate,
-        ConvConnect,
-        ConvCreate,
-        ConvDelete,
-        ConvMessageTimerUpdate,
-        ConvReceiptModeUpdate,
-        ConvRename,
-        MemberJoin,
-        MemberLeave,
-        MemberStateUpdate,
-        OtrMessageAdd,
-        Typing
-      ),
-    MemberUpdateData
-      ( MemberUpdateData,
-        misConvRoleName,
-        misHidden,
-        misHiddenRef,
-        misOtrArchived,
-        misOtrArchivedRef,
-        misOtrMutedRef,
-        misOtrMutedStatus,
-        misTarget
-      ),
-    OtrMessage
-      ( OtrMessage,
-        otrCiphertext,
-        otrData,
-        otrRecipient,
-        otrSender
-      ),
-    QualifiedUserIdList (QualifiedUserIdList, qualifiedUserIdList),
-    SimpleMember (..),
-    SimpleMembers (SimpleMembers, mMembers),
-  )
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
 domain :: Domain
@@ -180,13 +139,19 @@ testObject_Event_user_8 =
     (read "1864-05-29 19:31:31.226 UTC")
     ( EdConversation
         ( Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
-              cnvType = RegularConv,
-              cnvCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
-              cnvAccess =
-                [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess],
-              cnvAccessRole = NonActivatedAccessRole,
-              cnvName = Just "\a\SO\r",
+            { cnvMetadata =
+                ConversationMetadata
+                  { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Domain "golden.example.com"),
+                    cnvmType = RegularConv,
+                    cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
+                    cnvmAccess =
+                      [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess],
+                    cnvmAccessRole = NonActivatedAccessRole,
+                    cnvmName = Just "\a\SO\r",
+                    cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
+                    cnvmMessageTimer = Just (Ms {ms = 283898987885780}),
+                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
+                  },
               cnvMembers =
                 ConvMembers
                   { cmSelf =
@@ -223,10 +188,7 @@ testObject_Event_user_8 =
                                 )
                           }
                       ]
-                  },
-              cnvTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
-              cnvMessageTimer = Just (Ms {ms = 283898987885780}),
-              cnvReceiptMode = Just (ReceiptMode {unReceiptMode = -1})
+                  }
             }
         )
     )

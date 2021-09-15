@@ -154,6 +154,7 @@ wireAdminChecks ::
   TestM ()
 wireAdminChecks cid admin otherAdmin mem = do
   let role = roleNameWireAdmin
+  qcid <- Qualified cid <$> viewFederationDomain
   other <- randomUser
   connectUsers admin (singleton other)
   -- Admins can perform all operations on the conversation; creator is not relevant
@@ -183,7 +184,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
-  putMember admin memUpdate cid !!! assertActionSucceeded
+  putMember admin memUpdate qcid !!! assertActionSucceeded
   -- You can also leave a conversation
   deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
   -- Readding the user
@@ -199,6 +200,7 @@ wireMemberChecks ::
   TestM ()
 wireMemberChecks cid mem admin otherMem = do
   let role = roleNameWireMember
+  qcid <- Qualified cid <$> viewFederationDomain
   other <- randomUser
   connectUsers mem (singleton other)
   -- Members cannot perform pretty much any action on the conversation
@@ -227,7 +229,7 @@ wireMemberChecks cid mem admin otherMem = do
 
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
-  putMember mem memUpdate cid !!! assertActionSucceeded
+  putMember mem memUpdate qcid !!! assertActionSucceeded
   -- Last option is to leave a conversation
   deleteMemberUnqualified mem mem cid !!! assertActionSucceeded
   -- Let's readd the user to make tests easier

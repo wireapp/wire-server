@@ -27,7 +27,7 @@ import Data.Json.Util (Base64ByteString (..))
 import Data.List1 (list1)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), toRemote)
 import qualified Data.Set as Set
 import Data.Tagged
 import qualified Data.Text.Lazy as LT
@@ -38,7 +38,7 @@ import qualified Galley.API.Update as API
 import Galley.API.Util (fromNewRemoteConversation, pushConversationEvent, viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
-import Galley.Types.Conversations.Members (InternalMember (..), LocalMember)
+import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
@@ -96,12 +96,14 @@ onConversationCreated domain rc = do
             (EdConversation c)
     pushConversationEvent Nothing event [Public.memId mem] []
 
-getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
-getConversations (GetConversationsRequest qUid gcrConvIds) = do
-  domain <- viewFederationDomain
-  convs <- Data.conversations gcrConvIds
-  let convViews = Mapping.conversationViewMaybeQualified domain qUid <$> convs
-  pure $ GetConversationsResponse . catMaybes $ convViews
+getConversations :: Domain -> GetConversationsRequest -> Galley GetConversationsResponse
+getConversations domain (GetConversationsRequest uid cids) = do
+  let ruid = toRemote $ Qualified uid domain
+  localDomain <- viewFederationDomain
+  GetConversationsResponse
+    . catMaybes
+    . map (Mapping.conversationToRemote localDomain ruid)
+    <$> Data.conversations cids
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
@@ -186,16 +188,11 @@ onMessageSent domain rmUnqualified = do
     mkLocalMember :: UserId -> Galley LocalMember
     mkLocalMember m =
       pure $
-        InternalMember
-          { memId = m,
-            memService = Nothing,
-            memOtrMutedStatus = Nothing,
-            memOtrMutedRef = Nothing,
-            memOtrArchived = False,
-            memOtrArchivedRef = Nothing,
-            memHidden = False,
-            memHiddenRef = Nothing,
-            memConvRoleName = Public.roleNameWireMember
+        LocalMember
+          { lmId = m,
+            lmService = Nothing,
+            lmStatus = defMemberStatus,
+            lmConvRoleName = Public.roleNameWireMember
           }
 
 sendMessage :: Domain -> MessageSendRequest -> Galley MessageSendResponse

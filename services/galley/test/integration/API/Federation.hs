@@ -48,8 +48,9 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation.Member (Member (..))
 import Wire.API.Conversation.Role
-import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
+import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
@@ -73,45 +74,51 @@ tests s =
 
 getConversationsAllFound :: TestM ()
 getConversationsAllFound = do
-  -- FUTUREWORK: make alice / bob remote users
-  [alice, bob] <- randomUsers 2
-  connectUsers alice (singleton bob)
-  -- create & get one2one conv
-  cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
-    const 200 === statusCode
-    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
+  bob <- randomUser
+
   -- create & get group conv
-  carl <- randomUser
-  connectUsers alice (singleton carl)
-  cnv2 <- responseJsonUnsafeWithMsg "conversation" <$> postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
+  aliceQ <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  carlQ <- randomQualifiedUser
+  connectUsers bob (singleton (qUnqualified carlQ))
+
+  cnv2 <-
+    responseJsonError
+      =<< postConvWithRemoteUser (qDomain aliceQ) (mkProfile aliceQ (Name "alice")) bob [aliceQ, carlQ]
+
+  getConvs bob (Just $ Left [qUnqualified (cnvQualifiedId cnv2)]) Nothing !!! do
     const 200 === statusCode
-    const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
-  -- get both
+    const (Just (Just [cnvQualifiedId cnv2]))
+      === fmap (fmap (map cnvQualifiedId . convList)) . responseJsonMaybe
+
+  -- FUTUREWORK: also create a one2one conversation
+
+  -- get conversations
 
   fedGalleyClient <- view tsFedGalleyClient
-  localDomain <- viewFederationDomain
-  let aliceQualified = Qualified alice localDomain
   GetConversationsResponse cs <-
     FedGalley.getConversations
       fedGalleyClient
-      (GetConversationsRequest aliceQualified $ qUnqualified . cnvQualifiedId <$> [cnv1, cnv2])
-  let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) cs
-  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) cs
-  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
+      (qDomain aliceQ)
+      ( GetConversationsRequest
+          (qUnqualified aliceQ)
+          (map (qUnqualified . cnvQualifiedId) [cnv2])
+      )
+
+  let c2 = find ((== cnvQualifiedId cnv2) . cnvmQualifiedId . rcnvMetadata) cs
+
+  liftIO $ do
     assertEqual
       "name mismatch"
-      (Just $ cnvName expected)
-      (cnvName <$> actual)
+      (Just $ cnvName cnv2)
+      (cnvmName . rcnvMetadata <$> c2)
     assertEqual
-      "self member mismatch"
-      (Just . cmSelf $ cnvMembers expected)
-      (cmSelf . cnvMembers <$> actual)
+      "self member role mismatch"
+      (Just . memConvRoleName . cmSelf $ cnvMembers cnv2)
+      (rcmSelfRole . rcnvMembers <$> c2)
     assertEqual
       "other members mismatch"
-      (Just [])
-      ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
+      (Just (sort [bob, qUnqualified carlQ]))
+      (fmap (sort . map (qUnqualified . omQualifiedId) . rcmOthers . rcnvMembers) c2)
 
 getConversationsNotPartOf :: TestM ()
 getConversationsNotPartOf = do
@@ -127,11 +134,11 @@ getConversationsNotPartOf = do
   fedGalleyClient <- view tsFedGalleyClient
   localDomain <- viewFederationDomain
   rando <- Id <$> liftIO nextRandom
-  let randoQualified = Qualified rando localDomain
   GetConversationsResponse cs <-
     FedGalley.getConversations
       fedGalleyClient
-      (GetConversationsRequest randoQualified [qUnqualified . cnvQualifiedId $ cnv1])
+      localDomain
+      (GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1])
   liftIO $ assertEqual "conversation list not empty" [] cs
 
 addLocalUser :: TestM ()

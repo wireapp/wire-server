@@ -25,28 +25,6 @@ import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Conversation
-  ( AccessRole
-      ( PrivateAccessRole
-      ),
-    ConvMembers (ConvMembers, cmOthers, cmSelf),
-    ConvType (RegularConv),
-    Conversation (..),
-    ConversationList (..),
-    Member
-      ( Member,
-        memConvRoleName,
-        memHidden,
-        memHiddenRef,
-        memId,
-        memOtrArchived,
-        memOtrArchivedRef,
-        memOtrMutedRef,
-        memOtrMutedStatus,
-        memService
-      ),
-    MutedStatus (MutedStatus, fromMutedStatus),
-    ReceiptMode (ReceiptMode, unReceiptMode),
-  )
 import Wire.API.Conversation.Role (parseRoleName)
 
 testObject_ConversationList_20Conversation_user_1 :: ConversationList Conversation
@@ -54,12 +32,18 @@ testObject_ConversationList_20Conversation_user_1 =
   ConversationList
     { convList =
         [ Conversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
-              cnvType = RegularConv,
-              cnvCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
-              cnvAccess = [],
-              cnvAccessRole = PrivateAccessRole,
-              cnvName = Just "",
+            { cnvMetadata =
+                ConversationMetadata
+                  { cnvmQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) (Domain "golden.example.com"),
+                    cnvmType = RegularConv,
+                    cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
+                    cnvmAccess = [],
+                    cnvmAccessRole = PrivateAccessRole,
+                    cnvmName = Just "",
+                    cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+                    cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),
+                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
+                  },
               cnvMembers =
                 ConvMembers
                   { cmSelf =
@@ -76,10 +60,7 @@ testObject_ConversationList_20Conversation_user_1 =
                             fromJust (parseRoleName "71xuphsrwfoktrpiv4d08dxj6_1umizg67iisctw87gemvi114mtu")
                         },
                     cmOthers = []
-                  },
-              cnvTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
-              cnvMessageTimer = Just (Ms {ms = 4760386328981119}),
-              cnvReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
+                  }
             }
         ],
       convHasMore = False

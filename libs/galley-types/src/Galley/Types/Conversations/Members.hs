@@ -18,37 +18,73 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Types.Conversations.Members
-  ( LocalMember,
-    RemoteMember (..),
-    InternalMember (..),
+  ( RemoteMember (..),
+    remoteMemberToOther,
+    LocalMember (..),
+    localMemberToOther,
+    MemberStatus (..),
+    defMemberStatus,
   )
 where
 
+import Data.Domain
 import Data.Id as Id
-import Data.Qualified (Remote)
+import Data.Qualified
+import Data.Tagged
 import Imports
-import Wire.API.Conversation.Member (MutedStatus)
+import Wire.API.Conversation
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Provider.Service (ServiceRef)
 
-type LocalMember = InternalMember Id.UserId
-
+-- | Internal (cassandra) representation of a remote conversation member.
 data RemoteMember = RemoteMember
   { rmId :: Remote UserId,
     rmConvRoleName :: RoleName
   }
   deriving stock (Show)
 
--- | Internal (cassandra) representation of a conversation member.
-data InternalMember id = InternalMember
-  { memId :: id,
-    memService :: Maybe ServiceRef,
-    memOtrMutedStatus :: Maybe MutedStatus,
-    memOtrMutedRef :: Maybe Text,
-    memOtrArchived :: Bool,
-    memOtrArchivedRef :: Maybe Text,
-    memHidden :: Bool,
-    memHiddenRef :: Maybe Text,
-    memConvRoleName :: RoleName
+remoteMemberToOther :: RemoteMember -> OtherMember
+remoteMemberToOther x =
+  OtherMember
+    { omQualifiedId = unTagged (rmId x),
+      omService = Nothing,
+      omConvRoleName = rmConvRoleName x
+    }
+
+-- | Internal (cassandra) representation of a local conversation member.
+data LocalMember = LocalMember
+  { lmId :: UserId,
+    lmStatus :: MemberStatus,
+    lmService :: Maybe ServiceRef,
+    lmConvRoleName :: RoleName
   }
-  deriving stock (Functor, Show)
+  deriving stock (Show)
+
+localMemberToOther :: Domain -> LocalMember -> OtherMember
+localMemberToOther domain x =
+  OtherMember
+    { omQualifiedId = Qualified (lmId x) domain,
+      omService = lmService x,
+      omConvRoleName = lmConvRoleName x
+    }
+
+data MemberStatus = MemberStatus
+  { msOtrMutedStatus :: Maybe MutedStatus,
+    msOtrMutedRef :: Maybe Text,
+    msOtrArchived :: Bool,
+    msOtrArchivedRef :: Maybe Text,
+    msHidden :: Bool,
+    msHiddenRef :: Maybe Text
+  }
+  deriving stock (Show)
+
+defMemberStatus :: MemberStatus
+defMemberStatus =
+  MemberStatus
+    { msOtrMutedStatus = Nothing,
+      msOtrMutedRef = Nothing,
+      msOtrArchived = False,
+      msOtrArchivedRef = Nothing,
+      msHidden = False,
+      msHiddenRef = Nothing
+    }
