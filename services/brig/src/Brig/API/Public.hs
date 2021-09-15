@@ -410,29 +410,6 @@ sitemap = do
     Doc.response 200 "Email address removed." Doc.end
     Doc.errorResponse lastIdentity
 
-  -- This endpoint can lead to the following events being sent:
-  -- - UserDeleted event to contacts of self
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  -- delete "/self" (continue deleteUserH) $
-  --   zauthUserId
-  --     .&. jsonRequest @Public.DeleteUser
-  --     .&. accept "application" "json"
-  -- document "DELETE" "deleteUser" $ do
-  --   Doc.summary "Initiate account deletion."
-  --   Doc.notes
-  --     "If the account has a verified identity, a verification \
-  --     \code is sent and needs to be confirmed to authorise the \
-  --     \deletion. If the account has no verified identity but a \
-  --     \password, it must be provided. If password is correct, or if neither \
-  --     \a verified identity nor a password exists, account deletion \
-  --     \is scheduled immediately."
-  --   Doc.body (Doc.ref Public.modelDelete) $
-  --     Doc.description "JSON body"
-  --   Doc.response 202 "Deletion is pen
-  --   Doc.response 200 "Deletion is initiated." Doc.end
-  --   Doc.errorResponse badCredentials
-  --   Doc.errorResponse (errorDescriptionToWai missingAuthError)
-
   -- TODO put  where?
 
   -- This endpoint can lead to the following events being sent:

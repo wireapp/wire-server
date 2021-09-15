@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingVia #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
@@ -103,6 +102,9 @@ data Api routes = Api
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile,
+    -- This endpoint can lead to the following events being sent:
+    -- - UserDeleted event to contacts of self
+    -- - MemberLeave event to members for all conversations the user was in (via galley)
     deleteSelf ::
       routes
         -- TODO: Add custom AsUnion
