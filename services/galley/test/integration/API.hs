@@ -1918,8 +1918,6 @@ testGetQualifiedRemoteConv = do
       (getConvQualified aliceId remoteConvId)
 
   conv <- responseJsonUnsafe <$> (pure respAll <!! const 200 === statusCode)
-  -- FUTUREWORK: The backend should augment returned conversation data with
-  -- Alice's membership data stored locally
   liftIO $ do assertEqual "conversation metadata" expected conv
 
 testGetQualifiedRemoteConvNotFound :: TestM ()
