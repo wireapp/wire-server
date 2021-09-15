@@ -136,6 +136,43 @@ data ConversationMetadata = ConversationMetadata
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
   deriving (FromJSON, ToJSON) via Schema ConversationMetadata
 
+conversationMetadataObjectSchema ::
+  SchemaP
+    SwaggerDoc
+    A.Object
+    [A.Pair]
+    ConversationMetadata
+    ConversationMetadata
+conversationMetadataObjectSchema =
+  ConversationMetadata
+    <$> cnvmQualifiedId .= field "qualified_id" schema
+    <* (qUnqualified . cnvmQualifiedId)
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+    <*> cnvmType .= field "type" schema
+    <*> cnvmCreator
+      .= fieldWithDocModifier
+        "creator"
+        (description ?~ "The creator's user ID")
+        schema
+    <*> cnvmAccess .= field "access" (array schema)
+    <*> cnvmAccessRole .= field "access_role" schema
+    <*> cnvmName .= lax (field "name" (optWithDefault A.Null schema))
+    <* const ("0.0" :: Text) .= optional (field "last_event" schema)
+    <* const ("1970-01-01T00:00:00.000Z" :: Text)
+      .= optional (field "last_event_time" schema)
+    <*> cnvmTeam .= lax (field "team" (optWithDefault A.Null schema))
+    <*> cnvmMessageTimer
+      .= lax
+        ( fieldWithDocModifier
+            "message_timer"
+            (description ?~ "Per-conversation message timer (can be null)")
+            (optWithDefault A.Null schema)
+        )
+    <*> cnvmReceiptMode .= lax (field "receipt_mode" (optWithDefault A.Null schema))
+
+instance ToSchema ConversationMetadata where
+  schema = object "ConversationMetadata" conversationMetadataObjectSchema
+
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
 --
@@ -190,43 +227,6 @@ cnvMessageTimer = cnvmMessageTimer . cnvMetadata
 
 cnvReceiptMode :: Conversation -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
-
-conversationMetadataObjectSchema ::
-  SchemaP
-    SwaggerDoc
-    A.Object
-    [A.Pair]
-    ConversationMetadata
-    ConversationMetadata
-conversationMetadataObjectSchema =
-  ConversationMetadata
-    <$> cnvmQualifiedId .= field "qualified_id" schema
-    <* (qUnqualified . cnvmQualifiedId)
-      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-    <*> cnvmType .= field "type" schema
-    <*> cnvmCreator
-      .= fieldWithDocModifier
-        "creator"
-        (description ?~ "The creator's user ID")
-        schema
-    <*> cnvmAccess .= field "access" (array schema)
-    <*> cnvmAccessRole .= field "access_role" schema
-    <*> cnvmName .= lax (field "name" (optWithDefault A.Null schema))
-    <* const ("0.0" :: Text) .= optional (field "last_event" schema)
-    <* const ("1970-01-01T00:00:00.000Z" :: Text)
-      .= optional (field "last_event_time" schema)
-    <*> cnvmTeam .= lax (field "team" (optWithDefault A.Null schema))
-    <*> cnvmMessageTimer
-      .= lax
-        ( fieldWithDocModifier
-            "message_timer"
-            (description ?~ "Per-conversation message timer (can be null)")
-            (optWithDefault A.Null schema)
-        )
-    <*> cnvmReceiptMode .= lax (field "receipt_mode" (optWithDefault A.Null schema))
-
-instance ToSchema ConversationMetadata where
-  schema = object "ConversationMetadata" conversationMetadataObjectSchema
 
 instance ToSchema Conversation where
   schema =
