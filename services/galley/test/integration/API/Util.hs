@@ -1415,7 +1415,7 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   FederatedGalley.cmuOrigUserId cmu @?= remover
   FederatedGalley.cmuConvId cmu @?= qUnqualified qconvId
   sort (FederatedGalley.cmuAlreadyPresentUsers cmu) @?= sort alreadyPresentUsers
-  FederatedGalley.cmuAction cmu @?= FederatedGalley.ConversationMembersActionRemove (pure victim)
+  FederatedGalley.cmuAction cmu @?= Public.ConversationMembersActionRemove (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers

@@ -21,7 +21,6 @@ import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ClientId, ConvId, UserId)
 import Data.Json.Util (Base64ByteString)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified)
 import Data.Time.Clock (UTCTime)
@@ -31,6 +30,15 @@ import Servant.API.Generic ((:-))
 import Servant.Client.Generic (AsClientT, genericClient)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
+  ( Access,
+    AccessRole,
+    ConvType,
+    ConversationMembersAction (..),
+    ConversationMetadata,
+    ConversationMetadataAction (..),
+    ReceiptMode,
+  )
+import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import Wire.API.Federation.Domain (OriginDomainHeader)
@@ -168,22 +176,7 @@ data NewRemoteConversation conv = NewRemoteConversation
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
 
--- | A conversation membership update, as given by ' ConversationMemberUpdate',
--- can be either a member addition or removal.
-data ConversationMembersAction
-  = ConversationMembersActionAdd (NonEmpty (Qualified UserId, RoleName))
-  | ConversationMembersActionRemove (NonEmpty (Qualified UserId))
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
-
 type ConversationMemberUpdate = ConversationUpdate ConversationMembersAction
-
-data ConversationMetadataAction
-  = ConversationMetadataActionRename ConversationRename
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMetadataAction)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMetadataAction)
 
 type ConversationMetadataUpdate = ConversationUpdate ConversationMetadataAction
 

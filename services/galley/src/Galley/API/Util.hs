@@ -59,6 +59,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
+import Wire.API.Conversation (ConversationMembersAction (..))
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Federation.API.Brig as FederatedBrig

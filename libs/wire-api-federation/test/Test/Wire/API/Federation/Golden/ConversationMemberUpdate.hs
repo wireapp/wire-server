@@ -27,8 +27,9 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Qualified (Qualified (Qualified))
 import qualified Data.UUID as UUID
 import Imports
+import Wire.API.Conversation (ConversationMembersAction (..))
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate, ConversationMembersAction (..), ConversationUpdate (..))
+import Wire.API.Federation.API.Galley (ConversationMemberUpdate, ConversationUpdate (..))
 
 qAlice, qBob :: Qualified UserId
 qAlice =

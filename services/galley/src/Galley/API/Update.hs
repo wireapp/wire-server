@@ -110,7 +110,11 @@ import Network.Wai
 import Network.Wai.Predicate hiding (and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities
 import UnliftIO (pooledForConcurrentlyN)
-import Wire.API.Conversation (InviteQualified (invQRoleName))
+import Wire.API.Conversation
+  ( ConversationMembersAction (..),
+    ConversationMetadataAction (..),
+    InviteQualified (invQRoleName),
+  )
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
@@ -124,7 +128,6 @@ import Wire.API.ErrorDescription
   )
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
-import Wire.API.Federation.API.Galley (ConversationMetadataAction (..))
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Message as Public
@@ -715,7 +718,7 @@ removeMemberFromLocalConv remover@(Qualified removerUid removerDomain) zcon conv
 
   -- Notify remote backends
   let existingRemotes = rmId <$> Data.convRemoteMembers conv
-  let action = FederatedGalley.ConversationMembersActionRemove $ pure qvictim
+  let action = ConversationMembersActionRemove $ pure qvictim
   lift $ notifyRemoteAboutConvUpdate remover convId (evtTime event) action existingRemotes
 
   pure event
@@ -955,7 +958,7 @@ updateLiveLocalConversationName lusr zcon lcnv convRename = do
           }
   now <- liftIO getCurrentTime
   let action = ConversationMetadataActionRename convRename
-  notifyConversationMetadataUpdate now (unTagged lusr) (Just zcon) (unTagged lcnv) targets action
+  notifyConversationMetadataUpdate now (unTagged lusr) (Just zcon) lcnv targets action
 
 data NotificationTargets = NotificationTargets
   { ntLocals :: [UserId],
@@ -963,38 +966,28 @@ data NotificationTargets = NotificationTargets
     ntBots :: [BotMember]
   }
 
-metadataActionToEvent ::
-  UTCTime ->
-  Qualified UserId ->
-  Qualified ConvId ->
-  ConversationMetadataAction ->
-  Event
-metadataActionToEvent now quid qcnv (ConversationMetadataActionRename rename) =
-  Event ConvRename qcnv quid now (EdConvRename rename)
-
 notifyConversationMetadataUpdate ::
   UTCTime ->
   Qualified UserId ->
   Maybe ConnId ->
-  Qualified ConvId ->
+  Local ConvId ->
   NotificationTargets ->
   ConversationMetadataAction ->
   Galley Event
-notifyConversationMetadataUpdate now quid mcon qcnv targets action = do
+notifyConversationMetadataUpdate now quid mcon (Tagged qcnv) targets action = do
   localDomain <- viewFederationDomain
-  let e = metadataActionToEvent now quid qcnv action
+  let e = Public.metadataActionToEvent now quid qcnv action
 
-  -- if the conversation is local, notify remote participants
-  when (qDomain qcnv == localDomain) $ do
-    let rusersByDomain = partitionRemote (ntRemotes targets)
-    void . pooledForConcurrentlyN 8 rusersByDomain $ \(domain, uids) -> do
-      let req = FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) uids action
-          rpc =
-            FederatedGalley.onConversationMetadataUpdated
-              FederatedGalley.clientRoutes
-              localDomain
-              req
-      runFederatedGalley domain rpc
+  -- notify remote participants
+  let rusersByDomain = partitionRemote (ntRemotes targets)
+  void . pooledForConcurrentlyN 8 rusersByDomain $ \(domain, uids) -> do
+    let req = FederatedGalley.ConversationUpdate now quid (qUnqualified qcnv) uids action
+        rpc =
+          FederatedGalley.onConversationMetadataUpdated
+            FederatedGalley.clientRoutes
+            localDomain
+            req
+    runFederatedGalley domain rpc
 
   -- notify local participants and bots
   pushConversationEvent mcon e (ntLocals targets) (ntBots targets) $> e
@@ -1127,7 +1120,7 @@ addToConversation (bots, existingLocals) existingRemotes (usr, usrRole) conn new
     [] ->
       pure ()
     (x : xs) -> do
-      let action = FederatedGalley.ConversationMembersActionAdd (x :| xs)
+      let action = ConversationMembersActionAdd (x :| xs)
           qusr = Qualified usr localDomain
       notifyRemoteAboutConvUpdate qusr (convId c) now action (rmId <$> existingRemotes <> rmm)
   let localsToNotify = nubOrd . fmap lmId $ existingLocals <> lmm

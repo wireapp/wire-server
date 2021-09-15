@@ -114,14 +114,14 @@ onConversationMembershipsChanged :: Domain -> ConversationMemberUpdate -> Galley
 onConversationMembershipsChanged requestingDomain cmu = do
   localDomain <- viewFederationDomain
   let users = case cmuAction cmu of
-        FederationAPIGalley.ConversationMembersActionAdd toAdd -> fst <$> toAdd
-        FederationAPIGalley.ConversationMembersActionRemove toRemove -> toRemove
+        Public.ConversationMembersActionAdd toAdd -> fst <$> toAdd
+        Public.ConversationMembersActionRemove toRemove -> toRemove
       localUsers = filter ((== localDomain) . qDomain) . toList $ users
       localUserIds = qUnqualified <$> localUsers
       targets = nubOrd $ cmuAlreadyPresentUsers cmu <> localUserIds
       qconvId = Qualified (cmuConvId cmu) requestingDomain
   event <- case cmuAction cmu of
-    FederationAPIGalley.ConversationMembersActionAdd toAdd -> do
+    Public.ConversationMembersActionAdd toAdd -> do
       unless (null localUsers) $
         Data.addLocalMembersToRemoteConv localUserIds qconvId
       let mems = SimpleMembers (map (uncurry SimpleMember) . toList $ toAdd)
@@ -132,7 +132,7 @@ onConversationMembershipsChanged requestingDomain cmu = do
           (cmuOrigUserId cmu)
           (cmuTime cmu)
           (EdMembersJoin mems)
-    FederationAPIGalley.ConversationMembersActionRemove toRemove -> do
+    Public.ConversationMembersActionRemove toRemove -> do
       case localUserIds of
         [] -> pure ()
         (h : t) ->
@@ -151,7 +151,13 @@ onConversationMembershipsChanged requestingDomain cmu = do
   pushConversationEvent Nothing event targets []
 
 onConversationMetadataUpdated :: Domain -> ConversationMetadataUpdate -> Galley ()
-onConversationMetadataUpdated _ _ = pure () -- TODO
+onConversationMetadataUpdated domain update = do
+  -- TODO: check that already-present users are indeed in the conversation
+
+  -- send notifications
+  let qcnv = Qualified (cmuConvId update) domain
+  let e = metadataActionToEvent (cmuTime update) (cmuOrigUserId update) qcnv (cmuAction update)
+  pushConversationEvent Nothing e (cmuAlreadyPresentUsers update) []
 
 leaveConversation ::
   Domain ->

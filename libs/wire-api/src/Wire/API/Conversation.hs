@@ -67,6 +67,8 @@ module Wire.API.Conversation
     ConversationAccessUpdate (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
+    ConversationMembersAction (..),
+    ConversationMetadataAction (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -113,6 +115,7 @@ import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 --------------------------------------------------------------------------------
 -- Conversation
@@ -923,3 +926,21 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
   Doc.description "Contains conversation properties to update"
   Doc.property "message_timer" Doc.int64' $
     Doc.description "Conversation message timer (in milliseconds); can be null"
+
+--------------------------------------------------------------------------------
+-- actions
+
+-- | A conversation membership update, as given by 'ConversationMemberUpdate',
+-- can be either a member addition or removal.
+data ConversationMembersAction
+  = ConversationMembersActionAdd (NonEmpty (Qualified UserId, RoleName))
+  | ConversationMembersActionRemove (NonEmpty (Qualified UserId))
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMembersAction)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMembersAction)
+
+data ConversationMetadataAction
+  = ConversationMetadataActionRename ConversationRename
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMetadataAction)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMetadataAction)
