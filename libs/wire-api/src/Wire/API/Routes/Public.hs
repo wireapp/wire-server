@@ -61,6 +61,8 @@ type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
 
 type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Strict]
 
+type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
+
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
