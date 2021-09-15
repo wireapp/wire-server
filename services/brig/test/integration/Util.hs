@@ -815,6 +815,23 @@ recoverN n m =
     (constantDelay 1000000 <> limitRetries n)
     (const m)
 
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+aFewTimes ::
+  (HasCallStack, MonadIO m) =>
+  -- | Number of retries. Exponentially: 11 ~ total of 2 secs delay, 12 ~ 4 secs delay, ...
+  Int ->
+  m a ->
+  (a -> Bool) ->
+  m a
+aFewTimes
+  retries
+  action
+  good = do
+    retrying
+      (exponentialBackoff 1000 <> limitRetries retries)
+      (\_ -> pure . not . good)
+      (\_ -> action)
+
 -- | This allows you to run requests against a brig instantiated using the given options.
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other
 --   services will fail.

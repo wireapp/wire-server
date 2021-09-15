@@ -35,7 +35,6 @@ import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Random
-import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
@@ -363,20 +362,3 @@ acceptWithName name email code =
       "password" Aeson..= defPassword,
       "team_code" Aeson..= code
     ]
-
--- | Run a probe several times, until a "good" value materializes or until patience runs out
-aFewTimes ::
-  (HasCallStack, MonadIO m) =>
-  -- | Number of retries. Exponentially: 11 ~ total of 2 secs delay, 12 ~ 4 secs delay, ...
-  Int ->
-  m a ->
-  (a -> Bool) ->
-  m a
-aFewTimes
-  retries
-  action
-  good = do
-    retrying
-      (exponentialBackoff 1000 <> limitRetries retries)
-      (\_ -> pure . not . good)
-      (\_ -> action)

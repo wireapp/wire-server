@@ -263,15 +263,15 @@ testOrderName brig = do
   nameMatch <- userQualifiedId <$> createUser' True searchedWord brig
   namePrefixMatch <- userQualifiedId <$> createUser' True (searchedWord <> "suffix") brig
   refreshIndex brig
-  results <- searchResults <$> executeSearch brig searcher searchedWord
-  let resultUIds = map contactQualifiedId results
   let expectedOrder = [nameMatch, namePrefixMatch]
-  let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
+  -- possibly there is some delay in refreshing of the index writes being
+  -- visible for subsequent reads, so we try this a few times.
+  results <- aFewTimes 12 (toIds <$> executeSearch brig searcher searchedWord) (== expectedOrder)
   liftIO $
     assertEqual
-      ("Expected order: name match, name prefix match.\n\nSince this test fails sporadically for unknown reasons here is some debug info:\n" <> dbg)
+      "If this test fails again, maybe we should consider deleting it and living with some more uncertainty"
       expectedOrder
-      resultUIds
+      results
 
 testOrderHandle :: TestConstraints m => Brig -> m ()
 testOrderHandle brig = do
@@ -282,15 +282,18 @@ testOrderHandle brig = do
   handlePrefixMatch <- userQualifiedId <$> createUser' True "handle prefix match" brig
   void $ putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix")
   refreshIndex brig
-  results <- searchResults <$> executeSearch brig searcher searchedWord
-  let resultUIds = map contactQualifiedId results
   let expectedOrder = [handleMatch, handlePrefixMatch]
-  let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
+  -- possibly there is some delay in refreshing of the index writes being
+  -- visible for subsequent reads, so we try this a few times.
+  results <- aFewTimes 12 (toIds <$> executeSearch brig searcher searchedWord) (== expectedOrder)
   liftIO $
     assertEqual
-      ("Expected order: handle match, handle prefix match.\n\nSince this test fails sporadically for unknown reasons here here is some debug info:\n" <> dbg)
+      "If this test fails again, maybe we should consider deleting it and living with some more uncertainty"
       expectedOrder
-      resultUIds
+      results
+
+toIds :: SearchResult Contact -> [Qualified UserId]
+toIds = map contactQualifiedId . searchResults
 
 testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Brig -> m ()
 testSearchTeamMemberAsNonMemberDisplayName brig = do
