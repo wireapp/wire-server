@@ -21,7 +21,7 @@ module Test.Wire.API.Golden.Generated.UserUpdate_user where
 import Imports (Maybe (Just, Nothing))
 import Wire.API.User
   ( Asset (ImageAsset),
-    AssetSize (AssetComplete, AssetPreview),
+    AssetSize (AssetComplete),
     ColourId (ColourId, fromColourId),
     Name (Name, fromName),
     Pict (Pict, fromPict),
