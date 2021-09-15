@@ -261,6 +261,10 @@ specFinalizeLogin = do
             (owner2, tid2) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
             idp2 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner2) metadata
             pure (tid2, idp2)
+          (tid3, idp3) <- liftIO . runHttpT (env ^. teMgr) $ do
+            (owner3, tid3) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            idp3 :: IdP <- callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner3) metadata
+            pure (tid3, idp3)
           do
             spmeta <- getTestSPMetadata tid1
             authnreq <- negotiateAuthnRequest idp1
@@ -271,6 +275,11 @@ specFinalizeLogin = do
             authnreq <- negotiateAuthnRequest idp2
             authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp2 spmeta authnreq True
             loginSuccess =<< submitAuthnResponse tid2 authnresp
+          do
+            spmeta <- getTestSPMetadata tid3
+            authnreq <- negotiateAuthnRequest idp3
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp3 spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse tid3 authnresp
       context "user is created once, then deleted in team settings, then can login again." $ do
         it "responds with 'allowed'" $ do
           (ownerid, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
