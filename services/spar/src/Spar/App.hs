@@ -104,8 +104,8 @@ import Wire.API.User.Scim (ValidExternalId (..))
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
 
-raiseSem :: (Member (Final IO) r => Sem r a) -> Spar r a
-raiseSem r = Spar $ lift $ lift r
+liftSem :: (Member (Final IO) r => Sem r a) -> Spar r a
+liftSem r = Spar $ lift $ lift r
 
 instance Applicative (Spar r) where
   pure a = Spar $ pure a
@@ -124,7 +124,7 @@ instance MonadError SparError (Spar r) where
   catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
 
 instance MonadIO (Spar r) where
-  liftIO m = raiseSem $ embedFinal m
+  liftIO m = liftSem $ embedFinal m
 
 data Env = Env
   { sparCtxOpts :: Opts,
@@ -152,7 +152,7 @@ instance MonadLogger (Spar r) where
     lg <- asks sparCtxLogger
     reqid <- asks sparCtxRequestId
     let fields = Log.field "request" (unRequestId reqid)
-    raiseSem $ embedFinal $ Log.log lg level $ fields Log.~~ mg
+    liftSem $ embedFinal $ Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
@@ -202,8 +202,6 @@ instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
     handler' <- bindS handler
     pure $ m' `Catch.catch` \e -> handler' $ e <$ st
 
---     embedFinal $ runM m `Catch.catch` (runM . handler)
-
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
 wrapMonadClient :: Cas.Client a -> Spar r a
@@ -214,7 +212,7 @@ wrapMonadClient action = do
       `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
 wrapMonadClientSem :: Sem r a -> Spar r a
-wrapMonadClientSem action = raiseSem $ action
+wrapMonadClientSem action = liftSem $ action
 
 insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
