@@ -203,6 +203,8 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
 import Polysemy
+import Spar.Sem.SAMLUser (SAMLUser)
+import Spar.Sem.SAMLUser.Cassandra
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1199,11 +1201,11 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- runM $ runExceptT $ action `runReaderT` env
+    result <- runFinal $ embedToFinal @IO $ interpretClientToIO (Spar.sparCtxCas env) $ samlUserToCassandra @Cas.Client $ runExceptT $ action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId

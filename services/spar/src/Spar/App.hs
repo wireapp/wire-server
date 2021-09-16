@@ -23,7 +23,6 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | The 'Spar' monad and a set of actions (e.g. 'createUser') that can be performed in it.
-{-# OPTIONS_GHC -Wno-missing-methods #-}
 module Spar.App
   ( Spar (..),
     Env (..),
@@ -110,10 +109,21 @@ newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT
 raiseSem :: (Member (Final IO) r => Sem r a) -> Spar r a
 raiseSem r = Spar $ lift $ lift r
 
-instance Applicative (Spar r)
-instance Monad (Spar r)
-instance MonadReader Env (Spar r)
-instance MonadError SparError (Spar r)
+instance Applicative (Spar r) where
+  pure a = Spar $ pure a
+  liftA2 f a b = Spar $ liftA2 f (fromSpar a) (fromSpar b)
+
+instance Monad (Spar r) where
+  return = pure
+  f >>= a = Spar $ fromSpar f >>= fromSpar . a
+
+instance MonadReader Env (Spar r) where
+  ask = Spar ask
+  local f m = Spar $ local f $ fromSpar m
+
+instance MonadError SparError (Spar r) where
+  throwError err = Spar $ throwError err
+  catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
 
 instance MonadIO (Spar r) where
   liftIO m = raiseSem $ embedFinal m
