@@ -24,12 +24,19 @@ module Wire.API.Routes.MultiVerb
     DescHeader,
     AsHeaders (..),
     AsUnion (..),
+    eitherToUnion,
+    eitherFromUnion,
+    AsConstructor (..),
+    GenericAsConstructor (..),
+    GenericAsUnion (..),
+    ResponseType,
     IsResponse (..),
     IsSwaggerResponse (..),
     RenderOutput (..),
     roAddContentType,
     roResponse,
     ResponseSwagger (..),
+    ResponseTypes,
     IsResponseList (..),
   )
 where
@@ -46,6 +53,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as Text
 import GHC.TypeLits
+import Generics.SOP as GSOP
 import Imports
 import qualified Network.HTTP.Media as M
 import Network.HTTP.Types (HeaderName, hContentType)
@@ -125,15 +133,17 @@ instance MonadPlus UnrenderResult where
 class IsSwaggerResponse a where
   responseSwagger :: Declare ResponseSwagger
 
+type family ResponseType a :: *
+
 class IsResponse cs a where
-  type ResponseType a :: *
   type ResponseStatus a :: Nat
 
   responseRender :: AcceptHeader -> ResponseType a -> Maybe RenderOutput
   responseUnrender :: M.MediaType -> RenderOutput -> UnrenderResult (ResponseType a)
 
+type instance ResponseType (Respond s desc a) = a
+
 instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse cs (Respond s desc a) where
-  type ResponseType (Respond s desc a) = a
   type ResponseStatus (Respond s desc a) = s
 
   -- Note: here it seems like we are rendering for all possible content types,
@@ -170,8 +180,9 @@ instance
       desc = Text.pack (symbolVal (Proxy @desc))
       status = statusVal (Proxy @s)
 
+type instance ResponseType (RespondEmpty s desc) = ()
+
 instance KnownStatus s => IsResponse cs (RespondEmpty s desc) where
-  type ResponseType (RespondEmpty s desc) = ()
   type ResponseStatus (RespondEmpty s desc) = s
 
   responseRender _ _ =
@@ -237,6 +248,8 @@ instance
       desc = Text.pack (symbolVal (Proxy @desc))
       sch = S.toParamSchema (Proxy @a)
 
+type instance ResponseType (WithHeaders hs a r) = a
+
 instance
   ( AsHeaders (ServantHeaders hs) (ResponseType r) a,
     GetHeaders' (ServantHeaders hs),
@@ -246,7 +259,6 @@ instance
   ) =>
   IsResponse cs (WithHeaders hs a r)
   where
-  type ResponseType (WithHeaders hs a r) = a
   type ResponseStatus (WithHeaders hs a r) = ResponseStatus r
 
   responseRender acc x =
@@ -275,17 +287,17 @@ instance
 class IsSwaggerResponseList as where
   responseListSwagger :: Declare [ResponseSwagger]
 
-class IsResponseList cs as where
-  type ResponseTypes as :: [*]
+type family ResponseTypes (as :: [*]) where
+  ResponseTypes '[] = '[]
+  ResponseTypes (a ': as) = ResponseType a ': ResponseTypes as
 
+class IsResponseList cs as where
   responseListRender :: AcceptHeader -> Union (ResponseTypes as) -> Maybe RenderOutput
   responseListUnrender :: M.MediaType -> RenderOutput -> UnrenderResult (Union (ResponseTypes as))
 
   responseListStatuses :: [Status]
 
 instance IsResponseList cs '[] where
-  type ResponseTypes '[] = '[]
-
   responseListRender _ x = case x of
   responseListUnrender _ _ = empty
   responseListStatuses = []
@@ -300,8 +312,6 @@ instance
   ) =>
   IsResponseList cs (a ': as)
   where
-  type ResponseTypes (a ': as) = ResponseType a ': ResponseTypes as
-
   responseListRender acc (Z (I x)) = responseRender @cs @a acc x
   responseListRender acc (S x) = responseListRender @cs @as acc x
 
@@ -346,6 +356,126 @@ class AsUnion (as :: [*]) (r :: *) where
 instance rs ~ ResponseTypes as => AsUnion as (Union rs) where
   toUnion = id
   fromUnion = id
+
+instance AsUnion '[RespondEmpty code desc] () where
+  toUnion () = Z (I ())
+  fromUnion (Z (I ())) = ()
+  fromUnion (S x) = case x of
+
+class InjectAfter as bs where
+  injectAfter :: Union bs -> Union (as .++ bs)
+
+instance InjectAfter '[] bs where
+  injectAfter = id
+
+instance InjectAfter as bs => InjectAfter (a ': as) bs where
+  injectAfter = S . injectAfter @as @bs
+
+class InjectBefore as bs where
+  injectBefore :: Union as -> Union (as .++ bs)
+
+instance InjectBefore '[] bs where
+  injectBefore x = case x of
+
+instance InjectBefore as bs => InjectBefore (a ': as) bs where
+  injectBefore (Z x) = Z x
+  injectBefore (S x) = S (injectBefore @as @bs x)
+
+eitherToUnion ::
+  forall as bs a b.
+  (InjectAfter as bs, InjectBefore as bs) =>
+  (a -> Union as) ->
+  (b -> Union bs) ->
+  (Either a b -> Union (as .++ bs))
+eitherToUnion f _ (Left a) = injectBefore @as @bs (f a)
+eitherToUnion _ g (Right b) = injectAfter @as @bs (g b)
+
+class EitherFromUnion as bs where
+  eitherFromUnion ::
+    (Union as -> a) ->
+    (Union bs -> b) ->
+    (Union (as .++ bs) -> Either a b)
+
+instance EitherFromUnion '[] bs where
+  eitherFromUnion _ g = Right . g
+
+instance EitherFromUnion as bs => EitherFromUnion (a ': as) bs where
+  eitherFromUnion f _ (Z x) = Left (f (Z x))
+  eitherFromUnion f g (S x) = eitherFromUnion @as @bs (f . S) g x
+
+-- | This class can be instantiated to get automatic derivation of 'AsUnion'
+-- instances via 'GenericAsUnion'. The idea is that one has to make sure that for
+-- each response @r@ in a 'MultiVerb' endpoint, there is an instance of
+-- @AsConstructor xs r@ for some @xs@, and that the list @xss@ of all the
+-- corresponding @xs@ is equal to 'GSOP.Code' of the handler type. Then one can
+-- write:
+-- @
+--   type Responses = ...
+--   data Result = ...
+--     deriving stock (Generic)
+--     deriving (AsUnion Responses) via (GenericAsUnion Responses Result)
+--
+--   instance GSOP.Generic Result
+-- @
+-- and get an 'AsUnion' instance for free.
+--
+-- There are a few predefined instances for constructors taking a single type
+-- corresponding to a simple response, and for empty responses, but in more
+-- general cases one either has to define an 'AsConstructor' instance by hand,
+-- or derive it via 'GenericAsConstructor'.
+class AsConstructor xs r where
+  toConstructor :: ResponseType r -> NP I xs
+  fromConstructor :: NP I xs -> ResponseType r
+
+class AsConstructors xss rs where
+  toSOP :: Union (ResponseTypes rs) -> SOP I xss
+  fromSOP :: SOP I xss -> Union (ResponseTypes rs)
+
+instance AsConstructors '[] '[] where
+  toSOP x = case x of
+  fromSOP x = case x of
+
+instance AsConstructor '[a] (Respond code desc a) where
+  toConstructor x = I x :* Nil
+  fromConstructor = unI . hd
+
+instance AsConstructor '[] (RespondEmpty code desc) where
+  toConstructor _ = Nil
+  fromConstructor _ = ()
+
+newtype GenericAsConstructor r = GenericAsConstructor r
+
+type instance ResponseType (GenericAsConstructor r) = ResponseType r
+
+instance
+  (GSOP.Code (ResponseType r) ~ '[xs], GSOP.Generic (ResponseType r)) =>
+  AsConstructor xs (GenericAsConstructor r)
+  where
+  toConstructor = unZ . unSOP . GSOP.from
+  fromConstructor = GSOP.to . SOP . Z
+
+instance
+  (AsConstructor xs r, AsConstructors xss rs) =>
+  AsConstructors (xs ': xss) (r ': rs)
+  where
+  toSOP (Z (I x)) = SOP . Z $ toConstructor @xs @r x
+  toSOP (S x) = SOP . S . unSOP $ toSOP @xss @rs x
+
+  fromSOP (SOP (Z x)) = Z (I (fromConstructor @xs @r x))
+  fromSOP (SOP (S x)) = S (fromSOP @xss @rs (SOP x))
+
+-- | This type is meant to be used with @deriving via@ in order to automatically
+-- generate an 'AsUnion' instance using 'Generics.SOP'.
+--
+-- See 'AsConstructor' for more information and examples.
+newtype GenericAsUnion rs a = GenericAsUnion a
+
+instance
+  (GSOP.Code a ~ xss, GSOP.Generic a, AsConstructors xss rs) =>
+  AsUnion rs (GenericAsUnion rs a)
+  where
+  toUnion (GenericAsUnion x) = fromSOP @xss @rs (GSOP.from x)
+  fromUnion = GenericAsUnion . GSOP.to . toSOP @xss @rs
 
 -- | A handler for a pair of empty responses can be implemented simply by
 -- returning a boolean value. The convention is that the "failure" case, normally
@@ -435,7 +565,7 @@ instance
     let acc = getAcceptHeader req
         action' =
           action `addMethodCheck` methodCheck method req
-            `addMethodCheck` acceptCheck (Proxy @cs) acc
+            `addAcceptCheck` acceptCheck (Proxy @cs) acc
     runAction action' env req k $ \output -> do
       let mresp = responseListRender @cs @as acc (toUnion @as output)
       resp' <- case mresp of

@@ -116,7 +116,6 @@ import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (convNotFound, notATeamMember, operationDenied)
 import qualified Wire.API.Notification as Public
-import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
@@ -761,7 +760,7 @@ getTeamConversation zusr tid cid = do
     throwErrorDescription (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwErrorDescription convNotFound) pure
 
-deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley (EmptyResult 200)
+deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
 deleteTeamConversation zusr zcon tid cid = do
   localDomain <- viewFederationDomain
   let qconvId = Qualified cid localDomain
@@ -778,7 +777,6 @@ deleteTeamConversation zusr zcon tid cid = do
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
-  pure EmptyResult
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSearchVisibilityH (uid ::: tid ::: _) = do

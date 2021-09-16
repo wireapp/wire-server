@@ -22,8 +22,11 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
+import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
+import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
+import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Runner
@@ -53,6 +56,23 @@ tests =
           [ (testObject_ConversationCoverView_1, "testObject_ConversationCoverView_1.json"),
             (testObject_ConversationCoverView_2, "testObject_ConversationCoverView_2.json"),
             (testObject_ConversationCoverView_3, "testObject_ConversationCoverView_3.json")
+          ],
+      testCase "GetPaginatedConversationIds" $
+        testObjects
+          [ (testObject_GetPaginatedConversationIds_1, "testObject_GetPaginatedConversationIds_1.json"),
+            (testObject_GetPaginatedConversationIds_2, "testObject_GetPaginatedConversationIds_2.json")
+          ],
+      testCase "ConversationPagingState" $
+        testObjects
+          [ (testObject_ConversationPagingState_1, "testObject_ConversationPagingState_1.json"),
+            (testObject_ConversationPagingState_2, "testObject_ConversationPagingState_2.json"),
+            (testObject_ConversationPagingState_3, "testObject_ConversationPagingState_3.json"),
+            (testObject_ConversationPagingState_4, "testObject_ConversationPagingState_4.json")
+          ],
+      testCase "ConvIdsPage" $
+        testObjects
+          [ (testObject_ConvIdsPage_1, "testObject_ConvIdsPage_1.json"),
+            (testObject_ConvIdsPage_2, "testObject_ConvIdsPage_2.json")
           ],
       testCase "ClientCapability" $
         testObjects

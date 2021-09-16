@@ -37,9 +37,9 @@ import Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public
-import qualified Wire.API.Message as Public
+import Wire.API.Message
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Routes.Public (ZConn, ZUser)
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
 import qualified Wire.API.Team.Conversation as Public
@@ -101,20 +101,6 @@ instance AsUnion UpdateResponses UpdateResult where
   fromUnion (S (Z (I e))) = Updated e
   fromUnion (S (S x)) = case x of
 
-type PostOtrResponsesUnqualified =
-  '[ WithStatus 201 Public.ClientMismatch,
-     WithStatus 412 Public.ClientMismatch,
-     ConvNotFound,
-     UnknownClient
-   ]
-
-type PostOtrResponses =
-  '[ WithStatus 201 Public.MessageSendingStatus,
-     WithStatus 412 Public.MessageSendingStatus,
-     ConvNotFound,
-     UnknownClient
-   ]
-
 data Api routes = Api
   { -- Conversations
 
@@ -140,9 +126,9 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "roles"
         :> Get '[Servant.JSON] Public.ConversationRolesList,
-    getConversationIds ::
+    listConversationIdsUnqualified ::
       routes
-        :- Summary "Get all conversation IDs."
+        :- Summary "[deprecated] Get all local conversation IDs."
         -- FUTUREWORK: add bounds to swagger schema for Range
         :> ZUser
         :> "conversations"
@@ -162,6 +148,15 @@ data Api routes = Api
              "size"
              (Range 1 1000 Int32)
         :> Get '[Servant.JSON] (Public.ConversationList ConvId),
+    listConversationIds ::
+      routes
+        :- Summary "Get all conversation IDs."
+          :> Description "To retrieve the next page, a client must pass the paging_state returned by the previous page."
+          :> ZUser
+          :> "conversations"
+          :> "list-ids"
+          :> ReqBody '[Servant.JSON] Public.GetPaginatedConversationIds
+          :> Post '[Servant.JSON] Public.ConvIdsPage,
     getConversations ::
       routes
         :- Summary "Get all *local* conversations."
@@ -297,7 +292,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Delete '[] (EmptyResult 200),
+        :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Conversation deleted"] (),
     postOtrMessageUnqualified ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
@@ -306,12 +301,16 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> QueryParam "ignore_missing" Public.IgnoreMissing
-        :> QueryParam "report_missing" Public.ReportMissing
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
         :> "otr"
         :> "messages"
-        :> ReqBody '[Servant.JSON, Proto] Public.NewOtrMessage
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponsesUnqualified,
+        :> ReqBody '[Servant.JSON, Proto] NewOtrMessage
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses ClientMismatch)
+             (Either (MessageNotSent ClientMismatch) ClientMismatch),
     postProteusMessage ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
@@ -322,8 +321,12 @@ data Api routes = Api
         :> QualifiedCapture "cnv" ConvId
         :> "proteus"
         :> "messages"
-        :> ReqBody '[Proto] (RawProto Public.QualifiedNewOtrMessage)
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponses,
+        :> ReqBody '[Proto] (RawProto QualifiedNewOtrMessage)
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses MessageSendingStatus)
+             (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus),
     teamFeatureStatusSSOGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureSSO,

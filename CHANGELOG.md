@@ -29,14 +29,27 @@
 
 ## API Changes
 
+* Add `POST /conversations/list-ids` (#1686)
+* Deprecate `GET /converstations/ids` (#1686)
+
 ## Features
+
+* Client functions for the hscim library (#1699)
 
 ## Bug fixes and other updates
 
+## Federation changes (alpha feature, do not use yet)
+
+* Add new API to list paginated qualified conversation ids (#1686)
+
 ## Documentation
+
+* fix swagger: mark name in UserUpdate as optional (#1691)
 
 ## Internal changes
 
+* Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
+* Added a mechanism to derive `AsUnion` instances automatically (#1693)
 
 # [2021-08-02]
 
@@ -65,6 +78,7 @@ Upgrade nginz (#1658)
 * New, hardened end-point for changing email (68b4db08)
 * Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
 * Fix: sso_id field in user record (brig) was not always filled correctly in cassandra (#1334)
+* Change http response code for `missing-legalhold-consent` from 412 to 403 (#1688)
 
 ## Documentation
 
