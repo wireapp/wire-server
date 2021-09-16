@@ -217,21 +217,22 @@ connectionDelete = "DELETE FROM connection WHERE left = ? AND right = ?"
 connectionClear :: PrepQuery W (Identity UserId) ()
 connectionClear = "DELETE FROM connection WHERE left = ?"
 
+-- FUTUREWORK: uncomment these in the next PR
 -- TODO: Add conv id if we agree
-remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis) ()
-remoteConnectionInsert = "INSERT INTO connection_remote (left, right_domain, right_user, status, last_update) VALUES (?, ?, ?, ?, ?)"
+-- remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis) ()
+-- remoteConnectionInsert = "INSERT INTO connection_remote (left, right_domain, right_user, status, last_update) VALUES (?, ?, ?, ?, ?)"
 
-remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
-remoteConnectionSelect = "SELECT right_domain, right_user, status FROM connection_remote where left = ?"
+-- remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
+-- remoteConnectionSelect = "SELECT right_domain, right_user, status FROM connection_remote where left = ?"
 
-remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (Identity RelationWithHistory)
-remoteConnectionSelectFrom = "SELECT status FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+-- remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (Identity RelationWithHistory)
+-- remoteConnectionSelectFrom = "SELECT status FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
 
-remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
-remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+-- remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
+-- remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
 
-remoteConnectionClear :: PrepQuery W (Identity UserId) ()
-remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
+-- remoteConnectionClear :: PrepQuery W (Identity UserId) ()
+-- remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
 
 -- Conversions
 
