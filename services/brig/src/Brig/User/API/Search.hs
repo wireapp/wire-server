@@ -31,7 +31,6 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
-import Brig.User.API.Handle (contactFromProfile)
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
