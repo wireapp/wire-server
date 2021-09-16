@@ -321,7 +321,8 @@ data Api routes = Api
     -- - ConvMessageTimerUpdate event to members
     updateConversationMessageTimerUnqualified ::
       routes
-        :- Summary "Update the message timer for a conversation"
+        :- Summary "Update the message timer for a conversation (deprecated)"
+        :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
         :> ZUser
         :> ZConn
         :> CanThrow ConvAccessDenied
@@ -329,6 +330,23 @@ data Api routes = Api
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "message-timer"
+        :> ReqBody '[JSON] ConversationMessageTimerUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
+             (UpdateResult Event),
+    updateConversationMessageTimer ::
+      routes
+        :- Summary "Update the message timer for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
         :> "message-timer"
         :> ReqBody '[JSON] ConversationMessageTimerUpdate
         :> MultiVerb

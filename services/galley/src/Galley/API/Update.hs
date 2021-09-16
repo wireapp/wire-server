@@ -31,7 +31,8 @@ module Galley.API.Update
     updateConversationName,
     updateConversationAccessH,
     updateConversationReceiptModeH,
-    updateConversationMessageTimerUnqualified,
+    updateLocalConversationMessageTimer,
+    updateConversationMessageTimer,
 
     -- * Managing Members
     addMembersH,
@@ -318,8 +319,15 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.Conversatio
       pushConversationEvent (Just zcon) receiptEvent (map lmId users) bots
       pure receiptEvent
 
-updateConversationMessageTimerUnqualified :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
-updateConversationMessageTimerUnqualified usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
+updateConversationMessageTimer :: UserId -> ConnId -> Qualified ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
+updateConversationMessageTimer usr zcon qcnv update = do
+  localDomain <- viewFederationDomain
+  if qDomain qcnv == localDomain
+    then updateLocalConversationMessageTimer usr zcon (qUnqualified qcnv) update
+    else throwM federationNotImplemented
+
+updateLocalConversationMessageTimer :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
+updateLocalConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain

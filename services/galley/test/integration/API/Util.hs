@@ -1052,6 +1052,23 @@ putAccessUpdate u c acc = do
       . zType "access"
       . json acc
 
+putMessageTimerUpdateQualified ::
+  UserId -> Qualified ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
+putMessageTimerUpdateQualified u c acc = do
+  g <- view tsGalley
+  put $
+    g
+      . paths
+        [ "/conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "message-timer"
+        ]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json acc
+
 putMessageTimerUpdate ::
   UserId -> ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
 putMessageTimerUpdate u c acc = do
