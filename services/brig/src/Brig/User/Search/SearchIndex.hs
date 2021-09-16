@@ -97,8 +97,7 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
           ( ES.mkMultiMatchQuery
               [ ES.FieldName "handle.prefix^2",
                 ES.FieldName "normalized.prefix",
-                ES.FieldName "normalized^3",
-                ES.FieldName "handle^4"
+                ES.FieldName "normalized^3"
               ]
               (ES.QueryString term')
           )
