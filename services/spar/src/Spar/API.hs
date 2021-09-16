@@ -53,6 +53,7 @@ import Data.Time
 import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Imports
 import OpenSSL.Random (randBytes)
+import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
@@ -63,13 +64,12 @@ import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
+import Spar.Sem.SAMLUser (SAMLUser)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Spar.Sem.SAMLUser (SAMLUser)
-import Polysemy
 
 app :: Env -> Application
 app ctx =

@@ -63,12 +63,14 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
+import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Spar.App (Spar, getUserByScimExternalId, getUserByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
+import Spar.Sem.SAMLUser (SAMLUser)
 import qualified System.Logger.Class as Log
 import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
@@ -90,8 +92,6 @@ import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
-import Spar.Sem.SAMLUser (SAMLUser)
-import Polysemy
 
 ----------------------------------------------------------------------------
 -- UserDB instance

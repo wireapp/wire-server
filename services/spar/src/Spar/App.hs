@@ -1,9 +1,7 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
-{-# LANGUAGE RecordWildCards             #-}
-
-{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -60,6 +58,8 @@ import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
+import Polysemy
+import Polysemy.Final
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( Assertion (..),
@@ -83,11 +83,14 @@ import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data hiding (insertSAMLUser, getSAMLUser, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, deleteSAMLUsersByIssuer, deleteSAMLUser)
+import qualified Spar.Data as Data hiding (deleteSAMLUser, deleteSAMLUsersByIssuer, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, getSAMLUser, insertSAMLUser)
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
+import Spar.Sem.SAMLUser (SAMLUser)
+import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.Sem.SAMLUser.Cassandra (interpretClientToIO, samlUserToCassandra)
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
@@ -97,11 +100,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Polysemy
-import Polysemy.Final
-import Spar.Sem.SAMLUser (SAMLUser)
-import qualified Spar.Sem.SAMLUser as SAMLUser
-import Spar.Sem.SAMLUser.Cassandra (samlUserToCassandra, interpretClientToIO)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -203,7 +201,6 @@ instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
     st <- getInitialStateS
     handler' <- bindS handler
     pure $ m' `Catch.catch` \e -> handler' $ e <$ st
-
 
 --     embedFinal $ runM m `Catch.catch` (runM . handler)
 
