@@ -147,7 +147,11 @@ instance Arbitrary ConvWithLocalUser where
   arbitrary = do
     RandomConversation conv <- arbitrary
     member <- genLocalMember
-    let conv' = conv {Data.convLocalMembers = member : Data.convLocalMembers conv}
+    let conv'
+          | lmId member `elem` map lmId (Data.convLocalMembers conv) =
+            conv
+          | otherwise =
+            conv {Data.convLocalMembers = member : Data.convLocalMembers conv}
     pure $ ConvWithLocalUser conv' (lmId member)
 
 data ConvWithRemoteUser = ConvWithRemoteUser Data.Conversation (Remote UserId)
@@ -157,5 +161,9 @@ instance Arbitrary ConvWithRemoteUser where
   arbitrary = do
     RandomConversation conv <- arbitrary
     member <- genRemoteMember
-    let conv' = conv {Data.convRemoteMembers = member : Data.convRemoteMembers conv}
+    let conv'
+          | rmId member `elem` map rmId (Data.convRemoteMembers conv) =
+            conv
+          | otherwise =
+            conv {Data.convRemoteMembers = member : Data.convRemoteMembers conv}
     pure $ ConvWithRemoteUser conv' (rmId member)
