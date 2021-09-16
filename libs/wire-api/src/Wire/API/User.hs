@@ -21,6 +21,7 @@
 
 module Wire.API.User
   ( UserIdList (..),
+    QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
     -- Profiles
     UserProfile (..),
@@ -100,6 +101,7 @@ import Control.Lens (over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Domain (Domain (Domain))
@@ -142,8 +144,7 @@ import Wire.API.User.Profile
 -- needed due to backwards compatible reasons since old
 -- clients will break if we switch these types. Also, this
 -- definition represents better what information it carries
-newtype UserIdList = UserIdList
-  {mUsers :: [UserId]}
+newtype UserIdList = UserIdList {mUsers :: [UserId]}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserIdList
@@ -159,6 +160,21 @@ modelUserIdList = Doc.defineModel "UserIdList" $ do
   Doc.description "list of user ids"
   Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "the array of team conversations"
+
+--------------------------------------------------------------------------------
+-- QualifiedUserIdList
+
+newtype QualifiedUserIdList = QualifiedUserIdList {qualifiedUserIdList :: [Qualified UserId]}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema QualifiedUserIdList
+
+instance ToSchema QualifiedUserIdList where
+  schema =
+    object "QualifiedUserIdList" $
+      QualifiedUserIdList
+        <$> qualifiedUserIdList .= field "qualified_user_ids" (array schema)
+        <* (fmap qUnqualified . qualifiedUserIdList) .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
@@ -398,7 +414,10 @@ userSCIMExternalId usr = userSSOId >=> ssoIdExtId $ usr
     ssoIdExtId :: UserSSOId -> Maybe Text
     ssoIdExtId (UserSSOId _ nameIdXML) = case userManagedBy usr of
       ManagedByWire -> Nothing
-      ManagedByScim -> SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (TL.fromStrict nameIdXML))
+      ManagedByScim ->
+        -- FUTUREWORK: keep the CI value, store the original in the database, but always use
+        -- the CI value for processing.
+        CI.original . SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (TL.fromStrict nameIdXML))
     ssoIdExtId (UserScimExternalId extId) = pure extId
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
@@ -959,6 +978,13 @@ newtype DeleteUser = DeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema DeleteUser)
+
+instance ToSchema DeleteUser where
+  schema =
+    object "DeleteUser" $
+      DeleteUser
+        <$> deleteUserPassword .= opt (field "password" schema)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
@@ -1017,6 +1043,13 @@ newtype DeletionCodeTimeout = DeletionCodeTimeout
   {fromDeletionCodeTimeout :: Code.Timeout}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema DeletionCodeTimeout)
+
+instance ToSchema DeletionCodeTimeout where
+  schema =
+    object "DeletionCodeTimeout" $
+      DeletionCodeTimeout
+        <$> fromDeletionCodeTimeout .= field "expires_in" schema
 
 instance ToJSON DeletionCodeTimeout where
   toJSON (DeletionCodeTimeout t) = A.object ["expires_in" A..= t]

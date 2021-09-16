@@ -66,6 +66,7 @@ library:
   - servant-server
   - servant-swagger
   - schema-profunctor
+  - singletons
   - sop-core
   - string-conversions
   - swagger >=0.1

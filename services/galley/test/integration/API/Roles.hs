@@ -154,6 +154,7 @@ wireAdminChecks ::
   TestM ()
 wireAdminChecks cid admin otherAdmin mem = do
   let role = roleNameWireAdmin
+  qcid <- Qualified cid <$> viewFederationDomain
   other <- randomUser
   connectUsers admin (singleton other)
   -- Admins can perform all operations on the conversation; creator is not relevant
@@ -162,7 +163,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   postMembers admin (singleton other) cid !!! assertActionSucceeded
   -- Remove members, regardless of who they are
   forM_ [otherAdmin, mem] $ \victim -> do
-    deleteMember admin victim cid !!! assertActionSucceeded
+    deleteMemberUnqualified admin victim cid !!! assertActionSucceeded
     postMembersWithRole admin (singleton victim) cid role !!! assertActionSucceeded
   -- Modify the conversation name
   void $ putConversationName admin cid "gossip++" !!! assertActionSucceeded
@@ -182,10 +183,10 @@ wireAdminChecks cid admin otherAdmin mem = do
   let activatedAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
-  let memUpdate = memberUpdate {mupOtrMute = Just True}
-  putMember admin memUpdate cid !!! assertActionSucceeded
+  let memUpdate = memberUpdate {mupOtrArchive = Just True}
+  putMember admin memUpdate qcid !!! assertActionSucceeded
   -- You can also leave a conversation
-  deleteMember admin admin cid !!! assertActionSucceeded
+  deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
   -- Readding the user
   postMembersWithRole otherAdmin (singleton admin) cid role !!! const 200 === statusCode
 
@@ -199,6 +200,7 @@ wireMemberChecks ::
   TestM ()
 wireMemberChecks cid mem admin otherMem = do
   let role = roleNameWireMember
+  qcid <- Qualified cid <$> viewFederationDomain
   other <- randomUser
   connectUsers mem (singleton other)
   -- Members cannot perform pretty much any action on the conversation
@@ -206,7 +208,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- Cannot add members, regardless of their role
   postMembers mem (singleton other) cid !!! assertActionDenied
   -- Cannot remove members, regardless of who they are
-  forM_ [admin, otherMem] $ \victim -> deleteMember mem victim cid !!! assertActionDenied
+  forM_ [admin, otherMem] $ \victim -> deleteMemberUnqualified mem victim cid !!! assertActionDenied
   -- Cannot modify the conversation name
   void $ putConversationName mem cid "gossip++" !!! assertActionDenied
   -- Cannot modify other members roles
@@ -218,10 +220,6 @@ wireMemberChecks cid mem admin otherMem = do
   putOtherMember mem mem sneakyOtherMemberUpdate cid !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
-  let selfMemberUpdate = memberUpdate {mupConvRoleName = Just roleNameWireAdmin}
-  putMember mem selfMemberUpdate cid !!! do
-    const 403 === statusCode
-    const (Just "invalid-actions") === fmap label . responseJsonUnsafe
   -- No updates for message timer, receipt mode or access
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
@@ -230,10 +228,10 @@ wireMemberChecks cid mem admin otherMem = do
   -- Finally, you can still do the following actions:
 
   -- Update your own member state
-  let memUpdate = memberUpdate {mupOtrMute = Just True}
-  putMember mem memUpdate cid !!! assertActionSucceeded
+  let memUpdate = memberUpdate {mupOtrArchive = Just True}
+  putMember mem memUpdate qcid !!! assertActionSucceeded
   -- Last option is to leave a conversation
-  deleteMember mem mem cid !!! assertActionSucceeded
+  deleteMemberUnqualified mem mem cid !!! assertActionSucceeded
   -- Let's readd the user to make tests easier
   postMembersWithRole admin (singleton mem) cid role !!! const 200 === statusCode
 

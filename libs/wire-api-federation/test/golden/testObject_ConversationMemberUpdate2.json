@@ -1,0 +1,25 @@
+{
+    "orig_user_id": {
+        "domain": "golden.example.com",
+        "id": "00000000-0000-0000-0000-000100000007"
+    },
+    "already_present_users": [
+        "00000fff-0000-0000-0000-000100005007",
+        "00000fff-0000-aaaa-0000-000100005007"
+    ],
+    "time": "1864-04-12T12:22:43.673Z",
+    "action": {
+        "tag": "ConversationMembersActionRemove",
+        "contents": [
+            {
+                "domain": "golden.example.com",
+                "id": "00000000-0000-0000-0000-000100004007"
+            },
+            {
+                "domain": "golden2.example.com",
+                "id": "00000000-0000-0000-0000-000100005007"
+            }
+        ]
+    },
+    "conv_id": "00000000-0000-0000-0000-000100000006"
+}

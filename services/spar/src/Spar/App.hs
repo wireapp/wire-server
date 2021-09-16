@@ -28,18 +28,17 @@ module Spar.App
     wrapMonadClientWithEnv,
     wrapMonadClient,
     verdictHandler,
-    getUserByUref,
-    getUserByScimExternalId,
+    GetUserResult (..),
+    getUserIdByUref,
+    getUserIdByScimExternalId,
     insertUser,
-    autoprovisionSamlUser,
-    autoprovisionSamlUserWithId,
     validateEmailIfExists,
     errorPage,
   )
 where
 
 import Bilge
-import Brig.Types (ManagedBy (..), userTeam)
+import Brig.Types (ManagedBy (..), User, userId, userTeam)
 import Brig.Types.Intra (AccountStatus (..), accountStatus, accountUser)
 import Cassandra
 import qualified Cassandra as Cas
@@ -50,6 +49,7 @@ import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.CaseInsensitive as CI
 import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
@@ -81,6 +81,7 @@ import SAML2.WebSSO
     uidTenant,
   )
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
 import qualified Spar.Data as Data hiding (deleteSAMLUser, deleteSAMLUsersByIssuer, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, getSAMLUser, insertSAMLUser)
@@ -175,15 +176,22 @@ instance SPStoreID Assertion (Spar r) where
 
 instance SPStoreIdP SparError (Spar r) where
   type IdPConfigExtra (Spar r) = WireIdP
+  type IdPConfigSPId (Spar r) = TeamId
 
   storeIdPConfig :: IdP -> Spar r ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
   getIdPConfig :: IdPId -> Spar r IdP
-  getIdPConfig = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
+  getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar r IdP
-  getIdPConfigByIssuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
+  getIdPConfigByIssuerOptionalSPId :: Issuer -> Maybe TeamId -> Spar r IdP
+  getIdPConfigByIssuerOptionalSPId issuer mbteam = do
+    wrapMonadClientWithEnv (Data.getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
+      Data.GetIdPFound idp -> pure idp
+      Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
+      res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
+      res@(Data.GetIdPNonUnique _) -> throwSpar $ SparIdPNotFound (cs $ show res)
+      res@(Data.GetIdPWrongTeam _) -> throwSpar $ SparIdPNotFound (cs $ show res)
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
 -- don't need either of those, 'wrapMonadClient' will suffice.
@@ -234,19 +242,39 @@ insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
 -- the team with valid SAML credentials.
 --
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR.  (in https://github.com/wireapp/wire-server/pull/1410, undo https://github.com/wireapp/wire-server/pull/1418)
-getUserByUref :: Member SAMLUser r => SAML.UserRef -> Spar r (Maybe UserId)
-getUserByUref uref = do
+getUserIdByUref :: Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult UserId)
+getUserIdByUref mbteam uref = userId <$$> getUserByUref mbteam uref
+
+getUserByUref :: Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult User)
+getUserByUref mbteam uref = do
   muid <- wrapMonadClientSem $ SAMLUser.get uref
   case muid of
-    Nothing -> pure Nothing
+    Nothing -> pure GetUserNotFound
     Just uid -> do
       let withpending = Intra.WithPendingInvitations -- see haddocks above
-      itis <- isJust <$> Intra.getBrigUserTeam withpending uid
-      pure $ if itis then Just uid else Nothing
+      Intra.getBrigUser withpending uid >>= \case
+        Nothing -> pure GetUserNotFound
+        Just user
+          | isNothing (userTeam user) -> pure GetUserNoTeam
+          | isJust mbteam && mbteam /= userTeam user -> pure GetUserWrongTeam
+          | otherwise -> pure $ GetUserFound user
+
+data GetUserResult usr
+  = GetUserFound usr
+  | GetUserNotFound
+  | GetUserNoTeam
+  | GetUserWrongTeam
+  deriving (Eq, Show)
+
+instance Functor GetUserResult where
+  fmap f (GetUserFound usr) = GetUserFound (f usr)
+  fmap _ GetUserNotFound = GetUserNotFound
+  fmap _ GetUserNoTeam = GetUserNoTeam
+  fmap _ GetUserWrongTeam = GetUserWrongTeam
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
-getUserByScimExternalId :: TeamId -> Email -> Spar r (Maybe UserId)
-getUserByScimExternalId tid email = do
+getUserIdByScimExternalId :: TeamId -> Email -> Spar r (Maybe UserId)
+getUserIdByScimExternalId tid email = do
   muid <- wrapMonadClient $ (Data.lookupScimExternalId tid email)
   case muid of
     Nothing -> pure Nothing
@@ -271,47 +299,52 @@ getUserByScimExternalId tid email = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: Member SAMLUser r => UserId -> SAML.UserRef -> ManagedBy -> Spar r ()
-createSamlUserWithId buid suid managedBy = do
-  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+createSamlUserWithId :: Member SAMLUser r => TeamId -> UserId -> SAML.UserRef -> Spar r ()
+createSamlUserWithId teamid buid suid = do
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- Intra.createBrigUserSAML suid buid teamid uname managedBy
+  buid' <- Intra.createBrigUserSAML suid buid teamid uname ManagedByWire
   assert (buid == buid') $ pure ()
   insertUser suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Member SAMLUser r => SAML.UserRef -> ManagedBy -> Spar r UserId
-autoprovisionSamlUser suid managedBy = do
+autoprovisionSamlUser :: Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser mbteam suid = do
   buid <- Id <$> liftIO UUID.nextRandom
-  autoprovisionSamlUserWithId buid suid managedBy
+  autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: Member SAMLUser r => UserId -> SAML.UserRef -> ManagedBy -> Spar r ()
-autoprovisionSamlUserWithId buid suid managedBy = do
-  idp <- getIdPConfigByIssuer (suid ^. uidTenant)
-  unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
-    throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
-  let teamid = idp ^. idpExtraInfo . wiTeam
-  scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
-  if null scimtoks
-    then do
-      createSamlUserWithId buid suid managedBy
-      validateEmailIfExists buid suid
-    else
-      throwError . SAML.Forbidden $
-        "bad credentials (note that your team uses SCIM, "
-          <> "which disables saml auto-provisioning)"
+autoprovisionSamlUserWithId :: forall r. Member SAMLUser r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
+autoprovisionSamlUserWithId mbteam buid suid = do
+  idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
+  guardReplacedIdP idp
+  guardScimTokens idp
+  createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid
+  validateEmailIfExists buid suid
+  where
+    -- Replaced IdPs are not allowed to create new wire accounts.
+    guardReplacedIdP :: IdP -> Spar r ()
+    guardReplacedIdP idp = do
+      unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
+        throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
+
+    -- IdPs in teams with scim tokens are not allowed to auto-provision.
+    guardScimTokens :: IdP -> Spar r ()
+    guardScimTokens idp = do
+      let teamid = idp ^. idpExtraInfo . wiTeam
+      scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
+      unless (null scimtoks) $ do
+        throwSpar SparSamlCredentialsNotFound
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: UserId -> SAML.UserRef -> Spar r ()
+validateEmailIfExists :: forall r. UserId -> SAML.UserRef -> Spar r ()
 validateEmailIfExists uid = \case
-  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
   _ -> pure ()
   where
-    doValidate :: SAML.Email -> Spar r ()
+    doValidate :: SAMLEmail.Email -> Spar r ()
     doValidate email = do
       enabled <- do
         tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
@@ -330,7 +363,13 @@ bindUser buid userref = do
   oldStatus <- do
     let err :: Spar r a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
-    teamid :: TeamId <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+    teamid :: TeamId <-
+      wrapMonadClient (Data.getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing) >>= \case
+        Data.GetIdPFound idp -> pure $ idp ^. idpExtraInfo . wiTeam
+        Data.GetIdPNotFound -> err
+        Data.GetIdPDanglingId _ -> err -- database inconsistency
+        Data.GetIdPNonUnique is -> throwSpar $ SparUserRefInNoOrMultipleTeams (cs $ show (buid, is))
+        Data.GetIdPWrongTeam _ -> err -- impossible
     acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
     teamid' :: TeamId <- userTeam (accountUser acc) & maybe err pure
     unless (teamid' == teamid) err
@@ -384,21 +423,24 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
-verdictHandler cky aresp verdict = do
+verdictHandler :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
+verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
+  SAML.logger SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
-  case format of
+  resp <- case format of
     Just (VerdictFormatWeb) ->
-      verdictHandlerResult cky verdict >>= verdictHandlerWeb
+      verdictHandlerResult cky mbteam verdict >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied) ->
-      verdictHandlerResult cky verdict >>= verdictHandlerMobile granted denied
-    Nothing -> throwSpar SparNoSuchRequest
-
--- (this shouldn't happen too often, see 'storeVerdictFormat')
+      verdictHandlerResult cky mbteam verdict >>= verdictHandlerMobile granted denied
+    Nothing ->
+      -- (this shouldn't happen too often, see 'storeVerdictFormat')
+      throwSpar SparNoSuchRequest
+  SAML.logger SAML.Debug $ "leaving verdictHandler: " <> show resp
+  pure resp
 
 data VerdictHandlerResult
   = VerifyHandlerGranted {_vhrCookie :: SetCookie, _vhrUserId :: UserId}
@@ -406,10 +448,11 @@ data VerdictHandlerResult
   | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
   deriving (Eq, Show)
 
-verdictHandlerResult :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
-verdictHandlerResult bindCky verdict = do
-  result <- catchVerdictErrors $ verdictHandlerResultCore bindCky verdict
-  SAML.logger SAML.Debug (show result)
+verdictHandlerResult :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResult bindCky mbteam verdict = do
+  SAML.logger SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
+  result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
+  SAML.logger SAML.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
 catchVerdictErrors :: Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
@@ -426,15 +469,15 @@ catchVerdictErrors = (`catchError` hndlr)
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
 -- traverse the old IdPs in search for the old entry.  Return that old entry.
-findUserWithOldIssuer :: forall r. Member SAMLUser r => SAML.UserRef -> Spar r (Maybe (SAML.UserRef, UserId))
-findUserWithOldIssuer (SAML.UserRef issuer subject) = do
-  idp <- getIdPConfigByIssuer issuer
-  let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar r (Maybe (SAML.UserRef, UserId))
-      tryFind found@(Just _) _ = pure found
-      tryFind Nothing oldIssuer = (uref,) <$$> getUserByUref uref
+findUserIdWithOldIssuer :: forall r. Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult (SAML.UserRef, UserId))
+findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
+  idp <- getIdPConfigByIssuerOptionalSPId issuer mbteam
+  let tryFind :: GetUserResult (SAML.UserRef, UserId) -> Issuer -> Spar r (GetUserResult (SAML.UserRef, UserId))
+      tryFind found@(GetUserFound _) _ = pure found
+      tryFind _ oldIssuer = (uref,) <$$> getUserIdByUref mbteam uref
         where
           uref = SAML.UserRef oldIssuer subject
-  foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
+  foldM tryFind GetUserNotFound (idp ^. idpExtraInfo . wiOldIssuers)
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
@@ -444,42 +487,49 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
   wrapMonadClientSem $ SAMLUser.delete uid oldUserRef
 
-verdictHandlerResultCore :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
-verdictHandlerResultCore bindCky = \case
+verdictHandlerResultCore :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResultCore bindCky mbteam = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      viaSparCassandra <- getUserByUref userref
+      viaSparCassandra <- getUserIdByUref mbteam userref
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.
       viaSparCassandraOldIssuer <-
-        if isJust viaSparCassandra
-          then pure Nothing
-          else findUserWithOldIssuer userref
+        case viaSparCassandra of
+          GetUserFound _ -> pure GetUserNotFound
+          _ -> findUserIdWithOldIssuer mbteam userref
+      let err =
+            SparUserRefInNoOrMultipleTeams . cs $
+              show (userref, viaBindCookie, viaSparCassandra, viaSparCassandraOldIssuer)
       case (viaBindCookie, viaSparCassandra, viaSparCassandraOldIssuer) of
+        (_, GetUserNoTeam, _) -> throwSpar err
+        (_, GetUserWrongTeam, _) -> throwSpar err
+        (_, _, GetUserNoTeam) -> throwSpar err
+        (_, _, GetUserWrongTeam) -> throwSpar err
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
-        -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref ManagedByWire
+        -- "reauthentication" branch.
+        (Nothing, GetUserNotFound, GetUserNotFound) -> autoprovisionSamlUser mbteam userref
         -- If the user is only found under an old (previous) issuer, move it here.
-        (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
+        (Nothing, GetUserNotFound, GetUserFound (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
         -- SSO re-authentication (the most common case).
-        (Nothing, Just uid, _) -> pure uid
+        (Nothing, GetUserFound uid, _) -> pure uid
         -- Bind existing user (non-SSO or SSO) to ssoid
-        (Just uid, Nothing, Nothing) -> bindUser uid userref
-        (Just uid, Just uid', Nothing)
+        (Just uid, GetUserNotFound, GetUserNotFound) -> bindUser uid userref
+        (Just uid, GetUserFound uid', GetUserNotFound)
           -- Redundant binding (no change to Brig or Spar)
           | uid == uid' -> pure uid
           -- Attempt to use ssoid for a second Wire user
           | otherwise -> throwSpar SparBindUserRefTaken
         -- same two cases as above, but between last login and bind there was an issuer update.
-        (Just uid, Nothing, Just (oldUserRef, uid'))
+        (Just uid, GetUserNotFound, GetUserFound (oldUserRef, uid'))
           | uid == uid' -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
           | otherwise -> throwSpar SparBindUserRefTaken
-        (Just _, Just _, Just _) ->
+        (Just _, GetUserFound _, GetUserFound _) ->
           -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
           error "impossible."
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)

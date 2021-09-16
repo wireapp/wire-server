@@ -26,6 +26,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
+import qualified Brig.ZAuth
 import qualified CargoHold.Types.V3 as CHV3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
@@ -41,7 +42,6 @@ import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (unsafeRange)
-import qualified Data.Set as Set
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Imports
@@ -149,10 +149,24 @@ checkEmail brig uid expectedEmail =
     const 200 === statusCode
     const (Just expectedEmail) === (userEmail <=< responseJsonMaybe)
 
-initiateEmailUpdate :: Brig -> Email -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
-initiateEmailUpdate brig email uid =
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
-   in put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . body emailUpdate)
+initiateEmailUpdateLogin :: Brig -> Email -> Login -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+initiateEmailUpdateLogin brig email loginCreds uid = do
+  (cky, tok) <- do
+    rsp <-
+      login brig loginCreds PersistentCookie
+        <!! const 200 === statusCode
+    pure (decodeCookie rsp, decodeToken rsp)
+  initiateEmailUpdateCreds brig email (cky, tok) uid
+
+initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.AccessToken) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+initiateEmailUpdateCreds brig email (cky, tok) uid = do
+  put $
+    brig
+      . path "/access/self/email"
+      . cookie cky
+      . header "Authorization" ("Bearer " <> toByteString' tok)
+      . zUser uid
+      . Bilge.json (EmailUpdate email)
 
 initiateEmailUpdateNoSend :: Brig -> Email -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateNoSend brig email uid =
@@ -230,17 +244,6 @@ listConnections brig u =
     brig
       . path "connections"
       . zUser u
-
-postAutoConnection :: Brig -> UserId -> [UserId] -> (MonadIO m, MonadHttp m) => m ResponseLBS
-postAutoConnection brig from to =
-  post $
-    brig
-      . paths ["/i/users", toByteString' from, "auto-connect"]
-      . contentJson
-      . body payload
-      . zConn "conn"
-  where
-    payload = RequestBodyLBS . encode $ UserSet (Set.fromList to)
 
 setProperty :: Brig -> UserId -> ByteString -> Value -> (MonadIO m, MonadHttp m) => m ResponseLBS
 setProperty brig u k v =

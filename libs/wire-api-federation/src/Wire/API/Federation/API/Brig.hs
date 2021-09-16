@@ -29,13 +29,13 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.Federation.Util.Aeson (CustomEncoded (..))
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)
@@ -45,6 +45,8 @@ instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
 
+-- | For conventions see /docs/developer/federation-api-conventions.md
+--
 -- Maybe this module should be called Brig
 data Api routes = Api
   { getUserByHandle ::
@@ -84,7 +86,7 @@ data Api routes = Api
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
         :> ReqBody '[JSON] SearchRequest
-        :> Post '[JSON] (SearchResult Contact),
+        :> Post '[JSON] [Contact],
     getUserClients ::
       routes
         :- "federation"

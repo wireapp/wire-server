@@ -72,7 +72,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
-import Wire.API.ErrorDescription (userNotFound)
+import Wire.API.ErrorDescription
 import Wire.API.User
 import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
@@ -123,20 +123,6 @@ sitemap :: Routes a Handler ()
 sitemap = do
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to the user and all users connecting with
-  -- - ConvCreate event to the user for each connect conversation that did not exist before
-  --   (via galley)
-  -- - ConvConnect event to the user for each connection that was not already accepted by the
-  --   other
-  -- - MemberJoin event to the user and other for each connection that was not already
-  --   accepted by the other
-  post "/i/users/:uid/auto-connect" (continue autoConnectH) $
-    accept "application" "json"
-      .&. capture "uid"
-      .&. opt zauthConnId
-      .&. jsonRequest @UserSet
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
@@ -345,21 +331,6 @@ internalListFullClientsH (_ ::: req) =
 internalListFullClients :: UserSet -> AppIO UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> Data.lookupClientsBulk (Set.toList usrs)
-
-autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
-autoConnectH (_ ::: uid ::: conn ::: req) = do
-  json <$> (autoConnect uid conn =<< parseJsonBody req)
-
-autoConnect :: UserId -> Maybe ConnId -> UserSet -> Handler [UserConnection]
-autoConnect uid conn (UserSet to) = do
-  let num = Set.size to
-  when (num < 1) $
-    throwStd $
-      badRequest "No users given for auto-connect."
-  when (num > 25) $
-    throwStd $
-      badRequest "Too many users given for auto-connect (> 25)."
-  API.autoConnect uid to conn !>> connError
 
 createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response
 createUserNoVerifyH (_ ::: req) = do
@@ -618,7 +589,7 @@ updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJso
 
 updateUserName :: UserId -> NameUpdate -> Handler ()
 updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd invalidUser) pure $ mkName nameUpd
+  name <- either (const $ throwStd (errorDescriptionToWai invalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
           { uupName = Just name,
@@ -628,7 +599,7 @@ updateUserName uid (NameUpdate nameUpd) = do
           }
   lift (Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
-    Nothing -> throwStd invalidUser
+    Nothing -> throwStd (errorDescriptionToWai invalidUser)
 
 checkHandleInternalH :: Text -> Handler Response
 checkHandleInternalH =

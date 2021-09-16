@@ -25,3 +25,4 @@ cabal.project.local~
 *~
 *.el
 \#*
+.ghci

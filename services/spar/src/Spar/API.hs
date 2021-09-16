@@ -87,10 +87,12 @@ api opts =
 
 apiSSO :: Member SAMLUser r => Opts -> ServerT APISSO (Spar r)
 apiSSO opts =
-  SAML.meta appName sparSPIssuer sparResponseURI
+  SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
+    :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
-    :<|> authresp
+    :<|> authresp Nothing
+    :<|> authresp . Just
     :<|> ssoSettings
 
 apiIDP :: ServerT APIIDP (Spar r)
@@ -132,7 +134,13 @@ authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _ = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
-  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
+  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
+    idp :: IdP <- wrapMonadClient (Data.getIdPConfig idpid) >>= maybe (throwSpar (SparIdPNotFound (cs $ show idpid))) pure
+    let mbtid :: Maybe TeamId
+        mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
+          WireIdPAPIV1 -> Nothing
+          WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
+    SAML.authreq authreqttl (sparSPIssuer mbtid) idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
@@ -170,15 +178,17 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: forall r. Member SAMLUser r => Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
-authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI go arbody
+authresp :: forall r. Member SAMLUser r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
+authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader
+
     go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r Void
     go resp verdict = do
-      result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
+      result :: SAML.ResponseVerdict <- verdictHandler cky mbtid resp verdict
       throwError $ SAML.CustomServant result
+
     logErrors :: Spar r Void -> Spar r Void
     logErrors = flip catchError $ \case
       e@(SAML.CustomServant _) -> throwError e
@@ -208,7 +218,7 @@ idpGetRaw zusr idpid = do
   _ <- authorizeIdP zusr idp
   wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
-    Nothing -> throwSpar SparIdPNotFound
+    Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
 
 idpGetAll :: Maybe UserId -> Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
@@ -269,21 +279,25 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP :: IdP -> Spar r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       wrapMonadClient $ do
-        iid <- Data.getIdPIdByIssuer oldIssuer
-        mapM_ (Data.clearReplacedBy . Data.Replaced) iid
+        Data.getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
+          Data.GetIdPFound iid -> Data.clearReplacedBy $ Data.Replaced iid
+          Data.GetIdPNotFound -> pure ()
+          Data.GetIdPDanglingId _ -> pure ()
+          Data.GetIdPNonUnique _ -> pure ()
+          Data.GetIdPWrongTeam _ -> pure ()
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Spar r IdP
-idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml midpid
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar r IdP
-idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
-  idp <- validateNewIdP idpmeta teamid mReplaces
+  idp <- validateNewIdP apiversion idpmeta teamid mReplaces
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
   forM_ mReplaces $ \replaces -> wrapMonadClient $ do
@@ -303,42 +317,69 @@ assertNoScimOrNoIdP teamid = do
       SparProvisioningMoreThanOneIdP
         "Teams with SCIM tokens can only have at most one IdP"
 
--- | Check that issuer is not used for any team in the system (it is a database keys for
--- finding IdPs), and request URI is https.
+-- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
+-- database keys for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
+-- URI is https, that the replacement IdPId, if present, points to our team, and possibly
+-- other things (see source code for the definitive answer).
 --
 -- About the @mReplaces@ argument: the information whether the idp is replacing an old one is
 -- in query parameter, because the body can be both XML and JSON.  The JSON body could carry
 -- the replaced idp id fine, but the XML is defined in the SAML standard and cannot be
--- changed.
+-- changed.  NB: if you want to replace an IdP by one with the same issuer, you probably
+-- want to use `PUT` instead of `POST`.
 --
 -- FUTUREWORK: find out if anybody uses the XML body type and drop it if not.
 --
--- FUTUREWORK: using the same issuer for two teams may be possible, but only if we stop
--- supporting implicit user creating via SAML.  If unknown users present IdP credentials, the
--- issuer is our only way of finding the team in which the user must be created.
+-- FUTUREWORK: using the same issuer for two teams even in `WireIdPAPIV1` may be possible, but
+-- only if we stop supporting implicit user creating via SAML.  If unknown users present IdP
+-- credentials, the issuer is our only way of finding the team in which the user must be
+-- created.
 --
 -- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
 -- update, delete of idps.)
 validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
+  WireIdPAPIVersion ->
   SAML.IdPMetadata ->
   TeamId ->
   Maybe SAML.IdPId ->
   m IdP
-validateNewIdP _idpMetadata teamId mReplaces = do
+validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
-      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar SparIdPNotFound) pure
+      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar (SparIdPNotFound (cs $ show mReplaces))) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId oldIssuers Nothing
+      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
-  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
-    Nothing -> pure ()
-    Just _ -> throwSpar SparNewIdPAlreadyInUse
+  idp <- wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId)
+  SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
+
+  let handleIdPClash :: Either id idp -> m ()
+      -- (HINT: using type vars above instead of the actual types constitutes a proof that
+      -- we're not using any properties of the arguments in this function.)
+      handleIdPClash = case apiversion of
+        WireIdPAPIV1 -> const $ do
+          throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api_version v1 if the issuer is already in use on the wire instance."
+        WireIdPAPIV2 -> \case
+          (Right _) -> do
+            -- idp' was found by lookup with teamid, so it's in the same team.
+            throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
+          (Left _) -> do
+            -- this idp *id* is from a different team, and we're in the 'WireIdPAPIV2' case, so this is fine.
+            pure ()
+
+  case idp of
+    Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
+    Data.GetIdPNotFound -> pure ()
+    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
+    Data.GetIdPNonUnique ids' {- same team didn't yield anything, but there are at least two other teams with this issuer already -} -> handleIdPClash (Left ids')
+    Data.GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
+
   pure SAML.IdPConfig {..}
 
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
@@ -369,7 +410,7 @@ validateIdPUpdate ::
   SAML.IdPMetadata ->
   SAML.IdPId ->
   m (TeamId, IdP)
-validateIdPUpdate zusr _idpMetadata _idpId = do
+validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <-
     wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
       Nothing -> throwError errUnknownIdPId
@@ -383,10 +424,13 @@ validateIdPUpdate zusr _idpMetadata _idpId = do
     if previousIssuer == newIssuer
       then pure $ previousIdP ^. SAML.idpExtraInfo
       else do
-        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuer newIssuer)
-        let notInUseByOthers = case foundConfig of
-              Nothing -> True
-              Just c -> c ^. SAML.idpId == _idpId
+        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuerAllowOld newIssuer (Just teamId))
+        notInUseByOthers <- case foundConfig of
+          Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
+          Data.GetIdPNotFound -> pure True
+          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible
+          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
+          Data.GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
           then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSpar SparIdPIssuerInUse
@@ -447,7 +491,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
       -- this will return a 404, which is not quite right,
       -- but it's an internal endpoint and the message clearly says
       -- "Could not find IdP".
-      throwSpar SparIdPNotFound
+      throwSpar $ SparIdPNotFound mempty
     Just _ -> do
       wrapMonadClient $ Data.storeDefaultSsoCode code
       pure NoContent

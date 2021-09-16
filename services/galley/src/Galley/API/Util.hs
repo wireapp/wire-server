@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -22,12 +21,12 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Arrow (Arrow (second), second, (&&&))
-import Control.Error (ExceptT)
+import Control.Arrow (Arrow (second), second)
+import Control.Error (ExceptT, hoistEither, note)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Except (runExceptT)
-import Control.Monad.Extra (allM, anyM)
+import Control.Monad.Extra (allM, anyM, eitherM)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -35,7 +34,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), Remote, partitionQualified)
+import Data.Qualified (Qualified (..), Remote, partitionQualified, toRemote)
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -51,8 +50,7 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
-import Galley.Types.Conversations.Members (RemoteMember (..))
-import qualified Galley.Types.Conversations.Members as Members
+import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams hiding (Event)
 import Imports
@@ -126,15 +124,30 @@ ensureReAuthorised u secret = do
   unless reAuthed $
     throwM reAuthFailed
 
+-- | Possible outcomes of ensuring an action is allowed.
+data ActionCheckingOutcome
+  = ACOAllowed
+  | ACOActionDenied Action
+  | ACOCustomRolesNotSupported
+
+-- | Given a member in a conversation, check if the given action
+-- is permitted.
+ensureActionAllowed :: Action -> RoleName -> ActionCheckingOutcome
+ensureActionAllowed action role = case isActionAllowed action role of
+  Just True -> ACOAllowed
+  Just False -> ACOActionDenied action
+  Nothing -> ACOCustomRolesNotSupported
+
 -- | Given a member in a conversation, check if the given action
 -- is permitted.
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-ensureActionAllowed :: Action -> InternalMember a -> Galley ()
-ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
-  Just True -> return ()
-  Just False -> throwErrorDescription (actionDenied action)
-  Nothing -> throwM (badRequest "Custom roles not supported")
+ensureActionAllowedThrowing :: Action -> LocalMember -> Galley ()
+ensureActionAllowedThrowing action mem =
+  case ensureActionAllowed action (lmConvRoleName mem) of
+    ACOAllowed -> return ()
+    ACOActionDenied _ -> throwErrorDescription (actionDenied action)
+    ACOCustomRolesNotSupported -> throwM (badRequest "Custom roles not supported")
 
 -- Actually, this will "never" happen due to the
 -- fact that there can be no custom roles at the moment
@@ -143,9 +156,9 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
-ensureConvRoleNotElevated :: InternalMember a -> RoleName -> Galley ()
+ensureConvRoleNotElevated :: LocalMember -> RoleName -> Galley ()
 ensureConvRoleNotElevated origMember targetRole = do
-  case (roleNameToActions targetRole, roleNameToActions (memConvRoleName origMember)) of
+  case (roleNameToActions targetRole, roleNameToActions (lmConvRoleName origMember)) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
         throwM invalidActions
@@ -206,7 +219,7 @@ acceptOne2One usr conv conn = do
           throwM badConvState
         now <- liftIO getCurrentTime
         (e, mm) <- Data.addMember localDomain now cid usr
-        conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
+        conv' <- if isJust (find ((usr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
@@ -223,22 +236,19 @@ acceptOne2One usr conv conn = do
         "Connect conversation with more than 2 members: "
           <> LT.pack (show cid)
 
-isBot :: InternalMember a -> Bool
-isBot = isJust . memService
+isBot :: LocalMember -> Bool
+isBot = isJust . lmService
 
-isMember :: (Eq a, Foldable m) => a -> m (InternalMember a) -> Bool
-isMember u = isJust . find ((u ==) . memId)
+isMember :: Foldable m => UserId -> m LocalMember -> Bool
+isMember u = isJust . find ((u ==) . lmId)
 
-isRemoteMember :: (Foldable m) => Remote UserId -> m RemoteMember -> Bool
+isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
-findMember :: Data.Conversation -> UserId -> Maybe LocalMember
-findMember c u = find ((u ==) . memId) (Data.convLocalMembers c)
-
-botsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
-botsAndUsers = foldMap botOrUser
+localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
+localBotsAndUsers = foldMap botOrUser
   where
-    botOrUser m = case memService m of
+    botOrUser m = case lmService m of
       -- we drop invalid bots here, which shouldn't happen
       Just _ -> (toList (newBotMember m), [])
       Nothing -> ([], [m])
@@ -247,7 +257,7 @@ location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
 
 nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
-nonTeamMembers cm tm = filter (not . isMemberOfTeam . memId) cm
+nonTeamMembers cm tm = filter (not . isMemberOfTeam . lmId) cm
   where
     -- FUTUREWORK: remote members: teams and their members are always on the same backend
     isMemberOfTeam = \case
@@ -255,7 +265,7 @@ nonTeamMembers cm tm = filter (not . isMemberOfTeam . memId) cm
 
 convMembsAndTeamMembs :: [LocalMember] -> [TeamMember] -> [Recipient]
 convMembsAndTeamMembs convMembs teamMembs =
-  fmap userRecipient . setnub $ map memId convMembs <> map (view userId) teamMembs
+  fmap userRecipient . setnub $ map lmId convMembs <> map (view userId) teamMembs
   where
     setnub = Set.toList . Set.fromList
 
@@ -264,22 +274,90 @@ membersToRecipients Nothing = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
 -- | Note that we use 2 nearly identical functions but slightly different
--- semantics; when using `getSelfMember`, if that user is _not_ part of
--- the conversation, we don't want to disclose that such a conversation
--- with that id exists.
-getSelfMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getSelfMember = getMember (errorDescriptionToWai convNotFound)
+-- semantics; when using `getSelfMemberFromLocals`, if that user is _not_ part
+-- of the conversation, we don't want to disclose that such a conversation with
+-- that id exists.
+getSelfMemberFromLocals ::
+  (Foldable t, Monad m) =>
+  UserId ->
+  t LocalMember ->
+  ExceptT ConvNotFound m LocalMember
+getSelfMemberFromLocals = getLocalMember convNotFound
 
-getOtherMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getOtherMember = getMember convMemberNotFound
+-- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley monad.
+getSelfMemberFromLocalsLegacy ::
+  Foldable t =>
+  UserId ->
+  t LocalMember ->
+  Galley LocalMember
+getSelfMemberFromLocalsLegacy usr lmems =
+  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $ getSelfMemberFromLocals usr lmems
+
+getOtherMember :: (Foldable t, Monad m) => UserId -> t LocalMember -> ExceptT Error m LocalMember
+getOtherMember = getLocalMember convMemberNotFound
+
+getOtherMemberLegacy :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
+getOtherMemberLegacy usr lmems =
+  eitherM throwM pure . runExceptT $ getOtherMember usr lmems
+
+-- | Note that we use 2 nearly identical functions but slightly different
+-- semantics; when using `getSelfMemberQualified`, if that user is _not_ part of
+-- the conversation, we don't want to disclose that such a conversation with
+-- that id exists.
+getSelfMemberQualified ::
+  (Foldable t, Monad m) =>
+  Domain ->
+  Qualified UserId ->
+  t LocalMember ->
+  t RemoteMember ->
+  ExceptT ConvNotFound m (Either LocalMember RemoteMember)
+getSelfMemberQualified localDomain qusr@(Qualified usr userDomain) lmems rmems = do
+  if localDomain == userDomain
+    then Left <$> getSelfMemberFromLocals usr lmems
+    else Right <$> getSelfMemberFromRemotes (toRemote qusr) rmems
+
+getSelfMemberFromRemotes ::
+  (Foldable t, Monad m) =>
+  Remote UserId ->
+  t RemoteMember ->
+  ExceptT ConvNotFound m RemoteMember
+getSelfMemberFromRemotes = getRemoteMember convNotFound
+
+getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
+getSelfMemberFromRemotesLegacy usr rmems =
+  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $
+    getSelfMemberFromRemotes usr rmems
 
 -- | Since we search by local user ID, we know that the member must be local.
-getMember :: Foldable t => Error -> UserId -> t LocalMember -> Galley LocalMember
-getMember ex u ms = do
-  let member = find ((u ==) . memId) ms
-  case member of
-    Just m -> return (m {memId = u})
-    Nothing -> throwM ex
+getLocalMember ::
+  (Foldable t, Monad m) =>
+  e ->
+  UserId ->
+  t LocalMember ->
+  ExceptT e m LocalMember
+getLocalMember = getMember lmId
+
+-- | Since we search by remote user ID, we know that the member must be remote.
+getRemoteMember ::
+  (Foldable t, Monad m) =>
+  e ->
+  Remote UserId ->
+  t RemoteMember ->
+  ExceptT e m RemoteMember
+getRemoteMember = getMember rmId
+
+getMember ::
+  (Foldable t, Eq userId, Monad m) =>
+  -- | A projection from a member type to its user ID
+  (mem -> userId) ->
+  -- | An error to throw in case the user is not in the list
+  e ->
+  -- | The member to be found by its user ID
+  userId ->
+  -- | A list of members to search
+  t mem ->
+  ExceptT e m mem
+getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership =
@@ -382,13 +460,13 @@ runFederated remoteDomain rpc = do
     >>= either (throwM . federationErrorToWai) pure
 
 -- | Convert an internal conversation representation 'Data.Conversation' to
--- 'RegisterConversation' to be sent over the wire to a remote backend that will
+-- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
 -- reconstruct this into multiple public-facing
 -- 'Wire.API.Conversation.Convevrsation' values, one per user from that remote
 -- backend.
 --
 -- FUTUREWORK: Include the team ID as well once it becomes qualified.
-toRegisterConversation ::
+toNewRemoteConversation ::
   -- | The time stamp the conversation was created at
   UTCTime ->
   -- | The domain of the user that created the conversation
@@ -396,12 +474,12 @@ toRegisterConversation ::
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
-  RegisterConversation
-toRegisterConversation now localDomain Data.Conversation {..} =
-  MkRegisterConversation
+  NewRemoteConversation ConvId
+toNewRemoteConversation now localDomain Data.Conversation {..} =
+  NewRemoteConversation
     { rcTime = now,
       rcOrigUserId = Qualified convCreator localDomain,
-      rcCnvId = Qualified convId localDomain,
+      rcCnvId = convId,
       rcCnvType = convType,
       rcCnvAccess = convAccess,
       rcCnvAccessRole = convAccessRole,
@@ -416,32 +494,20 @@ toRegisterConversation now localDomain Data.Conversation {..} =
       [RemoteMember] ->
       Set OtherMember
     toMembers ls rs =
-      Set.fromList $ fmap localToOther ls <> fmap remoteToOther rs
-    localToOther :: LocalMember -> OtherMember
-    localToOther Members.InternalMember {..} =
-      OtherMember
-        { omQualifiedId = Qualified memId localDomain,
-          omService = Nothing,
-          omConvRoleName = memConvRoleName
-        }
-    remoteToOther :: RemoteMember -> OtherMember
-    remoteToOther RemoteMember {..} =
-      OtherMember
-        { omQualifiedId = unTagged rmId,
-          omService = Nothing,
-          omConvRoleName = rmConvRoleName
-        }
+      Set.fromList $
+        map (localMemberToOther localDomain) ls
+          <> map remoteMemberToOther rs
 
--- | The function converts a 'RegisterConversation' value to a
+-- | The function converts a 'NewRemoteConversation' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
 -- domain/backend. The obtained value can be used in e.g. creating an 'Event' to
 -- be sent out to users informing them that they were added to a new
 -- conversation.
-fromRegisterConversation ::
+fromNewRemoteConversation ::
   Domain ->
-  RegisterConversation ->
+  NewRemoteConversation (Qualified ConvId) ->
   [(Public.Member, Public.Conversation)]
-fromRegisterConversation d MkRegisterConversation {..} =
+fromNewRemoteConversation d NewRemoteConversation {..} =
   let membersView = fmap (second Set.toList) . setHoles $ rcMembers
    in foldMap
         ( \(me, others) ->
@@ -460,7 +526,6 @@ fromRegisterConversation d MkRegisterConversation {..} =
       Public.Member
         { memId = qUnqualified . omQualifiedId $ m,
           memService = omService m,
-          memOtrMuted = False,
           memOtrMutedStatus = Nothing,
           memOtrMutedRef = Nothing,
           memOtrArchived = False,
@@ -472,21 +537,22 @@ fromRegisterConversation d MkRegisterConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        { cnvQualifiedId = rcCnvId,
-          cnvType = rcCnvType,
-          -- FUTUREWORK: a UserId from another instance is communicated here, which
-          -- without domain does not make much sense here.
-          cnvCreator = qUnqualified rcOrigUserId,
-          cnvAccess = rcCnvAccess,
-          cnvAccessRole = rcCnvAccessRole,
-          cnvName = rcCnvName,
-          cnvMembers = ConvMembers this others,
-          -- FUTUREWORK: Once conversation IDs become qualified, this information
-          -- should be sent from the hosting Galley and stored here in 'cnvTeam'.
-          cnvTeam = Nothing,
-          cnvMessageTimer = rcMessageTimer,
-          cnvReceiptMode = rcReceiptMode
-        }
+        ConversationMetadata
+          { cnvmQualifiedId = rcCnvId,
+            cnvmType = rcCnvType,
+            -- FUTUREWORK: Document this is the same domain as the conversation
+            -- domain
+            cnvmCreator = qUnqualified rcOrigUserId,
+            cnvmAccess = rcCnvAccess,
+            cnvmAccessRole = rcCnvAccessRole,
+            cnvmName = rcCnvName,
+            -- FUTUREWORK: Document this is the same domain as the conversation
+            -- domain.
+            cnvmTeam = Nothing,
+            cnvmMessageTimer = rcMessageTimer,
+            cnvmReceiptMode = rcReceiptMode
+          }
+        (ConvMembers this others)
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::
@@ -497,7 +563,7 @@ registerRemoteConversationMemberships ::
   Data.Conversation ->
   Galley ()
 registerRemoteConversationMemberships now localDomain c = do
-  let rc = toRegisterConversation now localDomain c
+  let rc = toNewRemoteConversation now localDomain c
   -- FUTUREWORK: parallelise federated requests
   traverse_ (registerRemoteConversations rc)
     . Map.keys
@@ -508,57 +574,46 @@ registerRemoteConversationMemberships now localDomain c = do
     $ c
   where
     registerRemoteConversations ::
-      RegisterConversation ->
+      NewRemoteConversation ConvId ->
       Domain ->
       Galley ()
     registerRemoteConversations rc domain = do
-      let rpc = FederatedGalley.registerConversation FederatedGalley.clientRoutes rc
+      let rpc = FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
       runFederated domain rpc
 
--- | Notify remote users of being added to an existing conversation
-updateRemoteConversationMemberships :: [RemoteMember] -> UserId -> UTCTime -> Data.Conversation -> [LocalMember] -> [RemoteMember] -> Galley ()
-updateRemoteConversationMemberships existingRemotes usr now c lmm rmm = do
+-- | Notify remote backends about changes to the conversation memberships of the
+-- conversation their users are part of.
+notifyRemoteAboutConvUpdate ::
+  -- | The originating user that is doing the update
+  Qualified UserId ->
+  -- | The conversation being updated, assumed local as we shouldn't be sending
+  -- updates for non local conversations.
+  ConvId ->
+  -- | The current time
+  UTCTime ->
+  -- | Action being performed
+  ConversationMembersAction ->
+  -- | Remote members that need to be notified
+  [Remote UserId] ->
+  Galley ()
+notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let mm = catMembers localDomain lmm rmm
-      qcnv = Qualified (Data.convId c) localDomain
-      qusr = Qualified usr localDomain
-  -- FUTUREWORK: parallelise federated requests
-  traverse_ (uncurry (updateRemoteConversations now mm qusr qcnv))
+  let mkUpdate oth = ConversationMemberUpdate time origUser convId oth action
+  traverse_ (uncurry (notificationRPC localDomain . mkUpdate) . swap)
     . Map.assocs
     . partitionQualified
     . nubOrd
-    . map (unTagged . rmId)
-    $ rmm <> existingRemotes
-
-updateRemoteConversations ::
-  UTCTime ->
-  [(Qualified UserId, RoleName)] ->
-  Qualified UserId ->
-  Qualified ConvId ->
-  Domain ->
-  [UserId] ->
-  Galley ()
-updateRemoteConversations now uids orig cnv domain others = do
-  let cmu =
-        ConversationMemberUpdate
-          { cmuTime = now,
-            cmuOrigUserId = orig,
-            cmuConvId = cnv,
-            cmuAlreadyPresentUsers = others,
-            cmuUsersAdd = uids,
-            cmuUsersRemove = []
-          }
-  let rpc = FederatedGalley.updateConversationMemberships FederatedGalley.clientRoutes cmu
-  runFederated domain rpc
-
-catMembers ::
-  Domain ->
-  [LocalMember] ->
-  [RemoteMember] ->
-  [(Qualified UserId, RoleName)]
-catMembers localDomain ls rs =
-  map (((`Qualified` localDomain) . memId) &&& memConvRoleName) ls
-    <> map ((unTagged . rmId) &&& rmConvRoleName) rs
+    . map unTagged
+    $ remotesToNotify
+  where
+    notificationRPC :: Domain -> ConversationMemberUpdate -> Domain -> Galley ()
+    notificationRPC sendingDomain cmu receivingDomain = do
+      let rpc =
+            FederatedGalley.onConversationMembershipsChanged
+              FederatedGalley.clientRoutes
+              sendingDomain
+              cmu
+      runFederated receivingDomain rpc
 
 --------------------------------------------------------------------------------
 -- Legalhold

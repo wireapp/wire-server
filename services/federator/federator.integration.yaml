@@ -31,4 +31,9 @@ optSettings:
   #     - wire.com
   #     - example.com
 
-  useSystemCAStore: true
+  useSystemCAStore: false
+
+  clientCertificate: "test/resources/integration-leaf.pem"
+  clientPrivateKey: "test/resources/integration-leaf-key.pem"
+  dnsHost: "127.0.0.1"
+  dnsPort: 9053

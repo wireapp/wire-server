@@ -1,11 +1,11 @@
 {
     "member": {
-        "user": "00000002-0000-0004-0000-000600000001",
-        "created_by": null,
         "created_at": null,
+        "created_by": null,
         "permissions": {
             "copy": 1044,
             "self": 1300
-        }
+        },
+        "user": "00000002-0000-0004-0000-000600000001"
     }
 }

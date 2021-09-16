@@ -1,31 +1,131 @@
-<!--
+<!-- if you're not the release manager, do your edits to changelog under CHANGELOG.d/ -->
 
-# [2021-xx-xx]
+# [2021-09-14]
 
-[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
-[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
+## API changes
+
+* Remove the long-deprecated `message` field in `POST /connections` (#1726)
+* Add `PUT /conversations/:domain/:cnv/name` (#1737)
+* Deprecate `PUT /conversations/:cnv/name` (#1737)
+* Add `GET & PUT /conversations/:domain/:cnv/self` (#1740)
+* Deprecate `GET & PUT /conversations/:cnv/self` (#1740)
+* Remove endpoint `GET /conversations/:domain/:cnv/self` (#1752)
+* The `otr_muted` field in `Member` and `MemberUpdate` has been removed. (#1751)
+* Removed the ability to update one's own role (#1752)
+
+## Features
+
+* Disallow changing phone number to a black listed phone number (#1758)
+* Support using a single IDP with a single EntityID (aka issuer ID) to set up two teams. Required to support multiple teams in environments where the IDP software cannot present anything but one EntityID (E.G.: DualShield). (#1755)
+
+## Documentation
+
+* Added documentation of federation errors (#1674)
+* Better swagger schema for the Range type (#1748)
+* Add better example for Domain in swagger (#1748)
+
+## Internal changes
+
+* Introduce new process for writing changelogs (#1749)
+* Clean up JSON golden tests (Part 4, Part 5) (#1756, #1762)
+* Increased timeout on certificate update tests to 10s (#1750)
+* Fix for flaky test in spar (#1760)
+* Rewrite the `POST /connections` endpoint to Servant (#1726)
+* Various improvements and fixes around SAML/SCIM (#1735)
+
+## Federation changes
+
+* Avoid remote calls to get conversation when it is not found locally (#1749)
+* Federator CA store and client credentials are now automatically reloaded (#1730)
+* Ensure clients only receive messages meant for them in remote convs (#1739)
+
+
+# [2021-09-08]
 
 ## Release Notes
 
 ## API Changes
 
+* Add `POST /conversations/list/v2` (#1703)
+* Deprecate `POST /list-conversations` (#1703)
+
+## Features
+
+* Bump SFTD to 2.0.127 (#1745)
+
+## Bug fixes and other updates
+
+* Remove support for managed conversations in member removal (#1718)
+* Update the webapp to correct labeling on CBR calling (#1743)
+
+## Documentation
+
+* Document backend internals for user connections (#1717)
+* Open Update spar braindump and explain idp deletion (#1728)
+
+## Internal changes
+
+* Integration test script now displays output interactively (#1700)
+* Fixed a few issues with error response documentation in Swagger (#1707)
+* Make mapping between (team) permissions and roles more lenient (#1711)
+* The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
+* Remove leftover auto-connect internal endpoint and code (#1716)
+* Clean up JSON golden tests (#1729, #1732, #1733)
+* Make regenerated golden tests' JSON output deterministic (#1734)
+* Import fix for snappy linker issue (#1736)
+
+## Federation changes
+
+* Added client certificate support for server to server authentication (#1682)
+* Implemented full server-to-server authentication (#1687)
+* Add an endpoint for removing a qualified user from a local conversation (#1697)
+* Refactored remote error handling in federator (#1681)
+* The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
+* Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
+
+# [2021-08-27]
+
+## Release Notes
+
+## API Changes
+
+* Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
+* Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
+
 ## Features
 
 ## Bug fixes and other updates
 
+* Fix case sensitivity in schema parser in hscim library (#1714)
+* [helm charts] resolve a rate-limiting issue when using certificate-manager alongside wire-server and nginx-ingress-services helm charts (#1715)
+
 ## Documentation
+
+* Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
 
 ## Internal changes
 
--->
+* Integration test script now displays output interactively (#1700)
+* Fixed a few issues with error response documentation in Swagger (#1707)
+* Make mapping between (team) permissions and roles more lenient (#1711)
+* The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
+* Remove leftover auto-connect internal endpoint and code (#1716)
+* Bump wire-webapp (#1720)
+* Bump team-settings (#1721)
+* Bump account-pages (#1666)
+
+## Federation changes
+
+* Added client certificate support for server to server authentication (#1682)
+* Implemented full server-to-server authentication (#1687)
+* Add an endpoint for removing a qualified user from a local conversation (#1697)
 
 
-# [unreleased]
-
-[please put all changes that only affect federation into this section to unclutter the rest of the release notes.]
-[if something is both an API change and a feature, please mention it twice (you can abbreviate the second mention and add "see above").]
+# [2021-08-16]
 
 ## Release Notes
+
+This is a routine release requiring only the routine upgrade steps.
 
 ## API Changes
 
@@ -34,9 +134,12 @@
 
 ## Features
 
-* Client functions for the hscim library (#1699)
+* Client functions for the hscim library (#1694, #1699, #1702, https://hackage.haskell.org/package/hscim)
 
 ## Bug fixes and other updates
+
+* Change http response code for `missing-legalhold-consent`. (#1688)
+* Remove old end-point for changing email
 
 ## Federation changes (alpha feature, do not use yet)
 
@@ -44,12 +147,13 @@
 
 ## Documentation
 
-* fix swagger: mark name in UserUpdate as optional (#1691)
+* Fix swagger: mark name in UserUpdate as optional (#1691, #1692)
 
 ## Internal changes
 
 * Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
+* Integration test coverage (#1696, #1704)
 
 # [2021-08-02]
 
@@ -101,7 +205,6 @@ Upgrade nginz (#1658)
 * Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
 * Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
 * Added golden tests for protobuf serialisation / deserialisation (#1644).
-
 
 # [2021-07-09]
 

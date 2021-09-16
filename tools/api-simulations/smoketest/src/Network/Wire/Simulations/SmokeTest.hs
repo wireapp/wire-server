@@ -29,6 +29,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Id (ConvId)
 import Data.List1
 import Data.Qualified (qUnqualified)
+import Data.Range
 import Imports
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
@@ -64,8 +65,7 @@ mainBotNet n = do
           connectTo
             ConnectionRequest
               { crUser = botId user,
-                crName = fromMaybe "" (botEmail ally),
-                crMessage = Message "Hi there!"
+                crName = unsafeRange $ fromMaybe "" (botEmail ally)
               }
         assertConnectRequested ally user
         requireMaybe (ucConvId conn) "conv_id not set after connection request"
@@ -96,7 +96,6 @@ mainBotNet n = do
     let update =
           MemberUpdateData
             { misTarget = Just $ botId bill,
-              misOtrMuted = Nothing,
               misOtrMutedStatus = Nothing,
               misOtrMutedRef = Nothing,
               misOtrArchived = Just True,

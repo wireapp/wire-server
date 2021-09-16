@@ -1,19 +1,19 @@
 {
+    "id": "00000011-0000-0011-0000-00160000001d",
     "members": [
         {
-            "status": 0,
-            "service": {
-                "id": "00000000-0000-0001-0000-000100000000",
-                "provider": "00000001-0000-0001-0000-000000000001"
-            },
             "conversation_role": "qoxen0u30fay_2le0peay0p0uo_sq2p38ti0j3zb8cl_js3r8llahlcho1xkr2o6d66g01tkgwuurg9vtwmtmcam2zvxgey7nmbvzubmphffoo788mgequau6hkos",
+            "id": "00000001-0000-0001-0000-000100000002",
             "qualified_id": {
                 "domain": "golden.example.com",
                 "id": "00000001-0000-0001-0000-000100000002"
             },
-            "id": "00000001-0000-0001-0000-000100000002"
+            "service": {
+                "id": "00000000-0000-0001-0000-000100000000",
+                "provider": "00000001-0000-0001-0000-000000000001"
+            },
+            "status": 0
         }
     ],
-    "name": "\u001b`G1w\u001cᣄ:",
-    "id": "00000011-0000-0011-0000-00160000001d"
+    "name": "\u001b`G1w\u001cᣄ:"
 }

@@ -37,33 +37,29 @@ message OutwardError {
     DiscoveryFailed = 1;
     ConnectionRefused = 2;
     TLSFailure = 3;
-    InvalidCertificate = 4;
-    VersionMismatch = 5;
-    FederationDeniedByRemote = 6;
-    FederationDeniedLocally = 7;
-    RemoteFederatorError = 8;
+    VersionMismatch = 4;
+    FederationDeniedByRemote = 5;
+    FederationDeniedLocally = 6;
+    TooMuchConcurrency = 7;
+    GrpcError = 8;
     InvalidRequest = 9;
-  }
-
-  ErrorType type = 1;
-  ErrorPayload payload = 2;
-}
-
-message InwardError {
-  enum ErrorType {
-    IOther = 0;
-    IInvalidDomain = 1;
-    IFederationDeniedByRemote = 2;
-    IInvalidEndpoint = 3;
-    IForbiddenEndpoint = 4;
   }
 
   ErrorType type = 1;
   string msg = 2;
 }
 
-message ErrorPayload {
-  string label = 1;
+message InwardError {
+  enum ErrorType {
+    IOther = 0;
+    IAuthenticationFailed = 1;
+    IFederationDeniedByRemote = 2;
+    IInvalidEndpoint = 3;
+    IForbiddenEndpoint = 4;
+    IDiscoveryFailed = 5;
+  }
+
+  ErrorType type = 1;
   string msg = 2;
 }
 

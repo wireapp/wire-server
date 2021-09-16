@@ -59,3 +59,49 @@ For two users to be considered "connected", both A->B and B->A connections have 
 Users belonging to the same team are always implicitly treated as connected, to make it easier for team members to see each other's profiles, create conversations, etc.
 
 Since there is no explicit connection state between two team members, changing the connection status (e.g. blocking a fellow team member) is impossible.
+
+# Connection backend internals
+
+In the regular case of a single backend (no federation involved), and in the easiest case of two users Alice and Adham which want to start talking, the simplified internals involving the services brig and galley and cassandra can be seen as follows: (as of 2021-08)
+
+![Connection backend internal flow](connections-flow-1-backend.png)
+
+<details>
+<summary>(To edit this diagram, copy the code in this details block to https://swimlanes.io )</summary>
+
+```
+title: Connections: (no federation)
+
+note: this is a simplified view of what happens internall inside the backend in the simple case for connection requests. For the full details refer to the code.
+
+note: Alice sends a connection request to Adham (all on backend A)
+
+order: Alice, Adham, brig, galley, cassandra
+
+Alice -> brig: POST /connections
+
+brig -> cassandra:  write in 'connections': Alice-Adham-sent
+brig -> cassandra:  write in 'connections': Adham-Alice-pending
+note brig, galley: when a connection request is sent, that also creates a conversation of type 'connection' containing only the sender:
+brig -> galley: /i/conversations/connect
+galley -> cassandra: write in conversations: ID-A-A: connection/[Alice]
+brig -> Adham: Event: new connection request from Alice
+
+...: {fas-spinner}
+
+note Alice, cassandra: Adham reacts and sends a request to accept the connection request
+
+Adham -> brig: *PUT /connections/<id>*
+brig -> cassandra: read 'connections' for Alice-Adham
+brig -> cassandra: read 'connections' for Adham-Alice
+brig -> cassandra:  write in 'connections': Alice-Adham-accept
+brig -> cassandra:  write in 'connections': Adham-Alice-accept
+
+note brig, galley: Accepting a connection also leads to the upgrade of the 'connect' conversation to a 'one2one' conversation and adds Adham to the member list
+brig -> galley: /i/conversations/:convId/accept/v2
+galley -> cassandra: write in conversations: ID-A-A: one2one/[Alice,Adham]
+brig -> Alice: Event: connection request accepted
+```
+</details>
+
+The connection / one2one conversation ID is deterministically determined using a combination of the two involved user's UUIDs, using the [addv4](https://github.com/wireapp/wire-server/blob/3b1d0c5acee58bb65d8d72e71baf68dd4c0096ae/libs/types-common/src/Data/UUID/Tagged.hs#L67-L83) function.

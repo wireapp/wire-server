@@ -11,19 +11,25 @@ license: AGPL-3
 extra-source-files: test/resources/**/*
 dependencies:
 - aeson
-- http-types
-- either
 - base
 - bilge
 - bytestring
+- containers
 - data-default
 - dns
 - dns-util
+- either
 - exceptions
 - extended
-- http-client
+- filepath
+- hinotify
+- HsOpenSSL
+- HsOpenSSL-x509-system
 - http2-client
 - http2-client-grpc
+- http-client
+- http-client-openssl
+- http-types
 - imports
 - lens
 - metrics-core
@@ -32,29 +38,30 @@ dependencies:
 - mu-grpc-client
 - mu-grpc-server
 - mu-rpc
+- network-uri
+- pem
+- polysemy
+- polysemy-wire-zoo
+- retry
 - servant
 - servant-server
 - string-conversions
 - text
-- tls
-- x509-store
-- x509-system
 - tinylog
+- tls
 - types-common
+- unix
+- unliftio
+- uri-bytestring
 - uuid
+- wai
+- wai-utilities
+- warp
 - wire-api
 - wire-api-federation
-- polysemy
-- polysemy-wire-zoo
-- retry
-- HsOpenSSL
-- HsOpenSSL-x509-system
-- http-client-openssl
-- unliftio
-- wai-utilities
-- network-uri
-- uri-bytestring
 - x509
+- x509-store
+- x509-system
 - x509-validation
 
 library:
@@ -97,11 +104,16 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - bytestring
+    - directory
     - federator
+    - interpolate
     - polysemy-mocks
     - streaming-commons
     - tasty
+    - tasty-quickcheck
     - tasty-hunit
+    - temporary
+    - transformers
     - wai
     - warp
     - warp-tls

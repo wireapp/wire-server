@@ -1,20 +1,9 @@
 {
-    "last_prekey": {
-        "key": "󴏳eP'X",
-        "id": 65535
-    },
     "accent_id": -6,
-    "name": "Pcf\u0010j\u0006􋺶\u0007\u001a_V}*p󱨃!O\r\u0014u㗏􁪑J\u0015l\u000c\u0004E󵸴&\"D:ly|",
-    "prekeys": [
-        {
-            "key": "h𠄨I",
-            "id": 1
-        }
-    ],
     "assets": [
         {
-            "size": "preview",
             "key": "\u0010k",
+            "size": "preview",
             "type": "image"
         },
         {
@@ -22,8 +11,8 @@
             "type": "image"
         },
         {
+            "key": "",
             "size": "preview",
-            "key": "",
             "type": "image"
         },
         {
@@ -31,14 +20,25 @@
             "type": "image"
         },
         {
-            "size": "complete",
             "key": "呬𮀉",
+            "size": "complete",
             "type": "image"
         },
         {
-            "size": "preview",
             "key": "\u000c􇀊E",
+            "size": "preview",
             "type": "image"
+        }
+    ],
+    "last_prekey": {
+        "id": 65535,
+        "key": "󴏳eP'X"
+    },
+    "name": "Pcf\u0010j\u0006􋺶\u0007\u001a_V}*p󱨃!O\r\u0014u㗏􁪑J\u0015l\u000c\u0004E󵸴&\"D:ly|",
+    "prekeys": [
+        {
+            "id": 1,
+            "key": "h𠄨I"
         }
     ]
 }

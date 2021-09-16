@@ -1,0 +1,1 @@
+When a user was auto-provisioned into two teams under the same pair of `Issuer` and `NameID`, they where directed into the wrong team, and not rejected.

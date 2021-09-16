@@ -81,28 +81,13 @@ claimMultiPrekeyBundle uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFedera
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: SearchRequest -> Handler (SearchResult Contact)
+searchUsers :: SearchRequest -> Handler [Contact]
 searchUsers (SearchRequest searchTerm) = do
   let maybeHandle = parseHandle searchTerm
   maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
-  exactLookupProfile <- case maybeOwnerId of
+  case maybeOwnerId of
     Nothing -> pure []
     Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
 
-  let exactHandleMatchCount = length exactLookupProfile
-  pure $
-    SearchResult
-      { searchResults = exactLookupProfile,
-        searchFound = exactHandleMatchCount,
-        searchReturned = exactHandleMatchCount,
-        searchTook = 0
-      }
-
 getUserClients :: GetUserClients -> Handler (UserMap (Set PubClient))
 getUserClients (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
-
--- FUTUREWORK(federation): currently these API types make use of the same types in the
--- federation server-server API than the client-server API does. E.g.
--- SearchResult Contact, or UserProfile.  This means changing these types in
--- federation or in the client-server API without changing them on the other
--- side may be tricky. Should new types be introduced for that flexibility?

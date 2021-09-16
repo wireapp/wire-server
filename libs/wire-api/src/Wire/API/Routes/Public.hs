@@ -59,7 +59,9 @@ type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
 
 type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
 
-type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Strict]
+type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict]
+
+type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
   toSwagger _ =

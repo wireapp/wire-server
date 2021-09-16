@@ -26,16 +26,15 @@ module Test.Schema.MetaSchemaSpec
 where
 
 import Data.Aeson
-import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Network.URI.Static (uri)
 import Test.Hspec
+import Test.Schema.Util (genSimpleText, genUri, mk_prop_caseInsensitive)
 import Web.Scim.Capabilities.MetaSchema
 import Web.Scim.Schema.AuthenticationScheme
-import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..))
+import Web.Scim.Schema.Common (ScimBool (ScimBool))
 import Web.Scim.Schema.Schema (Schema (..))
 import Prelude hiding (filter)
 
@@ -47,10 +46,11 @@ prop_roundtrip gen = property $ do
 spec :: Spec
 spec = do
   describe "MetaSchema" $ do
+    -- the extra 'decode' in the golden tests is to make attribute order not count for Eq.
     it "`Supported ()` golden test" $ do
-      encode (Supported (ScimBool True) ()) `shouldBe` "{\"supported\":true}"
+      decode @Value (encode (Supported (ScimBool True) ())) `shouldBe` decode @Value ("{\"supported\":true}")
     it "`Supported a` golden test" $ do
-      encode (Supported (ScimBool True) (FilterConfig 3)) `shouldBe` "{\"supported\":true,\"maxResults\":3}"
+      decode @Value (encode (Supported (ScimBool True) (FilterConfig 3))) `shouldBe` decode @Value "{\"supported\":true,\"maxResults\":3}"
     it "`Supported ()` roundtrips" $ do
       require (prop_roundtrip (genSupported (pure ())))
     it "`BulkConfig` roundtrips" $ do
@@ -61,6 +61,8 @@ spec = do
       require (prop_roundtrip genAuthenticationSchemeEncoding)
     it "`Configuration` roundtrips" $ do
       require (prop_roundtrip genConfiguration)
+    it "`Configuration` satisfies the insane json-case-insensitivity rule." $ do
+      require $ mk_prop_caseInsensitive genConfiguration
 
 genConfiguration :: Gen Configuration
 genConfiguration = do
@@ -98,9 +100,3 @@ genSupported :: forall a. Gen a -> Gen (Supported a)
 genSupported gen = do
   Supported <$> (ScimBool <$> Gen.bool)
     <*> gen
-
-genUri :: Gen URI
-genUri = Gen.element [URI [uri|https://example.com|], URI [uri|gopher://glab.io|], URI [uri|ssh://nothing/blorg|]]
-
-genSimpleText :: Gen Text
-genSimpleText = Gen.element ["one", "green", "sharp"]

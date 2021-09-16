@@ -23,6 +23,8 @@ module Data.Qualified
     Qualified (..),
     Remote,
     toRemote,
+    Local,
+    toLocal,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionRemoteOrLocalIds',
@@ -66,6 +68,13 @@ type Remote a = Tagged "remote" (Qualified a)
 toRemote :: Qualified a -> Remote a
 toRemote = Tagged
 
+-- | A type representing a Qualified value where the domain is guaranteed to be
+-- the local one.
+type Local a = Tagged "local" (Qualified a)
+
+toLocal :: Qualified a -> Local a
+toLocal = Tagged
+
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors
 renderQualified :: (a -> Text) -> Qualified a -> Text
@@ -97,8 +106,8 @@ partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
 renderQualifiedId :: Qualified (Id a) -> Text
 renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
-deprecatedSchema :: Text -> ValueSchema NamedSwaggerDoc a -> ValueSchema SwaggerDoc a
-deprecatedSchema new = (doc . description ?~ ("Deprecated, use " <> new)) . unnamed
+deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc a -> ValueSchema doc a
+deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
 
 qualifiedSchema ::
   Text ->

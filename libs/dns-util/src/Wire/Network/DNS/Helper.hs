@@ -22,8 +22,8 @@ import Network.DNS
 
 -- | Set up a thread-safe resolver with a global cache. Records will only be
 -- re-resolved after their TTLs expire
-withCachingResolver :: (Resolver -> IO a) -> IO a
-withCachingResolver action = do
-  let resolvConf = defaultResolvConf {resolvCache = Just defaultCacheConf}
-  resolvSeed <- makeResolvSeed resolvConf
+withCachingResolver :: ResolvConf -> (Resolver -> IO a) -> IO a
+withCachingResolver conf action = do
+  let confWithCaching = conf {resolvCache = Just defaultCacheConf}
+  resolvSeed <- makeResolvSeed confWithCaching
   withResolver resolvSeed action

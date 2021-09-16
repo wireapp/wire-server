@@ -1,24 +1,30 @@
 {
+    "conversation": "0000303b-0000-23a9-0000-25de00002f80",
+    "data": {
+        "qualified_user_ids": [
+            {
+                "domain": "faraway.example.com",
+                "id": "00003fab-0000-40b8-0000-3b0c000014ef"
+            },
+            {
+                "domain": "faraway.example.com",
+                "id": "00001c48-0000-29ae-0000-62fc00001479"
+            }
+        ],
+        "user_ids": [
+            "00003fab-0000-40b8-0000-3b0c000014ef",
+            "00001c48-0000-29ae-0000-62fc00001479"
+        ]
+    },
+    "from": "000043a6-0000-1627-0000-490300002017",
     "qualified_conversation": {
         "domain": "faraway.example.com",
-        "id": "000031c2-0000-108c-0000-10a500000882"
+        "id": "0000303b-0000-23a9-0000-25de00002f80"
     },
-    "conversation": "000031c2-0000-108c-0000-10a500000882",
-    "time": "1864-05-03T06:49:41.178Z",
-    "data": {
-        "hidden_ref": "D",
-        "otr_muted_ref": "v󼡲",
-        "conversation_role": "spkf0ayk4c4obgc_l2lj54cljtj25ph",
-        "hidden": false,
-        "otr_archived": true,
-        "otr_muted_status": 0,
-        "otr_archived_ref": "v6",
-        "target": "00000001-0000-0002-0000-000100000000"
-    },
-    "from": "00005335-0000-2983-0000-46460000082f",
     "qualified_from": {
         "domain": "faraway.example.com",
-        "id": "00005335-0000-2983-0000-46460000082f"
+        "id": "000043a6-0000-1627-0000-490300002017"
     },
-    "type": "conversation.member-update"
+    "time": "1864-04-12T01:28:25.705Z",
+    "type": "conversation.member-leave"
 }

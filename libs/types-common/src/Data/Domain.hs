@@ -19,6 +19,7 @@
 
 module Data.Domain where
 
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON, ToJSONKey (toJSONKey))
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (toJSONKeyText)
@@ -66,7 +67,9 @@ newtype Domain = Domain {_domainText :: Text}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Domain
 
 instance ToSchema Domain where
-  schema = domainText .= parsedText "Domain" mkDomain
+  schema =
+    domainText .= parsedText "Domain" mkDomain
+      & doc . S.schema . S.example ?~ "example.com"
 
 domainText :: Domain -> Text
 domainText = _domainText

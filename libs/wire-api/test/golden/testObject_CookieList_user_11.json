@@ -3,10 +3,10 @@
         {
             "created": "1864-05-13T08:19:14.217624017961Z",
             "expires": "1864-05-05T05:14:27.024865656105Z",
-            "successor": 4,
             "id": 2,
-            "type": "session",
-            "label": "\r8^"
+            "label": "\r8^",
+            "successor": 4,
+            "type": "session"
         }
     ]
 }

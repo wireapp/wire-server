@@ -1,6 +1,6 @@
 {
-    "status": "enabled",
     "client": {
         "id": "50"
-    }
+    },
+    "status": "enabled"
 }

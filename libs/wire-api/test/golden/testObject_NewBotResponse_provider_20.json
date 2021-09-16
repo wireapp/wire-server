@@ -1,37 +1,37 @@
 {
+    "assets": [
+        {
+            "key": "\"",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "􆵛d",
+            "size": "preview",
+            "type": "image"
+        },
+        {
+            "key": "8",
+            "size": "complete",
+            "type": "image"
+        }
+    ],
     "last_prekey": {
-        "key": "`|𣎜^\u001f",
-        "id": 65535
+        "id": 65535,
+        "key": "`|𣎜^\u001f"
     },
     "prekeys": [
         {
-            "key": "+",
-            "id": 0
+            "id": 0,
+            "key": "+"
         },
         {
-            "key": "쬹",
-            "id": 0
+            "id": 0,
+            "key": "쬹"
         },
         {
-            "key": "",
-            "id": 0
-        }
-    ],
-    "assets": [
-        {
-            "size": "preview",
-            "key": "\"",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "􆵛d",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "8",
-            "type": "image"
+            "id": 0,
+            "key": ""
         }
     ]
 }

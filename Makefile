@@ -334,6 +334,10 @@ chart-%:
 .PHONY: charts-integration
 charts-integration: $(foreach chartName,$(CHARTS_INTEGRATION),chart-$(chartName))
 
+.PHONY: charts-serve
+charts-serve: charts-integration
+	./hack/bin/serve-charts.sh $(CHARTS_INTEGRATION)
+
 # Usecase for this make target:
 # 1. for releases of helm charts
 # 2. for testing helm charts more generally

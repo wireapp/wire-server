@@ -225,9 +225,9 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
   localMembers <- lift $ Data.members convId
   remoteMembers <- Data.lookupRemoteMembers convId
 
-  let localMemberIds = memId <$> localMembers
+  let localMemberIds = lmId <$> localMembers
       localMemberMap :: Map UserId LocalMember
-      localMemberMap = Map.fromList (map (\mem -> (memId mem, mem)) localMembers)
+      localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
       members :: Set (Qualified UserId)
       members =
         Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
@@ -246,7 +246,7 @@ postQualifiedOtrMessage senderType sender mconn convId msg = runExceptT $ do
         else Data.lookupClients localMemberIds
   let qualifiedLocalClients =
         Map.mapKeys (localDomain,)
-          . makeUserMap (Set.fromList (map memId localMembers))
+          . makeUserMap (Set.fromList (map lmId localMembers))
           . Clients.toMap
           $ localClients
 
@@ -309,10 +309,10 @@ sendMessages ::
   Galley QualifiedUserClients
 sendMessages now sender senderClient mconn conv localMemberMap metadata messages = do
   localDomain <- viewFederationDomain
-  let messageMap = byDomain messages
+  let messageMap = byDomain $ fmap toBase64Text messages
   let send dom
         | localDomain == dom =
-          sendLocalMessages now sender senderClient mconn conv localMemberMap metadata
+          sendLocalMessages now sender senderClient mconn (Qualified conv localDomain) localMemberMap metadata
         | otherwise =
           sendRemoteMessages dom now sender senderClient conv metadata
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
@@ -328,17 +328,17 @@ sendLocalMessages ::
   Qualified UserId ->
   ClientId ->
   Maybe ConnId ->
-  ConvId ->
+  Qualified ConvId ->
   Map UserId LocalMember ->
   MessageMetadata ->
-  Map (UserId, ClientId) ByteString ->
+  Map (UserId, ClientId) Text ->
   Galley (Set (UserId, ClientId))
 sendLocalMessages now sender senderClient mconn conv localMemberMap metadata localMessages = do
   localDomain <- viewFederationDomain
   let events =
         localMessages & reindexed snd itraversed
           %@~ newMessageEvent
-            (Qualified conv localDomain)
+            conv
             sender
             senderClient
             (mmData metadata)
@@ -356,18 +356,18 @@ sendRemoteMessages ::
   ClientId ->
   ConvId ->
   MessageMetadata ->
-  Map (UserId, ClientId) ByteString ->
+  Map (UserId, ClientId) Text ->
   Galley (Set (UserId, ClientId))
 sendRemoteMessages domain now sender senderClient conv metadata messages = handle <=< runExceptT $ do
   let rcpts =
         foldr
-          (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c (toBase64Text t)))
+          (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c t))
           mempty
           (Map.assocs messages)
       rm =
         FederatedGalley.RemoteMessage
           { FederatedGalley.rmTime = now,
-            FederatedGalley.rmData = Just (toBase64Text (mmData metadata)),
+            FederatedGalley.rmData = mmData metadata,
             FederatedGalley.rmSender = sender,
             FederatedGalley.rmSenderClient = senderClient,
             FederatedGalley.rmConversation = conv,
@@ -379,7 +379,7 @@ sendRemoteMessages domain now sender senderClient conv metadata messages = handl
   -- Semantically, the origin domain should be the converation domain. Here one
   -- backend has only one domain so we just pick it from the environment.
   originDomain <- viewFederationDomain
-  let rpc = FederatedGalley.receiveMessage FederatedGalley.clientRoutes originDomain rm
+  let rpc = FederatedGalley.onMessageSent FederatedGalley.clientRoutes originDomain rm
   executeFederated domain rpc
   where
     handle :: Either FederationError a -> Galley (Set (UserId, ClientId))
@@ -420,21 +420,29 @@ newUserPush p = MessagePush {userPushes = pure p, botPushes = mempty}
 newBotPush :: BotMember -> Event -> MessagePush
 newBotPush b e = MessagePush {userPushes = mempty, botPushes = pure (b, e)}
 
-runMessagePush :: ConvId -> MessagePush -> Galley ()
+runMessagePush :: Qualified ConvId -> MessagePush -> Galley ()
 runMessagePush cnv mp = do
   pushSome (userPushes mp)
-  void . forkIO $ do
-    gone <- External.deliver (botPushes mp)
-    mapM_ (deleteBot cnv . botMemId) gone
+  pushToBots (botPushes mp)
+  where
+    pushToBots :: [(BotMember, Event)] -> Galley ()
+    pushToBots pushes = do
+      localDomain <- viewFederationDomain
+      if localDomain /= qDomain cnv
+        then unless (null pushes) $ do
+          Log.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show cnv)
+        else void . forkIO $ do
+          gone <- External.deliver pushes
+          mapM_ (deleteBot (qUnqualified cnv) . botMemId) gone
 
-newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> ByteString -> UTCTime -> ClientId -> ByteString -> Event
-newMessageEvent convId sender senderClient dat time recieverClient cipherText =
+newMessageEvent :: Qualified ConvId -> Qualified UserId -> ClientId -> Maybe Text -> UTCTime -> ClientId -> Text -> Event
+newMessageEvent convId sender senderClient dat time receiverClient cipherText =
   Event OtrMessageAdd convId sender time . EdOtrMessage $
     OtrMessage
       { otrSender = senderClient,
-        otrRecipient = recieverClient,
-        otrCiphertext = toBase64Text cipherText,
-        otrData = Just $ toBase64Text dat
+        otrRecipient = receiverClient,
+        otrCiphertext = cipherText,
+        otrData = dat
       }
 
 newMessagePush ::
@@ -455,7 +463,7 @@ newMessagePush localDomain members mconn mm (k, client) e = fromMaybe mempty $ d
     newUserMessagePush :: LocalMember -> Maybe MessagePush
     newUserMessagePush member =
       fmap newUserPush $
-        newConversationEventPush localDomain e [memId member]
+        newConversationEventPush localDomain e [lmId member]
           <&> set pushConn mconn
             . set pushNativePriority (mmNativePriority mm)
             . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
@@ -466,7 +474,7 @@ data MessageMetadata = MessageMetadata
   { mmNativePush :: Bool,
     mmTransient :: Bool,
     mmNativePriority :: Maybe Priority,
-    mmData :: ByteString
+    mmData :: Maybe Text
   }
   deriving (Eq, Ord, Show)
 
@@ -476,7 +484,7 @@ qualifiedNewOtrMetadata msg =
     { mmNativePush = qualifiedNewOtrNativePush msg,
       mmTransient = qualifiedNewOtrTransient msg,
       mmNativePriority = qualifiedNewOtrNativePriority msg,
-      mmData = qualifiedNewOtrData msg
+      mmData = Just . toBase64Text $ qualifiedNewOtrData msg
     }
 
 -- unqualified

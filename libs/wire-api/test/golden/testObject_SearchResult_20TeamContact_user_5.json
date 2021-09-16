@@ -1,19 +1,19 @@
 {
-    "took": -7,
-    "found": -2,
     "documents": [
         {
+            "accent_id": 0,
+            "created_at": "1864-05-09T12:39:20.984Z",
             "email": "@",
             "handle": "",
-            "managed_by": "scim",
-            "role": "partner",
-            "accent_id": 0,
-            "name": "",
-            "created_at": "1864-05-09T12:39:20.984Z",
-            "team": null,
             "id": "00000000-0000-0000-0000-000100000000",
-            "saml_idp": ""
+            "managed_by": "scim",
+            "name": "",
+            "role": "partner",
+            "saml_idp": "",
+            "team": null
         }
     ],
-    "returned": -3
+    "found": -2,
+    "returned": -3,
+    "took": -7
 }

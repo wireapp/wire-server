@@ -1,0 +1,4 @@
+apiVersion: v1
+description: ldap-scim-bridge - Sync LDAP via Wire Server SCIM API
+name: ldap-scim-bridge
+version: 0.0.1

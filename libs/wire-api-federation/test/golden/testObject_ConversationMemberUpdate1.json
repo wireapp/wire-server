@@ -1,0 +1,28 @@
+{
+    "orig_user_id": {
+        "domain": "golden.example.com",
+        "id": "00000000-0000-0000-0000-000100000007"
+    },
+    "already_present_users": [],
+    "time": "1864-04-12T12:22:43.673Z",
+    "action": {
+        "tag": "ConversationMembersActionAdd",
+        "contents": [
+            [
+                {
+                    "domain": "golden.example.com",
+                    "id": "00000000-0000-0000-0000-000100004007"
+                },
+                "wire_member"
+            ],
+            [
+                {
+                    "domain": "golden2.example.com",
+                    "id": "00000000-0000-0000-0000-000100005007"
+                },
+                "wire_admin"
+            ]
+        ]
+    },
+    "conv_id": "00000000-0000-0000-0000-000100000006"
+}

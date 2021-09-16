@@ -2,33 +2,33 @@
     "has_more": false,
     "services": [
         {
-            "summary": "",
+            "assets": [],
+            "description": "",
             "enabled": true,
-            "name": "M鮿d󱣍|\u000b.5􃈦P𞸖\u0011\u000bvfpH𦢒\u000b`󹉌Yv󿦪\u0000sj\u0008-liD󺃪",
             "id": "00000000-0000-0001-0000-000000000000",
-            "assets": [],
-            "description": "",
+            "name": "M鮿d󱣍|\u000b.5􃈦P𞸖\u0011\u000bvfpH𦢒\u000b`󹉌Yv󿦪\u0000sj\u0008-liD󺃪",
             "provider": "00000001-0000-0000-0000-000000000000",
+            "summary": "",
             "tags": []
         },
         {
-            "summary": "",
+            "assets": [],
+            "description": "",
             "enabled": false,
-            "name": "w0󸓴!.i+iz0@86X]\u0008뜭U",
             "id": "00000000-0000-0000-0000-000100000000",
-            "assets": [],
-            "description": "",
+            "name": "w0󸓴!.i+iz0@86X]\u0008뜭U",
             "provider": "00000000-0000-0001-0000-000000000000",
+            "summary": "",
             "tags": []
         },
         {
-            "summary": "",
-            "enabled": true,
-            "name": "e󹾁𤓾\u0014\u00108X\nB𗾋󲒽=!t;~^*qZ[IW𭚪m;Y\u0002",
-            "id": "00000000-0000-0001-0000-000100000000",
             "assets": [],
             "description": "",
+            "enabled": true,
+            "id": "00000000-0000-0001-0000-000100000000",
+            "name": "e󹾁𤓾\u0014\u00108X\nB𗾋󲒽=!t;~^*qZ[IW𭚪m;Y\u0002",
             "provider": "00000001-0000-0001-0000-000000000001",
+            "summary": "",
             "tags": []
         }
     ]

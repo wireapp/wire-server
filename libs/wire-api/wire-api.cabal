@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9152de17654638a8439538e5d42de1b136055ce828561a44f3ca3e3b3d28fdba
+-- hash: b225ee25604ad590c2886cca427ff3612767c72e49039963f1fbafbb94a807bd
 
 name:           wire-api
 version:        0.1.0
@@ -52,8 +52,10 @@ library
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
       Wire.API.Routes.Public.Galley
+      Wire.API.Routes.Public.Galley.Responses
       Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
+      Wire.API.Routes.Public.Util
       Wire.API.Routes.QualifiedCapture
       Wire.API.ServantProto
       Wire.API.Swagger
@@ -85,6 +87,7 @@ library
       Wire.API.User.Scim
       Wire.API.User.Search
       Wire.API.UserMap
+      Wire.API.Util.Aeson
       Wire.API.Wrapped
   other-modules:
       Paths_wire_api
@@ -146,6 +149,7 @@ library
     , servant-multipart
     , servant-server
     , servant-swagger
+    , singletons
     , sop-core
     , string-conversions
     , swagger >=0.1
@@ -245,7 +249,7 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.LastPrekey_user
       Test.Wire.API.Golden.Generated.LegalHoldServiceConfirm_team
       Test.Wire.API.Golden.Generated.LegalHoldServiceRemove_team
-      Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_2020_user
+      Test.Wire.API.Golden.Generated.LimitedQualifiedUserIdList_user
       Test.Wire.API.Golden.Generated.ListType_team
       Test.Wire.API.Golden.Generated.Locale_user
       Test.Wire.API.Golden.Generated.LocaleUpdate_user
@@ -257,7 +261,6 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.Member_user
       Test.Wire.API.Golden.Generated.MemberUpdate_user
       Test.Wire.API.Golden.Generated.MemberUpdateData_user
-      Test.Wire.API.Golden.Generated.Message_user
       Test.Wire.API.Golden.Generated.MutedStatus_user
       Test.Wire.API.Golden.Generated.Name_user
       Test.Wire.API.Golden.Generated.NameUpdate_user
@@ -385,7 +388,6 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Generated.UserConnectionList_user
       Test.Wire.API.Golden.Generated.UserHandleInfo_user
       Test.Wire.API.Golden.Generated.UserIdentity_user
-      Test.Wire.API.Golden.Generated.UserIdList_user
       Test.Wire.API.Golden.Generated.UserLegalHoldStatusResponse_team
       Test.Wire.API.Golden.Generated.UserProfile_user
       Test.Wire.API.Golden.Generated.UserSSOId_user
@@ -400,12 +402,14 @@ test-suite wire-api-tests
       Test.Wire.API.Golden.Manual.ClientCapabilityList
       Test.Wire.API.Golden.Manual.ConversationCoverView
       Test.Wire.API.Golden.Manual.ConversationPagingState
+      Test.Wire.API.Golden.Manual.ConversationsResponse
       Test.Wire.API.Golden.Manual.ConvIdsPage
       Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
-      Test.Wire.API.Golden.Manual.ListConversations
+      Test.Wire.API.Golden.Manual.ListConversationsV2
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+      Test.Wire.API.Golden.Manual.UserIdList
       Test.Wire.API.Golden.Protobuf
       Test.Wire.API.Golden.Runner
       Test.Wire.API.Roundtrip.Aeson
