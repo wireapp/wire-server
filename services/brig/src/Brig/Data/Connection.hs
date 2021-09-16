@@ -95,14 +95,14 @@ insertLocalConnection from to status cid = do
 -- insertRemoteConnection :: UserId -> Qualified UserId -> RelationWithHistory -> AppIO UserConnection
 -- insertRemoteConnection = undefined
 
-updateLocalConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
-updateLocalConnection c@UserConnection {..} status = do
+updateLocalConnection :: LocalConnection -> RelationWithHistory -> AppIO LocalConnection
+updateLocalConnection c@LocalConnection {..} status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, qUnqualified ucTo)
+  retry x5 . write connectionUpdate $ params Quorum (status, now, lcFrom, lcTo)
   return $
     c
-      { ucStatus = relationDropHistory status,
-        ucLastUpdate = now
+      { lcStatus = relationDropHistory status,
+        lcLastUpdated = now
       }
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).

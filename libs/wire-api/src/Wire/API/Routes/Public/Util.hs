@@ -22,6 +22,7 @@ module Wire.API.Routes.Public.Util where
 
 import Data.SOP (I (..), NS (..))
 import Servant
+import Imports
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Routes.MultiVerb
 
@@ -42,6 +43,7 @@ instance
 data ResponseForExistedCreated a
   = Existed !a
   | Created !a
+  deriving (Functor)
 
 type ResponsesForExistedCreated eDesc cDesc a =
   '[ Respond 200 eDesc a,

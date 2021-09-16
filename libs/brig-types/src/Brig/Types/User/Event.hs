@@ -23,9 +23,9 @@ import Brig.Types
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
+import Data.Qualified (Qualified (Qualified))
 import Imports
 import System.Logger.Class
-import Data.Qualified (Qualified(Qualified))
 
 data Event
   = UserEvent !UserEvent
@@ -185,6 +185,11 @@ logConnection from (Qualified toUser toDomain) =
   "connection.from" .= toByteString from
     ~~ "connection.to" .= toByteString toUser
     ~~ "connection.to_domain" .= toByteString toDomain
+
+logLocalConnection :: UserId -> UserId -> Msg -> Msg
+logLocalConnection from to =
+  "connection.from" .= toByteString from
+    ~~ "connection.to" .= toByteString to
 
 instance ToBytes Event where
   bytes (UserEvent e) = bytes e

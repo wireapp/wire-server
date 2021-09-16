@@ -41,6 +41,7 @@ import Data.Domain (Domain)
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified
 import Data.Range (unsafeRange)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
@@ -290,7 +291,7 @@ assertConnections brig u cs =
     const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
   where
     check xs = all (`elem` xs) cs
-    status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
+    status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =

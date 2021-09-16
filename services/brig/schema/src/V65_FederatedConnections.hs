@@ -39,6 +39,6 @@ migration = Migration 65 "Add table for federated (remote) connections" $ do
         conv_domain text,
         conv_id uuid,
         PRIMARY KEY (left, right_domain, right_user)
-) WITH CLUSTERING ORDER BY (right_domain ASC)
+    ) WITH CLUSTERING ORDER BY (right_domain ASC)
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
       |]

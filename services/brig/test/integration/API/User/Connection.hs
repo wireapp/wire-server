@@ -31,6 +31,7 @@ import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Qualified
 import qualified Data.UUID.V4 as UUID
 import Galley.Types
 import Imports
@@ -323,6 +324,7 @@ testConnectionPaging b = do
   foldM_ (next u total) (0, Nothing) [total, 0]
   where
     total = 5
+    next :: UserId -> Int -> (Int, Maybe UserId) -> Int -> HttpT IO (Int, Maybe UserId)
     next u step (count, start) n = do
       let count' = count + step
       let range = queryRange (toByteString' <$> start) (Just step)
@@ -332,7 +334,7 @@ testConnectionPaging b = do
       let (conns, more) = (fmap clConnections &&& fmap clHasMore) $ responseJsonMaybe r
       liftIO $ assertEqual "page size" (Just n) (length <$> conns)
       liftIO $ assertEqual "has more" (Just (count' < total)) more
-      return . (count',) $ (conns >>= fmap ucTo . listToMaybe . reverse)
+      return . (count',) $ (conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()
 testConnectionLimit brig (ConnectionLimit l) = do
