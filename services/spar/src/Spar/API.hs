@@ -127,7 +127,7 @@ authreq ::
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
-  (Spar r) (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+  Spar r (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
 authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _ = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
@@ -189,7 +189,7 @@ authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI 
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
             ckyraw
 
-ssoSettings :: (Spar r) SsoSettings
+ssoSettings :: Spar r SsoSettings
 ssoSettings = do
   SsoSettings <$> wrapMonadClient Data.getDefaultSsoCode
 
@@ -232,7 +232,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
   idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
-  let doPurge :: (Spar r) ()
+  let doPurge :: Spar r ()
       doPurge = do
         some <- wrapMonadClient (Data.getSAMLSomeUsersByIssuer issuer)
         forM_ some $ \(uref, uid) -> do
@@ -321,7 +321,7 @@ assertNoScimOrNoIdP teamid = do
 -- update, delete of idps.)
 validateNewIdP ::
   forall m r.
-  (HasCallStack, m ~ (Spar r)) =>
+  (HasCallStack, m ~ Spar r) =>
   SAML.IdPMetadata ->
   TeamId ->
   Maybe SAML.IdPId ->
@@ -364,7 +364,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 -- info if issuer has changed.
 validateIdPUpdate ::
   forall m r.
-  (HasCallStack, m ~ (Spar r)) =>
+  (HasCallStack, m ~ Spar r) =>
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
@@ -427,7 +427,7 @@ enforceHttps uri = do
 ----------------------------------------------------------------------------
 -- Internal API
 
-internalStatus :: (Spar r) NoContent
+internalStatus :: Spar r NoContent
 internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
