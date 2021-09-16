@@ -22,6 +22,7 @@ samlUserToCassandra = interpret $ embed . \case
   Delete uid ur      -> Data.deleteSAMLUser uid ur
 
 
-interpretClientToIO :: Member (Final IO) r => Sem (Embed Client ': r) a -> Sem r a
-interpretClientToIO = undefined
+interpretClientToIO :: Member (Final IO) r => ClientState -> Sem (Embed Client ': r) a -> Sem r a
+interpretClientToIO ctx = interpret $ \case
+  Embed action -> embedFinal $ runClient ctx action
 

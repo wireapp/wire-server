@@ -107,13 +107,16 @@ import Spar.Sem.SAMLUser.Cassandra (samlUserToCassandra, interpretClientToIO)
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
 
+raiseSem :: (Member (Final IO) r => Sem r a) -> Spar r a
+raiseSem r = Spar $ lift $ lift r
+
 instance Applicative (Spar r)
 instance Monad (Spar r)
 instance MonadReader Env (Spar r)
 instance MonadError SparError (Spar r)
 
 instance MonadIO (Spar r) where
-  liftIO m = Spar $ lift $ lift $ embedFinal m
+  liftIO m = raiseSem $ embedFinal m
 
 data Env = Env
   { sparCtxOpts :: Opts,
@@ -141,8 +144,7 @@ instance MonadLogger (Spar r) where
     lg <- asks sparCtxLogger
     reqid <- asks sparCtxRequestId
     let fields = Log.field "request" (unRequestId reqid)
-    undefined
-    -- Spar $ Log.log lg level $ fields Log.~~ mg
+    raiseSem $ embedFinal $ Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
@@ -201,13 +203,11 @@ wrapMonadClient :: Cas.Client a -> Spar r a
 wrapMonadClient action = do
   Spar $ do
     ctx <- asks sparCtxCas
-    -- TODO(sandy): Figure this out!
-    undefined
-    -- runClient ctx action
-    --   `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
+    lift (lift $ embedFinal @IO $ runClient ctx action)
+      `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
 wrapMonadClientSem :: Sem r a -> Spar r a
-wrapMonadClientSem action = Spar $ lift $ lift $ action
+wrapMonadClientSem action = raiseSem $ action
 
 insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
@@ -349,7 +349,7 @@ instance (r ~ '[SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler 
     throwErrorAsHandlerException err
     where
       actionHandler :: Handler (Either SparError a)
-      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO $ samlUserToCassandra @Cas.Client $ runExceptT $ runReaderT action ctx
+      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO (sparCtxCas ctx) $ samlUserToCassandra @Cas.Client $ runExceptT $ runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

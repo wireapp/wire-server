@@ -64,7 +64,6 @@ module Spar.Scim
   )
 where
 
-import Control.Lens
 import Control.Monad.Catch (try)
 import Data.String.Conversions (cs)
 import Imports
@@ -118,8 +117,8 @@ apiScim =
     -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
     -- for why it's hard to catch impure exceptions.
     wrapScimErrors :: (Spar r) a -> (Spar r) a
-    wrapScimErrors = over _Spar $ \act -> \env -> do
-      result :: Either SomeException (Either SparError a) <- try (act env)
+    wrapScimErrors act = Spar $ ReaderT $ \env -> ExceptT $ do
+      result :: Either SomeException (Either SparError a) <- try $ runExceptT $ runReaderT (fromSpar $ act) env
       case result of
         Left someException -> do
           -- We caught an exception that's not a Spar exception at all. It is wrapped into
@@ -132,7 +131,7 @@ apiScim =
         Right (Left sparError) -> do
           -- We caught some other Spar exception. It is rendered and wrapped into a scim error
           -- with the same status and message, and no scim error type.
-          err :: ServerError <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
+          err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging (sparCtxLogger env) sparError
           pure . Left . SAML.CustomError . SparScimError $
             Scim.ScimError
               { schemas = [Scim.Schema.Error20],
@@ -156,16 +155,4 @@ server conf =
     { config = toServant $ Scim.configServer conf,
       users = \authData -> toServant (Scim.userServer @tag authData)
     }
-
-----------------------------------------------------------------------------
--- Utilities
-
--- | An isomorphism that unwraps the Spar stack (@Spar . ReaderT . ExceptT@) into a
--- newtype-less form that's easier to work with.
--- TODO(sandy): This iso breaks the abstraction boundary between Spar and its
--- implementation.
-_Spar :: Iso' ((Spar r) a) (Env -> IO (Either SparError a))
-_Spar = undefined
--- iso (fmap (runM . runExceptT) . runReaderT . fromSpar)
---             (Spar . ReaderT . fmap (ExceptT . embed))
 
