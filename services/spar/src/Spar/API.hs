@@ -114,7 +114,7 @@ appName = "spar"
 ----------------------------------------------------------------------------
 -- SSO API
 
-authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> (Spar r) NoContent
+authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar r NoContent
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
     *> SAML.getIdPConfig idpid
@@ -141,7 +141,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
-initializeBindCookie :: Maybe UserId -> NominalDiffTime -> (Spar r) SetBindCookie
+initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
 initializeBindCookie zusr authreqttl = do
   DerivedOpts {derivedOptsBindCookiePath} <- asks (derivedOpts . sparCtxOpts)
   msecret <-
@@ -155,7 +155,7 @@ initializeBindCookie zusr authreqttl = do
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
-validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> (Spar r) VerdictFormat
+validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Spar r VerdictFormat
 validateAuthreqParams msucc merr = case (msucc, merr) of
   (Nothing, Nothing) -> pure VerdictFormatWeb
   (Just ok, Just err) -> do
@@ -163,14 +163,14 @@ validateAuthreqParams msucc merr = case (msucc, merr) of
     pure $ VerdictFormatMobile ok err
   _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
-validateRedirectURL :: URI.URI -> (Spar r) ()
+validateRedirectURL :: URI.URI -> Spar r ()
 validateRedirectURL uri = do
   unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
     throwSpar $ SparBadInitiateLoginQueryParams "invalid-schema"
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: forall r. Member SAMLUser r => Maybe ST -> SAML.AuthnResponseBody -> (Spar r) Void
+authresp :: forall r. Member SAMLUser r => Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
 authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI go arbody
   where
     cky :: Maybe BindCookie
@@ -179,7 +179,7 @@ authresp ckyraw arbody = logErrors $ SAML.authresp sparSPIssuer sparResponseURI 
     go resp verdict = do
       result :: SAML.ResponseVerdict <- verdictHandler cky resp verdict
       throwError $ SAML.CustomServant result
-    logErrors :: (Spar r) Void -> (Spar r) Void
+    logErrors :: Spar r Void -> Spar r Void
     logErrors = flip catchError $ \case
       e@(SAML.CustomServant _) -> throwError e
       e -> do
@@ -196,13 +196,13 @@ ssoSettings = do
 ----------------------------------------------------------------------------
 -- IdP API
 
-idpGet :: Maybe UserId -> SAML.IdPId -> (Spar r) IdP
+idpGet :: Maybe UserId -> SAML.IdPId -> Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   pure idp
 
-idpGetRaw :: Maybe UserId -> SAML.IdPId -> (Spar r) RawIdPMetadata
+idpGetRaw :: Maybe UserId -> SAML.IdPId -> Spar r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -210,7 +210,7 @@ idpGetRaw zusr idpid = do
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar SparIdPNotFound
 
-idpGetAll :: Maybe UserId -> (Spar r) IdPList
+idpGetAll :: Maybe UserId -> Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
@@ -224,7 +224,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: Maybe UserId -> SAML.IdPId -> Maybe Bool -> (Spar r) NoContent
+idpDelete :: Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -257,7 +257,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     Data.deleteIdPRawMetadata idpid
   return NoContent
   where
-    updateOldIssuers :: IdP -> (Spar r) ()
+    updateOldIssuers :: IdP -> Spar r ()
     updateOldIssuers _ = pure ()
     -- we *could* update @idp ^. SAML.idpExtraInfo . wiReplacedBy@ to not keep the idp about
     -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
@@ -266,7 +266,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
     -- leave old issuers dangling for now.
 
-    updateReplacingIdP :: IdP -> (Spar r) ()
+    updateReplacingIdP :: IdP -> Spar r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       wrapMonadClient $ do
         iid <- Data.getIdPIdByIssuer oldIssuer
@@ -274,11 +274,11 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> (Spar r) IdP
+idpCreate :: Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Spar r IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml midpid
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> (Spar r) IdP
+idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
@@ -294,7 +294,7 @@ idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show 
 -- data contains no information about the idp issuer, only the user name, so no valid saml
 -- credentials can be created.  To fix this, we need to implement a way to associate scim
 -- tokens with IdPs.  https://wearezeta.atlassian.net/browse/SQSERVICES-165
-assertNoScimOrNoIdP :: TeamId -> (Spar r) ()
+assertNoScimOrNoIdP :: TeamId -> Spar r ()
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> wrapMonadClient (Data.getScimTokens teamid)
   numIdps <- length <$> wrapMonadClientWithEnv (Data.getIdPConfigsByTeam teamid)
@@ -344,10 +344,10 @@ validateNewIdP _idpMetadata teamId mReplaces = do
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> (Spar r) IdP
+idpUpdate :: Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
-idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> (Spar r) IdP
+idpUpdateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   Galley.assertSSOEnabled teamid
@@ -419,7 +419,7 @@ authorizeIdP (Just zusr) idp = do
   Galley.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure teamid
 
-enforceHttps :: URI.URI -> (Spar r) ()
+enforceHttps :: URI.URI -> Spar r ()
 enforceHttps uri = do
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
     throwSpar . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
@@ -432,12 +432,12 @@ internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: TeamId -> (Spar r) NoContent
+internalDeleteTeam :: TeamId -> Spar r NoContent
 internalDeleteTeam team = do
   wrapMonadClient $ Data.deleteTeam team
   pure NoContent
 
-internalPutSsoSettings :: SsoSettings -> (Spar r) NoContent
+internalPutSsoSettings :: SsoSettings -> Spar r NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
   wrapMonadClient $ Data.deleteDefaultSsoCode
   pure NoContent

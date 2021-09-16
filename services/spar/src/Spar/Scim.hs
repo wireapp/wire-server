@@ -116,7 +116,7 @@ apiScim =
     -- Let's hope that SCIM clients can handle non-SCIM-formatted errors
     -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
     -- for why it's hard to catch impure exceptions.
-    wrapScimErrors :: (Spar r) a -> (Spar r) a
+    wrapScimErrors :: Spar r a -> Spar r a
     wrapScimErrors act = Spar $ ReaderT $ \env -> ExceptT $ do
       result :: Either SomeException (Either SparError a) <- try $ runExceptT $ runReaderT (fromSpar $ act) env
       case result of
