@@ -516,9 +516,8 @@ instance
 -- "failure" case, normally represented by 'Nothing', corresponds to the /first/
 -- response.
 instance
-  (ResponseType r2 ~ a) =>
   AsUnion
-    '[RespondEmpty s1 desc1, r2]
+    '[RespondEmpty s1 desc1, Respond s2 desc2 a]
     (Maybe a)
   where
   toUnion Nothing = Z (I ())

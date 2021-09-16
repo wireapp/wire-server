@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,6 +20,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
@@ -26,6 +28,7 @@ import Data.Id as Id
 import Data.Misc (IpAddr)
 import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
 import Servant (JSON)
@@ -65,6 +68,25 @@ type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
+type DeleteSelfResponses =
+  '[ RespondEmpty 200 "Deletion is initiated.",
+     RespondWithDeletionCodeTimeout
+   ]
+
+newtype RespondWithDeletionCodeTimeout
+  = RespondWithDeletionCodeTimeout
+      (Respond 202 "Deletion is pending verification with a code." DeletionCodeTimeout)
+  deriving (IsResponse '[JSON], IsSwaggerResponse)
+
+type instance ResponseType RespondWithDeletionCodeTimeout = DeletionCodeTimeout
+
+instance AsUnion DeleteSelfResponses (Maybe Timeout) where
+  toUnion (Just t) = S (Z (I (DeletionCodeTimeout t)))
+  toUnion Nothing = Z (I ())
+  fromUnion (Z (I ())) = Nothing
+  fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
+  fromUnion (S (S x)) = case x of
+
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
 data Api routes = Api
@@ -90,6 +112,30 @@ data Api routes = Api
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile,
+    -- This endpoint can lead to the following events being sent:
+    -- - UserDeleted event to contacts of self
+    -- - MemberLeave event to members for all conversations the user was in (via galley)
+    deleteSelf ::
+      routes
+        -- TODO: Add custom AsUnion
+        :- Summary "Initiate account deletion."
+        :> Description
+             "if the account has a verified identity, a verification \
+             \code is sent and needs to be confirmed to authorise the \
+             \deletion. if the account has no verified identity but a \
+             \password, it must be provided. if password is correct, or if neither \
+             \a verified identity nor a password exists, account deletion \
+             \is scheduled immediately."
+        :> CanThrow InvalidUser
+        :> CanThrow InvalidCode
+        :> CanThrow BadCredentials
+        :> CanThrow MissingAuth
+        :> CanThrow DeleteCodePending
+        :> CanThrow OwnerDeletingSelf
+        :> ZUser
+        :> "self"
+        :> ReqBody '[JSON] DeleteUser
+        :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
     getHandleInfoUnqualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
