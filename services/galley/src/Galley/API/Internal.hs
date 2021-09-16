@@ -73,6 +73,8 @@ import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
 import Wire.API.ErrorDescription (missingLegalholdConsent)
+import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
+import Wire.API.Routes.Public (ZOptConn, ZUser)
 import qualified Wire.API.Team.Feature as Public
 
 data InternalApi routes = InternalApi
@@ -158,7 +160,18 @@ data InternalApi routes = InternalApi
         :- IFeatureStatusPut 'Public.TeamFeatureConferenceCalling,
     iTeamFeatureStatusConferenceCallingGet ::
       routes
-        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling
+        :- IFeatureStatusGet 'Public.TeamFeatureConferenceCalling,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members for all conversations the user was in
+    iDeleteUser ::
+      routes
+        :- Summary
+             "Remove a user from their teams and conversations and erase their clients"
+        :> ZUser
+        :> ZOptConn
+        :> "i"
+        :> "user"
+        :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
   }
   deriving (Generic)
 
@@ -232,7 +245,8 @@ servantSitemap =
         iTeamFeatureStatusFileSharingPut = iPutTeamFeature @'Public.TeamFeatureFileSharing Features.setFileSharingInternal,
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
-        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal
+        iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
+        iDeleteUser = rmUser
       }
 
 iGetTeamFeature ::
@@ -372,11 +386,6 @@ sitemap = do
     zauthUserId
       .&. capture "client"
 
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members for all conversations the user was in
-  delete "/i/user" (continue rmUserH) $
-    zauthUserId .&. opt zauthConnId
-
   post "/i/services" (continue Update.addServiceH) $
     jsonRequest @Service
 
@@ -426,10 +435,6 @@ sitemap = do
 
   get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
     capture "tid"
-
-rmUserH :: UserId ::: Maybe ConnId -> Galley Response
-rmUserH (user ::: conn) = do
-  empty <$ rmUser user conn
 
 rmUser :: UserId -> Maybe ConnId -> Galley ()
 rmUser user conn = do
