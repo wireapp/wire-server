@@ -3,34 +3,34 @@
         {
             "created": "1864-05-10T17:25:06.901627917177Z",
             "expires": "1864-05-10T23:16:48.964734609311Z",
-            "successor": 0,
             "id": 1,
-            "type": "persistent",
-            "label": "A"
+            "label": "A",
+            "successor": 0,
+            "type": "persistent"
         },
         {
             "created": "1864-05-08T00:59:53.715758102357Z",
             "expires": "1864-05-09T02:53:10.370977876871Z",
-            "successor": 0,
             "id": 0,
-            "type": "persistent",
-            "label": ""
+            "label": "",
+            "successor": 0,
+            "type": "persistent"
         },
         {
             "created": "1864-05-10T04:00:37.506988047232Z",
             "expires": "1864-05-09T20:15:08.356758949536Z",
-            "successor": 1,
             "id": 0,
-            "type": "session",
-            "label": ""
+            "label": "",
+            "successor": 1,
+            "type": "session"
         },
         {
             "created": "1864-05-08T23:15:35.154377472412Z",
             "expires": "1864-05-10T22:54:59.641375513427Z",
-            "successor": 1,
             "id": 0,
-            "type": "persistent",
-            "label": "\u0008"
+            "label": "\u0008",
+            "successor": 1,
+            "type": "persistent"
         }
     ]
 }

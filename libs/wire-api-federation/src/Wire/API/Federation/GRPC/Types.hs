@@ -26,6 +26,7 @@ module Wire.API.Federation.GRPC.Types where
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Either.Validation
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.Text as Text
 import Imports
 import Mu.Quasi.GRpc (grpc)
 import Mu.Schema
@@ -56,7 +57,6 @@ data InwardResponse
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform InwardResponse)
 
--- FUTUREWORK: add roundtrip tests for these to/from schema definitions.
 instance ToSchema Router "InwardResponse" InwardResponse where
   toSchema r =
     let protoChoice = case r of
@@ -102,12 +102,12 @@ instance FromSchema Router "OutwardResponse" OutwardResponse where
 -- https://higherkindness.io/mu-haskell/schema/#mapping-haskell-types
 type OutwardErrorFieldMapping =
   '[ "outwardErrorType" ':-> "type",
-     "outwardErrorPayload" ':-> "payload"
+     "outwardErrorMessage" ':-> "msg"
    ]
 
 data OutwardError = OutwardError
   { outwardErrorType :: OutwardErrorType,
-    outwardErrorPayload :: Maybe ErrorPayload
+    outwardErrorMessage :: Text
   }
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform OutwardError)
@@ -120,21 +120,14 @@ data OutwardErrorType
   | DiscoveryFailed
   | ConnectionRefused
   | TLSFailure
-  | InvalidCertificate
   | VersionMismatch
   | FederationDeniedByRemote
   | FederationDeniedLocally
-  | RemoteFederatorError
+  | TooMuchConcurrency
+  | GrpcError
   | InvalidRequest
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "OutwardError.ErrorType", FromSchema Router "OutwardError.ErrorType")
   deriving (Arbitrary) via (GenericUniform OutwardErrorType)
-
-data ErrorPayload = ErrorPayload
-  { label :: Text,
-    msg :: Text
-  }
-  deriving (Typeable, Show, Eq, Generic, ToSchema Router "ErrorPayload", FromSchema Router "ErrorPayload")
-  deriving (Arbitrary) via (GenericUniform ErrorPayload)
 
 -- See mu-haskell Custom Mapping documentation here:
 -- https://higherkindness.io/mu-haskell/schema/#mapping-haskell-types
@@ -190,6 +183,16 @@ data ValidatedFederatedRequest = ValidatedFederatedRequest
     vRequest :: Request
   }
   deriving (Typeable, Eq, Show)
+
+showFederatedRequestValidationError :: FederatedRequestValidationError -> Text
+showFederatedRequestValidationError (InvalidDomain msg) = "invalid domain: " <> Text.pack msg
+showFederatedRequestValidationError RequestMissing = "federation request is missing"
+
+showFederatedRequestValidationErrors :: NonEmpty FederatedRequestValidationError -> Text
+showFederatedRequestValidationErrors =
+  Text.intercalate "; "
+    . map showFederatedRequestValidationError
+    . toList
 
 validateFederatedRequest :: FederatedRequest -> Validation (NonEmpty FederatedRequestValidationError) ValidatedFederatedRequest
 validateFederatedRequest FederatedRequest {..} = do

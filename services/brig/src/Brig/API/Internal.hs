@@ -72,7 +72,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
-import Wire.API.ErrorDescription (userNotFound)
+import Wire.API.ErrorDescription
 import Wire.API.User
 import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
@@ -589,7 +589,7 @@ updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJso
 
 updateUserName :: UserId -> NameUpdate -> Handler ()
 updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd invalidUser) pure $ mkName nameUpd
+  name <- either (const $ throwStd (errorDescriptionToWai invalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
           { uupName = Just name,
@@ -599,7 +599,7 @@ updateUserName uid (NameUpdate nameUpd) = do
           }
   lift (Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
-    Nothing -> throwStd invalidUser
+    Nothing -> throwStd (errorDescriptionToWai invalidUser)
 
 checkHandleInternalH :: Text -> Handler Response
 checkHandleInternalH =

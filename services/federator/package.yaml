@@ -14,12 +14,15 @@ dependencies:
 - base
 - bilge
 - bytestring
+- containers
 - data-default
 - dns
 - dns-util
 - either
 - exceptions
 - extended
+- filepath
+- hinotify
 - HsOpenSSL
 - HsOpenSSL-x509-system
 - http2-client
@@ -47,6 +50,7 @@ dependencies:
 - tinylog
 - tls
 - types-common
+- unix
 - unliftio
 - uri-bytestring
 - uuid
@@ -100,12 +104,16 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - bytestring
+    - directory
     - federator
     - interpolate
     - polysemy-mocks
     - streaming-commons
     - tasty
+    - tasty-quickcheck
     - tasty-hunit
+    - temporary
+    - transformers
     - wai
     - warp
     - warp-tls

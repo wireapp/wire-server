@@ -1,4 +1,4 @@
 {
-    "retention": "eternal",
-    "public": true
+    "public": true,
+    "retention": "eternal"
 }

@@ -1,18 +1,14 @@
 {
-    "hidden_ref": null,
-    "status": 0,
-    "service": {
-        "id": "00000001-0000-0001-0000-000100000001",
-        "provider": "00000000-0000-0000-0000-000100000001"
-    },
-    "otr_muted_ref": "",
     "conversation_role": "cxrqwei1me7ftnrql1p2ew9aj1c5um89xip09ymj6wyj5cqfc4s903yxpv9e5j1j_8744acstc_a",
-    "status_time": "1970-01-01T00:00:00.000Z",
     "hidden": true,
-    "status_ref": "0.0",
+    "hidden_ref": null,
     "id": "00000000-0000-0001-0000-000100000002",
     "otr_archived": true,
-    "otr_muted_status": -2,
-    "otr_muted": false,
-    "otr_archived_ref": "#𪑚"
+    "otr_archived_ref": null,
+    "otr_muted_ref": null,
+    "otr_muted_status": null,
+    "service": null,
+    "status": 0,
+    "status_ref": "0.0",
+    "status_time": "1970-01-01T00:00:00.000Z"
 }

@@ -1,31 +1,7 @@
 {
-    "locale": "fo-FM",
-    "accent_id": -26710,
-    "picture": [],
-    "name": "\u0002O.岾𗳬\"\u0012k\u0004󳈓C<|𘉊𦵛蕃2\u000eu+`9\u000eb#A7n\u000edr􏋐w\u001b􍩿x8𫽾x𠆲󲞲O𣮛󲹂ฑ\u0015\u00004<q𗅕<z{K𨣗Z`\u0000􋭚\u0019,󼵊sw\u000e\u001a\u0000𝘰1􇃿2mM\u0012O󶑧L8\u0018L\u001bY𥦠􋡮,Z\u000cl\n\u001b;g\u0017=8y\t􅔍\u0004\u0014\u0005Q\u000bE`\u000c\u001dq􁔊s\u000eS7J?T𒅴󷩔!*2]\u0011",
-    "password": "󻀂\u00068pS𡴴\u000b𤹬G\u001c\u0016'Z𤡁𩠐`𐧯\u001a𡇞􋉖L8(A9!)脷n\u001dz\u001at\u0017j[%\u0003\u0017， G@h7~㌼X~\u000eanPf􄰷!t𑪋㹪\u0017Hy\u0013",
-    "invitation_code": "1579",
-    "assets": [
-        {
-            "size": "complete",
-            "key": "\u0004󺵈􁍶/􍠥uIXl\u0005b𨍛􅻿",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "\u0010&",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "FP𮭗4@",
-            "type": "image"
-        },
-        {
-            "size": "complete",
-            "key": "𠃌𦫚𮄠9~\"\u000f",
-            "type": "image"
-        }
-    ],
-    "email_code": "OXIgclTUyV_J5am0ZDqm7eLN-c8ecvk4"
+    "assets": [],
+    "name": "test name",
+    "password": "123456",
+    "phone": "+12345678",
+    "team_code": "RUne0vse27qsm5jxGmL0xQaeuEOqcqr65rU="
 }

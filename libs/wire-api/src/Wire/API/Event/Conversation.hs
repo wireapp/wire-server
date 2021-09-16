@@ -337,6 +337,9 @@ instance ToSchema SimpleMember where
 
 data Connect = Connect
   { cRecipient :: UserId,
+    -- FUTUREWORK: As a follow-up from
+    -- https://github.com/wireapp/wire-server/pull/1726, the message field can
+    -- be removed from this event.
     cMessage :: Maybe Text,
     cName :: Maybe Text,
     cEmail :: Maybe Text
@@ -381,7 +384,6 @@ data MemberUpdateData = MemberUpdateData
     -- out there do not contain an ID.
     -- <https://github.com/zinfra/backend-issues/issues/1309>
     misTarget :: Maybe UserId,
-    misOtrMuted :: Maybe Bool,
     misOtrMutedStatus :: Maybe MutedStatus,
     misOtrMutedRef :: Maybe Text,
     misOtrArchived :: Maybe Bool,
@@ -401,7 +403,6 @@ memberUpdateDataObjectSchema :: ObjectSchema SwaggerDoc MemberUpdateData
 memberUpdateDataObjectSchema =
   MemberUpdateData
     <$> misTarget .= opt (field "target" schema)
-    <*> misOtrMuted .= opt (field "otr_muted" schema)
     <*> misOtrMutedStatus .= opt (field "otr_muted_status" schema)
     <*> misOtrMutedRef .= opt (field "otr_muted_ref" schema)
     <*> misOtrArchived .= opt (field "otr_archived" schema)
@@ -415,9 +416,6 @@ modelMemberUpdateData = Doc.defineModel "MemberUpdateData" $ do
   Doc.description "Event data on member updates"
   Doc.property "target" Doc.bytes' $ do
     Doc.description "Target ID of the user that the action was performed on"
-    Doc.optional
-  Doc.property "otr_muted" Doc.bool' $ do
-    Doc.description "Whether to notify on conversation updates"
     Doc.optional
   Doc.property "otr_muted_ref" Doc.bytes' $ do
     Doc.description "A reference point for (un)muting"

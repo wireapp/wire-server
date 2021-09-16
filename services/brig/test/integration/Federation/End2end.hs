@@ -67,6 +67,8 @@ import Wire.API.User.Client
 -- - Remote discovery succeeds but server doesn't exist
 -- - Remote federator fails to respond in many ways (protocol error, timeout, etc.)
 -- - SRV record has two servers but higher priority one always fails
+--
+-- See https://wearezeta.atlassian.net/browse/SQCORE-914
 spec ::
   BrigOpts.Opts ->
   Manager ->
@@ -396,10 +398,6 @@ testListUserClients brig1 brig2 = do
       actual = responseJsonUnsafe resp
   liftIO $ Set.fromList actual @?= Set.fromList expected
 
--- FUTUREWORK: check the happy path case as implementation of these things progresses:
---  - conversation can be queried and shows members (galley1)
---  - conversation can be queried and shows members (galley2 via qualified get conversation endpoint)
---
 testListConversations :: Brig -> Brig -> Galley -> Galley -> Http ()
 testListConversations brig1 brig2 galley1 galley2 = do
   alice <- randomUser brig1

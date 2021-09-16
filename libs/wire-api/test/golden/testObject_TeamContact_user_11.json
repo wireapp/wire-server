@@ -1,12 +1,12 @@
 {
+    "accent_id": -3,
+    "created_at": null,
     "email": "m@𬯅",
     "handle": null,
-    "managed_by": "scim",
-    "role": "partner",
-    "accent_id": -3,
-    "name": "\u0006",
-    "created_at": null,
-    "team": null,
     "id": "00000000-0000-0000-0000-000000000002",
-    "saml_idp": null
+    "managed_by": "scim",
+    "name": "\u0006",
+    "role": "partner",
+    "saml_idp": null,
+    "team": null
 }

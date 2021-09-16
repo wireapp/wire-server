@@ -153,7 +153,11 @@ tests s =
           test s "fail to add too many members" postTooManyMembersFail,
           test s "add remote members" testAddRemoteMember,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
+          test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
+          test s "get conversations/:domain/:cnv - local, not participating" testGetQualifiedLocalConvNotParticipating,
           test s "get conversations/:domain/:cnv - remote" testGetQualifiedRemoteConv,
+          test s "get conversations/:domain/:cnv - remote, not found" testGetQualifiedRemoteConvNotFound,
+          test s "get conversations/:domain/:cnv - remote, not found on remote" testGetQualifiedRemoteConvNotFoundOnRemote,
           test s "post list-conversations" testListRemoteConvs,
           test s "post conversations/list/v2" testBulkGetQualifiedConvs,
           test s "add non-existing remote members" testAddRemoteMemberFailure,
@@ -169,7 +173,10 @@ tests s =
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove local user, fail" removeLocalMemberConvQualifiedFail,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, remove remote user, fail" removeRemoteMemberConvQualifiedFail,
+          test s "rename conversation (deprecated endpoint)" putConvDeprecatedRenameOk,
           test s "rename conversation" putConvRenameOk,
+          test s "rename qualified conversation" putQualifiedConvRenameOk,
+          test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
           test s "member update (hidden)" putMemberHiddenOk,
@@ -1840,6 +1847,24 @@ testGetQualifiedLocalConv = do
     assertEqual "conversation id" convId (cnvQualifiedId conv)
     assertEqual "conversation name" (Just "gossip") (cnvName conv)
 
+testGetQualifiedLocalConvNotFound :: TestM ()
+testGetQualifiedLocalConvNotFound = do
+  alice <- randomUser
+  localDomain <- viewFederationDomain
+  convId <- (`Qualified` localDomain) <$> randomId
+  getConvQualified alice convId !!! do
+    const 404 === statusCode
+    const (Right (Just "no-conversation")) === fmap (view (at "label")) . responseJsonEither @Object
+
+testGetQualifiedLocalConvNotParticipating :: TestM ()
+testGetQualifiedLocalConvNotParticipating = do
+  alice <- randomUser
+  bob <- randomUser
+  convId <- decodeQualifiedConvId <$> postConv bob [] (Just "gossip about alice") [] Nothing Nothing
+  getConvQualified alice convId !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === view (at "label") . responseJsonUnsafe @Object
+
 testGetQualifiedRemoteConv :: TestM ()
 testGetQualifiedRemoteConv = do
   aliceQ <- randomQualifiedUser
@@ -1851,7 +1876,7 @@ testGetQualifiedRemoteConv = do
       remoteConvId = Qualified convId remoteDomain
       aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      aliceAsMember = Member aliceId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      aliceAsMember = Member aliceId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
 
   registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
 
@@ -1883,6 +1908,35 @@ testGetQualifiedRemoteConv = do
   -- Alice's membership data stored locally
   liftIO $ assertEqual "conversation" mockConversation conv
 
+testGetQualifiedRemoteConvNotFound :: TestM ()
+testGetQualifiedRemoteConvNotFound = do
+  aliceId <- randomUser
+  let remoteDomain = Domain "far-away.example.com"
+  remoteConvId <- (`Qualified` remoteDomain) <$> randomId
+  -- No need to mock federator as we don't expect a call to be made
+  getConvQualified aliceId remoteConvId !!! do
+    const 404 === statusCode
+    const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
+
+testGetQualifiedRemoteConvNotFoundOnRemote :: TestM ()
+testGetQualifiedRemoteConvNotFoundOnRemote = do
+  aliceQ <- randomQualifiedUser
+  let aliceId = qUnqualified aliceQ
+  bobId <- randomId
+  convId <- randomId
+  let remoteDomain = Domain "far-away.example.com"
+      bobQ = Qualified bobId remoteDomain
+      remoteConvId = Qualified convId remoteDomain
+      aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
+
+  registerRemoteConv remoteConvId bobQ Nothing (Set.fromList [aliceAsOtherMember])
+
+  opts <- view tsGConf
+  void . withTempMockFederator opts remoteDomain (const (GetConversationsResponse [])) $ do
+    getConvQualified aliceId remoteConvId !!! do
+      const 404 === statusCode
+      const (Just "no-conversation") === view (at "label") . responseJsonUnsafe @Object
+
 testListRemoteConvs :: TestM ()
 testListRemoteConvs = do
   -- alice on local domain
@@ -1896,7 +1950,7 @@ testListRemoteConvs = do
       remoteConvId = Qualified convId remoteDomain
 
   let aliceAsOtherMember = OtherMember aliceQ Nothing roleNameWireAdmin
-      bobAsMember = Member bobId Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+      bobAsMember = Member bobId Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
       mockConversation =
         Conversation
           { cnvQualifiedId = remoteConvId,
@@ -1984,7 +2038,7 @@ testBulkGetQualifiedConvs = do
   registerRemoteConv remoteConvIdBNotFoundOnRemote carlQ Nothing (Set.fromList [aliceAsOtherMember])
   registerRemoteConv remoteConvIdCFailure carlQ Nothing (Set.fromList [aliceAsOtherMember])
 
-  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing False Nothing Nothing False Nothing False Nothing roleNameWireAdmin
+  let aliceAsSelfMember = Member (qUnqualified aliceQ) Nothing Nothing Nothing False Nothing False Nothing roleNameWireAdmin
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       carlAsOtherMember = OtherMember carlQ Nothing roleNameWireAdmin
       mockConversationA = mkConv remoteConvIdA bobId aliceAsSelfMember [bobAsOtherMember]
@@ -2010,7 +2064,7 @@ testBulkGetQualifiedConvs = do
           case F.domain fedReq of
             d | d == domainText remoteDomainA -> success $ GetConversationsResponse [mockConversationA]
             d | d == domainText remoteDomainB -> success $ GetConversationsResponse [mockConversationB]
-            d | d == domainText remoteDomainC -> pure . F.OutwardResponseError $ F.OutwardError F.DiscoveryFailed Nothing
+            d | d == domainText remoteDomainC -> pure . F.OutwardResponseError $ F.OutwardError F.DiscoveryFailed "discovery failed"
             _ -> assertFailure $ "Unrecognized domain: " <> show fedReq
       )
       (listConvsV2 alice req)
@@ -2418,6 +2472,65 @@ deleteMembersUnqualifiedFailO2O = do
   o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
   deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
 
+putQualifiedConvRenameFailure :: TestM ()
+putQualifiedConvRenameFailure = do
+  conv <- randomId
+  qbob <- randomQualifiedUser
+  let qconv = Qualified conv (qDomain qbob)
+  putQualifiedConversationName (qUnqualified qbob) qconv "gossip"
+    !!! do
+      const 404 === statusCode
+      const (Just "no-conversation") === fmap label . responseJsonUnsafe
+
+putQualifiedConvRenameOk :: TestM ()
+putQualifiedConvRenameOk = do
+  c <- view tsCannon
+  alice <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  let qconv = Qualified conv (qDomain qbob)
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    void $ putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvRename
+      evtFrom e @?= qbob
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
+
+putConvDeprecatedRenameOk :: TestM ()
+putConvDeprecatedRenameOk = do
+  c <- view tsCannon
+  g <- view tsGalley
+  alice <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
+  let qconv = Qualified conv (qDomain qbob)
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    -- This endpoint is deprecated but clients still use it
+    put
+      ( g
+          . paths ["conversations", toByteString' conv]
+          . zUser bob
+          . zConn "conn"
+          . zType "access"
+          . json (ConversationRename "gossip++")
+      )
+      !!! const 200
+      === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvRename
+      evtFrom e @?= qbob
+      evtData e @?= EdConvRename (ConversationRename "gossip++")
+
 putConvRenameOk :: TestM ()
 putConvRenameOk = do
   c <- view tsCannon
@@ -2427,7 +2540,6 @@ putConvRenameOk = do
   connectUsers alice (singleton bob)
   conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
   let qconv = Qualified conv (qDomain qbob)
-  -- This endpoint should be deprecated but clients still use it
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
@@ -2440,8 +2552,8 @@ putConvRenameOk = do
 
 putMemberOtrMuteOk :: TestM ()
 putMemberOtrMuteOk = do
-  putMemberOk (memberUpdate {mupOtrMute = Just True, mupOtrMuteStatus = Just 0, mupOtrMuteRef = Just "ref"})
-  putMemberOk (memberUpdate {mupOtrMute = Just False})
+  putMemberOk (memberUpdate {mupOtrMuteStatus = Just 1, mupOtrMuteRef = Just "ref"})
+  putMemberOk (memberUpdate {mupOtrMuteStatus = Just 0})
 
 putMemberOtrArchiveOk :: TestM ()
 putMemberOtrArchiveOk = do
@@ -2457,8 +2569,7 @@ putMemberAllOk :: TestM ()
 putMemberAllOk =
   putMemberOk
     ( memberUpdate
-        { mupOtrMute = Just True,
-          mupOtrMuteStatus = Just 0,
+        { mupOtrMuteStatus = Just 0,
           mupOtrMuteRef = Just "mref",
           mupOtrArchive = Just True,
           mupOtrArchiveRef = Just "aref",
@@ -2482,14 +2593,13 @@ putMemberOk update = do
         Member
           { memId = bob,
             memService = Nothing,
-            memOtrMuted = Just True == mupOtrMute update,
             memOtrMutedStatus = mupOtrMuteStatus update,
             memOtrMutedRef = mupOtrMuteRef update,
             memOtrArchived = Just True == mupOtrArchive update,
             memOtrArchivedRef = mupOtrArchiveRef update,
             memHidden = Just True == mupHidden update,
             memHiddenRef = mupHiddenRef update,
-            memConvRoleName = fromMaybe roleNameWireAdmin (mupConvRoleName update)
+            memConvRoleName = roleNameWireAdmin
           }
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do
@@ -2502,7 +2612,7 @@ putMemberOk update = do
       evtFrom e @?= qbob
       case evtData e of
         EdMemberUpdate mis -> do
-          assertEqual "otr_muted" (mupOtrMute update) (misOtrMuted mis)
+          assertEqual "otr_muted_status" (mupOtrMuteStatus update) (misOtrMutedStatus mis)
           assertEqual "otr_muted_ref" (mupOtrMuteRef update) (misOtrMutedRef mis)
           assertEqual "otr_archived" (mupOtrArchive update) (misOtrArchived mis)
           assertEqual "otr_archived_ref" (mupOtrArchiveRef update) (misOtrArchivedRef mis)
@@ -2516,12 +2626,12 @@ putMemberOk update = do
     assertBool "user" (isJust bob')
     let newBob = fromJust bob'
     assertEqual "id" (memId memberBob) (memId newBob)
-    assertEqual "otr_muted" (memOtrMuted memberBob) (memOtrMuted newBob)
+    assertEqual "otr_muted_status" (memOtrMutedStatus memberBob) (memOtrMutedStatus newBob)
     assertEqual "otr_muted_ref" (memOtrMutedRef memberBob) (memOtrMutedRef newBob)
     assertEqual "otr_archived" (memOtrArchived memberBob) (memOtrArchived newBob)
     assertEqual "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
     assertEqual "hidden" (memHidden memberBob) (memHidden newBob)
-    assertEqual "hidden__ref" (memHiddenRef memberBob) (memHiddenRef newBob)
+    assertEqual "hidden_ref" (memHiddenRef memberBob) (memHiddenRef newBob)
 
 putReceiptModeOk :: TestM ()
 putReceiptModeOk = do

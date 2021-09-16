@@ -111,7 +111,6 @@ conversationViewMaybeQualified localDomain qUid Data.Conversation {..} = do
       Public.Member
         { memId = qUnqualified (Public.omQualifiedId m),
           memService = Nothing,
-          memOtrMuted = False,
           memOtrMutedStatus = Nothing,
           memOtrMutedRef = Nothing,
           memOtrArchived = False,

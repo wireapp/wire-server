@@ -54,6 +54,7 @@ import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -406,7 +407,7 @@ postConnection brig from to =
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest to "some conv name" (Message "some message")
+        ConnectionRequest to (unsafeRange "some conv name")
 
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =

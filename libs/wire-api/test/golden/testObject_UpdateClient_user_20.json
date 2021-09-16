@@ -1,40 +1,40 @@
 {
-    "lastkey": {
-        "key": "\u0014 }Kg\u000be3",
-        "id": 65535
-    },
-    "prekeys": [
-        {
-            "key": "",
-            "id": 1
-        },
-        {
-            "key": "",
-            "id": 0
-        },
-        {
-            "key": "",
-            "id": 0
-        },
-        {
-            "key": "",
-            "id": 1
-        },
-        {
-            "key": "",
-            "id": 0
-        },
-        {
-            "key": "",
-            "id": 0
-        },
-        {
-            "key": "",
-            "id": 0
-        }
-    ],
     "capabilities": [
         "legalhold-implicit-consent"
     ],
-    "label": "\u001b\u0004\u0001ccn\u001f{Y5"
+    "label": "\u001b\u0004\u0001ccn\u001f{Y5",
+    "lastkey": {
+        "id": 65535,
+        "key": "\u0014 }Kg\u000be3"
+    },
+    "prekeys": [
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 1,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        },
+        {
+            "id": 0,
+            "key": ""
+        }
+    ]
 }
