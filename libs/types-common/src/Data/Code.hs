@@ -34,7 +34,6 @@ import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
-import Data.Scientific (toBoundedInteger)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
@@ -92,10 +91,12 @@ instance FromHttpApiData Value where
 instance ToHttpApiData Value where
   toQueryParam key = cs (toByteString' key)
 
+-- | A 'Timeout' is rendered in/parsed from JSON as an integer representing the
+-- number of seconds remaining.
 newtype Timeout = Timeout
   {timeoutDiffTime :: NominalDiffTime}
   deriving (Eq, Show, Ord, Enum, Num, Fractional, Real, RealFrac)
-  deriving (S.ToSchema) via (Schema Timeout)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Timeout)
 
 instance ToSchema Timeout where
   schema = Timeout . fromIntegral <$> (roundDiffTime . timeoutDiffTime) .= schema
@@ -106,21 +107,6 @@ instance ToSchema Timeout where
 -- | A 'Timeout' is rendered as an integer representing the number of seconds remaining.
 instance ToByteString Timeout where
   builder (Timeout t) = builder (round t :: Int32)
-
--- | A 'Timeout' is rendered in JSON as an integer representing the
--- number of seconds remaining.
-instance A.ToJSON Timeout where
-  toJSON (Timeout t) = A.toJSON (round t :: Int32)
-
--- | A 'Timeout' is parsed from JSON as an integer representing the
--- number of seconds remaining.
-instance A.FromJSON Timeout where
-  parseJSON = A.withScientific "Timeout" $ \n ->
-    let t = toBoundedInteger n :: Maybe Int32
-     in maybe
-          (fail "Invalid timeout value")
-          (pure . Timeout . fromIntegral)
-          t
 
 instance Arbitrary Timeout where
   arbitrary = Timeout . fromIntegral <$> arbitrary @Int
