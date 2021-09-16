@@ -445,9 +445,9 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   addPrepQuery
     byIssuer
-    ( idp ^. SAML.idpId,
+    ( idp ^. SAML.idpMetadata . SAML.edIssuer,
       idp ^. SAML.idpExtraInfo . wiTeam,
-      idp ^. SAML.idpMetadata . SAML.edIssuer
+      idp ^. SAML.idpId
     )
   addPrepQuery
     byTeam
@@ -459,8 +459,8 @@ storeIdPConfig idp = retry x5 . batch $ do
     ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
     -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
-    byIssuer :: PrepQuery W (SAML.IdPId, TeamId, SAML.Issuer) ()
-    byIssuer = "INSERT INTO issuer_idp_v2 (idp, team, issuer) VALUES (?, ?, ?)"
+    byIssuer :: PrepQuery W (SAML.Issuer, TeamId, SAML.IdPId) ()
+    byIssuer = "INSERT INTO issuer_idp_v2 (issuer, team, idp) VALUES (?, ?, ?)"
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
@@ -593,20 +593,22 @@ getIdPIdByIssuerAllowOld issuer mbteam = do
               else mbv1v2
     _ -> pure mbv1v2
 
--- | Find 'IdPId' without team.  Search both `issuer_idp` and `issuer_idp_v2`; in the latter,
+-- | Find 'IdPId' without team.  Search both `issuer_idp_v2` and `issuer_idp`; in the former,
 -- make sure the result is unique (no two IdPs for two different teams).
 getIdPIdByIssuerWithoutTeam ::
   (HasCallStack, MonadClient m) =>
   SAML.Issuer ->
   m (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerWithoutTeam issuer = do
-  (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
-    Just idpid -> pure $ GetIdPFound idpid
-    Nothing ->
-      (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
-        [] -> pure GetIdPNotFound
-        [idpid] -> pure $ GetIdPFound idpid
-        idpids@(_ : _ : _) -> pure $ GetIdPNonUnique idpids
+  (runIdentity <$$> retry x1 (query selv2 $ params Quorum (Identity issuer))) >>= \case
+    [] ->
+      (runIdentity <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))) >>= \case
+        Just idpid -> pure $ GetIdPFound idpid
+        Nothing -> pure GetIdPNotFound
+    [idpid] ->
+      pure $ GetIdPFound idpid
+    idpids@(_ : _ : _) ->
+      pure $ GetIdPNonUnique idpids
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"

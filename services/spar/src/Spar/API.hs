@@ -315,19 +315,23 @@ assertNoScimOrNoIdP teamid = do
       SparProvisioningMoreThanOneIdP
         "Teams with SCIM tokens can only have at most one IdP"
 
--- | Check that issuer is not used for any team in the system (it is a database keys for
--- finding IdPs), and request URI is https.
+-- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
+-- database keys for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
+-- URI is https, that the replacement IdPId, if present, points to our team, and possibly
+-- other things (see source code for the definitive answer).
 --
 -- About the @mReplaces@ argument: the information whether the idp is replacing an old one is
 -- in query parameter, because the body can be both XML and JSON.  The JSON body could carry
 -- the replaced idp id fine, but the XML is defined in the SAML standard and cannot be
--- changed.
+-- changed.  NB: if you want to replace an IdP by one with the same issuer, you probably
+-- want to use `PUT` instead of `POST`.
 --
 -- FUTUREWORK: find out if anybody uses the XML body type and drop it if not.
 --
--- FUTUREWORK: using the same issuer for two teams may be possible, but only if we stop
--- supporting implicit user creating via SAML.  If unknown users present IdP credentials, the
--- issuer is our only way of finding the team in which the user must be created.
+-- FUTUREWORK: using the same issuer for two teams even in `WireIdPAPIV1` may be possible, but
+-- only if we stop supporting implicit user creating via SAML.  If unknown users present IdP
+-- credentials, the issuer is our only way of finding the team in which the user must be
+-- created.
 --
 -- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
 -- update, delete of idps.)
@@ -353,40 +357,25 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
   SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
 
-  let handleIdPClash :: Either SAML.IdPId IdP -> m ()
+  let handleIdPClash :: Either id idp -> m ()
+      -- (HINT: using type vars above instead of the actual types constitutes a proof that
+      -- we're not using any properties of the arguments in this function.)
       handleIdPClash = case apiversion of
         WireIdPAPIV1 -> const $ do
-          throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api-version v1 if the issuer is already in use on the wire instance."
+          throwSpar $ SparNewIdPAlreadyInUse "you can't create an IdP with api_version v1 if the issuer is already in use on the wire instance."
         WireIdPAPIV2 -> \case
-          (Right idp') -> do
-            guardSameTeam idp'
-            guardReplaceeV2
-          (Left id') -> do
-            idp' <- do
-              let err = throwSpar $ SparIdPNotFound (cs $ show id') -- database inconsistency
-              wrapMonadClient (Data.getIdPConfig id') >>= maybe err pure
-            handleIdPClash (Right idp')
-
-      guardSameTeam :: IdP -> m ()
-      guardSameTeam idp' = do
-        when ((idp' ^. SAML.idpExtraInfo . wiTeam) == teamId) $ do
-          throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
-
-      guardReplaceeV2 :: m ()
-      guardReplaceeV2 = forM_ mReplaces $ \rid -> do
-        ridp <- do
-          let err = throwSpar $ SparIdPNotFound (cs $ show rid) -- database inconsistency
-          wrapMonadClient (Data.getIdPConfig rid) >>= maybe err pure
-        when (fromMaybe defWireIdPAPIVersion (ridp ^. SAML.idpExtraInfo . wiApiVersion) /= WireIdPAPIV2) $ do
-          throwSpar $
-            SparNewIdPAlreadyInUse
-              (cs $ "api-version mismatch: " <> show ((ridp ^. SAML.idpExtraInfo . wiApiVersion), WireIdPAPIV2))
+          (Right _) -> do
+            -- idp' was found by lookup with teamid, so it's in the same team.
+            throwSpar $ SparNewIdPAlreadyInUse "if the exisitng IdP is registered for a team, the new one can't have it."
+          (Left _) -> do
+            -- this idp *id* is from a different team, and we're in the 'WireIdPAPIV2' case, so this is fine.
+            pure ()
 
   case idp of
     Data.GetIdPFound idp' {- same team -} -> handleIdPClash (Right idp')
     Data.GetIdPNotFound -> pure ()
-    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res -- database inconsistency
-    res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible
+    res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateNewIdP: " <>) . cs . show $ res -- database inconsistency
+    Data.GetIdPNonUnique ids' {- same team didn't yield anything, but there are at least two other teams with this issuer already -} -> handleIdPClash (Left ids')
     Data.GetIdPWrongTeam id' {- different team -} -> handleIdPClash (Left id')
 
   pure SAML.IdPConfig {..}
@@ -437,8 +426,8 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
         notInUseByOthers <- case foundConfig of
           Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
           Data.GetIdPNotFound -> pure True
-          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible
-          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . cs . show $ res -- impossible (because team id was used in lookup)
+          res@(Data.GetIdPDanglingId _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible
+          res@(Data.GetIdPNonUnique _) -> throwSpar . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
           Data.GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
           then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)

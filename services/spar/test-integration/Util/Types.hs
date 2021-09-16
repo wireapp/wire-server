@@ -120,6 +120,16 @@ _unitTestTestErrorLabel = do
     throwIO . ErrorCall . show $
       val
 
+-- | FUTUREWORK(fisx): we're running all tests for all constructors of `WireIdPAPIVersion`,
+-- which sometimes makes little sense.  'skipIdPAPIVersions' can be used to pend individual
+-- tests that do not even work in both versions (most of them should), or ones that aren't
+-- that interesting to run twice (like if SAML is not involved at all).  A more scalable
+-- solution would be to pass the versions that a test should be run on as an argument to
+-- describe ('skipIdPAPIVersions' only works on individual leafs of the test tree, not on
+-- sub-trees), but that would be slightly (only slightly) more involved than I would like.
+-- so, some other time.  (Context: `make -C services/spar i` takes currently takes 3m22.476s
+-- on my laptop, including all the uninteresting tests.  So this is the maximum time
+-- improvement that we can get out of this.)
 skipIdPAPIVersions :: (MonadIO m, MonadReader TestEnv m) => [WireIdPAPIVersion] -> m ()
 skipIdPAPIVersions skip = do
   asks (^. teWireIdPAPIVersion) >>= \vers -> when (vers `elem` skip) . liftIO $ do

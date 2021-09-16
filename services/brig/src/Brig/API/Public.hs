@@ -58,6 +58,7 @@ import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.Code as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
@@ -92,7 +93,7 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import Wire.API.ErrorDescription
+import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -229,6 +230,7 @@ servantSitemap =
       { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
         BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
+        BrigAPI.deleteSelf = deleteUser,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
         BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
@@ -410,29 +412,6 @@ sitemap = do
       \phone number."
     Doc.response 200 "Email address removed." Doc.end
     Doc.errorResponse lastIdentity
-
-  -- This endpoint can lead to the following events being sent:
-  -- - UserDeleted event to contacts of self
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  delete "/self" (continue deleteUserH) $
-    zauthUserId
-      .&. jsonRequest @Public.DeleteUser
-      .&. accept "application" "json"
-  document "DELETE" "deleteUser" $ do
-    Doc.summary "Initiate account deletion."
-    Doc.notes
-      "If the account has a verified identity, a verification \
-      \code is sent and needs to be confirmed to authorise the \
-      \deletion. If the account has no verified identity but a \
-      \password, it must be provided. If password is correct, or if neither \
-      \a verified identity nor a password exists, account deletion \
-      \is scheduled immediately."
-    Doc.body (Doc.ref Public.modelDelete) $
-      Doc.description "JSON body"
-    Doc.response 202 "Deletion is pending verification with a code." Doc.end
-    Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse badCredentials
-    Doc.errorResponse (errorDescriptionToWai missingAuthError)
 
   -- TODO put  where?
 
@@ -1113,13 +1092,12 @@ listConnections uid start msize = do
 getConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getConnection uid uid' = lift $ API.lookupConnection uid uid'
 
-deleteUserH :: UserId ::: JsonRequest Public.DeleteUser ::: JSON -> Handler Response
-deleteUserH (u ::: r ::: _) = do
-  body <- parseJsonBody r
-  res <- API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
-  return $ case res of
-    Nothing -> setStatus status200 empty
-    Just ttl -> setStatus status202 (json (Public.DeletionCodeTimeout ttl))
+deleteUser ::
+  UserId ->
+  Public.DeleteUser ->
+  Handler (Maybe Code.Timeout)
+deleteUser u body =
+  API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> Handler Response
 verifyDeleteUserH (r ::: _) = do

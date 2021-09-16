@@ -1079,7 +1079,7 @@ callIdpCreate apiversion sparreq_ muid metadata = do
 callIdpCreate' :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
 callIdpCreate' apiversion sparreq_ muid metadata = do
   explicitQueryParam <- do
-    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- `&api_version=v1` is implicit and can be omitted from the query, but we want to test
     -- both, and not spend extra time on it.
     liftIO $ randomRIO (True, False)
   post $
@@ -1087,8 +1087,8 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
       . maybe id zUser muid
       . path "/identity-providers/"
       . ( case apiversion of
-            WireIdPAPIV1 -> Bilge.query [("api-version", Just "v1") | explicitQueryParam]
-            WireIdPAPIV2 -> Bilge.query [("api-version", Just "v2")]
+            WireIdPAPIV1 -> Bilge.query [("api_version", Just "v1") | explicitQueryParam]
+            WireIdPAPIV2 -> Bilge.query [("api_version", Just "v2")]
         )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
@@ -1117,7 +1117,7 @@ callIdpCreateReplace apiversion sparreq_ muid metadata idpid = do
 callIdpCreateReplace' :: (HasCallStack, MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m ResponseLBS
 callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
   explicitQueryParam <- do
-    -- `&api-version=v1` is implicit and can be omitted from the query, but we want to test
+    -- `&api_version=v1` is implicit and can be omitted from the query, but we want to test
     -- both, and not spend extra time on it.
     liftIO $ randomRIO (True, False)
   post $
@@ -1125,7 +1125,7 @@ callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
       . maybe id zUser muid
       . path "/identity-providers/"
       . Bilge.query
-        ( [ ( "api-version",
+        ( [ ( "api_version",
               case apiversion of
                 WireIdPAPIV1 -> if explicitQueryParam then Just "v1" else Nothing
                 WireIdPAPIV2 -> Just "v2"

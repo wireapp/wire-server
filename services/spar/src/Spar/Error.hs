@@ -84,7 +84,7 @@ data SparCustomError
   | SparBindFromWrongOrNoTeam LT
   | SparBindFromBadAccountStatus LT
   | SparBindUserRefTaken
-  | SparUserRefInMultipleTeams LT
+  | SparUserRefInNoOrMultipleTeams LT
   | SparBadUserName LT
   | SparCannotCreateUsersOnReplacedIdP LT
   | SparCouldNotParseRfcResponse LT LT
@@ -141,7 +141,7 @@ renderSparError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Rig
 renderSparError (SAML.CustomError (SparBindFromWrongOrNoTeam msg)) = Right $ Wai.mkError status403 "bad-team" ("Forbidden: wrong user team " <> msg)
 renderSparError (SAML.CustomError (SparBindFromBadAccountStatus msg)) = Right $ Wai.mkError status403 "bad-account-status" ("Forbidden: user has account status " <> msg <> "; only Active, PendingInvitation are supported")
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.mkError status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
-renderSparError (SAML.CustomError (SparUserRefInMultipleTeams msg)) = Right $ Wai.mkError status403 "bad-team" ("Forbidden: multiple teams for same UserRef " <> msg)
+renderSparError (SAML.CustomError (SparUserRefInNoOrMultipleTeams msg)) = Right $ Wai.mkError status403 "bad-team" ("Forbidden: multiple teams or no team for same UserRef " <> msg)
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.mkError status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.mkError status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
 -- RFC-specific errors

@@ -166,7 +166,7 @@ type IdpGetAll = Get '[JSON] IdPList
 type IdpCreate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
-    :> QueryParam' '[Optional, Strict] "api-version" WireIdPAPIVersion
+    :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion
     :> PostCreated '[JSON] IdP
 
 type IdpUpdate =
