@@ -86,7 +86,7 @@ instance ToJSON Error where
 
 connError :: ConnectionError -> Error
 connError TooManyConnections {} = StdError (errorDescriptionToWai ErrDesc.connectionLimitReached)
-connError InvalidTransition {} = StdError invalidTransition
+connError InvalidTransition {} = StdError (errorDescriptionToWai ErrDesc.invalidTransition)
 connError NotConnected {} = StdError (errorDescriptionToWai ErrDesc.notConnected)
 connError InvalidUser {} = StdError (errorDescriptionToWai ErrDesc.invalidUser)
 connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (ErrDesc.noIdentity 0))
@@ -256,9 +256,6 @@ propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The pr
 
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
-
-invalidTransition :: Wai.Error
-invalidTransition = Wai.mkError status403 "bad-conn-update" "Invalid status transition."
 
 noEmail :: Wai.Error
 noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."
