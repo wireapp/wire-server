@@ -32,14 +32,12 @@ import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
 import Brig.User.API.Handle (contactFromProfile)
-import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
 import Data.Domain (Domain)
-import Data.Handle (parseHandle)
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -150,23 +148,10 @@ searchLocally searcherId searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   teamSearchInfo <- mkTeamSearchInfo
 
-  maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
+  esResult <- Q.searchIndex searcherId teamSearchInfo searchTerm maxResults
 
-  let exactHandleMatchCount = length maybeExactHandleMatch
-      esMaxResults = maxResults - exactHandleMatchCount
-
-  esResult <-
-    if esMaxResults > 0
-      then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
-      else pure $ SearchResult 0 0 0 []
-
-  -- Prepend results matching exact handle and results from ES.
-  pure $
-    esResult
-      { searchResults = maybeToList maybeExactHandleMatch <> searchResults esResult,
-        searchFound = exactHandleMatchCount + searchFound esResult,
-        searchReturned = exactHandleMatchCount + searchReturned esResult
-      }
+  -- Move exact matches to the beginning of the list
+  pure $ esResult {searchResults = sortResults teamSearchInfo (searchResults esResult)}
   where
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
@@ -186,21 +171,20 @@ searchLocally searcherId searchTerm maybeMaxResults = do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
 
-    exactHandleSearch :: TeamSearchInfo -> Handler (Maybe Contact)
-    exactHandleSearch teamSearchInfo = do
-      let searchedHandleMaybe = parseHandle searchTerm
-      exactHandleResult <-
-        case searchedHandleMaybe of
-          Nothing -> pure Nothing
-          Just searchedHandle ->
-            contactFromProfile
-              <$$> HandleAPI.getLocalHandleInfo searcherId searchedHandle
-      pure $ case teamSearchInfo of
-        Search.TeamOnly t ->
-          if Just t == (contactTeam =<< exactHandleResult)
-            then exactHandleResult
-            else Nothing
-        _ -> exactHandleResult
+    sortResults :: TeamSearchInfo -> [Public.Contact] -> [Public.Contact]
+    sortResults tinfo = uncurry (<>) . partition (isExactMatch tinfo)
+
+    -- A match is considered "exact" if the name or handle are the same as the
+    -- search term.
+    -- However, for team searches, exact name matches for non-team members are
+    -- not considered exact
+    isExactMatch tinfo c =
+      isExactHandleMatch c || (isExactNameMatch c && includeExact tinfo c)
+    includeExact (Search.TeamOnly t) c = contactTeam c == Just t
+    includeExact (Search.TeamAndNonMembers t) c = contactTeam c == Just t
+    includeExact _ _ = True
+    isExactHandleMatch c = contactHandle c == Just searchTerm
+    isExactNameMatch c = contactName c == searchTerm
 
 teamUserSearchH ::
   ( JSON

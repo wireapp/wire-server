@@ -97,7 +97,8 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
           ( ES.mkMultiMatchQuery
               [ ES.FieldName "handle.prefix^2",
                 ES.FieldName "normalized.prefix",
-                ES.FieldName "normalized^3"
+                ES.FieldName "normalized^3",
+                ES.FieldName "handle^4"
               ]
               (ES.QueryString term')
           )
@@ -122,9 +123,7 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
             { ES.boolQueryMustMatch =
                 [ ES.QueryBoolQuery
                     boolQuery
-                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch],
-                        -- This removes exact handle matches, as they are fetched from cassandra
-                        ES.boolQueryMustNotMatch = [termQ "handle" term']
+                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch]
                       }
                 ],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]

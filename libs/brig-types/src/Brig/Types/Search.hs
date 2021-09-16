@@ -28,6 +28,7 @@ module Brig.Types.Search
 where
 
 import Data.Id (TeamId)
+import Imports
 import Wire.API.User.Search
 
 data TeamSearchInfo
@@ -38,3 +39,4 @@ data TeamSearchInfo
     TeamOnly TeamId
   | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
     TeamAndNonMembers TeamId
+  deriving (Show)
