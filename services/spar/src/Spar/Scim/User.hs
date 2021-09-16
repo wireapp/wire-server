@@ -64,7 +64,7 @@ import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
 import qualified SAML2.WebSSO as SAML
-import Spar.App (Spar, getUserByScimExternalId, getUserByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
+import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
@@ -633,9 +633,11 @@ calculateVersion uid usr = Scim.Weak (Text.pack (show h))
 -- to a single `externalId`.
 assertExternalIdUnused :: TeamId -> ST.ValidExternalId -> Scim.ScimHandler Spar ()
 assertExternalIdUnused tid veid = do
-  mExistingUserId <- lift $ ST.runValidExternalId (getUserByUref) (getUserByScimExternalId tid) veid
-  unless (isNothing mExistingUserId) $
-    throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
+  assertExternalIdInAllowedValues
+    [Nothing]
+    "externalId is already taken"
+    tid
+    veid
 
 -- |
 -- Check that the UserRef is not taken any user other than the passed 'UserId'
@@ -645,9 +647,28 @@ assertExternalIdUnused tid veid = do
 -- to a single `externalId`.
 assertExternalIdNotUsedElsewhere :: TeamId -> ST.ValidExternalId -> UserId -> Scim.ScimHandler Spar ()
 assertExternalIdNotUsedElsewhere tid veid wireUserId = do
-  mExistingUserId <- lift $ ST.runValidExternalId getUserByUref (getUserByScimExternalId tid) veid
-  unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
-    throwError Scim.conflict {Scim.detail = Just "externalId already in use by another Wire user"}
+  assertExternalIdInAllowedValues
+    [Nothing, Just wireUserId]
+    "externalId already in use by another Wire user"
+    tid
+    veid
+
+assertExternalIdInAllowedValues :: [Maybe UserId] -> Text -> TeamId -> ST.ValidExternalId -> Scim.ScimHandler Spar ()
+assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
+  isGood <-
+    lift $
+      ST.runValidExternalId
+        ( \uref ->
+            getUserIdByUref (Just tid) uref <&> \case
+              (Spar.App.GetUserFound uid) -> Just uid `elem` allowedValues
+              Spar.App.GetUserNotFound -> Nothing `elem` allowedValues
+              Spar.App.GetUserNoTeam -> False -- this is never allowed (and also hopefully impossible)
+              Spar.App.GetUserWrongTeam -> False -- this can happen, but it's violating all our assertions
+        )
+        (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
+        veid
+  unless isGood $
+    throwError Scim.conflict {Scim.detail = Just errmsg}
 
 assertHandleUnused :: Handle -> Scim.ScimHandler Spar ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
