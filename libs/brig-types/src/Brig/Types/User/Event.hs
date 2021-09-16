@@ -25,6 +25,7 @@ import Data.Handle (Handle)
 import Data.Id
 import Imports
 import System.Logger.Class
+import Data.Qualified (Qualified(Qualified))
 
 data Event
   = UserEvent !UserEvent
@@ -179,10 +180,11 @@ propEventUserId (PropertySet u _ _) = u
 propEventUserId (PropertyDeleted u _) = u
 propEventUserId (PropertiesCleared u) = u
 
-logConnection :: UserId -> UserId -> Msg -> Msg
-logConnection from to =
+logConnection :: UserId -> Qualified UserId -> Msg -> Msg
+logConnection from (Qualified toUser toDomain) =
   "connection.from" .= toByteString from
-    ~~ "connection.to" .= toByteString to
+    ~~ "connection.to" .= toByteString toUser
+    ~~ "connection.to_domain" .= toByteString toDomain
 
 instance ToBytes Event where
   bytes (UserEvent e) = bytes e

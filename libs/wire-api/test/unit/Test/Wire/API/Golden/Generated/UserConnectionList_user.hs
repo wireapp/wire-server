@@ -27,6 +27,8 @@ import Wire.API.Connection
     UserConnection (..),
     UserConnectionList (..),
   )
+import Data.Qualified (Qualified(..))
+import Data.Domain (Domain(..))
 
 testObject_UserConnectionList_user_1 :: UserConnectionList
 testObject_UserConnectionList_user_1 =
@@ -34,14 +36,14 @@ testObject_UserConnectionList_user_1 =
     { clConnections =
         [ UserConnection
             { ucFrom = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
-              ucTo = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
+              ucTo = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain "faraway.golden.example.com"),
               ucStatus = Pending,
               ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-09T06:44:37.367Z"),
               ucConvId = Nothing
             },
           UserConnection
             { ucFrom = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
-              ucTo = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
+              ucTo = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "faraway.golden.example.com"),
               ucStatus = Accepted,
               ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-09T00:43:52.049Z"),
               ucConvId = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))

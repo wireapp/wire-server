@@ -40,12 +40,14 @@ module Wire.API.Connection
   )
 where
 
+import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson as Aeson
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
 import qualified Data.Schema as P
 import qualified Data.Swagger.Build.Api as Doc
@@ -91,7 +93,7 @@ modelConnectionList = Doc.defineModel "UserConnectionList" $ do
 -- create connections (A, B, Sent) and (B, A, Pending).
 data UserConnection = UserConnection
   { ucFrom :: UserId,
-    ucTo :: UserId,
+    ucTo :: Qualified UserId,
     ucStatus :: Relation,
     -- | When 'ucStatus' was last changed
     ucLastUpdate :: UTCTimeMillis,
@@ -106,7 +108,9 @@ instance P.ToSchema UserConnection where
     P.object "UserConnection" $
       UserConnection
         <$> ucFrom P..= P.field "from" P.schema
-        <*> ucTo P..= P.field "to" P.schema
+        <*> ucTo P..= P.field "qualified_to" P.schema
+        <* (qUnqualified . ucTo)
+          P..= optional (P.field "to" (deprecatedSchema "qualified_to" P.schema))
         <*> ucStatus P..= P.field "status" P.schema
         <*> ucLastUpdate P..= P.field "last_update" P.schema
         <*> ucConvId P..= P.optField "conversation" Nothing P.schema

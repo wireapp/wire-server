@@ -58,6 +58,7 @@ data ConnectionsStatusRequest = ConnectionsStatusRequest
   }
   deriving (Eq, Show, Generic)
 
+-- TODO: Review if this needs to have Qualified IDs
 data UpdateConnectionsInternal
   = BlockForMissingLHConsent UserId [UserId]
   | RemoveLHBlocksInvolving UserId

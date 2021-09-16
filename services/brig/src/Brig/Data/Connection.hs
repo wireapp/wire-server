@@ -18,18 +18,26 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Data.Connection
-  ( module T,
-    insertConnection,
-    updateConnection,
-    lookupConnection,
+  ( -- * DB Types
+    LocalConnection (..),
+    RemoteConnection (..),
+    localToUserConn,
+
+    -- * DB Operations
+    insertLocalConnection,
+    updateLocalConnection,
+    lookupLocalConnection,
     lookupRelationWithHistory,
-    lookupConnections,
+    lookupLocalConnections,
     lookupConnectionStatus,
     lookupConnectionStatus',
     lookupContactList,
     lookupContactListWithRelation,
     countConnections,
     deleteConnections,
+
+    -- * Re-exports
+    module T,
   )
 where
 
@@ -41,31 +49,56 @@ import Brig.Types.Intra
 import Cassandra
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
+import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.Qualified
 import Data.Range
 import Data.Time (getCurrentTime)
 import Imports
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Connection
 
-insertConnection ::
+data LocalConnection = LocalConnection
+  { lcFrom :: UserId,
+    lcTo :: UserId,
+    lcStatus :: Relation,
+    -- | Why is this a Maybe? Are there actually any users who have this as null in DB?
+    lcConv :: Maybe ConvId,
+    lcLastUpdated :: UTCTimeMillis
+  }
+
+localToUserConn :: Domain -> LocalConnection -> UserConnection
+localToUserConn localDomain lc =
+  UserConnection (lcFrom lc) (Qualified (lcTo lc) localDomain) (lcStatus lc) (lcLastUpdated lc) (lcConv lc)
+
+data RemoteConnection = RemoteConnection
+  { rcFrom :: UserId,
+    rcTo :: Qualified UserId,
+    rcRelationWithHistory :: Relation,
+    rcConv :: Qualified ConvId
+  }
+
+insertLocalConnection ::
   -- | From
   UserId ->
   -- | To
   UserId ->
   RelationWithHistory ->
   ConvId ->
-  AppIO UserConnection
-insertConnection from to status cid = do
+  AppIO LocalConnection
+insertLocalConnection from to status cid = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   retry x5 . write connectionInsert $ params Quorum (from, to, status, now, cid)
-  return $ toUserConnection (from, to, status, now, Just cid)
+  return $ toLocalUserConnection (from, to, status, now, Just cid)
 
-updateConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
-updateConnection c@UserConnection {..} status = do
+-- insertRemoteConnection :: UserId -> Qualified UserId -> RelationWithHistory -> AppIO UserConnection
+-- insertRemoteConnection = undefined
+
+updateLocalConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
+updateLocalConnection c@UserConnection {..} status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
+  retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, qUnqualified ucTo)
   return $
     c
       { ucStatus = relationDropHistory status,
@@ -73,15 +106,14 @@ updateConnection c@UserConnection {..} status = do
       }
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
-lookupConnection ::
+lookupLocalConnection ::
   -- | User 'A'
   UserId ->
   -- | User 'B'
   UserId ->
-  AppIO (Maybe UserConnection)
-lookupConnection from to =
-  liftM toUserConnection
-    <$> retry x1 (query1 connectionSelect (params Quorum (from, to)))
+  AppIO (Maybe LocalConnection)
+lookupLocalConnection from to =
+  toLocalUserConnection <$$> retry x1 (query1 connectionSelect (params Quorum (from, to)))
 
 -- | 'lookupConnection' with more 'Relation' info.
 lookupRelationWithHistory ::
@@ -91,17 +123,17 @@ lookupRelationWithHistory ::
   UserId ->
   AppIO (Maybe RelationWithHistory)
 lookupRelationWithHistory from to =
-  liftM runIdentity
-    <$> retry x1 (query1 relationSelect (params Quorum (from, to)))
+  runIdentity
+    <$$> retry x1 (query1 relationSelect (params Quorum (from, to)))
 
 -- | For a given user 'A', lookup his outgoing connections (A -> X) to other users.
-lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
-lookupConnections from start (fromRange -> size) =
+lookupLocalConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage LocalConnection)
+lookupLocalConnections from start (fromRange -> size) =
   toResult <$> case start of
     Just u -> retry x1 $ paginate connectionsSelectFrom (paramsP Quorum (from, u) (size + 1))
     Nothing -> retry x1 $ paginate connectionsSelect (paramsP Quorum (Identity from) (size + 1))
   where
-    toResult = cassandraResultPage . fmap toUserConnection . trim
+    toResult = cassandraResultPage . fmap toLocalUserConnection . trim
     trim p = p {result = take (fromIntegral size) (result p)}
 
 -- | Lookup all relations between two sets of users (cartesian product).
@@ -185,10 +217,26 @@ connectionDelete = "DELETE FROM connection WHERE left = ? AND right = ?"
 connectionClear :: PrepQuery W (Identity UserId) ()
 connectionClear = "DELETE FROM connection WHERE left = ?"
 
+-- TODO: Add conv id if we agree
+remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis) ()
+remoteConnectionInsert = "INSERT INTO connection_remote (left, right_domain, right_user, status, last_update) VALUES (?, ?, ?, ?, ?)"
+
+remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
+remoteConnectionSelect = "SELECT right_domain, right_user, status FROM connection_remote where left = ?"
+
+remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (Identity RelationWithHistory)
+remoteConnectionSelectFrom = "SELECT status FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+
+remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
+remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+
+remoteConnectionClear :: PrepQuery W (Identity UserId) ()
+remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
+
 -- Conversions
 
-toUserConnection :: (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) -> UserConnection
-toUserConnection (l, r, relationDropHistory -> rel, time, cid) = UserConnection l r rel time cid
+toLocalUserConnection :: (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) -> LocalConnection
+toLocalUserConnection (l, r, relationDropHistory -> rel, time, cid) = LocalConnection l r rel cid time
 
 toConnectionStatus :: (UserId, UserId, RelationWithHistory) -> ConnectionStatus
 toConnectionStatus (l, r, relationDropHistory -> rel) = ConnectionStatus l r rel

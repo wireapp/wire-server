@@ -30,16 +30,15 @@ import Text.RawString.QQ
 migration :: Migration
 migration = Migration 65 "Add table for federated (remote) connections" $ do
   schema'
-    -- TO DISCUSS: should this table have a 'conv' field like the connection table? If so, it would also need a conv_domain field. Or should we always re-compute the conversation hosting domain?
-    -- conv uuid,
-    -- conv_domain text,
     [r| CREATE TABLE connection_remote (
         left uuid,
         right_domain text,
         right_user uuid,
         last_update timestamp,
         status int,
-        PRIMARY KEY (left, domain, right)
-) WITH CLUSTERING ORDER BY (domain ASC)
+        conv_domain text,
+        conv_id uuid,
+        PRIMARY KEY (left, right_domain, right_user)
+) WITH CLUSTERING ORDER BY (right_domain ASC)
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
       |]
