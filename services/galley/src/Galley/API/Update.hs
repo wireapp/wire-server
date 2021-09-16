@@ -31,7 +31,7 @@ module Galley.API.Update
     updateConversationName,
     updateConversationAccessH,
     updateConversationReceiptModeH,
-    updateConversationMessageTimerH,
+    updateConversationMessageTimerUnqualified,
 
     -- * Managing Members
     addMembersH,
@@ -318,13 +318,8 @@ updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.Conversatio
       pushConversationEvent (Just zcon) receiptEvent (map lmId users) bots
       pure receiptEvent
 
-updateConversationMessageTimerH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationMessageTimerUpdate -> Galley Response
-updateConversationMessageTimerH (usr ::: zcon ::: cnv ::: req) = do
-  timerUpdate <- fromJsonBody req
-  handleUpdateResult <$> updateConversationMessageTimer usr zcon cnv timerUpdate
-
-updateConversationMessageTimer :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
-updateConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
+updateConversationMessageTimerUnqualified :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
+updateConversationMessageTimerUnqualified usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain
