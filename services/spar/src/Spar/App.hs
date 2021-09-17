@@ -34,6 +34,11 @@ module Spar.App
     insertUser,
     validateEmailIfExists,
     errorPage,
+    getIdPIdByIssuer,
+    getIdPConfigByIssuer,
+    getIdPConfigByIssuerAllowOld,
+    deleteTeam,
+    wrapSpar
   )
 where
 
@@ -72,7 +77,7 @@ import SAML2.WebSSO
     Issuer (..),
     SPHandler (..),
     SPStoreID (..),
-    SPStoreIdP (..),
+    SPStoreIdP (getIdPConfigByIssuerOptionalSPId),
     UnqualifiedNameID (..),
     explainDeniedReason,
     fromTime,
@@ -91,6 +96,7 @@ import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.Sem.IdP (GetIdPResult(..))
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.SAMLUser.Cassandra (interpretClientToIO, samlUserToCassandra)
@@ -109,6 +115,9 @@ newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT
 
 liftSem :: (Member (Final IO) r => Sem r a) -> Spar r a
 liftSem r = Spar $ lift $ lift r
+
+raiseSem :: Sem r a -> Spar r a
+raiseSem r = Spar $ lift $ lift r
 
 instance Applicative (Spar r) where
   pure a = Spar $ pure a
@@ -231,6 +240,9 @@ wrapMonadClient action = do
 
 wrapMonadClientSem :: Sem r a -> Spar r a
 wrapMonadClientSem action = liftSem $ action
+
+wrapSpar :: Spar r a -> Spar r a
+wrapSpar = id
 
 insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
@@ -686,3 +698,80 @@ errorPage err inputs mcky =
         "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, inputs, mcky)) <> "</pre>",
         "</body>"
       ]
+
+-- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
+-- single solution can be found without.
+getIdPIdByIssuerAllowOld ::
+  (HasCallStack) =>
+  Member IdPEffect.IdP r =>
+  SAML.Issuer ->
+  Maybe TeamId ->
+  Spar r (GetIdPResult SAML.IdPId)
+getIdPIdByIssuerAllowOld issuer mbteam = do
+  mbv2 <- liftSem $ maybe (pure Nothing) (IdPEffect.getIdByIssuerWithTeam issuer) mbteam
+  mbv1v2 <- raiseSem $ maybe (IdPEffect.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
+  case (mbv1v2, mbteam) of
+    (GetIdPFound idpid, Just team) -> do
+      liftSem (IdPEffect.getConfig idpid) >>= \case
+        Nothing -> do
+          pure $ GetIdPDanglingId idpid
+        Just idp ->
+          pure $
+            if idp ^. SAML.idpExtraInfo . wiTeam /= team
+              then GetIdPWrongTeam idpid
+              else mbv1v2
+    _ -> pure mbv1v2
+
+-- | See 'getIdPIdByIssuer'.
+getIdPConfigByIssuer ::
+  (HasCallStack, Member IdPEffect.IdP r) =>
+  SAML.Issuer ->
+  TeamId ->
+  Spar r (GetIdPResult IdP)
+getIdPConfigByIssuer issuer =
+  getIdPIdByIssuer issuer >=> mapGetIdPResult
+
+-- | See 'getIdPIdByIssuerAllowOld'.
+getIdPConfigByIssuerAllowOld ::
+  (HasCallStack, Member IdPEffect.IdP r) =>
+  SAML.Issuer ->
+  Maybe TeamId ->
+  Spar r (GetIdPResult IdP)
+getIdPConfigByIssuerAllowOld issuer = do
+  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
+
+-- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
+-- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
+getIdPIdByIssuer ::
+  (HasCallStack, Member IdPEffect.IdP r) =>
+  SAML.Issuer ->
+  TeamId ->
+  Spar r (GetIdPResult SAML.IdPId)
+getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
+
+-- | (There are probably category theoretical models for what we're doing here, but it's more
+-- straight-forward to just handle the one instance we need.)
+mapGetIdPResult :: (HasCallStack, Member IdPEffect.IdP r) => GetIdPResult SAML.IdPId -> Spar r (GetIdPResult IdP)
+mapGetIdPResult (GetIdPFound i) = liftSem (IdPEffect.getConfig i) <&> maybe (GetIdPDanglingId i) GetIdPFound
+mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
+mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
+mapGetIdPResult (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
+mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
+
+-- | Delete all tokens belonging to a team.
+deleteTeam ::
+  (HasCallStack, Member SAMLUser r, Member IdPEffect.IdP r) =>
+  TeamId ->
+  Spar r ()
+deleteTeam team = do
+  wrapMonadClient $ Data.deleteTeamScimTokens team
+  -- Since IdPs are not shared between teams, we can look at the set of IdPs
+  -- used by the team, and remove everything related to those IdPs, too.
+  idps <- raiseSem $ IdPEffect.getConfigsByTeam team
+  for_ idps $ \idp -> do
+    let idpid = idp ^. SAML.idpId
+        issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+    raiseSem $ do
+      SAMLUser.deleteByIssuer issuer
+      IdPEffect.deleteConfig idpid issuer team
+

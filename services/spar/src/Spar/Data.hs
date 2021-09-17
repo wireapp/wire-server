@@ -58,10 +58,6 @@ module Spar.Data
     clearReplacedBy,
     GetIdPResult (..),
     getIdPConfig,
-    getIdPConfigByIssuer,
-    getIdPConfigByIssuerAllowOld,
-    getIdPIdByIssuer,
-    getIdPIdByIssuerAllowOld,
     getIdPConfigsByTeam,
     deleteIdPConfig,
     deleteTeam,
@@ -518,64 +514,6 @@ getIdPConfig idpid =
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
-
--- | (There are probably category theoretical models for what we're doing here, but it's more
--- straight-forward to just handle the one instance we need.)
-mapGetIdPResult :: (HasCallStack, MonadClient m) => GetIdPResult SAML.IdPId -> m (GetIdPResult IdP)
-mapGetIdPResult (GetIdPFound i) = getIdPConfig i <&> maybe (GetIdPDanglingId i) GetIdPFound
-mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
-mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
-mapGetIdPResult (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
-mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
-
--- | See 'getIdPIdByIssuer'.
-getIdPConfigByIssuer ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  TeamId ->
-  m (GetIdPResult IdP)
-getIdPConfigByIssuer issuer =
-  getIdPIdByIssuer issuer >=> mapGetIdPResult
-
--- | See 'getIdPIdByIssuerAllowOld'.
-getIdPConfigByIssuerAllowOld ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  Maybe TeamId ->
-  m (GetIdPResult IdP)
-getIdPConfigByIssuerAllowOld issuer = do
-  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
-
--- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
--- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
-getIdPIdByIssuer ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  TeamId ->
-  m (GetIdPResult SAML.IdPId)
-getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
-
--- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
--- single solution can be found without.
-getIdPIdByIssuerAllowOld ::
-  (HasCallStack, MonadClient m) =>
-  SAML.Issuer ->
-  Maybe TeamId ->
-  m (GetIdPResult SAML.IdPId)
-getIdPIdByIssuerAllowOld issuer mbteam = do
-  mbv2 <- maybe (pure Nothing) (getIdPIdByIssuerWithTeam issuer) mbteam
-  mbv1v2 <- maybe (getIdPIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
-  case (mbv1v2, mbteam) of
-    (GetIdPFound idpid, Just team) -> do
-      getIdPConfig idpid >>= \case
-        Nothing -> do
-          pure $ GetIdPDanglingId idpid
-        Just idp ->
-          pure $
-            if idp ^. SAML.idpExtraInfo . wiTeam /= team
-              then GetIdPWrongTeam idpid
-              else mbv1v2
-    _ -> pure mbv1v2
 
 -- | Find 'IdPId' without team.  Search both `issuer_idp_v2` and `issuer_idp`; in the former,
 -- make sure the result is unique (no two IdPs for two different teams).
