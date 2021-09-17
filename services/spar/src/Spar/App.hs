@@ -193,11 +193,11 @@ instance Member IdPEffect.IdP r => SPStoreIdP SparError (Spar r) where
   storeIdPConfig idp = wrapMonadClientSem $ IdPEffect.storeConfig idp
 
   getIdPConfig :: IdPId -> Spar r IdP
-  getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientWithEnvSem . lift . lift . IdPEffect.getConfig
+  getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientSem . IdPEffect.getConfig
 
   getIdPConfigByIssuerOptionalSPId :: Issuer -> Maybe TeamId -> Spar r IdP
   getIdPConfigByIssuerOptionalSPId issuer mbteam = do
-    wrapMonadClientWithEnvSem (undefined {- $ getIdPConfigByIssuerAllowOld issuer mbteam-}) >>= \case
+    wrapSpar (getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
       Data.GetIdPFound idp -> pure idp
       Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
       res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
@@ -210,14 +210,6 @@ wrapMonadClientWithEnv :: forall r a. ReaderT Data.Env (ExceptT TTLError Cas.Cli
 wrapMonadClientWithEnv action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
   either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
-
--- TODO(sandy): This is gross --- can we clean it up?
--- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
--- don't need either of those, 'wrapMonadClient' will suffice.
-wrapMonadClientWithEnvSem :: forall r a. ReaderT Data.Env (ExceptT TTLError (Sem r)) a -> Spar r a
-wrapMonadClientWithEnvSem action = do
-  denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
-  either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClientSem (runExceptT $ action `runReaderT` denv)
 
 instance Member (Final IO) r => Catch.MonadThrow (Sem r) where
   throwM = embedFinal . Catch.throwM @IO
