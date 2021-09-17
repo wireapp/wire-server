@@ -113,7 +113,8 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
-  ( ConvNotFound,
+  ( ConvMemberNotFound,
+    ConvNotFound,
     codeNotFound,
     convNotFound,
     missingLegalholdConsent,
@@ -580,7 +581,7 @@ updateRemoteSelfMember ::
 updateRemoteSelfMember zusr zcon rcid update = do
   statusMap <- Data.remoteConversationStatus zusr [rcid]
   case Map.lookup rcid statusMap of
-    Nothing -> throwM convMemberNotFound
+    Nothing -> throwErrorDescriptionType @ConvMemberNotFound
     Just _ ->
       void $ processUpdateMemberEvent zusr zcon (unTagged rcid) [zusr] zusr update
 

@@ -739,7 +739,7 @@ sitemap = do
     body (ref Public.modelOtherMemberUpdate) $
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-    errorResponse Error.convMemberNotFound
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvMemberNotFound)
     errorResponse Error.invalidTargetUserOp
 
   -- This endpoint can lead to the following events being sent:

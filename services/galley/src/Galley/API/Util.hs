@@ -294,7 +294,7 @@ getSelfMemberFromLocalsLegacy usr lmems =
   eitherM (throwM . errorDescriptionToWai) pure . runExceptT $ getSelfMemberFromLocals usr lmems
 
 getOtherMember :: (Foldable t, Monad m) => UserId -> t LocalMember -> ExceptT Error m LocalMember
-getOtherMember = getLocalMember convMemberNotFound
+getOtherMember = getLocalMember (errorDescriptionTypeToWai @ConvMemberNotFound)
 
 getOtherMemberLegacy :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
 getOtherMemberLegacy usr lmems =
