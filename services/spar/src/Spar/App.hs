@@ -197,7 +197,7 @@ instance Member IdPEffect.IdP r => SPStoreIdP SparError (Spar r) where
 
   getIdPConfigByIssuerOptionalSPId :: Issuer -> Maybe TeamId -> Spar r IdP
   getIdPConfigByIssuerOptionalSPId issuer mbteam = do
-    wrapMonadClientWithEnv (Data.getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
+    wrapMonadClientWithEnvSem (undefined {- $ getIdPConfigByIssuerAllowOld issuer mbteam-}) >>= \case
       Data.GetIdPFound idp -> pure idp
       Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
       res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
@@ -380,13 +380,13 @@ validateEmailIfExists uid = \case
 --
 -- Before returning, change account status or fail if account is nto active or pending an
 -- invitation.
-bindUser :: Member SAMLUser r => UserId -> SAML.UserRef -> Spar r UserId
+bindUser :: Member IdPEffect.IdP r => Member SAMLUser r => UserId -> SAML.UserRef -> Spar r UserId
 bindUser buid userref = do
   oldStatus <- do
     let err :: Spar r a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid :: TeamId <-
-      wrapMonadClient (Data.getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing) >>= \case
+      wrapSpar (getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing) >>= \case
         Data.GetIdPFound idp -> pure $ idp ^. idpExtraInfo . wiTeam
         Data.GetIdPNotFound -> err
         Data.GetIdPDanglingId _ -> err -- database inconsistency

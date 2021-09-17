@@ -236,7 +236,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+idpDelete :: forall r. Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -280,9 +280,9 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 
     updateReplacingIdP :: IdP -> Spar r ()
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
-      wrapMonadClient $ do
-        Data.getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
-          Data.GetIdPFound iid -> Data.clearReplacedBy $ Data.Replaced iid
+      wrapSpar $ do
+        getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
+          Data.GetIdPFound iid -> wrapMonadClient $ Data.clearReplacedBy $ Data.Replaced iid
           Data.GetIdPNotFound -> pure ()
           Data.GetIdPDanglingId _ -> pure ()
           Data.GetIdPNonUnique _ -> pure ()
@@ -342,6 +342,7 @@ assertNoScimOrNoIdP teamid = do
 validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
+  Member IdPEffect.IdP r =>
   WireIdPAPIVersion ->
   SAML.IdPMetadata ->
   TeamId ->
@@ -357,7 +358,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
-  idp <- wrapMonadClient (Data.getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId)
+  idp <- getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId
   SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
   SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
 
@@ -408,6 +409,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
+  Member IdPEffect.IdP r =>
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
@@ -426,7 +428,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
     if previousIssuer == newIssuer
       then pure $ previousIdP ^. SAML.idpExtraInfo
       else do
-        foundConfig <- wrapMonadClient (Data.getIdPConfigByIssuerAllowOld newIssuer (Just teamId))
+        foundConfig <- getIdPConfigByIssuerAllowOld newIssuer (Just teamId)
         notInUseByOthers <- case foundConfig of
           Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
           Data.GetIdPNotFound -> pure True
