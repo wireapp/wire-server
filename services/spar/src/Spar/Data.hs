@@ -68,6 +68,8 @@ module Spar.Data
     storeIdPRawMetadata,
     getIdPRawMetadata,
     deleteIdPRawMetadata,
+    getIdPIdByIssuerWithoutTeam,
+    getIdPIdByIssuerWithTeam,
 
     -- * SSO settings
     storeDefaultSsoCode,
@@ -120,6 +122,7 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
 import qualified Prelude
+import Spar.Sem.IdP (GetIdPResult(..), Replacing(..), Replaced(..))
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
@@ -425,8 +428,7 @@ type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCer
 -- one, call 'markReplacedIdP'.
 storeIdPConfig ::
   (HasCallStack, MonadClient m) =>
-  IdP ->
-  m ()
+  IdP -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
@@ -464,10 +466,6 @@ storeIdPConfig idp = retry x5 . batch $ do
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
-newtype Replaced = Replaced SAML.IdPId
-
-newtype Replacing = Replacing SAML.IdPId
 
 -- | See also: test case @"{set,clear}ReplacedBy"@ in integration tests ("Test.Spar.DataSpec").
 setReplacedBy ::
@@ -520,20 +518,6 @@ getIdPConfig idpid =
         pure $ SAML.IdPConfig {..}
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
-
-data GetIdPResult a
-  = GetIdPFound a
-  | GetIdPNotFound
-  | -- | IdPId has been found, but no IdPConfig matching that Id.  (Database
-    --   inconsistency or race condition.)
-    GetIdPDanglingId SAML.IdPId
-  | -- | You were looking for an idp by just providing issuer, not teamid, and `issuer_idp_v2`
-    --   has more than one entry (for different teams).
-    GetIdPNonUnique [SAML.IdPId]
-  | -- | An IdP was found, but it lives in another team than the one you were looking for.
-    --   This should be handled similarly to NotFound in most cases.
-    GetIdPWrongTeam SAML.IdPId
-  deriving (Eq, Show)
 
 -- | (There are probably category theoretical models for what we're doing here, but it's more
 -- straight-forward to just handle the one instance we need.)
@@ -707,8 +691,7 @@ getIdPRawMetadata idp =
 
 deleteIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>
-  SAML.IdPId ->
-  m ()
+  SAML.IdPId -> m ()
 deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
   where
     del :: PrepQuery W (Identity SAML.IdPId) ()
