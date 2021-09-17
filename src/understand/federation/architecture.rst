@@ -72,7 +72,9 @@ Its functions are:
 
   - perform mutual :ref:`authentication` as part of the TLS connection
     establishment
-* forward requests to the local :ref:`Federator <federator>` instance
+
+* forward requests to the local :ref:`Federator <federator>` instance, along
+  with the remote backend's client certificate
 
 
 .. _federator:
@@ -83,12 +85,13 @@ Federator
 .. warning:: As of July 2021, authentication is not fully implemented. See the
              section on :ref:`authentication` for more details.
 
-The `Federator` acts as egress point for other backend components. It can be
-configured to use an :ref:`allow list <allow-list>` to authorize incoming and
-outgoing connections, and it keeps an X.509 client certificate for the backend's
-infra domain to authenticate itself towards other backends. Additionally, it
-requires a connection to a DNS resolver to :ref:`discover<discovery>` other
-backends.
+The `Federator` performs additional authorization checks after receiving
+federated requests from the `Federation Ingress` and acts as egress point for
+other backend components. It can be configured to use an :ref:`allow list
+<allow-list>` to authorize incoming and outgoing connections, and it keeps an
+X.509 client certificate for the backend's infra domain to authenticate itself
+towards other backends. Additionally, it requires a connection to a DNS resolver
+to :ref:`discover<discovery>` other backends.
 
 When receiving a request from an internal component, the `Federator` will:
 
@@ -102,10 +105,13 @@ When receiving a request from an internal component, the `Federator` will:
 
 The `Federator` also implements the authorization logic for incoming requests and
 acts as intermediary between the `Federation Ingress` and the internal
-components. The 'Rederator' will, for incoming requests from other backends
+components. The `Federator` will, for incoming requests from remote backends
 (forwarded via the local :ref:`Federation Ingress <federation_ingress>`):
 
-#. Discover the backend domain claimed by the other backend,
+#. :ref:`Discover <discovery>` the mapping between backend domain claimed by the
+   remote backend and its infra domain,
+#. verify that the discovered infra domain matches the domain in the remote
+   backend's client certificate,
 #. if enabled, ensure that the backend domain of the other backend is in the
    :ref:`allow list <allow-list>`,
 #. normalize and sanitize the :ref:`path component <federator-component-api>` of
@@ -159,15 +165,14 @@ feature of TLS as defined in `RFC 8556 <https://tools.ietf.org/html/rfc8446>`_.
 
 In particular, this means that the ingress of each backend needs to be
 provisioned with one or more certificates which it trusts to authenticate
-certificates provided by other backends when accepting incoming connections from
-other backends.
+certificates provided by other backends when accepting incoming connections.
 
 Conversely, every `Federator` needs to be provisioned with a (client)
 certificate which it uses to authenticate itself towards other backends.
 
 Note that the client certificate is expected to be issued with the backend's
-infra domain as the subject alternative name (SAN), which is defined in `RFC
-5280 <https://tools.ietf.org/html/rfc5280>`_.
+infra domain as one of the subject alternative names (SAN), which is defined in
+`RFC 5280 <https://tools.ietf.org/html/rfc5280>`_.
 
 If a receiving backend fails to authenticate the client certificate, it should
 reply with an :ref:`authentication error <authentication error>`.
@@ -248,17 +253,18 @@ contains backend domains (which is not necessarily the same) the sending backend
 also needs to provide its backend domain.
 
 To make this possible, requests to remote backends are required to contain a
-`Wire-Domain` header, which contains the remote backend's domain.
+`Wire-Origin-Domain` header, which contains the remote backend's domain.
 
 While the receiving backend has authenticated the sending backend as the infra
 domain, it is not clear that the sending backend is indeed authorized by the
 owner of the backend domain to host the Wire backend of that particular domain.
 
 To perform this extra authorization step, the receiving backend follows the
-process described in :ref:`discovery` and compares the discovered infra domain
-for the backend domain indicated in the `Wire-Domain` header with the one the
-sending backend authenticated as. If there is a mismatch, the receiving backend
-replies with a :ref:`discovery error <discovery error>`.
+process described in :ref:`discovery` and checks that the discovered infra
+domain for the backend domain indicated in the `Wire-Domain` header is one of
+the Subject Alternative Names contained in the sending backend's client
+certificate. If this is not the case, the receiving backend replies with a
+:ref:`discovery error <discovery error>`.
 
 Finally, the receiving backend checks if the domain of the sending backend is in
 the :ref:`allow-list` and replies with an :ref:`authorization error
