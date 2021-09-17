@@ -92,6 +92,7 @@ servantSitemap =
         GalleyAPI.addMembersToConversationV2 = Update.addMembers,
         GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
         GalleyAPI.removeMember = Update.removeMemberQualified,
+        GalleyAPI.updateOtherMemberUnqualified = Update.updateOtherMemberUnqualified,
         GalleyAPI.updateOtherMember = Update.updateOtherMember,
         GalleyAPI.updateConversationNameDeprecated = Update.updateLocalConversationName,
         GalleyAPI.updateConversationNameUnqualified = Update.updateLocalConversationName,

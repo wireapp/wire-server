@@ -39,6 +39,7 @@ module Galley.API.Update
     updateUnqualifiedSelfMember,
     updateSelfMember,
     updateOtherMember,
+    updateOtherMemberUnqualified,
     removeMember,
     removeMemberQualified,
     removeMemberUnqualified,
@@ -585,8 +586,27 @@ updateRemoteSelfMember zusr zcon rcid update = do
     Just _ ->
       void $ processUpdateMemberEvent zusr zcon (unTagged rcid) [zusr] zusr update
 
-updateOtherMember :: UserId -> ConnId -> ConvId -> UserId -> Public.OtherMemberUpdate -> Galley ()
-updateOtherMember zusr zcon cid victim update = do
+updateOtherMember ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Qualified UserId ->
+  Public.OtherMemberUpdate ->
+  Galley ()
+updateOtherMember zusr zcon qcid qvictim update = do
+  localDomain <- viewFederationDomain
+  if qDomain qcid == localDomain && qDomain qvictim == localDomain
+    then updateOtherMemberUnqualified zusr zcon (qUnqualified qcid) (qUnqualified qvictim) update
+    else throwM federationNotImplemented
+
+updateOtherMemberUnqualified ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  UserId ->
+  Public.OtherMemberUpdate ->
+  Galley ()
+updateOtherMemberUnqualified zusr zcon cid victim update = do
   localDomain <- viewFederationDomain
   when (zusr == victim) $
     throwM invalidTargetUserOp
