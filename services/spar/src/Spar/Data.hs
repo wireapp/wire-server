@@ -58,13 +58,13 @@ module Spar.Data
     clearReplacedBy,
     GetIdPResult (..),
     getIdPConfig,
+    getIdPIdByIssuerWithoutTeam,
+    getIdPIdByIssuerWithTeam,
     getIdPConfigsByTeam,
     deleteIdPConfig,
     storeIdPRawMetadata,
     getIdPRawMetadata,
     deleteIdPRawMetadata,
-    getIdPIdByIssuerWithoutTeam,
-    getIdPIdByIssuerWithTeam,
 
     -- * SSO settings
     storeDefaultSsoCode,
