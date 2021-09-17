@@ -20,6 +20,7 @@
 
 module Test.Galley.Mapping where
 
+import Data.Containers.ListUtils (nubOrdOn)
 import Data.Domain
 import Data.Id
 import Data.Qualified
@@ -30,7 +31,6 @@ import Galley.Types.Conversations.Members
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
--- import Test.Tasty.HUnit
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
@@ -114,8 +114,8 @@ genLocalMember =
 genRemoteMember :: Gen RemoteMember
 genRemoteMember = RemoteMember <$> arbitrary <*> pure roleNameWireMember
 
-genConversation :: [LocalMember] -> [RemoteMember] -> Gen Data.Conversation
-genConversation locals remotes =
+genConversation :: Gen Data.Conversation
+genConversation =
   Data.Conversation
     <$> arbitrary
     <*> pure RegularConv
@@ -123,47 +123,42 @@ genConversation locals remotes =
     <*> arbitrary
     <*> pure []
     <*> pure ActivatedAccessRole
-    <*> pure locals
-    <*> pure remotes
+    <*> listOf genLocalMember
+    <*> listOf genRemoteMember
     <*> pure Nothing
     <*> pure (Just False)
     <*> pure Nothing
     <*> pure Nothing
 
-newtype RandomConversation = RandomConversation Data.Conversation
+newtype RandomConversation = RandomConversation
+  {unRandomConversation :: Data.Conversation}
   deriving (Show)
 
 instance Arbitrary RandomConversation where
-  arbitrary =
-    RandomConversation <$> do
-      locals <- listOf genLocalMember
-      remotes <- listOf genRemoteMember
-      genConversation locals remotes
+  arbitrary = RandomConversation <$> genConversation
 
 data ConvWithLocalUser = ConvWithLocalUser Data.Conversation UserId
   deriving (Show)
 
 instance Arbitrary ConvWithLocalUser where
   arbitrary = do
-    RandomConversation conv <- arbitrary
     member <- genLocalMember
-    let conv'
-          | lmId member `elem` map lmId (Data.convLocalMembers conv) =
-            conv
-          | otherwise =
-            conv {Data.convLocalMembers = member : Data.convLocalMembers conv}
-    pure $ ConvWithLocalUser conv' (lmId member)
+    ConvWithLocalUser <$> genConv member <*> pure (lmId member)
+    where
+      genConv m = uniqueMembers m . unRandomConversation <$> arbitrary
+      uniqueMembers :: LocalMember -> Data.Conversation -> Data.Conversation
+      uniqueMembers m c =
+        c {Data.convLocalMembers = nubOrdOn lmId (m : Data.convLocalMembers c)}
 
 data ConvWithRemoteUser = ConvWithRemoteUser Data.Conversation (Remote UserId)
   deriving (Show)
 
 instance Arbitrary ConvWithRemoteUser where
   arbitrary = do
-    RandomConversation conv <- arbitrary
     member <- genRemoteMember
-    let conv'
-          | rmId member `elem` map rmId (Data.convRemoteMembers conv) =
-            conv
-          | otherwise =
-            conv {Data.convRemoteMembers = member : Data.convRemoteMembers conv}
-    pure $ ConvWithRemoteUser conv' (rmId member)
+    ConvWithRemoteUser <$> genConv member <*> pure (rmId member)
+    where
+      genConv m = uniqueMembers m . unRandomConversation <$> arbitrary
+      uniqueMembers :: RemoteMember -> Data.Conversation -> Data.Conversation
+      uniqueMembers m c =
+        c {Data.convRemoteMembers = nubOrdOn rmId (m : Data.convRemoteMembers c)}
