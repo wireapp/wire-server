@@ -43,7 +43,7 @@ qualified.
 API between Federators
 -----------------------
 
-The layer between `Federator`s acts as an envelope for communication between other
+The layer between `Federators` acts as an envelope for communication between other
 components of wire server. It uses Protocol Buffers (protobuf from here onwards)
 for serialization over gRPC. The latest protobuf schema can be inspected at
 `the wire-server repository
