@@ -122,7 +122,17 @@ data Api routes = Api
     listConversationIds ::
       routes
         :- Summary "Get all conversation IDs."
-          :> Description "To retrieve the next page, a client must pass the paging_state returned by the previous page."
+          :> Description
+               "The IDs returned by this endpoint are paginated. To\
+               \ get the first page, make a call with the `paging_state` field set to\
+               \ `null` (or omitted). Whenever the `has_more` field of the response is\
+               \ set to `true`, more results are available, and they can be obtained\
+               \ by calling the endpoint again, but this time passing the value of\
+               \ `paging_state` returned by the previous call. One can continue in\
+               \ this fashion until all results are returned, which is indicated by\
+               \ `has_more` being `false`. Note that `paging_state` should be\
+               \ considered an opaque token. It should not be inspected, or stored, or\
+               \ reused across multiple unrelated invokations of the endpoint."
           :> ZUser
           :> "conversations"
           :> "list-ids"
