@@ -213,21 +213,17 @@ instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
 wrapMonadClient :: Cas.Client a -> Spar r a
-wrapMonadClient action = do
+wrapMonadClient action =
   Spar $ do
     ctx <- asks sparCtxCas
-    lift (lift $ embedFinal @IO $ runClient ctx action)
-      `Catch.catch` rethrowExceptionAsSpar
+    fromSpar $ wrapMonadClientSem $ embedFinal @IO $ runClient ctx action
 
--- | An error handler that re-throws 'SomeException's  as 500 in Handler.
-rethrowExceptionAsSpar :: MonadError SparError m => SomeException -> m a
-rethrowExceptionAsSpar = throwSpar . SparCassandraError . cs . show @SomeException
-
--- | Call a 'Sem' command in the 'Spar' monad.  Catch all IO exceptions and
+-- | Call a 'Sem' command in the 'Spar' monad.  Catch all (IO) exceptions and
 -- re-throw them as 500 in Handler.
 wrapMonadClientSem :: Sem r a -> Spar r a
 wrapMonadClientSem action =
-  Spar $ (lift $ lift action) `Catch.catch` rethrowExceptionAsSpar
+  Spar $ (lift $ lift action) `Catch.catch`
+    (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
