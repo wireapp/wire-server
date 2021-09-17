@@ -34,7 +34,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Local, Qualified (..), Remote, partitionQualified, toLocal, toRemote)
+import Data.Qualified
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -59,8 +59,8 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
-import Wire.API.Conversation (ConversationAction (..))
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Action (ConversationAction (..))
 import Wire.API.ErrorDescription
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
@@ -246,11 +246,26 @@ isMember u = isJust . find ((u ==) . lmId)
 isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
+class IsNotificationTarget uid where
+  ntAdd :: Local x -> uid -> NotificationTargets -> NotificationTargets
+
 data NotificationTargets = NotificationTargets
   { ntLocals :: [UserId],
     ntRemotes :: [Remote UserId],
     ntBots :: [BotMember]
   }
+
+instance IsNotificationTarget UserId where
+  ntAdd _ uid nt = nt {ntLocals = uid : filter (/= uid) (ntLocals nt)}
+
+instance IsNotificationTarget (Local UserId) where
+  ntAdd loc luid = ntAdd loc (lUnqualified luid)
+
+instance IsNotificationTarget (Remote UserId) where
+  ntAdd _ ruid nt = nt {ntRemotes = ruid : filter (/= ruid) (ntRemotes nt)}
+
+instance IsNotificationTarget (Qualified UserId) where
+  ntAdd loc = foldQualified loc (ntAdd loc) (ntAdd loc)
 
 convTargets :: Data.Conversation -> NotificationTargets
 convTargets conv = case localBotsAndUsers (Data.convLocalMembers conv) of
@@ -309,12 +324,18 @@ getSelfMemberFromLocalsLegacy ::
 getSelfMemberFromLocalsLegacy usr lmems =
   eitherM throwErrorDescription pure . runExceptT $ getSelfMemberFromLocals usr lmems
 
-getOtherMember :: (Foldable t, Monad m) => UserId -> t LocalMember -> ExceptT Error m LocalMember
-getOtherMember = getLocalMember (errorDescriptionTypeToWai @ConvMemberNotFound)
-
-getOtherMemberLegacy :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
-getOtherMemberLegacy usr lmems =
-  eitherM throwM pure . runExceptT $ getOtherMember usr lmems
+-- | Throw 'ConvMemberNotFound' if the given user is not part of a
+-- conversation (either locally or remotely).
+ensureOtherMember ::
+  Local a ->
+  Qualified UserId ->
+  [LocalMember] ->
+  [RemoteMember] ->
+  Galley (Either LocalMember RemoteMember)
+ensureOtherMember loc quid locals remotes =
+  maybe (throwErrorDescriptionType @ConvMemberNotFound) pure $
+    (Left <$> find ((== quid) . (`Qualified` lDomain loc) . lmId) locals)
+      <|> (Right <$> find ((== quid) . unTagged . rmId) remotes)
 
 -- | Note that we use 2 nearly identical functions but slightly different
 -- semantics; when using `getSelfMemberQualified`, if that user is _not_ part of

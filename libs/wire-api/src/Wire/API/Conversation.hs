@@ -68,7 +68,6 @@ module Wire.API.Conversation
     ConversationAccessUpdate (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
-    ConversationAction (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -113,7 +112,6 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Util.Aeson (CustomEncoded (..))
 
 --------------------------------------------------------------------------------
 -- Conversation
@@ -864,17 +862,3 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
   Doc.description "Contains conversation properties to update"
   Doc.property "message_timer" Doc.int64' $
     Doc.description "Conversation message timer (in milliseconds); can be null"
-
---------------------------------------------------------------------------------
--- actions
-
--- | An update to a conversation, including addition and removal of members.
--- Used to send notifications to users and to remote backends.
-data ConversationAction
-  = ConversationActionAddMembers (NonEmpty (Qualified UserId, RoleName))
-  | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
-  | ConversationActionRename ConversationRename
-  | ConversationActionMessageTimerUpdate ConversationMessageTimerUpdate
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationAction)
-  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)

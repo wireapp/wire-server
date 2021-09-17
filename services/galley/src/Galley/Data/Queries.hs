@@ -295,6 +295,9 @@ removeRemoteMember = "delete from member_remote_user where conv = ? and user_rem
 selectRemoteMembers :: PrepQuery R (Identity [ConvId]) (ConvId, Domain, UserId, RoleName)
 selectRemoteMembers = "select conv, user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv in ?"
 
+updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
+updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+
 -- local user with remote conversations
 
 insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()

@@ -33,10 +33,10 @@ import Wire.API.Conversation
   ( Access,
     AccessRole,
     ConvType,
-    ConversationAction (..),
     ConversationMetadata,
     ReceiptMode,
   )
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)

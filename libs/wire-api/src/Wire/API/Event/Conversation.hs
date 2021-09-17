@@ -47,7 +47,6 @@ module Wire.API.Event.Conversation
     Connect (..),
     MemberUpdateData (..),
     OtrMessage (..),
-    conversationActionToEvent,
 
     -- * re-exports
     ConversationReceiptModeUpdate (..),
@@ -561,20 +560,3 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
-
-conversationActionToEvent ::
-  UTCTime ->
-  Qualified UserId ->
-  Qualified ConvId ->
-  ConversationAction ->
-  Event
-conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers) =
-  Event MemberJoin qcnv quid now $
-    EdMembersJoin $ SimpleMembers (map (uncurry SimpleMember) . toList $ newMembers)
-conversationActionToEvent now quid qcnv (ConversationActionRemoveMembers removedMembers) =
-  Event MemberLeave qcnv quid now $
-    EdMembersLeave . QualifiedUserIdList . toList $ removedMembers
-conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
-  Event ConvRename qcnv quid now (EdConvRename rename)
-conversationActionToEvent now quid qcnv (ConversationActionMessageTimerUpdate update) =
-  Event ConvMessageTimerUpdate qcnv quid now (EdConvMessageTimerUpdate update)
