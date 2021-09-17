@@ -109,6 +109,7 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Control.Monad.Trans.Except (except)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -234,7 +235,10 @@ wrapMonadClientSem :: Sem r a -> Spar r a
 wrapMonadClientSem action = liftSem $ action
 
 wrapSpar :: Spar r a -> Spar r a
-wrapSpar = id
+wrapSpar action = Spar $ do
+  env <- ask
+  fromSpar $
+    wrapMonadClientSem (runExceptT $ flip runReaderT env $ fromSpar action) >>= Spar . lift . except
 
 insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
