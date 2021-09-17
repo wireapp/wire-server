@@ -20,7 +20,7 @@
 project = 'Wire'
 copyright = '2021, Wire'
 author = 'Wire Swiss GmbH'
-version = '0.0.2'
+version = '0.0.3'
 # the 'release' variable is used in latex-based PDF generation
 release = version
 
