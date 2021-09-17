@@ -874,6 +874,7 @@ data ConversationAction
   = ConversationActionAddMembers (NonEmpty (Qualified UserId, RoleName))
   | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
   | ConversationActionRename ConversationRename
+  | ConversationActionMessageTimerUpdate ConversationMessageTimerUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)

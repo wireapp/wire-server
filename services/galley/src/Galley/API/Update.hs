@@ -32,6 +32,7 @@ module Galley.API.Update
     updateConversationReceiptModeUnqualified,
     updateConversationReceiptMode,
     updateLocalConversationMessageTimer,
+    updateConversationMessageTimerUnqualified,
     updateConversationMessageTimer,
 
     -- * Managing Members
@@ -337,36 +338,59 @@ updateConversationReceiptModeUnqualified usr zcon cnv receiptModeUpdate@(Public.
       pushConversationEvent (Just zcon) receiptEvent (map lmId users) bots
       pure receiptEvent
 
-updateConversationMessageTimer :: UserId -> ConnId -> Qualified ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
+updateConversationMessageTimerUnqualified ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.ConversationMessageTimerUpdate ->
+  Galley (UpdateResult Event)
+updateConversationMessageTimerUnqualified usr zcon cnv update = do
+  lusr <- qualifyLocal usr
+  lcnv <- qualifyLocal cnv
+  updateLocalConversationMessageTimer lusr zcon lcnv update
+
+updateConversationMessageTimer ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Public.ConversationMessageTimerUpdate ->
+  Galley (UpdateResult Event)
 updateConversationMessageTimer usr zcon qcnv update = do
   localDomain <- viewFederationDomain
+  lusr <- qualifyLocal usr
   if qDomain qcnv == localDomain
-    then updateLocalConversationMessageTimer usr zcon (qUnqualified qcnv) update
+    then updateLocalConversationMessageTimer lusr zcon (toLocal qcnv) update
     else throwM federationNotImplemented
 
-updateLocalConversationMessageTimer :: UserId -> ConnId -> ConvId -> Public.ConversationMessageTimerUpdate -> Galley (UpdateResult Event)
-updateLocalConversationMessageTimer usr zcon cnv timerUpdate@(Public.ConversationMessageTimerUpdate target) = do
-  localDomain <- viewFederationDomain
-  let qcnv = Qualified cnv localDomain
-      qusr = Qualified usr localDomain
-  -- checks and balances
-  (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureActionAllowedThrowing ModifyConversationMessageTimer
-    =<< getSelfMemberFromLocalsLegacy usr users
-  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
+updateLocalConversationMessageTimer ::
+  Local UserId ->
+  ConnId ->
+  Local ConvId ->
+  Public.ConversationMessageTimerUpdate ->
+  Galley (UpdateResult Event)
+updateLocalConversationMessageTimer lusr zcon lcnv update = do
+  (conv, self) <-
+    getConversationAndMemberWithError
+      (errorDescriptionTypeToWai @ConvNotFound)
+      (lUnqualified lusr)
+      (lUnqualified lcnv)
+
+  -- perform checks
+  ensureActionAllowedThrowing ModifyConversationMessageTimer self
   ensureGroupConvThrowing conv
+
   let currentTimer = Data.convMessageTimer conv
-  if currentTimer == target
+  if currentTimer == cupMessageTimer update
     then pure Unchanged
-    else Updated <$> update qcnv qusr users bots
-  where
-    update qcnv qusr users bots = do
-      -- update cassandra & send event
-      now <- liftIO getCurrentTime
-      let timerEvent = Event ConvMessageTimerUpdate qcnv qusr now (EdConvMessageTimerUpdate timerUpdate)
-      Data.updateConversationMessageTimer cnv target
-      pushConversationEvent (Just zcon) timerEvent (map lmId users) bots
-      pure timerEvent
+    else
+      Updated <$> do
+        -- perform update
+        Data.updateConversationMessageTimer (lUnqualified lcnv) (cupMessageTimer update)
+
+        -- send notifications
+        let action = ConversationActionMessageTimerUpdate update
+        let targets = convTargets conv
+        notifyConversationMetadataUpdate (unTagged lusr) zcon lcnv targets action
 
 addCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
 addCodeH (usr ::: zcon ::: cnv) =
@@ -968,26 +992,19 @@ updateLiveLocalConversationName lusr zcon lcnv convRename = do
             ntRemotes = map rmId rusers,
             ntBots = bots
           }
-  now <- liftIO getCurrentTime
   let action = ConversationActionRename convRename
-  notifyConversationMetadataUpdate now (unTagged lusr) (Just zcon) lcnv targets action
-
-data NotificationTargets = NotificationTargets
-  { ntLocals :: [UserId],
-    ntRemotes :: [Remote UserId],
-    ntBots :: [BotMember]
-  }
+  notifyConversationMetadataUpdate (unTagged lusr) zcon lcnv targets action
 
 notifyConversationMetadataUpdate ::
-  UTCTime ->
   Qualified UserId ->
-  Maybe ConnId ->
+  ConnId ->
   Local ConvId ->
   NotificationTargets ->
   ConversationAction ->
   Galley Event
-notifyConversationMetadataUpdate now quid mcon (Tagged qcnv) targets action = do
+notifyConversationMetadataUpdate quid con (Tagged qcnv) targets action = do
   localDomain <- viewFederationDomain
+  now <- liftIO getCurrentTime
   let e = Public.conversationActionToEvent now quid qcnv action
 
   -- notify remote participants
@@ -1002,7 +1019,7 @@ notifyConversationMetadataUpdate now quid mcon (Tagged qcnv) targets action = do
     runFederatedGalley domain rpc
 
   -- notify local participants and bots
-  pushConversationEvent mcon e (ntLocals targets) (ntBots targets) $> e
+  pushConversationEvent (Just con) e (ntLocals targets) (ntBots targets) $> e
 
 isTypingH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.TypingData -> Galley Response
 isTypingH (zusr ::: zcon ::: cnv ::: req) = do

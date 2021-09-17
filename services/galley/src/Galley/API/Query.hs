@@ -82,7 +82,7 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 
 getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
 getBotConversation zbot zcnv = do
-  c <- getConversationAndCheckMembershipWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
+  (c, _) <- getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
   domain <- viewFederationDomain
   let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems

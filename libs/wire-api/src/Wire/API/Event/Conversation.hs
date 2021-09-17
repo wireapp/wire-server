@@ -576,3 +576,5 @@ conversationActionToEvent now quid qcnv (ConversationActionRemoveMembers removed
     EdMembersLeave . QualifiedUserIdList . toList $ removedMembers
 conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
   Event ConvRename qcnv quid now (EdConvRename rename)
+conversationActionToEvent now quid qcnv (ConversationActionMessageTimerUpdate update) =
+  Event ConvMessageTimerUpdate qcnv quid now (EdConvMessageTimerUpdate update)
