@@ -39,6 +39,7 @@ module Spar.App
     getIdPConfigByIssuerAllowOld,
     deleteTeam,
     wrapSpar,
+    liftMonadClient
   )
 where
 
@@ -226,6 +227,14 @@ wrapMonadClient action =
   Spar $ do
     ctx <- asks sparCtxCas
     fromSpar $ wrapMonadClientSem $ embedFinal @IO $ runClient ctx action
+
+-- | Lift a cassandra command into the 'Spar' monad. Like 'wrapMonadClient',
+-- but doesn't catch any exceptions.
+liftMonadClient :: Cas.Client a -> Spar r a
+liftMonadClient action =
+  Spar $ do
+    ctx <- asks sparCtxCas
+    lift $ lift $ embedFinal @IO $ runClient ctx action
 
 -- | Call a 'Sem' command in the 'Spar' monad.  Catch all (IO) exceptions and
 -- re-throw them as 500 in Handler.
@@ -760,7 +769,7 @@ deleteTeam ::
   TeamId ->
   Spar r ()
 deleteTeam team = do
-  wrapMonadClient $ Data.deleteTeamScimTokens team
+  liftMonadClient $ Data.deleteTeamScimTokens team
   -- Since IdPs are not shared between teams, we can look at the set of IdPs
   -- used by the team, and remove everything related to those IdPs, too.
   idps <- liftSem $ IdPEffect.getConfigsByTeam team

@@ -282,7 +282,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
       wrapSpar $ do
         getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
-          Data.GetIdPFound iid -> wrapMonadClient $ Data.clearReplacedBy $ Data.Replaced iid
+          Data.GetIdPFound iid -> liftMonadClient $ Data.clearReplacedBy $ Data.Replaced iid
           Data.GetIdPNotFound -> pure ()
           Data.GetIdPDanglingId _ -> pure ()
           Data.GetIdPNonUnique _ -> pure ()
@@ -358,7 +358,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
-  idp <- getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId
+  idp <- wrapSpar $ getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId
   SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
   SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
 
@@ -428,7 +428,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
     if previousIssuer == newIssuer
       then pure $ previousIdP ^. SAML.idpExtraInfo
       else do
-        foundConfig <- getIdPConfigByIssuerAllowOld newIssuer (Just teamId)
+        foundConfig <- wrapSpar $ getIdPConfigByIssuerAllowOld newIssuer (Just teamId)
         notInUseByOthers <- case foundConfig of
           Data.GetIdPFound c -> pure $ c ^. SAML.idpId == _idpId
           Data.GetIdPNotFound -> pure True
@@ -482,7 +482,7 @@ internalStatus = pure NoContent
 -- get deleted.
 internalDeleteTeam :: Member IdPEffect.IdP r => Member SAMLUser r => TeamId -> Spar r NoContent
 internalDeleteTeam team = do
-  deleteTeam team
+  wrapSpar $ deleteTeam team
   pure NoContent
 
 internalPutSsoSettings :: SsoSettings -> Spar r NoContent
