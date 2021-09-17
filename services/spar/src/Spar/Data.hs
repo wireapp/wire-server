@@ -423,7 +423,8 @@ type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCer
 -- one, call 'markReplacedIdP'.
 storeIdPConfig ::
   (HasCallStack, MonadClient m) =>
-  IdP -> m ()
+  IdP ->
+  m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
@@ -612,7 +613,8 @@ getIdPRawMetadata idp =
 
 deleteIdPRawMetadata ::
   (HasCallStack, MonadClient m) =>
-  SAML.IdPId -> m ()
+  SAML.IdPId ->
+  m ()
 deleteIdPRawMetadata idp = retry x5 . write del $ params Quorum (Identity idp)
   where
     del :: PrepQuery W (Identity SAML.IdPId) ()
