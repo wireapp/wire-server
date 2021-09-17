@@ -69,6 +69,7 @@ tests s =
       test s "POST /federation/on-conversation-updated : Remove a local user from a remote conversation" removeLocalUser,
       test s "POST /federation/on-conversation-updated : Remove a remote user from a remote conversation" removeRemoteUser,
       test s "POST /federation/on-conversation-updated : Notify local user about conversation rename" notifyConvRename,
+      test s "POST /federation/on-conversation-updated : Notify local user about message timer update" notifyMessageTimer,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -323,6 +324,44 @@ notifyConvRename = do
         evtType e @?= ConvRename
         evtFrom e @?= qbob
         evtData e @?= EdConvRename (ConversationRename "gossip++")
+      WS.assertNoEvent (1 # Second) [wsC]
+
+notifyMessageTimer :: TestM ()
+notifyMessageTimer = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  bob <- randomId
+  charlie <- randomUser
+  conv <- randomId
+  let bdom = Domain "bob.example.com"
+      qbob = Qualified bob bdom
+      qconv = Qualified conv bdom
+      aliceAsOtherMember = OtherMember qalice Nothing roleNameWireMember
+  fedGalleyClient <- view tsFedGalleyClient
+
+  registerRemoteConv qconv qbob (Just "gossip") (Set.singleton aliceAsOtherMember)
+
+  now <- liftIO getCurrentTime
+  let cu =
+        FedGalley.ConversationUpdate
+          { FedGalley.cuTime = now,
+            FedGalley.cuOrigUserId = qbob,
+            FedGalley.cuConvId = conv,
+            FedGalley.cuAlreadyPresentUsers = [alice, charlie],
+            FedGalley.cuAction =
+              ConversationActionMessageTimerUpdate (ConversationMessageTimerUpdate (Just 5000))
+          }
+  WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
+    FedGalley.onConversationUpdated fedGalleyClient bdom cu
+    liftIO $ do
+      WS.assertMatch_ (5 # Second) wsA $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconv
+        evtType e @?= ConvMessageTimerUpdate
+        evtFrom e @?= qbob
+        evtData e @?= EdConvMessageTimerUpdate (ConversationMessageTimerUpdate (Just 5000))
       WS.assertNoEvent (1 # Second) [wsC]
 
 -- TODO: test adding non-existing users

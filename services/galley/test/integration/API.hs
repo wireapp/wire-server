@@ -2542,10 +2542,6 @@ putQualifiedConvRenameWithRemotesOk = do
       evtFrom e @?= qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
 
-assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
-assertOne [a] = pure a
-assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
-
 putConvDeprecatedRenameOk :: TestM ()
 putConvDeprecatedRenameOk = do
   c <- view tsCannon
