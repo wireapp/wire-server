@@ -115,7 +115,7 @@ genRemoteMember :: Gen RemoteMember
 genRemoteMember = RemoteMember <$> arbitrary <*> pure roleNameWireMember
 
 genConversation :: Gen Data.Conversation
-genConversation locals remotes =
+genConversation =
   Data.Conversation
     <$> arbitrary
     <*> pure RegularConv
@@ -123,7 +123,7 @@ genConversation locals remotes =
     <*> arbitrary
     <*> pure []
     <*> pure ActivatedAccessRole
-    <*> listof genLocalMember
+    <*> listOf genLocalMember
     <*> listOf genRemoteMember
     <*> pure Nothing
     <*> pure (Just False)
