@@ -169,6 +169,7 @@ import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
+import Polysemy
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
@@ -180,6 +181,8 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
+import Spar.Sem.SAMLUser (SAMLUser)
+import Spar.Sem.SAMLUser.Cassandra
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -1239,11 +1242,11 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- runExceptT $ action `runReaderT` env
+    result <- runFinal $ embedToFinal @IO $ interpretClientToIO (Spar.sparCtxCas env) $ samlUserToCassandra @Cas.Client $ runExceptT $ action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
