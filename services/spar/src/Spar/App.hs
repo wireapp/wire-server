@@ -114,11 +114,8 @@ import Wire.API.User.Scim (ValidExternalId (..))
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
 
-liftSem :: (Member (Final IO) r => Sem r a) -> Spar r a
+liftSem :: Sem r a -> Spar r a
 liftSem r = Spar $ lift $ lift r
-
-raiseSem :: Sem r a -> Spar r a
-raiseSem r = Spar $ lift $ lift r
 
 instance Applicative (Spar r) where
   pure a = Spar $ pure a
@@ -137,7 +134,7 @@ instance MonadError SparError (Spar r) where
   catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
 
 instance MonadIO (Spar r) where
-  liftIO m = liftSem $ embedFinal m
+  liftIO m = Spar $ lift $ lift $ embedFinal m
 
 data Env = Env
   { sparCtxOpts :: Opts,
@@ -165,7 +162,7 @@ instance MonadLogger (Spar r) where
     lg <- asks sparCtxLogger
     reqid <- asks sparCtxRequestId
     let fields = Log.field "request" (unRequestId reqid)
-    liftSem $ embedFinal $ Log.log lg level $ fields Log.~~ mg
+    Spar $ lift $ lift $ embedFinal $ Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
@@ -708,7 +705,7 @@ getIdPIdByIssuerAllowOld ::
   Spar r (GetIdPResult SAML.IdPId)
 getIdPIdByIssuerAllowOld issuer mbteam = do
   mbv2 <- liftSem $ maybe (pure Nothing) (IdPEffect.getIdByIssuerWithTeam issuer) mbteam
-  mbv1v2 <- raiseSem $ maybe (IdPEffect.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
+  mbv1v2 <- liftSem $ maybe (IdPEffect.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
   case (mbv1v2, mbteam) of
     (GetIdPFound idpid, Just team) -> do
       liftSem (IdPEffect.getConfig idpid) >>= \case
@@ -766,10 +763,10 @@ deleteTeam team = do
   wrapMonadClient $ Data.deleteTeamScimTokens team
   -- Since IdPs are not shared between teams, we can look at the set of IdPs
   -- used by the team, and remove everything related to those IdPs, too.
-  idps <- raiseSem $ IdPEffect.getConfigsByTeam team
+  idps <- liftSem $ IdPEffect.getConfigsByTeam team
   for_ idps $ \idp -> do
     let idpid = idp ^. SAML.idpId
         issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    raiseSem $ do
+    liftSem $ do
       SAMLUser.deleteByIssuer issuer
       IdPEffect.deleteConfig idpid issuer team
