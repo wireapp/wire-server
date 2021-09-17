@@ -38,7 +38,7 @@ module Galley.API.Update
     addMembers,
     updateUnqualifiedSelfMember,
     updateSelfMember,
-    updateOtherMemberH,
+    updateOtherMember,
     removeMember,
     removeMemberQualified,
     removeMemberUnqualified,
@@ -584,12 +584,6 @@ updateRemoteSelfMember zusr zcon rcid update = do
     Nothing -> throwErrorDescriptionType @ConvMemberNotFound
     Just _ ->
       void $ processUpdateMemberEvent zusr zcon (unTagged rcid) [zusr] zusr update
-
-updateOtherMemberH :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest Public.OtherMemberUpdate -> Galley Response
-updateOtherMemberH (zusr ::: zcon ::: cid ::: victim ::: req) = do
-  update <- fromJsonBody req
-  updateOtherMember zusr zcon cid victim update
-  return empty
 
 updateOtherMember :: UserId -> ConnId -> ConvId -> UserId -> Public.OtherMemberUpdate -> Galley ()
 updateOtherMember zusr zcon cid victim update = do
