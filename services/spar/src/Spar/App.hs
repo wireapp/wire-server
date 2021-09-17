@@ -38,7 +38,7 @@ module Spar.App
     getIdPConfigByIssuer,
     getIdPConfigByIssuerAllowOld,
     deleteTeam,
-    wrapSpar
+    wrapSpar,
   )
 where
 
@@ -51,6 +51,7 @@ import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
+import Control.Monad.Trans.Except (except)
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
@@ -89,16 +90,16 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data hiding (deleteSAMLUser, deleteSAMLUsersByIssuer, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, getSAMLUser, insertSAMLUser, storeIdPConfig, getIdPConfig)
+import qualified Spar.Data as Data hiding (deleteSAMLUser, deleteSAMLUsersByIssuer, getIdPConfig, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, getSAMLUser, insertSAMLUser, storeIdPConfig)
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
-import Spar.Sem.SAMLUser (SAMLUser)
-import qualified Spar.Sem.SAMLUser as SAMLUser
-import Spar.Sem.IdP (GetIdPResult(..))
+import Spar.Sem.IdP (GetIdPResult (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
+import Spar.Sem.SAMLUser (SAMLUser)
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser.Cassandra (interpretClientToIO, samlUserToCassandra)
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
@@ -109,7 +110,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Control.Monad.Trans.Except (except)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -770,4 +770,3 @@ deleteTeam team = do
     raiseSem $ do
       SAMLUser.deleteByIssuer issuer
       IdPEffect.deleteConfig idpid issuer team
-

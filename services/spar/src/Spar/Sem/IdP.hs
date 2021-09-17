@@ -24,23 +24,20 @@ newtype Replaced = Replaced SAML.IdPId
 
 newtype Replacing = Replacing SAML.IdPId
 
-
 data IdP m a where
-  StoreConfig              :: IP.IdP -> IdP m ()
-  GetConfig                :: SAML.IdPId -> IdP m (Maybe IP.IdP)
+  StoreConfig :: IP.IdP -> IdP m ()
+  GetConfig :: SAML.IdPId -> IdP m (Maybe IP.IdP)
   GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdP m (GetIdPResult SAML.IdPId)
-  GetIdByIssuerWithTeam    :: SAML.Issuer -> TeamId -> IdP m (Maybe SAML.IdPId)
-  GetConfigsByTeam         :: TeamId -> IdP m [IP.IdP]
-  DeleteConfig             :: SAML.IdPId -> SAML.Issuer -> TeamId -> IdP m ()
-
-  SetReplacedBy            :: Replaced -> Replacing -> IdP m ()
-  ClearReplacedBy          :: Replaced -> IdP m ()
-
--- TODO(sandy): maybe this wants  to be a separate effect
--- data Metadata  m a wher       e
-  StoreRawMetadata         :: SAML.IdPId -> Text -> IdP m ()
-  GetRawMetadata           :: SAML.IdPId -> IdP m (Maybe Text)
-  DeleteRawMetadata        :: SAML.IdPId -> IdP m ()
+  GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdP m (Maybe SAML.IdPId)
+  GetConfigsByTeam :: TeamId -> IdP m [IP.IdP]
+  DeleteConfig :: SAML.IdPId -> SAML.Issuer -> TeamId -> IdP m ()
+  SetReplacedBy :: Replaced -> Replacing -> IdP m ()
+  ClearReplacedBy :: Replaced -> IdP m ()
+  -- TODO(sandy): maybe this wants  to be a separate effect
+  -- data Metadata  m a wher       e
+  StoreRawMetadata :: SAML.IdPId -> Text -> IdP m ()
+  GetRawMetadata :: SAML.IdPId -> IdP m (Maybe Text)
+  DeleteRawMetadata :: SAML.IdPId -> IdP m ()
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdP

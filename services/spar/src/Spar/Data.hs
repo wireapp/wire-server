@@ -107,6 +107,7 @@ import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
+import Spar.Sem.IdP (GetIdPResult (..), Replaced (..), Replacing (..))
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
@@ -117,7 +118,6 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
 import qualified Prelude
-import Spar.Sem.IdP (GetIdPResult(..), Replacing(..), Replaced(..))
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
