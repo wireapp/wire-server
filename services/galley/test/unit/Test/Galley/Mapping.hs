@@ -114,7 +114,7 @@ genLocalMember =
 genRemoteMember :: Gen RemoteMember
 genRemoteMember = RemoteMember <$> arbitrary <*> pure roleNameWireMember
 
-genConversation :: [LocalMember] -> [RemoteMember] -> Gen Data.Conversation
+genConversation :: Gen Data.Conversation
 genConversation locals remotes =
   Data.Conversation
     <$> arbitrary
@@ -123,8 +123,8 @@ genConversation locals remotes =
     <*> arbitrary
     <*> pure []
     <*> pure ActivatedAccessRole
-    <*> pure locals
-    <*> pure remotes
+    <*> listof genLocalMember
+    <*> listOf genRemoteMember
     <*> pure Nothing
     <*> pure (Just False)
     <*> pure Nothing
@@ -135,14 +135,7 @@ newtype RandomConversation = RandomConversation
   deriving (Show)
 
 instance Arbitrary RandomConversation where
-  arbitrary =
-    RandomConversation
-      <$> join
-        ( liftA2
-            genConversation
-            (listOf genLocalMember)
-            (listOf genRemoteMember)
-        )
+  arbitrary = RandomConversation <$> genConversation
 
 data ConvWithLocalUser = ConvWithLocalUser Data.Conversation UserId
   deriving (Show)
