@@ -1525,3 +1525,4 @@ specSparUserMigration = do
         ssoToUidSpar tid ssoid
 
       liftIO $ mbUserId `shouldBe` Just memberUid
+

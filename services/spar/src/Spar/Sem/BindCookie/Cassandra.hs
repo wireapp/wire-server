@@ -2,11 +2,11 @@
 
 module Spar.Sem.BindCookie.Cassandra where
 
-import Cassandra
-import Imports
-import Polysemy
-import qualified Spar.Data as Data
-import Spar.Sem.BindCookie
+-- import Cassandra
+-- import Imports
+-- import Polysemy
+-- import qualified Spar.Data as Data
+-- import Spar.Sem.BindCookie
 
 -- bindCookieToCassandra ::
 --   forall m r a.

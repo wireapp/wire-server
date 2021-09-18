@@ -32,6 +32,7 @@ import Data.UUID.V4 as UUID
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
+import Spar.App as App
 import Spar.Intra.Brig (veidFromUserSSOId)
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
@@ -170,12 +171,12 @@ spec = do
       it "getIdPConfigByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` GetIdPFound idp
       it "getIdPIdByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` GetIdPFound (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         skipIdPAPIVersions [WireIdPAPIV1]
@@ -197,10 +198,10 @@ spec = do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
           liftIO $ midp `shouldBe` GetIdPNotFound
         do
-          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
           liftIO $ midp `shouldBe` GetIdPNotFound
         do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
@@ -265,7 +266,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   ssoid1 <- getSsoidViaSelf (getUid storedUser1)
   ssoid2 <- getSsoidViaSelf (getUid storedUser2)
   -- Delete the team
-  runSparCass $ Data.deleteTeam tid
+  runSpar $ App.deleteTeam tid
   -- See that everything got cleaned up.
   --
   -- The token from 'team_provisioning_by_token':
@@ -304,7 +305,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
+    mbIdp <- runSpar $ App.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
     liftIO $ mbIdp `shouldBe` GetIdPNotFound
   -- The config from 'team_idp':
   do

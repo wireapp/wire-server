@@ -93,6 +93,7 @@ import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import qualified Spar.Sem.IdP as IdPEffect
 
 -- | SCIM config for our server.
 --
@@ -101,7 +102,7 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim :: Member ScimTokenStore r => Member SAMLUser r => ServerT APIScim (Spar r)
+apiScim :: Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken

@@ -43,8 +43,7 @@ import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClientSem)
-import qualified Spar.Data as Data
+import Spar.App (Spar, sparCtxOpts, wrapMonadClientSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
@@ -58,6 +57,7 @@ import Wire.API.User.Scim
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Polysemy
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import qualified Spar.Sem.IdP as IdPEffect
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) where
@@ -76,7 +76,7 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: Member ScimTokenStore r => ServerT APIScimToken (Spar r)
+apiScimToken :: Member ScimTokenStore r => Member IdPEffect.IdP r => ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -88,6 +88,7 @@ apiScimToken =
 createScimToken ::
   forall r.
   Member ScimTokenStore r =>
+  Member IdPEffect.IdP r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -101,7 +102,7 @@ createScimToken zusr CreateScimToken {..} = do
   maxTokens <- asks (maxScimTokens . sparCtxOpts)
   unless (tokenNumber < maxTokens) $
     E.throwSpar E.SparProvisioningTokenLimitReached
-  idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+  idps <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
