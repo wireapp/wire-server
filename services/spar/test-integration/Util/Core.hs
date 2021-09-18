@@ -115,6 +115,7 @@ module Util.Core
     initCassandra,
     ssoToUidSpar,
     runSparCass,
+    runSparCassSem,
     runSparCassWithEnv,
     runSimpleSP,
     runSpar,
@@ -175,6 +176,7 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
+import Spar.App (Spar)
 import Spar.App (toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
@@ -205,6 +207,7 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
+import qualified Spar.Sem.IdP as IdPEffect
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1219,6 +1222,14 @@ runSparCass ::
 runSparCass action = do
   env <- ask
   liftIO $ runClient (env ^. teCql) action
+
+runSparCassSem ::
+  (HasCallStack, MonadIO m', MonadReader TestEnv m') =>
+  Spar '[IdPEffect.IdP, SAMLUser] a ->
+  m' a
+runSparCassSem action = undefined
+  -- env <- ask
+  -- liftIO $ runClient (env ^. teCql) action
 
 runSparCassWithEnv ::
   ( HasCallStack,
