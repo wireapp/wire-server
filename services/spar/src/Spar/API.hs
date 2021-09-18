@@ -71,13 +71,15 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
+import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 
 app :: Env -> Application
 app ctx =
   SAML.setHttpCachePolicy $
     serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
 
-api :: Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT API (Spar r)
+api :: Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT API (Spar r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck
@@ -86,7 +88,7 @@ api opts =
     :<|> apiScim
     :<|> apiINTERNAL
 
-apiSSO :: Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT APISSO (Spar r)
+apiSSO :: Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT APISSO (Spar r)
 apiSSO opts =
   SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
     :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
@@ -105,7 +107,7 @@ apiIDP =
     :<|> idpUpdate
     :<|> idpDelete
 
-apiINTERNAL :: Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIINTERNAL (Spar r)
+apiINTERNAL :: Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIINTERNAL (Spar r)
 apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam
@@ -201,9 +203,9 @@ authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbt
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
             ckyraw
 
-ssoSettings :: Spar r SsoSettings
+ssoSettings :: Member DefaultSsoCode r => Spar r SsoSettings
 ssoSettings = do
-  SsoSettings <$> wrapMonadClient Data.getDefaultSsoCode
+  SsoSettings <$> wrapMonadClientSem DefaultSsoCode.get
 
 ----------------------------------------------------------------------------
 -- IdP API
@@ -485,9 +487,9 @@ internalDeleteTeam team = do
   wrapSpar $ deleteTeam team
   pure NoContent
 
-internalPutSsoSettings :: SsoSettings -> Spar r NoContent
+internalPutSsoSettings :: Member DefaultSsoCode r => SsoSettings -> Spar r NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
-  wrapMonadClient $ Data.deleteDefaultSsoCode
+  wrapMonadClientSem $ DefaultSsoCode.delete
   pure NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
   wrapMonadClient (Data.getIdPConfig code) >>= \case
@@ -497,5 +499,5 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
       -- "Could not find IdP".
       throwSpar $ SparIdPNotFound mempty
     Just _ -> do
-      wrapMonadClient $ Data.storeDefaultSsoCode code
+      wrapMonadClientSem $ DefaultSsoCode.store code
       pure NoContent

@@ -27,6 +27,7 @@ module Spar.App
     toLevel,
     wrapMonadClientWithEnv,
     wrapMonadClient,
+    wrapMonadClientSem,
     verdictHandler,
     GetUserResult (..),
     getUserIdByUref,
@@ -111,6 +112,8 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
+import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -412,7 +415,7 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance (r ~ '[IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+instance (r ~ '[DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -420,7 +423,7 @@ instance (r ~ '[IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]
     throwErrorAsHandlerException err
     where
       actionHandler :: Handler (Either SparError a)
-      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO (sparCtxCas ctx) $ samlUserToCassandra @Cas.Client $ idPToCassandra @Cas.Client $ runExceptT $ runReaderT action ctx
+      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO (sparCtxCas ctx) $ samlUserToCassandra @Cas.Client $ idPToCassandra @Cas.Client $ defaultSsoCodeToCassandra $ runExceptT $ runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
