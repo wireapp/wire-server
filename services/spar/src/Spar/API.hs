@@ -73,13 +73,15 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
 
 app :: Env -> Application
 app ctx =
   SAML.setHttpCachePolicy $
     serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
 
-api :: Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT API (Spar r)
+api :: Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT API (Spar r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck
@@ -88,7 +90,7 @@ api opts =
     :<|> apiScim
     :<|> apiINTERNAL
 
-apiSSO :: Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT APISSO (Spar r)
+apiSSO :: Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT APISSO (Spar r)
 apiSSO opts =
   SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
     :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
@@ -98,7 +100,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Member IdPEffect.IdP r => ServerT APIIDP (Spar r)
+apiIDP :: Member ScimTokenStore r => Member IdPEffect.IdP r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -182,7 +184,7 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: forall r. Member IdPEffect.IdP r => Member SAMLUser r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
+authresp :: forall r. Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
 authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
@@ -238,7 +240,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: forall r. Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+idpDelete :: forall r. Member ScimTokenStore r => Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -259,16 +261,17 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
       else throwSpar SparIdPHasBoundUsers
   updateOldIssuers idp
   updateReplacingIdP idp
-  wrapMonadClient $ do
+  wrapSpar $ do
     -- Delete tokens associated with given IdP (we rely on the fact that
     -- each IdP has exactly one team so we can look up all tokens
     -- associated with the team and then filter them)
-    tokens <- Data.getScimTokens team
+    tokens <- liftSem $ ScimTokenStore.getByTeam team
     for_ tokens $ \ScimTokenInfo {..} ->
-      when (stiIdP == Just idpid) $ Data.deleteScimToken team stiId
+      when (stiIdP == Just idpid) $ liftSem $ ScimTokenStore.delete team stiId
     -- Delete IdP config
-    Data.deleteIdPConfig idpid issuer team
-    Data.deleteIdPRawMetadata idpid
+    liftMonadClient $ do
+      Data.deleteIdPConfig idpid issuer team
+      Data.deleteIdPRawMetadata idpid
   return NoContent
   where
     updateOldIssuers :: IdP -> Spar r ()
@@ -292,11 +295,11 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Member IdPEffect.IdP r => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreate :: Member ScimTokenStore r => Member IdPEffect.IdP r => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Member IdPEffect.IdP r => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreateXML :: Member ScimTokenStore r => Member IdPEffect.IdP r => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
@@ -312,9 +315,9 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
 -- data contains no information about the idp issuer, only the user name, so no valid saml
 -- credentials can be created.  To fix this, we need to implement a way to associate scim
 -- tokens with IdPs.  https://wearezeta.atlassian.net/browse/SQSERVICES-165
-assertNoScimOrNoIdP :: TeamId -> Spar r ()
+assertNoScimOrNoIdP :: Member ScimTokenStore r => TeamId -> Spar r ()
 assertNoScimOrNoIdP teamid = do
-  numTokens <- length <$> wrapMonadClient (Data.getScimTokens teamid)
+  numTokens <- length <$> wrapMonadClientSem (ScimTokenStore.getByTeam teamid)
   numIdps <- length <$> wrapMonadClientWithEnv (Data.getIdPConfigsByTeam teamid)
   when (numTokens > 0 && numIdps > 0) $ do
     throwSpar $

@@ -40,7 +40,8 @@ module Spar.App
     getIdPConfigByIssuerAllowOld,
     deleteTeam,
     wrapSpar,
-    liftMonadClient
+    liftMonadClient,
+    liftSem
   )
 where
 
@@ -114,6 +115,9 @@ import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -338,14 +342,14 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Member IdPEffect.IdP r => Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser :: Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
 autoprovisionSamlUser mbteam suid = do
   buid <- Id <$> liftIO UUID.nextRandom
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: forall r. Member IdPEffect.IdP r => Member SAMLUser r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
+autoprovisionSamlUserWithId :: forall r. Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
@@ -363,7 +367,7 @@ autoprovisionSamlUserWithId mbteam buid suid = do
     guardScimTokens :: IdP -> Spar r ()
     guardScimTokens idp = do
       let teamid = idp ^. idpExtraInfo . wiTeam
-      scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
+      scimtoks <- wrapMonadClientSem $ ScimTokenStore.getByTeam teamid
       unless (null scimtoks) $ do
         throwSpar SparSamlCredentialsNotFound
 
@@ -415,7 +419,7 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance (r ~ '[DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+instance (r ~ '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -423,7 +427,16 @@ instance (r ~ '[DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Emb
     throwErrorAsHandlerException err
     where
       actionHandler :: Handler (Either SparError a)
-      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO (sparCtxCas ctx) $ samlUserToCassandra @Cas.Client $ idPToCassandra @Cas.Client $ defaultSsoCodeToCassandra $ runExceptT $ runReaderT action ctx
+      actionHandler = liftIO
+                    $ runFinal
+                    $ embedToFinal @IO
+                    $ interpretClientToIO (sparCtxCas ctx)
+                    $ samlUserToCassandra @Cas.Client
+                    $ idPToCassandra @Cas.Client
+                    $ defaultSsoCodeToCassandra
+                    $ scimTokenStoreToCassandra
+                    $ runExceptT
+                    $ runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
@@ -453,7 +466,7 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => Member IdPEffect.IdP r => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
+verdictHandler :: HasCallStack => Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
 verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
@@ -478,7 +491,7 @@ data VerdictHandlerResult
   | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
   deriving (Eq, Show)
 
-verdictHandlerResult :: HasCallStack => Member IdPEffect.IdP r => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResult :: HasCallStack => Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
   SAML.logger SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
@@ -517,7 +530,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
   wrapMonadClientSem $ SAMLUser.delete uid oldUserRef
 
-verdictHandlerResultCore :: HasCallStack => Member IdPEffect.IdP r => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResultCore :: HasCallStack => Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResultCore bindCky mbteam = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
