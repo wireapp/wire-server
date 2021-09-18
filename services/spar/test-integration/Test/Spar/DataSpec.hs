@@ -171,12 +171,12 @@ spec = do
       it "getIdPConfigByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCassSem $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` GetIdPFound idp
       it "getIdPIdByIssuer works" $ do
         idp <- makeTestIdP
         () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCassSem $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` GetIdPFound (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         skipIdPAPIVersions [WireIdPAPIV1]
@@ -198,10 +198,10 @@ spec = do
           midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSparCassSem $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
           liftIO $ midp `shouldBe` GetIdPNotFound
         do
-          midp <- runSparCassSem $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
           liftIO $ midp `shouldBe` GetIdPNotFound
         do
           idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
@@ -266,7 +266,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   ssoid1 <- getSsoidViaSelf (getUid storedUser1)
   ssoid2 <- getSsoidViaSelf (getUid storedUser2)
   -- Delete the team
-  runSparCassSem $ App.deleteTeam tid
+  runSpar $ App.deleteTeam tid
   -- See that everything got cleaned up.
   --
   -- The token from 'team_provisioning_by_token':
@@ -305,7 +305,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- runSparCassSem $ App.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
+    mbIdp <- runSpar $ App.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
     liftIO $ mbIdp `shouldBe` GetIdPNotFound
   -- The config from 'team_idp':
   do

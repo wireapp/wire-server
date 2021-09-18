@@ -115,7 +115,6 @@ module Util.Core
     initCassandra,
     ssoToUidSpar,
     runSparCass,
-    runSparCassSem,
     runSparCassWithEnv,
     runSimpleSP,
     runSpar,
@@ -176,7 +175,6 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (Spar)
 import Spar.App (toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
@@ -1223,14 +1221,6 @@ runSparCass ::
 runSparCass action = do
   env <- ask
   liftIO $ runClient (env ^. teCql) action
-
-runSparCassSem ::
-  (HasCallStack, MonadIO m', MonadReader TestEnv m') =>
-  Spar '[IdPEffect.IdP, SAMLUser] a ->
-  m' a
-runSparCassSem _action = undefined
-  -- env <- ask
-  -- liftIO $ runClient (env ^. teCql) action
 
 runSparCassWithEnv ::
   ( HasCallStack,
