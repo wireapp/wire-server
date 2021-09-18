@@ -85,7 +85,6 @@ import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import qualified Wire.API.User.Saml as WireAPI (saml)
 import Wire.API.User.Scim
-import qualified Spar.Sem.IdP as IdPEffect
 
 spec :: SpecWith TestEnv
 spec = do

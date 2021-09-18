@@ -185,6 +185,7 @@ import qualified Spar.Options
 import Spar.Run
 import Spar.Sem.SAMLUser (SAMLUser)
 import Spar.Sem.SAMLUser.Cassandra
+import Spar.Sem.IdP.Cassandra
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -1227,7 +1228,7 @@ runSparCassSem ::
   (HasCallStack, MonadIO m', MonadReader TestEnv m') =>
   Spar '[IdPEffect.IdP, SAMLUser] a ->
   m' a
-runSparCassSem action = undefined
+runSparCassSem _action = undefined
   -- env <- ask
   -- liftIO $ runClient (env ^. teCql) action
 
@@ -1253,11 +1254,11 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- runFinal $ embedToFinal @IO $ interpretClientToIO (Spar.sparCtxCas env) $ samlUserToCassandra @Cas.Client $ runExceptT $ action `runReaderT` env
+    result <- runFinal $ embedToFinal @IO $ interpretClientToIO (Spar.sparCtxCas env) $ samlUserToCassandra @Cas.Client $ idPToCassandra @Cas.Client $ runExceptT $ action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
