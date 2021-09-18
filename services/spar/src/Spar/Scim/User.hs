@@ -65,8 +65,8 @@ import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
-import qualified Spar.Data as Data
+import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClient, wrapMonadClientSem)
+import qualified Spar.Data as Data hiding (storeIdPConfig, getIdPConfig, getIdPIdByIssuerWithoutTeam, getIdPIdByIssuerWithTeam, getIdPConfigsByTeam, setReplacedBy, clearReplacedBy, storeIdPRawMetadata, getIdPRawMetadata, deleteIdPRawMetadata)
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
@@ -92,11 +92,12 @@ import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
+import qualified Spar.Sem.IdP as IdPEffect
 
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance Member SAMLUser r => Scim.UserDB ST.SparTag (Spar r) where
+instance (Member IdPEffect.IdP r, Member SAMLUser r) => Scim.UserDB ST.SparTag (Spar r) where
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
@@ -110,7 +111,7 @@ instance Member SAMLUser r => Scim.UserDB ST.SparTag (Spar r) where
           . logFilter filter'
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
@@ -133,7 +134,7 @@ instance Member SAMLUser r => Scim.UserDB ST.SparTag (Spar r) where
           . logTokenInfo tokeninfo
       )
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
+        mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
         let notfound = Scim.notFound "User" (idToText uid)
         brigUser <- lift (Brig.getBrigUserAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
         unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
@@ -172,6 +173,7 @@ instance Member SAMLUser r => Scim.UserDB ST.SparTag (Spar r) where
 validateScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Spar r)) =>
+  Member IdPEffect.IdP r =>
   -- | Used to decide what IdP to assign the user to
   ScimTokenInfo ->
   Scim.User ST.SparTag ->
@@ -181,9 +183,9 @@ validateScimUser tokinfo user = do
   richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
   validateScimUser' mIdpConfig richInfoLimit user
 
-tokenInfoToIdP :: ScimTokenInfo -> Scim.ScimHandler (Spar r) (Maybe IdP)
+tokenInfoToIdP :: Member IdPEffect.IdP r => ScimTokenInfo -> Scim.ScimHandler (Spar r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} = do
-  maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
+  maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
@@ -445,6 +447,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
   forall m r.
+  Member IdPEffect.IdP r =>
   Member SAMLUser r =>
   (m ~ Scim.ScimHandler (Spar r)) =>
   ScimTokenInfo ->
@@ -571,7 +574,7 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
           Scim.version = calculateVersion scimuid usr
         }
 
-deleteScimUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler (Spar r) ()
+deleteScimUser :: Member IdPEffect.IdP r => ScimTokenInfo -> UserId -> Scim.ScimHandler (Spar r) ()
 deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
   logScim
     ( logFunction "Spar.Scim.User.deleteScimUser"
@@ -593,7 +596,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
+          mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClientSem . IdPEffect.getConfig) stiIdP
 
           case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
             Left _ -> pure ()

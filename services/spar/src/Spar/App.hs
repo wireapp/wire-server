@@ -27,6 +27,7 @@ module Spar.App
     toLevel,
     wrapMonadClientWithEnv,
     wrapMonadClient,
+    wrapMonadClientSem,
     verdictHandler,
     GetUserResult (..),
     getUserIdByUref,
@@ -39,6 +40,7 @@ module Spar.App
     getIdPConfigByIssuerAllowOld,
     deleteTeam,
     wrapSpar,
+    liftSem,
     liftMonadClient
   )
 where

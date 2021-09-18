@@ -43,8 +43,8 @@ import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, sparCtxOpts, wrapMonadClient)
-import qualified Spar.Data as Data
+import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClientSem)
+import qualified Spar.Data as Data hiding (storeIdPConfig, getIdPConfig, getIdPIdByIssuerWithoutTeam, getIdPIdByIssuerWithTeam, getIdPConfigsByTeam, setReplacedBy, clearReplacedBy, storeIdPRawMetadata, getIdPRawMetadata, deleteIdPRawMetadata)
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
@@ -55,6 +55,8 @@ import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User.Saml (maxScimTokens)
 import Wire.API.User.Scim
+import qualified Spar.Sem.IdP as IdPEffect
+import Polysemy
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Scim.Class.Auth.AuthDB SparTag (Spar r) where
@@ -73,7 +75,7 @@ instance Scim.Class.Auth.AuthDB SparTag (Spar r) where
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: ServerT APIScimToken (Spar r)
+apiScimToken :: Member IdPEffect.IdP r =>ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -83,6 +85,7 @@ apiScimToken =
 --
 -- Create a token for user's team.
 createScimToken ::
+  Member IdPEffect.IdP r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -96,7 +99,7 @@ createScimToken zusr CreateScimToken {..} = do
   maxTokens <- asks (maxScimTokens . sparCtxOpts)
   unless (tokenNumber < maxTokens) $
     E.throwSpar E.SparProvisioningTokenLimitReached
-  idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+  idps <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
