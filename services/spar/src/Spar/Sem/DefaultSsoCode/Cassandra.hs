@@ -14,8 +14,8 @@ defaultSsoCodeToCassandra ::
   Sem (DefaultSsoCode ': r) a ->
   Sem r a
 defaultSsoCodeToCassandra =
-  interpret $ embed @m . \case
-    Get -> Data.getDefaultSsoCode
-    Store ip -> Data.storeDefaultSsoCode ip
-    Delete -> Data.deleteDefaultSsoCode
-
+  interpret $
+    embed @m . \case
+      Get -> Data.getDefaultSsoCode
+      Store ip -> Data.storeDefaultSsoCode ip
+      Delete -> Data.deleteDefaultSsoCode

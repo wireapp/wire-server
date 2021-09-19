@@ -181,11 +181,15 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
+import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
+import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser.Cassandra
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -208,10 +212,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
-import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
-import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1253,15 +1253,16 @@ runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[DefaultSsoCode, Sci
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- runFinal
-            $ embedToFinal @IO
-            $ interpretClientToIO (Spar.sparCtxCas env)
-            $ samlUserToCassandra @Cas.Client
-            $ idPToCassandra @Cas.Client
-            $ scimTokenStoreToCassandra @Cas.Client
-            $ defaultSsoCodeToCassandra @Cas.Client
-            $ runExceptT
-            $ action `runReaderT` env
+    result <-
+      runFinal $
+        embedToFinal @IO $
+          interpretClientToIO (Spar.sparCtxCas env) $
+            samlUserToCassandra @Cas.Client $
+              idPToCassandra @Cas.Client $
+                scimTokenStoreToCassandra @Cas.Client $
+                  defaultSsoCodeToCassandra @Cas.Client $
+                    runExceptT $
+                      action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId

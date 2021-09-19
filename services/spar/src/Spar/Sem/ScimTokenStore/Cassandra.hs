@@ -14,9 +14,9 @@ scimTokenStoreToCassandra ::
   Sem (ScimTokenStore ': r) a ->
   Sem r a
 scimTokenStoreToCassandra =
-  interpret $ embed @m . \case
-    Insert st sti -> Data.insertScimToken st sti
-    Lookup st -> Data.lookupScimToken st
-    GetByTeam tid -> Data.getScimTokens tid
-    Delete tid ur -> Data.deleteScimToken  tid ur
-
+  interpret $
+    embed @m . \case
+      Insert st sti -> Data.insertScimToken st sti
+      Lookup st -> Data.lookupScimToken st
+      GetByTeam tid -> Data.getScimTokens tid
+      Delete tid ur -> Data.deleteScimToken tid ur

@@ -97,12 +97,17 @@ import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
+import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
+import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.IdP (GetIdPResult (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser.Cassandra (interpretClientToIO, samlUserToCassandra)
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
@@ -112,11 +117,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.Sem.ScimTokenStore (ScimTokenStore)
-import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -427,16 +427,17 @@ instance (r ~ '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (
     throwErrorAsHandlerException err
     where
       actionHandler :: Handler (Either SparError a)
-      actionHandler = liftIO
-                    $ runFinal
-                    $ embedToFinal @IO
-                    $ interpretClientToIO (sparCtxCas ctx)
-                    $ samlUserToCassandra @Cas.Client
-                    $ idPToCassandra @Cas.Client
-                    $ defaultSsoCodeToCassandra
-                    $ scimTokenStoreToCassandra
-                    $ runExceptT
-                    $ runReaderT action ctx
+      actionHandler =
+        liftIO $
+          runFinal $
+            embedToFinal @IO $
+              interpretClientToIO (sparCtxCas ctx) $
+                samlUserToCassandra @Cas.Client $
+                  idPToCassandra @Cas.Client $
+                    defaultSsoCodeToCassandra $
+                      scimTokenStoreToCassandra $
+                        runExceptT $
+                          runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

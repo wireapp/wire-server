@@ -1,8 +1,8 @@
 module Spar.Sem.ScimTokenStore where
 
+import Data.Id
 import Imports
 import Polysemy
-import Data.Id
 import Wire.API.User.Scim
 
 data ScimTokenStore m a where
@@ -12,4 +12,3 @@ data ScimTokenStore m a where
   Delete :: TeamId -> ScimTokenId -> ScimTokenStore m ()
 
 makeSem ''ScimTokenStore
-

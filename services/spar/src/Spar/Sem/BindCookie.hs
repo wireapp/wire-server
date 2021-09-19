@@ -1,11 +1,10 @@
 module Spar.Sem.BindCookie where
 
-import qualified Wire.API.Cookie as C
 import Data.Id
+import Data.Time (NominalDiffTime)
 import Imports
 import Polysemy
-import Data.Time (NominalDiffTime)
-
+import qualified Wire.API.Cookie as C
 
 data BindCookie m a where
   Insert :: C.SetBindCookie -> UserId -> NominalDiffTime -> BindCookie m ()

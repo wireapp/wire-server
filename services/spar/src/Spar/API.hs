@@ -64,18 +64,18 @@ import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
+import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
+import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
-import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.Sem.ScimTokenStore (ScimTokenStore)
 
 app :: Env -> Application
 app ctx =
