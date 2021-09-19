@@ -34,8 +34,10 @@ import Data.UUID.V4 as UUID
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
+import Spar.App (liftSem)
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
 import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
@@ -55,8 +57,6 @@ import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import Spar.App (liftSem)
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -81,16 +81,17 @@ registerScimToken teamid midpid = do
       pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
-  runSpar $ liftSem $
-    ScimTokenStore.insert
-      tok
-      ScimTokenInfo
-        { stiTeam = teamid,
-          stiId = scimTokenId,
-          stiCreatedAt = now,
-          stiIdP = midpid,
-          stiDescr = "test token"
-        }
+  runSpar $
+    liftSem $
+      ScimTokenStore.insert
+        tok
+        ScimTokenInfo
+          { stiTeam = teamid,
+            stiId = scimTokenId,
+            stiCreatedAt = now,
+            stiIdP = midpid,
+            stiDescr = "test token"
+          }
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered

@@ -36,6 +36,7 @@ import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUser as SAMLUser
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -47,7 +48,6 @@ import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
-import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 
 spec :: SpecWith TestEnv
 spec = do
