@@ -117,7 +117,8 @@ As always, and as explained in the `operations/procedures page <https://docs.wir
 
 .. code:: sh 
 
-  kubectl port-forward svc/brig 9999:8080 
+  # The following depends on your namespace where you installed wire-server. By default the namespace is called 'wire'.
+  kubectl --namespace wire port-forward svc/brig 9999:8080 
 
 And in a second terminal trigger the reindex: 
 
