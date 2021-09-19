@@ -105,7 +105,7 @@ Solution:
   sudo apt autoremove 
   sudo reboot
 
-As always, and as explained in the `operations/procedures page <https://docs.wire.com/how-to/administrate/operations.html>`__, make sure you `check the health of the process <https://docs.wire.com/how-to/administrate/elasticsearch.html#check-the-health-of-an-elasticsearch-node>`__. before and after the reboot.
+As always, and as explained in the `operations/procedures page <operations.html>`__, make sure you `check the health of the process <elasticsearch.html#check-the-health-of-an-elasticsearch-node>`__. before and after the reboot.
 
 3. Get the elastichsearch cluster out of *read-only* mode, run:
 
