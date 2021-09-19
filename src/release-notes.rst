@@ -24,6 +24,166 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+
+
+Chart Release 2.113.0
+=====================
+
+Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-08-27
+
+Upstream release notes for wire-server-deploy playbooks: https://github.com/wireapp/wire-server-deploy/blob/master/CHANGELOG.md#2021-08-27
+
+
+Release Notes
+-------------
+
+API Changes
+-----------
+
+* Deprecate `DELETE /conversations/:cnv/members/:usr` (#1697)
+* Add `DELETE /conversations/:cnv/members/:domain/:usr` (#1697)
+
+Features
+--------
+
+Bug fixes and other updates
+---------------------------
+
+* Fix case sensitivity in schema parser in hscim library (#1714)
+* [helm charts] resolve a rate-limiting issue when using certificate-manager alongside wire-server and nginx-ingress-services helm charts (#1715)
+
+Documentation
+-------------
+
+* Improve Swagger for `DELETE /conversations/:cnv/members/:usr` (#1697)
+
+Internal changes
+----------------
+
+* Integration test script now displays output interactively (#1700)
+* Fixed a few issues with error response documentation in Swagger (#1707)
+* Make mapping between (team) permissions and roles more lenient (#1711)
+* The `DELETE /conversations/:cnv/members/:usr` endpoint rewritten to Servant (#1697)
+* Remove leftover auto-connect internal endpoint and code (#1716)
+* Bump wire-webapp (#1720)
+* Bump team-settings (#1721)
+* Bump account-pages (#1666)
+
+Federation changes
+------------------
+
+* Added client certificate support for server to server authentication (#1682)
+* Implemented full server-to-server authentication (#1687)
+* Add an endpoint for removing a qualified user from a local conversation (#1697)
+
+
+Chart Release 2.112.0
+=====================
+
+Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-08-16
+
+Release Notes
+-------------
+
+This is a routine release requiring only the routine upgrade steps.
+
+API Changes
+-----------
+
+* Add `POST /conversations/list-ids` (#1686)
+* Deprecate `GET /converstations/ids` (#1686)
+
+Features
+--------
+
+* Client functions for the hscim library (#1694, #1699, #1702, https://hackage.haskell.org/package/hscim)
+
+Bug fixes and other updates
+---------------------------
+
+* Change http response code for `missing-legalhold-consent`. (#1688)
+* Remove old end-point for changing email
+
+Federation changes (alpha feature, do not use yet)
+--------------------------------------------------
+
+* Add new API to list paginated qualified conversation ids (#1686)
+
+Documentation
+-------------
+
+* Fix swagger: mark name in UserUpdate as optional (#1691, #1692)
+
+Internal changes
+----------------
+
+* Replaced uses of `UVerb` and `EmptyResult` with `MultiVerb` (#1693)
+* Added a mechanism to derive `AsUnion` instances automatically (#1693)
+* Integration test coverage (#1696, #1704)
+
+Chat Release 2.111.0
+============
+
+Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-08-02
+
+Release Notes
+-------------
+
+If you want to set the default for file sharing in all teams to `disabled`, search for "File Sharing" in https://github.com/wireapp/wire-server/tree/develop/docs/reference/config-options.md.
+
+Release Notes for Wire.com Cloud operators
+------------------------------------------
+
+Upgrade nginz (#1658)
+
+API Changes
+-----------
+
+Features
+--------
+
+* A new team feature for classified domains is available (#1626):
+  - a public endpoint is at `GET /teams/:tid/features/classifiedDomains`
+  - an internal endpoint is at `GET /i/teams/:tid/features/classifiedDomains`
+* Extend feature config API (#1658)
+* `fileSharing` feature config (#1652, #1654, #1655)
+* `conferenceCalling` feature flag (#1683)
+* Add user_id to csv export (#1663)
+
+Bug fixes and other updates
+---------------------------
+
+* New, hardened end-point for changing email (68b4db08)
+* Fix: CSV export is missing SCIM external id when SAML is also used (#1608)
+* Fix: sso_id field in user record (brig) was not always filled correctly in cassandra (#1334)
+* Change http response code for `missing-legalhold-consent` from 412 to 403 (#1688)
+
+Documentation
+-------------
+
+* Improved Swagger documentation for endpoints with multiple responses (#1649, #1645)
+
+Internal changes
+----------------
+
+* Improvements to local integration test setup when using buildah and kind (#1667)
+* The servant-swagger dependency now points to the current upstream master (#1656)
+* Improved error handling middleware (#1671)
+* Refactor function createUser for readability (#1670)
+* Removed explicit implementation for user HEAD endpoints (#1679)
+* Improved test coverage for error responses (#1680)
+* Introduced `MultiVerb` endpoints in Servant API (#1649).
+
+Federation changes (alpha feature, do not use yet)
+
+* Validate server TLS certificate between federators (#1662)
+* A clarification is added about listing your own domain as a classified domain (#1678)
+* Added a `QualifiedCapture` type to Servant for qualified paths (#1669)
+* Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
+* Added golden tests for protobuf serialisation / deserialisation (#1644).
+
+
+
 Chart version 2.110.0
 =====================
 
@@ -91,7 +251,7 @@ Bug fixes and other updates
 Chart version 2.109.0
 =====================
 
-See https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-06-23 
+See https://github.com/wireapp/wire-server/blob/develop/CHANGELOG.md#2021-06-23
 
 Release notes
 -------------
@@ -185,7 +345,7 @@ Features
 
 Bug fixes and other updates
 ---------------------------
-* Fix MIME-type of asset artifacts 
+* Fix MIME-type of asset artifacts
 * Add some missing charts (#1533)
 
 Internal changes
@@ -256,11 +416,11 @@ Features
  - [Federation] Add schema migration for new tables (#1485)
  - [SAML/SCIM] Normalize SAML identifiers and fix issues with duplicate account creation (#1495)
  - Internal end-point for ejpd request processing. (#1484)
- 
+
 Bug fixes and other updates
 ---------------------------
  - Fix: NewTeamMember vs. UserLegalHoldStatus (increase robustness against rogue clients) (#1496)
- 
+
 Documentation
 -------------
  - Fixes a typo in the wire-api documentation (#1513)

@@ -5,11 +5,12 @@ Architecture
 -------------
 
 To facilitate connections between federated backends, two new components are
-added to each backend: :ref:`ingress` and :ref:`federator`. The `ingress` is, as
-the name suggests the ingress point for incoming connections, where requests
-from other backends are then forwarded to the `federator`, which further
-processes the requests. In addition, the `federator` also acts as *egress* point
-for requests from internal backend components to other, remote backends.
+added to each backend: :ref:`Federation Ingress <federation_ingress>` and
+:ref:`Federator <federator>`. The `Federation Ingress` is, as the name suggests
+the ingress point for incoming connections from other backends, which are then
+forwarded to the `Federator`. The `Federator` then further processes the
+requests. In addition, the `Federator` also acts as *egress* point for requests
+from internal backend components to other, remote backends.
 
 .. image:: img/federated-backend-architecture.png
    :width: 100%
@@ -43,21 +44,21 @@ Backend components
 ^^^^^^^^^^^^^^^^^^
 
 In addition to the regular components of a Wire backend, two additional
-components are added to enable federation with other backends: The `Ingress` and
-the `Federator`. Other Wire components use these two components to contact other
-backends and respond to queries originating from remote backends.
+components are added to enable federation with other backends: The `Federation
+Ingress` and the `Federator`. Other Wire components use these two components to
+contact other backends and respond to queries originating from remote backends.
 
 The following subsections briefly introduce the individual components, their
 state and their functionality. The semantics of backend-to-backend communication
 will be explained in more detail in the Section on :ref:`Federation API
 <federation-api>`.
 
-.. _ingress:
+.. _federation_ingress:
 
-Ingress
-~~~~~~~
+Federation Ingress
+~~~~~~~~~~~~~~~~~~
 
-The ingress is a `kubernetes ingress
+The `Federation Ingress` is a `kubernetes ingress
 <https://kubernetes.io/docs/concepts/services-networking/ingress/>`_ and uses
 `nginx <https://nginx.org/en/>`_ as its underlying software.
 
@@ -71,7 +72,9 @@ Its functions are:
 
   - perform mutual :ref:`authentication` as part of the TLS connection
     establishment
-* forward requests to the local :ref:`federator` instance
+
+* forward requests to the local :ref:`Federator <federator>` instance, along
+  with the remote backend's client certificate
 
 
 .. _federator:
@@ -82,14 +85,15 @@ Federator
 .. warning:: As of July 2021, authentication is not fully implemented. See the
              section on :ref:`authentication` for more details.
 
-The federator acts as egress point for other backend components. It can be
-configured to use an :ref:`allow list <allow-list>` to authorize incoming and
-outgoing connections, and it keeps an X.509 client certificate for the backend's
-infra domain to authenticate itself towards other backends. Additionally, it
-requires a connection to a DNS resolver to :ref:`discover<discovery>` other
-backends.
+The `Federator` performs additional authorization checks after receiving
+federated requests from the `Federation Ingress` and acts as egress point for
+other backend components. It can be configured to use an :ref:`allow list
+<allow-list>` to authorize incoming and outgoing connections, and it keeps an
+X.509 client certificate for the backend's infra domain to authenticate itself
+towards other backends. Additionally, it requires a connection to a DNS resolver
+to :ref:`discover<discovery>` other backends.
 
-When receiving a request from an internal component, the federator will:
+When receiving a request from an internal component, the `Federator` will:
 
 #. If enabled, ensure the target domain is in the :ref:`allow list <allow-list>`
 #. :ref:`discover <discovery>` the other backend,
@@ -99,12 +103,15 @@ When receiving a request from an internal component, the federator will:
 #. forward the response back to the originating component (and eventually to the
    originating Wire client).
 
-The federator also implements the authorization logic for incoming requests and
-acts as intermediary between the Ingress and the internal components. The
-'federator' will, for incoming requests from other backends (forwarded via the
-local :ref:`ingress`):
+The `Federator` also implements the authorization logic for incoming requests and
+acts as intermediary between the `Federation Ingress` and the internal
+components. The `Federator` will, for incoming requests from remote backends
+(forwarded via the local :ref:`Federation Ingress <federation_ingress>`):
 
-#. Discover the backend domain claimed by the other backend,
+#. :ref:`Discover <discovery>` the mapping between backend domain claimed by the
+   remote backend and its infra domain,
+#. verify that the discovered infra domain matches the domain in the remote
+   backend's client certificate,
 #. if enabled, ensure that the backend domain of the other backend is in the
    :ref:`allow list <allow-list>`,
 #. normalize and sanitize the :ref:`path component <federator-component-api>` of
@@ -123,17 +130,17 @@ external services. See `source code documentation
 functions include:
 
 * For incoming requests from other backends:  :ref:`per-request authorization<per-request-authorization>`
-* Outgoing requests to other backends are always sent via a local :ref:`federator` instance.
+* Outgoing requests to other backends are always sent via a local :ref:`Federator` instance.
 
 For more information of the functionalities provided to remote backends through
-their federator, see the :ref:`federated API documentation<api-endpoints>`.
+their `Federator`, see the :ref:`federated API documentation<api-endpoints>`.
 
 
 Backend to backend communication
 --------------------------------------------
 
-We require communication between the federator of one (sending) backend and the
-ingress of another (receiving) backend to be both mutually authenticated and
+We require communication between the `Federator` of one (sending) backend and
+the ingress of another (receiving) backend to be both mutually authenticated and
 authorized. More specifically, both backends need to ensure the following:
 
 :Authentication: Determine the identity (infra domain name) of the other
@@ -158,15 +165,14 @@ feature of TLS as defined in `RFC 8556 <https://tools.ietf.org/html/rfc8446>`_.
 
 In particular, this means that the ingress of each backend needs to be
 provisioned with one or more certificates which it trusts to authenticate
-certificates provided by other backends when accepting incoming connections from
-other backends.
+certificates provided by other backends when accepting incoming connections.
 
-Conversely, every federator needs to be provisioned with a (client) certificate
-which it uses to authenticate itself towards other backends.
+Conversely, every `Federator` needs to be provisioned with a (client)
+certificate which it uses to authenticate itself towards other backends.
 
 Note that the client certificate is expected to be issued with the backend's
-infra domain as the subject alternative name (SAN), which is defined in `RFC
-5280 <https://tools.ietf.org/html/rfc5280>`_.
+infra domain as one of the subject alternative names (SAN), which is defined in
+`RFC 5280 <https://tools.ietf.org/html/rfc5280>`_.
 
 If a receiving backend fails to authenticate the client certificate, it should
 reply with an :ref:`authentication error <authentication error>`.
@@ -213,10 +219,11 @@ DNS Scope
 The network scope of the SRV record (as well as that of the DNS records for
 backend and infra domain), depends on the desired federation topology in the
 same way as other parameters such as the availability of the CA certificate that
-allows authentication of the Ingress' server certificate or the federator's
-client certificate. The general rule is that the SRV entry should be "visible"
-from the point of view of the desired federation partners. The exact scope
-strongly depends on the network architecture of the backends involved.
+allows authentication of the `Federation Ingress`' server certificate or the
+`Federator`'s client certificate. The general rule is that the SRV entry should
+be "visible" from the point of view of the desired federation partners. The
+exact scope strongly depends on the network architecture of the backends
+involved.
 
 SRV TTL and Caching
 ~~~~~~~~~~~~~~~~~~~
@@ -246,17 +253,18 @@ contains backend domains (which is not necessarily the same) the sending backend
 also needs to provide its backend domain.
 
 To make this possible, requests to remote backends are required to contain a
-`Wire-Domain` header, which contains the remote backend's domain.
+`Wire-Origin-Domain` header, which contains the remote backend's domain.
 
 While the receiving backend has authenticated the sending backend as the infra
 domain, it is not clear that the sending backend is indeed authorized by the
 owner of the backend domain to host the Wire backend of that particular domain.
 
 To perform this extra authorization step, the receiving backend follows the
-process described in :ref:`discovery` and compares the discovered infra domain
-for the backend domain indicated in the `Wire-Domain` header with the one the
-sending backend authenticated as. If there is a mismatch, the receiving backend
-replies with a :ref:`discovery error <discovery error>`.
+process described in :ref:`discovery` and checks that the discovered infra
+domain for the backend domain indicated in the `Wire-Domain` header is one of
+the Subject Alternative Names contained in the sending backend's client
+certificate. If this is not the case, the receiving backend replies with a
+:ref:`discovery error <discovery error>`.
 
 Finally, the receiving backend checks if the domain of the sending backend is in
 the :ref:`allow-list` and replies with an :ref:`authorization error

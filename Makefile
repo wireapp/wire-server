@@ -34,6 +34,10 @@ docs:
 docs-pdf:
 	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean pdf
 
+.PHONY: docs-latex
+docs-latex:
+	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean latex
+
 .PHONY: docs-all
 docs-all:
 	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html pdf
@@ -92,6 +96,10 @@ endif
 dev-pdf: pdf
 	$(OPEN) build/pdf/wire_federation.pdf 2>&1 > /dev/null &
 	find src/ | entr make pdf
+
+.PHONY: latex-pdf
+latex-pdf: latex
+	make -C build/latex all && echo "" && echo "Resulting PDF can be found in ./build/latex/main.pdf"
 
 .PHONY: help
 help:

@@ -4,8 +4,9 @@ API
 ====
 
 The Federation API consists of two *layers*:
-  1. Between federators
-  2. Between other components
+  1. Between two backends (i.e. between a `Federator` and a `Federation
+     Ingress`)
+  2. Between backend-internal components
 
 .. _qualified-identifiers-and-names:
 
@@ -42,7 +43,7 @@ qualified.
 API between Federators
 -----------------------
 
-The layer between federators acts as an envelope for communication between other
+The layer between `Federators` acts as an envelope for communication between other
 components of wire server. It uses Protocol Buffers (protobuf from here onwards)
 for serialization over gRPC. The latest protobuf schema can be inspected at
 `the wire-server repository
@@ -52,7 +53,7 @@ All gRPC calls are made via a :ref:`mutually authenticated TLS connection
 <authentication>` and subject to a :ref:`general <authorization>`, as well as a
 :ref:`per-request authorization <per-request-authorization>` step.
 
-The ``Inward`` service defined in the schema is used between federators. It
+The ``Inward`` service defined in the schema is used between `Federator`s. It
 supports one rpc called ``call`` which requires a ``Request`` and returns an
 ``InwardResponse``. These objects looks like this:
 
@@ -92,7 +93,7 @@ supports one rpc called ``call`` which requires a ``Request`` and returns an
     }
 
 
-The ``component`` field in ``Request`` tells the federator which components this
+The ``component`` field in ``Request`` tells the `Federator` which components this
 request is meant for and the rest of the arguments are details of the HTTP
 request which must be made against the component. It intentionally supports a
 restricted set of parameters to ensure that the API is simple.
@@ -101,11 +102,11 @@ API From Components to Federator
 --------------------------------
 
 Between two federated backends, the components talk to each other via their
-respective federators and ingress'. When making the call to the federator, the
+respective `Federator`s and ingress'. When making the call to the `Federator`, the
 components use protobuf over gRPC. They call the ``Outward`` service, which also
 supports one rpc called ``call``. This rpc requires a ``FederatedRequest``
 object, which contains a ``Request`` object as defined above, as well as the
-domain of the destination federator. The rpc returns an ``OutwardResponse``,
+domain of the destination `Federator`. The rpc returns an ``OutwardResponse``,
 which can either contains a body with the returned information or an
 ``OutwardError``, these objects look like this:
 
@@ -151,8 +152,8 @@ which can either contains a body with the returned information or an
 API From Federator to Components
 --------------------------------
 
-The components expose a REST API over HTTP to be consumed by the federator. All
-the paths start with ``/federation``. When a federator recieves a request like
+The components expose a REST API over HTTP to be consumed by the `Federator`. All
+the paths start with ``/federation``. When a `Federator` recieves a request like
 this (shown as JSON for convenience):
 
 .. code-block:: json
@@ -164,7 +165,7 @@ this (shown as JSON for convenience):
      "originDomain": "somedomain.example.com"
    }
 
-The federator connects to Brig and makes an HTTP request which looks like this:
+The `Federator` connects to Brig and makes an HTTP request which looks like this:
 
 .. code-block::
 
@@ -192,7 +193,7 @@ path-traversal attacks such as ``/federation/../users/by-handle``.
 List of Federation APIs exposed by Components
 ---------------------------------------------
 
-Each component of the backend provides an API towards the federator for access
+Each component of the backend provides an API towards the `Federator` for access
 by other backends. For example on how these APIs are used, see the section on
 :ref:`end-to-end flows<end-to-end-flows>`.
 
@@ -267,9 +268,9 @@ End-to-End Flows
 
 In the following end-to-end flows, we focus on the interaction between the Brigs
 and Galleys of federated backends. While the interactions are facilitated by the
-Federator and Ingress components of the backends involved, which handle the
-necessary discovery, authentication and authorization steps, we won't mention
-these steps explicitly each time to keep the flows simple.
+`Federator` and `Federation Ingress` components of the backends involved, which
+handle the necessary discovery, authentication and authorization steps, we won't
+mention these steps explicitly each time to keep the flows simple.
 
 Additionally we assume that the backend domain and the infra domain of the
 respecivebackends involved are the same and each domain identifies a distinct
@@ -287,13 +288,13 @@ In this flow, the user `A` at `backend-a.com` tries to search for user `B` at
    `B@backend-b.com` into the search field of their Wire client.
 #. The client issues a query to ``/search/contacts`` of the Brig searching for
    `B` at `backend-b.com`.
-#. The Brig in `A`'s backend asks its local Federator to query the
+#. The Brig in `A`'s backend asks its local `Federator` to query the
    ``search-users`` endpoint of B's backend for `B`.
-#. `A`'s Federator queries `B`'s Brig via `B`'s Ingress and Federator as
-   requested.
+#. `A`'s `Federator` queries `B`'s Brig via `B`'s `Federation Ingress` and
+   `Federator` as requested.
 #. `B`'s Brig replies with with `B`'s user name and qualified handle, the
-   response goes through `B`'s Federator and Ingress, as well as `A`'s Federator
-   before it reaches `A`'s Brig.
+   response goes through `B`'s `Federator` and `Federation Ingress`, as well as
+   `A`'s `Federator` before it reaches `A`'s Brig.
 #. `A`'s Brig forwards that information to `A`'s client.
 
 Conversation Establishment
@@ -306,19 +307,19 @@ wants to establish a conversation with `B`.
    `A` chooses to create a conversation with `B`.
 #. `A`'s client issues a ``/users/backend-b.com/B/prekeys`` query to `A`'s
    Brig.
-#. `A`'s Brig asks its Federator to query the ``claim-prekey-bundle`` endpoint
+#. `A`'s Brig asks its `Federator` to query the ``claim-prekey-bundle`` endpoint
    of `B`'s backend using `B`'s user id.
-#. `B`'s Ingress forwards the query to the Federator, who in turn forwards it to
+#. `B`'s `Federation Ingress` forwards the query to the `Federator`, who in turn forwards it to
    the local Brig.
 #. `B`'s Brig replies with a prekey bundle for each of `B`'s clients, which is
-   forwarded to `A`'s Brig via `B`'s Federator and Ingress, as well as `A`'s
-   Federator.
+   forwarded to `A`'s Brig via `B`'s `Federator` and `Federation Ingress`, as well as `A`'s
+   `Federator`.
 #. `A`'s Brig forwards that information to `A`'s client.
 #. `A`'s client queries the ``/conversations`` endpoint of its Galley
    using `B`'s user id.
 #. `A`'s Galley creates the conversation locally and queries the
    ``register-conversation`` endpoint of `B`'s Galley (again via its local
-   Federator, as well as `B`'s Ingress and Federator) to inform it about the new
+   `Federator`, as well as `B`'s `Federation Ingress` and `Federator`) to inform it about the new
    conversation, including the conversation metadata in the request.
 #. `B`'s Galley registers the conversation locally and confirms the query.
 #. `B`'s Galley notifies `B`'s client of the creation of the conversation.
@@ -340,7 +341,7 @@ Having established a conversation with user `B` at `backend-b.com`, user `A` at
 #. `A`'s Galley sends the message to all clients in the conversation that are
    part of `A`'s backend.
 #. `A`'s Galley queries the ``receive-message`` endpoint on `B`'s Galley via its
-   Federator and `B`'s Ingress and Federator.
+   `Federator` and `B`'s `Federation Ingress` and `Federator`.
 #. `B`'s Galley will propagate the message to all local clients involved in the
    conversation.
 
@@ -363,6 +364,6 @@ Having received a message from user `A` at `backend-a.com`, user `B` at
 #. `A`'s Galley sends the message to all clients in the conversation that are
    part of `A`'s backend.
 #. `A`'s Galley queries the ``receive-message`` endpoint on `B`'s Galley via its
-   Federator and `B`'s Ingress and Federator.
+   `Federator` and `B`'s `Federation Ingress` and `Federator`.
 #. `B`'s Galley will propagate the message to all local clients involved in the
    conversation.
