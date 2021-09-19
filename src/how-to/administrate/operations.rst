@@ -52,6 +52,10 @@ This is a list of the health-checking procedures currently documented, for diffe
 
 To check the health of different services not listed here, see the documentation for that specific project, or ask your Wire contact.
 
+.. note::
+
+    If a service is running inside a Kubernetes pod, checking its health is easy: if the pod is running, it is healthy. A non-healthy pod will stop running, and will be shown as such.
+
 Draining pods from a node for maintainance
 ------------------------------------------
 
