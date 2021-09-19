@@ -84,6 +84,8 @@ import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
+import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.App (liftSem)
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -1317,7 +1319,7 @@ testUpdateExternalId withidp = do
       lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
         runValidExternalId
-          (runSparCass . Data.getSAMLUser)
+          (runSpar . liftSem . SAMLUser.get)
           ( \email -> do
               let action = SU.scimFindUserByEmail midp tid $ fromEmail email
               result <- runSpar . runExceptT . runMaybeT $ action

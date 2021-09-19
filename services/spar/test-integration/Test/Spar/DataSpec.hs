@@ -46,6 +46,7 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
 import qualified Spar.Sem.IdP as IdPEffect
+import qualified Spar.Sem.SAMLUser as SAMLUser
 
 spec :: SpecWith TestEnv
 spec = do
@@ -110,34 +111,34 @@ spec = do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           uref <- nextUserRef
-          muid <- runSparCass $ Data.getSAMLUser uref
+          muid <- runSpar $ liftSem $ SAMLUser.get uref
           liftIO $ muid `shouldBe` Nothing
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
-          () <- runSparCass $ Data.insertSAMLUser uref uid
-          muid <- runSparCass $ Data.getSAMLUser uref
+          () <- runSpar $ liftSem $ SAMLUser.insert uref uid
+          muid <- runSpar $ liftSem $ SAMLUser.get uref
           liftIO $ muid `shouldBe` Just uid
       context "user already exists (idempotency)" $ do
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
           uid' <- nextWireId
-          () <- runSparCass $ Data.insertSAMLUser uref uid
-          () <- runSparCass $ Data.insertSAMLUser uref uid'
-          muid <- runSparCass $ Data.getSAMLUser uref
+          () <- runSpar $ liftSem $ SAMLUser.insert uref uid
+          () <- runSpar $ liftSem $ SAMLUser.insert uref uid'
+          muid <- runSpar $ liftSem $ SAMLUser.get uref
           liftIO $ muid `shouldBe` Just uid'
       describe "DELETE" $ do
         it "works" $ do
           uref <- nextUserRef
           uid <- nextWireId
           do
-            () <- runSparCass $ Data.insertSAMLUser uref uid
-            muid <- runSparCass (Data.getSAMLUser uref)
+            () <- runSpar $ liftSem $ SAMLUser.insert uref uid
+            muid <- runSpar $ liftSem (SAMLUser.get uref)
             liftIO $ muid `shouldBe` Just uid
           do
-            () <- runSparCass $ Data.deleteSAMLUser uid uref
-            muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isNothing
+            () <- runSpar $ liftSem $ SAMLUser.delete uid uref
+            muid <- runSpar (liftSem $ SAMLUser.get uref) `aFewTimes` isNothing
             liftIO $ muid `shouldBe` Nothing
     describe "BindCookie" $ do
       let mkcky :: TestSpar SetBindCookie
@@ -212,10 +213,10 @@ spec = do
           pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
           idp1 <- makeTestIdP
           idp2 <- makeTestIdP
-          runSparCass (Data.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId)))
+          runSpar $ liftSem $ IdPEffect.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId))
           idp1' <- runSpar $ liftSem (IdPEffect.getConfig (idp1 ^. idpId))
           liftIO $ idp1' `shouldBe` Nothing
-          runSparCass (Data.clearReplacedBy (Data.Replaced (idp1 ^. idpId)))
+          runSpar $ liftSem $ IdPEffect.clearReplacedBy (Data.Replaced (idp1 ^. idpId))
           idp2' <- runSpar $ liftSem (IdPEffect.getConfig (idp1 ^. idpId))
           liftIO $ idp2' `shouldBe` Nothing
 
@@ -282,9 +283,9 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   do
     mbUser1 <- case veidFromUserSSOId ssoid1 of
       Right veid ->
-        runSparCass $
+        runSpar $ liftSem $
           runValidExternalId
-            Data.getSAMLUser
+            SAMLUser.get
             undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
             veid
       Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
@@ -292,9 +293,9 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   do
     mbUser2 <- case veidFromUserSSOId ssoid2 of
       Right veid ->
-        runSparCass $
+        runSpar $ liftSem $
           runValidExternalId
-            Data.getSAMLUser
+            SAMLUser.get
             undefined
             veid
       Left _email -> undefined
