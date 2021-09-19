@@ -65,12 +65,14 @@ import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClient, wrapMonadClientSem, liftMonadClient, liftSem, wrapSpar)
-import qualified Spar.Data as Data hiding (storeIdPConfig, getIdPConfig, getIdPIdByIssuerWithoutTeam, getIdPIdByIssuerWithTeam, getIdPConfigsByTeam, setReplacedBy, clearReplacedBy, storeIdPRawMetadata, getIdPRawMetadata, deleteIdPRawMetadata)
+import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftMonadClient, liftSem, sparCtxOpts, validateEmailIfExists, wrapMonadClient, wrapMonadClientSem, wrapSpar)
+import qualified Spar.Data as Data hiding (clearReplacedBy, deleteIdPRawMetadata, getIdPConfig, getIdPConfigsByTeam, getIdPIdByIssuerWithTeam, getIdPIdByIssuerWithoutTeam, getIdPRawMetadata, setReplacedBy, storeIdPConfig, storeIdPRawMetadata)
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
+import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUser (SAMLUser)
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import qualified System.Logger.Class as Log
 import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
@@ -92,8 +94,6 @@ import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
-import qualified Spar.Sem.IdP as IdPEffect
-import qualified Spar.Sem.SAMLUser as SAMLUser
 
 ----------------------------------------------------------------------------
 -- UserDB instance

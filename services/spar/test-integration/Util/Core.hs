@@ -175,15 +175,17 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (toLevel, liftMonadClient, liftSem)
+import Spar.App (liftMonadClient, liftSem, toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Sem.SAMLUser (SAMLUser)
-import Spar.Sem.SAMLUser.Cassandra
+import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
+import Spar.Sem.SAMLUser (SAMLUser)
+import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.Sem.SAMLUser.Cassandra
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -206,8 +208,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
-import qualified Spar.Sem.IdP as IdPEffect
-import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)

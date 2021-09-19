@@ -60,11 +60,13 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import Spar.App (liftSem)
 import Spar.Data (lookupScimExternalId)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import qualified Text.XML.DSig as SAML
 import qualified URI.ByteString as URI
 import Util
@@ -84,8 +86,6 @@ import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
-import qualified Spar.Sem.SAMLUser as SAMLUser
-import Spar.App (liftSem)
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
