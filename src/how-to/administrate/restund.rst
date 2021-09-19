@@ -17,13 +17,73 @@ You can see the count of currently ongoing calls (also called "allocations"):
 How to restart restund (with downtime)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-*Please note that restarting ``restund`` means any user that is
-currently connected to it (i.e. having a call) will lose its audio/video
-connection. If you wish to have no downtime, check the next section*
-
 With downtime, it's very easy::
 
    systemctl restart restund
+
+.. warning::
+   
+   Restarting ``restund`` means any user that is currently connected to it (i.e. having a call) will lose its audio/video connection. If you wish to have no downtime, check the next section*
+
+Rebooting a Restund node
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you want to reboot a restund node, you need to make sure the other restund nodes in the cluster are running, so that services are not interrupted by the reboot.
+
+.. warning::
+
+   This procedure as described here will cause downtime, even if a second restund server is up; and kill any ongoing audio/video calls. The sections further up describe a downtime and a no-downtime procedure. 
+
+Presuming your two restund nodes are called:
+
+* ``restund-1``
+* ``restund-2``
+
+To prepare for a reboot of ``restund-1``, log into the other restund server (``restund-2``, for example here), and make sure the docker service is running.
+
+List the running containers, to ensure restund is running, by executing:
+
+.. code:: sh
+
+  ssh -t <ip of restund-2> sudo docker container ls
+
+You should see the following in the results:
+
+.. code:: sh
+
+  CONTAINER ID         IMAGE                                COMMAND         STATUS        PORTS    NAMES
+  <random hash>        quay.io/wire/restund:v0.4.16b1.0.53  22 seconds ago  Up 18 seconds          restund
+
+Make sure you see this restund container, and it is running ("Up"). 
+
+If it is not, you need to do troubleshooting work, if it is running, you can move forward and reboot restund-1.
+
+Now log into the restund server you wish to reboot (``restund-1`` in this example), and reboot it
+
+.. code:: sh
+  
+  ssh -t <ip of restund-1> sudo reboot
+
+Wait at least a minute for the machine to restart, you can use this command to automatically retry SSH access until it is succesful:
+
+.. code:: sh 
+
+  ssh -o 'ConnectionAttempts 3600' <ip of restund-1 node> exit
+
+Then log into the restund server (``restund-1``, in this example), and make sure the docker service is running:
+
+.. code:: sh
+
+  ssh -t <ip of restund-1> sudo docker container ls
+
+.. code:: sh
+
+  CONTAINER ID         IMAGE                                COMMAND         STATUS        PORTS    NAMES
+  <random hash>        quay.io/wire/restund:v0.4.16b1.0.53  22 seconds ago  Up 18 seconds          restund
+
+Here again, make sure you see a restund container, and it is running ("Up").
+
+If it is, you have succesfully reboot the restund server, and can if you need to apply the same procedure to the other restund servers in your cluster.
 
 How to restart restund without having downtime
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -161,58 +221,3 @@ May return something like:
 
 In the above case, there is a single server configured to use UDP on port 3478, plain TCP on port 3478, and TLS over TCP on port 5349. The ordering of the list is random and will change on every request made with curl.
 
-Rebooting a Restund node
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you want to reboot a restund node, you need to make sure the other restund nodes in the cluster are running, so that services are not interrupted by the reboot.
-
-Presuming your two restund nodes are called:
-
-* ``restund-1``
-* ``restund-2``
-
-To prepare for a reboot of ``restund-1``, log into the other restund server (``restund-2``, for example here), and make sure the docker service is running.
-
-List the running containers, to ensure restund is running, by executing:
-
-.. code:: sh
-
-  ssh -t <ip of restund-2> sudo docker container ls
-
-You should see the following in the results:
-
-.. code:: sh
-
-  CONTAINER ID         IMAGE                                COMMAND         STATUS        PORTS    NAMES
-  <random hash>        quay.io/wire/restund:v0.4.16b1.0.53  22 seconds ago  Up 18 seconds          restund
-
-Make sure you see this restund container, and it is running ("Up"). 
-
-If it is not, you need to do troubleshooting work, if it is running, you can move forward and reboot restund-1.
-
-Now log into the restund server you wish to reboot (``restund-1`` in this example), and reboot it
-
-.. code:: sh
-  
-  ssh -t <ip of restund-1> sudo reboot
-
-Wait at least a minute for the machine to restart, you can use this command to automatically retry SSH access until it is succesful:
-
-.. code:: sh 
-
-  ssh -o 'ConnectionAttempts 3600' <ip of restund-1 node> exit
-
-Then log into the restund server (``restund-1``, in this example), and make sure the docker service is running:
-
-.. code:: sh
-
-  ssh -t <ip of restund-1> sudo docker container ls
-
-.. code:: sh
-
-  CONTAINER ID         IMAGE                                COMMAND         STATUS        PORTS    NAMES
-  <random hash>        quay.io/wire/restund:v0.4.16b1.0.53  22 seconds ago  Up 18 seconds          restund
-
-Here again, make sure you see a restund container, and it is running ("Up").
-
-If it is, you have succesfully reboot the restund server, and can if you need to apply the same procedure to the other restund servers in your cluster.
