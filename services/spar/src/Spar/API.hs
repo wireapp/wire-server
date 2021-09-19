@@ -65,6 +65,7 @@ import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
 import qualified Spar.Sem.IdP as IdPEffect
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
@@ -100,7 +101,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Member ScimTokenStore r => Member IdPEffect.IdP r => ServerT APIIDP (Spar r)
+apiIDP :: Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -240,20 +241,20 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: forall r. Member ScimTokenStore r => Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+idpDelete :: forall r. Member ScimTokenStore r => Member SAMLUser r => Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
-  idpIsEmpty <- wrapMonadClient $ isNothing <$> Data.getSAMLAnyUserByIssuer issuer
+  idpIsEmpty <- wrapMonadClientSem $ isNothing <$> SAMLUser.getAnyByIssuer issuer
   let doPurge :: Spar r ()
       doPurge = do
-        some <- wrapMonadClient (Data.getSAMLSomeUsersByIssuer issuer)
+        some <- wrapMonadClientSem (SAMLUser.getSomeByIssuer issuer)
         forM_ some $ \(uref, uid) -> do
           Brig.deleteBrigUser uid
-          wrapMonadClient (Data.deleteSAMLUser uid uref)
+          wrapMonadClientSem (SAMLUser.delete uid uref)
         unless (null some) doPurge
   when (not idpIsEmpty) $ do
     if purge
