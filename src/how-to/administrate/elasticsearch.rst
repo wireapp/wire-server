@@ -6,14 +6,6 @@ Elasticsearch
 For more information, see the `elasticsearch
 documentation <https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html>`__
 
-See cluster health and cluster nodes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code:: sh
-
-   curl 'http://localhost:9200/_cluster/health?pretty'
-   curl 'http://localhost:9200/_cat/nodes?v&h=id,ip,name'
-
 How to rolling-restart an elasticsearch cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -58,6 +50,40 @@ How to manually look into what is stored in elasticsearch
 
 See also the elasticsearch sections in :ref:`investigative_tasks`.
 
+
+Check the health of an elasticsearch node
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To check the health of an elasticsearch node, run the following command: 
+
+.. code:: sh 
+
+  ssh <ip of elasticsearch node> curl localhost:9200/_cat/health
+
+You should see output looking like this:
+
+.. code:: 
+
+  1630250355 15:18:55 elasticsearch-directory green 3 3 17 6 0 0 0 - 100.0%
+
+Here, the ``green`` denotes good node health, and the ``3 3`` denotes 3 running nodes.
+
+Check cluster health and list cluster nodes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is the command to check the health of the entire cluster:
+
+.. code:: sh
+
+   ssh <ip of elasticsearch node> curl 'http://localhost:9200/_cluster/health?pretty'
+
+And this is the command to list the nodes in the cluster:
+
+.. code:: sh
+
+   ssh <ip of elasticsearch node> curl 'http://localhost:9200/_cat/nodes?v&h=id,ip,name'
+
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
@@ -65,6 +91,37 @@ Description:
 **ES nodes ran out of disk space** and error message says: ``"blocked by: [FORBIDDEN/12/index read-only / allow delete (api)];"``
 
 Solution:
-* clean up disk (e.g. ``apt autoremove`` on all nodes), then restart machines and/or the elasticsearch process
-* get the elastichsearch cluster out of *read-only* mode: SSH to one elasticsearch machine, then run ``curl -X PUT -H 'Content-Type: application/json' http://localhost:9200/_all/_settings -d '{"index.blocks.read_only_allow_delete": null}'``
-* trigger reindexing: From a kubernetes machine, in one terminal: ``kubectl port-forward svc/brig 9999:8080``, and in a second terminal trigger the reindex: ``curl -v -X POST localhost:9999/i/index/reindex``
+
+1. Connect to the node:
+
+.. code:: sh 
+
+  ssh <ip of elasticsearch node>
+
+2. Clean up disk (e.g. ``apt autoremove`` on all nodes), then restart machines and/or the elasticsearch process
+
+.. code:: sh 
+
+  sudo apt autoremove 
+  sudo reboot
+
+As always, and as explained in the `operations/procedures page <operations.html>`__, make sure you `check the health of the process <elasticsearch.html#check-the-health-of-an-elasticsearch-node>`__. before and after the reboot.
+
+3. Get the elastichsearch cluster out of *read-only* mode, run:
+
+.. code:: sh 
+
+  curl -X PUT -H 'Content-Type: application/json' http://localhost:9200/_all/_settings -d '{"index.blocks.read_only_allow_delete": null}'
+
+4. Trigger reindexing: From a kubernetes machine, in one terminal: 
+
+.. code:: sh 
+
+  # The following depends on your namespace where you installed wire-server. By default the namespace is called 'wire'.
+  kubectl --namespace wire port-forward svc/brig 9999:8080 
+
+And in a second terminal trigger the reindex: 
+
+.. code:: sh  
+
+  curl -v -X POST localhost:9999/i/index/reindex
