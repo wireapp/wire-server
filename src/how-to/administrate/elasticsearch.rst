@@ -51,14 +51,14 @@ How to manually look into what is stored in elasticsearch
 See also the elasticsearch sections in :ref:`investigative_tasks`.
 
 
-Check the health of an ElastiSearch node
+Check the health of an elasticsearch node
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To check the health of an ElastiSearch node, run the following command: 
+To check the health of an elasticsearch node, run the following command: 
 
 .. code:: sh 
 
-  ssh <ip of elastisearch node> curl localhost:9200/_cat/health
+  ssh <ip of elasticsearch node> curl localhost:9200/_cat/health
 
 You should see output looking like this:
 
@@ -75,13 +75,13 @@ This is the command to check the health of the entire cluster:
 
 .. code:: sh
 
-   ssh <ip of elastisearch node> curl 'http://localhost:9200/_cluster/health?pretty'
+   ssh <ip of elasticsearch node> curl 'http://localhost:9200/_cluster/health?pretty'
 
 And this is the command to list the nodes in the cluster:
 
 .. code:: sh
 
-   ssh <ip of elastisearch node> curl 'http://localhost:9200/_cat/nodes?v&h=id,ip,name'
+   ssh <ip of elasticsearch node> curl 'http://localhost:9200/_cat/nodes?v&h=id,ip,name'
 
 
 Troubleshooting
@@ -96,7 +96,7 @@ Solution:
 
 .. code:: sh 
 
-  ssh <ip of elastisearch node>
+  ssh <ip of elasticsearch node>
 
 2. Clean up disk (e.g. ``apt autoremove`` on all nodes), then restart machines and/or the elasticsearch process
 
@@ -105,7 +105,7 @@ Solution:
   sudo apt autoremove 
   sudo reboot
 
-As always, and as explained in the `operations/procedures page <https://docs.wire.com/how-to/administrate/operations.html>`__, make sure you `check the health of the process <https://docs.wire.com/how-to/administrate/elasticsearch.html#check-the-health-of-an-elastisearch-node>`__. before and after the reboot.
+As always, and as explained in the `operations/procedures page <https://docs.wire.com/how-to/administrate/operations.html>`__, make sure you `check the health of the process <https://docs.wire.com/how-to/administrate/elasticsearch.html#check-the-health-of-an-elasticsearch-node>`__. before and after the reboot.
 
 3. Get the elastichsearch cluster out of *read-only* mode, run:
 

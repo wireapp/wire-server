@@ -146,7 +146,7 @@ First, ssh to an elasticsearch instance.
 
 .. code:: sh
 
-  ssh <ip of elastisearch instance> 
+  ssh <ip of elasticsearch instance> 
 
 Then run the following:
 
@@ -170,7 +170,7 @@ First, ssh to an elasticsearch instance:
 
 .. code:: sh
 
-  ssh <ip of elastisearch instance> 
+  ssh <ip of elasticsearch instance> 
 
 Next, check that the user exists:
 
