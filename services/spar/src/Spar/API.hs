@@ -110,7 +110,7 @@ apiIDP =
     :<|> idpUpdate
     :<|> idpDelete
 
-apiINTERNAL :: Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIINTERNAL (Spar r)
+apiINTERNAL :: Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIINTERNAL (Spar r)
 apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam
@@ -486,7 +486,7 @@ internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: Member IdPEffect.IdP r => Member SAMLUser r => TeamId -> Spar r NoContent
+internalDeleteTeam :: Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => TeamId -> Spar r NoContent
 internalDeleteTeam team = do
   wrapSpar $ deleteTeam team
   pure NoContent

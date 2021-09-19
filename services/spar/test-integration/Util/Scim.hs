@@ -22,7 +22,6 @@ module Util.Scim where
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
-import Cassandra
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
@@ -35,7 +34,6 @@ import Data.UUID.V4 as UUID
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
-import Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import Test.QuickCheck (arbitrary, generate)
@@ -57,6 +55,8 @@ import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.App (liftSem)
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -75,15 +75,14 @@ registerIdPAndScimTokenWithMeta = do
 -- | Create a fresh SCIM token and register it for the team.
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
-  env <- ask
   tok <-
     ScimToken <$> do
       code <- liftIO UUID.nextRandom
       pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
-  runClient (env ^. teCql) $
-    Data.insertScimToken
+  runSpar $ liftSem $
+    ScimTokenStore.insert
       tok
       ScimTokenInfo
         { stiTeam = teamid,

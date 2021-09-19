@@ -40,6 +40,7 @@ module Spar.App
     getIdPConfigByIssuerAllowOld,
     deleteTeam,
     wrapSpar,
+    liftSem,
     liftMonadClient,
   )
 where
@@ -782,11 +783,11 @@ mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
 
 -- | Delete all tokens belonging to a team.
 deleteTeam ::
-  (HasCallStack, Member SAMLUser r, Member IdPEffect.IdP r) =>
+  (HasCallStack, Member ScimTokenStore r, Member SAMLUser r, Member IdPEffect.IdP r) =>
   TeamId ->
   Spar r ()
 deleteTeam team = do
-  liftMonadClient $ Data.deleteTeamScimTokens team
+  liftSem $ ScimTokenStore.deleteByTeam team
   -- Since IdPs are not shared between teams, we can look at the set of IdPs
   -- used by the team, and remove everything related to those IdPs, too.
   idps <- liftSem $ IdPEffect.getConfigsByTeam team

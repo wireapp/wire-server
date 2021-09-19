@@ -47,8 +47,7 @@ import OpenSSL.Random (randBytes)
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClientSem)
-import qualified Spar.Data as Data hiding (clearReplacedBy, deleteIdPRawMetadata, getIdPConfig, getIdPConfigsByTeam, getIdPIdByIssuerWithTeam, getIdPIdByIssuerWithoutTeam, getIdPRawMetadata, setReplacedBy, storeIdPConfig, storeIdPRawMetadata)
+import Spar.App (Spar, sparCtxOpts, wrapMonadClientSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified Spar.Sem.IdP as IdPEffect

@@ -10,5 +10,6 @@ data ScimTokenStore m a where
   Lookup :: ScimToken -> ScimTokenStore m (Maybe ScimTokenInfo)
   GetByTeam :: TeamId -> ScimTokenStore m [ScimTokenInfo]
   Delete :: TeamId -> ScimTokenId -> ScimTokenStore m ()
+  DeleteByTeam :: TeamId -> ScimTokenStore m ()
 
 makeSem ''ScimTokenStore

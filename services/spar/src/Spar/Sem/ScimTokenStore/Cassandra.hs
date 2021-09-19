@@ -20,3 +20,4 @@ scimTokenStoreToCassandra =
       Lookup st -> Data.lookupScimToken st
       GetByTeam tid -> Data.getScimTokens tid
       Delete tid ur -> Data.deleteScimToken tid ur
+      DeleteByTeam tid -> Data.deleteTeamScimTokens tid

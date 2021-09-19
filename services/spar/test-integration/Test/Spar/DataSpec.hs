@@ -47,6 +47,7 @@ import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 
 spec :: SpecWith TestEnv
 spec = do
@@ -273,11 +274,11 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   --
   -- The token from 'team_provisioning_by_token':
   do
-    tokenInfo <- runSparCass $ Data.lookupScimToken tok
+    tokenInfo <- runSpar $ liftSem $ ScimTokenStore.lookup tok
     liftIO $ tokenInfo `shouldBe` Nothing
   -- The team from 'team_provisioning_by_team':
   do
-    tokens <- runSparCass $ Data.getScimTokens tid
+    tokens <- runSpar $ liftSem $ ScimTokenStore.getByTeam tid
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
