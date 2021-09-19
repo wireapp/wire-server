@@ -31,9 +31,11 @@ import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
 import SAML2.WebSSO as SAML
-import Spar.Data as Data
 import Spar.App as App
+import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
+import qualified Spar.Sem.IdP as IdPEffect
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -45,8 +47,6 @@ import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
-import qualified Spar.Sem.IdP as IdPEffect
-import qualified Spar.Sem.SAMLUser as SAMLUser
 
 spec :: SpecWith TestEnv
 spec = do
@@ -283,21 +283,23 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   do
     mbUser1 <- case veidFromUserSSOId ssoid1 of
       Right veid ->
-        runSpar $ liftSem $
-          runValidExternalId
-            SAMLUser.get
-            undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
-            veid
+        runSpar $
+          liftSem $
+            runValidExternalId
+              SAMLUser.get
+              undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
+              veid
       Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
     liftIO $ mbUser1 `shouldBe` Nothing
   do
     mbUser2 <- case veidFromUserSSOId ssoid2 of
       Right veid ->
-        runSpar $ liftSem $
-          runValidExternalId
-            SAMLUser.get
-            undefined
-            veid
+        runSpar $
+          liftSem $
+            runValidExternalId
+              SAMLUser.get
+              undefined
+              veid
       Left _email -> undefined
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':

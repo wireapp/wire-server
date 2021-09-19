@@ -41,7 +41,7 @@ module Spar.App
     deleteTeam,
     wrapSpar,
     liftSem,
-    liftMonadClient
+    liftMonadClient,
   )
 where
 
@@ -242,8 +242,9 @@ liftMonadClient action =
 -- re-throw them as 500 in Handler.
 wrapMonadClientSem :: Sem r a -> Spar r a
 wrapMonadClientSem action =
-  Spar $ (lift $ lift action) `Catch.catch`
-    (throwSpar . SparCassandraError . cs . show @SomeException)
+  Spar $
+    (lift $ lift action)
+      `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
 wrapSpar :: Spar r a -> Spar r a
 wrapSpar action = Spar $ do

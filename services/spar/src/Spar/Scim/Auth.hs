@@ -41,22 +41,23 @@ import Data.String.Conversions (cs)
 import Data.Time (getCurrentTime)
 import Imports
 import OpenSSL.Random (randBytes)
+-- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
+-- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
+
+import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
 import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClientSem)
-import qualified Spar.Data as Data hiding (storeIdPConfig, getIdPConfig, getIdPIdByIssuerWithoutTeam, getIdPIdByIssuerWithTeam, getIdPConfigsByTeam, setReplacedBy, clearReplacedBy, storeIdPRawMetadata, getIdPRawMetadata, deleteIdPRawMetadata)
+import qualified Spar.Data as Data hiding (clearReplacedBy, deleteIdPRawMetadata, getIdPConfig, getIdPConfigsByTeam, getIdPIdByIssuerWithTeam, getIdPIdByIssuerWithoutTeam, getIdPRawMetadata, setReplacedBy, storeIdPConfig, storeIdPRawMetadata)
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
--- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
--- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
+import qualified Spar.Sem.IdP as IdPEffect
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User.Saml (maxScimTokens)
 import Wire.API.User.Scim
-import qualified Spar.Sem.IdP as IdPEffect
-import Polysemy
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Scim.Class.Auth.AuthDB SparTag (Spar r) where
@@ -75,7 +76,7 @@ instance Scim.Class.Auth.AuthDB SparTag (Spar r) where
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: Member IdPEffect.IdP r =>ServerT APIScimToken (Spar r)
+apiScimToken :: Member IdPEffect.IdP r => ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken

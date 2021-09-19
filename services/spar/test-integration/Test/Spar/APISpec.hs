@@ -70,7 +70,9 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
+import Spar.App (liftSem)
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Sem.IdP as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
@@ -84,8 +86,6 @@ import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import qualified Wire.API.User.Saml as WireAPI (saml)
 import Wire.API.User.Scim
-import qualified Spar.Sem.IdP as IdPEffect
-import Spar.App (liftSem)
 
 spec :: SpecWith TestEnv
 spec = do
@@ -1526,4 +1526,3 @@ specSparUserMigration = do
         ssoToUidSpar tid ssoid
 
       liftIO $ mbUserId `shouldBe` Just memberUid
-

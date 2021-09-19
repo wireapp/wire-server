@@ -82,6 +82,7 @@ import Spar.Error
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
+import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
@@ -92,7 +93,6 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
-import qualified Spar.Sem.IdP as IdPEffect
 
 -- | SCIM config for our server.
 --
