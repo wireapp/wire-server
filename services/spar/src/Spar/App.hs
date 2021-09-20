@@ -118,6 +118,8 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -420,7 +422,7 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance (r ~ '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+instance (r ~ '[ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -437,6 +439,7 @@ instance (r ~ '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (
                   idPToCassandra @Cas.Client $
                     defaultSsoCodeToCassandra $
                       scimTokenStoreToCassandra $
+                      scimUserTimesStoreToCassandra $
                         runExceptT $
                           runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a

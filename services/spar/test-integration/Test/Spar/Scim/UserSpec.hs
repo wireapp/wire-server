@@ -62,7 +62,6 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Spar.App (liftSem)
 import Spar.Data (lookupScimExternalId)
-import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
@@ -86,6 +85,7 @@ import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
+import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -1538,7 +1538,7 @@ specDeleteUser = do
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
       scimUser <-
-        aFewTimes (runSparCass $ Data.readScimUserTimes uid) isNothing
+        aFewTimes (runSpar $ liftSem $ ScimUserTimesStore.read uid) isNothing
       liftIO $
         (brigUser, samlUser, scimUser)
           `shouldBe` (Nothing, Nothing, Nothing)

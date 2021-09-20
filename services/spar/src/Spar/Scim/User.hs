@@ -94,11 +94,13 @@ import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
+import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance (Member IdPEffect.IdP r, Member SAMLUser r) => Scim.UserDB ST.SparTag (Spar r) where
+instance (Member ScimUserTimesStore r, Member IdPEffect.IdP r, Member SAMLUser r) => Scim.UserDB ST.SparTag (Spar r) where
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
@@ -366,6 +368,7 @@ veidEmail (ST.EmailOnly email) = Just email
 createValidScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Spar r)) =>
+  Member ScimUserTimesStore r =>
   Member SAMLUser r =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
@@ -428,7 +431,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       -- {(arianvp): these two actions we probably want to make transactional.}
       lift . wrapSpar $ do
         -- Store scim timestamps, saml credentials, scim externalId locally in spar.
-        liftMonadClient $ Data.writeScimUserTimes storedUser
+        liftSem $ ScimUserTimesStore.write storedUser
         ST.runValidExternalId
           (liftSem . (`SAMLUser.insert` buid))
           (\email -> liftMonadClient $ Data.insertScimExternalId stiTeam email buid)
@@ -448,6 +451,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
   forall m r.
+  Member ScimUserTimesStore r =>
   Member IdPEffect.IdP r =>
   Member SAMLUser r =>
   (m ~ Scim.ScimHandler (Spar r)) =>
@@ -500,7 +504,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
               let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
               when (new /= old) $ Brig.setStatus uid new
 
-          wrapMonadClient $ Data.writeScimUserTimes newScimStoredUser
+          wrapMonadClientSem $ ScimUserTimesStore.write newScimStoredUser
           pure newScimStoredUser
 
 updateVsuUref ::
@@ -576,7 +580,7 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
           Scim.version = calculateVersion scimuid usr
         }
 
-deleteScimUser :: Member SAMLUser r => Member IdPEffect.IdP r => ScimTokenInfo -> UserId -> Scim.ScimHandler (Spar r) ()
+deleteScimUser :: Member ScimUserTimesStore r => Member SAMLUser r => Member IdPEffect.IdP r => ScimTokenInfo -> UserId -> Scim.ScimHandler (Spar r) ()
 deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
   logScim
     ( logFunction "Spar.Scim.User.deleteScimUser"
@@ -609,7 +613,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
                   (liftMonadClient . Data.deleteScimExternalId stiTeam)
                   veid
 
-          lift . wrapMonadClient $ Data.deleteScimUserTimes uid
+          lift . wrapMonadClientSem $ ScimUserTimesStore.delete uid
           lift $ Brig.deleteBrigUser uid
           return ()
 
@@ -697,7 +701,7 @@ assertHandleNotUsedElsewhere uid hndl = do
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
-synthesizeStoredUser :: UserAccount -> ST.ValidExternalId -> Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
+synthesizeStoredUser :: forall r. Member ScimUserTimesStore r => UserAccount -> ST.ValidExternalId -> Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser usr veid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
@@ -713,14 +717,14 @@ synthesizeStoredUser usr veid =
       let readState :: Spar r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
           readState = do
             richInfo <- Brig.getBrigUserRichInfo uid
-            accessTimes <- wrapMonadClient (Data.readScimUserTimes uid)
+            accessTimes <- wrapMonadClientSem (ScimUserTimesStore.read uid)
             baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
             pure (richInfo, accessTimes, baseuri)
 
       let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Spar r ()
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
             when (isNothing oldAccessTimes) $ do
-              wrapMonadClient $ Data.writeScimUserTimes storedUser
+              wrapMonadClientSem $ ScimUserTimesStore.write storedUser
             when (oldManagedBy /= ManagedByScim) $ do
               Brig.setBrigUserManagedBy uid ManagedByScim
             let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
@@ -783,7 +787,7 @@ synthesizeScimUser info =
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive
         }
 
-scimFindUserByHandle :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
+scimFindUserByHandle :: Member ScimUserTimesStore r => Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByHandle mIdpConfig stiTeam hndl = do
   handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
   brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
@@ -798,7 +802,7 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 --
 -- Note the user won't get an entry in `spar.user`.  That will only happen on their first
 -- successful authentication with their SAML credentials.
-scimFindUserByEmail :: forall r. Member SAMLUser r => Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
+scimFindUserByEmail :: forall r. Member ScimUserTimesStore r => Member SAMLUser r => Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
   -- Azure has been observed to search for externalIds that are not emails, even if the
   -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidExternalId'

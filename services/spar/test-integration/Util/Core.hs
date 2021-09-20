@@ -181,6 +181,8 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import qualified Spar.Sem.IdP as IdPEffect
@@ -1249,7 +1251,7 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
@@ -1261,6 +1263,7 @@ runSpar (Spar.Spar action) = do
               idPToCassandra @Cas.Client $
                 scimTokenStoreToCassandra @Cas.Client $
                   defaultSsoCodeToCassandra @Cas.Client $
+                  scimUserTimesStoreToCassandra @Cas.Client $
                     runExceptT $
                       action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
