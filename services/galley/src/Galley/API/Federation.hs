@@ -104,7 +104,7 @@ getConversations domain (GetConversationsRequest uid cids) = do
   GetConversationsResponse
     . catMaybes
     . map (Mapping.conversationToRemote localDomain ruid)
-    <$> Data.conversations cids
+    <$> Data.localConversations cids
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList

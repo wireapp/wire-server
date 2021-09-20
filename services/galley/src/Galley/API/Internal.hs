@@ -441,18 +441,18 @@ rmUser user conn = do
   let n = unsafeRange 100 :: Range 1 100 Int32
   tids <- Data.teamIdsForPagination user Nothing (rcast n)
   leaveTeams tids
-  cids <- Data.conversationIdRowsForPagination user Nothing (rcast n)
-  leaveConversations user cids
+  localCids <- Data.localConversationIdRowsForPagination user Nothing (rcast n)
+  leaveLocalConversations user localCids
   Data.eraseClients user
   where
     leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveConversations :: UserId -> Cql.Page ConvId -> Galley ()
-    leaveConversations u ids = do
+    leaveLocalConversations :: UserId -> Cql.Page ConvId -> Galley ()
+    leaveLocalConversations u ids = do
       localDomain <- viewFederationDomain
-      cc <- Data.conversations (Cql.result ids)
+      cc <- Data.localConversations (Cql.result ids)
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
@@ -470,7 +470,7 @@ rmUser user conn = do
         (maybeList1 (catMaybes pp))
         Intra.push
       unless (null $ Cql.result ids) $
-        leaveConversations u =<< Cql.liftClient (Cql.nextPage ids)
+        leaveLocalConversations u =<< Cql.liftClient (Cql.nextPage ids)
 
 deleteLoop :: Galley ()
 deleteLoop = do
