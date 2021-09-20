@@ -30,7 +30,7 @@
 
 module Test.Spar.ScimSpec where
 
-import Brig.Types.Test.Arbitrary
+import Control.Lens (view)
 import Data.Aeson (eitherDecode', encode, parseJSON)
 import Data.Aeson.QQ (aesonQQ)
 import qualified Data.Aeson.Types as Aeson
@@ -41,6 +41,7 @@ import Imports
 import Network.URI (parseURI)
 import qualified SAML2.WebSSO as SAML
 import Spar.Scim
+import Spar.Scim.Types (normalizeLikeStored)
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString
@@ -123,6 +124,7 @@ spec = describe "toScimStoredUser'" $ do
   it "roundtrips" . property $ do
     \(sue :: ScimUserExtra) ->
       eitherDecode' (encode sue) `shouldBe` Right sue
+
   describe "ScimUserExtra" $ do
     describe "Patchable" $ do
       it "can add to rich info map" $ do
@@ -254,5 +256,8 @@ spec = describe "toScimStoredUser'" $ do
         applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList origAssocList))) operation
           `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList expectedAssocList))))
 
-instance Arbitrary ScimUserExtra where
-  arbitrary = ScimUserExtra <$> arbitrary
+  describe "normalizeLikeStored" $ do
+    focus . it "keeps user record intact" . property $
+      \(WithNormalizedRichFields (usr :: (Scim.User SparTag))) -> counterexample (show usr) $ do
+        let f = length . unRichInfoAssocList . unRichInfo . view sueRichInfo . Scim.extra
+        f (normalizeLikeStored usr) `shouldBe` f usr

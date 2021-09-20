@@ -41,6 +41,23 @@ data Schema
   | CustomSchema Text
   deriving (Show, Eq)
 
+fakeEnumSchema :: [Schema]
+fakeEnumSchema =
+  [ User20,
+    ServiceProviderConfig20,
+    Group20,
+    Schema20,
+    ResourceType20,
+    ListResponse20,
+    Error20,
+    PatchOp20,
+    CustomSchema "",
+    CustomSchema "asdf",
+    CustomSchema "123",
+    CustomSchema "aos8wejv09837",
+    CustomSchema "aos8wejv09837wfeu09wuee0976t0213!!'#@"
+  ]
+
 instance FromJSON Schema where
   parseJSON = withText "schema" $ \t -> pure (fromSchemaUri t)
 

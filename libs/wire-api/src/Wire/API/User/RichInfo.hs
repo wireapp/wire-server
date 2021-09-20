@@ -37,6 +37,7 @@ module Wire.API.User.RichInfo
 
     -- * RichField
     RichField (..),
+    WithNormalizedRichFields (..),
 
     -- * Swagger
     modelRichInfo,
@@ -75,6 +76,9 @@ instance FromJSON RichInfo where
 
 instance Arbitrary RichInfo where
   arbitrary = RichInfo <$> arbitrary
+
+instance Arbitrary (WithNormalizedRichFields RichInfo) where
+  arbitrary = WithNormalizedRichFields . RichInfo . fromWithNormalizedRichFields <$> arbitrary
 
 instance Monoid RichInfo where
   mempty = RichInfo mempty
@@ -171,6 +175,12 @@ instance Arbitrary RichInfoMapAndList where
     richInfoMap <- arbitrary
     pure RichInfoMapAndList {..}
 
+instance Arbitrary (WithNormalizedRichFields RichInfoMapAndList) where
+  arbitrary = do
+    al <- unRichInfoAssocList . fromWithNormalizedRichFields <$> arbitrary
+    let mp = Map.fromList $ (\(RichField key val) -> (key, val)) <$> al
+    pure . WithNormalizedRichFields $ RichInfoMapAndList mp al
+
 -- | Lossy transformation of map-and-list representation into list-only representation.  The
 -- order of the list part of 'RichInfo' is not changed in the output; keys in the map that do
 -- not appear in the list are appended in alpha order.
@@ -238,6 +248,9 @@ richInfoAssocListFromObject richinfoObj = do
 instance Arbitrary RichInfoAssocList where
   arbitrary = RichInfoAssocList <$> nubOrdOn richFieldType <$> arbitrary
 
+instance Arbitrary (WithNormalizedRichFields RichInfoAssocList) where
+  arbitrary = WithNormalizedRichFields . normalizeRichInfoAssocList <$> arbitrary
+
 --------------------------------------------------------------------------------
 -- RichField
 
@@ -276,7 +289,13 @@ instance Arbitrary RichField where
   arbitrary =
     RichField
       <$> (CI.mk . cs . QC.getPrintableString <$> arbitrary)
-      <*> (cs . QC.getPrintableString <$> arbitrary `QC.suchThat` (/= QC.PrintableString "")) -- This is required because FromJSON calls @normalizeRichInfo*@ and roundtrip tests fail
+      <*> (cs . QC.getPrintableString <$> arbitrary)
+
+----------------------------------------------------------------------
+-- WithNormalizedRichFields
+
+newtype WithNormalizedRichFields a = WithNormalizedRichFields {fromWithNormalizedRichFields :: a}
+  deriving newtype (Eq, Ord, Show, Generic)
 
 --------------------------------------------------------------------------------
 -- convenience functions
@@ -297,7 +316,6 @@ normalizeRichInfoMapAndList (RichInfoMapAndList rifMap assocList) =
       richInfoMap = rifMap
     }
 
--- | Remove fields with @""@ values.
 normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
 normalizeRichInfoAssocList (RichInfoAssocList l) =
   RichInfoAssocList $ filter (not . Text.null . richFieldValue) l
