@@ -373,28 +373,45 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "connections"
-        :> ReqBody '[JSON] ConnectionRequest -- TODO: investigate if name can be deleted; then make qualified user part of the http path
+        :> ReqBody '[JSON] ConnectionRequest
         :> MultiVerb
              'POST
              '[JSON]
              (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
              (ResponseForExistedCreated UserConnection),
-    listConnections ::
+    createConnection ::
+      routes :- Summary "Create a connection to another user"
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NoIdentity
+        -- Config value 'setUserMaxConnections' value in production/by default
+        -- is currently 1000 and has not changed in the last few years.
+        -- While it would be more correct to use the config value here, that
+        -- might not be time well spent.
+        :> Description "You can have no more than 1000 connections in accepted or sent state"
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> QualifiedCaptureUserId "uid"
+        :> MultiVerb
+             'POST
+             '[JSON]
+             (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
+             (ResponseForExistedCreated UserConnection),
+    listLocalConnections ::
       routes :- Summary "List the local connections to other users. (deprecated)"
         :> ZUser
         :> "connections"
         :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
         :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
         :> Get '[JSON] UserConnectionList,
-    -- TODO: use paging state approach like in conversations
-    listConnectionsV2 ::
+    listConnections ::
       routes :- Summary "List the connections to other users, including remote users."
         :> ZUser
-        :> "connections"
-        :> "v2"
-        :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
-        :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
-        :> Get '[JSON] UserConnectionList,
+        :> "list-connections"
+        :> ReqBody '[JSON] ListConnectionsRequestPaginated
+        :> Post '[JSON] ConnectionsPage,
     getConnectionUnqualified ::
       routes :- Summary "Get an existing connection to another user. (deprecated)"
         :> ZUser

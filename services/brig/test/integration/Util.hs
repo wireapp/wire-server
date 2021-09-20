@@ -53,7 +53,7 @@ import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Qualified
 import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -408,6 +408,15 @@ postConnection brig from to =
     payload =
       RequestBodyLBS . encode $
         ConnectionRequest to (unsafeRange "some conv name")
+
+postConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+postConnectionQualified brig from (Qualified toUser toDomain) =
+  post $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . contentJson
+      . zUser from
+      . zConn "conn"
 
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =

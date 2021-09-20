@@ -93,7 +93,8 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import Wire.API.ErrorDescription
+import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -254,10 +255,14 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createConnection,
-        BrigAPI.listConnections = listConnections,
-        BrigAPI.getConnectionUnqualified = getConnection,
+        BrigAPI.createConnectionUnqualified = createLocalConnection,
+        BrigAPI.createConnection = createConnection,
+        BrigAPI.listLocalConnections = listConnections,
+        BrigAPI.listConnections = undefined,
+        BrigAPI.getConnectionUnqualified = getLocalConnection,
+        BrigAPI.getConnection = getConnection,
         BrigAPI.updateConnectionUnqualified = updateConnection,
+        BrigAPI.updateConnection = undefined,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -1074,9 +1079,16 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createConnection self conn cr = do
+createLocalConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createLocalConnection self conn cr = do
   API.createConnection self cr conn !>> connError
+
+createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection self conn (Qualified otherUser otherDomain) = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
+    else throwM federationNotImplemented
 
 updateConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateConnection self conn other update = do
@@ -1089,8 +1101,15 @@ listConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
-getConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
-getConnection uid uid' = lift $ API.lookupLocalConnection uid uid'
+getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
+getLocalConnection self other = lift $ API.lookupLocalConnection self other
+
+getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
+getConnection self (Qualified otherUser otherDomain) = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then getLocalConnection self otherUser
+    else throwM federationNotImplemented
 
 deleteUser ::
   UserId ->

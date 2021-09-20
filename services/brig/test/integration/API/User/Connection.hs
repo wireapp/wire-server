@@ -45,7 +45,9 @@ tests cl _at _conf p b _c g =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
+      test p "post /connections/:domain/:uid" $ testCreateManualConnectionsQualified b,
       test p "post /connections mutual" $ testCreateMutualConnections b g,
+      test p "post /connections/:domain/:uid mutual" $ testCreateMutualConnectionsQualified b g,
       test p "post /connections (bad user)" $ testCreateConnectionInvalidUser b,
       test p "put /connections/:id accept" $ testAcceptConnection b,
       test p "put /connections/:id ignore" $ testIgnoreConnection b,
@@ -87,6 +89,22 @@ testCreateManualConnections brig = do
   postConnection brig uid1 uid3 !!! const 400 === statusCode
   postConnection brig uid3 uid1 !!! const 403 === statusCode
 
+testCreateManualConnectionsQualified :: Brig -> Http ()
+testCreateManualConnectionsQualified brig = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  quid2 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  assertConnectionQualified brig uid1 quid2 Sent
+  assertConnectionQualified brig uid2 quid1 Pending
+  -- Test that no connections to anonymous users can be created,
+  -- as well as that anonymous users cannot create connections.
+  quid3 <- userQualifiedId <$> createAnonUser "foo3" brig
+  let uid3 = qUnqualified quid3
+  postConnectionQualified brig uid1 quid3 !!! const 400 === statusCode
+  postConnectionQualified brig uid3 quid1 !!! const 403 === statusCode
+
 testCreateMutualConnections :: Brig -> Galley -> Http ()
 testCreateMutualConnections brig galley = do
   uid1 <- userId <$> randomUser brig
@@ -100,6 +118,32 @@ testCreateMutualConnections brig galley = do
   case responseJsonMaybe rsp >>= ucConvId of
     Nothing -> liftIO $ assertFailure "incomplete connection"
     Just cnv -> do
+      getConversation galley uid1 cnv !!! do
+        const 200 === statusCode
+        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
+      getConversation galley uid2 cnv !!! do
+        const 200 === statusCode
+        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
+
+testCreateMutualConnectionsQualified :: Brig -> Galley -> Http ()
+testCreateMutualConnectionsQualified brig galley = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  quid2 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  assertConnectionQualified brig uid1 quid2 Sent
+  assertConnectionQualified brig uid2 quid1 Pending
+
+  rsp <- postConnectionQualified brig uid2 quid1 <!! const 200 === statusCode
+  assertConnectionQualified brig uid2 quid1 Accepted
+  assertConnectionQualified brig uid1 quid2 Accepted
+
+  case responseJsonMaybe rsp >>= ucConvId of
+    Nothing -> liftIO $ assertFailure "incomplete connection"
+    Just cnv -> do
+      -- TODO: Get these conversations using the non-deprecated qualified endpoint
       getConversation galley uid1 cnv !!! do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . responseJsonMaybe

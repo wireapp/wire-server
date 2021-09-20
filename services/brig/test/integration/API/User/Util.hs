@@ -246,6 +246,13 @@ listConnections brig u =
       . path "connections"
       . zUser u
 
+getConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+getConnectionQualified brig from (Qualified toUser toDomain) =
+  get $
+    brig
+      . paths ["connections", toByteString' toDomain, toByteString' toUser]
+      . zUser from
+
 setProperty :: Brig -> UserId -> ByteString -> Value -> (MonadIO m, MonadHttp m) => m ResponseLBS
 setProperty brig u k v =
   put $
@@ -292,6 +299,12 @@ assertConnections brig u cs =
   where
     check xs = all (`elem` xs) cs
     status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
+
+assertConnectionQualified :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Relation -> m ()
+assertConnectionQualified brig u1 qu2 rel =
+  getConnectionQualified brig u1 qu2 !!! do
+    const 200 === statusCode
+    const (Right rel) === fmap ucStatus . responseJsonEither
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =

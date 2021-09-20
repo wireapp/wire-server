@@ -25,6 +25,7 @@ module Wire.API.Connection
   ( -- * UserConnection
     UserConnection (..),
     UserConnectionList (..),
+    ConnectionsPage,
     Relation (..),
     RelationWithHistory (..),
     relationDropHistory,
@@ -32,6 +33,7 @@ module Wire.API.Connection
     -- * Requests
     ConnectionRequest (..),
     ConnectionUpdate (..),
+    ListConnectionsRequestPaginated,
 
     -- * Swagger
     modelConnectionList,
@@ -55,9 +57,16 @@ import Data.Swagger.Schema as S
 import Data.Text as Text
 import Imports
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
+import Wire.API.Routes.MultiTablePaging
 
 --------------------------------------------------------------------------------
 -- UserConnectionList
+
+-- | Request to get a paginated list of connection
+type ListConnectionsRequestPaginated = GetMultiTablePageRequest "Connections" LocalOrRemoteTable 500 100
+
+-- | A page in response to 'ListConnectionsRequestPaginated'
+type ConnectionsPage = MultiTablePage "Connections" "connections" LocalOrRemoteTable UserConnection
 
 -- | Response type for endpoints returning lists of connections.
 data UserConnectionList = UserConnectionList
@@ -97,6 +106,7 @@ data UserConnection = UserConnection
     ucStatus :: Relation,
     -- | When 'ucStatus' was last changed
     ucLastUpdate :: UTCTimeMillis,
+    -- TODO: Make this qualified
     ucConvId :: Maybe ConvId
   }
   deriving stock (Eq, Show, Generic)
@@ -242,8 +252,12 @@ instance ToByteString Relation where
 data ConnectionRequest = ConnectionRequest
   { -- | Connection recipient
     crUser :: UserId,
-    -- | Name of the conversation to be created
-    -- FUTUREWORK investigate: shouldn't this name be optional? Do we use this name actually anywhere?
+    -- | Name of the conversation to be created. This is not used in any
+    -- meaningful way anymore. The clients just write the name of the target
+    -- user here and it is ignored later.
+    --
+    -- (In the past, this was used; but due to spam, clients started ignoring
+    -- it)
     crName :: Range 1 256 Text
   }
   deriving stock (Eq, Show, Generic)
