@@ -95,6 +95,7 @@ import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 
 -- | SCIM config for our server.
 --
@@ -103,7 +104,7 @@ import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim :: Member ScimUserTimesStore r => Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIScim (Spar r)
+apiScim :: Member ScimExternalIdStore r => Member ScimUserTimesStore r => Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken

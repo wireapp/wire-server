@@ -120,6 +120,9 @@ import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -310,9 +313,9 @@ instance Functor GetUserResult where
   fmap _ GetUserWrongTeam = GetUserWrongTeam
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
-getUserIdByScimExternalId :: TeamId -> Email -> Spar r (Maybe UserId)
+getUserIdByScimExternalId :: Member ScimExternalIdStore r => TeamId -> Email -> Spar r (Maybe UserId)
 getUserIdByScimExternalId tid email = do
-  muid <- wrapMonadClient $ (Data.lookupScimExternalId tid email)
+  muid <- wrapMonadClientSem $ (ScimExternalIdStore.lookup tid email)
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -422,7 +425,7 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance (r ~ '[ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+instance (r ~ '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -440,6 +443,7 @@ instance (r ~ '[ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.Id
                     defaultSsoCodeToCassandra $
                       scimTokenStoreToCassandra $
                       scimUserTimesStoreToCassandra $
+                      scimExternalIdStoreToCassandra $
                         runExceptT $
                           runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a

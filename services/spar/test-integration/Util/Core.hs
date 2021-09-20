@@ -183,6 +183,9 @@ import qualified Spar.Options
 import Spar.Run
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import qualified Spar.Sem.IdP as IdPEffect
@@ -1218,7 +1221,7 @@ ssoToUidSpar tid ssoid = do
   runSpar $
     runValidExternalId
       (liftSem . SAMLUser.get)
-      (liftMonadClient . Data.lookupScimExternalId tid)
+      (liftSem . ScimExternalIdStore.lookup tid)
       veid
 
 runSparCass ::
@@ -1251,7 +1254,7 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[ScimExternalIdStore, ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
@@ -1264,6 +1267,7 @@ runSpar (Spar.Spar action) = do
                 scimTokenStoreToCassandra @Cas.Client $
                   defaultSsoCodeToCassandra @Cas.Client $
                   scimUserTimesStoreToCassandra @Cas.Client $
+                  scimExternalIdStoreToCassandra @Cas.Client $
                     runExceptT $
                       action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result

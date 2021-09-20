@@ -77,13 +77,14 @@ import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 
 app :: Env -> Application
 app ctx =
   SAML.setHttpCachePolicy $
     serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
 
-api :: Member ScimUserTimesStore r => Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT API (Spar r)
+api :: Member ScimExternalIdStore r => Member ScimUserTimesStore r => Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT API (Spar r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck

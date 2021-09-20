@@ -32,7 +32,6 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), accountStatus, accountUser)
 import Brig.Types.User as Brig
-import Cassandra
 import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Except (MonadError (throwError))
@@ -61,7 +60,6 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Spar.App (liftSem)
-import Spar.Data (lookupScimExternalId)
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
@@ -86,6 +84,7 @@ import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -1719,7 +1718,6 @@ testDeletedUsersFreeExternalIdNoIdp = do
   env <- ask
   let brig = env ^. teBrig
   let spar = env ^. teSpar
-  let clientState = env ^. teCql
 
   (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
@@ -1743,7 +1741,7 @@ testDeletedUsersFreeExternalIdNoIdp = do
 
   void $
     aFewTimes
-      (runClient clientState $ lookupScimExternalId tid email)
+      (runSpar $ liftSem $ ScimExternalIdStore.lookup tid email)
       (== Nothing)
 
 specSCIMManaged :: SpecWith TestEnv
