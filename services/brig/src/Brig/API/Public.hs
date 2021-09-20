@@ -1090,7 +1090,7 @@ listConnections uid start msize = do
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
 getConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
-getConnection uid uid' = lift $ API.lookupConnection uid uid'
+getConnection uid uid' = lift $ API.lookupLocalConnection uid uid'
 
 deleteUser ::
   UserId ->
