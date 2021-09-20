@@ -74,6 +74,7 @@ import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationError, executeFederated)
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
+import qualified Wire.API.Routes.MultiTablePaging as Public
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
@@ -224,11 +225,11 @@ conversationIdsPageFromUnqualified zusr start msize = do
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
 conversationIdsPageFrom :: UserId -> Public.GetPaginatedConversationIds -> Galley Public.ConvIdsPage
-conversationIdsPageFrom zusr Public.GetPaginatedConversationIds {..} = do
+conversationIdsPageFrom zusr Public.GetMultiTablePageRequest {..} = do
   localDomain <- viewFederationDomain
-  case gpciPagingState of
-    Just (Public.ConversationPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gpciSize)
-    _ -> localsAndRemotes localDomain (fmap mkState . Public.cpsPagingState =<< gpciPagingState) gpciSize
+  case gmtprState of
+    Just (Public.ConversationPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gmtprSize)
+    _ -> localsAndRemotes localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
@@ -236,27 +237,23 @@ conversationIdsPageFrom zusr Public.GetPaginatedConversationIds {..} = do
     localsAndRemotes :: Domain -> Maybe C.PagingState -> Range 1 1000 Int32 -> Galley Public.ConvIdsPage
     localsAndRemotes localDomain pagingState size = do
       localPage <- pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain) <$> Data.localConversationIdsPageFrom zusr pagingState size
-      let remainingSize = fromRange size - fromIntegral (length (Public.pageConvIds localPage))
-      if Public.pageHasMore localPage || remainingSize <= 0
-        then pure localPage {Public.pageHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
+      let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
+      if Public.mtpHasMore localPage || remainingSize <= 0
+        then pure localPage {Public.mtpHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
         else do
           remotePage <- remotesOnly Nothing remainingSize
-          pure $ remotePage {Public.pageConvIds = Public.pageConvIds localPage <> Public.pageConvIds remotePage}
+          pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
     remotesOnly :: Maybe C.PagingState -> Int32 -> Galley Public.ConvIdsPage
     remotesOnly pagingState size =
       pageToConvIdPage Public.PagingRemotes <$> Data.remoteConversationIdsPageFrom zusr pagingState size
 
-    pageToConvIdPage :: Public.ConversationPagingTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
+    pageToConvIdPage :: Public.LocalOrRemoteTable -> Data.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
     pageToConvIdPage table page@Data.PageWithState {..} =
-      Public.ConvIdsPage
-        { pageConvIds = pwsResults,
-          pageHasMore = C.pwsHasMore page,
-          pagePagingState =
-            Public.ConversationPagingState
-              { cpsTable = table,
-                cpsPagingState = LBS.toStrict . C.unPagingState <$> pwsState
-              }
+      Public.MultiTablePage
+        { mtpResults = pwsResults,
+          mtpHasMore = C.pwsHasMore page,
+          mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
 
 getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList ConvId)) -> Maybe ConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)

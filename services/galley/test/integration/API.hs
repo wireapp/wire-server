@@ -89,6 +89,7 @@ import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Message as Message
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client
   ( QualifiedUserClients (..),
     UserClientPrekeyMap,
@@ -1406,17 +1407,17 @@ getChunkedConvs :: HasCallStack => Int32 -> Int -> UserId -> Maybe ConversationP
 getChunkedConvs size lastSize alice pagingState n = do
   let paginationOpts = GetPaginatedConversationIds pagingState (unsafeRange size)
   resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
-  let c = responseJsonUnsafeWithMsg "failed to parse ConvIdsPage" resp
+  let c = responseJsonUnsafeWithMsg @ConvIdsPage "failed to parse ConvIdsPage" resp
   liftIO $ do
     if n > 0
-      then assertEqual ("Number of convs should match the requested size, " <> show n <> " more chunks to go") (fromIntegral size) (length (pageConvIds c))
-      else assertEqual "Number of convs should match the last size, no more chunks to go" lastSize (length (pageConvIds c))
+      then assertEqual ("Number of convs should match the requested size, " <> show n <> " more chunks to go") (fromIntegral size) (length (mtpResults c))
+      else assertEqual "Number of convs should match the last size, no more chunks to go" lastSize (length (mtpResults c))
 
     if n > 0
-      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (pageHasMore c)
-      else assertEqual "hasMore should be False, no more chunks to go" False (pageHasMore c)
+      then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (mtpHasMore c)
+      else assertEqual "hasMore should be False, no more chunks to go" False (mtpHasMore c)
 
-  return . Just $ pagePagingState c
+  return . Just $ mtpPagingState c
 
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
