@@ -327,6 +327,43 @@ data Api routes = Api
                Respond 200 "Conversation updated" Event
              ]
              (Maybe Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvMessageTimerUpdate event to members
+    updateConversationMessageTimerUnqualified ::
+      routes
+        :- Summary "Update the message timer for a conversation (deprecated)"
+        :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "message-timer"
+        :> ReqBody '[JSON] ConversationMessageTimerUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
+             (UpdateResult Event),
+    updateConversationMessageTimer ::
+      routes
+        :- Summary "Update the message timer for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "message-timer"
+        :> ReqBody '[JSON] ConversationMessageTimerUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
+             (UpdateResult Event),
     getConversationSelfUnqualified ::
       routes
         :- Summary "Get self membership properties (deprecated)"
