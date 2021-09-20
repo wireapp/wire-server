@@ -246,6 +246,10 @@ isMember u = isJust . find ((u ==) . lmId)
 isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
+-- | This is an ad-hoc class to update notification targets based on the type
+-- of the user id. Local user IDs get added to the local targets, remote user IDs
+-- to remote targets, and qualified user IDs get added to the appropriate list
+-- according to whether they are local or remote, by making a runtime check.
 class IsNotificationTarget uid where
   ntAdd :: Local x -> uid -> NotificationTargets -> NotificationTargets
 
