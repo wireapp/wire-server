@@ -77,7 +77,7 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: Member ScimTokenStore r => Member IdPEffect.IdP r => ServerT APIScimToken (Spar r)
+apiScimToken :: Members '[ScimTokenStore, IdPEffect.IdP] r => ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -88,8 +88,7 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   forall r.
-  Member ScimTokenStore r =>
-  Member IdPEffect.IdP r =>
+  Members '[ScimTokenStore, IdPEffect.IdP] r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body

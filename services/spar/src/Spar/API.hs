@@ -84,7 +84,7 @@ app ctx =
   SAML.setHttpCachePolicy $
     serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
 
-api :: Member ScimExternalIdStore r => Member ScimUserTimesStore r => Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT API (Spar r)
+api :: Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser] r => Opts -> ServerT API (Spar r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck
@@ -93,7 +93,7 @@ api opts =
     :<|> apiScim
     :<|> apiINTERNAL
 
-apiSSO :: Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => Opts -> ServerT APISSO (Spar r)
+apiSSO :: Members '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser] r => Opts -> ServerT APISSO (Spar r)
 apiSSO opts =
   SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
     :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
@@ -103,7 +103,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIIDP (Spar r)
+apiIDP :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUser] r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -112,7 +112,7 @@ apiIDP =
     :<|> idpUpdate
     :<|> idpDelete
 
-apiINTERNAL :: Member ScimTokenStore r => Member DefaultSsoCode r => Member IdPEffect.IdP r => Member SAMLUser r => ServerT APIINTERNAL (Spar r)
+apiINTERNAL :: Members '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser] r => ServerT APIINTERNAL (Spar r)
 apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam
@@ -187,7 +187,7 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: forall r. Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
+authresp :: forall r. Members '[ScimTokenStore, IdPEffect.IdP, SAMLUser] r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
 authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
@@ -215,7 +215,7 @@ ssoSettings = do
 ----------------------------------------------------------------------------
 -- IdP API
 
-idpGet :: Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Spar r IdP
+idpGet :: Member IdPEffect.IdP r  => Maybe UserId -> SAML.IdPId -> Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -243,7 +243,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: forall r. Member ScimTokenStore r => Member SAMLUser r => Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+idpDelete :: forall r. Members '[ScimTokenStore, SAMLUser, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -298,11 +298,11 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Member ScimTokenStore r => Member IdPEffect.IdP r => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreate :: Members '[ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Member ScimTokenStore r => Member IdPEffect.IdP r => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreateXML :: Members '[ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
@@ -318,7 +318,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
 -- data contains no information about the idp issuer, only the user name, so no valid saml
 -- credentials can be created.  To fix this, we need to implement a way to associate scim
 -- tokens with IdPs.  https://wearezeta.atlassian.net/browse/SQSERVICES-165
-assertNoScimOrNoIdP :: Member ScimTokenStore r => Member IdPEffect.IdP r => TeamId -> Spar r ()
+assertNoScimOrNoIdP :: Members '[ScimTokenStore, IdPEffect.IdP] r => TeamId -> Spar r ()
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> wrapMonadClientSem (ScimTokenStore.getByTeam teamid)
   numIdps <- length <$> wrapMonadClientSem (IdPEffect.getConfigsByTeam teamid)
@@ -396,7 +396,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate :: Member IdPEffect.IdP r => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
+idpUpdate :: Member IdPEffect.IdP r  => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
 idpUpdateXML :: Member IdPEffect.IdP r => Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP
@@ -488,12 +488,12 @@ internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: Member ScimTokenStore r => Member IdPEffect.IdP r => Member SAMLUser r => TeamId -> Spar r NoContent
+internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUser] r => TeamId -> Spar r NoContent
 internalDeleteTeam team = do
   wrapSpar $ deleteTeam team
   pure NoContent
 
-internalPutSsoSettings :: Member DefaultSsoCode r => Member IdPEffect.IdP r => SsoSettings -> Spar r NoContent
+internalPutSsoSettings :: Members '[DefaultSsoCode, IdPEffect.IdP] r => SsoSettings -> Spar r NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
   wrapMonadClientSem $ DefaultSsoCode.delete
   pure NoContent
