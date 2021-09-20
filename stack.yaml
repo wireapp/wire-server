@@ -258,7 +258,3 @@ extra-deps:
 
 - headroom-0.2.1.0
 - implicit-hie-0.1.2.5
-
-- polysemy-zoo-0.7.0.1@sha256:60c2921df95f61d43222a75adde4f330e9510320b416132838a354cd81b4bcc5,3846
-- compact-0.2.0.0
-

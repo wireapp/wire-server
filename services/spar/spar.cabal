@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7ef862b8f4e83ca811c8c9bec3e8cf242fd4d5e6b3ea63dce5578cd79ddaf1aa
+-- hash: 5b06ec7a50a1803f0f0aefbe72aad10c986a9becf2aa984b53f253d6a8caf237
 
 name:           spar
 version:        0.1
@@ -82,7 +82,6 @@ library
     , optparse-applicative
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -156,7 +155,6 @@ executable spar
     , optparse-applicative
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -253,7 +251,6 @@ executable spar-integration
     , optparse-applicative
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
     , random
     , raw-strings-qq
     , retry
@@ -341,7 +338,6 @@ executable spar-migrate-data
     , optparse-applicative
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -432,7 +428,6 @@ executable spar-schema
     , optparse-applicative
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -520,7 +515,6 @@ test-suite spec
     , optparse-applicative
     , polysemy
     , polysemy-plugin
-    , polysemy-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18

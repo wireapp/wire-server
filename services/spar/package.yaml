@@ -54,7 +54,6 @@ dependencies:
   - optparse-applicative
   - polysemy
   - polysemy-plugin
-  - polysemy-zoo
   - raw-strings-qq
   - retry
   - saml2-web-sso >= 0.18
