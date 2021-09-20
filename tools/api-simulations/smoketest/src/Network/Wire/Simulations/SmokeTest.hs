@@ -28,7 +28,7 @@ import qualified Codec.MIME.Type as MIME
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id (ConvId)
 import Data.List1
-import Data.Qualified (qUnqualified)
+import Data.Qualified (Qualified (..), qUnqualified)
 import Data.Range
 import Imports
 import Network.Wire.Bot
@@ -92,10 +92,11 @@ mainBotNet n = do
     assertConvCreated conv ally others
     return conv
   info $ msg "Bill updates his member state"
+  localDomain <- viewFederationDomain
   runBotSession bill $ do
     let update =
           MemberUpdateData
-            { misTarget = Just $ botId bill,
+            { misTarget = Qualified (botId bill) localDomain,
               misOtrMutedStatus = Nothing,
               misOtrMutedRef = Nothing,
               misOtrArchived = Just True,

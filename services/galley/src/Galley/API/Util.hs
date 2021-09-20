@@ -36,7 +36,7 @@ import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
-import Data.Tagged (Tagged (unTagged))
+import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Data.Time
 import Galley.API.Error
@@ -255,11 +255,9 @@ data NotificationTargets = NotificationTargets
     ntBots :: [BotMember]
   }
 
-instance IsNotificationTarget UserId where
-  ntAdd _ uid nt = nt {ntLocals = uid : filter (/= uid) (ntLocals nt)}
-
 instance IsNotificationTarget (Local UserId) where
-  ntAdd loc luid = ntAdd loc (lUnqualified luid)
+  ntAdd _ (Tagged (Qualified uid _)) nt =
+    nt {ntLocals = uid : filter (/= uid) (ntLocals nt)}
 
 instance IsNotificationTarget (Remote UserId) where
   ntAdd _ ruid nt = nt {ntRemotes = ruid : filter (/= ruid) (ntRemotes nt)}

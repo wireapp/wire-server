@@ -1378,7 +1378,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtFrom e @?= usr
   case evtData e of
     Conv.EdMemberUpdate mis -> do
-      assertEqual "target" (Just target) (misTarget mis)
+      assertEqual "target" (Qualified target (qDomain conv)) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 

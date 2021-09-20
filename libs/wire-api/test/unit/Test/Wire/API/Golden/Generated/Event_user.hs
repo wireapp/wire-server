@@ -96,7 +96,10 @@ testObject_Event_user_5 =
     (read "1864-04-12 03:04:00.298 UTC")
     ( EdMemberUpdate
         ( MemberUpdateData
-            { misTarget = Nothing,
+            { misTarget =
+                Qualified
+                  (Id (fromJust (UUID.fromString "afb0e5b1-c554-4ce4-98f5-3e1671f22485")))
+                  (Domain "target.example.com"),
               misOtrMutedStatus = Nothing,
               misOtrMutedRef = Just "\94957",
               misOtrArchived = Just False,

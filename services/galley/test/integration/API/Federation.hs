@@ -349,7 +349,7 @@ notifyMemberUpdate = do
   qdee <- randomQualifiedUser
   let d =
         MemberUpdateData
-          { misTarget = Just (qUnqualified qdee),
+          { misTarget = qdee,
             misOtrMutedStatus = Nothing,
             misOtrMutedRef = Nothing,
             misOtrArchived = Nothing,

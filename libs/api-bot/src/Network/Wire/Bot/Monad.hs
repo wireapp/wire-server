@@ -57,6 +57,9 @@ module Network.Wire.Bot.Monad
     withNewBot,
     withCachedBot,
 
+    -- * Federation
+    viewFederationDomain,
+
     -- * BotClient
     BotClient (..),
     getBotClients,
@@ -95,6 +98,7 @@ import Control.Concurrent.STM (retry)
 import Control.Monad.Base
 import Control.Monad.Catch hiding (try)
 import Control.Monad.Trans.Control
+import Data.Domain
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Metrics (Metrics)
@@ -143,7 +147,8 @@ data BotNetEnv = BotNetEnv
     botNetSettings :: BotSettings,
     botNetMetrics :: Metrics,
     botNetReportDir :: Maybe FilePath,
-    botNetMailboxFolders :: [String]
+    botNetMailboxFolders :: [String],
+    botNetDomain :: Domain
   }
 
 newBotNetEnv :: Manager -> Logger -> BotNetSettings -> IO BotNetEnv
@@ -174,7 +179,8 @@ newBotNetEnv manager logger o = do
         botNetSettings = setBotNetBotSettings o,
         botNetMetrics = met,
         botNetReportDir = setBotNetReportDir o,
-        botNetMailboxFolders = setBotNetMailboxFolders o
+        botNetMailboxFolders = setBotNetMailboxFolders o,
+        botNetDomain = domain
       }
 
 -- Note: Initializing metrics to avoid race conditions on first access and thus
@@ -512,6 +518,12 @@ withCachedBot t f = do
   x@(CachedUser p u) <- Cache.get c
   b <- liftBotNet $ mkBot t (tagged t u) p
   f b `finally` killBot b `finally` Cache.put c x
+
+-------------------------------------------------------------------------------
+-- Federation
+
+viewFederationDomain :: MonadBotNet m => m Domain
+viewFederationDomain = liftBotNet . BotNet $ asks botNetDomain
 
 -------------------------------------------------------------------------------
 -- Assertions

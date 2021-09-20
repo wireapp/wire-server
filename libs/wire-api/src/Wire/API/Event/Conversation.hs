@@ -394,12 +394,8 @@ modelConnect = Doc.defineModel "Connect" $ do
 -- Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-  { -- | Target user of this action, should not be optional anymore.
-    --
-    -- FUTUREWORK: make it mandatory to guarantee that no events
-    -- out there do not contain an ID.
-    -- <https://github.com/zinfra/backend-issues/issues/1309>
-    misTarget :: Maybe UserId,
+  { -- | Target user of this action
+    misTarget :: Qualified UserId,
     misOtrMutedStatus :: Maybe MutedStatus,
     misOtrMutedRef :: Maybe Text,
     misOtrArchived :: Maybe Bool,
@@ -418,7 +414,8 @@ instance ToSchema MemberUpdateData where
 memberUpdateDataObjectSchema :: ObjectSchema SwaggerDoc MemberUpdateData
 memberUpdateDataObjectSchema =
   MemberUpdateData
-    <$> misTarget .= opt (field "target" schema)
+    <$> misTarget .= field "qualified_target" schema
+    <* (Just . qUnqualified . misTarget) .= optField "target" Nothing schema
     <*> misOtrMutedStatus .= opt (field "otr_muted_status" schema)
     <*> misOtrMutedRef .= opt (field "otr_muted_ref" schema)
     <*> misOtrArchived .= opt (field "otr_archived" schema)
