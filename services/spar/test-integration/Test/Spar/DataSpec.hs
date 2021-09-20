@@ -31,8 +31,11 @@ import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
 import SAML2.WebSSO as SAML
+import Spar.App as App
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
+import qualified Spar.Sem.IdP as IdPEffect
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -108,34 +111,34 @@ spec = do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           uref <- nextUserRef
-          muid <- runSparCass $ Data.getSAMLUser uref
+          muid <- runSpar $ liftSem $ SAMLUser.get uref
           liftIO $ muid `shouldBe` Nothing
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
-          () <- runSparCass $ Data.insertSAMLUser uref uid
-          muid <- runSparCass $ Data.getSAMLUser uref
+          () <- runSpar $ liftSem $ SAMLUser.insert uref uid
+          muid <- runSpar $ liftSem $ SAMLUser.get uref
           liftIO $ muid `shouldBe` Just uid
       context "user already exists (idempotency)" $ do
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
           uid' <- nextWireId
-          () <- runSparCass $ Data.insertSAMLUser uref uid
-          () <- runSparCass $ Data.insertSAMLUser uref uid'
-          muid <- runSparCass $ Data.getSAMLUser uref
+          () <- runSpar $ liftSem $ SAMLUser.insert uref uid
+          () <- runSpar $ liftSem $ SAMLUser.insert uref uid'
+          muid <- runSpar $ liftSem $ SAMLUser.get uref
           liftIO $ muid `shouldBe` Just uid'
       describe "DELETE" $ do
         it "works" $ do
           uref <- nextUserRef
           uid <- nextWireId
           do
-            () <- runSparCass $ Data.insertSAMLUser uref uid
-            muid <- runSparCass (Data.getSAMLUser uref)
+            () <- runSpar $ liftSem $ SAMLUser.insert uref uid
+            muid <- runSpar $ liftSem (SAMLUser.get uref)
             liftIO $ muid `shouldBe` Just uid
           do
-            () <- runSparCass $ Data.deleteSAMLUser uid uref
-            muid <- runSparCass (Data.getSAMLUser uref) `aFewTimes` isNothing
+            () <- runSpar $ liftSem $ SAMLUser.delete uid uref
+            muid <- runSpar (liftSem $ SAMLUser.get uref) `aFewTimes` isNothing
             liftIO $ muid `shouldBe` Nothing
     describe "BindCookie" $ do
       let mkcky :: TestSpar SetBindCookie
@@ -164,57 +167,57 @@ spec = do
     describe "IdPConfig" $ do
       it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
         idp <- makeTestIdP
-        () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+        () <- runSpar $ liftSem $ IdPEffect.storeConfig idp
+        midp <- runSpar $ liftSem $ IdPEffect.getConfig (idp ^. idpId)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPConfigByIssuer works" $ do
         idp <- makeTestIdP
-        () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        () <- runSpar $ liftSem $ IdPEffect.storeConfig idp
+        midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` GetIdPFound idp
       it "getIdPIdByIssuer works" $ do
         idp <- makeTestIdP
-        () <- runSparCass $ Data.storeIdPConfig idp
-        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+        () <- runSpar $ liftSem $ IdPEffect.storeConfig idp
+        midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` GetIdPFound (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         skipIdPAPIVersions [WireIdPAPIV1]
         teamid <- nextWireId
         idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid Nothing [] Nothing)
-        () <- runSparCass $ Data.storeIdPConfig idp
-        idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
+        () <- runSpar $ liftSem $ IdPEffect.storeConfig idp
+        idps <- runSpar $ liftSem $ IdPEffect.getConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
         idpApiVersion <- asks (^. teWireIdPAPIVersion)
         idp <- makeTestIdP <&> idpExtraInfo .~ (WireIdP teamid (Just idpApiVersion) [] Nothing)
-        () <- runSparCass $ Data.storeIdPConfig idp
+        () <- runSpar $ liftSem $ IdPEffect.storeConfig idp
         do
-          midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+          midp <- runSpar $ liftSem $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Just idp
-        () <- runSparCass $ Data.deleteIdPConfig (idp ^. idpId) (idp ^. idpMetadata . edIssuer) teamid
+        () <- runSpar $ liftSem $ IdPEffect.deleteConfig (idp ^. idpId) (idp ^. idpMetadata . edIssuer) teamid
         do
-          midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+          midp <- runSpar $ liftSem $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
           liftIO $ midp `shouldBe` GetIdPNotFound
         do
-          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
           liftIO $ midp `shouldBe` GetIdPNotFound
         do
-          idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
+          idps <- runSpar $ liftSem $ IdPEffect.getConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
       describe "{set,clear}ReplacedBy" $ do
         it "handle non-existent idps gradefully" $ do
           pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
           idp1 <- makeTestIdP
           idp2 <- makeTestIdP
-          runSparCass (Data.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId)))
-          idp1' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          runSpar $ liftSem $ IdPEffect.setReplacedBy (Data.Replaced (idp1 ^. idpId)) (Data.Replacing (idp2 ^. idpId))
+          idp1' <- runSpar $ liftSem (IdPEffect.getConfig (idp1 ^. idpId))
           liftIO $ idp1' `shouldBe` Nothing
-          runSparCass (Data.clearReplacedBy (Data.Replaced (idp1 ^. idpId)))
-          idp2' <- runSparCass (Data.getIdPConfig (idp1 ^. idpId))
+          runSpar $ liftSem $ IdPEffect.clearReplacedBy (Data.Replaced (idp1 ^. idpId))
+          idp2' <- runSpar $ liftSem (IdPEffect.getConfig (idp1 ^. idpId))
           liftIO $ idp2' `shouldBe` Nothing
 
 testSPStoreID ::
@@ -265,7 +268,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   ssoid1 <- getSsoidViaSelf (getUid storedUser1)
   ssoid2 <- getSsoidViaSelf (getUid storedUser2)
   -- Delete the team
-  runSparCass $ Data.deleteTeam tid
+  runSpar $ App.deleteTeam tid
   -- See that everything got cleaned up.
   --
   -- The token from 'team_provisioning_by_token':
@@ -280,33 +283,35 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   do
     mbUser1 <- case veidFromUserSSOId ssoid1 of
       Right veid ->
-        runSparCass $
-          runValidExternalId
-            Data.getSAMLUser
-            undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
-            veid
+        runSpar $
+          liftSem $
+            runValidExternalId
+              SAMLUser.get
+              undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
+              veid
       Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
     liftIO $ mbUser1 `shouldBe` Nothing
   do
     mbUser2 <- case veidFromUserSSOId ssoid2 of
       Right veid ->
-        runSparCass $
-          runValidExternalId
-            Data.getSAMLUser
-            undefined
-            veid
+        runSpar $
+          liftSem $
+            runValidExternalId
+              SAMLUser.get
+              undefined
+              veid
       Left _email -> undefined
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':
   do
-    mbIdp <- runSparCass $ Data.getIdPConfig (idp ^. SAML.idpId)
+    mbIdp <- runSpar $ liftSem $ IdPEffect.getConfig (idp ^. SAML.idpId)
     liftIO $ mbIdp `shouldBe` Nothing
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
+    mbIdp <- runSpar $ App.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
     liftIO $ mbIdp `shouldBe` GetIdPNotFound
   -- The config from 'team_idp':
   do
-    idps <- runSparCass $ Data.getIdPConfigsByTeam tid
+    idps <- runSpar $ liftSem $ IdPEffect.getConfigsByTeam tid
     liftIO $ idps `shouldBe` []

@@ -27,6 +27,7 @@ module Spar.App
     toLevel,
     wrapMonadClientWithEnv,
     wrapMonadClient,
+    wrapMonadClientSem,
     verdictHandler,
     GetUserResult (..),
     getUserIdByUref,
@@ -34,6 +35,13 @@ module Spar.App
     insertUser,
     validateEmailIfExists,
     errorPage,
+    getIdPIdByIssuer,
+    getIdPConfigByIssuer,
+    getIdPConfigByIssuerAllowOld,
+    deleteTeam,
+    wrapSpar,
+    liftSem,
+    liftMonadClient,
   )
 where
 
@@ -46,6 +54,7 @@ import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
+import Control.Monad.Trans.Except (except)
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
@@ -72,7 +81,7 @@ import SAML2.WebSSO
     Issuer (..),
     SPHandler (..),
     SPStoreID (..),
-    SPStoreIdP (..),
+    SPStoreIdP (getIdPConfigByIssuerOptionalSPId),
     UnqualifiedNameID (..),
     explainDeniedReason,
     fromTime,
@@ -84,11 +93,14 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data hiding (deleteSAMLUser, deleteSAMLUsersByIssuer, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, getSAMLUser, insertSAMLUser)
+import qualified Spar.Data as Data hiding (deleteSAMLUser, deleteSAMLUsersByIssuer, getIdPConfig, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, getSAMLUser, insertSAMLUser, storeIdPConfig)
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
+import Spar.Sem.IdP (GetIdPResult (..))
+import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser.Cassandra (interpretClientToIO, samlUserToCassandra)
@@ -105,7 +117,7 @@ import Wire.API.User.Scim (ValidExternalId (..))
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
 
-liftSem :: (Member (Final IO) r => Sem r a) -> Spar r a
+liftSem :: Sem r a -> Spar r a
 liftSem r = Spar $ lift $ lift r
 
 instance Applicative (Spar r) where
@@ -125,7 +137,7 @@ instance MonadError SparError (Spar r) where
   catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
 
 instance MonadIO (Spar r) where
-  liftIO m = liftSem $ embedFinal m
+  liftIO m = Spar $ lift $ lift $ embedFinal m
 
 data Env = Env
   { sparCtxOpts :: Opts,
@@ -153,7 +165,7 @@ instance MonadLogger (Spar r) where
     lg <- asks sparCtxLogger
     reqid <- asks sparCtxRequestId
     let fields = Log.field "request" (unRequestId reqid)
-    liftSem $ embedFinal $ Log.log lg level $ fields Log.~~ mg
+    Spar $ lift $ lift $ embedFinal $ Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
@@ -174,19 +186,19 @@ instance SPStoreID Assertion (Spar r) where
   unStoreID r = wrapMonadClient $ Data.unStoreAssID r
   isAliveID r = wrapMonadClient $ Data.isAliveAssID r
 
-instance SPStoreIdP SparError (Spar r) where
+instance Member IdPEffect.IdP r => SPStoreIdP SparError (Spar r) where
   type IdPConfigExtra (Spar r) = WireIdP
   type IdPConfigSPId (Spar r) = TeamId
 
   storeIdPConfig :: IdP -> Spar r ()
-  storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
+  storeIdPConfig idp = wrapMonadClientSem $ IdPEffect.storeConfig idp
 
   getIdPConfig :: IdPId -> Spar r IdP
-  getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
+  getIdPConfig = (>>= maybe (throwSpar (SparIdPNotFound mempty)) pure) . wrapMonadClientSem . IdPEffect.getConfig
 
   getIdPConfigByIssuerOptionalSPId :: Issuer -> Maybe TeamId -> Spar r IdP
   getIdPConfigByIssuerOptionalSPId issuer mbteam = do
-    wrapMonadClientWithEnv (Data.getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
+    wrapSpar (getIdPConfigByIssuerAllowOld issuer mbteam) >>= \case
       Data.GetIdPFound idp -> pure idp
       Data.GetIdPNotFound -> throwSpar $ SparIdPNotFound mempty
       res@(Data.GetIdPDanglingId _) -> throwSpar $ SparIdPNotFound (cs $ show res)
@@ -218,6 +230,14 @@ wrapMonadClient action =
     ctx <- asks sparCtxCas
     fromSpar $ wrapMonadClientSem $ embedFinal @IO $ runClient ctx action
 
+-- | Lift a cassandra command into the 'Spar' monad. Like 'wrapMonadClient',
+-- but doesn't catch any exceptions.
+liftMonadClient :: Cas.Client a -> Spar r a
+liftMonadClient action =
+  Spar $ do
+    ctx <- asks sparCtxCas
+    lift $ lift $ embedFinal @IO $ runClient ctx action
+
 -- | Call a 'Sem' command in the 'Spar' monad.  Catch all (IO) exceptions and
 -- re-throw them as 500 in Handler.
 wrapMonadClientSem :: Sem r a -> Spar r a
@@ -225,6 +245,12 @@ wrapMonadClientSem action =
   Spar $
     (lift $ lift action)
       `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
+
+wrapSpar :: Spar r a -> Spar r a
+wrapSpar action = Spar $ do
+  env <- ask
+  fromSpar $
+    wrapMonadClientSem (runExceptT $ flip runReaderT env $ fromSpar action) >>= Spar . lift . except
 
 insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
@@ -312,14 +338,14 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser :: Members [IdPEffect.IdP, SAMLUser] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
 autoprovisionSamlUser mbteam suid = do
   buid <- Id <$> liftIO UUID.nextRandom
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: forall r. Member SAMLUser r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
+autoprovisionSamlUserWithId :: forall r. Members [IdPEffect.IdP, SAMLUser] r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
@@ -362,13 +388,13 @@ validateEmailIfExists uid = \case
 --
 -- Before returning, change account status or fail if account is nto active or pending an
 -- invitation.
-bindUser :: Member SAMLUser r => UserId -> SAML.UserRef -> Spar r UserId
+bindUser :: Members [IdPEffect.IdP, SAMLUser] r => UserId -> SAML.UserRef -> Spar r UserId
 bindUser buid userref = do
   oldStatus <- do
     let err :: Spar r a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid :: TeamId <-
-      wrapMonadClient (Data.getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing) >>= \case
+      wrapSpar (getIdPConfigByIssuerAllowOld (userref ^. uidTenant) Nothing) >>= \case
         Data.GetIdPFound idp -> pure $ idp ^. idpExtraInfo . wiTeam
         Data.GetIdPNotFound -> err
         Data.GetIdPDanglingId _ -> err -- database inconsistency
@@ -389,7 +415,7 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance (r ~ '[SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+instance (r ~ '[IdPEffect.IdP, SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -397,7 +423,7 @@ instance (r ~ '[SAMLUser, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler 
     throwErrorAsHandlerException err
     where
       actionHandler :: Handler (Either SparError a)
-      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO (sparCtxCas ctx) $ samlUserToCassandra @Cas.Client $ runExceptT $ runReaderT action ctx
+      actionHandler = liftIO $ runFinal $ embedToFinal @IO $ interpretClientToIO (sparCtxCas ctx) $ samlUserToCassandra @Cas.Client $ idPToCassandra @Cas.Client $ runExceptT $ runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
@@ -427,7 +453,7 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
+verdictHandler :: HasCallStack => Members [IdPEffect.IdP, SAMLUser] r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
 verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
@@ -452,7 +478,7 @@ data VerdictHandlerResult
   | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
   deriving (Eq, Show)
 
-verdictHandlerResult :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResult :: HasCallStack => Members [IdPEffect.IdP, SAMLUser] r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
   SAML.logger SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
@@ -473,7 +499,7 @@ catchVerdictErrors = (`catchError` hndlr)
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
 -- traverse the old IdPs in search for the old entry.  Return that old entry.
-findUserIdWithOldIssuer :: forall r. Member SAMLUser r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult (SAML.UserRef, UserId))
+findUserIdWithOldIssuer :: forall r. Members [IdPEffect.IdP, SAMLUser] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult (SAML.UserRef, UserId))
 findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
   idp <- getIdPConfigByIssuerOptionalSPId issuer mbteam
   let tryFind :: GetUserResult (SAML.UserRef, UserId) -> Issuer -> Spar r (GetUserResult (SAML.UserRef, UserId))
@@ -491,7 +517,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
   wrapMonadClientSem $ SAMLUser.delete uid oldUserRef
 
-verdictHandlerResultCore :: HasCallStack => Member SAMLUser r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResultCore :: HasCallStack => Members [IdPEffect.IdP, SAMLUser] r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResultCore bindCky mbteam = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
@@ -680,3 +706,78 @@ errorPage err inputs mcky =
         "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, inputs, mcky)) <> "</pre>",
         "</body>"
       ]
+
+-- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
+-- single solution can be found without.
+getIdPIdByIssuerAllowOld ::
+  (HasCallStack) =>
+  Member IdPEffect.IdP r =>
+  SAML.Issuer ->
+  Maybe TeamId ->
+  Spar r (GetIdPResult SAML.IdPId)
+getIdPIdByIssuerAllowOld issuer mbteam = do
+  mbv2 <- liftSem $ maybe (pure Nothing) (IdPEffect.getIdByIssuerWithTeam issuer) mbteam
+  mbv1v2 <- liftSem $ maybe (IdPEffect.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
+  case (mbv1v2, mbteam) of
+    (GetIdPFound idpid, Just team) -> do
+      liftSem (IdPEffect.getConfig idpid) >>= \case
+        Nothing -> do
+          pure $ GetIdPDanglingId idpid
+        Just idp ->
+          pure $
+            if idp ^. SAML.idpExtraInfo . wiTeam /= team
+              then GetIdPWrongTeam idpid
+              else mbv1v2
+    _ -> pure mbv1v2
+
+-- | See 'getIdPIdByIssuer' and 'mapGetIdPResult'.
+getIdPConfigByIssuer ::
+  (HasCallStack, Member IdPEffect.IdP r) =>
+  SAML.Issuer ->
+  TeamId ->
+  Spar r (GetIdPResult IdP)
+getIdPConfigByIssuer issuer =
+  getIdPIdByIssuer issuer >=> mapGetIdPResult
+
+-- | See 'getIdPIdByIssuerAllowOld' and 'mapGetIdPResult'.
+getIdPConfigByIssuerAllowOld ::
+  (HasCallStack, Member IdPEffect.IdP r) =>
+  SAML.Issuer ->
+  Maybe TeamId ->
+  Spar r (GetIdPResult IdP)
+getIdPConfigByIssuerAllowOld issuer = do
+  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
+
+-- | Same as 'getIdPIdByIssuerAllowOld', but you are guaranteed that the 'TeamId' is passed.
+getIdPIdByIssuer ::
+  (HasCallStack, Member IdPEffect.IdP r) =>
+  SAML.Issuer ->
+  TeamId ->
+  Spar r (GetIdPResult SAML.IdPId)
+getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
+
+-- | (There are probably category theoretical models for what we're doing here, but it's more
+-- straight-forward to just handle the one instance we need.)
+mapGetIdPResult :: (HasCallStack, Member IdPEffect.IdP r) => GetIdPResult SAML.IdPId -> Spar r (GetIdPResult IdP)
+mapGetIdPResult (GetIdPFound i) = liftSem (IdPEffect.getConfig i) <&> maybe (GetIdPDanglingId i) GetIdPFound
+mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
+mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
+mapGetIdPResult (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
+mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
+
+-- | Delete all tokens belonging to a team.
+deleteTeam ::
+  (HasCallStack, Members [SAMLUser, IdPEffect.IdP] r) =>
+  TeamId ->
+  Spar r ()
+deleteTeam team = do
+  liftMonadClient $ Data.deleteTeamScimTokens team
+  -- Since IdPs are not shared between teams, we can look at the set of IdPs
+  -- used by the team, and remove everything related to those IdPs, too.
+  idps <- liftSem $ IdPEffect.getConfigsByTeam team
+  for_ idps $ \idp -> do
+    let idpid = idp ^. SAML.idpId
+        issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+    liftSem $ do
+      SAMLUser.deleteByIssuer issuer
+      IdPEffect.deleteConfig idpid issuer team

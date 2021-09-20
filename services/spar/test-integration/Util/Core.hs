@@ -175,13 +175,16 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (toLevel)
+import Spar.App (liftMonadClient, liftSem, toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
+import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.IdP.Cassandra
 import Spar.Sem.SAMLUser (SAMLUser)
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser.Cassandra
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
@@ -1206,10 +1209,10 @@ callDeleteDefaultSsoCode sparreq_ = do
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> Brig.UserSSOId -> m (Maybe UserId)
 ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
-  runSparCass @Client $
+  runSpar $
     runValidExternalId
-      Data.getSAMLUser
-      (Data.lookupScimExternalId tid)
+      (liftSem . SAMLUser.get)
+      (liftMonadClient . Data.lookupScimExternalId tid)
       veid
 
 runSparCass ::
@@ -1242,11 +1245,11 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- runFinal $ embedToFinal @IO $ interpretClientToIO (Spar.sparCtxCas env) $ samlUserToCassandra @Cas.Client $ runExceptT $ action `runReaderT` env
+    result <- runFinal $ embedToFinal @IO $ interpretClientToIO (Spar.sparCtxCas env) $ samlUserToCassandra @Cas.Client $ idPToCassandra @Cas.Client $ runExceptT $ action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
@@ -1267,7 +1270,7 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  aFewTimes (runSparCass $ Data.getSAMLUser uref) isJust
+  aFewTimes (runSpar $ liftSem $ SAMLUser.get uref) isJust
 
 checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 checkErr status mlabel = do

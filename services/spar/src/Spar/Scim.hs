@@ -82,6 +82,7 @@ import Spar.Error
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
+import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
@@ -100,7 +101,7 @@ import Wire.API.User.Scim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim :: Member SAMLUser r => ServerT APIScim (Spar r)
+apiScim :: Members [IdPEffect.IdP, SAMLUser] r => ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken
