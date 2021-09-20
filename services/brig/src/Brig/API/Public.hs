@@ -96,6 +96,8 @@ import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
+import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -257,12 +259,12 @@ servantSitemap =
         BrigAPI.getClientPrekeys = getClientPrekeys,
         BrigAPI.createConnectionUnqualified = createLocalConnection,
         BrigAPI.createConnection = createConnection,
-        BrigAPI.listLocalConnections = listConnections,
-        BrigAPI.listConnections = undefined,
+        BrigAPI.listLocalConnections = listLocalConnections,
+        BrigAPI.listConnections = listConnections,
         BrigAPI.getConnectionUnqualified = getLocalConnection,
         BrigAPI.getConnection = getConnection,
-        BrigAPI.updateConnectionUnqualified = updateConnection,
-        BrigAPI.updateConnection = undefined,
+        BrigAPI.updateConnectionUnqualified = updateLocalConnection,
+        BrigAPI.updateConnection = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -1088,18 +1090,31 @@ createConnection self conn (Qualified otherUser otherDomain) = do
   localDomain <- viewFederationDomain
   if localDomain == otherDomain
     then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
-    else throwM federationNotImplemented
+    else throwM federationNotImplemented -- FUTUREWORK
 
-updateConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
-updateConnection self conn other update = do
+updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateLocalConnection self conn other update = do
   let newStatus = Public.cuStatus update
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
 
-listConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
-listConnections uid start msize = do
+updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection self conn (Qualified otherUid otherDomain) update = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then updateLocalConnection self conn otherUid update
+    else throwM federationNotImplemented -- FUTUREWORK
+
+listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
+listLocalConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
+
+listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
+listConnections _uid req = do
+  let _size = Public.gmtprSize req
+  -- TODO
+  undefined
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getLocalConnection self other = lift $ API.lookupLocalConnection self other
