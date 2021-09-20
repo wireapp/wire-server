@@ -134,7 +134,7 @@ import Wire.API.Federation.Client (HasFederatorConfig (..))
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
-schemaVersion = 65
+schemaVersion = 64
 
 -------------------------------------------------------------------------------
 -- Environment
