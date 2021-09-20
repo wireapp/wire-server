@@ -30,7 +30,6 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch)
 import Data.Data (Proxy (Proxy))
-import Data.Domain (Domain)
 import Data.Id as Id
 import Data.List1 (maybeList1)
 import Data.Qualified (Local, Qualified (..), Remote, partitionRemoteOrLocalIds', toLocal)
@@ -446,34 +445,29 @@ rmUser user conn = do
   tids <- Data.teamIdsForPagination user Nothing n
   leaveTeams tids
   localDomain <- viewFederationDomain
-  -- TODO: Unify getting IDs of local and remote conversations and then page
-  -- through them together
-  localCids <- Data.localConversationIdRowsForPagination user Nothing nRange1000
-  leaveLocalConversations user localCids
-  allCids <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
-  goRemotes (toLocal (Qualified user localDomain)) allCids nRange1000
+  allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
+  goConvPages (toLocal (Qualified user localDomain)) nRange1000 allConvIds
   Data.eraseClients user
   where
-    onlyRemoteConvs :: Domain -> ConvIdsPage -> [Remote ConvId]
-    onlyRemoteConvs localDomain = fst . partitionRemoteOrLocalIds' localDomain . pageConvIds
-    goRemotes :: Local UserId -> ConvIdsPage -> Range 1 1000 Int32 -> Galley ()
-    goRemotes lusr page range = do
+    goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
+    goConvPages lusr range page = do
       localDomain <- viewFederationDomain
-      let remoteConvs = onlyRemoteConvs localDomain page
+      let (remoteConvs, localConvs) = partitionRemoteOrLocalIds' localDomain . pageConvIds $ page
+      leaveLocalConversations lusr localConvs
       leaveRemoteConversations lusr remoteConvs
       when (pageHasMore page) $ do
         let usr = qUnqualified . unTagged $ lusr
             nextQuery = GetPaginatedConversationIds (Just . pagePagingState $ page) range
         newCids <- Query.conversationIdsPageFrom usr nextQuery
-        goRemotes lusr newCids range
+        goConvPages lusr range newCids
     leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveLocalConversations :: UserId -> Cql.Page ConvId -> Galley ()
+    leaveLocalConversations :: Local UserId -> [ConvId] -> Galley ()
     leaveLocalConversations u ids = do
       localDomain <- viewFederationDomain
-      cc <- Data.localConversations (Cql.result ids)
+      cc <- Data.localConversations ids
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
         One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
@@ -481,7 +475,12 @@ rmUser user conn = do
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
             -- FUTUREWORK: deal with remote members, too, see removeMembers
-            e <- Data.removeLocalMembersFromLocalConv localDomain c (Qualified user localDomain) (pure u)
+            e <-
+              Data.removeLocalMembersFromLocalConv
+                localDomain
+                c
+                (Qualified user localDomain)
+                (pure . qUnqualified . unTagged $ u)
             return $
               Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
@@ -490,8 +489,6 @@ rmUser user conn = do
       for_
         (maybeList1 (catMaybes pp))
         Intra.push
-      unless (null $ Cql.result ids) $
-        leaveLocalConversations u =<< Cql.liftClient (Cql.nextPage ids)
     leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
     leaveRemoteConversations (unTagged -> qusr) cids =
       for_ cids $ \(Tagged cid) -> Update.removeMember qusr Nothing cid qusr
