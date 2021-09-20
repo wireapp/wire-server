@@ -730,7 +730,7 @@ getIdPIdByIssuerAllowOld issuer mbteam = do
               else mbv1v2
     _ -> pure mbv1v2
 
--- | See 'getIdPIdByIssuer'.
+-- | See 'getIdPIdByIssuer' and 'mapGetIdPResult'.
 getIdPConfigByIssuer ::
   (HasCallStack, Member IdPEffect.IdP r) =>
   SAML.Issuer ->
@@ -739,7 +739,7 @@ getIdPConfigByIssuer ::
 getIdPConfigByIssuer issuer =
   getIdPIdByIssuer issuer >=> mapGetIdPResult
 
--- | See 'getIdPIdByIssuerAllowOld'.
+-- | See 'getIdPIdByIssuerAllowOld' and 'mapGetIdPResult'.
 getIdPConfigByIssuerAllowOld ::
   (HasCallStack, Member IdPEffect.IdP r) =>
   SAML.Issuer ->
@@ -748,8 +748,7 @@ getIdPConfigByIssuerAllowOld ::
 getIdPConfigByIssuerAllowOld issuer = do
   getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
 
--- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
--- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
+-- | Same as 'getIdPIdByIssuerAllowOld', but you are guaranteed that the 'TeamId' is passed.
 getIdPIdByIssuer ::
   (HasCallStack, Member IdPEffect.IdP r) =>
   SAML.Issuer ->
