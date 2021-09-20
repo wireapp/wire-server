@@ -18,8 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.UserConnectionList_user where
 
+import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
+import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (..), Maybe (..), fromJust)
 import Wire.API.Connection
@@ -27,8 +29,6 @@ import Wire.API.Connection
     UserConnection (..),
     UserConnectionList (..),
   )
-import Data.Qualified (Qualified(..))
-import Data.Domain (Domain(..))
 
 testObject_UserConnectionList_user_1 :: UserConnectionList
 testObject_UserConnectionList_user_1 =

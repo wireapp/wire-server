@@ -21,8 +21,8 @@
 module Wire.API.Routes.Public.Util where
 
 import Data.SOP (I (..), NS (..))
-import Servant
 import Imports
+import Servant
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Routes.MultiVerb
 
