@@ -50,6 +50,7 @@ tests s =
           test s "nothing" (messageTimerInit Nothing)
         ],
       test s "timer can be changed" messageTimerChange,
+      test s "timer can be changed with the qualified endpoint" messageTimerChangeQualified,
       test s "timer can't be set by conv member without allowed action" messageTimerChangeWithoutAllowedAction,
       test s "timer can't be set in 1:1 conversations" messageTimerChangeO2O,
       test s "setting the timer generates an event" messageTimerEvent
@@ -95,6 +96,36 @@ messageTimerChange = do
     !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
   -- Set timer to 1 year
   putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate timer1year)
+    !!! const 200 === statusCode
+  getConv jane cid
+    !!! const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
+
+messageTimerChangeQualified :: TestM ()
+messageTimerChangeQualified = do
+  localDomain <- viewFederationDomain
+  -- Create a conversation without a timer
+  [alice, bob, jane] <- randomUsers 3
+  connectUsers alice (list1 bob [jane])
+  rsp <-
+    postConv alice [bob, jane] Nothing [] Nothing Nothing
+      <!! const 201 === statusCode
+  cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing Nothing
+  let qcid = Qualified cid localDomain
+  -- Set timer to null and observe 204
+  putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate Nothing)
+    !!! const 204 === statusCode
+  -- Set timer to 1 second
+  putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate timer1sec)
+    !!! const 200 === statusCode
+  getConv jane cid
+    !!! const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
+  -- Set timer to null
+  putMessageTimerUpdateQualified bob qcid (ConversationMessageTimerUpdate Nothing)
+    !!! const 200 === statusCode
+  getConv jane cid
+    !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
+  -- Set timer to 1 year
+  putMessageTimerUpdateQualified bob qcid (ConversationMessageTimerUpdate timer1year)
     !!! const 200 === statusCode
   getConv jane cid
     !!! const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)

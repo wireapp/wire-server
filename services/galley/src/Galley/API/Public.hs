@@ -95,6 +95,9 @@ servantSitemap =
         GalleyAPI.updateConversationNameDeprecated = Update.updateLocalConversationName,
         GalleyAPI.updateConversationNameUnqualified = Update.updateLocalConversationName,
         GalleyAPI.updateConversationName = Update.updateConversationName,
+        GalleyAPI.updateConversationMessageTimerUnqualified =
+          Update.updateLocalConversationMessageTimer,
+        GalleyAPI.updateConversationMessageTimer = Update.updateConversationMessageTimer,
         GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
         GalleyAPI.updateConversationSelfUnqualified = Update.updateUnqualifiedSelfMember,
         GalleyAPI.updateConversationSelf = Update.updateSelfMember,
@@ -676,28 +679,6 @@ sitemap = do
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.convNotFound)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvMessageTimerUpdate event to members
-  put "/conversations/:cnv/message-timer" (continue Update.updateConversationMessageTimerH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationMessageTimerUpdate
-  document "PUT" "updateConversationMessageTimer" $ do
-    summary "Update the message timer for a conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Message timer updated." end
-    response 204 "Message timer unchanged." end
-    body (ref Public.modelConversationMessageTimerUpdate) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
-    errorResponse Error.invalidSelfOp
-    errorResponse Error.invalidOne2OneOp
-    errorResponse Error.invalidConnectOp
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
