@@ -373,19 +373,30 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "connections"
-        :> ReqBody '[JSON] ConnectionRequest
+        :> ReqBody '[JSON] ConnectionRequest -- TODO: investigate if name can be deleted; then make qualified user part of the http path
         :> MultiVerb
              'POST
              '[JSON]
              (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
              (ResponseForExistedCreated UserConnection),
     listConnections ::
-      routes :- Summary "List the connections to other users."
+      routes :- Summary "List the local connections to other users. (deprecated)"
         :> ZUser
         :> "connections"
         :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
         :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
         :> Get '[JSON] UserConnectionList,
+
+    -- TODO: use paging state approach like in conversations
+    listConnectionsV2 ::
+      routes :- Summary "List the connections to other users, including remote users."
+        :> ZUser
+        :> "connections"
+        :> "v2"
+        :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
+        :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
+        :> Get '[JSON] UserConnectionList,
+
     getConnectionUnqualified ::
       routes :- Summary "Get an existing connection to another user. (deprecated)"
         :> ZUser
@@ -398,6 +409,20 @@ data Api routes = Api
                 Respond 200 "Connection found" UserConnection
               ]
              (Maybe UserConnection),
+
+    getConnection ::
+      routes :- Summary "Get an existing connection to another user. (deprecated)"
+        :> ZUser
+        :> "connections"
+        :> QualifiedCaptureUserId "uid"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ EmptyErrorForLegacyReasons 404 "Connection not found",
+                Respond 200 "Connection found" UserConnection
+              ]
+             (Maybe UserConnection),
+
     -- This endpoint can lead to the following events being sent:
     -- - ConnectionUpdated event to self and other, if their connection states change
     --
@@ -422,6 +447,32 @@ data Api routes = Api
              '[JSON]
              ConnectionUpdateResponses
              (UpdateResult UserConnection),
+
+    -- This endpoint can lead to the following events being sent:
+    -- - ConnectionUpdated event to self and other, if their connection states change
+    --
+    -- When changing the connection state to Sent or Accepted, this can cause events to be sent
+    -- when joining the connect conversation:
+    -- - MemberJoin event to self and other (via galley)
+    updateConnection ::
+      routes :- Summary "Update a connection to another user. (deprecated)"
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NotConnected
+        :> CanThrow InvalidTransition
+        :> CanThrow NoIdentity
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> QualifiedCaptureUserId "uid"
+        :> ReqBody '[JSON] ConnectionUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             ConnectionUpdateResponses
+             (UpdateResult UserConnection),
+
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser
