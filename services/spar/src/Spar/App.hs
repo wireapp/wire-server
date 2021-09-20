@@ -222,8 +222,9 @@ wrapMonadClient action =
 -- re-throw them as 500 in Handler.
 wrapMonadClientSem :: Sem r a -> Spar r a
 wrapMonadClientSem action =
-  Spar $ (lift $ lift action) `Catch.catch`
-    (throwSpar . SparCassandraError . cs . show @SomeException)
+  Spar $
+    (lift $ lift action)
+      `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: Member SAMLUser r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUser.insert uref uid
