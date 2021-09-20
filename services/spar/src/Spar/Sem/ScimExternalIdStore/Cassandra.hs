@@ -3,8 +3,9 @@ module Spar.Sem.ScimExternalIdStore.Cassandra where
 import Cassandra
 import Imports
 import Polysemy
--- import qualified Spar.Data as Data
+import qualified Spar.Data as Data
 import Spar.Sem.ScimExternalIdStore
+
 
 scimExternalIdStoreToCassandra ::
   forall m r a.
@@ -12,12 +13,8 @@ scimExternalIdStoreToCassandra ::
   Sem (ScimExternalIdStore ': r) a ->
   Sem r a
 scimExternalIdStoreToCassandra =
-  interpret $ undefined
+  interpret $ embed @m . \case
+    Insert tid em uid -> Data.insertScimExternalId tid em uid
+    Lookup tid em -> Data.lookupScimExternalId tid em
+    Delete tid em -> Data.deleteScimExternalId tid em
 
--- embed . \case
---   Insert ur uid -> Data.insertSAMLUser ur uid
---   Get ur -> Data.getSAMLUser ur
---   GetAnyByIssuer is -> Data.getSAMLAnyUserByIssuer is
---   GetSomeByIssuer is -> Data.getSAMLSomeUsersByIssuer is
---   DeleteByIssuer is -> Data.deleteSAMLUsersByIssuer is
---   Delete uid ur -> Data.deleteSAMLUser uid ur
