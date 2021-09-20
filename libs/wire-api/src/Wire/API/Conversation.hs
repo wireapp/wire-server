@@ -929,8 +929,8 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
 --------------------------------------------------------------------------------
 -- actions
 
--- | A conversation membership update, as given by 'ConversationMemberUpdate',
--- can be either a member addition or removal.
+-- | An update to a conversation, including addition and removal of members.
+-- Used to send notifications to users and to remote backends.
 data ConversationAction
   = ConversationActionAddMembers (NonEmpty (Qualified UserId, RoleName))
   | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
