@@ -837,6 +837,20 @@ packages:
       sha256: 9bf2645187637b647dfaebf37a45a57e221b3527592ce3b1cfd9faf90339dac3
   original:
     hackage: implicit-hie-0.1.2.5
+- completed:
+    hackage: polysemy-zoo-0.7.0.1@sha256:60c2921df95f61d43222a75adde4f330e9510320b416132838a354cd81b4bcc5,3846
+    pantry-tree:
+      size: 2979
+      sha256: af39e295a7831e6bca01fa78df6c538cb6f1dfb339d118056fd0d9c314925726
+  original:
+    hackage: polysemy-zoo-0.7.0.1@sha256:60c2921df95f61d43222a75adde4f330e9510320b416132838a354cd81b4bcc5,3846
+- completed:
+    hackage: compact-0.2.0.0@sha256:75ef98cb51201b4a0d6de95cbbb62be6237c092a3d594737346c70c5d56c2380,2413
+    pantry-tree:
+      size: 546
+      sha256: 9514e48c9141b29a5f58b27c2950f17cc1c53eea3d393a6a1ed46ca16e876754
+  original:
+    hackage: compact-0.2.0.0
 snapshots:
 - completed:
     size: 532382
