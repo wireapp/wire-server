@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ebbe442ba952db0f975a3f93ffa72db3b1b971f506a30baaca5615f93b4b376a
+-- hash: 8d07ea070b6384ec247f4473abb198bbb9639f72543920cbe46f561df96963ca
 
 name:           galley-types
 version:        0.81.0
@@ -43,6 +43,7 @@ library
     , imports
     , lens >=4.12
     , string-conversions
+    , tagged
     , text >=0.11
     , time >=1.4
     , types-common >=0.16

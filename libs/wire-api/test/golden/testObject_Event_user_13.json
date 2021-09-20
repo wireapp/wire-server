@@ -1,20 +1,17 @@
 {
+    "conversation": "00000838-0000-1bc6-0000-686d00003565",
+    "data": {
+        "name": "New conversation name"
+    },
+    "from": "0000114a-0000-7da8-0000-40cb00007fcf",
     "qualified_conversation": {
         "domain": "faraway.example.com",
-        "id": "00006355-0000-5f6e-0000-592c0000680c"
+        "id": "00000838-0000-1bc6-0000-686d00003565"
     },
-    "conversation": "00006355-0000-5f6e-0000-592c0000680c",
-    "time": "1864-05-21T03:22:42.926Z",
-    "data": {
-        "text": "󸈟\u001c!kO5",
-        "data": "sz",
-        "sender": "1f",
-        "recipient": "4"
-    },
-    "from": "000029eb-0000-06f8-0000-514100000a84",
     "qualified_from": {
         "domain": "faraway.example.com",
-        "id": "000029eb-0000-06f8-0000-514100000a84"
+        "id": "0000114a-0000-7da8-0000-40cb00007fcf"
     },
-    "type": "conversation.otr-message-add"
+    "time": "1864-05-12T20:29:47.483Z",
+    "type": "conversation.rename"
 }

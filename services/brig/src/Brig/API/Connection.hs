@@ -22,7 +22,6 @@
 -- User connection logic.
 module Brig.API.Connection
   ( -- * Connections
-    autoConnect,
     createConnection,
     updateConnection,
     UpdateConnectionsInternal (..),
@@ -35,7 +34,7 @@ module Brig.API.Connection
   )
 where
 
-import Brig.API.Error (userNotFound)
+import Brig.API.Error (errorDescriptionToWai)
 import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
 import Brig.App
@@ -45,7 +44,6 @@ import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setUserMaxConnections)
 import Brig.Types
-import Brig.Types.Intra
 import Brig.Types.User.Event
 import Control.Error
 import Control.Lens (view)
@@ -54,20 +52,20 @@ import Data.Id as Id
 import qualified Data.LegalHold as LH
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
-import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
-import qualified Galley.Types.Teams as Team
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
 import qualified Wire.API.Conversation as Conv
+import Wire.API.ErrorDescription
+import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 createConnection ::
   UserId ->
   ConnectionRequest ->
   ConnId ->
-  ExceptT ConnectionError AppIO ConnectionResult
+  ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
 createConnection self req conn =
   createConnectionToLocalUser self (crUser req) req conn
 
@@ -76,8 +74,8 @@ createConnectionToLocalUser ::
   UserId ->
   ConnectionRequest ->
   ConnId ->
-  ExceptT ConnectionError AppIO ConnectionResult
-createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} conn = do
+  ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
+createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
   when (self == crUser) $
     throwE $
       InvalidUser crUser
@@ -100,28 +98,28 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
     Just rs -> rs
     Nothing -> do
       checkLimit self
-      ConnectionCreated <$> insert Nothing Nothing
+      Created <$> insert Nothing Nothing
   where
     insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError AppIO UserConnection
     insert s2o o2s = lift $ do
       Log.info $
         logConnection self crUser
           . msg (val "Creating connection")
-      cnv <- Intra.createConnectConv self crUser (Just crName) (Just crMessage) (Just conn)
-      s2o' <- Data.insertConnection self crUser SentWithHistory (Just crMessage) cnv
-      o2s' <- Data.insertConnection crUser self PendingWithHistory (Just crMessage) cnv
+      cnv <- Intra.createConnectConv self crUser (Just (fromRange crName)) (Just conn)
+      s2o' <- Data.insertConnection self crUser SentWithHistory cnv
+      o2s' <- Data.insertConnection crUser self PendingWithHistory cnv
       e2o <- ConnectionUpdated o2s' (ucStatus <$> o2s) <$> Data.lookupName self
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
       mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
       return s2o'
 
-    update :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ConnectionResult
+    update :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
       (MissingLegalholdConsent, _) -> throwE $ InvalidTransition self Sent
       (_, MissingLegalholdConsent) -> throwE $ InvalidTransition self Sent
-      (Accepted, Accepted) -> return $ ConnectionExists s2o
-      (Accepted, Blocked) -> return $ ConnectionExists s2o
-      (Sent, Blocked) -> return $ ConnectionExists s2o
+      (Accepted, Accepted) -> return $ Existed s2o
+      (Accepted, Blocked) -> return $ Existed s2o
+      (Sent, Blocked) -> return $ Existed s2o
       (Blocked, _) -> throwE $ InvalidTransition self Sent
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
@@ -130,7 +128,7 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       (_, Pending) -> resend s2o o2s
       (_, Cancelled) -> resend s2o o2s
 
-    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ConnectionResult
+    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     accept s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
@@ -147,9 +145,9 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
       e2o <- lift $ ConnectionUpdated o2s' (Just $ ucStatus o2s) <$> Data.lookupName self
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
       lift $ mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
-      return $ ConnectionExists s2o'
+      return $ Existed s2o'
 
-    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO ConnectionResult
+    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     resend s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
@@ -157,10 +155,10 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} co
         logConnection self (ucTo s2o)
           . msg (val "Resending connection request")
       s2o' <- insert (Just s2o) (Just o2s)
-      return $ ConnectionExists s2o'
+      return $ Existed s2o'
 
-    change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO ConnectionResult
-    change c s = ConnectionExists <$> lift (Data.updateConnection c s)
+    change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
+    change c s = Existed <$> lift (Data.updateConnection c s)
 
     belongSameTeam :: AppIO Bool
     belongSameTeam = do
@@ -177,7 +175,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
         -- Does not fit into 'ExceptT', so throw in 'AppIO'.  Anyway at the time of writing
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
-        maybe (throwM userNotFound) return
+        maybe (throwM (errorDescriptionToWai userNotFound)) return
 
   status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
   status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
@@ -418,51 +416,6 @@ updateConnectionInternal = \case
       IgnoredWithHistory -> IgnoredWithHistory
       SentWithHistory -> SentWithHistory
       CancelledWithHistory -> CancelledWithHistory
-
-autoConnect ::
-  UserId ->
-  Set UserId ->
-  Maybe ConnId ->
-  ExceptT ConnectionError AppIO [UserConnection]
-autoConnect from (Set.toList -> to) conn = do
-  selfActive <- lift $ Data.isActivated from
-  -- FIXME: checkLimit from
-  -- Checking the limit here is currently a too heavy operation
-  -- for this code path and needs to be optimised / rethought.
-  unless selfActive $
-    throwE ConnectNoIdentity
-  othersActive <- lift $ Data.filterActive to
-  nonTeamMembers <- filterOutTeamMembers othersActive
-  lift $ connectAll nonTeamMembers
-  where
-    filterOutTeamMembers us = do
-      -- FUTUREWORK: This is only used for test purposes. If getTeamContacts is truncated
-      --       tests might fail in strange ways. Maybe we want to fail hard if this
-      --       returns a truncated list. I think the whole function can be removed.
-      mems <- lift $ Intra.getTeamContacts from
-      return $ maybe us (Team.notTeamMember us . view Team.teamMembers) mems
-    connectAll activeOthers = do
-      others <- selectOthers activeOthers
-      convs <- mapM (createConv from) others
-      self <- Data.lookupName from
-      ucs <- Data.connectUsers from convs
-      let events = map (toEvent self) ucs
-      forM_ events $ Intra.onConnectionEvent from conn
-      return ucs
-    -- Assumption: if there's an existing connection, don't touch it.
-    -- The exception to this rule _could_ be a sent/pending connection
-    -- but for sure we would not override states like `blocked` and `ignored`
-    -- For simplicity, let's just not touch them.
-    selectOthers usrs = do
-      existing <- map csFrom <$> Data.lookupConnectionStatus usrs [from]
-      return $ filter (`notElem` existing) usrs
-    createConv s o = do
-      c <- Intra.createConnectConv s o Nothing Nothing conn
-      _ <- Intra.acceptConnectConv o conn c
-      return (o, c)
-    -- Note: The events sent to the users who got auto-connected to 'from'
-    --       get the user name of the user whom they got connected to included.
-    toEvent self uc = ConnectionUpdated uc Nothing (mfilter (const $ ucFrom uc /= from) self)
 
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO UserConnectionList
 lookupConnections from start size = do

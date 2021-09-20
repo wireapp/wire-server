@@ -191,3 +191,14 @@ services:
       - ./:/scripts
     networks:
       - demo_wire
+  coredns:
+    image: docker.io/coredns/coredns:1.8.4
+    volumes:
+      - ./coredns-config:/coredns-config
+    entrypoint:
+      - /coredns
+      - -conf
+      - /coredns-config/Corefile
+    ports:
+      - "9053:53"
+      - "9053:53/udp"

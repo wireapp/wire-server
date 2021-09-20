@@ -174,7 +174,7 @@ instance ToJSON NewUserScimInvitation where
 -- UserList
 
 -- | Set of user ids, can be used for different purposes (e.g., used on the internal
--- APIs for auto-connections, listing user's clients)
+-- APIs for listing user's clients)
 data UserSet = UserSet
   { usUsrs :: !(Set UserId)
   }

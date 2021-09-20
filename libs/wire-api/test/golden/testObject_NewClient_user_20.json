@@ -1,15 +1,15 @@
 {
     "cookie": "",
+    "label": "+\u001c",
     "lastkey": {
-        "key": "<",
-        "id": 65535
+        "id": 65535,
+        "key": "<"
     },
-    "type": "legalhold",
     "prekeys": [
         {
-            "key": "",
-            "id": 0
+            "id": 0,
+            "key": ""
         }
     ],
-    "label": "+\u001c"
+    "type": "legalhold"
 }

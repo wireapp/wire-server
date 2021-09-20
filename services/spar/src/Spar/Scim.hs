@@ -64,11 +64,11 @@ module Spar.Scim
   )
 where
 
-import Control.Lens
 import Control.Monad.Catch (try)
 import Control.Monad.Except
 import Data.String.Conversions (cs)
 import Imports
+import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
@@ -82,6 +82,7 @@ import Spar.Error
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
+import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
@@ -99,7 +100,7 @@ import Wire.API.User.Scim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim :: ServerT APIScim Spar
+apiScim :: Member SAMLUser r => ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken
@@ -115,32 +116,33 @@ apiScim =
     -- Let's hope that SCIM clients can handle non-SCIM-formatted errors
     -- properly. See <https://github.com/haskell-servant/servant/issues/1022>
     -- for why it's hard to catch impure exceptions.
-    wrapScimErrors :: Spar a -> Spar a
-    wrapScimErrors = over _Spar $ \act -> \env -> do
-      result :: Either SomeException (Either SparError a) <- try (act env)
-      case result of
-        Left someException -> do
-          -- We caught an exception that's not a Spar exception at all. It is wrapped into
-          -- Scim.serverError.
-          pure . Left . SAML.CustomError . SparScimError $
-            Scim.serverError (cs (displayException someException))
-        Right err@(Left (SAML.CustomError (SparScimError _))) ->
-          -- We caught a 'SparScimError' exception. It is left as-is.
-          pure err
-        Right (Left sparError) -> do
-          -- We caught some other Spar exception. It is rendered and wrapped into a scim error
-          -- with the same status and message, and no scim error type.
-          err :: ServerError <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
-          pure . Left . SAML.CustomError . SparScimError $
-            Scim.ScimError
-              { schemas = [Scim.Schema.Error20],
-                status = Scim.Status $ errHTTPCode err,
-                scimType = Nothing,
-                detail = Just . cs $ errBody err
-              }
-        Right (Right x) -> do
-          -- No exceptions! Good.
-          pure $ Right x
+    wrapScimErrors :: Spar r a -> Spar r a
+    wrapScimErrors act = Spar $
+      ReaderT $ \env -> ExceptT $ do
+        result :: Either SomeException (Either SparError a) <- try $ runExceptT $ runReaderT (fromSpar $ act) env
+        case result of
+          Left someException -> do
+            -- We caught an exception that's not a Spar exception at all. It is wrapped into
+            -- Scim.serverError.
+            pure . Left . SAML.CustomError . SparScimError $
+              Scim.serverError (cs (displayException someException))
+          Right err@(Left (SAML.CustomError (SparScimError _))) ->
+            -- We caught a 'SparScimError' exception. It is left as-is.
+            pure err
+          Right (Left sparError) -> do
+            -- We caught some other Spar exception. It is rendered and wrapped into a scim error
+            -- with the same status and message, and no scim error type.
+            err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging (sparCtxLogger env) sparError
+            pure . Left . SAML.CustomError . SparScimError $
+              Scim.ScimError
+                { schemas = [Scim.Schema.Error20],
+                  status = Scim.Status $ errHTTPCode err,
+                  scimType = Nothing,
+                  detail = Just . cs $ errBody err
+                }
+          Right (Right x) -> do
+            -- No exceptions! Good.
+            pure $ Right x
 
 -- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
 -- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
@@ -154,11 +156,3 @@ server conf =
     { config = toServant $ Scim.configServer conf,
       users = \authData -> toServant (Scim.userServer @tag authData)
     }
-
-----------------------------------------------------------------------------
--- Utilities
-
--- | An isomorphism that unwraps the Spar stack (@Spar . ReaderT . ExceptT@) into a
--- newtype-less form that's easier to work with.
-_Spar :: Iso' (Spar a) (Env -> IO (Either SparError a))
-_Spar = coerced

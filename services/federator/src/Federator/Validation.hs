@@ -20,36 +20,87 @@ module Federator.Validation
     validateDomain,
     throwInward,
     sanitizePath,
+    validateDomainName,
   )
 where
 
-import Control.Lens (view)
+import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as B8
 import Data.Domain (Domain, domainText, mkDomain)
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.PEM as X509
 import Data.String.Conversions (cs)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.X509 as X509
+import qualified Data.X509.Validation as X509
+import Federator.Discovery
 import Federator.Options
 import Imports
-import Polysemy (Members, Sem)
+import Polysemy (Member, Members, Sem)
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 import URI.ByteString
 import Wire.API.Federation.GRPC.Types
+import Wire.Network.DNS.SRV (SrvTarget (..))
 
 -- | Validates an already-parsed domain against the allowList using the federator
 -- startup configuration.
 federateWith :: Members '[Polysemy.Reader RunSettings] r => Domain -> Sem r Bool
 federateWith targetDomain = do
-  strategy <- view federationStrategy <$> Polysemy.ask
+  strategy <- Polysemy.asks federationStrategy
   pure $ case strategy of
     AllowAll -> True
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains
 
--- | Validates an unknown domain string against the allowList using the federator startup configuration
-validateDomain :: Members '[Polysemy.Reader RunSettings, Polysemy.Error InwardError] r => Text -> Sem r Domain
-validateDomain unparsedDomain = do
+decodeCertificate ::
+  Member (Polysemy.Error InwardError) r =>
+  ByteString ->
+  Sem r X509.Certificate
+decodeCertificate =
+  Polysemy.fromEither
+    . first (InwardError IAuthenticationFailed . Text.pack)
+    . ( (pure . X509.getCertificate)
+          <=< X509.decodeSignedCertificate
+          <=< (pure . X509.pemContent)
+          <=< expectOne "certificate"
+          <=< X509.pemParseBS
+      )
+  where
+    expectOne :: String -> [a] -> Either String a
+    expectOne label [] = Left $ "no " <> label <> " found"
+    expectOne _ [x] = pure x
+    expectOne label _ = Left $ "found multiple " <> label <> "s"
+
+-- | Validates an unknown domain string against the allowList using the
+-- federator startup configuration and checks that it matches the names reported
+-- by the client certificate
+validateDomain ::
+  Members
+    '[ Polysemy.Reader RunSettings,
+       Polysemy.Error InwardError,
+       DiscoverFederator
+     ]
+    r =>
+  Maybe ByteString ->
+  Text ->
+  Sem r Domain
+validateDomain Nothing _ = throwInward IAuthenticationFailed "no client certificate provided"
+validateDomain (Just encodedCertificate) unparsedDomain = do
   targetDomain <- case mkDomain unparsedDomain of
-    Left parseErr -> throwInward IInvalidDomain (errDomainParsing parseErr)
+    Left parseErr -> throwInward IAuthenticationFailed (errDomainParsing parseErr)
     Right d -> pure d
+
+  -- run discovery to find the hostname of the client federator
+  certificate <- decodeCertificate encodedCertificate
+  hostnames <-
+    srvTargetDomain
+      <$$> Polysemy.mapError (InwardError IDiscoveryFailed . errDiscovery) (discoverAllFederatorsWithError targetDomain)
+  let validationErrors = (\h -> validateDomainName (B8.unpack h) certificate) <$> hostnames
+  unless (any null validationErrors) $
+    throwInward IAuthenticationFailed ("none of the domain names match the certificate, errrors: " <> (Text.pack . show . NonEmpty.toList $ validationErrors))
+
   passAllowList <- federateWith targetDomain
   if passAllowList
     then pure targetDomain
@@ -60,6 +111,10 @@ validateDomain unparsedDomain = do
 
     errAllowList :: Domain -> Text
     errAllowList domain = "Origin domain [" <> domainText domain <> "] not in the federation allow list"
+
+    errDiscovery :: LookupError -> Text
+    errDiscovery (LookupErrorSrvNotAvailable msg) = "srv record not found: " <> Text.decodeUtf8 msg
+    errDiscovery (LookupErrorDNSError msg) = "DNS error: " <> Text.decodeUtf8 msg
 
 throwInward :: Members '[Polysemy.Error InwardError] r => InwardErrorType -> Text -> Sem r a
 throwInward errType errMsg = Polysemy.throw $ InwardError errType errMsg
@@ -108,3 +163,15 @@ sanitizePath originalPath = do
     throwInward IForbiddenEndpoint ("disallowed path: " <> cs originalPath)
 
   pure normalized
+
+-- | Match a hostname against the domain names of a certificate.
+--
+-- We strip the trailing dot from the domain, as the certificate is not
+-- expected to have the trailing dot.
+validateDomainName :: String -> X509.Certificate -> [X509.FailedReason]
+validateDomainName hostname =
+  X509.hookValidateName X509.defaultHooks (stripDot hostname)
+  where
+    stripDot h
+      | "." `isSuffixOf` h = take (length h - 1) h
+      | otherwise = h

@@ -23,7 +23,9 @@ where
 import Imports
 import qualified Test.Federator.ExternalServer
 import qualified Test.Federator.InternalServer
+import qualified Test.Federator.Monitor
 import qualified Test.Federator.Options
+import qualified Test.Federator.Remote
 import qualified Test.Federator.Validation as Validation
 import Test.Tasty
 
@@ -35,5 +37,7 @@ main =
       [ Test.Federator.Options.tests,
         Validation.tests,
         Test.Federator.InternalServer.tests,
-        Test.Federator.ExternalServer.tests
+        Test.Federator.ExternalServer.tests,
+        Test.Federator.Monitor.tests,
+        Test.Federator.Remote.tests
       ]

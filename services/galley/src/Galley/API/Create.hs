@@ -21,7 +21,6 @@ module Galley.API.Create
     createSelfConversation,
     createOne2OneConversation,
     createConnectConversationH,
-    ConversationResponses,
   )
 where
 
@@ -49,22 +48,11 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
-import Servant (WithStatus (..))
-import qualified Servant
-import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
-import Wire.API.Routes.Public.Galley (ConversationResponses)
+import Wire.API.ErrorDescription (missingLegalholdConsent)
+import Wire.API.Routes.Public.Galley (ConversationResponse)
+import Wire.API.Routes.Public.Util
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
-
--- Servant helpers ------------------------------------------------------
-
-conversationResponse :: ConversationResponse -> Galley (Union ConversationResponses)
-conversationResponse (ConversationExisted c) =
-  Servant.respond . WithStatus @200 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
-conversationResponse (ConversationCreated c) =
-  Servant.respond . WithStatus @201 . Servant.addHeader @"Location" (qUnqualified . cnvQualifiedId $ c) $ c
-
--------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -76,9 +64,9 @@ createGroupConversation ::
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
-  Galley (Union ConversationResponses)
+  Galley ConversationResponse
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
-  conversationResponse =<< case newConvTeam body of
+  case newConvTeam body of
     Nothing -> createRegularGroupConv user conn wrapped
     Just tinfo -> createTeamGroupConv user conn tinfo body
 
@@ -100,7 +88,7 @@ ensureNoLegalholdConflicts remotes locals = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
-      throwM missingLegalholdConsent
+      throwErrorDescription missingLegalholdConsent
 
 -- | A helper for creating a regular (non-team) group conversation.
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
@@ -116,7 +104,6 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   ensureConnected zusr locals
   checkRemoteUsersExist remotes
   ensureNoLegalholdConflicts remotes locals
-  -- FUTUREWORK: Implement (3) per comments for Update.addMembers. (also for createTeamGroupConv)
   c <-
     Data.createConversation
       localDomain
@@ -178,7 +165,6 @@ createTeamGroupConv zusr zcon tinfo body = do
         pure checkedPartitionedUsers
   checkRemoteUsersExist remotes
   ensureNoLegalholdConflicts remotes localUserIds
-  -- FUTUREWORK: Implement (3) per comments for Update.addMembers.
   conv <-
     Data.createConversation
       localDomain
@@ -199,18 +185,17 @@ createTeamGroupConv zusr zcon tinfo body = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversation :: UserId -> Galley (Union ConversationResponses)
+createSelfConversation :: UserId -> Galley ConversationResponse
 createSelfConversation zusr = do
   c <- Data.conversation (Id . toUUID $ zusr)
-  conversationResponse
-    =<< maybe create (conversationExisted zusr) c
+  maybe create (conversationExisted zusr) c
   where
     create = do
       localDomain <- viewFederationDomain
       c <- Data.createSelfConversation localDomain zusr Nothing
       conversationCreated zusr c
 
-createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley (Union ConversationResponses)
+createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   otherUserId <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
   (x, y) <- toUUIDs zusr otherUserId
@@ -226,8 +211,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
-  resp <- maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
-  conversationResponse resp
+  maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u
@@ -318,28 +302,23 @@ createConnectConversation usr conn j = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-data ConversationResponse
-  = ConversationCreated !Public.Conversation
-  | ConversationExisted !Public.Conversation
-
 conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationCreated usr cnv = ConversationCreated <$> conversationView usr cnv
+conversationCreated usr cnv = Created <$> conversationView usr cnv
 
 conversationExisted :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationExisted usr cnv = ConversationExisted <$> conversationView usr cnv
+conversationExisted usr cnv = Existed <$> conversationView usr cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case
-  ConversationCreated cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
-  ConversationExisted cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
+  Created cnv -> json cnv & setStatus status201 . location (qUnqualified . cnvQualifiedId $ cnv)
+  Existed cnv -> json cnv & setStatus status200 . location (qUnqualified . cnvQualifiedId $ cnv)
 
 notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
 notifyCreatedConversation dtime usr conn c = do
   localDomain <- viewFederationDomain
   now <- maybe (liftIO getCurrentTime) pure dtime
-  -- FUTUREWORK: Should these calls that push notifications to local and remote
-  -- users be made in this, or a different order, or in parallel/applicative
-  -- fashion?
+  -- FUTUREWORK: Handle failures in notifying so it does not abort half way
+  -- through (either when notifying remotes or locals)
   --
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
@@ -353,7 +332,7 @@ notifyCreatedConversation dtime usr conn c = do
     toPush dom t m = do
       let qconv = Qualified (Data.convId c) dom
           qusr = Qualified usr dom
-      c' <- conversationView (memId m) c
+      c' <- conversationView (lmId m) c
       let e = Event ConvCreate qconv qusr t (EdConversation c')
       return $
         newPushLocal1 ListComplete usr (ConvEvent e) (list1 (recipient m) [])

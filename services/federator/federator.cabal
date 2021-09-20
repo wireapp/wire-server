@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c8d8d4810804d66206f0409a7239d3961d39ff18d757b13e15917b52ec2dfb08
+-- hash: 9a181e3a92130220d845ad959ca6e02a217b07a38602513bff4c9376a4ffe145
 
 name:           federator
 version:        1.0.0
@@ -15,6 +15,23 @@ maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2020 Wire Swiss GmbH
 license:        AGPL-3
 build-type:     Simple
+extra-source-files:
+    test/resources/integration-ca.pem
+    test/resources/integration-leaf-key.pem
+    test/resources/integration-leaf.pem
+    test/resources/unit/example.com.pem
+    test/resources/unit/gen-certs.sh
+    test/resources/unit/invalid.pem
+    test/resources/unit/localhost-dot-key.pem
+    test/resources/unit/localhost-dot.pem
+    test/resources/unit/localhost-key.pem
+    test/resources/unit/localhost.example.com-key.pem
+    test/resources/unit/localhost.example.com.pem
+    test/resources/unit/localhost.pem
+    test/resources/unit/second-federator.example.com-key.pem
+    test/resources/unit/second-federator.example.com.pem
+    test/resources/unit/unit-ca-key.pem
+    test/resources/unit/unit-ca.pem
 
 library
   exposed-modules:
@@ -23,6 +40,8 @@ library
       Federator.Env
       Federator.ExternalServer
       Federator.InternalServer
+      Federator.Monitor
+      Federator.Monitor.Internal
       Federator.Options
       Federator.Remote
       Federator.Run
@@ -42,12 +61,15 @@ library
     , base
     , bilge
     , bytestring
+    , containers
     , data-default
     , dns
     , dns-util
     , either
     , exceptions
     , extended
+    , filepath
+    , hinotify
     , http-client
     , http-client-openssl
     , http-types
@@ -62,6 +84,7 @@ library
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -70,13 +93,21 @@ library
     , string-conversions
     , text
     , tinylog
+    , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
+    , x509
+    , x509-store
+    , x509-system
+    , x509-validation
   default-language: Haskell2010
 
 executable federator
@@ -94,6 +125,7 @@ executable federator
     , base
     , bilge
     , bytestring
+    , containers
     , data-default
     , dns
     , dns-util
@@ -101,6 +133,8 @@ executable federator
     , exceptions
     , extended
     , federator
+    , filepath
+    , hinotify
     , http-client
     , http-client-openssl
     , http-types
@@ -115,6 +149,7 @@ executable federator
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , retry
@@ -123,18 +158,27 @@ executable federator
     , string-conversions
     , text
     , tinylog
+    , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
+    , x509
+    , x509-store
+    , x509-system
+    , x509-validation
   default-language: Haskell2010
 
 executable federator-integration
   main-is: Main.hs
   other-modules:
+      Test.Federator.IngressSpec
       Test.Federator.InwardSpec
       Test.Federator.JSON
       Test.Federator.Util
@@ -150,6 +194,7 @@ executable federator-integration
     , base
     , bilge
     , bytestring
+    , containers
     , cryptonite
     , data-default
     , dns
@@ -158,6 +203,8 @@ executable federator-integration
     , exceptions
     , extended
     , federator
+    , filepath
+    , hinotify
     , hspec
     , http-client
     , http-client-openssl
@@ -174,6 +221,7 @@ executable federator-integration
     , mu-rpc
     , network-uri
     , optparse-applicative
+    , pem
     , polysemy
     , polysemy-wire-zoo
     , random
@@ -185,13 +233,21 @@ executable federator-integration
     , tasty-hunit
     , text
     , tinylog
+    , tls
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
     , wire-api
     , wire-api-federation
+    , x509
+    , x509-store
+    , x509-system
+    , x509-validation
     , yaml
   default-language: Haskell2010
 
@@ -201,7 +257,9 @@ test-suite federator-tests
   other-modules:
       Test.Federator.ExternalServer
       Test.Federator.InternalServer
+      Test.Federator.Monitor
       Test.Federator.Options
+      Test.Federator.Remote
       Test.Federator.Validation
       Paths_federator
   hs-source-dirs:
@@ -215,19 +273,24 @@ test-suite federator-tests
     , base
     , bilge
     , bytestring
+    , containers
     , data-default
+    , directory
     , dns
     , dns-util
     , either
     , exceptions
     , extended
     , federator
+    , filepath
+    , hinotify
     , http-client
     , http-client-openssl
     , http-types
     , http2-client
     , http2-client-grpc
     , imports
+    , interpolate
     , lens
     , metrics-core
     , metrics-wai
@@ -236,23 +299,37 @@ test-suite federator-tests
     , mu-grpc-server
     , mu-rpc
     , network-uri
+    , pem
     , polysemy
     , polysemy-mocks
     , polysemy-wire-zoo
     , retry
     , servant
     , servant-server
+    , streaming-commons
     , string-conversions
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
+    , temporary
     , text
     , tinylog
+    , tls
+    , transformers
     , types-common
+    , unix
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
     , wai-utilities
+    , warp
+    , warp-tls
     , wire-api
     , wire-api-federation
+    , x509
+    , x509-store
+    , x509-system
+    , x509-validation
     , yaml
   default-language: Haskell2010

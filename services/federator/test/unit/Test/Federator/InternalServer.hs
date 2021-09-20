@@ -26,9 +26,10 @@ import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSetti
 import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
 import Imports
 import Mu.GRpc.Client.Record
-import Network.HTTP2.Client (TooMuchConcurrency (TooMuchConcurrency))
+import qualified Network.HTTP2.Client as HTTP2
 import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
+import Test.Federator.Options (noClientCertSettings)
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
@@ -51,8 +52,9 @@ tests =
         ]
     ]
 
-allowAllSettings :: RunSettings
-allowAllSettings = RunSettings AllowAll
+settingsWithAllowList :: [Domain] -> RunSettings
+settingsWithAllowList domains =
+  noClientCertSettings {federationStrategy = AllowList (AllowedDomains domains)}
 
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
@@ -61,7 +63,9 @@ federatedRequestSuccess =
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (InwardResponseBody "success!"))))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
+      res <-
+        mock @Remote @IO . Polysemy.runReader noClientCertSettings $
+          callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
@@ -74,16 +78,16 @@ federatedRequestFailureTMC :: TestTree
 federatedRequestFailureTMC =
   testCase "should respond with error when facing GRpcTooMuchConcurrency" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (TooMuchConcurrency 2))))
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (HTTP2.TooMuchConcurrency 2))))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
+      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
       embed $ do
         assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType RemoteFederatorError res
+        assertResponseErrorWithType TooMuchConcurrency res
 
 federatedRequestFailureErrCode :: TestTree
 federatedRequestFailureErrCode =
@@ -92,13 +96,13 @@ federatedRequestFailureErrCode =
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorCode 77))) -- TODO: Maybe use some legit HTTP2 error code?
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
+      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
       embed $ do
         assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType RemoteFederatorError res
+        assertResponseErrorWithType GrpcError res
 
 federatedRequestFailureErrStr :: TestTree
 federatedRequestFailureErrStr =
@@ -107,22 +111,22 @@ federatedRequestFailureErrStr =
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorString "some grpc error")))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
+      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
       embed $ do
         assertEqual "one remote call should be made" [expectedCall] actualCalls
-        assertResponseErrorWithType RemoteFederatorError res
+        assertResponseErrorWithType GrpcError res
 
 federatedRequestFailureNoRemote :: TestTree
 federatedRequestFailureNoRemote =
   testCase "should respond with error when SRV record is not found" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorSrvNotAvailable "_something._tcp.example.com") (Domain "example.com")))
+      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (Domain "example.com") (LookupErrorSrvNotAvailable "_something._tcp.example.com")))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
+      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
@@ -134,10 +138,10 @@ federatedRequestFailureDNS :: TestTree
 federatedRequestFailureDNS =
   testCase "should respond with error when SRV lookup fails due to DNSError" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorDNSError "No route to 1.1.1.1") (Domain "example.com")))
+      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (Domain "example.com") (LookupErrorDNSError "No route to 1.1.1.1")))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
+      res <- mock @Remote @IO . Polysemy.runReader noClientCertSettings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
@@ -150,9 +154,8 @@ federatedRequestFailureAllowList =
   testCase "should not make a call when target domain not in the allowList" $
     runM . evalMock @Remote @IO $ do
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "hello.world"]))
-
-      res <- mock @Remote @IO . Polysemy.runReader allowList $ callOutward federatedRequest
+      let settings = settingsWithAllowList [Domain "hello.world"]
+      res <- mock @Remote @IO . Polysemy.runReader settings $ callOutward federatedRequest
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       embed $ do

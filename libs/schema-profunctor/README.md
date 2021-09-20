@@ -189,7 +189,7 @@ to think of the prism `_Name` as a pair consisting of the constructor
 Text`, which checks if a detail is actually a name, and if so returns
 the actual name.
 
-After tagging, the resulting shema is able to translate between a JSON
+After tagging, the resulting schema is able to translate between a JSON
 value such as `"Bob"` and the corresponding haskell value `Name
 "Bob"`.
 
@@ -200,7 +200,7 @@ cases one by one until it succeeds. Similarly, at the serialiser
 level, it tries every case until the underlying lens returns a `Just`.
 
 Finally, we add a name to the schema using the `named`
-combinator. This does nothing to the JSON encoding-deconding part of
+combinator. This does nothing to the JSON encoding-decoding part of
 the schema, and only affects the documentation.
 
 ### Enumerations
@@ -237,7 +237,7 @@ accessSchema = enum @Text "Access" $
 The `element` combinator takes two arguments: the value corresponding to
 a case alternative on the JSON side, and the corresponding value on the
 Haskell side. All the intermediate schemas returned by `element` are
-joined together using the `Monoid` instance, and finaly passed to
+joined together using the `Monoid` instance, and finally passed to
 `enum`, which takes care of creating the final schema. Note the `@Text`
 type annotation for `enum`, which is required when using
 `OverloadedStrings`.
@@ -459,7 +459,7 @@ the `Alternative` instance that `SchemaP` relies on, but for the moment, if
 this behaviour is not desirable, then one can use the ad-hoc `optField`
 combinator to introduce optional fields.
 
-For exapmle, the above schema can be implemented using `optField` as follow:
+For example, the above schema can be implemented using `optField` as follow:
 
 ```haskell
 userSchema'' :: ValueSchema NamedSwaggerDoc User
@@ -473,7 +473,7 @@ The argument after the field name determines how the `Nothing` case is rendered 
 
 ### Redundant fields
 
-Sometimes, JSON encoding of haskell types is not as straightfoward as
+Sometimes, JSON encoding of haskell types is not as straightforward as
 in the previous examples. For example, for backward-compatibility
 reasons, it might be necessary to serialise an object with some extra
 redundant information, which is then ignored when parsing.

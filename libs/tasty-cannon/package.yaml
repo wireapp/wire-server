@@ -12,6 +12,7 @@ dependencies:
 - aeson
 - async
 - base >=4.6 && <5
+- bilge
 - bytestring
 - bytestring-conversion
 - data-timeout

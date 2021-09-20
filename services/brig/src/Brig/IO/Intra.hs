@@ -532,8 +532,8 @@ createSelfConv u = do
         . expect2xx
 
 -- | Calls 'Galley.API.createConnectConversationH'.
-createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe Message -> Maybe ConnId -> AppIO ConvId
-createConnectConv from to cname mess conn = do
+createConnectConv :: UserId -> UserId -> Maybe Text -> Maybe ConnId -> AppIO ConvId
+createConnectConv from to cname conn = do
   debug $
     logConnection from to
       . remote "galley"
@@ -548,7 +548,7 @@ createConnectConv from to cname mess conn = do
         . zUser from
         . maybe id (header "Z-Connection" . fromConnId) conn
         . contentJson
-        . lbytes (encode $ Connect to (messageText <$> mess) cname Nothing)
+        . lbytes (encode $ Connect to Nothing cname Nothing)
         . expect2xx
 
 -- | Calls 'Galley.API.acceptConvH'.
@@ -898,7 +898,7 @@ guardLegalhold protectee userClients = do
   res <- lift $ galleyRequest PUT req
   case Bilge.statusCode res of
     200 -> pure ()
-    412 -> throwE ClientMissingLegalholdConsent
+    403 -> throwE ClientMissingLegalholdConsent
     404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
     _ -> throwM internalServerError
   where

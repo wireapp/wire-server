@@ -36,6 +36,7 @@ library:
   - extended
   - extra
   - generic-random >=1.2
+  - generics-sop
   - ghc-prim
   - hashable
   - hostname-validate
@@ -56,12 +57,16 @@ library:
   - proto-lens
   - QuickCheck >=2.14
   - quickcheck-instances >=0.3.16
+  - resourcet
   - saml2-web-sso
   - servant
+  - servant-client
+  - servant-client-core
   - servant-multipart
   - servant-server
   - servant-swagger
   - schema-profunctor
+  - singletons
   - sop-core
   - string-conversions
   - swagger >=0.1

@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -63,12 +64,13 @@ import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
+import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types hiding (InternalMember, MemberJoin, MemberLeave, memConvRoleName, memId, memOtrArchived, memOtrArchivedRef, memOtrMuted, memOtrMutedRef)
+import Galley.Types
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..))
@@ -105,11 +107,10 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
-import Wire.API.Event.Team (EventType (MemberJoin, MemberLeave, TeamDelete, TeamUpdate))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
-import Wire.API.Federation.Domain (domainHeaderName)
+import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.GRPC.Types (FederatedRequest, OutwardResponse (..))
 import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
@@ -803,9 +804,20 @@ listConvs u req = do
       . zType "access"
       . json req
 
-getConv :: UserId -> ConvId -> TestM ResponseLBS
+listConvsV2 :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversationsV2 -> m ResponseLBS
+listConvsV2 u req = do
+  g <- viewGalley
+  post $
+    g
+      . path "/conversations/list/v2"
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json req
+
+getConv :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ConvId -> m ResponseLBS
 getConv u c = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["conversations", toByteString' c]
@@ -813,7 +825,7 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
-getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> Qualified ConvId -> m ResponseLBS
+getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Qualified ConvId -> m ResponseLBS
 getConvQualified u (Qualified conv domain) = do
   g <- viewGalley
   get $
@@ -833,6 +845,22 @@ getConvIds u r s = do
       . zConn "conn"
       . zType "access"
       . convRange r s
+
+listConvIds :: UserId -> Public.GetPaginatedConversationIds -> TestM ResponseLBS
+listConvIds u paginationOpts = do
+  g <- view tsGalley
+  post $
+    g
+      . path "/conversations/list-ids"
+      . zUser u
+      . json paginationOpts
+
+-- | Does not page through conversation list
+listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
+listRemoteConvs remoteDomain uid = do
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
+  allConvs <- fmap pageConvIds . responseJsonError =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
 postQualifiedMembers zusr invitees conv = do
@@ -874,13 +902,35 @@ postMembersWithRole u us c r = do
       . zType "access"
       . json i
 
-deleteMember :: UserId -> UserId -> ConvId -> TestM ResponseLBS
-deleteMember u1 u2 c = do
+deleteMemberUnqualified :: HasCallStack => UserId -> UserId -> ConvId -> TestM ResponseLBS
+deleteMemberUnqualified u1 u2 c = do
   g <- view tsGalley
   delete $
     g
       . zUser u1
       . paths ["conversations", toByteString' c, "members", toByteString' u2]
+      . zConn "conn"
+      . zType "access"
+
+deleteMemberQualified ::
+  (HasCallStack, MonadIO m, MonadHttp m, HasGalley m) =>
+  UserId ->
+  Qualified UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified conv convDomain) = do
+  g <- viewGalley
+  delete $
+    g
+      . zUser u1
+      . paths
+        [ "conversations",
+          toByteString' convDomain,
+          toByteString' conv,
+          "members",
+          toByteString' u2Domain,
+          toByteString' u2
+        ]
       . zConn "conn"
       . zType "access"
 
@@ -894,12 +944,12 @@ getSelfMember u c = do
       . zConn "conn"
       . zType "access"
 
-putMember :: UserId -> MemberUpdate -> ConvId -> TestM ResponseLBS
-putMember u m c = do
+putMember :: UserId -> MemberUpdate -> Qualified ConvId -> TestM ResponseLBS
+putMember u m (Qualified c dom) = do
   g <- view tsGalley
   put $
     g
-      . paths ["conversations", toByteString' c, "self"]
+      . paths ["conversations", toByteString' dom, toByteString' c, "self"]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -916,13 +966,31 @@ putOtherMember from to m c = do
       . zType "access"
       . json m
 
+putQualifiedConversationName :: UserId -> Qualified ConvId -> Text -> TestM ResponseLBS
+putQualifiedConversationName u c n = do
+  g <- view tsGalley
+  let update = ConversationRename n
+  put
+    ( g
+        . paths
+          [ "conversations",
+            toByteString' (qDomain c),
+            toByteString' (qUnqualified c),
+            "name"
+          ]
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . json update
+    )
+
 putConversationName :: UserId -> ConvId -> Text -> TestM ResponseLBS
 putConversationName u c n = do
   g <- view tsGalley
   let update = ConversationRename n
   put
     ( g
-        . paths ["conversations", toByteString' c]
+        . paths ["conversations", toByteString' c, "name"]
         . zUser u
         . zConn "conn"
         . zType "access"
@@ -1090,6 +1158,27 @@ getTeamQueue' zusr msince msize onlyLast = do
           ]
     )
 
+registerRemoteConv :: Qualified ConvId -> Qualified UserId -> Maybe Text -> Set OtherMember -> TestM ()
+registerRemoteConv convId originUser name othMembers = do
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  FederatedGalley.onConversationCreated
+    fedGalleyClient
+    (qDomain convId)
+    ( FederatedGalley.NewRemoteConversation
+        { rcTime = now,
+          rcOrigUserId = originUser,
+          rcCnvId = qUnqualified convId,
+          rcCnvType = RegularConv,
+          rcCnvAccess = [],
+          rcCnvAccessRole = ActivatedAccessRole,
+          rcCnvName = name,
+          rcMembers = othMembers,
+          rcMessageTimer = Nothing,
+          rcReceiptMode = Nothing
+        }
+    )
+
 -------------------------------------------------------------------------------
 -- Common Assertions
 
@@ -1164,7 +1253,6 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map (qUnqualified . omQualifiedId) . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
     assertBool "others role" (all (== role) $ maybe (error "Cannot be null") (map omConvRoleName . toList) others)
-    assertBool "otr muted not false" (Just False == (memOtrMuted <$> _self))
     assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
     assertBool "otr archived not false" (Just False == (memOtrArchived <$> _self))
     assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef =<< _self))
@@ -1188,10 +1276,10 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
 
 -- | This assumes the default role name
-wsAssertMemberJoin :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
+wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin
 
-wsAssertMemberJoinWithRole :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
+wsAssertMemberJoinWithRole :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Notification -> IO ()
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -1199,6 +1287,35 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
+
+-- FUTUREWORK: See if this one can be implemented in terms of:
+--
+-- checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
+--
+-- or if they can be combined in general.
+wsAssertMembersLeave ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Notification ->
+  IO ()
+wsAssertMembersLeave conv usr leaving n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  assertLeaveEvent conv usr leaving e
+
+assertLeaveEvent ::
+  Qualified ConvId ->
+  Qualified UserId ->
+  [Qualified UserId] ->
+  Event ->
+  IO ()
+assertLeaveEvent conv usr leaving e = do
+  evtConv e @?= conv
+  evtType e @?= Conv.MemberLeave
+  evtFrom e @?= usr
+  evtData e @?= EdMembersLeave (QualifiedUserIdList leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1231,16 +1348,16 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvMessageTimerUpdate new
 
-wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (EdMembersLeave (UserIdList old))
+  sorted (evtData e) @?= sorted (EdMembersLeave (QualifiedUserIdList old))
   where
-    sorted (EdMembersLeave (UserIdList m)) = EdMembersLeave (UserIdList (sort m))
+    sorted (EdMembersLeave (QualifiedUserIdList m)) = EdMembersLeave (QualifiedUserIdList (sort m))
     sorted x = x
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
@@ -1249,6 +1366,16 @@ assertNoMsg ws f = do
   liftIO $ case x of
     Left _ -> return () -- expected
     Right _ -> assertFailure "Unexpected message"
+
+assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
+  F.path req @?= "/federation/on-conversation-memberships-changed"
+  F.originDomain req @?= (domainText . qDomain) qconvId
+  let Just cmu = decodeStrict (F.body req)
+  FederatedGalley.cmuOrigUserId cmu @?= remover
+  FederatedGalley.cmuConvId cmu @?= qUnqualified qconvId
+  sort (FederatedGalley.cmuAlreadyPresentUsers cmu) @?= sort alreadyPresentUsers
+  FederatedGalley.cmuAction cmu @?= FederatedGalley.ConversationMembersActionRemove (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1277,14 +1404,20 @@ decodeConvCodeEvent r = case responseJsonUnsafe r of
   (Event ConvCodeUpdate _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
-decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
-decodeConvId = qUnqualified . cnvQualifiedId . responseJsonUnsafe
+decodeConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> ConvId
+decodeConvId = qUnqualified . decodeQualifiedConvId
+
+decodeQualifiedConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> Qualified ConvId
+decodeQualifiedConvId = cnvQualifiedId . responseJsonUnsafe
 
 decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
 
 decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
+
+decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
+decodeQualifiedConvIdList = fmap pageConvIds . responseJsonEither
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
@@ -1344,7 +1477,7 @@ connectUsersWith fn u = mapM connectTo
               . zUser u
               . zConn "conn"
               . path "/connections"
-              . json (ConnectionRequest v "chat" (Message "Y"))
+              . json (ConnectionRequest v (unsafeRange "chat"))
               . fn
           )
       r2 <-
@@ -1372,7 +1505,7 @@ postConnection from to = do
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest to "some conv name" (Message "some message")
+        ConnectionRequest to (unsafeRange "some conv name")
 
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
@@ -1430,6 +1563,9 @@ randomUser = qUnqualified <$> randomUser' False True True
 
 randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
 randomQualifiedUser = randomUser' False True True
+
+randomQualifiedId :: MonadIO m => Domain -> m (Qualified (Id a))
+randomQualifiedId domain = flip Qualified domain <$> randomId
 
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
@@ -1731,6 +1867,27 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
+mkConv ::
+  Qualified ConvId ->
+  UserId ->
+  RoleName ->
+  [OtherMember] ->
+  FederatedGalley.RemoteConversation
+mkConv cnvId creator selfRole otherMembers =
+  FederatedGalley.RemoteConversation
+    ( ConversationMetadata
+        cnvId
+        RegularConv
+        creator
+        []
+        ActivatedAccessRole
+        (Just "federated gossip")
+        Nothing
+        Nothing
+        Nothing
+    )
+    (FederatedGalley.RemoteConvMembers selfRole otherMembers)
+
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()
 refreshIndex = do
@@ -1907,8 +2064,7 @@ withTempMockFederator ::
   (FederatedRequest -> a) ->
   SessionT m b ->
   m (b, Mock.ReceivedRequests)
-withTempMockFederator opts targetDomain resp action =
-  withTempMockFederator' opts targetDomain (pure . oresp) action
+withTempMockFederator opts targetDomain resp = withTempMockFederator' opts targetDomain (pure . oresp)
   where
     oresp = OutwardResponseBody . Lazy.toStrict . encode . resp
 
@@ -1972,7 +2128,7 @@ makeFedRequestToServant originDomain server fedRequest =
       if Test.simpleStatus response == status200
         then pure (F.OutwardResponseBody (cs (Test.simpleBody response)))
         else do
-          pure (F.OutwardResponseError (F.OutwardError F.RemoteFederatorError (Just (F.ErrorPayload "mock-error" (cs (Test.simpleBody response))))))
+          pure (F.OutwardResponseError (F.OutwardError F.GrpcError (cs (Test.simpleBody response))))
 
     toRequestWithoutBody :: F.Request -> Wai.Request
     toRequestWithoutBody req =
@@ -1982,7 +2138,7 @@ makeFedRequestToServant originDomain server fedRequest =
           Wai.requestHeaders =
             [ (CI.mk "Content-Type", "application/json"),
               (CI.mk "Accept", "application/json"),
-              (domainHeaderName, cs . domainText $ originDomain)
+              (originDomainHeaderName, cs . domainText $ originDomain)
             ]
         }
 
@@ -2032,7 +2188,7 @@ checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberJoin
+  e ^. eventType @?= TE.MemberJoin
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberJoin uid)
 
@@ -2040,7 +2196,7 @@ checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Test
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberLeave
+  e ^. eventType @?= TE.MemberLeave
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberLeave usr)
 
@@ -2048,7 +2204,7 @@ checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> Tea
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamUpdate
+  e ^. eventType @?= TE.TeamUpdate
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdTeamUpdate upd)
 
@@ -2065,7 +2221,7 @@ checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= TeamDelete
+  e ^. eventType @?= TE.TeamDelete
   e ^. eventTeam @?= tid
   e ^. eventData @?= Nothing
 
@@ -2077,15 +2233,49 @@ checkConvDeleteEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   evtConv e @?= cid
   evtData e @?= Conv.EdConvDelete
 
-checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> UserId -> WS.WebSocket -> TestM ()
+checkConvMemberLeaveEvent :: HasCallStack => Qualified ConvId -> Qualified UserId -> WS.WebSocket -> TestM ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
-    Conv.EdMembersLeave mm -> mm @?= Conv.UserIdList [usr]
+    Conv.EdMembersLeave mm -> mm @?= Conv.QualifiedUserIdList [usr]
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout
 checkTimeout = 3 # Second
+
+-- | The function is used in conjuction with 'withTempMockFederator' to mock
+-- responses by Brig on the mocked side of federation.
+mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Maybe Value
+mockedFederatedBrigResponse users req
+  | fmap F.component (F.request req) == Just F.Brig =
+    Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
+  | otherwise = Nothing
+
+-- | Combine two mocked services such that for a given request a JSON response
+-- is produced.
+joinMockedFederatedResponses ::
+  (F.FederatedRequest -> Maybe Value) ->
+  (F.FederatedRequest -> Maybe Value) ->
+  F.FederatedRequest ->
+  Value
+joinMockedFederatedResponses service1 service2 req =
+  fromMaybe (toJSON ()) (service1 req <|> service2 req)
+
+-- | Only Brig is mocked.
+onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> F.FederatedRequest -> Value
+onlyMockedFederatedBrigResponse users =
+  joinMockedFederatedResponses
+    (mockedFederatedBrigResponse users)
+    (const Nothing)
+
+fedRequestsForDomain :: HasCallStack => Domain -> F.Component -> [F.FederatedRequest] -> [F.Request]
+fedRequestsForDomain domain component =
+  map (fromJust . F.request)
+    . filter
+      ( \req ->
+          F.domain req == domainText domain
+            && fmap F.component (F.request req) == Just component
+      )

@@ -48,8 +48,6 @@ deriving instance Cql ColourId
 
 deriving instance Cql Phone
 
-deriving instance Cql Message
-
 deriving instance Cql InvitationCode
 
 deriving instance Cql PasswordResetKey

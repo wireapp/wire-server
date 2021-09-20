@@ -62,7 +62,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
-import Imports
+import Imports hiding (head)
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -97,10 +97,15 @@ tests _ at opts p b c ch g aws =
       test' aws p "get /users/:uid - 200" $ testExistingUserUnqualified b,
       test' aws p "get /users/<localdomain>/:uid - 200" $ testExistingUser b,
       test' aws p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
+      test' aws p "head /users/:uid - 200" $ testUserExistsUnqualified b,
+      test' aws p "head /users/:uid - 404" $ testUserDoesNotExistUnqualified b,
+      test' aws p "head /users/:domain/:uid - 200" $ testUserExists b,
+      test' aws p "head /users/:domain/:uid - 404" $ testUserDoesNotExist b,
       test' aws p "post /list-users - 200" $ testMultipleUsers b,
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
-      test' aws p "put /self/email - 2xx" $ testEmailUpdate b aws,
+      test' aws p "put /access/self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
+      test' aws p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
@@ -276,9 +281,10 @@ testCreateUserNoEmailNoPassword brig = do
       <!! const 201 === statusCode
   let Just uid = userId <$> responseJsonMaybe rs
   e <- randomEmail
-  let setEmail = RequestBodyLBS . encode $ EmailUpdate e
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "conn" . body setEmail)
-    !!! const 202 === statusCode
+  Just code <- do
+    sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
+    getPhoneLoginCode brig p
+  initiateEmailUpdateLogin brig e (SmsLogin p code Nothing) uid !!! (const 202 === statusCode)
 
 -- | email address must not be taken on @/register@.
 testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
@@ -428,9 +434,13 @@ testNonExistingUserUnqualified brig = do
   findingOne <- liftIO $ Id <$> UUID.nextRandom
   foundOne <- liftIO $ Id <$> UUID.nextRandom
   get (brig . paths ["users", pack $ show foundOne] . zUser findingOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
   get (brig . paths ["users", pack $ show foundOne] . zUser foundOne)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testNonExistingUser :: Brig -> Http ()
 testNonExistingUser brig = do
@@ -440,9 +450,13 @@ testNonExistingUser brig = do
   let uid = qUnqualified qself
       domain = qDomain qself
   get (brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
   get (brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
-    !!! const 404 === statusCode
+    !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testUserInvalidDomain :: Brig -> Http ()
 testUserInvalidDomain brig = do
@@ -488,6 +502,58 @@ testExistingUser brig = do
                 b <- responseBody r
                 b ^? key "id" >>= maybeFromJSON
             )
+
+testUserExistsUnqualified :: Brig -> Http ()
+testUserExistsUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExistUnqualified :: Brig -> Http ()
+testUserDoesNotExistUnqualified brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
+
+testUserExists :: Brig -> Http ()
+testUserExists brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  quser <- userQualifiedId <$> randomUser brig
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain quser), toByteString' (qUnqualified quser)]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 200 === statusCode
+      const mempty === responseBody
+
+testUserDoesNotExist :: Brig -> Http ()
+testUserDoesNotExist brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  uid <- liftIO $ Id <$> UUID.nextRandom
+  head
+    ( brig
+        . paths ["users", toByteString' (qDomain qself), toByteString' uid]
+        . zUser (qUnqualified qself)
+    )
+    !!! do
+      const 404 === statusCode
+      const mempty === responseBody
 
 testMultipleUsersUnqualified :: Brig -> Http ()
 testMultipleUsersUnqualified brig = do
@@ -653,13 +719,14 @@ testEmailUpdate brig aws = do
   let uid = userId usr
   eml <- randomEmail
   -- update email
-  initiateEmailUpdate brig eml uid !!! const 202 === statusCode
+  let Just oldeml = userEmail usr
+  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid !!! const 202 === statusCode
   -- activate
   activateEmail brig eml
   checkEmail brig uid eml
   liftIO $ Util.assertUserJournalQueue "user update" aws (userEmailUpdateJournaled uid eml)
-  -- update email, which is exactly the same as before
-  initiateEmailUpdate brig eml uid !!! const 204 === statusCode
+  -- update email, which is exactly the same as before (idempotency)
+  initiateEmailUpdateLogin brig eml (emailLogin eml defPassword Nothing) uid !!! const 204 === statusCode
   -- ensure no other user has "test+<uuid>@example.com"
   -- if there is such a user, let's delete it first.  otherwise
   -- this test fails since there can be only one user with "test+...@example.com"
@@ -695,6 +762,22 @@ testPhoneUpdate brig = do
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just phn) === (userPhone <=< responseJsonMaybe)
+
+testPhoneUpdateBlacklisted :: Brig -> Http ()
+testPhoneUpdateBlacklisted brig = do
+  uid <- userId <$> randomUser brig
+  phn <- randomPhone
+  let prefix = mkPrefix $ T.take 5 (fromPhone phn)
+
+  insertPrefix brig prefix
+  let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+  put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
+    !!! (const 403 === statusCode)
+
+  -- check that phone is not updated
+  get (brig . path "/self" . zUser uid) !!! do
+    const 200 === statusCode
+    const (Right Nothing) === fmap userPhone . responseJsonEither
 
 testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
 testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -932,6 +1015,11 @@ testEmailPhoneDelete brig cannon = do
   user <- randomUser brig
   let uid = userId user
   let Just email = userEmail user
+  (cky, tok) <- do
+    rsp <-
+      login brig (emailLogin email defPassword Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    pure (decodeCookie rsp, decodeToken rsp)
   -- Cannot remove the only identity
   delete (brig . path "/self/email" . zUser uid . zConn "c")
     !!! const 403 === statusCode
@@ -964,9 +1052,7 @@ testEmailPhoneDelete brig cannon = do
     !!! const 403 === statusCode
   -- Add back a new email address
   eml <- randomEmail
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . body emailUpdate)
-    !!! const 202 === statusCode
+  initiateEmailUpdateCreds brig eml (cky, tok) uid !!! (const 202 === statusCode)
   act' <- getActivationCode brig (Left eml)
   case act' of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
@@ -996,9 +1082,8 @@ testDeleteUserByPassword brig cannon aws = do
   -- Initiate a change of email address, to verify that activation
   -- does not work after the account has been deleted.
   eml <- randomEmail
-  let emailUpdate = RequestBodyLBS . encode $ EmailUpdate eml
-  put (brig . path "/self/email" . contentJson . zUser uid1 . zConn "c" . body emailUpdate)
-    !!! const 202 === statusCode
+  let Just oldeml = userEmail u
+  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid1 !!! (const 202 === statusCode)
   -- Establish some connections
   usr2 <- randomUser brig
   let uid2 = userId usr2

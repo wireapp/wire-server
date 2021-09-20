@@ -806,7 +806,7 @@ testOldClientsBlockDeviceHandshake = do
     -- If user has a client without the ClientSupportsLegalholdImplicitConsent
     -- capability then message sending is prevented to legalhold devices.
     peerClient <- randomClient peer (someLastPrekeys !! 2)
-    runit peer peerClient >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+    runit peer peerClient >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
     upgradeClientToLH peer peerClient
     runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
 
@@ -928,8 +928,8 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
               const 201 === statusCode
       else do
         void doEnableLH
-        postConnection legalholder peer !!! do testResponse 412 (Just "missing-legalhold-consent")
-        postConnection peer legalholder !!! do testResponse 412 (Just "missing-legalhold-consent")
+        postConnection legalholder peer !!! do testResponse 403 (Just "missing-legalhold-consent")
+        postConnection peer legalholder !!! do testResponse 403 (Just "missing-legalhold-consent")
 
 data GroupConvAdmin
   = LegalholderIsAdmin
@@ -985,18 +985,18 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
       LegalholderIsAdmin -> do
         assertConvMember legalholder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
       PeerIsAdmin -> do
         assertConvMember peer convId
         assertNotConvMember legalholder convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) legalholder legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) legalholder peerWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified legalholder localdomain) peerWs
       BothAreAdmins -> do
         assertConvMember legalholder convId
         assertNotConvMember peer convId
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer legalholderWs
-        checkConvMemberLeaveEvent (Qualified convId localdomain) peer peerWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) legalholderWs
+        checkConvMemberLeaveEvent (Qualified convId localdomain) (Qualified peer localdomain) peerWs
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
@@ -1044,7 +1044,7 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
         assertNotConvMember peer convId
       InviteAlsoNonConsenters -> do
         API.Util.postMembers userWithConsent (List1.list1 legalholder [peer2]) convId
-          >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+          >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
@@ -1081,11 +1081,11 @@ testNoConsentCannotBeInvited = do
       liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
 
     API.Util.postMembers userLHNotActivated (List1.list1 peer2 []) convId
-      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
     localdomain <- viewFederationDomain
     API.Util.postQualifiedMembers userLHNotActivated ((Qualified peer2 localdomain) :| []) convId
-      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
 testCannotCreateGroupWithUsersInConflict = do
@@ -1120,7 +1120,7 @@ testCannotCreateGroupWithUsersInConflict = do
       liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
 
     createTeamConvAccessRaw userLHNotActivated tid [peer2, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
-      >>= errWith 412 (\err -> Error.label err == "missing-legalhold-consent")
+      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 data TestClaimKeys
   = TCKConsentMissing
@@ -1169,7 +1169,7 @@ testClaimKeys testcase = do
         TCKConsentAndNewClients -> good
         where
           good = testResponse 200 Nothing
-          bad = testResponse 412 (Just "missing-legalhold-consent")
+          bad = testResponse 403 (Just "missing-legalhold-consent")
 
   let fetchKeys :: ClientId -> TestM ()
       fetchKeys legalholderLHDevice = do

@@ -27,6 +27,10 @@ module Federator.Run
     -- * App Environment
     newEnv,
     closeEnv,
+
+    -- * Re-exports
+    mkTLSSettingsOrThrow,
+    FederationSetupError (..),
   )
 where
 
@@ -38,14 +42,11 @@ import Data.Text.Encoding (encodeUtf8)
 import Federator.Env
 import Federator.ExternalServer (serveInward)
 import Federator.InternalServer (serveOutward)
+import Federator.Monitor
 import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.OpenSSL as HTTP
-import OpenSSL.Session
-import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
 import UnliftIO (bracket)
@@ -61,22 +62,33 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- (this probably requires using HTTP. A Servant API could be used; and the
 -- internal grpc server converted to a WAI application, and the grpc application be
 -- "merged" using Servant's 'Raw' type (like in 'brig') with servant's http
--- endpoints and exposed on the same port.
+-- endpoints and exposed on the same port. See https://wearezeta.atlassian.net/browse/SQCORE-911.
 run :: Opts -> IO ()
-run opts =
-  DNS.withCachingResolver $ \res ->
+run opts = do
+  let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
+  DNS.withCachingResolver resolvConf $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
-      internalServerThread <- async internalServer
-      externalServerThread <- async externalServer
-      void $ waitAnyCancel [internalServerThread, externalServerThread]
+      withMonitor (env ^. applog) (env ^. tls) (optSettings opts) $ do
+        internalServerThread <- async internalServer
+        externalServerThread <- async externalServer
+        void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
 
     endpointExternal = federatorExternal opts
     portExternal = fromIntegral $ endpointExternal ^. epPort
+
+    mkResolvConf :: RunSettings -> DNS.ResolvConf -> DNS.ResolvConf
+    mkResolvConf settings conf =
+      case (dnsHost settings, dnsPort settings) of
+        (Just host, Nothing) ->
+          conf {DNS.resolvInfo = DNS.RCHostName host}
+        (Just host, Just port) ->
+          conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
+        (_, _) -> conf
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -90,6 +102,7 @@ newEnv o _dnsResolver = do
   let _service Brig = mkEndpoint (Opt.brig o)
       _service Galley = mkEndpoint (Opt.galley o)
   _httpManager <- initHttpManager
+  _tls <- mkTLSSettingsOrThrow _runSettings >>= newIORef
   return Env {..}
   where
     mkEndpoint s = RPC.host (encodeUtf8 (s ^. epHost)) . RPC.port (s ^. epPort) $ RPC.empty
@@ -99,22 +112,10 @@ closeEnv e = do
   Log.flush $ e ^. applog
   Log.close $ e ^. applog
 
--- | Copied (and adjusted) from brig, do we want to put this somehwere common?
--- FUTUREWORK(federation): review certificate and protocol security setting for this TLS
--- manager
 initHttpManager :: IO HTTP.Manager
-initHttpManager = do
-  -- See Note [SSL context]
-  ctx <- SSL.context
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_TLSv1
-  SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextSetVerificationMode ctx $
-    SSL.VerifyPeer True True Nothing
-  SSL.contextLoadSystemCerts ctx
+initHttpManager =
   HTTP.newManager
-    (HTTP.opensslManagerSettings (pure ctx))
+    HTTP.defaultManagerSettings
       { HTTP.managerConnCount = 1024,
         HTTP.managerIdleConnectionCount = 4096,
         HTTP.managerResponseTimeout = HTTP.responseTimeoutMicro 10000000

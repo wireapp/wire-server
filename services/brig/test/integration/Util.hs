@@ -37,7 +37,7 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Lens ((^.), (^?), (^?!))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
@@ -53,7 +53,8 @@ import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified)
+import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -406,7 +407,7 @@ postConnection brig from to =
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest to "some conv name" (Message "some message")
+        ConnectionRequest to (unsafeRange "some conv name")
 
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
@@ -535,6 +536,13 @@ getConversation galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' cnv]
+      . zAuthAccess usr "conn"
+
+getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
+getConversationQualified galley usr cnv =
+  get $
+    galley
+      . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
 
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
@@ -799,6 +807,12 @@ retryWhileN n f m =
   retrying
     (constantDelay 1000000 <> limitRetries n)
     (const (return . f))
+    (const m)
+
+recoverN :: (MonadIO m, MonadMask m) => Int -> m a -> m a
+recoverN n m =
+  recoverAll
+    (constantDelay 1000000 <> limitRetries n)
     (const m)
 
 -- | This allows you to run requests against a brig instantiated using the given options.

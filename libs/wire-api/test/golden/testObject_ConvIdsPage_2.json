@@ -1,0 +1,10 @@
+{
+    "has_more": true,
+    "paging_state": "AA==",
+    "qualified_conversations": [
+        {
+            "domain": "domain.example.com",
+            "id": "00000018-0000-0020-0000-000e00000002"
+        }
+    ]
+}

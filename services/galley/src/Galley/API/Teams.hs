@@ -63,6 +63,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
 import Data.ByteString.Lazy.Builder (lazyByteString)
+import qualified Data.CaseInsensitive as CI
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import qualified Data.Handle as Handle
 import Data.Id
@@ -116,7 +117,6 @@ import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.ErrorDescription (convNotFound, notATeamMember, operationDenied)
 import qualified Wire.API.Notification as Public
-import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
@@ -353,7 +353,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (c ^. conversationId) localDomain
           qorig = Qualified zusr localDomain
-      (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
+      (bots, convMembs) <- localBotsAndUsers <$> Data.members (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
@@ -489,7 +489,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     samlNamedId :: User -> Maybe Text
     samlNamedId =
       userSSOId >=> \case
-        (UserSSOId _idp nameId) -> SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
+        (UserSSOId _idp nameId) -> CI.original . SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
         (UserScimExternalId _) -> Nothing
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
@@ -716,7 +716,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
-      let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
+      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
       let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
       push1 $ newPushLocal1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
@@ -725,8 +725,9 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       -- This may not make sense if that list has been truncated. In such cases, we still want to
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
+      localDomain <- viewFederationDomain
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
+      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [Qualified remove localDomain])
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
         Data.conversation (c ^. conversationId) >>= \conv ->
@@ -740,8 +741,8 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       localDomain <- viewFederationDomain
       let qconvId = Qualified (Data.convId dc) localDomain
           qusr = Qualified zusr localDomain
-      let (bots, users) = botsAndUsers (Data.convLocalMembers dc)
-      let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
+      let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
+      let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave qconvId qusr now edata
       for_ (newPushLocal (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
@@ -761,13 +762,13 @@ getTeamConversation zusr tid cid = do
     throwErrorDescription (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwErrorDescription convNotFound) pure
 
-deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley (EmptyResult 200)
+deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
 deleteTeamConversation zusr zcon tid cid = do
   localDomain <- viewFederationDomain
   let qconvId = Qualified cid localDomain
       qusr = Qualified zusr localDomain
-  (bots, cmems) <- botsAndUsers <$> Data.members cid
-  ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
+  (bots, cmems) <- localBotsAndUsers <$> Data.members cid
+  ensureActionAllowedThrowing Roles.DeleteConversation =<< getSelfMemberFromLocalsLegacy zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete qconvId qusr now Conv.EdConvDelete
@@ -778,7 +779,6 @@ deleteTeamConversation zusr zcon tid cid = do
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
-  pure EmptyResult
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSearchVisibilityH (uid ::: tid ::: _) = do
@@ -866,7 +866,7 @@ ensureNotTooLarge tid = do
 -- If LegalHold is configured for whitelisted teams only we consider the team
 -- size unlimited, because we make the assumption that these teams won't turn
 -- LegalHold off after activation.
--- FUTUREWORK: Find a way around the fanout limit.
+--  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold :: TeamId -> Int -> Galley ()
 ensureNotTooLargeForLegalHold tid teamSize = do
   whenM (isLegalHoldEnabledForTeam tid) $ do

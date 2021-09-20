@@ -23,22 +23,26 @@ module Federator.ExternalServer where
 
 import Control.Lens (view)
 import Data.Aeson (decode)
+import Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as LBS
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
-import Federator.Env (Env, applog, runSettings)
+import Federator.Discovery
+import Federator.Env (Env, applog, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
 import Federator.Service (Service, interpretService, serviceCall)
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Federator.Validation
 import Imports
-import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
+import Mu.GRpc.Server (gRpcAppTrans, msgProtoBuf)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
-import qualified Network.HTTP.Types.Status as HTTP
-import qualified Network.Wai.Utilities.Error as WaiError
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Wai
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
@@ -47,32 +51,32 @@ import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
 import Wire.API.Federation.GRPC.Types
+import Wire.Network.DNS.Effect as Polysemy
 
 -- FUTUREWORK(federation): Versioning of the federation API. See
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
--- for versioning schemas here.
+-- for versioning schemas here. See https://wearezeta.atlassian.net/browse/SQCORE-883.
 
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
---
--- FUTUREWORK(federation): implement server2server authentication!
--- (current validation only checks parsing and compares to allowList)
-callLocal :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Request -> Sem r InwardResponse
-callLocal = runInwardError . callLocal'
-  where
-    runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
-    runInwardError action = toResponse <$> Polysemy.runError action
-
-    toResponse :: Either InwardError ByteString -> InwardResponse
-    toResponse (Left err) = InwardResponseError err
-    toResponse (Right bs) = InwardResponseBody bs
-
-callLocal' :: (Members '[Service, Embed IO, TinyLog, Polysemy.Reader RunSettings, Polysemy.Error InwardError] r) => Request -> Sem r ByteString
-callLocal' req@Request {..} = do
+callLocal ::
+  ( Members
+      '[ Service,
+         Embed IO,
+         TinyLog,
+         DiscoverFederator,
+         Polysemy.Reader RunSettings
+       ]
+      r
+  ) =>
+  Maybe ByteString ->
+  Request ->
+  Sem r InwardResponse
+callLocal mcert req@Request {..} = runInwardError $ do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "request" (show req)
 
-  validatedDomain <- validateDomain originDomain
+  validatedDomain <- validateDomain mcert originDomain
   validatedPath <- sanitizePath path
   Log.debug $
     Log.msg ("Path validation" :: ByteString)
@@ -85,21 +89,47 @@ callLocal' req@Request {..} = do
   case HTTP.statusCode resStatus of
     200 -> pure $ maybe mempty LBS.toStrict resBody
     404 ->
-      case WaiError.label <$> (decode =<< resBody) of
+      case Wai.label <$> (decode =<< resBody) of
         Just "no-endpoint" -> throwInward IInvalidEndpoint (cs $ "component " <> show component <> "does not have an endpoint " <> cs validatedPath)
         _ -> throwInward IOther (cs $ show resStatus)
     code -> do
       let description = "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus) <> " Response body: " <> maybe mempty cs resBody
       throwInward IOther description
+  where
+    runInwardError :: Sem (Polysemy.Error InwardError ': r) ByteString -> Sem r InwardResponse
+    runInwardError action = toResponse <$> Polysemy.runError action
 
-routeToInternal :: (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) => SingleServerT info Inward (Sem r) _
-routeToInternal = singleService (Mu.method @"call" callLocal)
+    toResponse :: Either InwardError ByteString -> InwardResponse
+    toResponse (Left err) = InwardResponseError err
+    toResponse (Right bs) = InwardResponseBody bs
+
+routeToInternal ::
+  (Members '[Service, Embed IO, Polysemy.Error ServerError, TinyLog, DiscoverFederator, Polysemy.Reader RunSettings] r) =>
+  Maybe ByteString ->
+  SingleServerT info Inward (Sem r) _
+routeToInternal cert = singleService (Mu.method @"call" (callLocal cert))
+
+lookupCertificate :: Wai.Request -> Maybe ByteString
+lookupCertificate req = HTTP.urlDecode True <$> lookup "X-SSL-Certificate" (Wai.requestHeaders req)
 
 serveInward :: Env -> Int -> IO ()
 serveInward env port = do
-  runGRpcAppTrans msgProtoBuf port transformer routeToInternal
+  let app req = gRpcAppTrans msgProtoBuf transformer (routeToInternal (lookupCertificate req)) req
+  Wai.run port app
   where
-    transformer :: Sem '[TinyLog, Embed IO, Polysemy.Error ServerError, Service, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
+    transformer ::
+      Sem
+        '[ DiscoverFederator,
+           DNSLookup,
+           TinyLog,
+           Embed IO,
+           Polysemy.Error ServerError,
+           Service,
+           Polysemy.Reader RunSettings,
+           Embed Federator
+         ]
+        a ->
+      ServerErrorIO a
     transformer action =
       runAppT env
         . runM @Federator
@@ -108,4 +138,6 @@ serveInward env port = do
         . absorbServerError
         . embedToMonadIO @Federator
         . Log.runTinyLog (view applog env)
+        . Polysemy.runDNSLookupWithResolver (view dnsResolver env)
+        . runFederatorDiscovery
         $ action

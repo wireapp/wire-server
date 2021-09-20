@@ -37,6 +37,7 @@ module Data.Json.Util
     -- * Base64
     Base64ByteString (..),
     fromBase64TextLenient,
+    fromBase64Text,
     toBase64Text,
   )
 where
@@ -199,6 +200,9 @@ instance Arbitrary Base64ByteString where
 
 fromBase64TextLenient :: Text -> ByteString
 fromBase64TextLenient = B64.decodeLenient . Text.encodeUtf8
+
+fromBase64Text :: Text -> Either String ByteString
+fromBase64Text = B64.decode . Text.encodeUtf8
 
 toBase64Text :: ByteString -> Text
 toBase64Text = Text.decodeUtf8 . B64.encode

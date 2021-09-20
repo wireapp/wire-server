@@ -19,7 +19,6 @@
 
 module Brig.Data.Connection
   ( module T,
-    connectUsers,
     insertConnection,
     updateConnection,
     lookupConnection,
@@ -50,33 +49,18 @@ import Imports
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Connection
 
-connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
-connectUsers from to = do
-  now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency Quorum
-    forM_ to $ \(u, c) -> do
-      addPrepQuery connectionInsert (from, u, AcceptedWithHistory, now, Nothing, c)
-      addPrepQuery connectionInsert (u, from, AcceptedWithHistory, now, Nothing, c)
-  return . concat . (`map` to) $ \(u, c) ->
-    [ UserConnection from u Accepted now Nothing (Just c),
-      UserConnection u from Accepted now Nothing (Just c)
-    ]
-
 insertConnection ::
   -- | From
   UserId ->
   -- | To
   UserId ->
   RelationWithHistory ->
-  Maybe Message ->
   ConvId ->
   AppIO UserConnection
-insertConnection from to status msg cid = do
+insertConnection from to status cid = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 . write connectionInsert $ params Quorum (from, to, status, now, msg, cid)
-  return $ toUserConnection (from, to, status, now, msg, Just cid)
+  retry x5 . write connectionInsert $ params Quorum (from, to, status, now, cid)
+  return $ toUserConnection (from, to, status, now, Just cid)
 
 updateConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
 updateConnection c@UserConnection {..} status = do
@@ -168,14 +152,14 @@ deleteConnections u = do
 
 -- Queries
 
-connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Message, ConvId) ()
-connectionInsert = "INSERT INTO connection (left, right, status, last_update, message, conv) VALUES (?, ?, ?, ?, ?, ?)"
+connectionInsert :: PrepQuery W (UserId, UserId, RelationWithHistory, UTCTimeMillis, ConvId) ()
+connectionInsert = "INSERT INTO connection (left, right, status, last_update, conv) VALUES (?, ?, ?, ?, ?)"
 
 connectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, UserId) ()
 connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?"
 
-connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Message, Maybe ConvId)
-connectionSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right = ?"
+connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
+connectionSelect = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? AND right = ?"
 
 relationSelect :: PrepQuery R (UserId, UserId) (Identity RelationWithHistory)
 relationSelect = "SELECT status FROM connection WHERE left = ? AND right = ?"
@@ -189,11 +173,11 @@ connectionStatusSelect' = "SELECT left, right, status FROM connection WHERE left
 contactsSelect :: PrepQuery R (Identity UserId) (UserId, RelationWithHistory)
 contactsSelect = "SELECT right, status FROM connection WHERE left = ?"
 
-connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Message, Maybe ConvId)
-connectionsSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? ORDER BY right ASC"
+connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
+connectionsSelect = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? ORDER BY right ASC"
 
-connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Message, Maybe ConvId)
-connectionsSelectFrom = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right > ? ORDER BY right ASC"
+connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
+connectionsSelectFrom = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? AND right > ? ORDER BY right ASC"
 
 connectionDelete :: PrepQuery W (UserId, UserId) ()
 connectionDelete = "DELETE FROM connection WHERE left = ? AND right = ?"
@@ -203,8 +187,8 @@ connectionClear = "DELETE FROM connection WHERE left = ?"
 
 -- Conversions
 
-toUserConnection :: (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe Message, Maybe ConvId) -> UserConnection
-toUserConnection (l, r, relationDropHistory -> rel, time, msg, cid) = UserConnection l r rel time msg cid
+toUserConnection :: (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) -> UserConnection
+toUserConnection (l, r, relationDropHistory -> rel, time, cid) = UserConnection l r rel time cid
 
 toConnectionStatus :: (UserId, UserId, RelationWithHistory) -> ConnectionStatus
 toConnectionStatus (l, r, relationDropHistory -> rel) = ConnectionStatus l r rel

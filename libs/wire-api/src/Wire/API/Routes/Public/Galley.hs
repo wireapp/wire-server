@@ -22,54 +22,55 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
-import Data.Domain
-import Data.Id (ConvId, TeamId)
+import Data.Id (ConvId, TeamId, UserId)
+import Data.Qualified (Qualified (..))
 import Data.Range
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, contentType, respond)
-import qualified Servant
+import Servant
 import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
-import qualified Wire.API.Conversation as Public
-import qualified Wire.API.Conversation.Role as Public
+import Wire.API.Conversation
+import Wire.API.Conversation.Role
 import Wire.API.ErrorDescription
-import qualified Wire.API.Event.Conversation as Public
-import qualified Wire.API.Message as Public
-import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Event.Conversation
+import Wire.API.Message
+import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public.Galley.Responses
+import Wire.API.Routes.Public.Util
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto (Proto, RawProto)
-import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 
-type ConversationResponses =
-  '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
-     WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
-   ]
+instance AsHeaders '[Header "Location" ConvId] Conversation Conversation where
+  -- FUTUREWORK: use addHeader
+  toHeaders c = Headers c (HCons (Header (qUnqualified (cnvQualifiedId c))) HNil)
+  fromHeaders = getResponse
 
-type UpdateResponses =
-  '[ WithStatus 200 Public.Event,
-     NoContent
-   ]
+type ConversationResponse = ResponseForExistedCreated Conversation
 
-type PostOtrResponsesUnqualified =
-  '[ WithStatus 201 Public.ClientMismatch,
-     WithStatus 412 Public.ClientMismatch,
-     ConvNotFound,
-     UnknownClient
-   ]
+type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
-type PostOtrResponses =
-  '[ WithStatus 201 Public.MessageSendingStatus,
-     WithStatus 412 Public.MessageSendingStatus,
-     ConvNotFound,
-     UnknownClient
-   ]
+type ConversationVerb =
+  MultiVerb
+    'POST
+    '[JSON]
+    '[ WithHeaders
+         ConversationHeaders
+         Conversation
+         (Respond 200 "Conversation existed" Conversation),
+       WithHeaders
+         ConversationHeaders
+         Conversation
+         (Respond 201 "Conversation created" Conversation)
+     ]
+    ConversationResponse
 
--- FUTUREWORK: Make a PR to the servant-swagger package with this instance
-instance Swagger.ToSchema Servant.NoContent where
-  declareNamedSchema _ = Swagger.declareNamedSchema (Proxy @())
+type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
 data Api routes = Api
   { -- Conversations
@@ -80,15 +81,14 @@ data Api routes = Api
         :> ZUser
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> Get '[Servant.JSON] Public.Conversation,
+        :> Get '[Servant.JSON] Conversation,
     getConversation ::
       routes
         :- Summary "Get a conversation by ID"
         :> ZUser
         :> "conversations"
-        :> Capture "domain" Domain
-        :> Capture "cnv" ConvId
-        :> Get '[Servant.JSON] Public.Conversation,
+        :> QualifiedCapture "cnv" ConvId
+        :> Get '[Servant.JSON] Conversation,
     getConversationRoles ::
       routes
         :- Summary "Get existing roles available for the given conversation"
@@ -96,10 +96,10 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cnv" ConvId
         :> "roles"
-        :> Get '[Servant.JSON] Public.ConversationRolesList,
-    getConversationIds ::
+        :> Get '[Servant.JSON] ConversationRolesList,
+    listConversationIdsUnqualified ::
       routes
-        :- Summary "Get all conversation IDs."
+        :- Summary "[deprecated] Get all local conversation IDs."
         -- FUTUREWORK: add bounds to swagger schema for Range
         :> ZUser
         :> "conversations"
@@ -118,7 +118,26 @@ data Api routes = Api
              ]
              "size"
              (Range 1 1000 Int32)
-        :> Get '[Servant.JSON] (Public.ConversationList ConvId),
+        :> Get '[Servant.JSON] (ConversationList ConvId),
+    listConversationIds ::
+      routes
+        :- Summary "Get all conversation IDs."
+          :> Description
+               "The IDs returned by this endpoint are paginated. To\
+               \ get the first page, make a call with the `paging_state` field set to\
+               \ `null` (or omitted). Whenever the `has_more` field of the response is\
+               \ set to `true`, more results are available, and they can be obtained\
+               \ by calling the endpoint again, but this time passing the value of\
+               \ `paging_state` returned by the previous call. One can continue in\
+               \ this fashion until all results are returned, which is indicated by\
+               \ `has_more` being `false`. Note that `paging_state` should be\
+               \ considered an opaque token. It should not be inspected, or stored, or\
+               \ reused across multiple unrelated invokations of the endpoint."
+          :> ZUser
+          :> "conversations"
+          :> "list-ids"
+          :> ReqBody '[Servant.JSON] GetPaginatedConversationIds
+          :> Post '[Servant.JSON] ConvIdsPage,
     getConversations ::
       routes
         :- Summary "Get all *local* conversations."
@@ -146,15 +165,28 @@ data Api routes = Api
              ]
              "size"
              (Range 1 500 Int32)
-        :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
+        :> Get '[Servant.JSON] (ConversationList Conversation),
     listConversations ::
       routes
-        :- Summary "Get all conversations (also returns remote conversations)"
-        :> Description "Like GET /conversations, but allows specifying a list of remote conversations in its request body. Will return all or the requested qualified conversations, including remote ones. WIP: Size parameter is not yet honoured for remote conversations."
+        :- Summary "[deprecated] Get all conversations (also returns remote conversations)"
+        :> Description
+             "Like GET /conversations, but allows specifying a list of remote conversations in its request body. \
+             \Will return all or the requested qualified conversations, including remote ones. \
+             \Size parameter is not yet honoured for remote conversations.\n\
+             \**NOTE** This endpoint will soon be removed."
         :> ZUser
         :> "list-conversations"
-        :> ReqBody '[Servant.JSON] Public.ListConversations
-        :> Post '[Servant.JSON] (Public.ConversationList Public.Conversation),
+        :> ReqBody '[Servant.JSON] ListConversations
+        :> Post '[Servant.JSON] (ConversationList Conversation),
+    listConversationsV2 ::
+      routes
+        :- Summary "Get conversation metadata for a list of conversation ids"
+        :> ZUser
+        :> "conversations"
+        :> "list"
+        :> "v2"
+        :> ReqBody '[Servant.JSON] ListConversationsV2
+        :> Post '[Servant.JSON] ConversationsResponse,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     getConversationByReusableCode ::
@@ -169,7 +201,7 @@ data Api routes = Api
         :> "join"
         :> QueryParam' [Required, Strict] "key" Code.Key
         :> QueryParam' [Required, Strict] "code" Code.Value
-        :> Get '[Servant.JSON] Public.ConversationCoverView,
+        :> Get '[Servant.JSON] ConversationCoverView,
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
@@ -180,15 +212,15 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ReqBody '[Servant.JSON] NewConvUnmanaged
+        :> ConversationVerb,
     createSelfConversation ::
       routes
         :- Summary "Create a self-conversation"
         :> ZUser
         :> "conversations"
         :> "self"
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ConversationVerb,
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"
@@ -199,8 +231,8 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> "one2one"
-        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] ConversationResponses,
+        :> ReqBody '[Servant.JSON] NewConvUnmanaged
+        :> ConversationVerb,
     addMembersToConversationV2 ::
       routes
         :- Summary "Add qualified members to an existing conversation."
@@ -210,8 +242,133 @@ data Api routes = Api
         :> Capture "cnv" ConvId
         :> "members"
         :> "v2"
-        :> ReqBody '[Servant.JSON] Public.InviteQualified
-        :> UVerb 'POST '[Servant.JSON] UpdateResponses,
+        :> ReqBody '[Servant.JSON] InviteQualified
+        :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members
+    removeMemberUnqualified ::
+      routes
+        :- Summary "Remove a member from a conversation (deprecated)"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> Capture' '[Description "Target User ID"] "usr" UserId
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             RemoveFromConversationHTTPResponse
+             RemoveFromConversationResponse,
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members
+    removeMember ::
+      routes
+        :- Summary "Remove a member from a conversation"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
+        :> MultiVerb
+             'DELETE
+             '[JSON]
+             RemoveFromConversationHTTPResponse
+             RemoveFromConversationResponse,
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvRename event to members
+    updateConversationNameDeprecated ::
+      routes
+        :- Summary "Update conversation name (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/name` instead."
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
+    updateConversationNameUnqualified ::
+      routes
+        :- Summary "Update conversation name (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/name` instead."
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "name"
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
+    updateConversationName ::
+      routes
+        :- Summary "Update conversation name"
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "name"
+        :> ReqBody '[JSON] ConversationRename
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             [ ConvNotFound,
+               Respond 200 "Conversation updated" Event
+             ]
+             (Maybe Event),
+    getConversationSelfUnqualified ::
+      routes
+        :- Summary "Get self membership properties (deprecated)"
+        :> ZUser
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> Get '[JSON] (Maybe Member),
+    updateConversationSelfUnqualified ::
+      routes
+        :- Summary "Update self membership properties (deprecated)"
+        :> Description "Use `/conversations/:domain/:conv/self` instead."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
+    updateConversationSelf ::
+      routes
+        :- Summary "Update self membership properties"
+        :> Description "**Note**: at least one field has to be provided."
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvAccessDenied
+        :> ZUser
+        :> ZConn
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "self"
+        :> ReqBody '[JSON] MemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Update successful"]
+             (),
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -223,7 +380,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> "roles"
-        :> Get '[Servant.JSON] Public.ConversationRolesList,
+        :> Get '[Servant.JSON] ConversationRolesList,
     getTeamConversations ::
       routes
         :- Summary "Get team conversations"
@@ -232,7 +389,7 @@ data Api routes = Api
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
-        :> Get '[Servant.JSON] Public.TeamConversationList,
+        :> Get '[Servant.JSON] TeamConversationList,
     getTeamConversation ::
       routes
         :- Summary "Get one team conversation"
@@ -242,7 +399,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Get '[Servant.JSON] Public.TeamConversation,
+        :> Get '[Servant.JSON] TeamConversation,
     deleteTeamConversation ::
       routes
         :- Summary "Remove a team conversation"
@@ -254,7 +411,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Delete '[] (EmptyResult 200),
+        :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Conversation deleted"] (),
     postOtrMessageUnqualified ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
@@ -263,12 +420,16 @@ data Api routes = Api
         :> ZConn
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> QueryParam "ignore_missing" Public.IgnoreMissing
-        :> QueryParam "report_missing" Public.ReportMissing
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
         :> "otr"
         :> "messages"
-        :> ReqBody '[Servant.JSON, Proto] Public.NewOtrMessage
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponsesUnqualified,
+        :> ReqBody '[Servant.JSON, Proto] NewOtrMessage
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses ClientMismatch)
+             (Either (MessageNotSent ClientMismatch) ClientMismatch),
     postProteusMessage ::
       routes
         :- Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
@@ -276,12 +437,15 @@ data Api routes = Api
         :> ZUser
         :> ZConn
         :> "conversations"
-        :> Capture "domain" Domain
-        :> Capture "cnv" ConvId
+        :> QualifiedCapture "cnv" ConvId
         :> "proteus"
         :> "messages"
-        :> ReqBody '[Proto] (RawProto Public.QualifiedNewOtrMessage)
-        :> UVerb 'POST '[Servant.JSON] PostOtrResponses,
+        :> ReqBody '[Proto] (RawProto QualifiedNewOtrMessage)
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses MessageSendingStatus)
+             (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus),
     teamFeatureStatusSSOGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureSSO,
@@ -330,6 +494,9 @@ data Api routes = Api
     teamFeatureStatusClassifiedDomainsGet ::
       routes
         :- FeatureStatusGet 'TeamFeatureClassifiedDomains,
+    teamFeatureStatusConferenceCallingGet ::
+      routes
+        :- FeatureStatusGet 'TeamFeatureConferenceCalling,
     featureAllFeatureConfigsGet ::
       routes
         :- AllFeatureConfigsGet,
@@ -356,7 +523,10 @@ data Api routes = Api
         :- FeatureConfigGet 'TeamFeatureFileSharing,
     featureConfigClassifiedDomainsGet ::
       routes
-        :- FeatureConfigGet 'TeamFeatureClassifiedDomains
+        :- FeatureConfigGet 'TeamFeatureClassifiedDomains,
+    featureConfigConferenceCallingGet ::
+      routes
+        :- FeatureConfigGet 'TeamFeatureConferenceCalling
   }
   deriving (Generic)
 

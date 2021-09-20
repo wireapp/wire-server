@@ -1,28 +1,28 @@
 {
+    "class": "phone",
     "cookie": "k",
     "lastkey": {
-        "key": "𡰦",
-        "id": 65535
+        "id": 65535,
+        "key": "𡰦"
     },
     "model": "\u001b㰳c",
-    "type": "temporary",
     "prekeys": [
         {
-            "key": "",
-            "id": 0
+            "id": 0,
+            "key": ""
         },
         {
-            "key": "",
-            "id": 0
+            "id": 0,
+            "key": ""
         },
         {
-            "key": "",
-            "id": 1
+            "id": 1,
+            "key": ""
         },
         {
-            "key": "",
-            "id": 0
+            "id": 0,
+            "key": ""
         }
     ],
-    "class": "phone"
+    "type": "temporary"
 }

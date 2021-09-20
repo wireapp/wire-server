@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,6 +20,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
@@ -26,6 +28,7 @@ import Data.Id as Id
 import Data.Misc (IpAddr)
 import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
 import Servant (JSON)
@@ -33,8 +36,12 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Generic
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.ErrorDescription (ClientNotFound)
-import Wire.API.Routes.Public (EmptyResult, ZConn, ZUser)
+import Wire.API.Connection
+import Wire.API.ErrorDescription
+import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Public (ZConn, ZUser)
+import Wire.API.Routes.Public.Util
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -44,88 +51,91 @@ import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
 
-type CheckUserExistsResponse = [EmptyResult 200, EmptyResult 404]
+type GetUserVerb =
+  MultiVerb
+    'GET
+    '[JSON]
+    '[ UserNotFound,
+       Respond 200 "User found" UserProfile
+     ]
+    (Maybe UserProfile)
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
+
+type QualifiedCaptureUserId name = QualifiedCapture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
-type GetClientResponse = [WithStatus 200 Client, ClientNotFound]
+type DeleteSelfResponses =
+  '[ RespondEmpty 200 "Deletion is initiated.",
+     RespondWithDeletionCodeTimeout
+   ]
+
+newtype RespondWithDeletionCodeTimeout
+  = RespondWithDeletionCodeTimeout
+      (Respond 202 "Deletion is pending verification with a code." DeletionCodeTimeout)
+  deriving (IsResponse '[JSON], IsSwaggerResponse)
+
+type instance ResponseType RespondWithDeletionCodeTimeout = DeletionCodeTimeout
+
+instance AsUnion DeleteSelfResponses (Maybe Timeout) where
+  toUnion (Just t) = S (Z (I (DeletionCodeTimeout t)))
+  toUnion Nothing = Z (I ())
+  fromUnion (Z (I ())) = Nothing
+  fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
+  fromUnion (S (S x)) = case x of
+
+type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
 data Api routes = Api
-  { -- Note [document responses]
-    --
-    -- Ideally we want to document responses with UVerb and swagger, but this is
-    -- currently not possible due to this issue:
-    -- https://github.com/haskell-servant/servant/issues/1369
-
-    -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User exists" Doc.end
-    --   Doc.errorResponse userNotFound
-    checkUserExistsUnqualified ::
-      routes
-        :- Summary "Check if a user ID exists (deprecated)"
-        :> ZUser
-        :> "users"
-        :> CaptureUserId "uid"
-        :> UVerb 'HEAD '[] CheckUserExistsResponse,
-    -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User exists" Doc.end
-    --   Doc.errorResponse userNotFound
-    checkUserExistsQualified ::
-      routes
-        :- Summary "Check if a user ID exists"
-        :> ZUser
-        :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
-        :> UVerb 'HEAD '[] CheckUserExistsResponse,
-    -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User" Doc.end
-    --   Doc.errorResponse userNotFound
+  { -- See Note [ephemeral user sideeffect]
     getUserUnqualified ::
       routes
         :- Summary "Get a user by UserId (deprecated)"
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
-        :> Get '[JSON] UserProfile,
+        :> GetUserVerb,
     -- See Note [ephemeral user sideeffect]
-    --
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.response 200 "User" Doc.end
-    --   Doc.errorResponse userNotFound
     getUserQualified ::
       routes
         :- Summary "Get a user by Domain and UserId"
         :> ZUser
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
-        :> Get '[JSON] UserProfile,
+        :> QualifiedCaptureUserId "uid"
+        :> GetUserVerb,
     getSelf ::
       routes
         :- Summary "Get your own profile"
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile,
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.returns (Doc.ref modelUserHandleInfo)
-    --   Doc.response 200 "Handle info" Doc.end
-    --   Doc.errorResponse handleNotFound
+    -- This endpoint can lead to the following events being sent:
+    -- - UserDeleted event to contacts of self
+    -- - MemberLeave event to members for all conversations the user was in (via galley)
+    deleteSelf ::
+      routes
+        -- TODO: Add custom AsUnion
+        :- Summary "Initiate account deletion."
+        :> Description
+             "if the account has a verified identity, a verification \
+             \code is sent and needs to be confirmed to authorise the \
+             \deletion. if the account has no verified identity but a \
+             \password, it must be provided. if password is correct, or if neither \
+             \a verified identity nor a password exists, account deletion \
+             \is scheduled immediately."
+        :> CanThrow InvalidUser
+        :> CanThrow InvalidCode
+        :> CanThrow BadCredentials
+        :> CanThrow MissingAuth
+        :> CanThrow DeleteCodePending
+        :> CanThrow OwnerDeletingSelf
+        :> ZUser
+        :> "self"
+        :> ReqBody '[JSON] DeleteUser
+        :> MultiVerb 'DELETE '[JSON] DeleteSelfResponses (Maybe Timeout),
     getHandleInfoUnqualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
@@ -133,21 +143,27 @@ data Api routes = Api
         :> "users"
         :> "handles"
         :> Capture' '[Description "The user handle"] "handle" Handle
-        :> Get '[JSON] UserHandleInfo,
-    -- See Note [document responses]
-    -- The responses looked like this:
-    --   Doc.returns (Doc.ref modelUserHandleInfo)
-    --   Doc.response 200 "Handle info" Doc.end
-    --   Doc.errorResponse handleNotFound
-    getUserByHandleQualfied ::
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ HandleNotFound,
+                Respond 200 "User found" UserHandleInfo
+              ]
+             (Maybe UserHandleInfo),
+    getUserByHandleQualified ::
       routes
         :- Summary "(deprecated, use /search/contacts) Get information on a user handle"
         :> ZUser
         :> "users"
         :> "by-handle"
-        :> Capture "domain" Domain
-        :> Capture' '[Description "The user handle"] "handle" Handle
-        :> Get '[JSON] UserProfile,
+        :> QualifiedCapture' '[Description "The user handle"] "handle" Handle
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ HandleNotFound,
+                Respond 200 "User found" UserProfile
+              ]
+             (Maybe UserProfile),
     -- See Note [ephemeral user sideeffect]
     listUsersByUnqualifiedIdsOrHandles ::
       routes
@@ -178,8 +194,7 @@ data Api routes = Api
       routes
         :- Summary "Get all of a user's clients."
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "clients"
         :> Get '[JSON] [PubClient],
     getUserClientUnqualified ::
@@ -194,8 +209,7 @@ data Api routes = Api
       routes
         :- Summary "Get a specific client of a user."
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "clients"
         :> CaptureClientId "client"
         :> Get '[JSON] PubClient,
@@ -230,8 +244,7 @@ data Api routes = Api
         :- Summary "Get a prekey for a specific client of a user."
         :> ZUser
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "prekeys"
         :> CaptureClientId "client"
         :> Get '[JSON] ClientPrekey,
@@ -248,8 +261,7 @@ data Api routes = Api
         :- Summary "Get a prekey for each client of a user."
         :> ZUser
         :> "users"
-        :> Capture "domain" Domain
-        :> CaptureUserId "uid"
+        :> QualifiedCaptureUserId "uid"
         :> "prekeys"
         :> Get '[JSON] PrekeyBundle,
     getMultiUserPrekeyBundleUnqualified ::
@@ -279,25 +291,25 @@ data Api routes = Api
     -- This endpoint can lead to the following events being sent:
     -- - ClientAdded event to self
     -- - ClientRemoved event to self, if removing old clients due to max number
-    --   Doc.errorResponse tooManyClients
-    --   Doc.errorResponse missingAuthError
-    --   Doc.errorResponse malformedPrekeys
     addClient ::
       routes :- Summary "Register a new client"
+        :> CanThrow TooManyClients
+        :> CanThrow MissingAuth
+        :> CanThrow MalformedPrekeys
         :> ZUser
         :> ZConn
         :> "clients"
         :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
         :> Verb 'POST 201 '[JSON] NewClientResponse,
-    --   Doc.errorResponse malformedPrekeys
     updateClient ::
       routes :- Summary "Update a registered client"
+        :> CanThrow MalformedPrekeys
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"
         :> ReqBody '[JSON] UpdateClient
-        :> Put '[] (EmptyResult 200),
+        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 200 "Client updated"] (),
     -- This endpoint can lead to the following events being sent:
     -- - ClientRemoved event to self
     deleteClient ::
@@ -307,18 +319,24 @@ data Api routes = Api
         :> "clients"
         :> CaptureClientId "client"
         :> ReqBody '[JSON] RmClient
-        :> Delete '[] (EmptyResult 200),
+        :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] (),
     listClients ::
       routes :- Summary "List the registered clients"
         :> ZUser
         :> "clients"
         :> Get '[JSON] [Client],
     getClient ::
-      routes :- Summary "Get a register client by ID"
+      routes :- Summary "Get a registered client by ID"
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"
-        :> UVerb 'GET '[JSON] GetClientResponse,
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                Respond 200 "Client found" Client
+              ]
+             (Maybe Client),
     getClientCapabilities ::
       routes :- Summary "Read back what the client has been posting about itself"
         :> ZUser
@@ -333,6 +351,77 @@ data Api routes = Api
         :> CaptureClientId "client"
         :> "prekeys"
         :> Get '[JSON] [PrekeyId],
+    -- Connection API -----------------------------------------------------
+    --
+    -- This endpoint can lead to the following events being sent:
+    -- - ConnectionUpdated event to self and other, if any side's connection state changes
+    -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
+    -- - ConvCreate event to self, if creating a connect conversation (via galley)
+    -- - ConvConnect event to self, in some cases (via galley),
+    --   for details see 'Galley.API.Create.createConnectConversation'
+    createConnectionUnqualified ::
+      routes :- Summary "Create a connection to another user. (deprecated)"
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NoIdentity
+        -- Config value 'setUserMaxConnections' value in production/by default
+        -- is currently 1000 and has not changed in the last few years.
+        -- While it would be more correct to use the config value here, that
+        -- might not be time well spent.
+        :> Description "You can have no more than 1000 connections in accepted or sent state"
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> ReqBody '[JSON] ConnectionRequest
+        :> MultiVerb
+             'POST
+             '[JSON]
+             (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
+             (ResponseForExistedCreated UserConnection),
+    listConnections ::
+      routes :- Summary "List the connections to other users."
+        :> ZUser
+        :> "connections"
+        :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
+        :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
+        :> Get '[JSON] UserConnectionList,
+    getConnectionUnqualified ::
+      routes :- Summary "Get an existing connection to another user. (deprecated)"
+        :> ZUser
+        :> "connections"
+        :> CaptureUserId "uid"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ EmptyErrorForLegacyReasons 404 "Connection not found",
+                Respond 200 "Connection found" UserConnection
+              ]
+             (Maybe UserConnection),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConnectionUpdated event to self and other, if their connection states change
+    --
+    -- When changing the connection state to Sent or Accepted, this can cause events to be sent
+    -- when joining the connect conversation:
+    -- - MemberJoin event to self and other (via galley)
+    updateConnectionUnqualified ::
+      routes :- Summary "Update a connection to another user. (deprecated)"
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NotConnected
+        :> CanThrow InvalidTransition
+        :> CanThrow NoIdentity
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> CaptureUserId "uid"
+        :> ReqBody '[JSON] ConnectionUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             ConnectionUpdateResponses
+             (UpdateResult UserConnection),
     searchContacts ::
       routes :- Summary "Search for users"
         :> ZUser

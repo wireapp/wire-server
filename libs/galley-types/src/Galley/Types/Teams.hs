@@ -30,6 +30,7 @@ module Galley.Types.Teams
     flagFileSharing,
     flagAppLockDefaults,
     flagClassifiedDomains,
+    flagConferenceCalling,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -148,13 +149,26 @@ rolePermissions :: Role -> Permissions
 rolePermissions role = Permissions p p where p = rolePerms role
 
 permissionsRole :: Permissions -> Maybe Role
-permissionsRole (Permissions p p') | p /= p' = Nothing
-permissionsRole (Permissions p _) = permsRole p
+permissionsRole (Permissions p p') =
+  if p /= p'
+    then do
+      -- we never did use @p /= p'@ for anything, fingers crossed that it doesn't occur anywhere
+      -- in the wild.  but if it does, this implementation prevents privilege escalation.
+      let p'' = Set.intersection p p'
+       in permissionsRole (Permissions p'' p'')
+    else permsRole p
   where
     permsRole :: Set Perm -> Maybe Role
     permsRole perms =
       Maybe.listToMaybe
-        [role | role <- [minBound ..], rolePerms role == perms]
+        [ role
+          | role <- [minBound ..],
+            -- if a there is a role that is strictly less permissive than the perms set that
+            -- we encounter, we downgrade.  this shouldn't happen in real life, but it has
+            -- happened to very old users on a staging environment, where a user (probably)
+            -- was create before the current publicly visible permissions had been stabilized.
+            rolePerms role `Set.isSubsetOf` perms
+        ]
 
 -- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are
 -- identical for every 'Role', otherwise it'll need to be specialized for the resp. sides.)
@@ -199,7 +213,8 @@ data FeatureFlags = FeatureFlags
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
     _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock)),
     _flagClassifiedDomains :: !(TeamFeatureStatus 'TeamFeatureClassifiedDomains),
-    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing))
+    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'TeamFeatureFileSharing)),
+    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'TeamFeatureConferenceCalling))
   }
   deriving (Eq, Show, Generic)
 
@@ -244,16 +259,18 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
       <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "fileSharing"))
+      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing) =
+  toJSON (FeatureFlags sso legalhold searchVisibility appLock classifiedDomains fileSharing conferenceCalling) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
         "teamSearchVisibility" .= searchVisibility,
         "appLock" .= appLock,
         "classifiedDomains" .= classifiedDomains,
-        "fileSharing" .= fileSharing
+        "fileSharing" .= fileSharing,
+        "conferenceCalling" .= conferenceCalling
       ]
 
 instance FromJSON FeatureSSO where
@@ -363,6 +380,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureAppLock,
           ViewTeamFeature TeamFeatureFileSharing,
           ViewTeamFeature TeamFeatureClassifiedDomains,
+          ViewTeamFeature TeamFeatureConferenceCalling,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

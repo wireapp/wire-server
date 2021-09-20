@@ -1,25 +1,25 @@
 {
+    "label": "M􄕶^YH:l",
     "lastkey": {
-        "key": "",
-        "id": 65535
+        "id": 65535,
+        "key": ""
     },
     "prekeys": [
         {
-            "key": "󳧤",
-            "id": 1
+            "id": 1,
+            "key": "󳧤"
         },
         {
-            "key": "",
-            "id": 0
+            "id": 0,
+            "key": ""
         },
         {
-            "key": "",
-            "id": 0
+            "id": 0,
+            "key": ""
         },
         {
-            "key": "u",
-            "id": 0
+            "id": 0,
+            "key": "u"
         }
-    ],
-    "label": "M􄕶^YH:l"
+    ]
 }

@@ -19,12 +19,14 @@ module Test.Wire.API.Golden.Runner
   ( testObjects,
     protoTestObjects,
     testFromJSONFailure,
+    testFromJSONFailureWithMsg,
+    testFromJSONObject,
     testFromJSONObjects,
   )
 where
 
 import Data.Aeson
-import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.Aeson.Encode.Pretty (Config (..), defConfig, encodePretty')
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import Data.ProtoLens.Encoding (decodeMessage, encodeMessage)
@@ -32,20 +34,19 @@ import Data.ProtoLens.Message (Message)
 import Data.ProtoLens.TextFormat (pprintMessage, readMessage)
 import qualified Data.Text.Lazy.IO as LText
 import Imports
+import Test.Tasty (TestTree)
 import Test.Tasty.HUnit
 import Text.PrettyPrint (render)
 import Type.Reflection (typeRep)
 import Wire.API.ServantProto
 
-testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
-testObjects objs = do
-  allFilesExist <- and <$> traverse (uncurry testObject) objs
-  assertBool "Some golden JSON files do not exist" allFilesExist
+testObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> [TestTree]
+testObjects = fmap (\(obj, path) -> testCase path $ testObject obj path)
 
-testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
+testObject :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> Assertion
 testObject obj path = do
   let actualValue = toJSON obj :: Value
-      actualJson = encodePretty actualValue
+      actualJson = encodePretty' config actualValue
       dir = "test/golden"
       fullPath = dir <> "/" <> path
   createDirectoryIfMissing True dir
@@ -61,8 +62,9 @@ testObject obj path = do
     (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
     (Success obj)
     (fromJSON actualValue)
-
-  pure exists
+  assertBool ("JSON golden file " <> path <> " does not exist") exists
+  where
+    config = defConfig {confCompare = compare, confTrailingNewline = True}
 
 protoTestObjects ::
   forall m a.
@@ -102,7 +104,7 @@ protoTestObject obj path = do
 
   pure exists
 
-testFromJSONObjects :: forall a. (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
+testFromJSONObjects :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
 testFromJSONObjects = traverse_ (uncurry testFromJSONObject)
 
 testFromJSONObject :: forall a. (Typeable a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO ()
@@ -113,13 +115,27 @@ testFromJSONObject expected path = do
   assertEqual (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object") (Right expected) parsed
 
 testFromJSONFailure :: forall a. (Typeable a, FromJSON a, Show a) => FilePath -> IO ()
-testFromJSONFailure path = do
+testFromJSONFailure = testFromJSONFailureWithMsg @a Nothing
+
+testFromJSONFailureWithMsg :: forall a. (Typeable a, FromJSON a, Show a) => Maybe String -> FilePath -> IO ()
+testFromJSONFailureWithMsg msg path = do
   let dir = "test/golden/fromJSON"
       fullPath = dir <> "/" <> path
   parsed <- eitherDecodeFileStrict @a fullPath
   case parsed of
-    Right x -> assertFailure $ show (typeRep @a) <> ": FromJSON of " <> path <> ": expected failure, got " <> show x
-    Left _ -> pure ()
+    Right x -> assertFailure $ failurePrefix <> ": expected failure, got " <> show x
+    Left err -> case msg of
+      Nothing -> pure ()
+      Just m ->
+        assertBool
+          ( failurePrefix <> " had a wrong failure: "
+              <> show m
+              <> " is not contained in "
+              <> show err
+          )
+          (m `isSuffixOf` err)
+  where
+    failurePrefix = show (typeRep @a) <> ": FromJSON of " <> path
 
 assertRight :: Show a => Either a b -> IO b
 assertRight =

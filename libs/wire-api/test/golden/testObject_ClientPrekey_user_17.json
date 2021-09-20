@@ -1,7 +1,7 @@
 {
+    "client": "81c",
     "prekey": {
-        "key": "􇡞󱀔h9􂴕",
-        "id": 2
-    },
-    "client": "81c"
+        "id": 2,
+        "key": "􇡞󱀔h9􂴕"
+    }
 }

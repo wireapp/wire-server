@@ -36,6 +36,8 @@ module Galley.API.Teams.Features
     setAppLockInternal,
     getFileSharingInternal,
     setFileSharingInternal,
+    getConferenceCallingInternal,
+    setConferenceCallingInternal,
     DoAuth (..),
   )
 where
@@ -65,7 +67,7 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
 import qualified Wire.API.Event.FeatureConfig as Event
-import Wire.API.Team.Feature (AllFeatureConfigs (..))
+import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
 data DoAuth = DoAuth UserId | DontDoAuth
@@ -145,7 +147,8 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
-        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal
+        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
       ]
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -163,7 +166,8 @@ getAllFeatures uid tid = do
         getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
-        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal
+        getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
+        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
       ]
   where
     getStatus ::
@@ -197,7 +201,10 @@ setFeatureStatusNoConfig ::
   Galley (Public.TeamFeatureStatus a)
 setFeatureStatusNoConfig applyState tid status = do
   applyState (Public.tfwoStatus status) tid
-  TeamFeatures.setFeatureStatusNoConfig @a tid status
+  newStatus <- TeamFeatures.setFeatureStatusNoConfig @a tid status
+  pushFeatureConfigEvent tid $
+    Event.Event Event.Update (Public.knownTeamFeatureName @a) (EdFeatureWithoutConfigChanged newStatus)
+  pure newStatus
 
 getSSOStatusInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 getSSOStatusInternal =
@@ -240,6 +247,7 @@ getValidateSAMLEmailsInternal =
   where
     -- FUTUREWORK: we may also want to get a default from the server config file here, like for
     -- sso, and team search visibility.
+    -- Use getFeatureStatusWithDefault
     getDef = pure Public.TeamFeatureDisabled
 
 setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
@@ -253,6 +261,7 @@ getDigitalSignaturesInternal =
   where
     -- FUTUREWORK: we may also want to get a default from the server config file here, like for
     -- sso, and team search visibility.
+    -- Use getFeatureStatusWithDefault
     getDef = pure Public.TeamFeatureDisabled
 
 setDigitalSignaturesInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
@@ -290,18 +299,26 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
 
 getFileSharingInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
 getFileSharingInternal =
+  getFeatureStatusWithDefaultConfig @'Public.TeamFeatureFileSharing flagFileSharing
+
+getFeatureStatusWithDefaultConfig ::
+  forall (a :: TeamFeatureName).
+  (KnownTeamFeatureName a, TeamFeatures.HasStatusCol a, FeatureHasNoConfig a) =>
+  Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus a)) ->
+  Maybe TeamId ->
+  Galley (Public.TeamFeatureStatus a)
+getFeatureStatusWithDefaultConfig lens' =
   maybe
     (Public.TeamFeatureStatusNoConfig <$> getDef)
-    (getFeatureStatusNoConfig @'Public.TeamFeatureFileSharing getDef)
+    (getFeatureStatusNoConfig @a getDef)
   where
+    getDef :: Galley Public.TeamFeatureStatusValue
     getDef =
-      view (options . optSettings . setFeatureFlags . flagFileSharing)
+      view (options . optSettings . setFeatureFlags . lens')
         <&> Public.tfwoStatus . view unDefaults
 
 setFileSharingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureFileSharing)
-setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \status tid -> do
-  let event = Event.Event Event.Update Public.TeamFeatureFileSharing (EdFeatureWithoutConfigChanged (Public.TeamFeatureStatusNoConfig status))
-  pushFeatureConfigEvent tid event
+setFileSharingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureFileSharing $ \_status _tid -> pure ()
 
 getAppLockInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal mbtid = do
@@ -323,6 +340,12 @@ getClassifiedDomainsInternal _mbtid = do
     Public.TeamFeatureDisabled ->
       Public.TeamFeatureStatusWithConfig Public.TeamFeatureDisabled (Public.TeamFeatureClassifiedDomainsConfig [])
     Public.TeamFeatureEnabled -> config
+
+getConferenceCallingInternal :: Maybe TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
+getConferenceCallingInternal = getFeatureStatusWithDefaultConfig @'Public.TeamFeatureConferenceCalling flagConferenceCalling
+
+setConferenceCallingInternal :: TeamId -> Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureConferenceCalling)
+setConferenceCallingInternal = setFeatureStatusNoConfig @'Public.TeamFeatureConferenceCalling $ \_status _tid -> pure ()
 
 pushFeatureConfigEvent :: TeamId -> Event.Event -> Galley ()
 pushFeatureConfigEvent tid event = do

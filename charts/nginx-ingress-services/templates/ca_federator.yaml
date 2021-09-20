@@ -1,0 +1,19 @@
+{{- /* This is the CA used by the federator ingress to verify client
+certificates. This does not need to be a secret in principle, but the ingress
+controller requires it to be. Also, this could in principle be bundled with the
+corresponding certificate (in secret_federator.yaml), but it is a separate
+secret because cert-manager interferes with the ca.crt field when setting the
+certificate in a secret. */ -}}
+
+{{- if .Values.federator.enabled -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: federator-ca-secret
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+data:
+  ca.crt: {{ .Values.secrets.tlsClientCA | b64enc | quote }}
+{{- end -}}

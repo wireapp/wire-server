@@ -23,12 +23,11 @@ where
 import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
-import Brig.Options (Opts)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 
-sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
-sitemap o = do
-  Public.sitemap o
-  Public.apiDocs o
+sitemap :: Routes Doc.ApiBuilder Handler ()
+sitemap = do
+  Public.sitemap
+  Public.apiDocs
   Internal.sitemap

@@ -1,4 +1,4 @@
 {
-    "retention": "expiring",
-    "public": false
+    "public": false,
+    "retention": "expiring"
 }

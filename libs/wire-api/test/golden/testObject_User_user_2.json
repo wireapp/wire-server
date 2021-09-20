@@ -1,49 +1,35 @@
 {
-    "phone": "+837934954",
-    "service": {
-        "id": "00000000-0000-0000-0000-000000000001",
-        "provider": "00000000-0000-0000-0000-000100000000"
-    },
-    "locale": "da-TN",
-    "managed_by": "wire",
-    "qualified_id": {
-        "domain": "k.vbg.p",
-        "id": "00000000-0000-0001-0000-000200000001"
-    },
     "accent_id": -2,
-    "picture": [],
-    "name": "4􄢻7\u0006\u0012\u0012\u0017bp\u0001麙0Yr\\󰘣vKRg󿽓)󽼺S󰇌􂏦:3B\u0006\u0013\u0003T",
-    "expires_at": "1864-05-11T17:06:58.936Z",
-    "id": "00000000-0000-0000-0000-000100000001",
-    "deleted": true,
     "assets": [
         {
             "key": "",
             "type": "image"
         },
         {
+            "key": "",
             "size": "complete",
-            "key": "",
             "type": "image"
         },
         {
+            "key": "",
             "size": "complete",
-            "key": "",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "",
-            "type": "image"
-        },
-        {
-            "key": "",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "",
             "type": "image"
         }
-    ]
+    ],
+    "deleted": true,
+    "expires_at": "1864-05-11T17:06:58.936Z",
+    "id": "00000000-0000-0000-0000-000100000001",
+    "locale": "da-TN",
+    "managed_by": "wire",
+    "name": "4􄢻7\u0006\u0012\u0012\u0017bp\u0001麙0Yr\\󰘣vKRg󿽓)󽼺S󰇌􂏦:3B\u0006\u0013\u0003T",
+    "phone": "+837934954",
+    "picture": [],
+    "qualified_id": {
+        "domain": "k.vbg.p",
+        "id": "00000000-0000-0001-0000-000200000001"
+    },
+    "service": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "provider": "00000000-0000-0000-0000-000100000000"
+    }
 }

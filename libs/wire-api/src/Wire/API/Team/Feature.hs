@@ -73,11 +73,14 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --
 -- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs
 --   * add call to 'testRoundTrip'
--- * services/galley/src/Galley/API/Internal.hs
---   * add a field to the 'InternalApi routes' record)
 -- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs
 --   * add a GET (and possible PUT) route with name prefix teamFeature<FEATURE_NAME>
 --   * add a GET route with name prefix featureConfig<FEATURE_NAME>
+-- * services/galley/src/Galley/API/Internal.hs
+--   * add a field to the 'InternalApi routes' record)
+-- * libs/galley-types/src/Galley/Types/Teams.hs
+--   * FeatureFlags for server config file
+--   * roleHiddenPermissions ChangeTeamFeature and ViewTeamFeature
 -- * services/galley/src/Galley/API/Teams/Features.hs
 --   * extend getAllFeatureConfigs
 --   * extend getAllFeatures
@@ -114,6 +117,7 @@ data TeamFeatureName
   | TeamFeatureAppLock
   | TeamFeatureFileSharing
   | TeamFeatureClassifiedDomains
+  | TeamFeatureConferenceCalling
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -153,6 +157,10 @@ instance KnownTeamFeatureName 'TeamFeatureClassifiedDomains where
   type KnownTeamFeatureNameSymbol 'TeamFeatureClassifiedDomains = "classifiedDomains"
   knownTeamFeatureName = TeamFeatureClassifiedDomains
 
+instance KnownTeamFeatureName 'TeamFeatureConferenceCalling where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureConferenceCalling = "conferenceCalling"
+  knownTeamFeatureName = TeamFeatureConferenceCalling
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -169,6 +177,7 @@ instance FromByteString TeamFeatureName where
         Right "appLock" -> pure TeamFeatureAppLock
         Right "fileSharing" -> pure TeamFeatureFileSharing
         Right "classifiedDomains" -> pure TeamFeatureClassifiedDomains
+        Right "conferenceCalling" -> pure TeamFeatureConferenceCalling
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 -- TODO: how do we make this consistent with 'KnownTeamFeatureNameSymbol'?  add a test for
@@ -182,6 +191,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureAppLock = "appLock"
   builder TeamFeatureFileSharing = "fileSharing"
   builder TeamFeatureClassifiedDomains = "classifiedDomains"
+  builder TeamFeatureConferenceCalling = "conferenceCalling"
 
 instance ToSchema TeamFeatureName where
   schema =
@@ -256,6 +266,7 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
   TeamFeatureStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureClassifiedDomains = TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
+  TeamFeatureStatus 'TeamFeatureConferenceCalling = TeamFeatureStatusNoConfig
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
@@ -269,6 +280,7 @@ modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfi
 modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
 modelForTeamFeature TeamFeatureFileSharing = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureClassifiedDomains = modelTeamFeatureStatusWithConfig name modelTeamFeatureClassifiedDomainsConfig
+modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig

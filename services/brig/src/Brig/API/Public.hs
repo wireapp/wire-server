@@ -58,6 +58,7 @@ import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.Code as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
@@ -92,12 +93,13 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
+import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
 import qualified Wire.API.Properties as Public
-import Wire.API.Routes.Public (EmptyResult (..))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
+import qualified Wire.API.Routes.Public.Util as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -162,19 +164,75 @@ Okta will ask you to provide two URLs when you set it up for talking to wireapp:
 #### centrify.com
 
 Centrify allows you to upload the metadata xml document that you get from the `/sso/metadata` end-point.  You can also enter the metadata url and have centrify retrieve the xml, but to guarantee integrity of the setup, the metadata should be copied from the team settings page and pasted into the centrify setup page without any URL indirections.
+
+## Federation errors
+
+Endpoints involving federated calls to other domains can return some extra failure responses, common to all endpoints. Instead of listing them as possible responses for each endpoint, we document them here.
+
+For errors that are more likely to be transient, we suggest clients to retry whatever request resulted in the error. Transient errors are indicated explicitly below.
+
+**Note**: when a failure occurs as a result of making a federated RPC to another backend, the error response contains the following extra fields:
+
+ - `domain`: the target backend of the RPC that failed;
+ - `path`: the path of the RPC that failed.
+
+### Domain errors
+
+Errors in this category result from trying to communicate with a backend that is considered non-existent or invalid. They can result from invalid user input or client issues, but they can also be a symptom of misconfiguration in one or multiple backends.
+
+ - **Remote backend not found** (status: 422, label: `srv-record-not-found`): This backend attempted to contact a backend which does not exist or is not properly configured. For the most part, clients can consider this error equivalent to a domain not existing, although it should be noted that certain mistakes in the DNS configuration on a remote backend can lead to the backend not being recognized, and hence to this error. It is therefore not advisable to take any destructive action upon encountering this error, such as deleting remote users from conversations.
+ - **Federation denied locally** (status: 400, label: `federation-not-allowed`): This backend attempted an RPC to a non-whitelisted backend. Similar considerations as for the previous error apply.
+
+### Local federation errors
+
+An error in this category likely indicates an issue with configuration of federation on the local backend. Possibly transient errors are indicated explicitly below.
+
+ - **Federation not enabled** (status: 400, label: `federation-not-enabled`): Federation has not been configured for this backend. This will happen if a federation-aware client tries to talk to a backend for which federation is disabled, or if federation was disabled on the backend after reaching a federation-specific state (e.g. conversations with remote users). There is no way to cleanly recover from these errors at this point.
+ - **Federation unavailable** (status: 500, label: `federation-not-available`): Federation is configured for this backend, but the local federator cannot be reached. This can be transient, so clients should retry the request.
+ - **Federation not implemented** (status: 403, label: `federation-not-implemented`): Federated behaviour for a certain endpoint is not yet implemented.
+ - **Federator discovery failed** (status: 500, label: `srv-lookup-dns-error`): A DNS error occurred during discovery of a remote backend. This can be transient, so clients should retry the request.
+ - **Too much concurrency** (status: 533, label: `too-much-concurrency`): Too many concurrent requests from this backend. This can be transient, so clients should retry the request.
+
+### Remote federation errors
+
+Errors in this category are returned in case of communication issues between the local backend and a remote one, or if the remote side encountered an error while processing an RPC. Some errors in this category might be caused by incorrect client behaviour or wrong user input. All of these errors can be transient, so clients should retry the request that caused them.
+
+ - **gRPC error** (status: 533, label: `grpc-error`): The current federator encountered an error when making an RPC to a remote one. Check the error message for more details.
+ - **Client RPC error** (status: 500, label: `client-rpc-error`): There was a non-specified error when making a request to another backend. Check the error message for more details.
+ - **Connection refused** (status: 521, label: `cannot-connect-to-remote-federator`): The local federator could not connect to a remote one.
+ - **Unknown remote error** (status: 500, label: `unknown-federation-error`): An RPC failed but no specific error was returned by the remote side. Check the error message for more details.
+
+### Backend compatibility errors
+
+An error in this category will be returned when this backend makes an invalid or unsupported RPC to another backend. This can indicate some incompatibility between backends or a backend bug. These errors are unlikely to be transient, so retrying requests is *not* advised.
+
+ - **Version mismatch** (status: 531): A remote backend is running an unsupported version of the federator.
+ - **Invalid method** / **Streaming not supported** (status: 500, label: `federation-invalid-call`): There was an error in the communication between a service on this backend and the local federator.
+ - **Invalid request** (status: 500, label: `invalid-request-to-federator`): The local federator made an invalid request to a remote one. Check the error message for more details.
+ - **Invalid content type** (status: 503, label: `federation-invalid-content-type-header`): An RPC to another backend returned an invalid content type.
+ - **Unsupported content type** (status: 503, label: `federation-unsupported-content-type`): An RPC to another backend returned an unsupported content type.
+ - **Invalid origin domain** (status: 533, label: `invalid-origin-domain`): The current backend attempted an RPC with an invalid origin domain field.
+ - **Forbidden endpoint** (status: 533, label: `forbidden-endpoint`): The current backend attempted an RPC to a forbidden or inaccessible remote endpoint.
+ - **Unknown federation error** (status: 503, label: `unknown-federation-error`): The target of an RPC returned an unexpected reponse. Check the error message for more details.
+
+### Authentication errors
+
+The errors in this category relate to authentication or authorization issues between backends. These errors are unlikely to be transient, so retrying requests is *not* advised.
+
+ - **TLS failure**: (status: 525): An error occurred during the TLS handshake between the local federator and a remote one. This is most likely due to an issue with the certificate on the remote end.
+ - **Federation denied remotely** (status: 532): The current backend made an unauthorized request to a remote one.
 |]
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   genericServerT $
     BrigAPI.Api
-      { BrigAPI.checkUserExistsUnqualified = checkUserExistsUnqualifiedH,
-        BrigAPI.checkUserExistsQualified = checkUserExistsH,
-        BrigAPI.getUserUnqualified = getUserUnqualifiedH,
-        BrigAPI.getUserQualified = getUserH,
+      { BrigAPI.getUserUnqualified = getUserUnqualifiedH,
+        BrigAPI.getUserQualified = getUser,
         BrigAPI.getSelf = getSelf,
+        BrigAPI.deleteSelf = deleteUser,
         BrigAPI.getHandleInfoUnqualified = getHandleInfoUnqualifiedH,
-        BrigAPI.getUserByHandleQualfied = getUserByHandleH,
+        BrigAPI.getUserByHandleQualified = Handle.getHandleInfo,
         BrigAPI.listUsersByUnqualifiedIdsOrHandles = listUsersByUnqualifiedIdsOrHandles,
         BrigAPI.listUsersByIdsOrHandles = listUsersByIdsOrHandles,
         BrigAPI.getUserClientsUnqualified = getUserClientsUnqualified,
@@ -196,6 +254,10 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
+        BrigAPI.createConnectionUnqualified = createConnection,
+        BrigAPI.listConnections = listConnections,
+        BrigAPI.getConnectionUnqualified = getConnection,
+        BrigAPI.updateConnectionUnqualified = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -206,8 +268,8 @@ servantSitemap =
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
-sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
-sitemap o = do
+sitemap :: Routes Doc.ApiBuilder Handler ()
+sitemap = do
   -- User Handle API ----------------------------------------------------
 
   post "/users/handles" (continue checkHandlesH) $
@@ -230,7 +292,7 @@ sitemap o = do
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
     Doc.errorResponse invalidHandle
-    Doc.errorResponse handleNotFound
+    Doc.errorResponse (errorDescriptionToWai handleNotFound)
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -269,21 +331,6 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
 
-  put "/self/email" (continue changeSelfEmailH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.EmailUpdate
-  document "PUT" "changeEmail" $ do
-    Doc.summary "Change your email address"
-    Doc.body (Doc.ref Public.modelEmailUpdate) $
-      Doc.description "JSON body"
-    Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
-    Doc.response 204 "No update, current and new email address are the same." Doc.end
-    Doc.errorResponse invalidEmail
-    Doc.errorResponse userKeyExists
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse blacklistedPhone
-
   put "/self/phone" (continue changePhoneH) $
     zauthUserId
       .&. zauthConnId
@@ -313,7 +360,7 @@ sitemap o = do
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
     Doc.errorResponse badCredentials
-    Doc.errorResponse (noIdentity 4)
+    Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
 
   put "/self/locale" (continue changeLocaleH) $
     zauthUserId
@@ -366,29 +413,6 @@ sitemap o = do
     Doc.response 200 "Email address removed." Doc.end
     Doc.errorResponse lastIdentity
 
-  -- This endpoint can lead to the following events being sent:
-  -- - UserDeleted event to contacts of self
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  delete "/self" (continue deleteUserH) $
-    zauthUserId
-      .&. jsonRequest @Public.DeleteUser
-      .&. accept "application" "json"
-  document "DELETE" "deleteUser" $ do
-    Doc.summary "Initiate account deletion."
-    Doc.notes
-      "If the account has a verified identity, a verification \
-      \code is sent and needs to be confirmed to authorise the \
-      \deletion. If the account has no verified identity but a \
-      \password, it must be provided. If password is correct, or if neither \
-      \a verified identity nor a password exists, account deletion \
-      \is scheduled immediately."
-    Doc.body (Doc.ref Public.modelDelete) $
-      Doc.description "JSON body"
-    Doc.response 202 "Deletion is pending verification with a code." Doc.end
-    Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse badCredentials
-    Doc.errorResponse missingAuthError
-
   -- TODO put  where?
 
   -- This endpoint can lead to the following events being sent:
@@ -403,91 +427,6 @@ sitemap o = do
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse invalidCode
-
-  -- Connection API -----------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to self and other, if any side's connection state changes
-  -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
-  -- - ConvCreate event to self, if creating a connect conversation (via galley)
-  -- - ConvConnect event to self, in some cases (via galley),
-  --   for details see 'Galley.API.Create.createConnectConversation'
-  post "/connections" (continue createConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.ConnectionRequest
-  document "POST" "createConnection" $ do
-    Doc.summary "Create a connection to another user."
-    Doc.notes $
-      "You can have no more than "
-        <> Text.pack (show (setUserMaxConnections $ optSettings o))
-        <> " connections in accepted or sent state."
-    Doc.body (Doc.ref Public.modelConnectionRequest) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "The connection exists." Doc.end
-    Doc.response 201 "The connection was created." Doc.end
-    Doc.response 412 "The connection cannot be created (eg., due to legalhold policy conflict)." Doc.end
-    Doc.errorResponse connectionLimitReached
-    Doc.errorResponse invalidUser
-    Doc.errorResponse (noIdentity 5)
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  get "/connections" (continue listConnectionsH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. opt (query "start")
-      .&. def (unsafeRange 100) (query "size")
-  document "GET" "connections" $ do
-    Doc.summary "List the connections to other users."
-    Doc.parameter Doc.Query "start" Doc.string' $ do
-      Doc.description "User ID to start from"
-      Doc.optional
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (default 100, max 500)."
-      Doc.optional
-    Doc.returns (Doc.ref Public.modelConnectionList)
-    Doc.response 200 "List of connections" Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConnectionUpdated event to self and other, if their connection states change
-  --
-  -- When changing the connection state to Sent or Accepted, this can cause events to be sent
-  -- when joining the connect conversation:
-  -- - MemberJoin event to self and other (via galley)
-  put "/connections/:id" (continue updateConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. zauthConnId
-      .&. capture "id"
-      .&. jsonRequest @Public.ConnectionUpdate
-  document "PUT" "updateConnection" $ do
-    Doc.summary "Update a connection."
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.body (Doc.ref Public.modelConnectionUpdate) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "Connection updated." Doc.end
-    Doc.response 204 "No change." Doc.end
-    Doc.errorResponse connectionLimitReached
-    Doc.errorResponse invalidTransition
-    Doc.errorResponse notConnected
-    Doc.errorResponse invalidUser
-
-  get "/connections/:id" (continue getConnectionH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. capture "id"
-  document "GET" "connection" $ do
-    Doc.summary "Get an existing connection to another user."
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelConnection)
-    Doc.response 200 "Connection" Doc.end
 
   -- Properties API -----------------------------------------------------
 
@@ -538,6 +477,10 @@ sitemap o = do
     Doc.returns (Doc.ref Public.modelPropertyValue)
     Doc.response 200 "The property value." Doc.end
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   get "/properties" (continue listPropertyKeysH) $
     zauthUserId
       .&. accept "application" "json"
@@ -684,12 +627,12 @@ sitemap o = do
   Team.routesPublic
   Calling.routesPublic
 
-apiDocs :: Opts -> Routes Doc.ApiBuilder Handler ()
-apiDocs o =
+apiDocs :: Routes Doc.ApiBuilder Handler ()
+apiDocs =
   get
     "/users/api-docs"
     ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models (sitemap o)
+        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models sitemap
          in k $ json doc
     )
     $ accept "application" "json"
@@ -753,10 +696,10 @@ listPropertyKeysAndValuesH (u ::: _) = do
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
-  getPrekeyH zusr domain user client
+  getPrekeyH zusr (Qualified user domain) client
 
-getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyH zusr domain user client = do
+getPrekeyH :: UserId -> Qualified UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
@@ -765,15 +708,15 @@ getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleH zusr domain uid =
+getPrekeyBundleH :: UserId -> Qualified UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
-    throwStd tooManyClients
+    throwErrorDescription tooManyClients
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
@@ -784,7 +727,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
-    throwStd tooManyClients
+    throwErrorDescription tooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
@@ -797,35 +740,27 @@ addClient usr con ip new = do
     clientResponse :: Public.Client -> BrigAPI.NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
-deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler (EmptyResult 200)
-deleteClient usr con clt body = do
+deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> Handler ()
+deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
-  pure EmptyResult
 
-updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler (EmptyResult 200)
-updateClient usr clt upd = do
-  API.updateClient usr clt upd !>> clientError
-  pure EmptyResult
+updateClient :: UserId -> ClientId -> Public.UpdateClient -> Handler ()
+updateClient usr clt upd = API.updateClient usr clt upd !>> clientError
 
 listClients :: UserId -> Handler [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClient :: UserId -> ClientId -> Handler (Union BrigAPI.GetClientResponse)
-getClient zusr clientId = do
-  mc <- lift $ API.lookupLocalClient zusr clientId
-  case mc of
-    Nothing -> throwEmptyForLegacyReasons status404
-    Just c -> Servant.respond (WithStatus @200 c)
+getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
+getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
 
 getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
   API.lookupPubClients (Qualified uid localdomain) !>> clientError
 
-getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
-getUserClientsQualified domain uid = do
-  API.lookupPubClients (Qualified uid domain) !>> clientError
+getUserClientsQualified :: Qualified UserId -> Handler [Public.PubClient]
+getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
 
 getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
 getUserClientUnqualified uid cid = do
@@ -840,15 +775,15 @@ listClientsBulk _zusr limitedUids =
 listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList BrigAPI.MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
-getUserClientQualified domain uid cid = do
-  x <- API.lookupPubClient (Qualified uid domain) cid !>> clientError
+getUserClientQualified :: Qualified UserId -> ClientId -> Handler Public.PubClient
+getUserClientQualified quid cid = do
+  x <- API.lookupPubClient quid cid !>> clientError
   ifNothing (notFound "client not found") x
 
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
-  maybe (throwStd clientNotFound) (pure . Public.clientCapabilities) mclient
+  maybe (throwErrorDescription clientNotFound) (pure . Public.clientCapabilities) mclient
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =
@@ -858,8 +793,12 @@ getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
-  selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations self)
-  otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations user)
+  selfUser <-
+    ifNothing (errorDescriptionToWai userNotFound)
+      =<< lift (Data.lookupUser NoPendingInvitations self)
+  otherUser <-
+    ifNothing (errorDescriptionToWai userNotFound)
+      =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
@@ -944,34 +883,15 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsUnqualifiedH self uid = do
-  domain <- viewFederationDomain
-  checkUserExistsH self domain uid
-
-checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union BrigAPI.CheckUserExistsResponse)
-checkUserExistsH self domain uid = do
-  exists <- checkUserExists self (Qualified uid domain)
-  if exists
-    then Servant.respond (EmptyResult @200)
-    else Servant.respond (EmptyResult @404)
-
-checkUserExists :: UserId -> Qualified UserId -> Handler Bool
-checkUserExists self qualifiedUserId =
-  isJust <$> getUser self qualifiedUserId
-
 getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self =
-  lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
+  lift (API.lookupSelfProfile self)
+    >>= ifNothing (errorDescriptionToWai userNotFound)
 
-getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
+getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
-  getUserH self domain uid
-
-getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
-getUserH self domain uid =
-  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+  getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
@@ -1017,7 +937,6 @@ listUsersByIdsOrHandles self q = do
     getIds :: [Handle] -> Handler [Qualified UserId]
     getIds localHandles = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
-      -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
@@ -1089,20 +1008,15 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
--- | This endpoint returns UserHandleInfo instead of UserProfile for backwards compatibility.
-getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
+-- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
+-- compatibility, whereas the corresponding qualified endpoint (implemented by
+-- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
+-- in a federated scenario.
+getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
-  Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
-
--- | This endpoint returns UserProfile instead of UserHandleInfo to reduce
--- traffic between backends in a federated scenario.
-getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
-getUserByHandleH self domain handle = do
-  maybeProfile <- Handle.getHandleInfo self (Qualified handle domain)
-  case maybeProfile of
-    Nothing -> throwStd handleNotFound
-    Just u -> pure u
+  Public.UserHandleInfo . Public.profileQualifiedId
+    <$$> Handle.getHandleInfo self (Qualified handle domain)
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) =
@@ -1160,48 +1074,30 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
-changeSelfEmailH (u ::: _ ::: req) = do
-  email <- Public.euEmail <$> parseJsonBody req
-  API.changeSelfEmail u email API.ForbidSCIMUpdates >>= \case
-    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
-    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
+createConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection self conn cr = do
+  API.createConnection self cr conn !>> connError
 
-createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.ConnectionRequest -> Handler Response
-createConnectionH (_ ::: self ::: conn ::: req) = do
-  cr <- parseJsonBody req
-  rs <- API.createConnection self cr conn !>> connError
-  return $ case rs of
-    ConnectionCreated c -> setStatus status201 $ json (c :: Public.UserConnection)
-    ConnectionExists c -> json (c :: Public.UserConnection)
-
-updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
-updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
-  newStatus <- Public.cuStatus <$> parseJsonBody req
+updateConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection self conn other update = do
+  let newStatus = Public.cuStatus update
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
-  return $ case mc of
-    Just c -> json (c :: Public.UserConnection)
-    Nothing -> setStatus status204 empty
+  return $ maybe Public.Unchanged Public.Updated mc
 
-listConnectionsH :: JSON ::: UserId ::: Maybe UserId ::: Range 1 500 Int32 -> Handler Response
-listConnectionsH (_ ::: uid ::: start ::: size) =
-  json @Public.UserConnectionList
-    <$> lift (API.lookupConnections uid start size)
+listConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
+listConnections uid start msize = do
+  let defaultSize = toRange (Proxy @100)
+  lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
-getConnectionH :: JSON ::: UserId ::: UserId -> Handler Response
-getConnectionH (_ ::: uid ::: uid') = lift $ do
-  conn <- API.lookupConnection uid uid'
-  return $ case conn of
-    Just c -> json (c :: Public.UserConnection)
-    Nothing -> setStatus status404 empty
+getConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
+getConnection uid uid' = lift $ API.lookupConnection uid uid'
 
-deleteUserH :: UserId ::: JsonRequest Public.DeleteUser ::: JSON -> Handler Response
-deleteUserH (u ::: r ::: _) = do
-  body <- parseJsonBody r
-  res <- API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
-  return $ case res of
-    Nothing -> setStatus status200 empty
-    Just ttl -> setStatus status202 (json (Public.DeletionCodeTimeout ttl))
+deleteUser ::
+  UserId ->
+  Public.DeleteUser ->
+  Handler (Maybe Code.Timeout)
+deleteUser u body =
+  API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> Handler Response
 verifyDeleteUserH (r ::: _) = do

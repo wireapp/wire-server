@@ -113,7 +113,12 @@ export IDP_ID=...
 
 Copy the new metadata file to one of your spar instances.
 
-Ssh into it.
+Ssh into it.  If you can't, [the scim
+docs](provisioning/scim-via-curl.md) explain how you can create a
+bearer token if you have the admin's login credentials.  If you follow
+that approach, you need to replace all mentions of `-H'Z-User ...'`
+with `-H'Authorization: Bearer ...'` in the following, and you won't need
+`$ADMIN_ID`, but something like `$BEARER`.
 
 There are two ways to update an IDP, described below, each with their own tradeoffs that affect users.
 
@@ -132,7 +137,7 @@ Effects:
   created for them, or they are blocked (both not what you want).
 
 ```shell
-curl -v
+curl -v \
      -XPUT http://localhost:8080/identity-providers/${IDP_ID} \
      -H"Z-User: ${ADMIN_ID}" \
      -H'Content-type: application/xml' \
@@ -165,12 +170,40 @@ Effects:
   https://github.com/wireapp/wire-team-settings/issues/3465).
 
 ```shell
-curl -v
+curl -v \
      -XPOST http://localhost:8080/identity-providers'?replaces='${IDP_ID} \
      -H"Z-User: ${ADMIN_ID}" \
      -H'Content-type: application/xml' \
      -d@"${METADATA_FILE}"
 ```
+
+
+### deleting an idp via curl
+
+Read the beginning of the last section up to "Option 1".  You need
+`ADMIN_ID` (or `BEARER`) and `IDP_ID`, but not `METADATA_FILE`.
+
+```shell
+curl -v
+     -XDELETE http://localhost:8080/identity-providers/${IDP_ID} \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/json
+```
+
+If there are still users in your team with SAML credentials associated
+with this IdP, you will get an error.  You can either move these users
+elsewhere, delete them manually, or purge them implicitly during
+deletion of the IdP:
+
+```shell
+curl -v
+     -XDELETE http://localhost:8080/identity-providers/${IDP_ID}?purge=true \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/json
+```
+
+Haskell code: https://github.com/wireapp/wire-server/blob/d231550f67c117b7d100c7c8c6c01b5ad13b5a7e/services/spar/src/Spar/API.hs#L217-L271
+
 
 ### setting a default SSO code
 
@@ -277,13 +310,7 @@ clients; and does currently not affect deletability of users.
 
 #### delete via deleting idp
 
-[Currently](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/services/spar/src/Spar/API.hs#L172-L187),
-deleting an IdP does not delete any user data.  In particular:
-
-- cookies of users that have authenticated via an IdP will remain valid if the IdP gets deleted.
-- if a user authenticates via an IdP that has been deleted to obtain a new cookie, the login code will not work, and the user will never be able to login again.
-- the user will still show in the team settings, and can be manually deleted from there.
-- if a new idp is registered, and a user authenticates via that idp, the old user is unreachable.  (spar will look up the wire `UserId` under the saml user id that consists partly of the id of the new IdP, come up empty, and [create a fresh user on brig](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/services/spar/src/Spar/App.hs#L306).)
+[Currently](https://github.com/wireapp/wire-server/blob/d231550f67c117b7d100c7c8c6c01b5ad13b5a7e/services/spar/src/Spar/API.hs#L217-L271), we only have the rest API for this.  Team settings will follow with a button.
 
 
 #### user deletes herself
@@ -299,3 +326,80 @@ TODO (probably little difference between this and "user deletes herself"?)
 #### delete via scim
 
 TODO
+
+
+## using the same IdP (same entityID, or Issuer) with different teams
+
+Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
+for fresh apps; instead, all apps controlled by the IdP are receiving
+SAML credentials from the same issuer.
+
+In the past, wire has used the a tuple of IdP issuer and 'NameID'
+(Haskell type 'UserRef') to uniquely identity users (tables
+`spar.user_v2` and `spar.issuer_idp`).
+
+In order to allow one IdP to serve more than one team, this has been
+changed: we now allow to identity an IdP by a combination of
+entityID/issuer and wire `TeamId`.  The necessary tweaks to the
+protocol are listed here.
+
+For everybody using IdPs that do not have this limitation, we have
+taken great care to not change the behavior.
+
+
+### what you need to know when operating a team or an instance
+
+No instance-level configuration is required.
+
+If your IdP supports different entityID / issuer for different apps,
+you don't need to change anything.  We hope to deprecate the old
+flavor of the SAML protocol eventually, but we will keep you posted in
+the release notes, and give you time to react.
+
+If your IdP does not support different entityID / issuer for different
+apps, keep reading.  At the time of writing this section, there is no
+support for multi-team IdP issuers in team-settings, so you have two
+options: (1) use the rest API directly; or (2) contact our customer
+support and send them the link to this section.
+
+If you feel up to calling the rest API, try the following:
+
+- Use the above end-point `GET /sso/metadata/:tid` with your `TeamId`
+  for pulling the SP metadata.
+- When calling `POST /identity-provider`, make sure to add
+  `?api_version=v2`.  (`?api_version=v1` or no omission of the query
+  param both invoke the old behavior.)
+
+NB: Neither version of the API allows you to provision a user with the
+same Issuer and same NamdID.  RATIONALE: this allows us to implement
+'getSAMLUser' without adding 'TeamId' to 'UserRef', which in turn
+would break the (admittedly leaky) abstarctions of saml2-web-sso.
+
+
+### API changes in more detail
+
+- New query param `api_version=<v1|v2>` for `POST
+  /identity-providers`.  The version is stored in `spar.idp` together
+  with the rest of the IdP setup, and is used by `GET
+  /sso/initiate-login` (see below).
+- `GET /sso/initiate-login` sends audience based on api_version stored
+  in `spar.idp`: for v1, the audience is `/sso/finalize-login`; for
+  v2, it's `/sso/finalize-login/:tid`.
+- New end-point `POST /sso/finalize-login/:tid` that behaves
+  indistinguishable from `POST /sso/finalize-login`, except when more
+  than one IdP with the same issuer, but different teams are
+  registered.  In that case, this end-point can process the
+  credentials by discriminating on the `TeamId`.
+- `POST /sso/finalize-login/:tid` remains unchanged.
+- New end-point `GET /sso/metadata/:tid` returns the same SP metadata as
+  `GET /sso/metadata`, with the exception that it lists
+  `"/sso/finalize-login/:tid"` as the path of the
+  `AssertionConsumerService` (rather than `"/sso/finalize-login"` as
+  before).
+- `GET /sso/metadata` remains unchanged, and still returns the old SP
+  metadata, without the `TeamId` in the paths.
+
+
+### database schema changes
+
+[V15](https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43)

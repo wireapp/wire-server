@@ -256,20 +256,17 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMember = "select user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
+selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMember = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMembers = "select conv, user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
+selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMembers = "select conv, user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
 
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
 insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
 removeMember :: PrepQuery W (ConvId, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
-
-updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
-updateOtrMemberMuted = "update member set otr_muted = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
 updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
 updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
@@ -286,7 +283,6 @@ updateMemberConvRoleName = "update member set conversation_role = ? where conv =
 -- Federated conversations -----------------------------------------------------
 --
 -- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations for a user.
--- FUTUREWORK(federation): support other conversation attributes such as muted, archived, etc
 
 -- local conversation with remote members
 
@@ -305,14 +301,27 @@ insertUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 insertUserRemoteConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
 
 selectUserRemoteConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
-selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain"
+selectUserRemoteConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ?"
 
-selectRemoteConvMembership :: PrepQuery R (UserId, Domain, ConvId) (Identity UserId)
-selectRemoteConvMembership = "select user from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+selectRemoteConvMembers :: PrepQuery R (UserId, Domain, [ConvId]) (ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectRemoteConvMembers = "select conv_remote_id, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id in ?"
 
--- FUTUREWORK: actually make use of these cql statements.
 deleteUserRemoteConv :: PrepQuery W (UserId, Domain, ConvId) ()
 deleteUserRemoteConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+
+-- remote conversation status for local user
+
+updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, ConvId, UserId) ()
+updateRemoteOtrMemberMutedStatus = "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+
+updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
+updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+
+updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
+updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+
+selectRemoteMemberStatus :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectRemoteMemberStatus = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------
 

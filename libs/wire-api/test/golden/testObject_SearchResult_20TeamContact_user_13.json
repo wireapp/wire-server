@@ -1,43 +1,43 @@
 {
-    "took": 1,
-    "found": -6,
     "documents": [
         {
+            "accent_id": 0,
+            "created_at": "1864-05-09T17:55:15.951Z",
             "email": "@",
             "handle": "",
-            "managed_by": "wire",
-            "role": "member",
-            "accent_id": 0,
-            "name": "",
-            "created_at": "1864-05-09T17:55:15.951Z",
-            "team": null,
             "id": "00000001-0000-0001-0000-000100000001",
-            "saml_idp": ""
+            "managed_by": "wire",
+            "name": "",
+            "role": "member",
+            "saml_idp": "",
+            "team": null
         },
         {
+            "accent_id": null,
+            "created_at": "1864-05-09T05:08:55.558Z",
             "email": "@",
             "handle": null,
-            "managed_by": "scim",
-            "role": "member",
-            "accent_id": null,
-            "name": "",
-            "created_at": "1864-05-09T05:08:55.558Z",
-            "team": "00000000-0000-0001-0000-000000000000",
             "id": "00000001-0000-0000-0000-000000000001",
-            "saml_idp": ""
+            "managed_by": "scim",
+            "name": "",
+            "role": "member",
+            "saml_idp": "",
+            "team": "00000000-0000-0001-0000-000000000000"
         },
         {
+            "accent_id": 0,
+            "created_at": "1864-05-09T11:18:47.121Z",
             "email": "@",
             "handle": "",
-            "managed_by": "scim",
-            "role": null,
-            "accent_id": 0,
-            "name": "",
-            "created_at": "1864-05-09T11:18:47.121Z",
-            "team": "00000001-0000-0000-0000-000000000000",
             "id": "00000001-0000-0001-0000-000100000001",
-            "saml_idp": ""
+            "managed_by": "scim",
+            "name": "",
+            "role": null,
+            "saml_idp": "",
+            "team": "00000001-0000-0000-0000-000000000000"
         }
     ],
-    "returned": 3
+    "found": -6,
+    "returned": 3,
+    "took": 1
 }

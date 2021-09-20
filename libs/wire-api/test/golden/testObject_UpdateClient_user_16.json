@@ -1,13 +1,13 @@
 {
+    "label": "󲤝6",
     "lastkey": {
-        "key": "Ll\u000e󳘂k𪾴\u0004f\u0012",
-        "id": 65535
+        "id": 65535,
+        "key": "Ll\u000e󳘂k𪾴\u0004f\u0012"
     },
     "prekeys": [
         {
-            "key": "Q}",
-            "id": 2
+            "id": 2,
+            "key": "Q}"
         }
-    ],
-    "label": "󲤝6"
+    ]
 }

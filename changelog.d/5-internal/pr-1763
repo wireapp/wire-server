@@ -1,0 +1,5 @@
+Minor changes around SAML and multi-team Issuers.
+- Change query param to not contain `-`, but `_`.  (This is considered an internal change because the feature has been release in the last release, but only been documented in this one.)
+- Haddocks.
+- Simplify code.
+- Remove unnecessary calls to cassandra.

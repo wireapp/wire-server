@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2afa3a03f475aac5d63ab87ded5843f404fee3d8506ac70390ee37dde18f22d4
+-- hash: 2cfc4799f7bb3c53ef52f608770146174871fda0b611e679cb5e0747eca566dc
 
 name:           spar
 version:        0.1
@@ -34,6 +34,8 @@ library
       Spar.Scim.Auth
       Spar.Scim.Types
       Spar.Scim.User
+      Spar.Sem.SAMLUser
+      Spar.Sem.SAMLUser.Cassandra
   other-modules:
       Paths_spar
   hs-source-dirs:
@@ -76,6 +78,8 @@ library
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -147,6 +151,8 @@ executable spar
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -241,6 +247,8 @@ executable spar-integration
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , random
     , raw-strings-qq
     , retry
@@ -326,6 +334,8 @@ executable spar-migrate-data
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -364,6 +374,7 @@ executable spar-schema
       V12
       V13
       V14
+      V15
       V2
       V3
       V4
@@ -413,6 +424,8 @@ executable spar-schema
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -498,6 +511,8 @@ test-suite spec
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy
+    , polysemy-plugin
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18

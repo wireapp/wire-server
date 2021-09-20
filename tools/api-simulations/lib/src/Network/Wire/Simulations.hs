@@ -50,6 +50,7 @@ import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
 import qualified Data.Map.Strict as Map
 import Data.Qualified (qUnqualified)
+import Data.Range
 import Data.Serialize
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -98,7 +99,7 @@ connectIfNeeded = go 6 -- six turns should be enough
         case s of
           -- If no connection: initiate one
           Nothing -> do
-            void $ connectTo (ConnectionRequest (botId b) (fromMaybe "" (botEmail a)) (Message "Hi there!"))
+            void $ connectTo (ConnectionRequest (botId b) (unsafeRange (fromMaybe "" (botEmail a))))
             assertConnectRequested a b
             return False
           -- If there's a pending connection to us: accept it

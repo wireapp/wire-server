@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -18,14 +19,31 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- FUTUREWORK:
--- There's still a lot of stuff we should factor out into separate modules.
+-- FUTUREWORK: There's still a lot of stuff we should factor out into separate
+-- modules.
 module Wire.API.Conversation
   ( -- * Conversation
+    ConversationMetadata (..),
     Conversation (..),
+    mkConversation,
+    cnvQualifiedId,
+    cnvType,
+    cnvCreator,
+    cnvAccess,
+    cnvAccessRole,
+    cnvName,
+    cnvTeam,
+    cnvMessageTimer,
+    cnvReceiptMode,
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
+    ListConversationsV2 (..),
+    GetPaginatedConversationIds (..),
+    ConversationPagingState (..),
+    ConversationPagingTable (..),
+    ConvIdsPage (..),
+    ConversationsResponse (..),
 
     -- * Conversation properties
     Access (..),
@@ -73,15 +91,20 @@ import Control.Applicative
 import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
+import qualified Data.Attoparsec.ByteString as AB
+import qualified Data.ByteString as BS
 import Data.Id
+import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
-import Data.Range (Range)
+import Data.Range (Range, fromRange, rangedSchema, toRange)
 import Data.Schema
 import qualified Data.Set as Set
+import Data.Singletons (sing)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -94,30 +117,116 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 --------------------------------------------------------------------------------
 -- Conversation
 
+data ConversationMetadata = ConversationMetadata
+  { -- | A qualified conversation ID
+    cnvmQualifiedId :: Qualified ConvId,
+    cnvmType :: ConvType,
+    -- FUTUREWORK: Make this a qualified user ID.
+    cnvmCreator :: UserId,
+    cnvmAccess :: [Access],
+    cnvmAccessRole :: AccessRole,
+    cnvmName :: Maybe Text,
+    -- FUTUREWORK: Think if it makes sense to make the team ID qualified due to
+    -- federation.
+    cnvmTeam :: Maybe TeamId,
+    cnvmMessageTimer :: Maybe Milliseconds,
+    cnvmReceiptMode :: Maybe ReceiptMode
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMetadata)
+  deriving (FromJSON, ToJSON) via Schema ConversationMetadata
+
+conversationMetadataObjectSchema ::
+  SchemaP
+    SwaggerDoc
+    A.Object
+    [A.Pair]
+    ConversationMetadata
+    ConversationMetadata
+conversationMetadataObjectSchema =
+  ConversationMetadata
+    <$> cnvmQualifiedId .= field "qualified_id" schema
+    <* (qUnqualified . cnvmQualifiedId)
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+    <*> cnvmType .= field "type" schema
+    <*> cnvmCreator
+      .= fieldWithDocModifier
+        "creator"
+        (description ?~ "The creator's user ID")
+        schema
+    <*> cnvmAccess .= field "access" (array schema)
+    <*> cnvmAccessRole .= field "access_role" schema
+    <*> cnvmName .= lax (field "name" (optWithDefault A.Null schema))
+    <* const ("0.0" :: Text) .= optional (field "last_event" schema)
+    <* const ("1970-01-01T00:00:00.000Z" :: Text)
+      .= optional (field "last_event_time" schema)
+    <*> cnvmTeam .= lax (field "team" (optWithDefault A.Null schema))
+    <*> cnvmMessageTimer
+      .= lax
+        ( fieldWithDocModifier
+            "message_timer"
+            (description ?~ "Per-conversation message timer (can be null)")
+            (optWithDefault A.Null schema)
+        )
+    <*> cnvmReceiptMode .= lax (field "receipt_mode" (optWithDefault A.Null schema))
+
+instance ToSchema ConversationMetadata where
+  schema = object "ConversationMetadata" conversationMetadataObjectSchema
+
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
 --
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
 data Conversation = Conversation
-  { -- | A qualified conversation ID
-    cnvQualifiedId :: Qualified ConvId,
-    cnvType :: ConvType,
-    -- FUTUREWORK: Make this a qualified user ID.
-    cnvCreator :: UserId,
-    cnvAccess :: [Access],
-    cnvAccessRole :: AccessRole,
-    cnvName :: Maybe Text,
-    cnvMembers :: ConvMembers,
-    -- FUTUREWORK: Think if it makes sense to make the team ID qualified due to
-    -- federation.
-    cnvTeam :: Maybe TeamId,
-    cnvMessageTimer :: Maybe Milliseconds,
-    cnvReceiptMode :: Maybe ReceiptMode
+  { cnvMetadata :: ConversationMetadata,
+    cnvMembers :: ConvMembers
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Conversation)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Conversation
+
+mkConversation ::
+  Qualified ConvId ->
+  ConvType ->
+  UserId ->
+  [Access] ->
+  AccessRole ->
+  Maybe Text ->
+  ConvMembers ->
+  Maybe TeamId ->
+  Maybe Milliseconds ->
+  Maybe ReceiptMode ->
+  Conversation
+mkConversation qid ty uid acc role name mems tid ms rm =
+  Conversation (ConversationMetadata qid ty uid acc role name tid ms rm) mems
+
+cnvQualifiedId :: Conversation -> Qualified ConvId
+cnvQualifiedId = cnvmQualifiedId . cnvMetadata
+
+cnvType :: Conversation -> ConvType
+cnvType = cnvmType . cnvMetadata
+
+cnvCreator :: Conversation -> UserId
+cnvCreator = cnvmCreator . cnvMetadata
+
+cnvAccess :: Conversation -> [Access]
+cnvAccess = cnvmAccess . cnvMetadata
+
+cnvAccessRole :: Conversation -> AccessRole
+cnvAccessRole = cnvmAccessRole . cnvMetadata
+
+cnvName :: Conversation -> Maybe Text
+cnvName = cnvmName . cnvMetadata
+
+cnvTeam :: Conversation -> Maybe TeamId
+cnvTeam = cnvmTeam . cnvMetadata
+
+cnvMessageTimer :: Conversation -> Maybe Milliseconds
+cnvMessageTimer = cnvmMessageTimer . cnvMetadata
+
+cnvReceiptMode :: Conversation -> Maybe ReceiptMode
+cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
 instance ToSchema Conversation where
   schema =
@@ -125,31 +234,8 @@ instance ToSchema Conversation where
       "Conversation"
       (description ?~ "A conversation object as returned from the server")
       $ Conversation
-        <$> cnvQualifiedId .= field "qualified_id" schema
-        <* (qUnqualified . cnvQualifiedId)
-          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-        <*> cnvType .= field "type" schema
-        <*> cnvCreator
-          .= fieldWithDocModifier
-            "creator"
-            (description ?~ "The creator's user ID")
-            schema
-        <*> cnvAccess .= field "access" (array schema)
-        <*> cnvAccessRole .= field "access_role" schema
-        <*> cnvName .= lax (field "name" (optWithDefault A.Null schema))
+        <$> cnvMetadata .= conversationMetadataObjectSchema
         <*> cnvMembers .= field "members" schema
-        <* const ("0.0" :: Text) .= optional (field "last_event" schema)
-        <* const ("1970-01-01T00:00:00.000Z" :: Text)
-          .= optional (field "last_event_time" schema)
-        <*> cnvTeam .= lax (field "team" (optWithDefault A.Null schema))
-        <*> cnvMessageTimer
-          .= lax
-            ( fieldWithDocModifier
-                "message_timer"
-                (description ?~ "Per-conversation message timer (can be null)")
-                (optWithDefault A.Null schema)
-            )
-        <*> cnvReceiptMode .= lax (field "receipt_mode" (optWithDefault A.Null schema))
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -225,6 +311,9 @@ instance ConversationListItem ConvId where
 instance ConversationListItem Conversation where
   convListItemName _ = "conversations"
 
+instance ConversationListItem (Qualified ConvId) where
+  convListItemName _ = "qualified Conversation IDs"
+
 instance (ConversationListItem a, S.ToSchema a) => S.ToSchema (ConversationList a) where
   declareNamedSchema _ = do
     listSchema <- S.declareSchemaRef (Proxy @[a])
@@ -252,8 +341,85 @@ instance FromJSON a => FromJSON (ConversationList a) where
       <$> o A..: "conversations"
       <*> o A..: "has_more"
 
--- | Used on the POST /list-conversations endpoint
--- FUTUREWORK: add to golden tests (how to generate them?)
+data ConvIdsPage = ConvIdsPage
+  { pageConvIds :: [Qualified ConvId],
+    pageHasMore :: Bool,
+    pagePagingState :: ConversationPagingState
+  }
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvIdsPage
+
+instance ToSchema ConvIdsPage where
+  schema =
+    object "ConvIdsPage" $
+      ConvIdsPage
+        <$> pageConvIds .= field "qualified_conversations" (array schema)
+        <*> pageHasMore .= field "has_more" schema
+        <*> pagePagingState .= field "paging_state" schema
+
+data ConversationPagingState = ConversationPagingState
+  { cpsTable :: ConversationPagingTable,
+    cpsPagingState :: Maybe ByteString
+  }
+  deriving (Show, Eq)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationPagingState
+
+instance ToSchema ConversationPagingState where
+  schema =
+    (toBase64Text . encodeConversationPagingState)
+      .= parsedText "ConversationPagingState" (parseConvesationPagingState <=< fromBase64Text)
+
+parseConvesationPagingState :: ByteString -> Either String ConversationPagingState
+parseConvesationPagingState = AB.parseOnly conversationPagingStateParser
+
+conversationPagingStateParser :: AB.Parser ConversationPagingState
+conversationPagingStateParser = do
+  cpsTable <- tableParser
+  cpsPagingState <- (AB.endOfInput $> Nothing) <|> (Just <$> AB.takeByteString <* AB.endOfInput)
+  pure ConversationPagingState {..}
+  where
+    tableParser :: AB.Parser ConversationPagingTable
+    tableParser =
+      (AB.word8 0 $> PagingLocals)
+        <|> (AB.word8 1 $> PagingRemotes)
+
+encodeConversationPagingState :: ConversationPagingState -> ByteString
+encodeConversationPagingState ConversationPagingState {..} =
+  let table = encodeConversationPagingTable cpsTable
+      state = fromMaybe "" cpsPagingState
+   in BS.cons table state
+
+encodeConversationPagingTable :: ConversationPagingTable -> Word8
+encodeConversationPagingTable = \case
+  PagingLocals -> 0
+  PagingRemotes -> 1
+
+data ConversationPagingTable
+  = PagingLocals
+  | PagingRemotes
+  deriving (Show, Eq)
+
+data GetPaginatedConversationIds = GetPaginatedConversationIds
+  { gpciPagingState :: Maybe ConversationPagingState,
+    gpciSize :: Range 1 1000 Int32
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetPaginatedConversationIds
+
+instance ToSchema GetPaginatedConversationIds where
+  schema =
+    let addPagingStateDoc =
+          description
+            ?~ "optional, when not specified first page of the conversation ids will be returned.\
+               \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
+        addSizeDoc = description ?~ "optional, must be <= 1000, defaults to 1000."
+     in objectWithDocModifier
+          "GetPaginatedConversationIds"
+          (description ?~ "A request to list some or all of a user's conversation ids, including remote ones")
+          $ GetPaginatedConversationIds
+            <$> gpciPagingState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema
+            <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
+
 data ListConversations = ListConversations
   { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),
     lStartId :: Maybe (Qualified ConvId),
@@ -271,6 +437,41 @@ instance ToSchema ListConversations where
         <$> lQualifiedIds .= optField "qualified_ids" Nothing (nonEmptyArray schema)
         <*> lStartId .= optField "start_id" Nothing schema
         <*> lSize .= optField "size" Nothing schema
+
+-- | Used on the POST /conversations/list/v2 endpoint
+newtype ListConversationsV2 = ListConversationsV2
+  { lcQualifiedIds :: Range 1 1000 [Qualified ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ListConversationsV2
+
+instance ToSchema ListConversationsV2 where
+  schema =
+    objectWithDocModifier
+      "ListConversations"
+      (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
+      $ ListConversationsV2
+        <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema sing sing (array schema))
+
+data ConversationsResponse = ConversationsResponse
+  { crFound :: [Conversation],
+    crNotFound :: [Qualified ConvId],
+    crFailed :: [Qualified ConvId]
+  }
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse
+
+instance ToSchema ConversationsResponse where
+  schema =
+    let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
+        failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
+     in objectWithDocModifier
+          "ConversationsResponse"
+          (description ?~ "Response object for getting metadata of a list of conversations")
+          $ ConversationsResponse
+            <$> crFound .= field "found" (array schema)
+            <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
+            <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
 --------------------------------------------------------------------------------
 -- Conversation properties
@@ -631,7 +832,7 @@ newtype ConversationRename = ConversationRename
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
-  deriving (ToJSON, FromJSON) via Schema ConversationRename
+  deriving (S.ToSchema, ToJSON, FromJSON) via Schema ConversationRename
 
 instance ToSchema ConversationRename where
   schema =

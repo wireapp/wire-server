@@ -334,6 +334,10 @@ chart-%:
 .PHONY: charts-integration
 charts-integration: $(foreach chartName,$(CHARTS_INTEGRATION),chart-$(chartName))
 
+.PHONY: charts-serve
+charts-serve: charts-integration
+	./hack/bin/serve-charts.sh $(CHARTS_INTEGRATION)
+
 # Usecase for this make target:
 # 1. for releases of helm charts
 # 2. for testing helm charts more generally
@@ -438,6 +442,11 @@ kind-restart-all: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
 	kubectl delete pod -n $(NAMESPACE) -l release=$(NAMESPACE)-wire-server && \
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l release=$(NAMESPACE)-fed2-wire-server
+
+kind-restart-nginx-ingress: .local/kind-kubeconfig
+	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
+	kubectl delete pod -n $(NAMESPACE) -l app=nginx-ingress && \
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=nginx-ingress
 
 kind-restart-%: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \

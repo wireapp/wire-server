@@ -1,32 +1,14 @@
 {
-    "phone": "+340639706578",
-    "service": {
-        "id": "00000000-0000-0001-0000-000000000001",
-        "provider": "00000000-0000-0001-0000-000000000001"
-    },
+    "accent_id": 1,
+    "assets": [],
+    "deleted": true,
+    "id": "00000000-0000-0001-0000-000100000000",
     "locale": "tn-SB",
     "managed_by": "wire",
+    "name": "\u0000uv󳊼su渱lRi",
+    "picture": [],
     "qualified_id": {
         "domain": "s-f4.s",
         "id": "00000002-0000-0001-0000-000200000002"
-    },
-    "accent_id": 1,
-    "picture": [],
-    "name": "\u0000uv󳊼su渱lRi",
-    "expires_at": "1864-05-08T06:39:23.932Z",
-    "team": "00000000-0000-0001-0000-000000000000",
-    "id": "00000000-0000-0001-0000-000100000000",
-    "deleted": true,
-    "assets": [
-        {
-            "size": "preview",
-            "key": "",
-            "type": "image"
-        },
-        {
-            "size": "preview",
-            "key": "",
-            "type": "image"
-        }
-    ]
+    }
 }

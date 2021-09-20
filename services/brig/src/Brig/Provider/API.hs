@@ -73,7 +73,7 @@ import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
-import Galley.Types (AccessRole (..), ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..))
+import Galley.Types
 import Galley.Types.Bot (newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Teams
@@ -96,6 +96,7 @@ import qualified Ssl.Util as SSL
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import qualified Wire.API.Conversation.Bot as Public
+import qualified Wire.API.ErrorDescription as ErrDesc
 import qualified Wire.API.Event.Conversation as Public (Event)
 import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
@@ -906,11 +907,11 @@ botGetSelfH bot = json <$> botGetSelf bot
 botGetSelf :: BotId -> Handler Public.UserProfile
 botGetSelf bot = do
   p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwStd userNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
+  maybe (throwErrorDescription ErrDesc.userNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> Handler Response
 botGetClientH bot = do
-  maybe (throwStd clientNotFound) (pure . json) =<< lift (botGetClient bot)
+  maybe (throwErrorDescription ErrDesc.clientNotFound) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> AppIO (Maybe Public.Client)
 botGetClient bot = do
@@ -935,7 +936,7 @@ botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> Handler ()
 botUpdatePrekeys bot upd = do
   clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
   case clt of
-    Nothing -> throwStd clientNotFound
+    Nothing -> throwErrorDescription ErrDesc.clientNotFound
     Just c -> do
       let pks = updateBotPrekeyList upd
       User.updatePrekeys (botUserId bot) (clientId c) pks !>> clientDataError
@@ -948,7 +949,7 @@ botClaimUsersPrekeys :: Public.UserClients -> Handler Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
-    throwStd tooManyClients
+    throwErrorDescription ErrDesc.tooManyClients
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
 botListUserProfilesH :: List UserId -> Handler Response
@@ -1085,7 +1086,7 @@ maybeInvalidBot :: Maybe a -> Handler a
 maybeInvalidBot = maybe (throwStd invalidBot) return
 
 maybeInvalidUser :: Maybe a -> Handler a
-maybeInvalidUser = maybe (throwStd invalidUser) return
+maybeInvalidUser = maybe (throwStd (errorDescriptionToWai ErrDesc.invalidUser)) return
 
 rangeChecked :: Within a n m => a -> Handler (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
