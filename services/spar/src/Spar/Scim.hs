@@ -104,9 +104,9 @@ import Wire.API.User.Scim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim
-    :: Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUser] r
-    => ServerT APIScim (Spar r)
+apiScim ::
+  Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUser] r =>
+  ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken

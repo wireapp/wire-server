@@ -215,7 +215,7 @@ ssoSettings = do
 ----------------------------------------------------------------------------
 -- IdP API
 
-idpGet :: Member IdPEffect.IdP r  => Maybe UserId -> SAML.IdPId -> Spar r IdP
+idpGet :: Member IdPEffect.IdP r => Maybe UserId -> SAML.IdPId -> Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -396,7 +396,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate :: Member IdPEffect.IdP r  => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
+idpUpdate :: Member IdPEffect.IdP r => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
 idpUpdateXML :: Member IdPEffect.IdP r => Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP

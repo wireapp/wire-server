@@ -578,9 +578,11 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
           Scim.version = calculateVersion scimuid usr
         }
 
-deleteScimUser
-    :: Members '[ScimExternalIdStore, ScimUserTimesStore, SAMLUser, IdPEffect.IdP] r
-    => ScimTokenInfo -> UserId -> Scim.ScimHandler (Spar r) ()
+deleteScimUser ::
+  Members '[ScimExternalIdStore, ScimUserTimesStore, SAMLUser, IdPEffect.IdP] r =>
+  ScimTokenInfo ->
+  UserId ->
+  Scim.ScimHandler (Spar r) ()
 deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
   logScim
     ( logFunction "Spar.Scim.User.deleteScimUser"
@@ -802,9 +804,13 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 --
 -- Note the user won't get an entry in `spar.user`.  That will only happen on their first
 -- successful authentication with their SAML credentials.
-scimFindUserByEmail
-  :: forall r. Members '[ScimExternalIdStore, ScimUserTimesStore, SAMLUser] r
-  => Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
+scimFindUserByEmail ::
+  forall r.
+  Members '[ScimExternalIdStore, ScimUserTimesStore, SAMLUser] r =>
+  Maybe IdP ->
+  TeamId ->
+  Text ->
+  MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
   -- Azure has been observed to search for externalIds that are not emails, even if the
   -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidExternalId'
