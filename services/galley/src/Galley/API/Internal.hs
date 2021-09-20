@@ -474,7 +474,6 @@ rmUser user conn = do
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
-            -- FUTUREWORK: deal with remote members, too, see removeMembers
             e <-
               Data.removeLocalMembersFromLocalConv
                 localDomain
