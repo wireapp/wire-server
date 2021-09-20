@@ -13,11 +13,11 @@ scimExternalIdStoreToCassandra ::
   Sem r a
 scimExternalIdStoreToCassandra =
   interpret $ undefined
-    -- embed . \case
-    --   Insert ur uid -> Data.insertSAMLUser ur uid
-    --   Get ur -> Data.getSAMLUser ur
-    --   GetAnyByIssuer is -> Data.getSAMLAnyUserByIssuer is
-    --   GetSomeByIssuer is -> Data.getSAMLSomeUsersByIssuer is
-    --   DeleteByIssuer is -> Data.deleteSAMLUsersByIssuer is
-    --   Delete uid ur -> Data.deleteSAMLUser uid ur
 
+-- embed . \case
+--   Insert ur uid -> Data.insertSAMLUser ur uid
+--   Get ur -> Data.getSAMLUser ur
+--   GetAnyByIssuer is -> Data.getSAMLAnyUserByIssuer is
+--   GetSomeByIssuer is -> Data.getSAMLSomeUsersByIssuer is
+--   DeleteByIssuer is -> Data.deleteSAMLUsersByIssuer is
+--   Delete uid ur -> Data.deleteSAMLUser uid ur

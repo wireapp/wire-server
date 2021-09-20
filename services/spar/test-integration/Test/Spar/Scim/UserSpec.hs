@@ -64,6 +64,8 @@ import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
 import qualified Spar.Sem.SAMLUser as SAMLUser
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import qualified Text.XML.DSig as SAML
 import qualified URI.ByteString as URI
 import Util
@@ -83,8 +85,6 @@ import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
-import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv

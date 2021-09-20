@@ -69,15 +69,15 @@ import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 
 app :: Env -> Application
 app ctx =

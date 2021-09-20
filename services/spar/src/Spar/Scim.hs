@@ -84,7 +84,9 @@ import Spar.Scim.Auth
 import Spar.Scim.User
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUser (SAMLUser)
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
@@ -94,8 +96,6 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 
 -- | SCIM config for our server.
 --

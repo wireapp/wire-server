@@ -106,9 +106,14 @@ import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser.Cassandra (interpretClientToIO, samlUserToCassandra)
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
@@ -118,11 +123,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
-import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -442,10 +442,10 @@ instance (r ~ '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, Default
                   idPToCassandra @Cas.Client $
                     defaultSsoCodeToCassandra $
                       scimTokenStoreToCassandra $
-                      scimUserTimesStoreToCassandra $
-                      scimExternalIdStoreToCassandra $
-                        runExceptT $
-                          runReaderT action ctx
+                        scimUserTimesStoreToCassandra $
+                          scimExternalIdStoreToCassandra $
+                            runExceptT $
+                              runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

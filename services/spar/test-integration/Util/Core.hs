@@ -181,11 +181,6 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import qualified Spar.Sem.IdP as IdPEffect
@@ -193,8 +188,13 @@ import Spar.Sem.IdP.Cassandra
 import Spar.Sem.SAMLUser (SAMLUser)
 import qualified Spar.Sem.SAMLUser as SAMLUser
 import Spar.Sem.SAMLUser.Cassandra
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -1266,10 +1266,10 @@ runSpar (Spar.Spar action) = do
               idPToCassandra @Cas.Client $
                 scimTokenStoreToCassandra @Cas.Client $
                   defaultSsoCodeToCassandra @Cas.Client $
-                  scimUserTimesStoreToCassandra @Cas.Client $
-                  scimExternalIdStoreToCassandra @Cas.Client $
-                    runExceptT $
-                      action `runReaderT` env
+                    scimUserTimesStoreToCassandra @Cas.Client $
+                      scimExternalIdStoreToCassandra @Cas.Client $
+                        runExceptT $
+                          action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
