@@ -567,7 +567,7 @@ getRichInfoH :: UserId -> Handler Response
 getRichInfoH uid = json <$> getRichInfo uid
 
 getRichInfo :: UserId -> Handler RichInfo
-getRichInfo uid = RichInfo . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo uid)
+getRichInfo uid = RichInfo . fromMaybe mempty <$> lift (API.lookupRichInfo uid)
 
 getRichInfoMultiH :: List UserId -> Handler Response
 getRichInfoMultiH uids = json <$> getRichInfoMulti (List.fromList uids)

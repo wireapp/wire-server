@@ -32,7 +32,6 @@ module Wire.API.User.RichInfo
 
     -- * RichInfoAssocList
     RichInfoAssocList (..),
-    emptyRichInfoAssocList,
     normalizeRichInfoAssocList,
     richInfoAssocListURN,
 
@@ -238,9 +237,6 @@ richInfoAssocListFromObject richinfoObj = do
 
 instance Arbitrary RichInfoAssocList where
   arbitrary = RichInfoAssocList <$> nubOrdOn richFieldType <$> arbitrary
-
-emptyRichInfoAssocList :: RichInfoAssocList
-emptyRichInfoAssocList = RichInfoAssocList []
 
 --------------------------------------------------------------------------------
 -- RichField

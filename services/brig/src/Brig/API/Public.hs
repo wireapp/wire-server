@@ -814,7 +814,7 @@ getRichInfo self user = do
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe Public.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
+  fromMaybe mempty <$> lift (API.lookupRichInfo user)
 
 getClientPrekeys :: UserId -> ClientId -> Handler [Public.PrekeyId]
 getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
