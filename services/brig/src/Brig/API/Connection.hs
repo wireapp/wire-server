@@ -46,14 +46,13 @@ import qualified Brig.IO.Intra as Intra
 import Brig.Options (setUserMaxConnections)
 import Brig.Types
 import Brig.Types.User.Event
-import Brig.Types.User.Event (logLocalConnection)
 import Control.Error
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import qualified Data.LegalHold as LH
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified (Qualified (Qualified, qUnqualified))
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import Galley.Types (ConvType (..), cnvType)
 import Imports
