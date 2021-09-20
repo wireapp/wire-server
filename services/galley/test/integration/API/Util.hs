@@ -67,6 +67,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
+import Debug.Trace as Debug
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -558,7 +559,11 @@ postConvQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => UserI
 postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
 
 postConvWithRemoteUser :: Domain -> UserProfile -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
-postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
+postConvWithRemoteUser remoteDomain user creatorUnqualified members =
+  postConvWithRemoteUsers remoteDomain [user] creatorUnqualified members
+
+postConvWithRemoteUsers :: Domain -> [UserProfile] -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
+postConvWithRemoteUsers remoteDomain users creatorUnqualified members = do
   opts <- view tsGConf
   fmap fst $
     withTempMockFederator
@@ -571,7 +576,7 @@ postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
     respond :: F.FederatedRequest -> Value
     respond req
       | fmap F.component (F.request req) == Just F.Brig =
-        toJSON [user]
+        Debug.trace (show req) (toJSON users)
       | otherwise = toJSON ()
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
@@ -959,13 +964,14 @@ putMember u m (Qualified c dom) = do
       . json m
 
 putOtherMemberQualified ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
   UserId ->
   Qualified UserId ->
   OtherMemberUpdate ->
   Qualified ConvId ->
-  TestM ResponseLBS
+  m ResponseLBS
 putOtherMemberQualified from to m c = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths

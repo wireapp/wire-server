@@ -490,7 +490,7 @@ checkRemotesFor domain uids = do
         map
           (qUnqualified . User.profileQualifiedId)
           (filter (not . User.profileDeleted) users)
-  unless (Set.fromList uids == Set.fromList uids') $
+  unless (Set.fromList uids == Set.fromList uids') $ do
     throwM unknownRemoteUser
 
 type FederatedGalleyRPC c a = FederatorClient c (ExceptT FederationClientFailure Galley) a

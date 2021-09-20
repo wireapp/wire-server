@@ -639,10 +639,12 @@ updateOtherMember ::
   Public.OtherMemberUpdate ->
   Galley ()
 updateOtherMember zusr zcon qcid qvictim update = do
-  localDomain <- viewFederationDomain
-  if qDomain qcid == localDomain && qDomain qvictim == localDomain
-    then updateOtherMemberUnqualified zusr zcon (qUnqualified qcid) (qUnqualified qvictim) update
-    else throwM federationNotImplemented
+  lusr <- qualifyLocal zusr
+  foldQualified
+    lusr
+    (\lcid -> updateOtherMemberLocalConv lusr zcon lcid qvictim update)
+    (\_ -> throwM federationNotImplemented)
+    qcid
 
 updateOtherMemberUnqualified ::
   UserId ->
