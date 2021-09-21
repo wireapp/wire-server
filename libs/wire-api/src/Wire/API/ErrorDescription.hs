@@ -233,9 +233,6 @@ operationDenied p =
 
 type NotATeamMember = ErrorDescription 403 "no-team-member" "Requesting user is not a team member"
 
-notATeamMember :: NotATeamMember
-notATeamMember = mkErrorDescription
-
 type ActionDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
 actionDenied :: Show a => a -> ActionDenied

@@ -75,7 +75,7 @@ ensureAccessRole role users = case role of
   PrivateAccessRole -> throwErrorDescription convAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
-      throwErrorDescription notATeamMember
+      throwErrorDescriptionType @NotATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
@@ -174,7 +174,7 @@ permissionCheck p = \case
     if m `hasPermission` p
       then pure m
       else throwErrorDescription (operationDenied p)
-  Nothing -> throwErrorDescription notATeamMember
+  Nothing -> throwErrorDescriptionType @NotATeamMember
 
 assertTeamExists :: TeamId -> Galley ()
 assertTeamExists tid = do
@@ -186,7 +186,7 @@ assertTeamExists tid = do
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
   Data.teamMember tid uid >>= \case
-    Nothing -> throwErrorDescription notATeamMember
+    Nothing -> throwErrorDescriptionType @NotATeamMember
     Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
