@@ -250,9 +250,6 @@ type UserNotFound = ErrorDescription 404 "not-found" "User not found"
 
 type ConnectionNotFound = ErrorDescription 404 "not-found" "Connection not found"
 
-connectionNotFound :: ConnectionNotFound
-connectionNotFound = mkErrorDescription
-
 type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
 handleNotFound :: HandleNotFound
