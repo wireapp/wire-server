@@ -115,7 +115,7 @@ connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedE
 connError (ConnectInvalidEmail _ _) = StdError invalidEmail
 connError ConnectInvalidPhone {} = StdError invalidPhone
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
-connError ConnectMissingLegalholdConsent = StdError (errorDescriptionToWai missingLegalholdConsent)
+connError ConnectMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
 
 actError :: ActivationError -> Error
 actError (UserKeyExists _) = StdError userKeyExists
@@ -225,7 +225,7 @@ clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
-clientError ClientMissingLegalholdConsent = StdError (errorDescriptionToWai missingLegalholdConsent)
+clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai

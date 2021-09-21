@@ -118,8 +118,8 @@ import Wire.API.ErrorDescription
   ( CodeNotFound,
     ConvMemberNotFound,
     ConvNotFound,
+    MissingLegalholdConsent,
     UnknownClient,
-    missingLegalholdConsent,
     mkErrorDescription,
   )
 import qualified Wire.API.ErrorDescription as Public
@@ -526,11 +526,11 @@ addMembers zusr zcon convId invite = do
 
       whenM (anyLegalholdActivated (lmId <$> convUsers)) $
         unless allNewUsersGaveConsent $
-          throwErrorDescription missingLegalholdConsent
+          throwErrorDescriptionType @MissingLegalholdConsent
 
       whenM (anyLegalholdActivated newUsers) $ do
         unless allNewUsersGaveConsent $
-          throwErrorDescription missingLegalholdConsent
+          throwErrorDescriptionType @MissingLegalholdConsent
 
         convUsersLHStatus <- do
           uidsStatus <- getLHStatusForUsers (lmId <$> convUsers)
@@ -549,7 +549,7 @@ addMembers zusr zcon convId invite = do
                 let qvictim = Qualified (lmId mem) localDomain
                  in void $
                       removeMember (lmId mem `Qualified` localDomain) Nothing (Data.convId conv `Qualified` localDomain) qvictim
-          else throwErrorDescription missingLegalholdConsent
+          else throwErrorDescriptionType @MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote :: FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] -> Galley ()
     checkLHPolicyConflictsRemote _remotes = pure ()
@@ -1259,7 +1259,7 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
   MissingOtrRecipients m -> do
     guardLegalholdPolicyConflicts (userToProtectee utype usr) (missingClients m)
-      >>= either (const (throwErrorDescription missingLegalholdConsent)) pure
+      >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound mkErrorDescription
   InvalidOtrSenderClient -> pure $ OtrUnknownClient mkErrorDescription

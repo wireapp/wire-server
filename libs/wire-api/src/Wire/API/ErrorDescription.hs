@@ -287,9 +287,6 @@ type MissingLegalholdConsent =
     "Failed to connect to a user or to invite a user to a group because somebody \
     \is under legalhold and somebody else has not granted consent."
 
-missingLegalholdConsent :: MissingLegalholdConsent
-missingLegalholdConsent = mkErrorDescription
-
 type CustomRolesNotSupported =
   ErrorDescription
     400
