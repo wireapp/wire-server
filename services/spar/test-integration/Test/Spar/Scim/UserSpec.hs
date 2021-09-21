@@ -60,11 +60,13 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
+import Spar.App (liftSem)
 import Spar.Data (lookupScimExternalId)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
+import qualified Spar.Sem.SAMLUser as SAMLUser
 import qualified Text.XML.DSig as SAML
 import qualified URI.ByteString as URI
 import Util
@@ -1317,7 +1319,7 @@ testUpdateExternalId withidp = do
       lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
         runValidExternalId
-          (runSparCass . Data.getSAMLUser)
+          (runSpar . liftSem . SAMLUser.get)
           ( \email -> do
               let action = SU.scimFindUserByEmail midp tid $ fromEmail email
               result <- runSpar . runExceptT . runMaybeT $ action

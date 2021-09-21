@@ -24,6 +24,22 @@ module Wire.API.Event.Conversation
     EventType (..),
     EventData (..),
 
+    -- * Event lenses
+    _EdMembersJoin,
+    _EdMembersLeave,
+    _EdConnect,
+    _EdConvReceiptModeUpdate,
+    _EdConvRename,
+    _EdConvDelete,
+    _EdConvAccessUpdate,
+    _EdConvMessageTimerUpdate,
+    _EdConvCodeUpdate,
+    _EdConvCodeDelete,
+    _EdMemberUpdate,
+    _EdConversation,
+    _EdTyping,
+    _EdOtrMessage,
+
     -- * Event data helpers
     SimpleMember (..),
     smId,
@@ -31,6 +47,7 @@ module Wire.API.Event.Conversation
     Connect (..),
     MemberUpdateData (..),
     OtrMessage (..),
+    conversationActionToEvent,
 
     -- * re-exports
     ConversationReceiptModeUpdate (..),
@@ -319,7 +336,7 @@ data SimpleMember = SimpleMember
   { smQualifiedId :: Qualified UserId,
     smConvRoleName :: RoleName
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SimpleMember)
   deriving (FromJSON, ToJSON) via Schema SimpleMember
 
@@ -544,3 +561,18 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
+
+conversationActionToEvent ::
+  UTCTime ->
+  Qualified UserId ->
+  Qualified ConvId ->
+  ConversationAction ->
+  Event
+conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers) =
+  Event MemberJoin qcnv quid now $
+    EdMembersJoin $ SimpleMembers (map (uncurry SimpleMember) . toList $ newMembers)
+conversationActionToEvent now quid qcnv (ConversationActionRemoveMembers removedMembers) =
+  Event MemberLeave qcnv quid now $
+    EdMembersLeave . QualifiedUserIdList . toList $ removedMembers
+conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
+  Event ConvRename qcnv quid now (EdConvRename rename)

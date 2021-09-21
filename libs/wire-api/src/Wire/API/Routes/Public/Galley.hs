@@ -277,6 +277,46 @@ data Api routes = Api
              RemoveFromConversationHTTPResponse
              RemoveFromConversationResponse,
     -- This endpoint can lead to the following events being sent:
+    -- - MemberStateUpdate event to members
+    updateOtherMemberUnqualified ::
+      routes
+        :- Summary "Update membership of the specified user (deprecated)"
+        :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvMemberNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> Capture' '[Description "Target User ID"] "usr" UserId
+        :> ReqBody '[JSON] OtherMemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Membership updated"]
+             (),
+    updateOtherMember ::
+      routes
+        :- Summary "Update membership of the specified user"
+        :> Description "**Note**: at least one field has to be provided."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvMemberNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
+        :> ReqBody '[JSON] OtherMemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Membership updated"]
+             (),
+    -- This endpoint can lead to the following events being sent:
     -- - ConvRename event to members
     updateConversationNameDeprecated ::
       routes
@@ -327,6 +367,78 @@ data Api routes = Api
                Respond 200 "Conversation updated" Event
              ]
              (Maybe Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvMessageTimerUpdate event to members
+    updateConversationMessageTimerUnqualified ::
+      routes
+        :- Summary "Update the message timer for a conversation (deprecated)"
+        :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "message-timer"
+        :> ReqBody '[JSON] ConversationMessageTimerUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
+             (UpdateResult Event),
+    updateConversationMessageTimer ::
+      routes
+        :- Summary "Update the message timer for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "message-timer"
+        :> ReqBody '[JSON] ConversationMessageTimerUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
+             (UpdateResult Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvReceiptModeUpdate event to members
+    updateConversationReceiptModeUnqualified ::
+      routes
+        :- Summary "Update receipt mode for a conversation (deprecated)"
+        :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "receipt-mode"
+        :> ReqBody '[JSON] ConversationReceiptModeUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Receipt mode unchanged" "Receipt mode updated" Event)
+             (UpdateResult Event),
+    updateConversationReceiptMode ::
+      routes
+        :- Summary "Update receipt mode for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "receipt-mode"
+        :> ReqBody '[JSON] ConversationReceiptModeUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Receipt mode unchanged" "Receipt mode updated" Event)
+             (UpdateResult Event),
     getConversationSelfUnqualified ::
       routes
         :- Summary "Get self membership properties (deprecated)"

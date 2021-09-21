@@ -608,7 +608,7 @@ remoteConversationStatus uid =
 remoteConversationStatusOnDomain :: MonadClient m => UserId -> Domain -> [ConvId] -> m (Map (Remote ConvId) MemberStatus)
 remoteConversationStatusOnDomain uid domain convs =
   Map.fromList . map toPair
-    <$> query Cql.selectRemoteConvMembers (params Quorum (uid, domain, convs))
+    <$> query Cql.selectRemoteConvMemberStatuses (params Quorum (uid, domain, convs))
   where
     toPair (conv, omus, omur, oar, oarr, hid, hidr) =
       ( toRemote (Qualified conv domain),
@@ -921,8 +921,9 @@ addMembersUncheckedWithRole localDomain t conv (orig, _origRole) lusrs rusrs = d
 -- | Set local users as belonging to a remote conversation. This is invoked by a
 -- remote galley when users from the current backend are added to conversations
 -- on the remote end.
-addLocalMembersToRemoteConv :: MonadClient m => [UserId] -> Qualified ConvId -> m ()
-addLocalMembersToRemoteConv users qconv = do
+addLocalMembersToRemoteConv :: MonadClient m => Qualified ConvId -> [UserId] -> m ()
+addLocalMembersToRemoteConv _ [] = pure ()
+addLocalMembersToRemoteConv qconv users = do
   -- FUTUREWORK: consider using pooledMapConcurrentlyN
   for_ (List.chunksOf 32 users) $ \chunk ->
     retry x5 . batch $ do
@@ -1024,9 +1025,9 @@ filterRemoteConvMembers users (Qualified conv dom) =
   where
     filterMember :: MonadClient m => UserId -> m [UserId]
     filterMember user =
-      fmap (map (const user))
+      fmap (map runIdentity)
         . retry x1
-        $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, [conv]))
+        $ query Cql.selectRemoteConvMembers (params Quorum (user, dom, conv))
 
 removeLocalMembersFromLocalConv ::
   MonadClient m =>
@@ -1071,8 +1072,9 @@ removeLocalMembersFromRemoteConv ::
   -- | The conversation to remove members from
   Qualified ConvId ->
   -- | Members to remove local to this backend
-  List1 UserId ->
+  [UserId] ->
   m ()
+removeLocalMembersFromRemoteConv _ [] = pure ()
 removeLocalMembersFromRemoteConv (Qualified conv convDomain) victims =
   retry x5 . batch $ do
     setType BatchLogged

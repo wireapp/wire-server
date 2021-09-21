@@ -72,7 +72,6 @@ tests opts mgr galley brig = do
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
-        testWithBothIndices opts mgr "order-name (prefix match)" $ testOrderName brig,
         testWithBothIndices opts mgr "order-handle (prefix match)" $ testOrderHandle brig,
         testWithBothIndices opts mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
@@ -256,8 +255,11 @@ testReindex brig = do
     delayed = liftIO $ threadDelay 10000
     mkRegularUser = randomUserWithHandle brig
 
-testOrderName :: TestConstraints m => Brig -> m ()
-testOrderName brig = do
+-- This test is currently disabled, because it fails sporadically, probably due
+-- to imprecisions in ES exact match scoring.
+-- FUTUREWORK: Find the reason for the failures and fix ES behaviour.
+_testOrderName :: TestConstraints m => Brig -> m ()
+_testOrderName brig = do
   searcher <- userId <$> randomUser brig
   Name searchedWord <- randomNameWithMaxLen 122
   nameMatch <- userQualifiedId <$> createUser' True searchedWord brig
@@ -285,10 +287,9 @@ testOrderHandle brig = do
   results <- searchResults <$> executeSearch brig searcher searchedWord
   let resultUIds = map contactQualifiedId results
   let expectedOrder = [handleMatch, handlePrefixMatch]
-  let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
   liftIO $
     assertEqual
-      ("Expected order: handle match, handle prefix match.\n\nSince this test fails sporadically for unknown reasons here here is some debug info:\n" <> dbg)
+      "Expected order: handle match, handle prefix match."
       expectedOrder
       resultUIds
 

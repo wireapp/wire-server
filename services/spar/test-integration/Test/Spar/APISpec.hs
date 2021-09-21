@@ -70,8 +70,9 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
-import qualified Spar.Data as Data
+import Spar.App (liftSem)
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Sem.IdP as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
@@ -868,7 +869,7 @@ specCRUDIdentityProvider = do
           pure $ idpmeta1 & edIssuer .~ (idpmeta3 ^. edIssuer)
 
         do
-          midp <- runSparCass $ Data.getIdPConfig idpid1
+          midp <- runSpar $ liftSem $ IdPEffect.getConfig idpid1
           liftIO $ do
             (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (idpmeta1 ^. edIssuer)
             (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just []
@@ -881,7 +882,7 @@ specCRUDIdentityProvider = do
               resp <- call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
               liftIO $ statusCode resp `shouldBe` 200
 
-              midp <- runSparCass $ Data.getIdPConfig idpid1
+              midp <- runSpar $ liftSem $ IdPEffect.getConfig idpid1
               liftIO $ do
                 (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (new ^. edIssuer)
                 sort <$> (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just (sort $ olds <&> (^. edIssuer))

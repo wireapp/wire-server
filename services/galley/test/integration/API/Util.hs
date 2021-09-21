@@ -107,6 +107,7 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
+import Wire.API.Event.Conversation (_EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
@@ -956,6 +957,29 @@ putMember u m (Qualified c dom) = do
       . zType "access"
       . json m
 
+putOtherMemberQualified ::
+  UserId ->
+  Qualified UserId ->
+  OtherMemberUpdate ->
+  Qualified ConvId ->
+  TestM ResponseLBS
+putOtherMemberQualified from to m c = do
+  g <- view tsGalley
+  put $
+    g
+      . paths
+        [ "conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "members",
+          toByteString' (qDomain to),
+          toByteString' (qUnqualified to)
+        ]
+      . zUser from
+      . zConn "conn"
+      . zType "access"
+      . json m
+
 putOtherMember :: UserId -> UserId -> OtherMemberUpdate -> ConvId -> TestM ResponseLBS
 putOtherMember from to m c = do
   g <- view tsGalley
@@ -967,9 +991,14 @@ putOtherMember from to m c = do
       . zType "access"
       . json m
 
-putQualifiedConversationName :: UserId -> Qualified ConvId -> Text -> TestM ResponseLBS
+putQualifiedConversationName ::
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadMask m) =>
+  UserId ->
+  Qualified ConvId ->
+  Text ->
+  m ResponseLBS
 putQualifiedConversationName u c n = do
-  g <- view tsGalley
+  g <- viewGalley
   let update = ConversationRename n
   put
     ( g
@@ -1048,6 +1077,23 @@ putAccessUpdate u c acc = do
   put $
     g
       . paths ["/conversations", toByteString' c, "access"]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json acc
+
+putMessageTimerUpdateQualified ::
+  UserId -> Qualified ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
+putMessageTimerUpdateQualified u c acc = do
+  g <- view tsGalley
+  put $
+    g
+      . paths
+        [ "/conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "message-timer"
+        ]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -1287,7 +1333,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
-  evtData e @?= EdMembersJoin (SimpleMembers (fmap (`SimpleMember` role) new))
+  fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
@@ -1316,7 +1362,7 @@ assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  evtData e @?= EdMembersLeave (QualifiedUserIdList leaving)
+  fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave) @?= Just (sort leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1370,13 +1416,13 @@ assertNoMsg ws f = do
 
 assertRemoveUpdate :: (MonadIO m, HasCallStack) => F.Request -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
-  F.path req @?= "/federation/on-conversation-memberships-changed"
+  F.path req @?= "/federation/on-conversation-updated"
   F.originDomain req @?= (domainText . qDomain) qconvId
-  let Just cmu = decodeStrict (F.body req)
-  FederatedGalley.cmuOrigUserId cmu @?= remover
-  FederatedGalley.cmuConvId cmu @?= qUnqualified qconvId
-  sort (FederatedGalley.cmuAlreadyPresentUsers cmu) @?= sort alreadyPresentUsers
-  FederatedGalley.cmuAction cmu @?= FederatedGalley.ConversationMembersActionRemove (pure victim)
+  let Just cu = decodeStrict (F.body req)
+  FederatedGalley.cuOrigUserId cu @?= remover
+  FederatedGalley.cuConvId cu @?= qUnqualified qconvId
+  sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
+  FederatedGalley.cuAction cu @?= Public.ConversationActionRemoveMembers (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1566,7 +1612,7 @@ randomQualifiedUser :: HasCallStack => TestM (Qualified UserId)
 randomQualifiedUser = randomUser' False True True
 
 randomQualifiedId :: MonadIO m => Domain -> m (Qualified (Id a))
-randomQualifiedId domain = flip Qualified domain <$> randomId
+randomQualifiedId domain = Qualified <$> randomId <*> pure domain
 
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True

@@ -41,14 +41,17 @@ import Data.String.Conversions (cs)
 import Data.Time (getCurrentTime)
 import Imports
 import OpenSSL.Random (randBytes)
-import qualified SAML2.WebSSO as SAML
-import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, sparCtxOpts, wrapMonadClient)
-import qualified Spar.Data as Data
-import qualified Spar.Error as E
-import qualified Spar.Intra.Brig as Intra.Brig
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
+
+import Polysemy
+import qualified SAML2.WebSSO as SAML
+import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
+import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClientSem)
+import qualified Spar.Data as Data hiding (clearReplacedBy, deleteIdPRawMetadata, getIdPConfig, getIdPConfigsByTeam, getIdPIdByIssuerWithTeam, getIdPIdByIssuerWithoutTeam, getIdPRawMetadata, setReplacedBy, storeIdPConfig, storeIdPRawMetadata)
+import qualified Spar.Error as E
+import qualified Spar.Intra.Brig as Intra.Brig
+import qualified Spar.Sem.IdP as IdPEffect
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
@@ -73,7 +76,7 @@ instance Scim.Class.Auth.AuthDB SparTag (Spar r) where
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: ServerT APIScimToken (Spar r)
+apiScimToken :: Member IdPEffect.IdP r => ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -83,6 +86,7 @@ apiScimToken =
 --
 -- Create a token for user's team.
 createScimToken ::
+  Member IdPEffect.IdP r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -96,7 +100,7 @@ createScimToken zusr CreateScimToken {..} = do
   maxTokens <- asks (maxScimTokens . sparCtxOpts)
   unless (tokenNumber < maxTokens) $
     E.throwSpar E.SparProvisioningTokenLimitReached
-  idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+  idps <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do

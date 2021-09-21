@@ -68,7 +68,7 @@ import UnliftIO (pooledForConcurrentlyN)
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (convNotFound)
+import Wire.API.ErrorDescription (ConvNotFound)
 import Wire.API.Federation.API.Galley (gcresConvs)
 import qualified Wire.API.Federation.API.Galley as FederatedGalley
 import Wire.API.Federation.Client (FederationError, executeFederated)
@@ -82,7 +82,7 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 
 getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
 getBotConversation zbot zcnv = do
-  c <- getConversationAndCheckMembershipWithError (errorDescriptionToWai convNotFound) (botUserId zbot) zcnv
+  c <- getConversationAndCheckMembershipWithError (errorDescriptionTypeToWai @ConvNotFound) (botUserId zbot) zcnv
   domain <- viewFederationDomain
   let cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
@@ -110,7 +110,7 @@ getConversation zusr cnv = do
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations zusr [remoteConvId]
       case conversations of
-        [] -> throwErrorDescription convNotFound
+        [] -> throwErrorDescriptionType @ConvNotFound
         [conv] -> pure conv
         _convs -> throwM (federationUnexpectedBody "expected one conversation, got multiple")
 
@@ -126,7 +126,7 @@ data FailedGetConversationReason
   | FailedGetConversationRemotely FederationError
 
 fgcrError :: FailedGetConversationReason -> Wai.Error
-fgcrError FailedGetConversationLocally = errorDescriptionToWai convNotFound
+fgcrError FailedGetConversationLocally = errorDescriptionTypeToWai @ConvNotFound
 fgcrError (FailedGetConversationRemotely e) = federationErrorToWai e
 
 data FailedGetConversation

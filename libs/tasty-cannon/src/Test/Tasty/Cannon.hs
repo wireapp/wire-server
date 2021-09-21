@@ -53,6 +53,7 @@ module Test.Tasty.Cannon
     assertMatch,
     assertMatch_,
     assertMatchN,
+    assertMatchN_,
     assertSuccess,
     assertNoEvent,
 
@@ -356,6 +357,14 @@ assertMatchN ::
   (Notification -> Assertion) ->
   m [Notification]
 assertMatchN t wss f = awaitMatchN t wss f >>= mapM assertSuccess
+
+assertMatchN_ ::
+  (HasCallStack, MonadIO m, MonadThrow m) =>
+  Timeout ->
+  [WebSocket] ->
+  (Notification -> Assertion) ->
+  m ()
+assertMatchN_ t wss f = void $ assertMatchN t wss f
 
 assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
 assertSuccess = either throwM return
