@@ -98,7 +98,7 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Conversation as Public
-import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
+import Wire.API.ErrorDescription
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
