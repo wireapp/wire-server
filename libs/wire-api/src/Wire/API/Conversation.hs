@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -39,10 +38,12 @@ module Wire.API.Conversation
     ConversationList (..),
     ListConversations (..),
     ListConversationsV2 (..),
-    GetPaginatedConversationIds (..),
-    ConversationPagingState (..),
-    ConversationPagingTable (..),
-    ConvIdsPage (..),
+    GetPaginatedConversationIds,
+    pattern GetPaginatedConversationIds,
+    ConvIdsPage,
+    pattern ConvIdsPage,
+    ConversationPagingState,
+    pattern ConversationPagingState,
     ConversationsResponse (..),
 
     -- * Conversation properties
@@ -93,16 +94,13 @@ import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
-import qualified Data.Attoparsec.ByteString as AB
-import qualified Data.ByteString as BS
 import Data.Id
-import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
-import Data.Range (Range, fromRange, rangedSchema, toRange)
+import Data.Range (Range, fromRange, rangedSchema)
 import Data.Schema
 import qualified Data.Set as Set
 import Data.Singletons (sing)
@@ -114,6 +112,7 @@ import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
 --------------------------------------------------------------------------------
@@ -343,84 +342,24 @@ instance FromJSON a => FromJSON (ConversationList a) where
       <$> o A..: "conversations"
       <*> o A..: "has_more"
 
-data ConvIdsPage = ConvIdsPage
-  { pageConvIds :: [Qualified ConvId],
-    pageHasMore :: Bool,
-    pagePagingState :: ConversationPagingState
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvIdsPage
+type ConversationPagingName = "ConversationIds"
 
-instance ToSchema ConvIdsPage where
-  schema =
-    object "ConvIdsPage" $
-      ConvIdsPage
-        <$> pageConvIds .= field "qualified_conversations" (array schema)
-        <*> pageHasMore .= field "has_more" schema
-        <*> pagePagingState .= field "paging_state" schema
+type ConvIdPagingKey = "qualified_conversations"
 
-data ConversationPagingState = ConversationPagingState
-  { cpsTable :: ConversationPagingTable,
-    cpsPagingState :: Maybe ByteString
-  }
-  deriving (Show, Eq)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationPagingState
+type ConversationPagingState = MultiTablePagingState ConversationPagingName LocalOrRemoteTable
 
-instance ToSchema ConversationPagingState where
-  schema =
-    (toBase64Text . encodeConversationPagingState)
-      .= parsedText "ConversationPagingState" (parseConvesationPagingState <=< fromBase64Text)
+pattern ConversationPagingState :: tables -> Maybe ByteString -> MultiTablePagingState name tables
+pattern ConversationPagingState table state = MultiTablePagingState table state
 
-parseConvesationPagingState :: ByteString -> Either String ConversationPagingState
-parseConvesationPagingState = AB.parseOnly conversationPagingStateParser
+type ConvIdsPage = MultiTablePage ConversationPagingName ConvIdPagingKey LocalOrRemoteTable (Qualified ConvId)
 
-conversationPagingStateParser :: AB.Parser ConversationPagingState
-conversationPagingStateParser = do
-  cpsTable <- tableParser
-  cpsPagingState <- (AB.endOfInput $> Nothing) <|> (Just <$> AB.takeByteString <* AB.endOfInput)
-  pure ConversationPagingState {..}
-  where
-    tableParser :: AB.Parser ConversationPagingTable
-    tableParser =
-      (AB.word8 0 $> PagingLocals)
-        <|> (AB.word8 1 $> PagingRemotes)
+pattern ConvIdsPage :: [a] -> Bool -> MultiTablePagingState name tables -> MultiTablePage name resultsKey tables a
+pattern ConvIdsPage ids hasMore state = MultiTablePage ids hasMore state
 
-encodeConversationPagingState :: ConversationPagingState -> ByteString
-encodeConversationPagingState ConversationPagingState {..} =
-  let table = encodeConversationPagingTable cpsTable
-      state = fromMaybe "" cpsPagingState
-   in BS.cons table state
+type GetPaginatedConversationIds = GetMultiTablePageRequest ConversationPagingName LocalOrRemoteTable 1000 1000
 
-encodeConversationPagingTable :: ConversationPagingTable -> Word8
-encodeConversationPagingTable = \case
-  PagingLocals -> 0
-  PagingRemotes -> 1
-
-data ConversationPagingTable
-  = PagingLocals
-  | PagingRemotes
-  deriving (Show, Eq)
-
-data GetPaginatedConversationIds = GetPaginatedConversationIds
-  { gpciPagingState :: Maybe ConversationPagingState,
-    gpciSize :: Range 1 1000 Int32
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GetPaginatedConversationIds
-
-instance ToSchema GetPaginatedConversationIds where
-  schema =
-    let addPagingStateDoc =
-          description
-            ?~ "optional, when not specified first page of the conversation ids will be returned.\
-               \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
-        addSizeDoc = description ?~ "optional, must be <= 1000, defaults to 1000."
-     in objectWithDocModifier
-          "GetPaginatedConversationIds"
-          (description ?~ "A request to list some or all of a user's conversation ids, including remote ones")
-          $ GetPaginatedConversationIds
-            <$> gpciPagingState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema
-            <*> gpciSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @1000)))
+pattern GetPaginatedConversationIds :: Maybe (MultiTablePagingState name tables) -> Range 1 max Int32 -> GetMultiTablePageRequest name tables max def
+pattern GetPaginatedConversationIds state size = GetMultiTablePageRequest size state
 
 data ListConversations = ListConversations
   { lQualifiedIds :: Maybe (NonEmpty (Qualified ConvId)),

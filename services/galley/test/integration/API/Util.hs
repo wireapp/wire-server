@@ -117,6 +117,7 @@ import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
 
@@ -860,7 +861,7 @@ listConvIds u paginationOpts = do
 listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
 listRemoteConvs remoteDomain uid = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-  allConvs <- fmap pageConvIds . responseJsonError =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  allConvs <- fmap mtpResults . responseJsonError @_ @ConvIdsPage =<< listConvIds uid paginationOpts <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
@@ -1463,7 +1464,7 @@ decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
 
 decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
-decodeQualifiedConvIdList = fmap pageConvIds . responseJsonEither
+decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
