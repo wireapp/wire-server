@@ -25,6 +25,8 @@ module Data.Qualified
     toRemote,
     Local,
     toLocal,
+    lUnqualified,
+    lDomain,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionRemoteOrLocalIds',
@@ -74,6 +76,12 @@ type Local a = Tagged "local" (Qualified a)
 
 toLocal :: Qualified a -> Local a
 toLocal = Tagged
+
+lUnqualified :: Local a -> a
+lUnqualified = qUnqualified . unTagged
+
+lDomain :: Local a -> Domain
+lDomain = qDomain . unTagged
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors

@@ -34,7 +34,7 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (..), Remote, partitionQualified, toRemote)
+import Data.Qualified (Local, Qualified (..), Remote, partitionQualified, toLocal, toRemote)
 import qualified Data.Set as Set
 import Data.Tagged (Tagged (unTagged))
 import qualified Data.Text.Lazy as LT
@@ -59,6 +59,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
+import Wire.API.Conversation (ConversationAction (..))
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
@@ -391,7 +392,7 @@ canDeleteMember deleter deletee
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
--- | Notify local users and bots of being added to a conversation
+-- | Send an event to local users and bots
 pushConversationEvent :: Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
 pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
@@ -426,6 +427,9 @@ ensureAccess conv access =
 
 viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
+
+qualifyLocal :: MonadReader Env m => a -> m (Local a)
+qualifyLocal a = fmap (toLocal . Qualified a) viewFederationDomain
 
 checkRemoteUsersExist :: [Remote UserId] -> Galley ()
 checkRemoteUsersExist =
@@ -592,13 +596,13 @@ notifyRemoteAboutConvUpdate ::
   -- | The current time
   UTCTime ->
   -- | Action being performed
-  ConversationMembersAction ->
+  ConversationAction ->
   -- | Remote members that need to be notified
   [Remote UserId] ->
   Galley ()
 notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
   localDomain <- viewFederationDomain
-  let mkUpdate oth = ConversationMemberUpdate time origUser convId oth action
+  let mkUpdate oth = ConversationUpdate time origUser convId oth action
   traverse_ (uncurry (notificationRPC localDomain . mkUpdate) . swap)
     . Map.assocs
     . partitionQualified
@@ -606,13 +610,13 @@ notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
     . map unTagged
     $ remotesToNotify
   where
-    notificationRPC :: Domain -> ConversationMemberUpdate -> Domain -> Galley ()
-    notificationRPC sendingDomain cmu receivingDomain = do
+    notificationRPC :: Domain -> ConversationUpdate -> Domain -> Galley ()
+    notificationRPC sendingDomain cu receivingDomain = do
       let rpc =
-            FederatedGalley.onConversationMembershipsChanged
+            FederatedGalley.onConversationUpdated
               FederatedGalley.clientRoutes
               sendingDomain
-              cmu
+              cu
       runFederated receivingDomain rpc
 
 --------------------------------------------------------------------------------

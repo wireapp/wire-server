@@ -19,7 +19,7 @@ module Test.Wire.API.Federation.Golden.GoldenSpec where
 
 import Imports
 import Test.Hspec
-import qualified Test.Wire.API.Federation.Golden.ConversationMemberUpdate as ConversationMemberUpdate
+import qualified Test.Wire.API.Federation.Golden.ConversationUpdate as ConversationUpdate
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationRequest as LeaveConversationRequest
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as LeaveConversationResponse
 import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
@@ -37,8 +37,8 @@ spec =
       ]
     testObjects [(LeaveConversationRequest.testObject_LeaveConversationRequest1, "testObject_LeaveConversationRequest1.json")]
     testObjects
-      [ (ConversationMemberUpdate.testObject_ConversationMemberUpdate1, "testObject_ConversationMemberUpdate1.json"),
-        (ConversationMemberUpdate.testObject_ConversationMemberUpdate2, "testObject_ConversationMemberUpdate2.json")
+      [ (ConversationUpdate.testObject_ConversationUpdate1, "testObject_ConversationUpdate1.json"),
+        (ConversationUpdate.testObject_ConversationUpdate2, "testObject_ConversationUpdate2.json")
       ]
     testObjects
       [ (LeaveConversationResponse.testObject_LeaveConversationResponse1, "testObject_LeaveConversationResponse1.json"),
