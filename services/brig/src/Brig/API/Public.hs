@@ -1090,12 +1090,13 @@ createLocalConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler
 createLocalConnection self conn cr = do
   API.createConnection self cr conn !>> connError
 
+-- | FUTUREWORK: also create remote connections: https://wearezeta.atlassian.net/browse/SQCORE-958
 createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn (Qualified otherUser otherDomain) = do
   localDomain <- viewFederationDomain
   if localDomain == otherDomain
     then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
-    else throwM federationNotImplemented -- FUTUREWORK
+    else throwM federationNotImplemented
 
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
@@ -1103,18 +1104,20 @@ updateLocalConnection self conn other update = do
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
 
+-- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
 updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateConnection self conn (Qualified otherUid otherDomain) update = do
   localDomain <- viewFederationDomain
   if localDomain == otherDomain
     then updateLocalConnection self conn otherUid update
-    else throwM federationNotImplemented -- FUTUREWORK
+    else throwM federationNotImplemented
 
 listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
 listLocalConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
+-- | FUTUREWORK: also list remote connections: https://wearezeta.atlassian.net/browse/SQCORE-963
 listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
 listConnections uid req = do
   localDomain <- viewFederationDomain
