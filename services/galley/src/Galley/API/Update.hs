@@ -30,6 +30,7 @@ module Galley.API.Update
     updateConversationName,
     updateConversationAccessH,
     updateConversationReceiptModeUnqualified,
+    updateConversationReceiptMode,
     updateLocalConversationMessageTimer,
     updateConversationMessageTimer,
 
@@ -298,6 +299,18 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     usersL = _1
     botsL :: Lens' ([LocalMember], [BotMember]) [BotMember]
     botsL = _2
+
+updateConversationReceiptMode ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Public.ConversationReceiptModeUpdate ->
+  Galley (UpdateResult Event)
+updateConversationReceiptMode usr zcon qcnv update = do
+  localDomain <- viewFederationDomain
+  if qDomain qcnv == localDomain
+    then updateConversationReceiptModeUnqualified usr zcon (qUnqualified qcnv) update
+    else throwM federationNotImplemented
 
 updateConversationReceiptModeUnqualified ::
   UserId ->

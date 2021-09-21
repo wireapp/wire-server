@@ -102,6 +102,7 @@ servantSitemap =
         GalleyAPI.updateConversationMessageTimer = Update.updateConversationMessageTimer,
         GalleyAPI.updateConversationReceiptModeUnqualified =
           Update.updateConversationReceiptModeUnqualified,
+        GalleyAPI.updateConversationReceiptMode = Update.updateConversationReceiptMode,
         GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
         GalleyAPI.updateConversationSelfUnqualified = Update.updateUnqualifiedSelfMember,
         GalleyAPI.updateConversationSelf = Update.updateSelfMember,
