@@ -899,9 +899,10 @@ addTeamMemberInternal tid origin originConn (view ntmNewTeamMember -> new) memLi
   Data.addTeamMember tid new
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
   now <- liftIO getCurrentTime
-  localDomain <- viewFederationDomain
-  for_ cc $ \c ->
-    Data.addMember localDomain now (c ^. conversationId) (new ^. userId)
+  for_ cc $ \c -> do
+    lcid <- qualifyLocal (c ^. conversationId)
+    luid <- qualifyLocal (new ^. userId)
+    Data.addMember lcid luid
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e

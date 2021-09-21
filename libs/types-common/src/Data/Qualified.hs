@@ -27,6 +27,7 @@ module Data.Qualified
     toLocal,
     lUnqualified,
     lDomain,
+    qualifyAs,
     foldQualified,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
@@ -59,7 +60,7 @@ data Qualified a = Qualified
   { qUnqualified :: a,
     qDomain :: Domain
   }
-  deriving stock (Eq, Ord, Show, Generic, Functor)
+  deriving stock (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | A type to differentiate between generally Qualified values, and values
 -- where it is known if they are coming from a Remote backend or not.
@@ -83,6 +84,11 @@ lUnqualified = qUnqualified . unTagged
 
 lDomain :: Local a -> Domain
 lDomain = qDomain . unTagged
+
+-- | Convert an unqualified value to a qualified one, with the same tag as the
+-- given tagged qualified value.
+qualifyAs :: Tagged t (Qualified x) -> a -> Tagged t (Qualified a)
+qualifyAs (Tagged q) x = Tagged (q $> x)
 
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
 foldQualified loc f g q
@@ -108,13 +114,13 @@ partitionRemoteOrLocalIds' :: Foldable f => Domain -> f (Qualified a) -> ([Remot
 partitionRemoteOrLocalIds' localDomain xs = first (fmap toRemote) $ partitionRemoteOrLocalIds localDomain xs
 
 -- | Index a list of qualified values by domain
-partitionQualified :: [Qualified a] -> Map Domain [a]
+partitionQualified :: Foldable f => f (Qualified a) -> Map Domain [a]
 partitionQualified = foldr add mempty
   where
     add :: Qualified a -> Map Domain [a] -> Map Domain [a]
     add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
-partitionRemote :: [Remote a] -> [(Domain, [a])]
+partitionRemote :: (Functor f, Foldable f) => f (Remote a) -> [(Domain, [a])]
 partitionRemote remotes = Map.assocs $ partitionQualified (unTagged <$> remotes)
 
 ----------------------------------------------------------------------

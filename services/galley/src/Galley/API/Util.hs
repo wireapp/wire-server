@@ -52,7 +52,8 @@ import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams hiding (Event)
+import Galley.Types.Teams hiding (Event, MemberJoin)
+import Galley.Types.UserList
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -203,14 +204,14 @@ permissionCheckTeamConv zusr cnv perm =
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = do
-  localDomain <- viewFederationDomain
+  lusr <- qualifyLocal usr
+  lcid <- qualifyLocal cid
   case Data.convType conv of
     One2OneConv ->
       if usr `isMember` mems
         then return conv
         else do
-          now <- liftIO getCurrentTime
-          mm <- snd <$> Data.addMember localDomain now cid usr
+          mm <- Data.addMember lcid lusr
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> promote
@@ -219,7 +220,8 @@ acceptOne2One usr conv conn = do
         when (length mems > 2) $
           throwM badConvState
         now <- liftIO getCurrentTime
-        (e, mm) <- Data.addMember localDomain now cid usr
+        mm <- Data.addMember lcid lusr
+        let e = memberJoinEvent lusr (unTagged lcid) now mm []
         conv' <- if isJust (find ((usr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> mems')) $ \p ->
@@ -237,6 +239,20 @@ acceptOne2One usr conv conn = do
         "Connect conversation with more than 2 members: "
           <> LT.pack (show cid)
 
+memberJoinEvent ::
+  Local UserId ->
+  Qualified ConvId ->
+  UTCTime ->
+  [LocalMember] ->
+  [RemoteMember] ->
+  Event
+memberJoinEvent lorig qconv t lmems rmems =
+  Event MemberJoin qconv (unTagged lorig) t $
+    EdMembersJoin (SimpleMembers (map localToSimple lmems <> map remoteToSimple rmems))
+  where
+    localToSimple u = SimpleMember (unTagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
+    remoteToSimple u = SimpleMember (unTagged (rmId u)) (rmConvRoleName u)
+
 isBot :: LocalMember -> Bool
 isBot = isJust . lmService
 
@@ -246,6 +262,28 @@ isMember u = isJust . find ((u ==) . lmId)
 isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
+class IsConvMember uid where
+  isConvMember :: Data.Conversation -> uid -> Bool
+
+  notIsConvMember :: Data.Conversation -> uid -> Bool
+  notIsConvMember conv = not . isConvMember conv
+
+instance IsConvMember UserId where
+  isConvMember conv u = isMember u (Data.convLocalMembers conv)
+
+instance IsConvMember (Local UserId) where
+  isConvMember conv = isConvMember conv . lUnqualified
+
+instance IsConvMember (Remote UserId) where
+  isConvMember conv u = isRemoteMember u (Data.convRemoteMembers conv)
+
+-- | Remove users that are already present in the conversation.
+ulNewMembers :: Data.Conversation -> UserList UserId -> UserList UserId
+ulNewMembers conv (UserList locals remotes) =
+  UserList
+    (filter (notIsConvMember conv) locals)
+    (filter (notIsConvMember conv) remotes)
+
 -- | This is an ad-hoc class to update notification targets based on the type
 -- of the user id. Local user IDs get added to the local targets, remote user IDs
 -- to remote targets, and qualified user IDs get added to the appropriate list
@@ -253,6 +291,7 @@ isRemoteMember u = isJust . find ((u ==) . rmId)
 class IsNotificationTarget uid where
   ntAdd :: Local x -> uid -> NotificationTargets -> NotificationTargets
 
+-- FUTUREWORK: use sets
 data NotificationTargets = NotificationTargets
   { ntLocals :: [UserId],
     ntRemotes :: [Remote UserId],
@@ -268,6 +307,13 @@ instance IsNotificationTarget (Remote UserId) where
 
 instance IsNotificationTarget (Qualified UserId) where
   ntAdd loc = foldQualified loc (ntAdd loc) (ntAdd loc)
+
+ntAddMembers :: [LocalMember] -> [RemoteMember] -> NotificationTargets -> NotificationTargets
+ntAddMembers lmems rmems nt =
+  nt
+    { ntLocals = nubOrd (ntLocals nt <> map lmId lmems),
+      ntRemotes = nubOrd (ntRemotes nt <> map rmId rmems)
+    }
 
 convTargets :: Data.Conversation -> NotificationTargets
 convTargets conv = case localBotsAndUsers (Data.convLocalMembers conv) of
@@ -474,13 +520,11 @@ viewFederationDomain = view (options . optSettings . setFederationDomain)
 qualifyLocal :: MonadReader Env m => a -> m (Local a)
 qualifyLocal a = fmap (toLocal . Qualified a) viewFederationDomain
 
-checkRemoteUsersExist :: [Remote UserId] -> Galley ()
+checkRemoteUsersExist :: (Functor f, Foldable f) => f (Remote UserId) -> Galley ()
 checkRemoteUsersExist =
   -- FUTUREWORK: pooledForConcurrentlyN_ instead of sequential checks per domain
   traverse_ (uncurry checkRemotesFor)
-    . Map.assocs
-    . partitionQualified
-    . map unTagged
+    . partitionRemote
 
 checkRemotesFor :: Domain -> [UserId] -> Galley ()
 checkRemotesFor domain uids = do
