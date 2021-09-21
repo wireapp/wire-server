@@ -453,7 +453,7 @@ rmUser user conn = do
     goConvPages lusr range page = do
       localDomain <- viewFederationDomain
       let (remoteConvs, localConvs) = partitionRemoteOrLocalIds' localDomain . pageConvIds $ page
-      leaveLocalConversations lusr localConvs
+      leaveLocalConversations localConvs
       leaveRemoteConversations lusr remoteConvs
       when (pageHasMore page) $ do
         let usr = qUnqualified . unTagged $ lusr
@@ -464,8 +464,8 @@ rmUser user conn = do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveLocalConversations :: Local UserId -> [ConvId] -> Galley ()
-    leaveLocalConversations u ids = do
+    leaveLocalConversations :: [ConvId] -> Galley ()
+    leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
       cc <- Data.localConversations ids
       pp <- for cc $ \c -> case Data.convType c of
@@ -479,7 +479,7 @@ rmUser user conn = do
                 localDomain
                 c
                 (Qualified user localDomain)
-                (pure . qUnqualified . unTagged $ u)
+                (pure user)
             return $
               Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
