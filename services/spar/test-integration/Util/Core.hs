@@ -175,7 +175,7 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (liftMonadClient, liftSem, toLevel)
+import Spar.App (liftSem, toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
