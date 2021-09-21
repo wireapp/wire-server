@@ -293,9 +293,6 @@ type CustomRolesNotSupported =
     "bad-request"
     "Custom roles not supported"
 
-customRolesNotSupported :: CustomRolesNotSupported
-customRolesNotSupported = mkErrorDescription
-
 type InvalidOp desc =
   ErrorDescription
     403
@@ -307,15 +304,6 @@ invalidOpErrorDesc = ErrorDescription . Text.pack . symbolVal
 
 type InvalidOpSelfConv = InvalidOp "invalid operation for self conversation"
 
-invalidOpSelfConv :: InvalidOpSelfConv
-invalidOpSelfConv = mkErrorDescription
-
 type InvalidOpOne2OneConv = InvalidOp "invalid operation for 1:1 conversations"
 
-invalidOpOne2OneConv :: InvalidOpOne2OneConv
-invalidOpOne2OneConv = mkErrorDescription
-
 type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversation"
-
-invalidOpConnectConv :: InvalidOpConnectConv
-invalidOpConnectConv = mkErrorDescription
