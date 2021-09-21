@@ -34,7 +34,7 @@ module Brig.API.Connection
   )
 where
 
-import Brig.API.Error (errorDescriptionToWai)
+import Brig.API.Error (errorDescriptionTypeToWai)
 import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
 import Brig.App
@@ -175,7 +175,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
         -- Does not fit into 'ExceptT', so throw in 'AppIO'.  Anyway at the time of writing
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
-        maybe (throwM (errorDescriptionToWai userNotFound)) return
+        maybe (throwM (errorDescriptionTypeToWai @UserNotFound)) return
 
   status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
   status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound

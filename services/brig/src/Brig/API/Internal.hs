@@ -363,7 +363,7 @@ deleteUserNoVerify :: UserId -> Handler ()
 deleteUserNoVerify uid = do
   void $
     lift (API.lookupAccount uid)
-      >>= ifNothing (errorDescriptionToWai userNotFound)
+      >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
@@ -589,7 +589,7 @@ updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJso
 
 updateUserName :: UserId -> NameUpdate -> Handler ()
 updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd (errorDescriptionToWai invalidUser)) pure $ mkName nameUpd
+  name <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
           { uupName = Just name,
@@ -599,7 +599,7 @@ updateUserName uid (NameUpdate nameUpd) = do
           }
   lift (Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
-    Nothing -> throwStd (errorDescriptionToWai invalidUser)
+    Nothing -> throwStd (errorDescriptionTypeToWai @InvalidUser)
 
 checkHandleInternalH :: Text -> Handler Response
 checkHandleInternalH =

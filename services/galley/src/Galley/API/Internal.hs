@@ -38,7 +38,7 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error (throwErrorDescription)
+import Galley.API.Error (throwErrorDescriptionType)
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts (guardLegalholdPolicyConflicts)
 import qualified Galley.API.Query as Query
@@ -72,7 +72,7 @@ import Servant.API.Generic
 import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
-import Wire.API.ErrorDescription (missingLegalholdConsent)
+import Wire.API.ErrorDescription (MissingLegalholdConsent)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
 import qualified Wire.API.Team.Feature as Public
@@ -497,5 +497,5 @@ guardLegalholdPolicyConflictsH :: (JsonRequest GuardLegalholdPolicyConflicts :::
 guardLegalholdPolicyConflictsH (req ::: _) = do
   glh <- fromJsonBody req
   guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-    >>= either (const (throwErrorDescription missingLegalholdConsent)) pure
+    >>= either (const (throwErrorDescriptionType @MissingLegalholdConsent)) pure
   pure $ Network.Wai.Utilities.setStatus status200 empty

@@ -9,7 +9,7 @@
     ],
     "time": "1864-04-12T12:22:43.673Z",
     "action": {
-        "tag": "ConversationMembersActionRemove",
+        "tag": "ConversationActionRemoveMembers",
         "contents": [
             {
                 "domain": "golden.example.com",

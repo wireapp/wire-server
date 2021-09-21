@@ -93,7 +93,7 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -292,7 +292,7 @@ sitemap = do
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
     Doc.errorResponse invalidHandle
-    Doc.errorResponse (errorDescriptionToWai handleNotFound)
+    Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -359,7 +359,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelChangePassword) $
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
-    Doc.errorResponse badCredentials
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
     Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
 
   put "/self/locale" (continue changeLocaleH) $
@@ -426,7 +426,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelVerifyDelete) $
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse invalidCode
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidCode)
 
   -- Properties API -----------------------------------------------------
 
@@ -716,7 +716,7 @@ getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler 
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
-    throwErrorDescription tooManyClients
+    throwErrorDescriptionType @TooManyClients
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
@@ -727,7 +727,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
-    throwErrorDescription tooManyClients
+    throwErrorDescriptionType @TooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse
@@ -783,7 +783,7 @@ getUserClientQualified quid cid = do
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
-  maybe (throwErrorDescription clientNotFound) (pure . Public.clientCapabilities) mclient
+  maybe (throwErrorDescriptionType @ClientNotFound) (pure . Public.clientCapabilities) mclient
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =
@@ -794,10 +794,10 @@ getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <-
-    ifNothing (errorDescriptionToWai userNotFound)
+    ifNothing (errorDescriptionTypeToWai @UserNotFound)
       =<< lift (Data.lookupUser NoPendingInvitations self)
   otherUser <-
-    ifNothing (errorDescriptionToWai userNotFound)
+    ifNothing (errorDescriptionTypeToWai @UserNotFound)
       =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
@@ -886,7 +886,7 @@ createUser (Public.NewUserPublic new) = do
 getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
-    >>= ifNothing (errorDescriptionToWai userNotFound)
+    >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
 
 getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
