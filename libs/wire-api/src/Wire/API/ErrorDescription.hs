@@ -244,9 +244,6 @@ type ConvMemberRemovalDenied = ErrorDescription 403 "action-denied" "Insufficien
 
 type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation code not found"
 
-codeNotFound :: CodeNotFound
-codeNotFound = mkErrorDescription
-
 type ConvAccessDenied = ErrorDescription 403 "access-denied" "Conversation access denied"
 
 convAccessDenied :: ConvAccessDenied

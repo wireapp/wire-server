@@ -115,10 +115,10 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
-  ( ConvMemberNotFound,
+  ( CodeNotFound,
+    ConvMemberNotFound,
     ConvNotFound,
     UnknownClient,
-    codeNotFound,
     missingLegalholdConsent,
     mkErrorDescription,
   )
@@ -423,7 +423,7 @@ getCode usr cnv = do
   key <- mkKey cnv
   c <-
     Data.lookupCode key ReusableCode
-      >>= ifNothing (errorDescriptionToWai codeNotFound)
+      >>= ifNothing (errorDescriptionTypeToWai @CodeNotFound)
   returnCode c
 
 returnCode :: Code -> Galley Public.ConversationCode

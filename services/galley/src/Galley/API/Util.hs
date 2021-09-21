@@ -403,9 +403,9 @@ verifyReusableCode :: ConversationCode -> Galley DataTypes.Code
 verifyReusableCode convCode = do
   c <-
     Data.lookupCode (conversationKey convCode) DataTypes.ReusableCode
-      >>= ifNothing (errorDescriptionToWai codeNotFound)
+      >>= ifNothing (errorDescriptionTypeToWai @CodeNotFound)
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    throwM (errorDescriptionToWai codeNotFound)
+    throwM (errorDescriptionTypeToWai @CodeNotFound)
   return c
 
 ensureConversationAccess :: UserId -> ConvId -> Access -> Galley Data.Conversation
