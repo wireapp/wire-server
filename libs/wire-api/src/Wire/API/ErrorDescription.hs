@@ -213,9 +213,6 @@ type NotConnected = ErrorDescription 403 "not-connected" "Users are not connecte
 
 type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many sent/accepted connections."
 
-connectionLimitReached :: ConnectionLimitReached
-connectionLimitReached = mkErrorDescription
-
 type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 
 invalidUser :: InvalidUser

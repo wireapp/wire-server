@@ -106,7 +106,7 @@ instance ToJSON Error where
 -- Error Mapping ----------------------------------------------------------
 
 connError :: ConnectionError -> Error
-connError TooManyConnections {} = StdError (errorDescriptionToWai connectionLimitReached)
+connError TooManyConnections {} = StdError (errorDescriptionTypeToWai @ConnectionLimitReached)
 connError InvalidTransition {} = StdError (errorDescriptionToWai invalidTransition)
 connError NotConnected {} = StdError (errorDescriptionTypeToWai @NotConnected)
 connError InvalidUser {} = StdError (errorDescriptionToWai invalidUser)
