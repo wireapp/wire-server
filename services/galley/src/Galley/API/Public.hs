@@ -754,7 +754,7 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
-    errorResponse (Error.errorDescriptionToWai Error.unknownClient)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
   -- This endpoint can lead to the following events being sent:
@@ -789,7 +789,7 @@ sitemap = do
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
     errorResponse Error.nonBindingTeam
-    errorResponse (Error.errorDescriptionToWai Error.unknownClient)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.UnknownClient)
     errorResponse Error.broadcastLimitExceeded
 
 apiDocs :: Routes ApiBuilder Galley ()

@@ -207,9 +207,6 @@ type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Convers
 
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
-unknownClient :: UnknownClient
-unknownClient = ErrorDescription "Sending client not known"
-
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
 clientNotFound :: ClientNotFound

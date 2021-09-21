@@ -117,10 +117,10 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
   ( ConvMemberNotFound,
     ConvNotFound,
+    UnknownClient,
     codeNotFound,
     missingLegalholdConsent,
     mkErrorDescription,
-    unknownClient,
   )
 import qualified Wire.API.ErrorDescription as Public
 import qualified Wire.API.Event.Conversation as Public
@@ -758,7 +758,7 @@ handleOtrResult :: OtrResult -> Galley Response
 handleOtrResult = \case
   OtrSent m -> pure $ json m & setStatus status201
   OtrMissingRecipients m -> pure $ json m & setStatus status412
-  OtrUnknownClient _ -> throwErrorDescription unknownClient
+  OtrUnknownClient _ -> throwErrorDescriptionType @UnknownClient
   OtrConversationNotFound _ -> throwErrorDescriptionType @ConvNotFound
 
 postBotMessageH :: BotId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage ::: JSON -> Galley Response
@@ -1262,7 +1262,7 @@ handleOtrResponse utype usr clt rcps membs clts val now go = case checkOtrRecipi
       >>= either (const (throwErrorDescription missingLegalholdConsent)) pure
     pure (OtrMissingRecipients m)
   InvalidOtrSenderUser -> pure $ OtrConversationNotFound mkErrorDescription
-  InvalidOtrSenderClient -> pure $ OtrUnknownClient unknownClient
+  InvalidOtrSenderClient -> pure $ OtrUnknownClient mkErrorDescription
 
 -- | Check OTR sender and recipients for validity and completeness
 -- against a given list of valid members and clients, optionally
