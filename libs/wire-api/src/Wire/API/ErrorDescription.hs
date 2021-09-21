@@ -209,9 +209,6 @@ type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
 
 type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
-clientNotFound :: ClientNotFound
-clientNotFound = mkErrorDescription
-
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
 notConnected :: NotConnected
@@ -232,9 +229,6 @@ type InvalidCode =
     403
     "invalid-code"
     "Invalid verification code"
-
-invalidCode :: InvalidCode
-invalidCode = mkErrorDescription
 
 type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."
 
@@ -315,9 +309,6 @@ type BadCredentials =
     "invalid-credentials"
     "Authentication failed."
 
-badCredentials :: BadCredentials
-badCredentials = mkErrorDescription
-
 type DeleteCodePending =
   ErrorDescription
     403
@@ -332,9 +323,6 @@ type OwnerDeletingSelf =
     403
     "no-self-delete-for-team-owner"
     "Team owners are not allowed to delete themselves.  Ask a fellow owner."
-
-ownerDeletingSelf :: OwnerDeletingSelf
-ownerDeletingSelf = mkErrorDescription
 
 type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys uploaded"
 

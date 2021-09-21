@@ -93,7 +93,7 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
+import Wire.API.ErrorDescription
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -359,7 +359,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelChangePassword) $
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
-    Doc.errorResponse badCredentials
+    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
     Doc.errorResponse (errorDescriptionToWai (noIdentity 4))
 
   put "/self/locale" (continue changeLocaleH) $
@@ -426,7 +426,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelVerifyDelete) $
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse invalidCode
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidCode)
 
   -- Properties API -----------------------------------------------------
 
@@ -783,7 +783,7 @@ getUserClientQualified quid cid = do
 getClientCapabilities :: UserId -> ClientId -> Handler Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
-  maybe (throwErrorDescription clientNotFound) (pure . Public.clientCapabilities) mclient
+  maybe (throwErrorDescriptionType @ClientNotFound) (pure . Public.clientCapabilities) mclient
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) =
