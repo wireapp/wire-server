@@ -292,7 +292,7 @@ sitemap = do
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
     Doc.errorResponse invalidHandle
-    Doc.errorResponse (errorDescriptionToWai handleNotFound)
+    Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
 
   -- some APIs moved to servant
   -- end User Handle API

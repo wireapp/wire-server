@@ -252,9 +252,6 @@ type ConnectionNotFound = ErrorDescription 404 "not-found" "Connection not found
 
 type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
-handleNotFound :: HandleNotFound
-handleNotFound = mkErrorDescription
-
 type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
 
 tooManyClients :: TooManyClients
