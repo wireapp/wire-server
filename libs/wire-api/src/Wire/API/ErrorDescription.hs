@@ -242,9 +242,6 @@ actionDenied a =
 
 type ConvMemberRemovalDenied = ErrorDescription 403 "action-denied" "Insufficient authorization"
 
-convMemberRemovalDenied :: ConvMemberRemovalDenied
-convMemberRemovalDenied = ErrorDescription "Insufficient authorization, cannot remove member from conversation"
-
 type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation code not found"
 
 codeNotFound :: CodeNotFound
