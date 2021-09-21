@@ -197,7 +197,7 @@ permissionCheckTeamConv zusr cnv perm =
     Just cnv' -> case Data.convTeam cnv' of
       Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
       Nothing -> pure ()
-    Nothing -> throwErrorDescription convNotFound
+    Nothing -> throwErrorDescriptionType @ConvNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
@@ -213,7 +213,7 @@ acceptOne2One usr conv conn = do
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> promote
-      [_, _] -> throwErrorDescription convNotFound
+      [_, _] -> throwErrorDescriptionType @ConvNotFound
       _ -> do
         when (length mems > 2) $
           throwM badConvState
@@ -282,7 +282,7 @@ getSelfMemberFromLocals ::
   UserId ->
   t LocalMember ->
   ExceptT ConvNotFound m LocalMember
-getSelfMemberFromLocals = getLocalMember convNotFound
+getSelfMemberFromLocals = getLocalMember (mkErrorDescription :: ConvNotFound)
 
 -- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley monad.
 getSelfMemberFromLocalsLegacy ::
@@ -321,7 +321,7 @@ getSelfMemberFromRemotes ::
   Remote UserId ->
   t RemoteMember ->
   ExceptT ConvNotFound m RemoteMember
-getSelfMemberFromRemotes = getRemoteMember convNotFound
+getSelfMemberFromRemotes = getRemoteMember (mkErrorDescription :: ConvNotFound)
 
 getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
 getSelfMemberFromRemotesLegacy usr rmems =
@@ -366,10 +366,10 @@ getConversationAndCheckMembership =
 
 getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr convId = do
-  c <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
+  c <- Data.conversation convId >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
-    throwErrorDescription convNotFound
+    throwErrorDescriptionType @ConvNotFound
   unless (zusr `isMember` Data.convLocalMembers c) $
     throwM ex
   return c
@@ -410,7 +410,7 @@ verifyReusableCode convCode = do
 
 ensureConversationAccess :: UserId -> ConvId -> Access -> Galley Data.Conversation
 ensureConversationAccess zusr cnv access = do
-  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]

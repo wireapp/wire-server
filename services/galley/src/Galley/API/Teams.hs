@@ -115,7 +115,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription (convNotFound, notATeamMember, operationDenied)
+import Wire.API.ErrorDescription (ConvNotFound, notATeamMember, operationDenied)
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
@@ -760,7 +760,7 @@ getTeamConversation zusr tid cid = do
   tm <- Data.teamMember tid zusr >>= ifNothing (errorDescriptionToWai notATeamMember)
   unless (tm `hasPermission` GetTeamConversations) $
     throwErrorDescription (operationDenied GetTeamConversations)
-  Data.teamConversation tid cid >>= maybe (throwErrorDescription convNotFound) pure
+  Data.teamConversation tid cid >>= maybe (throwErrorDescriptionType @ConvNotFound) pure
 
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
 deleteTeamConversation zusr zcon tid cid = do

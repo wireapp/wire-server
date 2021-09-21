@@ -567,7 +567,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelEvent)
     response 200 "Conversation joined." end
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
 
   post "/conversations/code-check" (continue Update.checkReusableCodeH) $
     jsonRequest @Public.ConversationCode
@@ -591,7 +591,7 @@ sitemap = do
     body (ref Public.modelConversationCode) $
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.codeNotFound)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.tooManyMembers
 
   -- This endpoint can lead to the following events being sent:
@@ -608,7 +608,7 @@ sitemap = do
     returns (ref Public.modelConversationCode)
     response 201 "Conversation code created." (model Public.modelEvent)
     response 200 "Conversation code already exists." (model Public.modelConversationCode)
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
 
   -- This endpoint can lead to the following events being sent:
@@ -623,7 +623,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelEvent)
     response 200 "Conversation code deleted." end
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
 
   get "/conversations/:cnv/code" (continue Update.getCodeH) $
@@ -635,7 +635,7 @@ sitemap = do
       description "Conversation ID"
     returns (ref Public.modelConversationCode)
     response 200 "Conversation Code" end
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
 
   -- This endpoint can lead to the following events being sent:
@@ -655,7 +655,7 @@ sitemap = do
     response 204 "Conversation access unchanged." end
     body (ref Public.modelConversationAccessUpdate) $
       description "JSON body"
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
     errorResponse Error.invalidTargetAccess
     errorResponse Error.invalidSelfOp
@@ -679,7 +679,7 @@ sitemap = do
     response 204 "Conversation receipt mode unchanged." end
     body (ref Public.modelConversationReceiptModeUpdate) $
       description "JSON body"
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
 
   -- This endpoint can lead to the following events being sent:
@@ -699,7 +699,7 @@ sitemap = do
     response 200 "Members added" end
     response 204 "No change" end
     response 412 "The user(s) cannot be added to the conversation (eg., due to legalhold policy conflict)." end
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
@@ -717,7 +717,7 @@ sitemap = do
       description "Conversation ID"
     body (ref Public.modelTyping) $
       description "JSON body"
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
 
   -- This endpoint can lead to the following events being sent:
   -- - OtrMessageAdd event to recipients

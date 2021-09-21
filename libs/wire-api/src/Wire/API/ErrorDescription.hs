@@ -203,9 +203,6 @@ mkErrorDescription = ErrorDescription $ Text.pack (symbolVal (Proxy @desc))
 
 type ConvNotFound = ErrorDescription 404 "no-conversation" "Conversation not found"
 
-convNotFound :: ConvNotFound
-convNotFound = mkErrorDescription
-
 type ConvMemberNotFound = ErrorDescription 404 "no-conversation-member" "Conversation member not found"
 
 type UnknownClient = ErrorDescription 403 "unknown-client" "Unknown Client"
