@@ -2932,17 +2932,47 @@ postTypingIndicators = do
 removeUser :: TestM ()
 removeUser = do
   c <- view tsCannon
+  let remoteDomain = Domain "far-away.example.com"
   alice <- randomUser
   bob <- randomQualifiedUser
   carl <- randomQualifiedUser
+  dee <- (`Qualified` remoteDomain) <$> randomId
   let carl' = qUnqualified carl
-  let bob' = qUnqualified bob
+      bob' = qUnqualified bob
   connectUsers alice (list1 bob' [carl'])
   conv1 <- decodeConvId <$> postConv alice [bob'] (Just "gossip") [] Nothing Nothing
   conv2 <- decodeConvId <$> postConv alice [bob', carl'] (Just "gossip2") [] Nothing Nothing
   conv3 <- decodeConvId <$> postConv alice [carl'] (Just "gossip3") [] Nothing Nothing
+  conv4 <- randomId -- a remote conversation at 'remoteDomain' that Bob and Dee will be in
   let qconv1 = Qualified conv1 (qDomain bob)
       qconv2 = Qualified conv2 (qDomain bob)
+      qconv4 = Qualified conv4 remoteDomain
+
+  let mockedFederatedGalleyResponse :: F.FederatedRequest -> Maybe Value
+      mockedFederatedGalleyResponse req
+        | fmap F.component (F.request req) == Just F.Galley =
+          Just . toJSON . FederatedGalley.LeaveConversationResponse . Right $ ()
+        | otherwise = Nothing
+      mockResponses =
+        joinMockedFederatedResponses
+          (mockedFederatedBrigResponse [(dee, "Dee")])
+          mockedFederatedGalleyResponse
+
+  opts <- view tsGConf
+  (resp, fedRequests) <-
+    withTempMockFederator opts remoteDomain mockResponses $
+      deleteMemberQualified (qUnqualified dee) bob qconv4
+  let leaveRequest =
+        fromJust . decodeStrict . F.body . fromJust . F.request . Imports.head $
+          fedRequests
+  liftIO $ do
+    statusCode resp @?= 200
+    case responseJsonEither resp of
+      Left err -> assertFailure err
+      Right e -> assertLeaveEvent qconv4 dee [bob] e
+    FederatedGalley.lcConvId leaveRequest @?= conv4
+    FederatedGalley.lcLeaver leaveRequest @?= qUnqualified bob
+
   WS.bracketR3 c alice bob' carl' $ \(wsA, wsB, wsC) -> do
     deleteUser bob'
     void . liftIO $
