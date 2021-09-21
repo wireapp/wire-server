@@ -716,7 +716,7 @@ getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler 
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
-    throwErrorDescription tooManyClients
+    throwErrorDescriptionType @TooManyClients
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler Public.QualifiedUserClientPrekeyMap
@@ -727,7 +727,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
-    throwErrorDescription tooManyClients
+    throwErrorDescriptionType @TooManyClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> Handler BrigAPI.NewClientResponse

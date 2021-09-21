@@ -239,7 +239,7 @@ propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
 
 clientDataError :: ClientDataError -> Error
-clientDataError TooManyClients = StdError (errorDescriptionToWai tooManyClients)
+clientDataError TooManyClients = StdError (errorDescriptionTypeToWai @TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorDescriptionToWai missingAuthError)
 clientDataError MalformedPrekeys = StdError (errorDescriptionToWai malformedPrekeys)

@@ -254,9 +254,6 @@ type HandleNotFound = ErrorDescription 404 "not-found" "Handle not found"
 
 type TooManyClients = ErrorDescription 403 "too-many-clients" "Too many clients"
 
-tooManyClients :: TooManyClients
-tooManyClients = mkErrorDescription
-
 type MissingAuth =
   ErrorDescription
     403
