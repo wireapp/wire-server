@@ -208,7 +208,7 @@ authError AuthEphemeral = StdError accountEphemeral
 authError AuthPendingInvitation = StdError accountPending
 
 reauthError :: ReAuthError -> Error
-reauthError ReAuthMissingPassword = StdError (errorDescriptionToWai missingAuthError)
+reauthError ReAuthMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
 reauthError (ReAuthError e) = authError e
 
 zauthError :: ZAuth.Failure -> Error
@@ -241,14 +241,14 @@ propDataError TooManyProperties = StdError tooManyProperties
 clientDataError :: ClientDataError -> Error
 clientDataError TooManyClients = StdError (errorDescriptionTypeToWai @TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
-clientDataError ClientMissingAuth = StdError (errorDescriptionToWai missingAuthError)
-clientDataError MalformedPrekeys = StdError (errorDescriptionToWai malformedPrekeys)
+clientDataError ClientMissingAuth = StdError (errorDescriptionTypeToWai @MissingAuth)
+clientDataError MalformedPrekeys = StdError (errorDescriptionTypeToWai @MalformedPrekeys)
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorDescriptionTypeToWai @InvalidUser)
 deleteUserError DeleteUserInvalidCode = StdError (errorDescriptionTypeToWai @InvalidCode)
 deleteUserError DeleteUserInvalidPassword = StdError (errorDescriptionTypeToWai @BadCredentials)
-deleteUserError DeleteUserMissingPassword = StdError (errorDescriptionToWai missingAuthError)
+deleteUserError DeleteUserMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
 deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorDescriptionTypeToWai @OwnerDeletingSelf)
 

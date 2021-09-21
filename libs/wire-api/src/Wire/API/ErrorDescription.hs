@@ -260,9 +260,6 @@ type MissingAuth =
     "missing-auth"
     "Re-authentication via password required"
 
-missingAuthError :: MissingAuth
-missingAuthError = mkErrorDescription
-
 type BadCredentials =
   ErrorDescription
     403
