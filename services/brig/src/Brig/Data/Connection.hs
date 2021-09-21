@@ -27,6 +27,7 @@ module Brig.Data.Connection
     insertLocalConnection,
     updateLocalConnection,
     lookupLocalConnection,
+    lookupLocalConnectionsPage,
     lookupRelationWithHistory,
     lookupLocalConnections,
     lookupConnectionStatus,
@@ -135,6 +136,17 @@ lookupLocalConnections from start (fromRange -> size) =
   where
     toResult = cassandraResultPage . fmap toLocalUserConnection . trim
     trim p = p {result = take (fromIntegral size) (result p)}
+
+-- | For a given user 'A', lookup his outgoing connections (A -> X) to other users.
+-- Similar to lookupLocalConnections
+lookupLocalConnectionsPage ::
+  (MonadClient m) =>
+  UserId ->
+  Maybe PagingState ->
+  Range 1 1000 Int32 ->
+  m (PageWithState LocalConnection)
+lookupLocalConnectionsPage usr pagingState (fromRange -> size) =
+  fmap toLocalUserConnection <$> paginateWithState connectionsSelect (paramsPagingState Quorum (Identity usr) size pagingState)
 
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus :: [UserId] -> [UserId] -> AppIO [ConnectionStatus]

@@ -38,6 +38,7 @@ import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
+import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
@@ -52,12 +53,15 @@ import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
+import qualified Cassandra as C
+import qualified Cassandra as Data
 import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Code as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
@@ -93,6 +97,7 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
+import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription hiding (badCredentials, invalidCode)
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
@@ -1111,10 +1116,25 @@ listLocalConnections uid start msize = do
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
 listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
-listConnections _uid req = do
-  let _size = Public.gmtprSize req
-  -- TODO
-  undefined
+listConnections uid req = do
+  localDomain <- viewFederationDomain
+  let size = Public.gmtprSize req
+  res :: C.PageWithState Data.LocalConnection <- Data.lookupLocalConnectionsPage uid convertedState (rcast size)
+  return (pageToConnectionsPage localDomain Public.PagingLocals res)
+  where
+    pageToConnectionsPage :: Domain -> Public.LocalOrRemoteTable -> Data.PageWithState Data.LocalConnection -> Public.ConnectionsPage
+    pageToConnectionsPage localDomain table page@Data.PageWithState {..} =
+      Public.MultiTablePage
+        { mtpResults = Data.localToUserConn localDomain <$> pwsResults,
+          mtpHasMore = C.pwsHasMore page,
+          -- TODO create ConnectionPagingState: but is that even necessary?
+          mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+        }
+    mkState :: ByteString -> C.PagingState
+    mkState = C.PagingState . LBS.fromStrict
+
+    convertedState :: Maybe C.PagingState
+    convertedState = fmap mkState . Public.mtpsState =<< Public.gmtprState req
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getLocalConnection self other = lift $ API.lookupLocalConnection self other
