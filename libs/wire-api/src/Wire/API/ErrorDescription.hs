@@ -280,9 +280,6 @@ type OwnerDeletingSelf =
 
 type MalformedPrekeys = ErrorDescription 400 "bad-request" "Malformed prekeys uploaded"
 
-malformedPrekeys :: MalformedPrekeys
-malformedPrekeys = mkErrorDescription
-
 type MissingLegalholdConsent =
   ErrorDescription
     403
