@@ -404,6 +404,41 @@ data Api routes = Api
              '[JSON]
              (UpdateResponses "Message timer unchanged" "Message timer updated" Event)
              (UpdateResult Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvReceiptModeUpdate event to members
+    updateConversationReceiptModeUnqualified ::
+      routes
+        :- Summary "Update receipt mode for a conversation (deprecated)"
+        :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "receipt-mode"
+        :> ReqBody '[JSON] ConversationReceiptModeUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Receipt mode unchanged" "Receipt mode updated" Event)
+             (UpdateResult Event),
+    updateConversationReceiptMode ::
+      routes
+        :- Summary "Update receipt mode for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "receipt-mode"
+        :> ReqBody '[JSON] ConversationReceiptModeUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Receipt mode unchanged" "Receipt mode updated" Event)
+             (UpdateResult Event),
     getConversationSelfUnqualified ::
       routes
         :- Summary "Get self membership properties (deprecated)"

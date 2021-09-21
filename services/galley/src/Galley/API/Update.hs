@@ -29,7 +29,8 @@ module Galley.API.Update
     updateUnqualifiedConversationName,
     updateConversationName,
     updateConversationAccessH,
-    updateConversationReceiptModeH,
+    updateConversationReceiptModeUnqualified,
+    updateConversationReceiptMode,
     updateLocalConversationMessageTimer,
     updateConversationMessageTimer,
 
@@ -299,13 +300,25 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     botsL :: Lens' ([LocalMember], [BotMember]) [BotMember]
     botsL = _2
 
-updateConversationReceiptModeH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationReceiptModeUpdate ::: JSON -> Galley Response
-updateConversationReceiptModeH (usr ::: zcon ::: cnv ::: req ::: _) = do
-  update <- fromJsonBody req
-  handleUpdateResult <$> updateConversationReceiptMode usr zcon cnv update
+updateConversationReceiptMode ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Public.ConversationReceiptModeUpdate ->
+  Galley (UpdateResult Event)
+updateConversationReceiptMode usr zcon qcnv update = do
+  localDomain <- viewFederationDomain
+  if qDomain qcnv == localDomain
+    then updateConversationReceiptModeUnqualified usr zcon (qUnqualified qcnv) update
+    else throwM federationNotImplemented
 
-updateConversationReceiptMode :: UserId -> ConnId -> ConvId -> Public.ConversationReceiptModeUpdate -> Galley (UpdateResult Event)
-updateConversationReceiptMode usr zcon cnv receiptModeUpdate@(Public.ConversationReceiptModeUpdate target) = do
+updateConversationReceiptModeUnqualified ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.ConversationReceiptModeUpdate ->
+  Galley (UpdateResult Event)
+updateConversationReceiptModeUnqualified usr zcon cnv receiptModeUpdate@(Public.ConversationReceiptModeUpdate target) = do
   localDomain <- viewFederationDomain
   let qcnv = Qualified cnv localDomain
       qusr = Qualified usr localDomain

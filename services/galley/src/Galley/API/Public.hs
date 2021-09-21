@@ -100,6 +100,9 @@ servantSitemap =
         GalleyAPI.updateConversationMessageTimerUnqualified =
           Update.updateLocalConversationMessageTimer,
         GalleyAPI.updateConversationMessageTimer = Update.updateConversationMessageTimer,
+        GalleyAPI.updateConversationReceiptModeUnqualified =
+          Update.updateConversationReceiptModeUnqualified,
+        GalleyAPI.updateConversationReceiptMode = Update.updateConversationReceiptMode,
         GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
         GalleyAPI.updateConversationSelfUnqualified = Update.updateUnqualifiedSelfMember,
         GalleyAPI.updateConversationSelf = Update.updateSelfMember,
@@ -661,26 +664,6 @@ sitemap = do
     errorResponse Error.invalidSelfOp
     errorResponse Error.invalidOne2OneOp
     errorResponse Error.invalidConnectOp
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvReceiptModeUpdate event to members
-  put "/conversations/:cnv/receipt-mode" (continue Update.updateConversationReceiptModeH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationReceiptModeUpdate
-      .&. accept "application" "json"
-  document "PUT" "updateConversationReceiptMode" $ do
-    summary "Update receipts mode for a conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Conversation receipt mode updated." end
-    response 204 "Conversation receipt mode unchanged." end
-    body (ref Public.modelConversationReceiptModeUpdate) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvAccessDenied)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
