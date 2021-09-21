@@ -246,9 +246,6 @@ type CodeNotFound = ErrorDescription 404 "no-conversation-code" "Conversation co
 
 type ConvAccessDenied = ErrorDescription 403 "access-denied" "Conversation access denied"
 
-convAccessDenied :: ConvAccessDenied
-convAccessDenied = mkErrorDescription
-
 type UserNotFound = ErrorDescription 404 "not-found" "User not found"
 
 userNotFound :: UserNotFound

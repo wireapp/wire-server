@@ -656,7 +656,7 @@ sitemap = do
     body (ref Public.modelConversationAccessUpdate) $
       description "JSON body"
     errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvAccessDenied)
     errorResponse Error.invalidTargetAccess
     errorResponse Error.invalidSelfOp
     errorResponse Error.invalidOne2OneOp
@@ -680,7 +680,7 @@ sitemap = do
     body (ref Public.modelConversationReceiptModeUpdate) $
       description "JSON body"
     errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvAccessDenied)
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
@@ -702,7 +702,7 @@ sitemap = do
     errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
-    errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvAccessDenied)
 
   -- This endpoint can lead to the following events being sent:
   -- - Typing event to members
