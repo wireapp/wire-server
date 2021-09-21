@@ -272,9 +272,6 @@ type DeleteCodePending =
     "pending-delete"
     "A verification code for account deletion is still pending."
 
-deleteCodePending :: DeleteCodePending
-deleteCodePending = mkErrorDescription
-
 type OwnerDeletingSelf =
   ErrorDescription
     403
