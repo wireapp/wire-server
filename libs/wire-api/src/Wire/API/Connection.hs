@@ -26,6 +26,8 @@ module Wire.API.Connection
     UserConnection (..),
     UserConnectionList (..),
     ConnectionsPage,
+    ConnectionPagingState,
+    pattern ConnectionPagingState,
     Relation (..),
     RelationWithHistory (..),
     relationDropHistory,
@@ -67,6 +69,13 @@ type ListConnectionsRequestPaginated = GetMultiTablePageRequest "Connections" Lo
 
 -- | A page in response to 'ListConnectionsRequestPaginated'
 type ConnectionsPage = MultiTablePage "Connections" "connections" LocalOrRemoteTable UserConnection
+
+type ConnectionPagingName = "ConnectionIds"
+
+type ConnectionPagingState = MultiTablePagingState ConnectionPagingName LocalOrRemoteTable
+
+pattern ConnectionPagingState :: tables -> Maybe ByteString -> MultiTablePagingState name tables
+pattern ConnectionPagingState table state = MultiTablePagingState table state
 
 -- | Response type for endpoints returning lists of connections.
 data UserConnectionList = UserConnectionList

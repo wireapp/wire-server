@@ -97,7 +97,6 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription
 import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
@@ -1130,8 +1129,9 @@ listConnections uid req = do
       Public.MultiTablePage
         { mtpResults = Data.localToUserConn localDomain <$> pwsResults,
           mtpHasMore = C.pwsHasMore page,
-          -- TODO create ConnectionPagingState: but is that even necessary?
-          mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+          -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
+          -- Is this type actually useless? Or the tests not good enough?
+          mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
