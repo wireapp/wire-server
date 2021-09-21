@@ -794,10 +794,10 @@ getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <-
-    ifNothing (errorDescriptionToWai userNotFound)
+    ifNothing (errorDescriptionTypeToWai @UserNotFound)
       =<< lift (Data.lookupUser NoPendingInvitations self)
   otherUser <-
-    ifNothing (errorDescriptionToWai userNotFound)
+    ifNothing (errorDescriptionTypeToWai @UserNotFound)
       =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
@@ -886,7 +886,7 @@ createUser (Public.NewUserPublic new) = do
 getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
-    >>= ifNothing (errorDescriptionToWai userNotFound)
+    >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
 
 getUserUnqualifiedH :: UserId -> UserId -> Handler (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do

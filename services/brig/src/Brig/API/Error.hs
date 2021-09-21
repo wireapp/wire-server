@@ -262,7 +262,7 @@ phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudge
 
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError (ProfileNotFound _) = StdError (errorDescriptionToWai userNotFound)
+updateProfileError (ProfileNotFound _) = StdError (errorDescriptionTypeToWai @UserNotFound)
 
 -- WAI Errors -----------------------------------------------------------------
 

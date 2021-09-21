@@ -363,7 +363,7 @@ deleteUserNoVerify :: UserId -> Handler ()
 deleteUserNoVerify uid = do
   void $
     lift (API.lookupAccount uid)
-      >>= ifNothing (errorDescriptionToWai userNotFound)
+      >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
