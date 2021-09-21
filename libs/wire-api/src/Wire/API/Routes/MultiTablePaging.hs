@@ -58,7 +58,7 @@ instance RequestSchemaConstraint name tables max def => ToSchema (GetMultiTableP
         addSizeDoc = description ?~ ("optional, must be <= " <> textFromNat @max <> ", defaults to " <> textFromNat @def <> ".")
      in objectWithDocModifier
           ("GetPaginated_" <> textFromSymbol @name)
-          (description ?~ "A request to list some or all of a user's conversation ids, including remote ones")
+          (description ?~ "A request to list some or all of a user's " <> textFromSymbol @name <> ", including remote ones")
           $ GetMultiTablePageRequest
             <$> gmtprSize .= (fieldWithDocModifier "size" addSizeDoc schema <|> pure (toRange (Proxy @def)))
             <*> gmtprState .= optFieldWithDocModifier "paging_state" Nothing addPagingStateDoc schema

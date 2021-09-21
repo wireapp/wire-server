@@ -48,6 +48,7 @@ import qualified Data.Vector as Vec
 import Imports
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -246,15 +247,22 @@ listConnections brig u =
       . path "connections"
       . zUser u
 
-listAllConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
-listAllConnections brig u =
+listAllConnections :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Maybe Int -> Maybe (MultiTablePagingState "Connections" LocalOrRemoteTable) -> m ResponseLBS
+listAllConnections brig u size state =
   post $
     brig
       . path "list-connections"
       . zUser u
       . expect2xx
       . contentJson
-      . body (RequestBodyLBS $ encode $ object [])
+      . body
+        ( RequestBodyLBS $
+            encode $
+              object
+                [ "size" .= size,
+                  "paging_state" .= state
+                ]
+        )
 
 getConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
 getConnectionQualified brig from (Qualified toUser toDomain) =

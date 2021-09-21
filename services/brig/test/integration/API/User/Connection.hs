@@ -64,7 +64,7 @@ tests cl _at _conf p b _c g =
       test p "put /connections/:id bad update" $ testBadUpdateConnection b,
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
       test p "get /connections - 200 (paging)" $ testLocalConnectionsPaging b,
-      test p "get /list-connections - 200 (paging)" $ testAllConnectionsPaging b,
+      test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging b,
       test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl
     ]
 
@@ -428,9 +428,21 @@ testAllConnectionsPaging b = do
     qOther <- userQualifiedId <$> randomUser b
     postConnectionQualified b uid qOther !!! const 201 === statusCode
 
-  res :: Either String ConnectionsPage <- responseJsonEither <$> listAllConnections b uid
-  liftIO $ assertEqual "..." (Right total) (length . mtpResults <$> res)
+  -- get all connections at once
+  resAll :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing Nothing
+  liftIO $ assertEqual "all: size" total (length . mtpResults $ resAll)
+  liftIO $ assertEqual "all: has_more" False (mtpHasMore resAll)
+
+  -- paginate by passing the pagingState
+  resFirst :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid (Just size) Nothing
+  liftIO $ assertEqual "first: size" size (length . mtpResults $ resFirst)
+  liftIO $ assertEqual "first: has_more" True (mtpHasMore resFirst)
+
+  resNext :: ConnectionsPage <- responseJsonError =<< listAllConnections b uid Nothing (Just $ mtpPagingState resFirst)
+  liftIO $ assertEqual "next: size" (total - size) (length . mtpResults $ resNext)
+  liftIO $ assertEqual "next: has_more" False (mtpHasMore resNext)
   where
+    size = 2
     total = 5
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()
