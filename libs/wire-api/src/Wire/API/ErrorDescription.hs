@@ -215,14 +215,7 @@ type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many 
 
 type InvalidUser = ErrorDescription 400 "invalid-user" "Invalid user."
 
-invalidUser :: InvalidUser
-invalidUser = mkErrorDescription
-
-type InvalidCode =
-  ErrorDescription
-    403
-    "invalid-code"
-    "Invalid verification code"
+type InvalidCode = ErrorDescription 403 "invalid-code" "Invalid verification code"
 
 type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."
 

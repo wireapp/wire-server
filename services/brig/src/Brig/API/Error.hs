@@ -109,7 +109,7 @@ connError :: ConnectionError -> Error
 connError TooManyConnections {} = StdError (errorDescriptionTypeToWai @ConnectionLimitReached)
 connError InvalidTransition {} = StdError (errorDescriptionToWai invalidTransition)
 connError NotConnected {} = StdError (errorDescriptionTypeToWai @NotConnected)
-connError InvalidUser {} = StdError (errorDescriptionToWai invalidUser)
+connError InvalidUser {} = StdError (errorDescriptionTypeToWai @InvalidUser)
 connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (noIdentity 0))
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 connError (ConnectInvalidEmail _ _) = StdError invalidEmail
@@ -220,7 +220,7 @@ zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 clientError :: ClientError -> Error
 clientError ClientNotFound = StdError (errorDescriptionTypeToWai @ClientNotFound)
 clientError (ClientDataError e) = clientDataError e
-clientError (ClientUserNotFound _) = StdError (errorDescriptionToWai invalidUser)
+clientError (ClientUserNotFound _) = StdError (errorDescriptionTypeToWai @InvalidUser)
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
@@ -245,7 +245,7 @@ clientDataError ClientMissingAuth = StdError (errorDescriptionToWai missingAuthE
 clientDataError MalformedPrekeys = StdError (errorDescriptionToWai malformedPrekeys)
 
 deleteUserError :: DeleteUserError -> Error
-deleteUserError DeleteUserInvalid = StdError (errorDescriptionToWai invalidUser)
+deleteUserError DeleteUserInvalid = StdError (errorDescriptionTypeToWai @InvalidUser)
 deleteUserError DeleteUserInvalidCode = StdError (errorDescriptionTypeToWai @InvalidCode)
 deleteUserError DeleteUserInvalidPassword = StdError (errorDescriptionTypeToWai @BadCredentials)
 deleteUserError DeleteUserMissingPassword = StdError (errorDescriptionToWai missingAuthError)
