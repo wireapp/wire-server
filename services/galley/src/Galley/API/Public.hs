@@ -183,7 +183,7 @@ sitemap = do
     body (ref Public.modelNewNonBindingTeam) $
       description "JSON body"
     response 201 "Team ID as `Location` header value" end
-    errorResponse (Error.errorDescriptionToWai Error.notConnected)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
 
   put "/teams/:tid" (continue Teams.updateTeamH) $
     zauthUserId
@@ -376,7 +376,7 @@ sitemap = do
       description "JSON body"
     errorResponse (Error.errorDescriptionToWai Error.notATeamMember)
     errorResponse (Error.errorDescriptionToWai (Error.operationDenied Public.AddTeamMember))
-    errorResponse (Error.errorDescriptionToWai Error.notConnected)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
     errorResponse Error.invalidPermissions
     errorResponse Error.tooManyTeamMembers
 
@@ -701,7 +701,7 @@ sitemap = do
     response 412 "The user(s) cannot be added to the conversation (eg., due to legalhold policy conflict)." end
     errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
-    errorResponse (Error.errorDescriptionToWai Error.notConnected)
+    errorResponse (Error.errorDescriptionTypeToWai @Error.NotConnected)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
 
   -- This endpoint can lead to the following events being sent:

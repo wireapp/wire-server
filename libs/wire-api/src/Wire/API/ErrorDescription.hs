@@ -211,9 +211,6 @@ type ClientNotFound = ErrorDescription 404 "client-not-found" "Client not found"
 
 type NotConnected = ErrorDescription 403 "not-connected" "Users are not connected"
 
-notConnected :: NotConnected
-notConnected = mkErrorDescription
-
 type ConnectionLimitReached = ErrorDescription 403 "connection-limit" "Too many sent/accepted connections."
 
 connectionLimitReached :: ConnectionLimitReached

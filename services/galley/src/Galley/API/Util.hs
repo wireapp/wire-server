@@ -116,7 +116,7 @@ ensureConnectedToLocals u uids = do
     getConnections [u] (Just uids) (Just Accepted)
       `concurrently` getConnections uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwErrorDescription notConnected
+    throwErrorDescriptionType @NotConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do

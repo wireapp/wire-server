@@ -108,7 +108,7 @@ instance ToJSON Error where
 connError :: ConnectionError -> Error
 connError TooManyConnections {} = StdError (errorDescriptionToWai connectionLimitReached)
 connError InvalidTransition {} = StdError (errorDescriptionToWai invalidTransition)
-connError NotConnected {} = StdError (errorDescriptionToWai notConnected)
+connError NotConnected {} = StdError (errorDescriptionTypeToWai @NotConnected)
 connError InvalidUser {} = StdError (errorDescriptionToWai invalidUser)
 connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (noIdentity 0))
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
