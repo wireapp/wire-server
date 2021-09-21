@@ -123,6 +123,14 @@ test m n h = testCase n (void $ runHttpT m h)
 test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
 
+twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
+twoRandomUsers brig = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  quid2 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+  pure (quid1, uid1, quid2, uid2)
+
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   Brig ->

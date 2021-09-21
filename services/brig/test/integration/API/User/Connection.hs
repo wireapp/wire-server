@@ -112,10 +112,7 @@ testCreateManualConnections brig = do
 
 testCreateManualConnectionsQualified :: Brig -> Http ()
 testCreateManualConnectionsQualified brig = do
-  quid1 <- userQualifiedId <$> randomUser brig
-  quid2 <- userQualifiedId <$> randomUser brig
-  let uid1 = qUnqualified quid1
-      uid2 = qUnqualified quid2
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
   postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
   assertConnectionQualified brig uid1 quid2 Sent
   assertConnectionQualified brig uid2 quid1 Pending
@@ -148,10 +145,7 @@ testCreateMutualConnections brig galley = do
 
 testCreateMutualConnectionsQualified :: Brig -> Galley -> Http ()
 testCreateMutualConnectionsQualified brig galley = do
-  quid1 <- userQualifiedId <$> randomUser brig
-  quid2 <- userQualifiedId <$> randomUser brig
-  let uid1 = qUnqualified quid1
-      uid2 = qUnqualified quid2
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
 
   postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
   assertConnectionQualified brig uid1 quid2 Sent
@@ -189,17 +183,9 @@ testAcceptConnection brig = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid3 Accepted]
   assertConnections brig uid3 [ConnectionStatus uid3 uid1 Accepted]
 
-twoUsers :: Brig -> Http (Qualified UserId, UserId, Qualified UserId, UserId)
-twoUsers brig = do
-  quid1 <- userQualifiedId <$> randomUser brig
-  quid2 <- userQualifiedId <$> randomUser brig
-  let uid1 = qUnqualified quid1
-      uid2 = qUnqualified quid2
-  pure (quid1, uid1, quid2, uid2)
-
 testAcceptConnectionQualified :: Brig -> Http ()
 testAcceptConnectionQualified brig = do
-  (quid1, uid1, quid2, uid2) <- twoUsers brig
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
   -- Initiate a new connection (A -> B)
   postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
   -- B accepts
