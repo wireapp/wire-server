@@ -96,7 +96,7 @@ import qualified Ssl.Util as SSL
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import qualified Wire.API.Conversation.Bot as Public
-import qualified Wire.API.ErrorDescription as ErrDesc
+import Wire.API.ErrorDescription
 import qualified Wire.API.Event.Conversation as Public (Event)
 import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
@@ -361,7 +361,7 @@ activateAccountKey key val = do
   c <- Code.verify key Code.IdentityVerification val >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
     (Just p, Just e) -> return (Id p, e)
-    _ -> throwStd invalidCode
+    _ -> throwErrorDescriptionType @InvalidCode
   (name, memail, _url, _descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
   case memail of
     Just email' | email == email' -> return Nothing
@@ -410,7 +410,7 @@ approveAccountKey key val = do
       (name, _, _, _) <- DB.lookupAccountData (Id pid) >>= maybeInvalidCode
       activate (Id pid) Nothing email
       lift $ sendApprovalConfirmMail name email
-    _ -> throwStd invalidCode
+    _ -> throwErrorDescriptionType @InvalidCode
 
 loginH :: JsonRequest Public.ProviderLogin -> Handler Response
 loginH req = do
@@ -422,7 +422,7 @@ login l = do
   pid <- DB.lookupKey (mkEmailKey (providerLoginEmail l)) >>= maybeBadCredentials
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (providerLoginPassword l) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   ZAuth.newProviderToken pid
 
 beginPasswordResetH :: JsonRequest Public.PasswordReset -> Handler Response
@@ -518,7 +518,7 @@ updateAccountPassword :: ProviderId -> Public.PasswordChange -> Handler ()
 updateAccountPassword pid upd = do
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (cpOldPassword upd) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   when (verifyPassword (cpNewPassword upd) pass) $
     throwStd newPasswordMustDiffer
   DB.updateAccountPassword pid (cpNewPassword upd)
@@ -586,7 +586,7 @@ updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> Hand
 updateServiceConn pid sid upd = do
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (updateServiceConnPassword upd) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
   svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
@@ -635,7 +635,7 @@ deleteService :: ProviderId -> ServiceId -> Public.DeleteService -> Handler ()
 deleteService pid sid del = do
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (deleteServicePassword del) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   _ <- DB.lookupService pid sid >>= maybeServiceNotFound
   -- Disable the service
   DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
@@ -666,7 +666,7 @@ deleteAccount pid del = do
   prov <- DB.lookupAccount pid >>= maybeInvalidProvider
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
-    throwStd badCredentials
+    throwErrorDescriptionType @BadCredentials
   svcs <- DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc
@@ -907,11 +907,11 @@ botGetSelfH bot = json <$> botGetSelf bot
 botGetSelf :: BotId -> Handler Public.UserProfile
 botGetSelf bot = do
   p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwErrorDescription ErrDesc.userNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
+  maybe (throwErrorDescriptionType @UserNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> Handler Response
 botGetClientH bot = do
-  maybe (throwErrorDescription ErrDesc.clientNotFound) (pure . json) =<< lift (botGetClient bot)
+  maybe (throwErrorDescriptionType @ClientNotFound) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> AppIO (Maybe Public.Client)
 botGetClient bot = do
@@ -936,7 +936,7 @@ botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> Handler ()
 botUpdatePrekeys bot upd = do
   clt <- lift $ listToMaybe <$> User.lookupClients (botUserId bot)
   case clt of
-    Nothing -> throwErrorDescription ErrDesc.clientNotFound
+    Nothing -> throwErrorDescriptionType @ClientNotFound
     Just c -> do
       let pks = updateBotPrekeyList upd
       User.updatePrekeys (botUserId bot) (clientId c) pks !>> clientDataError
@@ -949,7 +949,7 @@ botClaimUsersPrekeys :: Public.UserClients -> Handler Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
-    throwErrorDescription ErrDesc.tooManyClients
+    throwErrorDescriptionType @TooManyClients
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
 botListUserProfilesH :: List UserId -> Handler Response
@@ -1065,7 +1065,7 @@ maybeInvalidProvider :: Maybe a -> Handler a
 maybeInvalidProvider = maybe (throwStd invalidProvider) return
 
 maybeInvalidCode :: Maybe a -> Handler a
-maybeInvalidCode = maybe (throwStd invalidCode) return
+maybeInvalidCode = maybe (throwErrorDescriptionType @InvalidCode) return
 
 maybeServiceNotFound :: Maybe a -> Handler a
 maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) return
@@ -1077,7 +1077,7 @@ maybeConvNotFound :: Maybe a -> Handler a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) return
 
 maybeBadCredentials :: Maybe a -> Handler a
-maybeBadCredentials = maybe (throwStd badCredentials) return
+maybeBadCredentials = maybe (throwErrorDescriptionType @BadCredentials) return
 
 maybeInvalidServiceKey :: Maybe a -> Handler a
 maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) return
@@ -1086,7 +1086,7 @@ maybeInvalidBot :: Maybe a -> Handler a
 maybeInvalidBot = maybe (throwStd invalidBot) return
 
 maybeInvalidUser :: Maybe a -> Handler a
-maybeInvalidUser = maybe (throwStd (errorDescriptionToWai ErrDesc.invalidUser)) return
+maybeInvalidUser = maybe (throwStd (errorDescriptionTypeToWai @InvalidUser)) return
 
 rangeChecked :: Within a n m => a -> Handler (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither

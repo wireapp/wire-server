@@ -73,14 +73,14 @@ type JSON = Media "application" "json"
 
 ensureAccessRole :: AccessRole -> [(UserId, Maybe TeamMember)] -> Galley ()
 ensureAccessRole role users = case role of
-  PrivateAccessRole -> throwErrorDescription convAccessDenied
+  PrivateAccessRole -> throwErrorDescriptionType @ConvAccessDenied
   TeamAccessRole ->
     when (any (isNothing . snd) users) $
-      throwErrorDescription notATeamMember
+      throwErrorDescriptionType @NotATeamMember
   ActivatedAccessRole -> do
     activated <- lookupActivatedUsers $ map fst users
     when (length activated /= length users) $
-      throwErrorDescription convAccessDenied
+      throwErrorDescriptionType @ConvAccessDenied
   NonActivatedAccessRole -> return ()
 
 -- | Check that the given user is either part of the same team(s) as the other
@@ -117,7 +117,7 @@ ensureConnectedToLocals u uids = do
     getConnections [u] (Just uids) (Just Accepted)
       `concurrently` getConnections uids (Just [u]) (Just Accepted)
   unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwErrorDescription notConnected
+    throwErrorDescriptionType @NotConnected
 
 ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
@@ -175,7 +175,7 @@ permissionCheck p = \case
     if m `hasPermission` p
       then pure m
       else throwErrorDescription (operationDenied p)
-  Nothing -> throwErrorDescription notATeamMember
+  Nothing -> throwErrorDescriptionType @NotATeamMember
 
 assertTeamExists :: TeamId -> Galley ()
 assertTeamExists tid = do
@@ -187,7 +187,7 @@ assertTeamExists tid = do
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
   Data.teamMember tid uid >>= \case
-    Nothing -> throwErrorDescription notATeamMember
+    Nothing -> throwErrorDescriptionType @NotATeamMember
     Just _ -> return ()
 
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
@@ -198,7 +198,7 @@ permissionCheckTeamConv zusr cnv perm =
     Just cnv' -> case Data.convTeam cnv' of
       Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
       Nothing -> pure ()
-    Nothing -> throwErrorDescription convNotFound
+    Nothing -> throwErrorDescriptionType @ConvNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
@@ -214,7 +214,7 @@ acceptOne2One usr conv conn = do
           return $ conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | usr `isMember` mems -> promote
-      [_, _] -> throwErrorDescription convNotFound
+      [_, _] -> throwErrorDescriptionType @ConvNotFound
       _ -> do
         when (length mems > 2) $
           throwM badConvState
@@ -283,7 +283,7 @@ getSelfMemberFromLocals ::
   UserId ->
   t LocalMember ->
   ExceptT ConvNotFound m LocalMember
-getSelfMemberFromLocals = getLocalMember convNotFound
+getSelfMemberFromLocals = getLocalMember (mkErrorDescription :: ConvNotFound)
 
 -- | A legacy version of 'getSelfMemberFromLocals' that runs in the Galley monad.
 getSelfMemberFromLocalsLegacy ::
@@ -322,7 +322,7 @@ getSelfMemberFromRemotes ::
   Remote UserId ->
   t RemoteMember ->
   ExceptT ConvNotFound m RemoteMember
-getSelfMemberFromRemotes = getRemoteMember convNotFound
+getSelfMemberFromRemotes = getRemoteMember (mkErrorDescription :: ConvNotFound)
 
 getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
 getSelfMemberFromRemotesLegacy usr rmems =
@@ -363,14 +363,14 @@ getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership =
   getConversationAndCheckMembershipWithError
-    (errorDescriptionToWai convAccessDenied)
+    (errorDescriptionTypeToWai @ConvAccessDenied)
 
 getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr convId = do
-  c <- Data.conversation convId >>= ifNothing (errorDescriptionToWai convNotFound)
+  c <- Data.conversation convId >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
-    throwErrorDescription convNotFound
+    throwErrorDescriptionType @ConvNotFound
   unless (zusr `isMember` Data.convLocalMembers c) $
     throwM ex
   return c
@@ -404,14 +404,14 @@ verifyReusableCode :: ConversationCode -> Galley DataTypes.Code
 verifyReusableCode convCode = do
   c <-
     Data.lookupCode (conversationKey convCode) DataTypes.ReusableCode
-      >>= ifNothing (errorDescriptionToWai codeNotFound)
+      >>= ifNothing (errorDescriptionTypeToWai @CodeNotFound)
   unless (DataTypes.codeValue c == conversationCode convCode) $
-    throwM (errorDescriptionToWai codeNotFound)
+    throwM (errorDescriptionTypeToWai @CodeNotFound)
   return c
 
 ensureConversationAccess :: UserId -> ConvId -> Access -> Galley Data.Conversation
 ensureConversationAccess zusr cnv access = do
-  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionToWai convNotFound)
+  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
@@ -420,7 +420,7 @@ ensureConversationAccess zusr cnv access = do
 ensureAccess :: Data.Conversation -> Access -> Galley ()
 ensureAccess conv access =
   unless (access `elem` Data.convAccess conv) $
-    throwErrorDescription convAccessDenied
+    throwErrorDescriptionType @ConvAccessDenied
 
 --------------------------------------------------------------------------------
 -- Federation
