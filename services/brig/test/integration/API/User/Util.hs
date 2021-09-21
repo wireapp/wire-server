@@ -246,6 +246,16 @@ listConnections brig u =
       . path "connections"
       . zUser u
 
+listAllConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+listAllConnections brig u =
+  post $
+    brig
+      . path "list-connections"
+      . zUser u
+      . expect2xx
+      . contentJson
+      . body (RequestBodyLBS $ encode $ object [])
+
 getConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
 getConnectionQualified brig from (Qualified toUser toDomain) =
   get $

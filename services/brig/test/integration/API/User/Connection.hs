@@ -39,6 +39,8 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Connection
+import Wire.API.Routes.MultiTablePaging
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests cl _at _conf p b _c g =
@@ -49,7 +51,9 @@ tests cl _at _conf p b _c g =
       test p "post /connections mutual" $ testCreateMutualConnections b g,
       test p "post /connections/:domain/:uid mutual" $ testCreateMutualConnectionsQualified b g,
       test p "post /connections (bad user)" $ testCreateConnectionInvalidUser b,
+      test p "post /connections/:domain/:uid (bad user)" $ testCreateConnectionInvalidUserQualified b,
       test p "put /connections/:id accept" $ testAcceptConnection b,
+      test p "put /connections/:id accept" $ testAcceptConnectionQualified b,
       test p "put /connections/:id ignore" $ testIgnoreConnection b,
       test p "put /connections/:id cancel" $ testCancelConnection b,
       test p "put /connections/:id cancel" $ testCancelConnection2 b g,
@@ -59,7 +63,8 @@ tests cl _at _conf p b _c g =
       test p "put /connections/:id accept blocked" $ testAcceptWhileBlocked b,
       test p "put /connections/:id bad update" $ testBadUpdateConnection b,
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
-      test p "get /connections - 200 (paging)" $ testConnectionPaging b,
+      test p "get /connections - 200 (paging)" $ testLocalConnectionsPaging b,
+      test p "get /list-connections - 200 (paging)" $ testAllConnectionsPaging b,
       test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl
     ]
 
@@ -73,6 +78,22 @@ testCreateConnectionInvalidUser brig = do
     const (Just "invalid-user") === fmap Error.label . responseJsonMaybe
   -- cannot create a connection with yourself
   postConnection brig uid1 uid1 !!! do
+    const 400 === statusCode
+    const (Just "invalid-user") === fmap Error.label . responseJsonMaybe
+
+testCreateConnectionInvalidUserQualified :: Brig -> Http ()
+testCreateConnectionInvalidUserQualified brig = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      domain = qDomain quid1
+  -- user does not exist
+  uid2 <- Id <$> liftIO UUID.nextRandom
+  let quid2 = Qualified uid2 domain
+  postConnectionQualified brig uid1 quid2 !!! do
+    const 400 === statusCode
+    const (Just "invalid-user") === fmap Error.label . responseJsonMaybe
+  -- cannot create a connection with yourself
+  postConnectionQualified brig uid1 quid1 !!! do
     const 400 === statusCode
     const (Just "invalid-user") === fmap Error.label . responseJsonMaybe
 
@@ -167,6 +188,25 @@ testAcceptConnection brig = do
   postConnection brig uid3 uid1 !!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid3 Accepted]
   assertConnections brig uid3 [ConnectionStatus uid3 uid1 Accepted]
+
+twoUsers :: Brig -> Http (Qualified UserId, UserId, Qualified UserId, UserId)
+twoUsers brig = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  quid2 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+      uid2 = qUnqualified quid2
+  pure (quid1, uid1, quid2, uid2)
+
+testAcceptConnectionQualified :: Brig -> Http ()
+testAcceptConnectionQualified brig = do
+  (quid1, uid1, quid2, uid2) <- twoUsers brig
+  -- Initiate a new connection (A -> B)
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  -- B accepts
+  putConnectionQualified brig uid2 quid1 Accepted !!! const 200 === statusCode
+
+  assertConnectionQualified brig uid1 quid2 Accepted
+  assertConnectionQualified brig uid2 quid1 Accepted
 
 testIgnoreConnection :: Brig -> Http ()
 testIgnoreConnection brig = do
@@ -358,8 +398,8 @@ testBadUpdateConnection brig = do
         const 403 === statusCode
         const (Just "bad-conn-update") === fmap Error.label . responseJsonMaybe
 
-testConnectionPaging :: Brig -> Http ()
-testConnectionPaging b = do
+testLocalConnectionsPaging :: Brig -> Http ()
+testLocalConnectionsPaging b = do
   u <- userId <$> randomUser b
   replicateM_ total $ do
     u2 <- userId <$> randomUser b
@@ -379,6 +419,19 @@ testConnectionPaging b = do
       liftIO $ assertEqual "page size" (Just n) (length <$> conns)
       liftIO $ assertEqual "has more" (Just (count' < total)) more
       return . (count',) $ (conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
+
+testAllConnectionsPaging :: Brig -> Http ()
+testAllConnectionsPaging b = do
+  quid <- userQualifiedId <$> randomUser b
+  let uid = qUnqualified quid
+  replicateM_ total $ do
+    qOther <- userQualifiedId <$> randomUser b
+    postConnectionQualified b uid qOther !!! const 201 === statusCode
+
+  res :: Either String ConnectionsPage <- responseJsonEither <$> listAllConnections b uid
+  liftIO $ assertEqual "..." (Right total) (length . mtpResults <$> res)
+  where
+    total = 5
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()
 testConnectionLimit brig (ConnectionLimit l) = do

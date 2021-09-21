@@ -430,6 +430,18 @@ putConnection brig from to r =
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
+putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putConnectionQualified brig from (Qualified to toDomain) r =
+  put $
+    brig
+      . paths ["/connections", toByteString' toDomain, toByteString' to]
+      . contentJson
+      . body payload
+      . zUser from
+      . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object ["status" .= r]
+
 connectUsers :: Brig -> UserId -> List1 UserId -> (MonadIO m, MonadHttp m) => m ()
 connectUsers b u = mapM_ connectTo
   where
