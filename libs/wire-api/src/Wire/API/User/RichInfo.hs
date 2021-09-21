@@ -33,6 +33,7 @@ module Wire.API.User.RichInfo
     -- * RichInfoAssocList
     RichInfoAssocList (..),
     normalizeRichInfoAssocList,
+    richInfoAssocListFromObject,
     richInfoAssocListURN,
 
     -- * RichField
