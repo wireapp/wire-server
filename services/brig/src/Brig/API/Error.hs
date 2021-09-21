@@ -107,7 +107,7 @@ instance ToJSON Error where
 
 connError :: ConnectionError -> Error
 connError TooManyConnections {} = StdError (errorDescriptionTypeToWai @ConnectionLimitReached)
-connError InvalidTransition {} = StdError (errorDescriptionToWai invalidTransition)
+connError InvalidTransition {} = StdError (errorDescriptionTypeToWai @InvalidTransition)
 connError NotConnected {} = StdError (errorDescriptionTypeToWai @NotConnected)
 connError InvalidUser {} = StdError (errorDescriptionTypeToWai @InvalidUser)
 connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (noIdentity 0))

@@ -219,9 +219,6 @@ type InvalidCode = ErrorDescription 403 "invalid-code" "Invalid verification cod
 
 type InvalidTransition = ErrorDescription 403 "bad-conn-update" "Invalid status transition."
 
-invalidTransition :: InvalidTransition
-invalidTransition = mkErrorDescription
-
 type NoIdentity = ErrorDescription 403 "no-identity" "The user has no verified identity (email or phone number)."
 
 noIdentity :: forall code lbl desc. (NoIdentity ~ ErrorDescription code lbl desc) => Int -> NoIdentity
