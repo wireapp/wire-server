@@ -955,6 +955,29 @@ putMember u m (Qualified c dom) = do
       . zType "access"
       . json m
 
+putOtherMemberQualified ::
+  UserId ->
+  Qualified UserId ->
+  OtherMemberUpdate ->
+  Qualified ConvId ->
+  TestM ResponseLBS
+putOtherMemberQualified from to m c = do
+  g <- view tsGalley
+  put $
+    g
+      . paths
+        [ "conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "members",
+          toByteString' (qDomain to),
+          toByteString' (qUnqualified to)
+        ]
+      . zUser from
+      . zConn "conn"
+      . zType "access"
+      . json m
+
 putOtherMember :: UserId -> UserId -> OtherMemberUpdate -> ConvId -> TestM ResponseLBS
 putOtherMember from to m c = do
   g <- view tsGalley

@@ -92,6 +92,8 @@ servantSitemap =
         GalleyAPI.addMembersToConversationV2 = Update.addMembers,
         GalleyAPI.removeMemberUnqualified = Update.removeMemberUnqualified,
         GalleyAPI.removeMember = Update.removeMemberQualified,
+        GalleyAPI.updateOtherMemberUnqualified = Update.updateOtherMemberUnqualified,
+        GalleyAPI.updateOtherMember = Update.updateOtherMember,
         GalleyAPI.updateConversationNameDeprecated = Update.updateLocalConversationName,
         GalleyAPI.updateConversationNameUnqualified = Update.updateLocalConversationName,
         GalleyAPI.updateConversationName = Update.updateConversationName,
@@ -701,27 +703,6 @@ sitemap = do
     errorResponse (Error.invalidOp "Conversation type does not allow adding members")
     errorResponse (Error.errorDescriptionToWai Error.notConnected)
     errorResponse (Error.errorDescriptionToWai Error.convAccessDenied)
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberStateUpdate event to members
-  put "/conversations/:cnv/members/:usr" (continue Update.updateOtherMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. capture "usr"
-      .&. jsonRequest @Public.OtherMemberUpdate
-  document "PUT" "updateOtherMember" $ do
-    summary "Update membership of the specified user"
-    notes "Even though all fields are optional, at least one needs to be given."
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    parameter Path "usr" bytes' $
-      description "Target User ID"
-    body (ref Public.modelOtherMemberUpdate) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionToWai Error.convNotFound)
-    errorResponse Error.convMemberNotFound
-    errorResponse Error.invalidTargetUserOp
 
   -- This endpoint can lead to the following events being sent:
   -- - Typing event to members

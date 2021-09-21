@@ -277,6 +277,46 @@ data Api routes = Api
              RemoveFromConversationHTTPResponse
              RemoveFromConversationResponse,
     -- This endpoint can lead to the following events being sent:
+    -- - MemberStateUpdate event to members
+    updateOtherMemberUnqualified ::
+      routes
+        :- Summary "Update membership of the specified user (deprecated)"
+        :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvMemberNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> Capture' '[Description "Target User ID"] "usr" UserId
+        :> ReqBody '[JSON] OtherMemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Membership updated"]
+             (),
+    updateOtherMember ::
+      routes
+        :- Summary "Update membership of the specified user"
+        :> Description "**Note**: at least one field has to be provided."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvNotFound
+        :> CanThrow ConvMemberNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "members"
+        :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
+        :> ReqBody '[JSON] OtherMemberUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             '[RespondEmpty 200 "Membership updated"]
+             (),
+    -- This endpoint can lead to the following events being sent:
     -- - ConvRename event to members
     updateConversationNameDeprecated ::
       routes

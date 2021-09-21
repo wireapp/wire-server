@@ -39,7 +39,8 @@ module Galley.API.Update
     addMembers,
     updateUnqualifiedSelfMember,
     updateSelfMember,
-    updateOtherMemberH,
+    updateOtherMember,
+    updateOtherMemberUnqualified,
     removeMember,
     removeMemberQualified,
     removeMemberUnqualified,
@@ -114,7 +115,8 @@ import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
-  ( ConvNotFound,
+  ( ConvMemberNotFound,
+    ConvNotFound,
     codeNotFound,
     convNotFound,
     missingLegalholdConsent,
@@ -583,18 +585,31 @@ updateRemoteSelfMember ::
 updateRemoteSelfMember zusr zcon rcid update = do
   statusMap <- Data.remoteConversationStatus zusr [rcid]
   case Map.lookup rcid statusMap of
-    Nothing -> throwM convMemberNotFound
+    Nothing -> throwErrorDescriptionType @ConvMemberNotFound
     Just _ ->
       void $ processUpdateMemberEvent zusr zcon (unTagged rcid) [zusr] zusr update
 
-updateOtherMemberH :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest Public.OtherMemberUpdate -> Galley Response
-updateOtherMemberH (zusr ::: zcon ::: cid ::: victim ::: req) = do
-  update <- fromJsonBody req
-  updateOtherMember zusr zcon cid victim update
-  return empty
+updateOtherMember ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Qualified UserId ->
+  Public.OtherMemberUpdate ->
+  Galley ()
+updateOtherMember zusr zcon qcid qvictim update = do
+  localDomain <- viewFederationDomain
+  if qDomain qcid == localDomain && qDomain qvictim == localDomain
+    then updateOtherMemberUnqualified zusr zcon (qUnqualified qcid) (qUnqualified qvictim) update
+    else throwM federationNotImplemented
 
-updateOtherMember :: UserId -> ConnId -> ConvId -> UserId -> Public.OtherMemberUpdate -> Galley ()
-updateOtherMember zusr zcon cid victim update = do
+updateOtherMemberUnqualified ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  UserId ->
+  Public.OtherMemberUpdate ->
+  Galley ()
+updateOtherMemberUnqualified zusr zcon cid victim update = do
   localDomain <- viewFederationDomain
   when (zusr == victim) $
     throwM invalidTargetUserOp

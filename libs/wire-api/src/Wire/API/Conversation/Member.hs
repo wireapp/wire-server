@@ -45,7 +45,6 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Id
-import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
@@ -271,9 +270,7 @@ data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show, Generic)
-
-instance Arbitrary OtherMemberUpdate where
-  arbitrary = OtherMemberUpdate . Just <$> arbitrary
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema OtherMemberUpdate)
 
 modelOtherMemberUpdate :: Doc.Model
 modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do
@@ -282,15 +279,19 @@ modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do
     Doc.description "Name of the conversation role updated to"
     Doc.optional
 
-instance ToJSON OtherMemberUpdate where
-  toJSON m =
-    A.object $
-      "conversation_role" A..= omuConvRoleName m
-        # []
+instance Arbitrary OtherMemberUpdate where
+  arbitrary = OtherMemberUpdate . Just <$> arbitrary
 
-instance FromJSON OtherMemberUpdate where
-  parseJSON = A.withObject "other-member-update object" $ \m -> do
-    u <- OtherMemberUpdate <$> m A..:? "conversation_role"
-    unless (isJust (omuConvRoleName u)) $
-      fail "One of { 'conversation_role'} required."
-    return u
+instance ToSchema OtherMemberUpdate where
+  schema =
+    (`withParser` (either fail pure . validateOtherMemberUpdate))
+      . objectWithDocModifier
+        "OtherMemberUpdate"
+        (description ?~ "Update user properties of other members relative to a conversation")
+      $ OtherMemberUpdate
+        <$> omuConvRoleName .= optField "conversation_role" Nothing schema
+
+validateOtherMemberUpdate :: OtherMemberUpdate -> Either String OtherMemberUpdate
+validateOtherMemberUpdate u
+  | isJust (omuConvRoleName u) = pure u
+  | otherwise = Left "'conversation_role' is required"

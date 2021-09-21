@@ -183,6 +183,8 @@ tests s =
           test s "rename conversation" putConvRenameOk,
           test s "rename qualified conversation" putQualifiedConvRenameOk,
           test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
+          test s "other member update role" putOtherMemberOk,
+          test s "qualified other member update role" putQualifiedOtherMemberOk,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
           test s "member update (hidden)" putMemberHiddenOk,
@@ -2552,6 +2554,73 @@ putConvRenameOk = do
       evtType e @?= ConvRename
       evtFrom e @?= qbob
       evtData e @?= EdConvRename (ConversationRename "gossip++")
+
+putQualifiedOtherMemberOk :: TestM ()
+putQualifiedOtherMemberOk = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+      alice = qUnqualified qalice
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
+  let qconv = Qualified conv (qDomain qbob)
+      expectedMemberUpdateData =
+        MemberUpdateData
+          { misTarget = Just alice,
+            misOtrMutedStatus = Nothing,
+            misOtrMutedRef = Nothing,
+            misOtrArchived = Nothing,
+            misOtrArchivedRef = Nothing,
+            misHidden = Nothing,
+            misHiddenRef = Nothing,
+            misConvRoleName = Just roleNameWireMember
+          }
+
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    -- demote qalice
+    putOtherMemberQualified bob qalice (OtherMemberUpdate (Just roleNameWireMember)) qconv
+      !!! const 200 === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate expectedMemberUpdateData
+
+putOtherMemberOk :: TestM ()
+putOtherMemberOk = do
+  c <- view tsCannon
+  alice <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postConv alice [bob] (Just "gossip") [] Nothing Nothing
+  let qconv = Qualified conv (qDomain qbob)
+      expectedMemberUpdateData =
+        MemberUpdateData
+          { misTarget = Just alice,
+            misOtrMutedStatus = Nothing,
+            misOtrMutedRef = Nothing,
+            misOtrArchived = Nothing,
+            misOtrArchivedRef = Nothing,
+            misHidden = Nothing,
+            misHiddenRef = Nothing,
+            misConvRoleName = Just roleNameWireMember
+          }
+
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    -- demote alice
+    putOtherMember bob alice (OtherMemberUpdate (Just roleNameWireMember)) conv
+      !!! const 200 === statusCode
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate expectedMemberUpdateData
 
 putMemberOtrMuteOk :: TestM ()
 putMemberOtrMuteOk = do
