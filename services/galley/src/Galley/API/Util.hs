@@ -246,6 +246,21 @@ isMember u = isJust . find ((u ==) . lmId)
 isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
+data NotificationTargets = NotificationTargets
+  { ntLocals :: [UserId],
+    ntRemotes :: [Remote UserId],
+    ntBots :: [BotMember]
+  }
+
+convTargets :: Data.Conversation -> NotificationTargets
+convTargets conv = case localBotsAndUsers (Data.convLocalMembers conv) of
+  (bots, lusers) ->
+    NotificationTargets
+      { ntLocals = map lmId lusers,
+        ntRemotes = map rmId (Data.convRemoteMembers conv),
+        ntBots = bots
+      }
+
 localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
 localBotsAndUsers = foldMap botOrUser
   where
@@ -292,7 +307,7 @@ getSelfMemberFromLocalsLegacy ::
   t LocalMember ->
   Galley LocalMember
 getSelfMemberFromLocalsLegacy usr lmems =
-  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $ getSelfMemberFromLocals usr lmems
+  eitherM throwErrorDescription pure . runExceptT $ getSelfMemberFromLocals usr lmems
 
 getOtherMember :: (Foldable t, Monad m) => UserId -> t LocalMember -> ExceptT Error m LocalMember
 getOtherMember = getLocalMember (errorDescriptionTypeToWai @ConvMemberNotFound)
@@ -326,7 +341,7 @@ getSelfMemberFromRemotes = getRemoteMember (mkErrorDescription :: ConvNotFound)
 
 getSelfMemberFromRemotesLegacy :: Foldable t => Remote UserId -> t RemoteMember -> Galley RemoteMember
 getSelfMemberFromRemotesLegacy usr rmems =
-  eitherM (throwM . errorDescriptionToWai) pure . runExceptT $
+  eitherM throwErrorDescription pure . runExceptT $
     getSelfMemberFromRemotes usr rmems
 
 -- | Since we search by local user ID, we know that the member must be local.
@@ -361,19 +376,24 @@ getMember ::
 getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
-getConversationAndCheckMembership =
-  getConversationAndCheckMembershipWithError
-    (errorDescriptionTypeToWai @ConvAccessDenied)
+getConversationAndCheckMembership uid =
+  fmap fst
+    . getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvAccessDenied) uid
 
-getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
-getConversationAndCheckMembershipWithError ex zusr convId = do
+getConversationAndMemberWithError ::
+  Error ->
+  UserId ->
+  ConvId ->
+  Galley (Data.Conversation, LocalMember)
+getConversationAndMemberWithError ex zusr convId = do
   c <- Data.conversation convId >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
     throwErrorDescriptionType @ConvNotFound
-  unless (zusr `isMember` Data.convLocalMembers c) $
-    throwM ex
-  return c
+  member <-
+    eitherM throwM pure . runExceptT $
+      getLocalMember ex zusr (Data.convLocalMembers c)
+  pure (c, member)
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).

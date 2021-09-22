@@ -138,6 +138,7 @@ onConversationUpdated requestingDomain cu = do
       Data.removeLocalMembersFromRemoteConv qconvId localUsers
       pure []
     Public.ConversationActionRename _ -> pure []
+    Public.ConversationActionMessageTimerUpdate _ -> pure []
 
   -- Send notifications
   let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)

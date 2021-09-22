@@ -1083,9 +1083,13 @@ putAccessUpdate u c acc = do
       . json acc
 
 putMessageTimerUpdateQualified ::
-  UserId -> Qualified ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
+  (HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  Qualified ConvId ->
+  ConversationMessageTimerUpdate ->
+  m ResponseLBS
 putMessageTimerUpdateQualified u c acc = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths
@@ -2326,3 +2330,7 @@ fedRequestsForDomain domain component =
           F.domain req == domainText domain
             && fmap F.component (F.request req) == Just component
       )
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
