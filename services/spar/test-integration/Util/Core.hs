@@ -185,9 +185,9 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
-import Spar.Sem.SAMLUser (SAMLUser)
-import qualified Spar.Sem.SAMLUser as SAMLUser
-import Spar.Sem.SAMLUser.Cassandra
+import Spar.Sem.SAMLUserStore (SAMLUserStore)
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.SAMLUserStore.Cassandra
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
@@ -1220,7 +1220,7 @@ ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
   runSpar $
     runValidExternalId
-      (liftSem . SAMLUser.get)
+      (liftSem . SAMLUserStore.get)
       (liftSem . ScimExternalIdStore.lookup tid)
       veid
 
@@ -1254,7 +1254,7 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[ScimExternalIdStore, ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[ScimExternalIdStore, ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
@@ -1262,7 +1262,7 @@ runSpar (Spar.Spar action) = do
       runFinal $
         embedToFinal @IO $
           interpretClientToIO (Spar.sparCtxCas env) $
-            samlUserToCassandra @Cas.Client $
+            samlUserStoreToCassandra @Cas.Client $
               idPToCassandra @Cas.Client $
                 scimTokenStoreToCassandra @Cas.Client $
                   defaultSsoCodeToCassandra @Cas.Client $
@@ -1290,7 +1290,7 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  aFewTimes (runSpar $ liftSem $ SAMLUser.get uref) isJust
+  aFewTimes (runSpar $ liftSem $ SAMLUserStore.get uref) isJust
 
 checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 checkErr status mlabel = do

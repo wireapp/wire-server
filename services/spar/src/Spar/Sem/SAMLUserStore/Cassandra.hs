@@ -1,19 +1,19 @@
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Spar.Sem.SAMLUser.Cassandra where
+module Spar.Sem.SAMLUserStore.Cassandra where
 
 import Cassandra
 import Imports
 import Polysemy
 import qualified Spar.Data as Data
-import Spar.Sem.SAMLUser
+import Spar.Sem.SAMLUserStore
 
-samlUserToCassandra ::
+samlUserStoreToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r) =>
-  Sem (SAMLUser ': r) a ->
+  Sem (SAMLUserStore ': r) a ->
   Sem r a
-samlUserToCassandra =
+samlUserStoreToCassandra =
   interpret $
     embed . \case
       Insert ur uid -> Data.insertSAMLUser ur uid

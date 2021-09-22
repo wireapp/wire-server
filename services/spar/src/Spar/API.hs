@@ -67,8 +67,8 @@ import Spar.Scim
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import qualified Spar.Sem.IdP as IdPEffect
-import Spar.Sem.SAMLUser (SAMLUser)
-import qualified Spar.Sem.SAMLUser as SAMLUser
+import Spar.Sem.SAMLUserStore (SAMLUserStore)
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -84,7 +84,7 @@ app ctx =
   SAML.setHttpCachePolicy $
     serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
 
-api :: Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser] r => Opts -> ServerT API (Spar r)
+api :: Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT API (Spar r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck
@@ -93,7 +93,7 @@ api opts =
     :<|> apiScim
     :<|> apiINTERNAL
 
-apiSSO :: Members '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser] r => Opts -> ServerT APISSO (Spar r)
+apiSSO :: Members '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT APISSO (Spar r)
 apiSSO opts =
   SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
     :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
@@ -103,7 +103,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUser] r => ServerT APIIDP (Spar r)
+apiIDP :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -112,7 +112,7 @@ apiIDP =
     :<|> idpUpdate
     :<|> idpDelete
 
-apiINTERNAL :: Members '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUser] r => ServerT APIINTERNAL (Spar r)
+apiINTERNAL :: Members '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => ServerT APIINTERNAL (Spar r)
 apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam
@@ -187,7 +187,7 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: forall r. Members '[ScimTokenStore, IdPEffect.IdP, SAMLUser] r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
+authresp :: forall r. Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
 authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
@@ -243,20 +243,20 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: forall r. Members '[ScimTokenStore, SAMLUser, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+idpDelete :: forall r. Members '[ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
-  idpIsEmpty <- wrapMonadClientSem $ isNothing <$> SAMLUser.getAnyByIssuer issuer
+  idpIsEmpty <- wrapMonadClientSem $ isNothing <$> SAMLUserStore.getAnyByIssuer issuer
   let doPurge :: Spar r ()
       doPurge = do
-        some <- wrapMonadClientSem (SAMLUser.getSomeByIssuer issuer)
+        some <- wrapMonadClientSem (SAMLUserStore.getSomeByIssuer issuer)
         forM_ some $ \(uref, uid) -> do
           Brig.deleteBrigUser uid
-          wrapMonadClientSem (SAMLUser.delete uid uref)
+          wrapMonadClientSem (SAMLUserStore.delete uid uref)
         unless (null some) doPurge
   when (not idpIsEmpty) $ do
     if purge
@@ -488,7 +488,7 @@ internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUser] r => TeamId -> Spar r NoContent
+internalDeleteTeam :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => TeamId -> Spar r NoContent
 internalDeleteTeam team = do
   wrapSpar $ deleteTeam team
   pure NoContent

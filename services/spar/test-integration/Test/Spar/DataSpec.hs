@@ -35,7 +35,7 @@ import Spar.App as App
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
 import qualified Spar.Sem.IdP as IdPEffect
-import qualified Spar.Sem.SAMLUser as SAMLUser
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
@@ -112,34 +112,34 @@ spec = do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           uref <- nextUserRef
-          muid <- runSpar $ liftSem $ SAMLUser.get uref
+          muid <- runSpar $ liftSem $ SAMLUserStore.get uref
           liftIO $ muid `shouldBe` Nothing
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
-          () <- runSpar $ liftSem $ SAMLUser.insert uref uid
-          muid <- runSpar $ liftSem $ SAMLUser.get uref
+          () <- runSpar $ liftSem $ SAMLUserStore.insert uref uid
+          muid <- runSpar $ liftSem $ SAMLUserStore.get uref
           liftIO $ muid `shouldBe` Just uid
       context "user already exists (idempotency)" $ do
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid <- nextWireId
           uid' <- nextWireId
-          () <- runSpar $ liftSem $ SAMLUser.insert uref uid
-          () <- runSpar $ liftSem $ SAMLUser.insert uref uid'
-          muid <- runSpar $ liftSem $ SAMLUser.get uref
+          () <- runSpar $ liftSem $ SAMLUserStore.insert uref uid
+          () <- runSpar $ liftSem $ SAMLUserStore.insert uref uid'
+          muid <- runSpar $ liftSem $ SAMLUserStore.get uref
           liftIO $ muid `shouldBe` Just uid'
       describe "DELETE" $ do
         it "works" $ do
           uref <- nextUserRef
           uid <- nextWireId
           do
-            () <- runSpar $ liftSem $ SAMLUser.insert uref uid
-            muid <- runSpar $ liftSem (SAMLUser.get uref)
+            () <- runSpar $ liftSem $ SAMLUserStore.insert uref uid
+            muid <- runSpar $ liftSem (SAMLUserStore.get uref)
             liftIO $ muid `shouldBe` Just uid
           do
-            () <- runSpar $ liftSem $ SAMLUser.delete uid uref
-            muid <- runSpar (liftSem $ SAMLUser.get uref) `aFewTimes` isNothing
+            () <- runSpar $ liftSem $ SAMLUserStore.delete uid uref
+            muid <- runSpar (liftSem $ SAMLUserStore.get uref) `aFewTimes` isNothing
             liftIO $ muid `shouldBe` Nothing
     describe "BindCookie" $ do
       let mkcky :: TestSpar SetBindCookie
@@ -287,7 +287,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
         runSpar $
           liftSem $
             runValidExternalId
-              SAMLUser.get
+              SAMLUserStore.get
               undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
               veid
       Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
@@ -298,7 +298,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
         runSpar $
           liftSem $
             runValidExternalId
-              SAMLUser.get
+              SAMLUserStore.get
               undefined
               veid
       Left _email -> undefined
