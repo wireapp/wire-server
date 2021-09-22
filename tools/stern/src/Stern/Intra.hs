@@ -139,11 +139,12 @@ getUserConnections uid = do
   info $ msg "Getting user connections"
   fetchAll [] Nothing
   where
+    fetchAll :: [UserConnection] -> Maybe UserId -> Handler [UserConnection]
     fetchAll xs start = do
       userConnectionList <- fetchBatch start
       let batch = clConnections userConnectionList
-      if (not . null) batch && (clHasMore userConnectionList)
-        then fetchAll (batch ++ xs) (Just . ucTo $ last batch)
+      if (not . null) batch && clHasMore userConnectionList
+        then fetchAll (batch ++ xs) (Just . qUnqualified . ucTo $ last batch)
         else return (batch ++ xs)
     fetchBatch :: Maybe UserId -> Handler UserConnectionList
     fetchBatch start = do
@@ -798,3 +799,4 @@ getUserNotifications uid = do
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
     batchSize = 100 :: Int
+
