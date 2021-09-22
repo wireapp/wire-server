@@ -71,7 +71,13 @@ data LocalConnection = LocalConnection
 
 localToUserConn :: Domain -> LocalConnection -> UserConnection
 localToUserConn localDomain lc =
-  UserConnection (lcFrom lc) (Qualified (lcTo lc) localDomain) (lcStatus lc) (lcLastUpdated lc) (lcConv lc)
+  UserConnection
+    { ucFrom = lcFrom lc,
+      ucTo = Qualified (lcTo lc) localDomain,
+      ucStatus = lcStatus lc,
+      ucLastUpdate = lcLastUpdated lc,
+      ucConvId = flip Qualified localDomain <$> lcConv lc
+    }
 
 data RemoteConnection = RemoteConnection
   { rcFrom :: UserId,

@@ -21,7 +21,7 @@ import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Connection
   ( Relation (..),
     UserConnection (..),
@@ -44,5 +44,5 @@ testObject_UserConnection_user_2 =
       ucTo = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000100000000"))) (Domain "faraway.golden.example.com"),
       ucStatus = Cancelled,
       ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-11T10:43:38.227Z"),
-      ucConvId = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000004")))
+      ucConvId = Just $ Qualified (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000004"))) (Domain "nice-and-close-to-home.golden.example.com")
     }

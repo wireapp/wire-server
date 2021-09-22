@@ -135,7 +135,7 @@ testCreateMutualConnections brig galley = do
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
   case responseJsonMaybe rsp >>= ucConvId of
     Nothing -> liftIO $ assertFailure "incomplete connection"
-    Just cnv -> do
+    Just (Qualified cnv _) -> do
       getConversation galley uid1 cnv !!! do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
@@ -157,7 +157,7 @@ testCreateMutualConnectionsQualified brig galley = do
 
   case responseJsonMaybe rsp >>= ucConvId of
     Nothing -> liftIO $ assertFailure "incomplete connection"
-    Just cnv -> do
+    Just (Qualified cnv _) -> do
       -- TODO: Get these conversations using the non-deprecated qualified endpoint
       getConversation galley uid1 cnv !!! do
         const 200 === statusCode
@@ -234,7 +234,7 @@ testCancelConnection2 brig galley = do
   rsp <- putConnection brig uid1 uid2 Cancelled <!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled]
-  let Just cnv = ucConvId =<< responseJsonMaybe rsp
+  let Just (Qualified cnv _) = ucConvId =<< responseJsonMaybe rsp
   -- A cannot see the conversation (due to cancelling)
   getConversation galley uid1 cnv !!! do
     const 403 === statusCode
@@ -329,7 +329,7 @@ testBlockAndResendConnection brig galley = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
   -- B never accepted and thus does not see the conversation
-  let Just cnv = ucConvId =<< responseJsonMaybe rsp
+  let Just (Qualified cnv _) = ucConvId =<< responseJsonMaybe rsp
   getConversation galley uid2 cnv !!! const 403 === statusCode
   -- A can see the conversation and is a current member
   getConversation galley uid1 cnv !!! do

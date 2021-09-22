@@ -14,6 +14,10 @@
             "conversation": "00000000-0000-0000-0000-000100000000",
             "from": "00000001-0000-0001-0000-000000000000",
             "last_update": "1864-05-09T00:43:52.049Z",
+            "qualified_conversation": {
+                "domain": "faraway.folden.example.com",
+                "id": "00000000-0000-0000-0000-000100000000"
+            },
             "qualified_to": {
                 "domain": "faraway.golden.example.com",
                 "id": "00000000-0000-0000-0000-000000000000"
