@@ -67,7 +67,6 @@ import qualified Data.Text.Encoding as Text
 import Data.Time (getCurrentTime)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
-import Debug.Trace as Debug
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -576,7 +575,7 @@ postConvWithRemoteUsers remoteDomain users creatorUnqualified members = do
     respond :: F.FederatedRequest -> Value
     respond req
       | fmap F.component (F.request req) == Just F.Brig =
-        Debug.trace (show req) (toJSON users)
+        toJSON users
       | otherwise = toJSON ()
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
