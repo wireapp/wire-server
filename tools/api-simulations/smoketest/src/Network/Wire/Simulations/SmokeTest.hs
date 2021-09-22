@@ -68,7 +68,7 @@ mainBotNet n = do
                 crName = unsafeRange $ fromMaybe "" (botEmail ally)
               }
         assertConnectRequested ally user
-        requireMaybe (ucConvId conn) "conv_id not set after connection request"
+        requireMaybe (qUnqualified <$> ucConvId conn) "conv_id not set after connection request"
   info $ msg "Setting up connections between Ally and the rest of the gang"
   (a2b, a2c, a2goons) <- runBotSession ally $ do
     a2b <- allyConnectTo bill
