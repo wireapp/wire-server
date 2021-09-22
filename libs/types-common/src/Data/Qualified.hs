@@ -27,6 +27,7 @@ module Data.Qualified
     toLocal,
     lUnqualified,
     lDomain,
+    foldQualified,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionRemoteOrLocalIds',
@@ -82,6 +83,13 @@ lUnqualified = qUnqualified . unTagged
 
 lDomain :: Local a -> Domain
 lDomain = qDomain . unTagged
+
+foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
+foldQualified loc f g q
+  | lDomain loc == qDomain q =
+    f (toLocal q)
+  | otherwise =
+    g (toRemote q)
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors

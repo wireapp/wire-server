@@ -934,14 +934,14 @@ addLocalMembersToRemoteConv qconv users = do
           Cql.insertUserRemoteConv
           (u, qDomain qconv, qUnqualified qconv)
 
-class IsMemberUpdate mu where
-  updateMember :: MonadClient m => ConvId -> UserId -> mu -> m MemberUpdateData
-  updateMemberRemoteConv :: MonadClient m => Remote ConvId -> UserId -> mu -> m MemberUpdateData
+class IsMemberUpdate mu uid where
+  updateMember :: MonadClient m => Local ConvId -> uid -> mu -> m MemberUpdateData
+  updateMemberRemoteConv :: MonadClient m => Remote ConvId -> uid -> mu -> m MemberUpdateData
 
-memberUpdateToData :: UserId -> MemberUpdate -> MemberUpdateData
-memberUpdateToData uid mup =
+memberUpdateToData :: Qualified UserId -> MemberUpdate -> MemberUpdateData
+memberUpdateToData quid mup =
   MemberUpdateData
-    { misTarget = Just uid,
+    { misTarget = quid,
       misOtrMutedStatus = mupOtrMuteStatus mup,
       misOtrMutedRef = mupOtrMuteRef mup,
       misOtrArchived = mupOtrArchive mup,
@@ -951,60 +951,75 @@ memberUpdateToData uid mup =
       misConvRoleName = Nothing
     }
 
-instance IsMemberUpdate MemberUpdate where
-  updateMember cid uid mup = do
+instance IsMemberUpdate MemberUpdate (Local UserId) where
+  updateMember lcid luid mup = do
     retry x5 . batch $ do
       setType BatchUnLogged
       setConsistency Quorum
       for_ (mupOtrMuteStatus mup) $ \ms ->
-        addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
+        addPrepQuery
+          Cql.updateOtrMemberMutedStatus
+          (ms, mupOtrMuteRef mup, lUnqualified lcid, lUnqualified luid)
       for_ (mupOtrArchive mup) $ \a ->
-        addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
+        addPrepQuery
+          Cql.updateOtrMemberArchived
+          (a, mupOtrArchiveRef mup, lUnqualified lcid, lUnqualified luid)
       for_ (mupHidden mup) $ \h ->
-        addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
-    pure (memberUpdateToData uid mup)
-  updateMemberRemoteConv (Tagged (Qualified cid domain)) uid mup = do
+        addPrepQuery
+          Cql.updateMemberHidden
+          (h, mupHiddenRef mup, lUnqualified lcid, lUnqualified luid)
+    pure (memberUpdateToData (unTagged luid) mup)
+  updateMemberRemoteConv (Tagged (Qualified cid domain)) luid mup = do
     retry x5 . batch $ do
       setType BatchUnLogged
       setConsistency Quorum
       for_ (mupOtrMuteStatus mup) $ \ms ->
         addPrepQuery
           Cql.updateRemoteOtrMemberMutedStatus
-          (ms, mupOtrMuteRef mup, domain, cid, uid)
+          (ms, mupOtrMuteRef mup, domain, cid, lUnqualified luid)
       for_ (mupOtrArchive mup) $ \a ->
         addPrepQuery
           Cql.updateRemoteOtrMemberArchived
-          (a, mupOtrArchiveRef mup, domain, cid, uid)
+          (a, mupOtrArchiveRef mup, domain, cid, lUnqualified luid)
       for_ (mupHidden mup) $ \h ->
         addPrepQuery
           Cql.updateRemoteMemberHidden
-          (h, mupHiddenRef mup, domain, cid, uid)
-    pure (memberUpdateToData uid mup)
+          (h, mupHiddenRef mup, domain, cid, lUnqualified luid)
+    pure (memberUpdateToData (unTagged luid) mup)
 
-instance IsMemberUpdate OtherMemberUpdate where
-  updateMember cid uid omu = do
-    retry x5 . batch $ do
-      setType BatchUnLogged
-      setConsistency Quorum
-      for_ (omuConvRoleName omu) $ \r ->
-        addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
-    pure
-      MemberUpdateData
-        { misTarget = Just uid,
-          misOtrMutedStatus = Nothing,
-          misOtrMutedRef = Nothing,
-          misOtrArchived = Nothing,
-          misOtrArchivedRef = Nothing,
-          misHidden = Nothing,
-          misHiddenRef = Nothing,
-          misConvRoleName = omuConvRoleName omu
-        }
+instance IsMemberUpdate OtherMemberUpdate (Qualified UserId) where
+  updateMember lcid quid omu =
+    do
+      let addQuery r
+            | lDomain lcid == qDomain quid =
+              addPrepQuery
+                Cql.updateMemberConvRoleName
+                (r, lUnqualified lcid, qUnqualified quid)
+            | otherwise =
+              addPrepQuery
+                Cql.updateRemoteMemberConvRoleName
+                (r, lUnqualified lcid, qDomain quid, qUnqualified quid)
+      retry x5 . batch $ do
+        setType BatchUnLogged
+        setConsistency Quorum
+        traverse_ addQuery (omuConvRoleName omu)
+      pure
+        MemberUpdateData
+          { misTarget = quid,
+            misOtrMutedStatus = Nothing,
+            misOtrMutedRef = Nothing,
+            misOtrArchived = Nothing,
+            misOtrArchivedRef = Nothing,
+            misHidden = Nothing,
+            misHiddenRef = Nothing,
+            misConvRoleName = omuConvRoleName omu
+          }
 
   -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-887
-  updateMemberRemoteConv _ _ _ =
+  updateMemberRemoteConv _ quid _ =
     pure
       MemberUpdateData
-        { misTarget = Nothing,
+        { misTarget = quid,
           misOtrMutedStatus = Nothing,
           misOtrMutedRef = Nothing,
           misOtrArchived = Nothing,

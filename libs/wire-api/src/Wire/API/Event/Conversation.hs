@@ -47,7 +47,6 @@ module Wire.API.Event.Conversation
     Connect (..),
     MemberUpdateData (..),
     OtrMessage (..),
-    conversationActionToEvent,
 
     -- * re-exports
     ConversationReceiptModeUpdate (..),
@@ -395,12 +394,8 @@ modelConnect = Doc.defineModel "Connect" $ do
 -- Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
-  { -- | Target user of this action, should not be optional anymore.
-    --
-    -- FUTUREWORK: make it mandatory to guarantee that no events
-    -- out there do not contain an ID.
-    -- <https://github.com/zinfra/backend-issues/issues/1309>
-    misTarget :: Maybe UserId,
+  { -- | Target user of this action
+    misTarget :: Qualified UserId,
     misOtrMutedStatus :: Maybe MutedStatus,
     misOtrMutedRef :: Maybe Text,
     misOtrArchived :: Maybe Bool,
@@ -419,7 +414,8 @@ instance ToSchema MemberUpdateData where
 memberUpdateDataObjectSchema :: ObjectSchema SwaggerDoc MemberUpdateData
 memberUpdateDataObjectSchema =
   MemberUpdateData
-    <$> misTarget .= opt (field "target" schema)
+    <$> misTarget .= field "qualified_target" schema
+    <* (Just . qUnqualified . misTarget) .= optField "target" Nothing schema
     <*> misOtrMutedStatus .= opt (field "otr_muted_status" schema)
     <*> misOtrMutedRef .= opt (field "otr_muted_ref" schema)
     <*> misOtrArchived .= opt (field "otr_archived" schema)
@@ -561,20 +557,3 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
-
-conversationActionToEvent ::
-  UTCTime ->
-  Qualified UserId ->
-  Qualified ConvId ->
-  ConversationAction ->
-  Event
-conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers) =
-  Event MemberJoin qcnv quid now $
-    EdMembersJoin $ SimpleMembers (map (uncurry SimpleMember) . toList $ newMembers)
-conversationActionToEvent now quid qcnv (ConversationActionRemoveMembers removedMembers) =
-  Event MemberLeave qcnv quid now $
-    EdMembersLeave . QualifiedUserIdList . toList $ removedMembers
-conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
-  Event ConvRename qcnv quid now (EdConvRename rename)
-conversationActionToEvent now quid qcnv (ConversationActionMessageTimerUpdate update) =
-  Event ConvMessageTimerUpdate qcnv quid now (EdConvMessageTimerUpdate update)

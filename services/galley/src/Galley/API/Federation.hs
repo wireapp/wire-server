@@ -45,6 +45,7 @@ import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Member (OtherMember (..))
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Event.Conversation
@@ -125,20 +126,21 @@ onConversationUpdated requestingDomain cu = do
   -- When new users are being added to the conversation, we consider them as
   -- notification targets. Once we start checking connections before letting
   -- people being added, this will be safe against spam. However, if users that
-  -- are not in the conversations are being removed, we do **not** add them to the
-  -- list of targets, because we have no way to make sure that they are actually
-  -- supposed to receive that notification.
+  -- are not in the conversations are being removed or have their membership state
+  -- updated, we do **not** add them to the list of targets, because we have no
+  -- way to make sure that they are actually supposed to receive that notification.
   extraTargets <- case cuAction cu of
-    Public.ConversationActionAddMembers toAdd -> do
+    ConversationActionAddMembers toAdd -> do
       let localUsers = getLocalUsers localDomain (fmap fst toAdd)
       Data.addLocalMembersToRemoteConv qconvId localUsers
       pure localUsers
-    Public.ConversationActionRemoveMembers toRemove -> do
+    ConversationActionRemoveMembers toRemove -> do
       let localUsers = getLocalUsers localDomain toRemove
       Data.removeLocalMembersFromRemoteConv qconvId localUsers
       pure []
-    Public.ConversationActionRename _ -> pure []
-    Public.ConversationActionMessageTimerUpdate _ -> pure []
+    ConversationActionRename _ -> pure []
+    ConversationActionMessageTimerUpdate _ -> pure []
+    ConversationActionMemberUpdate _ -> pure []
 
   -- Send notifications
   let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)

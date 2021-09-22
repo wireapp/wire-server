@@ -107,6 +107,7 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation (_EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
@@ -557,7 +558,11 @@ postConvQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => UserI
 postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
 
 postConvWithRemoteUser :: Domain -> UserProfile -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
-postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
+postConvWithRemoteUser remoteDomain user creatorUnqualified members =
+  postConvWithRemoteUsers remoteDomain [user] creatorUnqualified members
+
+postConvWithRemoteUsers :: Domain -> [UserProfile] -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
+postConvWithRemoteUsers remoteDomain users creatorUnqualified members = do
   opts <- view tsGConf
   fmap fst $
     withTempMockFederator
@@ -570,7 +575,7 @@ postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
     respond :: F.FederatedRequest -> Value
     respond req
       | fmap F.component (F.request req) == Just F.Brig =
-        toJSON [user]
+        toJSON users
       | otherwise = toJSON ()
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
@@ -958,13 +963,14 @@ putMember u m (Qualified c dom) = do
       . json m
 
 putOtherMemberQualified ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
   UserId ->
   Qualified UserId ->
   OtherMemberUpdate ->
   Qualified ConvId ->
-  TestM ResponseLBS
+  m ResponseLBS
 putOtherMemberQualified from to m c = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths
@@ -1377,7 +1383,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtFrom e @?= usr
   case evtData e of
     Conv.EdMemberUpdate mis -> do
-      assertEqual "target" (Just target) (misTarget mis)
+      assertEqual "target" (Qualified target (qDomain conv)) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 
@@ -1426,7 +1432,7 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   FederatedGalley.cuOrigUserId cu @?= remover
   FederatedGalley.cuConvId cu @?= qUnqualified qconvId
   sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  FederatedGalley.cuAction cu @?= Public.ConversationActionRemoveMembers (pure victim)
+  FederatedGalley.cuAction cu @?= ConversationActionRemoveMembers (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
