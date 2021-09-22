@@ -93,9 +93,6 @@ insertLocalConnection from to status cid = do
   retry x5 . write connectionInsert $ params Quorum (from, to, status, now, cid)
   return $ toLocalUserConnection (from, to, status, now, Just cid)
 
--- insertRemoteConnection :: UserId -> Qualified UserId -> RelationWithHistory -> AppIO UserConnection
--- insertRemoteConnection = undefined
-
 updateLocalConnection :: LocalConnection -> RelationWithHistory -> AppIO LocalConnection
 updateLocalConnection c@LocalConnection {..} status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
