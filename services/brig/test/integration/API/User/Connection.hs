@@ -53,12 +53,17 @@ tests cl _at _conf p b _c g =
       test p "post /connections (bad user)" $ testCreateConnectionInvalidUser b,
       test p "post /connections/:domain/:uid (bad user)" $ testCreateConnectionInvalidUserQualified b,
       test p "put /connections/:id accept" $ testAcceptConnection b,
-      test p "put /connections/:id accept" $ testAcceptConnectionQualified b,
+      test p "put /connections/:domain/:id accept" $ testAcceptConnectionQualified b,
       test p "put /connections/:id ignore" $ testIgnoreConnection b,
+      test p "put /connections/:domain/:id ignore" $ testIgnoreConnectionQualified b,
       test p "put /connections/:id cancel" $ testCancelConnection b,
-      test p "put /connections/:id cancel" $ testCancelConnection2 b g,
+      test p "put /connections/:domain/:id cancel" $ testCancelConnectionQualified b,
+      test p "put /connections/:id cancel 2" $ testCancelConnection2 b g,
+      test p "put /connections/:domain/:id cancel 2" $ testCancelConnectionQualified2 b g,
       test p "put /connections/:id block" $ testBlockConnection b,
+      test p "put /connections/:domain/:id block" $ testBlockConnectionQualified b,
       test p "put /connections/:id block-resend" $ testBlockAndResendConnection b g,
+      test p "put /connections/:domain/:id block-resend" $ testBlockAndResendConnectionQualified b g,
       test p "put /connections/:id unblock pending" $ testUnblockPendingConnection b,
       test p "put /connections/:id accept blocked" $ testAcceptWhileBlocked b,
       test p "put /connections/:id bad update" $ testBadUpdateConnection b,
@@ -157,12 +162,11 @@ testCreateMutualConnectionsQualified brig galley = do
 
   case responseJsonMaybe rsp >>= ucConvId of
     Nothing -> liftIO $ assertFailure "incomplete connection"
-    Just (Qualified cnv _) -> do
-      -- TODO: Get these conversations using the non-deprecated qualified endpoint
-      getConversation galley uid1 cnv !!! do
+    Just cnv -> do
+      getConversationQualified galley uid1 cnv !!! do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
-      getConversation galley uid2 cnv !!! do
+      getConversationQualified galley uid2 cnv !!! do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
 
@@ -209,6 +213,20 @@ testIgnoreConnection brig = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
 
+testIgnoreConnectionQualified :: Brig -> Http ()
+testIgnoreConnectionQualified brig = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  -- Initiate a new connection (A -> B)
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  -- B ignores A
+  putConnectionQualified brig uid2 quid1 Ignored !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Sent
+  assertConnectionQualified brig uid2 quid1 Ignored
+  -- B accepts after all
+  putConnectionQualified brig uid2 quid1 Accepted !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Accepted
+  assertConnectionQualified brig uid2 quid1 Accepted
+
 testCancelConnection :: Brig -> Http ()
 testCancelConnection brig = do
   uid1 <- userId <$> randomUser brig
@@ -219,10 +237,24 @@ testCancelConnection brig = do
   putConnection brig uid1 uid2 Cancelled !!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled]
-  -- A changes his mind again
+  -- A changes their mind again
   postConnection brig uid1 uid2 !!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending]
+
+testCancelConnectionQualified :: Brig -> Http ()
+testCancelConnectionQualified brig = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  -- Initiate a new connection (A -> B)
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  -- A cancels the request
+  putConnectionQualified brig uid1 quid2 Cancelled !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Cancelled
+  assertConnectionQualified brig uid2 quid1 Cancelled
+  -- A changes their mind again
+  postConnectionQualified brig uid1 quid2 !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Sent
+  assertConnectionQualified brig uid2 quid1 Pending
 
 testCancelConnection2 :: Brig -> Galley -> Http ()
 testCancelConnection2 brig galley = do
@@ -260,6 +292,43 @@ testCancelConnection2 brig galley = do
   getConversation galley uid1 cnv !!! do
     const 200 === statusCode
   getConversation galley uid2 cnv !!! do
+    const 200 === statusCode
+
+testCancelConnectionQualified2 :: Brig -> Galley -> Http ()
+testCancelConnectionQualified2 brig galley = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  -- Initiate a new connection (A -> B)
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  -- A cancels the request
+  rsp <- putConnectionQualified brig uid1 quid2 Cancelled <!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Cancelled
+  assertConnectionQualified brig uid2 quid1 Cancelled
+  let Just cnv = ucConvId =<< responseJsonMaybe rsp
+  -- A cannot see the conversation (due to cancelling)
+  getConversationQualified galley uid1 cnv !!! do
+    const 403 === statusCode
+  -- B cannot see the conversation
+  getConversationQualified galley uid2 cnv !!! const 403 === statusCode
+  -- B inititates a connection request themselves
+  postConnectionQualified brig uid2 quid1 !!! const 200 === statusCode
+  assertConnectionQualified brig uid2 quid1 Sent
+  assertConnectionQualified brig uid1 quid2 Pending
+  -- B is now a current member of the connect conversation
+  getConversationQualified galley uid2 cnv !!! do
+    const 200 === statusCode
+    const (Just ConnectConv) === \rs -> do
+      conv <- responseJsonMaybe rs
+      Just (cnvType conv)
+  -- A is a past member, cannot see the conversation
+  getConversationQualified galley uid1 cnv !!! do
+    const 403 === statusCode
+  -- A finally accepts
+  putConnectionQualified brig uid1 quid2 Accepted !!! const 200 === statusCode
+  assertConnectionQualified brig uid2 quid1 Accepted
+  assertConnectionQualified brig uid1 quid2 Accepted
+  getConversationQualified galley uid1 cnv !!! do
+    const 200 === statusCode
+  getConversationQualified galley uid2 cnv !!! do
     const 200 === statusCode
 
 testBlockConnection :: Brig -> Http ()
@@ -307,6 +376,53 @@ testBlockConnection brig = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertEmailVisibility brig u2 u1 False
 
+testBlockConnectionQualified :: Brig -> Http ()
+testBlockConnectionQualified brig = do
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  let uid1 = userId u1
+      uid2 = userId u2
+      quid1 = userQualifiedId u1
+      quid2 = userQualifiedId u2
+  -- Initiate a new connection (A -> B)
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  -- Even connected users cannot see each other's email
+  -- (or phone number for that matter).
+  assertEmailVisibility brig u2 u1 False
+  assertEmailVisibility brig u1 u2 False
+  -- B blocks A
+  putConnectionQualified brig uid2 quid1 Blocked !!! const 200 === statusCode
+  -- A does not notice that he got blocked
+  postConnectionQualified brig uid1 quid2 !!! do
+    const 200 === statusCode
+    const (Just Sent) === fmap ucStatus . responseJsonMaybe
+  assertConnectionQualified brig uid2 quid1 Blocked
+  -- B accepts after all
+  putConnectionQualified brig uid2 quid1 Accepted !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Accepted
+  assertConnectionQualified brig uid2 quid1 Accepted
+  assertEmailVisibility brig u1 u2 False
+  -- B blocks A again
+  putConnectionQualified brig uid2 quid1 Blocked !!! const 200 === statusCode
+  assertConnectionQualified brig uid2 quid1 Blocked
+  assertConnectionQualified brig uid1 quid2 Accepted
+  assertEmailVisibility brig u1 u2 False
+  -- B accepts again
+  putConnectionQualified brig uid2 quid1 Accepted !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Accepted
+  assertConnectionQualified brig uid2 quid1 Accepted
+  assertEmailVisibility brig u1 u2 False
+  -- A blocks B
+  putConnectionQualified brig uid1 quid2 Blocked !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Blocked
+  assertConnectionQualified brig uid2 quid1 Accepted
+  assertEmailVisibility brig u2 u1 False
+  -- A accepts B again
+  putConnectionQualified brig uid1 quid2 Accepted !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Accepted
+  assertConnectionQualified brig uid2 quid1 Accepted
+  assertEmailVisibility brig u2 u1 False
+
 testBlockAndResendConnection :: Brig -> Galley -> Http ()
 testBlockAndResendConnection brig galley = do
   u1 <- randomUser brig
@@ -333,6 +449,31 @@ testBlockAndResendConnection brig galley = do
   getConversation galley uid2 cnv !!! const 403 === statusCode
   -- A can see the conversation and is a current member
   getConversation galley uid1 cnv !!! do
+    const 200 === statusCode
+
+testBlockAndResendConnectionQualified :: Brig -> Galley -> Http ()
+testBlockAndResendConnectionQualified brig galley = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  -- Initiate a new connection (A -> B)
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  -- B blocks A
+  putConnectionQualified brig uid2 quid1 Blocked !!! const 200 === statusCode
+  -- A blocks B
+  putConnectionQualified brig uid1 quid2 Blocked !!! const 200 === statusCode
+  -- Cannot resend while blocked, need to unblock first
+  postConnectionQualified brig uid1 quid2 !!! const 403 === statusCode
+  -- Unblock
+  putConnectionQualified brig uid1 quid2 Accepted !!! const 200 === statusCode
+  -- Try to resend the connection request
+  -- B is not actually notified, since he blocked.
+  rsp <- postConnectionQualified brig uid1 quid2 <!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Accepted
+  assertConnectionQualified brig uid2 quid1 Blocked
+  -- B never accepted and thus does not see the conversation
+  let Just cnv = ucConvId =<< responseJsonMaybe rsp
+  getConversationQualified galley uid2 cnv !!! const 403 === statusCode
+  -- A can see the conversation and is a current member
+  getConversationQualified galley uid1 cnv !!! do
     const 200 === statusCode
 
 testUnblockPendingConnection :: Brig -> Http ()
