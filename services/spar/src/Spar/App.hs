@@ -793,14 +793,13 @@ deleteTeam ::
   (HasCallStack, Members '[ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r) =>
   TeamId ->
   Spar r ()
-deleteTeam team = do
-  liftSem $ ScimTokenStore.deleteByTeam team
+deleteTeam team = liftSem $ do
+  ScimTokenStore.deleteByTeam team
   -- Since IdPs are not shared between teams, we can look at the set of IdPs
   -- used by the team, and remove everything related to those IdPs, too.
-  idps <- liftSem $ IdPEffect.getConfigsByTeam team
+  idps <- IdPEffect.getConfigsByTeam team
   for_ idps $ \idp -> do
     let idpid = idp ^. SAML.idpId
         issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    liftSem $ do
-      SAMLUserStore.deleteByIssuer issuer
-      IdPEffect.deleteConfig idpid issuer team
+    SAMLUserStore.deleteByIssuer issuer
+    IdPEffect.deleteConfig idpid issuer team

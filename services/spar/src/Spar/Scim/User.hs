@@ -65,7 +65,7 @@ import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, sparCtxOpts, validateEmailIfExists, wrapMonadClientSem, wrapSpar)
+import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClientSem)
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
@@ -429,12 +429,12 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       lift $ Log.debug (Log.msg $ "createValidScimUser: spar says " <> show storedUser)
 
       -- {(arianvp): these two actions we probably want to make transactional.}
-      lift . wrapSpar $ do
+      lift . wrapMonadClientSem $ do
         -- Store scim timestamps, saml credentials, scim externalId locally in spar.
-        liftSem $ ScimUserTimesStore.write storedUser
+        ScimUserTimesStore.write storedUser
         ST.runValidExternalId
-          (liftSem . (`SAMLUserStore.insert` buid))
-          (\email -> liftSem $ ScimExternalIdStore.insert stiTeam email buid)
+          (`SAMLUserStore.insert` buid)
+          (\email -> ScimExternalIdStore.insert stiTeam email buid)
           veid
 
       -- If applicable, trigger email validation procedure on brig.
@@ -518,9 +518,9 @@ updateVsuUref team uid old new = do
     (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
     _ -> pure ()
 
-  wrapSpar $ do
-    old & ST.runValidExternalId (liftSem . (SAMLUserStore.delete uid)) (liftSem . ScimExternalIdStore.delete team)
-    new & ST.runValidExternalId (liftSem . (`SAMLUserStore.insert` uid)) (\email -> liftSem $ ScimExternalIdStore.insert team email uid)
+  wrapMonadClientSem $ do
+    old & ST.runValidExternalId (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
+    new & ST.runValidExternalId (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
 
   Brig.setBrigUserVeid uid new
 
@@ -609,10 +609,10 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
             Left _ -> pure ()
             Right veid ->
-              lift . wrapSpar $
+              lift . wrapMonadClientSem $
                 ST.runValidExternalId
-                  (liftSem . SAMLUserStore.delete uid)
-                  (liftSem . ScimExternalIdStore.delete stiTeam)
+                  (SAMLUserStore.delete uid)
+                  (ScimExternalIdStore.delete stiTeam)
                   veid
 
           lift . wrapMonadClientSem $ ScimUserTimesStore.delete uid
