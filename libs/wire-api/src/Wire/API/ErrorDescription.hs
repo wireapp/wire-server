@@ -307,9 +307,3 @@ type InvalidOpSelfConv = InvalidOp "invalid operation for self conversation"
 type InvalidOpOne2OneConv = InvalidOp "invalid operation for 1:1 conversations"
 
 type InvalidOpConnectConv = InvalidOp "invalid operation for connect conversation"
-
-type BadPagingState =
-  ErrorDescription
-    500
-    "bad-response"
-    "The paging state cannot be decoded"

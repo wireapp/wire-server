@@ -74,8 +74,8 @@ import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
 import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
-import Wire.API.ErrorDescription (BadPagingState, MissingLegalholdConsent)
-import Wire.API.Routes.MultiTablePaging (MultiTablePagingState (mtpsState), mtpHasMore, mtpPagingState, mtpResults, parseConversationPagingState)
+import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
 import qualified Wire.API.Team.Feature as Public
@@ -457,13 +457,9 @@ rmUser user conn = do
       leaveLocalConversations localConvs
       leaveRemoteConversations lusr remoteConvs
       when (mtpHasMore page) $ do
-        nextState <- case (mtpsState . mtpPagingState) page of
-          Nothing -> pure Nothing
-          Just bs -> case parseConversationPagingState bs of
-            Left _ -> throwErrorDescriptionType @BadPagingState
-            Right p -> pure . Just $ p
-        let usr = lUnqualified lusr
-            nextQuery = GetPaginatedConversationIds nextState range
+        let nextState = mtpPagingState page
+            usr = lUnqualified lusr
+            nextQuery = GetPaginatedConversationIds (Just nextState) range
         newCids <- Query.conversationIdsPageFrom usr nextQuery
         goConvPages lusr range newCids
 
