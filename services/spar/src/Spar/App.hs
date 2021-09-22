@@ -102,6 +102,8 @@ import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
+import Spar.Sem.AssIDStore (AssIDStore)
+import qualified Spar.Sem.AssIDStore as AssIDStore
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
@@ -128,6 +130,7 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -196,10 +199,10 @@ instance Member AReqIDStore r => SPStoreID AuthnRequest (Spar r) where
   unStoreID r = wrapMonadClientSem $ AReqIDStore.unStore r
   isAliveID r = wrapMonadClientSem $ AReqIDStore.isAlive r
 
-instance SPStoreID Assertion (Spar r) where
-  storeID i r = wrapMonadClientWithEnv $ Data.storeAssID i r
-  unStoreID r = wrapMonadClient $ Data.unStoreAssID r
-  isAliveID r = wrapMonadClient $ Data.isAliveAssID r
+instance Member AssIDStore r => SPStoreID Assertion (Spar r) where
+  storeID i r = wrapMonadClientSem $ AssIDStore.store i r
+  unStoreID r = wrapMonadClientSem $ AssIDStore.unStore r
+  isAliveID r = wrapMonadClientSem $ AssIDStore.isAlive r
 
 instance Member IdPEffect.IdP r => SPStoreIdP SparError (Spar r) where
   type IdPConfigExtra (Spar r) = WireIdP
@@ -432,7 +435,8 @@ bindUser buid userref = do
 
 instance
   ( r
-      ~ '[ AReqIDStore,
+      ~ '[ AssIDStore,
+           AReqIDStore,
            ScimExternalIdStore,
            ScimUserTimesStore,
            ScimTokenStore,
@@ -472,6 +476,7 @@ instance
                                 scimUserTimesStoreToCassandra $
                                   scimExternalIdStoreToCassandra $
                                     aReqIDStoreToCassandra $
+                                    assIDStoreToCassandra $
                                       runExceptT $
                                         runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
