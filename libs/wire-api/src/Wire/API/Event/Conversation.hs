@@ -313,7 +313,7 @@ newtype SimpleMembers = SimpleMembers
 
 instance ToSchema SimpleMembers where
   schema =
-    object "Members" $
+    object "SimpleMembers" $
       SimpleMembers
         <$> mMembers .= field "users" (array schema)
         <* (fmap smId . mMembers)

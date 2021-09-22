@@ -708,7 +708,9 @@ instance HasSchemaRef doc => HasField doc SwaggerDoc where
 
 instance HasObject SwaggerDoc NamedSwaggerDoc where
   mkObject name decl = S.NamedSchema (Just name) <$> decl
-  unmkObject = fmap S._namedSchemaSchema
+  unmkObject (WithDeclare d (S.NamedSchema Nothing s)) = WithDeclare d s
+  unmkObject (WithDeclare d (S.NamedSchema (Just n) s)) =
+    WithDeclare (d *> S.declare [(n, s)]) s
 
 instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
   mkArray = fmap f . schemaRef
