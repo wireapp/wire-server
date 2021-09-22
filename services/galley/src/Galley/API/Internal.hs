@@ -32,7 +32,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
-import Data.Qualified (Local, Qualified (..), Remote, lUnqualified, partitionRemoteOrLocalIds', toLocal)
+import Data.Qualified (Local, Qualified (..), Remote, lUnqualified, partitionRemoteOrLocalIds')
 import Data.Range
 import Data.String.Conversions (cs)
 import GHC.TypeLits (AppendSymbol)
@@ -48,7 +48,7 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
-import Galley.API.Util (JSON, isMember, viewFederationDomain)
+import Galley.API.Util (JSON, isMember, qualifyLocal, viewFederationDomain)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -445,9 +445,9 @@ rmUser user conn = do
       nRange1000 = rcast n :: Range 1 1000 Int32
   tids <- Data.teamIdsForPagination user Nothing n
   leaveTeams tids
-  localDomain <- viewFederationDomain
   allConvIds <- Query.conversationIdsPageFrom user (GetPaginatedConversationIds Nothing nRange1000)
-  goConvPages (toLocal (Qualified user localDomain)) nRange1000 allConvIds
+  lusr <- qualifyLocal user
+  goConvPages lusr nRange1000 allConvIds
   Data.eraseClients user
   where
     goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
