@@ -1,9 +1,9 @@
 module Spar.Sem.AReqIDStore where
 
-import Wire.API.User.Saml (AReqId)
-import qualified SAML2.WebSSO.Types as SAML
 import Imports
 import Polysemy
+import qualified SAML2.WebSSO.Types as SAML
+import Wire.API.User.Saml (AReqId)
 
 data AReqIDStore m a where
   Store :: AReqId -> SAML.Time -> AReqIDStore m ()
@@ -11,4 +11,3 @@ data AReqIDStore m a where
   IsAlive :: AReqId -> AReqIDStore m Bool
 
 makeSem ''AReqIDStore
-

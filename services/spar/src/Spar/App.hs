@@ -68,7 +68,9 @@ import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
+import Polysemy.Error
 import Polysemy.Final
+import qualified Polysemy.Reader as ReaderEff
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( Assertion (..),
@@ -98,6 +100,9 @@ import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
+import Spar.Sem.AReqIDStore (AReqIDStore)
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
+import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.IdP (GetIdPResult (..))
@@ -123,11 +128,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
-import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
-import qualified Polysemy.Reader as ReaderEff
-import Polysemy.Error
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -167,7 +167,7 @@ data Env = Env
 instance HasConfig (Spar r) where
   getConfig = asks (saml . sparCtxOpts)
 
-instance HasNow (Spar r) where
+instance HasNow (Spar r)
 
 instance HasCreateUUID (Spar r)
 
@@ -430,9 +430,25 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance (r ~ '[ AReqIDStore
-               , ScimExternalIdStore
-               , ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore, Embed (Cas.Client), ReaderEff.Reader Opts, Error TTLError, Error SparError, Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+instance
+  ( r
+      ~ '[ AReqIDStore,
+           ScimExternalIdStore,
+           ScimUserTimesStore,
+           ScimTokenStore,
+           DefaultSsoCode,
+           IdPEffect.IdP,
+           SAMLUserStore,
+           Embed (Cas.Client),
+           ReaderEff.Reader Opts,
+           Error TTLError,
+           Error SparError,
+           Embed IO,
+           Final IO
+         ]
+  ) =>
+  SPHandler SparError (Spar r)
+  where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -443,21 +459,21 @@ instance (r ~ '[ AReqIDStore
       actionHandler =
         fmap join $
           liftIO $
-          runFinal $
-            embedToFinal @IO $
-              runError @SparError $
-              ttlErrorToSparError $
-              ReaderEff.runReader (sparCtxOpts ctx) $
-              interpretClientToIO (sparCtxCas ctx) $
-                samlUserStoreToCassandra @Cas.Client $
-                  idPToCassandra @Cas.Client $
-                    defaultSsoCodeToCassandra $
-                      scimTokenStoreToCassandra $
-                        scimUserTimesStoreToCassandra $
-                          scimExternalIdStoreToCassandra $
-                            aReqIDStoreToCassandra $
-                              runExceptT $
-                                runReaderT action ctx
+            runFinal $
+              embedToFinal @IO $
+                runError @SparError $
+                  ttlErrorToSparError $
+                    ReaderEff.runReader (sparCtxOpts ctx) $
+                      interpretClientToIO (sparCtxCas ctx) $
+                        samlUserStoreToCassandra @Cas.Client $
+                          idPToCassandra @Cas.Client $
+                            defaultSsoCodeToCassandra $
+                              scimTokenStoreToCassandra $
+                                scimUserTimesStoreToCassandra $
+                                  scimExternalIdStoreToCassandra $
+                                    aReqIDStoreToCassandra $
+                                      runExceptT $
+                                        runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

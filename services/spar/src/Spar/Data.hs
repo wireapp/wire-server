@@ -29,11 +29,9 @@ module Spar.Data
     storeAReqID,
     unStoreAReqID,
     isAliveAReqID,
-
     storeAssID,
     unStoreAssID,
     isAliveAssID,
-
     storeVerdictFormat,
     getVerdictFormat,
 
@@ -175,7 +173,9 @@ nominalDiffToSeconds = round @Double . realToFrac
 
 storeAReqID ::
   (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m) =>
-  AReqId -> SAML.Time -> m ()
+  AReqId ->
+  SAML.Time ->
+  m ()
 storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
   env <- ask
   TTL ttl <- mkTTLAuthnRequests env endOfLife

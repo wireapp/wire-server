@@ -34,10 +34,10 @@ import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
