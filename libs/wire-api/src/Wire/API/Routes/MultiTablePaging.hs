@@ -1,10 +1,30 @@
-module Wire.API.Routes.MultiTablePaging where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Wire.API.Routes.MultiTablePaging
+  ( GetMultiTablePageRequest (..),
+    MultiTablePage (..),
+    LocalOrRemoteTable (..),
+    MultiTablePagingState (..),
+  )
+where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Attoparsec.ByteString as AB
-import qualified Data.ByteString as BS
-import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.Kind
 import Data.Proxy
 import Data.Range
@@ -13,7 +33,17 @@ import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import GHC.TypeLits
 import Imports
+import Wire.API.Routes.MultiTablePaging.State
 
+-- | A request for a page of results from the database. Type arguments:
+--
+--  * @name@   Name of the resources being paginated through
+--  * @tables@ A (usually finite) type that represent the table currently being
+--             used (must be an instance of 'PagingTable'
+--  * @max@    Maximum page size
+--  * @def@    Default page size
+--
+-- See 'ConversationPagingState' for an example.
 data GetMultiTablePageRequest (name :: Symbol) (tables :: Type) (max :: Nat) (def :: Nat) = GetMultiTablePageRequest
   { gmtprSize :: Range 1 max Int32,
     gmtprState :: Maybe (MultiTablePagingState name tables)
@@ -69,38 +99,9 @@ textFromNat = Text.pack . show . natVal $ Proxy @n
 textFromSymbol :: forall s. KnownSymbol s => Text
 textFromSymbol = Text.pack . symbolVal $ Proxy @s
 
-data MultiTablePagingState (name :: Symbol) tables = MultiTablePagingState
-  { mtpsTable :: tables,
-    mtpsState :: Maybe ByteString
-  }
-  deriving stock (Show, Eq)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (MultiTablePagingState name tables)
-
-class PagingTable t where
-  -- Using 'Word8' because 256 tables ought to be enough.
-  encodePagingTable :: t -> Word8
-  decodePagingTable :: MonadFail m => Word8 -> m t
-
-instance (PagingTable tables, KnownSymbol name) => ToSchema (MultiTablePagingState name tables) where
-  schema =
-    (toBase64Text . encodePagingState)
-      .= parsedText (textFromSymbol @name <> "_PagingState") (parseConversationPagingState <=< fromBase64Text)
-
-encodePagingState :: PagingTable tables => MultiTablePagingState name tables -> ByteString
-encodePagingState (MultiTablePagingState table state) =
-  let encodedTable = encodePagingTable table
-      encodedState = fromMaybe "" state
-   in BS.cons encodedTable encodedState
-
-parseConversationPagingState :: PagingTable tables => ByteString -> Either String (MultiTablePagingState name tables)
-parseConversationPagingState = AB.parseOnly conversationPagingStateParser
-
-conversationPagingStateParser :: PagingTable tables => AB.Parser (MultiTablePagingState name tables)
-conversationPagingStateParser = do
-  table <- AB.anyWord8 >>= decodePagingTable
-  state <- (AB.endOfInput $> Nothing) <|> (Just <$> AB.takeByteString <* AB.endOfInput)
-  pure $ MultiTablePagingState table state
-
+-- | The result of a multi-table paginated query. Contains the list of results,
+-- a flag indicating whether there are more, and the state to pass to the next
+-- query.
 data MultiTablePage (name :: Symbol) (resultsKey :: Symbol) (tables :: Type) a = MultiTablePage
   { mtpResults :: [a],
     mtpHasMore :: Bool,
@@ -139,6 +140,8 @@ instance
         <*> mtpHasMore .= field "has_more" schema
         <*> mtpPagingState .= field "paging_state" schema
 
+-- | A type to be used as the @tables@ argument of 'GetMultiTablePageRequest'
+-- when the resources being paginate through are split into local and remote.
 data LocalOrRemoteTable
   = PagingLocals
   | PagingRemotes
