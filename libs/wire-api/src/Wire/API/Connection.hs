@@ -115,8 +115,7 @@ data UserConnection = UserConnection
     ucStatus :: Relation,
     -- | When 'ucStatus' was last changed
     ucLastUpdate :: UTCTimeMillis,
-    -- TODO: Make this qualified
-    ucConvId :: Maybe ConvId
+    ucConvId :: Maybe (Qualified ConvId)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserConnection)
@@ -132,7 +131,9 @@ instance P.ToSchema UserConnection where
           P..= optional (P.field "to" (deprecatedSchema "qualified_to" P.schema))
         <*> ucStatus P..= P.field "status" P.schema
         <*> ucLastUpdate P..= P.field "last_update" P.schema
-        <*> ucConvId P..= P.optField "conversation" Nothing P.schema
+        <*> ucConvId P..= P.optField "qualified_conversation" Nothing P.schema
+        <* (fmap qUnqualified . ucConvId)
+          P..= optional (P.optField "conversation" Nothing (deprecatedSchema "qualified_conversation" P.schema))
 
 modelConnection :: Doc.Model
 modelConnection = Doc.defineModel "Connection" $ do
