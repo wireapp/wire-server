@@ -59,6 +59,7 @@ data ConnectionsStatusRequest = ConnectionsStatusRequest
   deriving (Eq, Show, Generic)
 
 -- TODO: Review if this needs to have Qualified IDs
+-- Maybe not necessary if we implement https://wearezeta.atlassian.net/browse/SQCORE-889 ?
 data UpdateConnectionsInternal
   = BlockForMissingLHConsent UserId [UserId]
   | RemoveLHBlocksInvolving UserId
