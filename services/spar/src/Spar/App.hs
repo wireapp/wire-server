@@ -102,9 +102,10 @@ import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
+import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
 import Spar.Sem.AssIDStore (AssIDStore)
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
+import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.IdP (GetIdPResult (..))
@@ -130,7 +131,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -476,9 +476,9 @@ instance
                                 scimUserTimesStoreToCassandra $
                                   scimExternalIdStoreToCassandra $
                                     aReqIDStoreToCassandra $
-                                    assIDStoreToCassandra $
-                                      runExceptT $
-                                        runReaderT action ctx
+                                      assIDStoreToCassandra $
+                                        runExceptT $
+                                          runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

@@ -86,8 +86,20 @@ app ctx =
   SAML.setHttpCachePolicy $
     serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
 
-api :: Members '[ AssIDStore,
-                  AReqIDStore, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT API (Spar r)
+api ::
+  Members
+    '[ AssIDStore,
+       AReqIDStore,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       ScimTokenStore,
+       DefaultSsoCode,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
+  Opts ->
+  ServerT API (Spar r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck
@@ -96,8 +108,18 @@ api opts =
     :<|> apiScim
     :<|> apiINTERNAL
 
-apiSSO :: Members '[ AssIDStore,
-                     AReqIDStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT APISSO (Spar r)
+apiSSO ::
+  Members
+    '[ AssIDStore,
+       AReqIDStore,
+       ScimTokenStore,
+       DefaultSsoCode,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
+  Opts ->
+  ServerT APISSO (Spar r)
 apiSSO opts =
   SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
     :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))

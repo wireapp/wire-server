@@ -8,9 +8,9 @@ import Polysemy.Error
 import Polysemy.Reader
 import SAML2.WebSSO (fromTime, getNow)
 import qualified Spar.Data as Data
+import Spar.Sem.AReqIDStore.Cassandra ()
 import Spar.Sem.AssIDStore
 import Wire.API.User.Saml (Opts, TTLError)
-import Spar.Sem.AReqIDStore.Cassandra ()
 
 assIDStoreToCassandra ::
   forall m r a.

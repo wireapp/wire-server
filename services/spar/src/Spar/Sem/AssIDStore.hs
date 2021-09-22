@@ -11,4 +11,3 @@ data AssIDStore m a where
   IsAlive :: AssId -> AssIDStore m Bool
 
 makeSem ''AssIDStore
-

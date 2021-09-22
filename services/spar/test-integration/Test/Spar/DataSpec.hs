@@ -30,11 +30,13 @@ import Data.Kind (Type)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
+import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
+import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -49,8 +51,6 @@ import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
-import qualified Spar.Sem.AssIDStore as AssIDStore
-import Polysemy
 
 spec :: SpecWith TestEnv
 spec = do
@@ -256,7 +256,7 @@ testSPStoreID store unstore isalive = do
         eol :: Time <- addTime 5 <$> runSimpleSP getNow
         () <- runSpar $ liftSem $ store xid eol
         () <- runSpar $ liftSem $ unstore xid
-        isit <- runSpar$ liftSem $ isalive xid
+        isit <- runSpar $ liftSem $ isalive xid
         liftIO $ isit `shouldBe` False
 
 -- | Test that when a team is deleted, all relevant data is pruned from the

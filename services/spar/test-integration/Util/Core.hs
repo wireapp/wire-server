@@ -171,6 +171,8 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
 import Polysemy
+import qualified Polysemy.Error as ErrorEff
+import qualified Polysemy.Reader as ReaderEff
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
@@ -179,11 +181,13 @@ import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Spar.App (liftSem, toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
+import Spar.Error (SparError)
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
+import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
@@ -221,10 +225,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
-import Spar.Sem.AssIDStore (AssIDStore)
-import qualified Polysemy.Reader as ReaderEff
-import qualified Polysemy.Error as ErrorEff
-import Spar.Error (SparError)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1262,47 +1262,48 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-type RealInterpretation = '[ AssIDStore,
-                    AReqIDStore,
-                    ScimExternalIdStore,
-                    ScimUserTimesStore,
-                    ScimTokenStore,
-                    DefaultSsoCode,
-                    IdPEffect.IdP,
-                    SAMLUserStore,
-                    Embed (Cas.Client),
-                    ReaderEff.Reader Opts,
-                    ErrorEff.Error TTLError,
-                    ErrorEff.Error SparError,
-                    Embed IO,
-                    Final IO
-                  ]
+type RealInterpretation =
+  '[ AssIDStore,
+     AReqIDStore,
+     ScimExternalIdStore,
+     ScimUserTimesStore,
+     ScimTokenStore,
+     DefaultSsoCode,
+     IdPEffect.IdP,
+     SAMLUserStore,
+     Embed (Cas.Client),
+     ReaderEff.Reader Opts,
+     ErrorEff.Error TTLError,
+     ErrorEff.Error SparError,
+     Embed IO,
+     Final IO
+   ]
 
-runSpar
-    :: (MonadReader TestEnv m, MonadIO m)
-    => Spar.Spar RealInterpretation a
-    -> m a
+runSpar ::
+  (MonadReader TestEnv m, MonadIO m) =>
+  Spar.Spar RealInterpretation a ->
+  m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
     result <-
       fmap join $
-      runFinal $
-        embedToFinal @IO $
-          ErrorEff.runError @SparError $
-            ttlErrorToSparError $
-              ReaderEff.runReader (Spar.sparCtxOpts env) $
-                interpretClientToIO (Spar.sparCtxCas env) $
-                  samlUserStoreToCassandra @Cas.Client $
-                    idPToCassandra @Cas.Client $
-                      defaultSsoCodeToCassandra @Cas.Client $
-                        scimTokenStoreToCassandra @Cas.Client $
-                          scimUserTimesStoreToCassandra @Cas.Client $
-                            scimExternalIdStoreToCassandra @Cas.Client $
-                              aReqIDStoreToCassandra @Cas.Client $
-                              assIDStoreToCassandra @Cas.Client $
-                                runExceptT $
-                                  runReaderT action env
+        runFinal $
+          embedToFinal @IO $
+            ErrorEff.runError @SparError $
+              ttlErrorToSparError $
+                ReaderEff.runReader (Spar.sparCtxOpts env) $
+                  interpretClientToIO (Spar.sparCtxCas env) $
+                    samlUserStoreToCassandra @Cas.Client $
+                      idPToCassandra @Cas.Client $
+                        defaultSsoCodeToCassandra @Cas.Client $
+                          scimTokenStoreToCassandra @Cas.Client $
+                            scimUserTimesStoreToCassandra @Cas.Client $
+                              scimExternalIdStoreToCassandra @Cas.Client $
+                                aReqIDStoreToCassandra @Cas.Client $
+                                  assIDStoreToCassandra @Cas.Client $
+                                    runExceptT $
+                                      runReaderT action env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
