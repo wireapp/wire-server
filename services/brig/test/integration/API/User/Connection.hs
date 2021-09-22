@@ -65,12 +65,17 @@ tests cl _at _conf p b _c g =
       test p "put /connections/:id block-resend" $ testBlockAndResendConnection b g,
       test p "put /connections/:domain/:id block-resend" $ testBlockAndResendConnectionQualified b g,
       test p "put /connections/:id unblock pending" $ testUnblockPendingConnection b,
+      test p "put /connections/:domain/:id unblock pending" $ testUnblockPendingConnectionQualified b,
       test p "put /connections/:id accept blocked" $ testAcceptWhileBlocked b,
+      test p "put /connections/:domain/:id accept blocked" $ testAcceptWhileBlockedQualified b,
       test p "put /connections/:id bad update" $ testBadUpdateConnection b,
+      test p "put /connections/:domain/:id bad update" $ testBadUpdateConnectionQualified b,
       test p "put /connections/:id noop" $ testUpdateConnectionNoop b,
+      test p "put /connections/:domain/:id noop" $ testUpdateConnectionNoopQualified b,
       test p "get /connections - 200 (paging)" $ testLocalConnectionsPaging b,
       test p "post /list-connections - 200 (paging)" $ testAllConnectionsPaging b,
-      test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl
+      test p "post /connections - 400 (max conns)" $ testConnectionLimit b cl,
+      test p "post /connections/:domain/:id - 400 (max conns)" $ testConnectionLimitQualified b cl
     ]
 
 testCreateConnectionInvalidUser :: Brig -> Http ()
@@ -488,6 +493,17 @@ testUnblockPendingConnection brig = do
   assertConnections brig u1 [ConnectionStatus u1 u2 Sent]
   assertConnections brig u2 [ConnectionStatus u2 u1 Pending]
 
+testUnblockPendingConnectionQualified :: Brig -> Http ()
+testUnblockPendingConnectionQualified brig = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  putConnectionQualified brig uid1 quid2 Blocked !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Blocked
+  assertConnectionQualified brig uid2 quid1 Pending
+  putConnectionQualified brig uid1 quid2 Accepted !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Sent
+  assertConnectionQualified brig uid2 quid1 Pending
+
 testAcceptWhileBlocked :: Brig -> Http ()
 testAcceptWhileBlocked brig = do
   u1 <- userId <$> randomUser brig
@@ -500,15 +516,30 @@ testAcceptWhileBlocked brig = do
   assertConnections brig u1 [ConnectionStatus u1 u2 Blocked]
   assertConnections brig u2 [ConnectionStatus u2 u1 Accepted]
 
+testAcceptWhileBlockedQualified :: Brig -> Http ()
+testAcceptWhileBlockedQualified brig = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  putConnectionQualified brig uid1 quid2 Blocked !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Blocked
+  assertConnectionQualified brig uid2 quid1 Pending
+  putConnectionQualified brig uid2 quid1 Accepted !!! const 200 === statusCode
+  assertConnectionQualified brig uid1 quid2 Blocked
+  assertConnectionQualified brig uid2 quid1 Accepted
+
 testUpdateConnectionNoop :: Brig -> Http ()
 testUpdateConnectionNoop brig = do
-  u1 <- randomUser brig
-  u2 <- randomUser brig
-  let uid1 = userId u1
-  let uid2 = userId u2
+  (_, uid1, _, uid2) <- twoRandomUsers brig
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 204 === statusCode
+
+testUpdateConnectionNoopQualified :: Brig -> Http ()
+testUpdateConnectionNoopQualified brig = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  putConnectionQualified brig uid2 quid1 Accepted !!! const 200 === statusCode
+  putConnectionQualified brig uid2 quid1 Accepted !!! const 204 === statusCode
 
 testBadUpdateConnection :: Brig -> Http ()
 testBadUpdateConnection brig = do
@@ -522,6 +553,21 @@ testBadUpdateConnection brig = do
   where
     assertBadUpdate u1 u2 s =
       putConnection brig u1 u2 s !!! do
+        const 403 === statusCode
+        const (Just "bad-conn-update") === fmap Error.label . responseJsonMaybe
+
+testBadUpdateConnectionQualified :: Brig -> Http ()
+testBadUpdateConnectionQualified brig = do
+  (quid1, uid1, quid2, uid2) <- twoRandomUsers brig
+  postConnectionQualified brig uid1 quid2 !!! const 201 === statusCode
+  assertBadUpdate uid1 quid2 Pending
+  assertBadUpdate uid1 quid2 Ignored
+  assertBadUpdate uid1 quid2 Accepted
+  assertBadUpdate uid2 quid1 Sent
+  where
+    assertBadUpdate :: UserId -> Qualified UserId -> Relation -> Http ()
+    assertBadUpdate uid1 quid2 s =
+      putConnectionQualified brig uid1 quid2 s !!! do
         const 403 === statusCode
         const (Just "bad-conn-update") === fmap Error.label . responseJsonMaybe
 
@@ -590,6 +636,31 @@ testConnectionLimit brig (ConnectionLimit l) = do
     newConn from = do
       to <- userId <$> randomUser brig
       postConnection brig from to !!! const 201 === statusCode
+      return to
+    assertLimited = do
+      const 403 === statusCode
+      const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
+
+testConnectionLimitQualified :: Brig -> ConnectionLimit -> Http ()
+testConnectionLimitQualified brig (ConnectionLimit l) = do
+  quid1 <- userQualifiedId <$> randomUser brig
+  let uid1 = qUnqualified quid1
+  (quid2 : _) <- replicateM (fromIntegral l) (newConn uid1)
+  quidX <- userQualifiedId <$> randomUser brig
+  postConnectionQualified brig uid1 quidX !!! assertLimited
+  -- blocked connections do not count towards the limit
+  putConnectionQualified brig uid1 quid2 Blocked !!! const 200 === statusCode
+  postConnectionQualified brig uid1 quidX !!! const 201 === statusCode
+  -- the next send/accept hits the limit again
+  quidY <- userQualifiedId <$> randomUser brig
+  postConnectionQualified brig uid1 quidY !!! assertLimited
+  -- (re-)sending an already accepted connection does not affect the limit
+  postConnectionQualified brig uid1 quidX !!! const 200 === statusCode
+  where
+    newConn :: UserId -> Http (Qualified UserId)
+    newConn from = do
+      to <- userQualifiedId <$> randomUser brig
+      postConnectionQualified brig from to !!! const 201 === statusCode
       return to
     assertLimited = do
       const 403 === statusCode
