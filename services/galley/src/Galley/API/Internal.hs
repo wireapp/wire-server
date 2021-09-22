@@ -32,7 +32,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
-import Data.Qualified (Local, Qualified (..), Remote, partitionRemoteOrLocalIds', toLocal)
+import Data.Qualified (Local, Qualified (..), Remote, lUnqualified, partitionRemoteOrLocalIds', toLocal)
 import Data.Range
 import Data.String.Conversions (cs)
 import GHC.TypeLits (AppendSymbol)
@@ -73,8 +73,9 @@ import Servant.API.Generic
 import Servant.Server
 import Servant.Server.Generic (genericServerT)
 import System.Logger.Class hiding (Path, name)
-import Wire.API.Conversation (ConvIdsPage (..), GetPaginatedConversationIds (..))
-import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
+import Wire.API.ErrorDescription (BadPagingState, MissingLegalholdConsent)
+import Wire.API.Routes.MultiTablePaging (MultiTablePagingState (mtpsState), mtpHasMore, mtpPagingState, mtpResults, parseConversationPagingState)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
 import qualified Wire.API.Team.Feature as Public
@@ -452,18 +453,25 @@ rmUser user conn = do
     goConvPages :: Local UserId -> Range 1 1000 Int32 -> ConvIdsPage -> Galley ()
     goConvPages lusr range page = do
       localDomain <- viewFederationDomain
-      let (remoteConvs, localConvs) = partitionRemoteOrLocalIds' localDomain . pageConvIds $ page
+      let (remoteConvs, localConvs) = partitionRemoteOrLocalIds' localDomain . mtpResults $ page
       leaveLocalConversations localConvs
       leaveRemoteConversations lusr remoteConvs
-      when (pageHasMore page) $ do
-        let usr = qUnqualified . unTagged $ lusr
-            nextQuery = GetPaginatedConversationIds (Just . pagePagingState $ page) range
+      when (mtpHasMore page) $ do
+        nextState <- case (mtpsState . mtpPagingState) page of
+          Nothing -> pure Nothing
+          Just bs -> case parseConversationPagingState bs of
+            Left _ -> throwErrorDescriptionType @BadPagingState
+            Right p -> pure . Just $ p
+        let usr = lUnqualified lusr
+            nextQuery = GetPaginatedConversationIds nextState range
         newCids <- Query.conversationIdsPageFrom usr nextQuery
         goConvPages lusr range newCids
+
     leaveTeams tids = for_ (Cql.result tids) $ \tid -> do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
+
     leaveLocalConversations :: [ConvId] -> Galley ()
     leaveLocalConversations ids = do
       localDomain <- viewFederationDomain
@@ -488,6 +496,7 @@ rmUser user conn = do
       for_
         (maybeList1 (catMaybes pp))
         Intra.push
+
     leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
     leaveRemoteConversations (unTagged -> qusr) cids =
       for_ cids $ \(Tagged cid) -> Update.removeMember qusr Nothing cid qusr
