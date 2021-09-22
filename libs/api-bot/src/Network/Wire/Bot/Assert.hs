@@ -133,4 +133,3 @@ memberJoined from other = \case
     null (toList (smId <$> mMembers (convEvtData m)) \\ [other, from])
       && convEvtFrom m == from
   _ -> False
-

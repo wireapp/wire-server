@@ -799,4 +799,3 @@ getUserNotifications uid = do
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
     batchSize = 100 :: Int
-
