@@ -49,6 +49,8 @@ import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
+import qualified Spar.Sem.AssIDStore as AssIDStore
+import Polysemy
 
 spec :: SpecWith TestEnv
 spec = do
@@ -85,7 +87,7 @@ spec = do
     describe "AuthnRequest" $ do
       testSPStoreID AReqIDStore.store AReqIDStore.unStore AReqIDStore.isAlive
     describe "Assertion" $ do
-      testSPStoreID storeAssID unStoreAssID isAliveAssID
+      testSPStoreID AssIDStore.store AssIDStore.unStore AssIDStore.isAlive
     describe "VerdictFormat" $ do
       context "insert and get are \"inverses\"" $ do
         let check vf = it (show vf) $ do
@@ -222,12 +224,14 @@ spec = do
           idp2' <- runSpar $ liftSem (IdPEffect.getConfig (idp1 ^. idpId))
           liftIO $ idp2' `shouldBe` Nothing
 
+-- TODO(sandy): This function should be more polymorphic over it's polysemy
+-- constraints than using 'RealInterpretation' in full anger.
 testSPStoreID ::
-  forall m (a :: Type).
-  (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a) =>
-  (SAML.ID a -> SAML.Time -> m ()) ->
-  (SAML.ID a -> m ()) ->
-  (SAML.ID a -> m Bool) ->
+  forall (a :: Type).
+  (Typeable a) =>
+  (SAML.ID a -> SAML.Time -> Sem RealInterpretation ()) ->
+  (SAML.ID a -> Sem RealInterpretation ()) ->
+  (SAML.ID a -> Sem RealInterpretation Bool) ->
   SpecWith TestEnv
 testSPStoreID store unstore isalive = do
   describe ("SPStoreID @" <> show (typeRep @a)) $ do
@@ -235,24 +239,24 @@ testSPStoreID store unstore isalive = do
       it "isAliveID is True" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
-        isit <- runSparCassWithEnv $ isalive xid
+        () <- runSpar $ liftSem $ store xid eol
+        isit <- runSpar $ liftSem $ isalive xid
         liftIO $ isit `shouldBe` True
     context "after TTL" $ do
       it "isAliveID returns False" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 2 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
+        () <- runSpar $ liftSem $ store xid eol
         liftIO $ threadDelay 3000000
-        isit <- runSparCassWithEnv $ isalive xid
+        isit <- runSpar $ liftSem $ isalive xid
         liftIO $ isit `shouldBe` False
     context "after call to unstore" $ do
       it "isAliveID returns False" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
-        () <- runSparCassWithEnv $ unstore xid
-        isit <- runSparCassWithEnv $ isalive xid
+        () <- runSpar $ liftSem $ store xid eol
+        () <- runSpar $ liftSem $ unstore xid
+        isit <- runSpar$ liftSem $ isalive xid
         liftIO $ isit `shouldBe` False
 
 -- | Test that when a team is deleted, all relevant data is pruned from the
