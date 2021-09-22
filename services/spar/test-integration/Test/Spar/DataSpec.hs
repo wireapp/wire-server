@@ -37,6 +37,7 @@ import Spar.Intra.Brig (veidFromUserSSOId)
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -68,7 +69,7 @@ spec = do
       (_, _, (^. SAML.idpId) -> idpid) <- registerTestIdP
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
-          probe = runSparCass $ isAliveAReqID (req ^. SAML.rqID)
+          probe = runSpar $ liftSem $ AReqIDStore.isAlive (req ^. SAML.rqID)
           maxttl :: Int -- musec
           maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
       liftIO $ maxttl `shouldSatisfy` (< 60 * 1000 * 1000) -- otherwise the test will be really slow.
@@ -82,7 +83,7 @@ spec = do
       liftIO $ p3 `shouldBe` False -- 1.5 lifetimes after birth
   describe "cql binding" $ do
     describe "AuthnRequest" $ do
-      testSPStoreID storeAReqID unStoreAReqID isAliveAReqID
+      testSPStoreID AReqIDStore.store AReqIDStore.unStore AReqIDStore.isAlive
     describe "Assertion" $ do
       testSPStoreID storeAssID unStoreAssID isAliveAssID
     describe "VerdictFormat" $ do

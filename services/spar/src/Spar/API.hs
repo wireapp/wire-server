@@ -73,6 +73,7 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
@@ -84,7 +85,7 @@ app ctx =
   SAML.setHttpCachePolicy $
     serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
 
-api :: Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT API (Spar r)
+api :: Members '[AReqIDStore, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT API (Spar r)
 api opts =
   apiSSO opts
     :<|> authreqPrecheck
@@ -93,7 +94,7 @@ api opts =
     :<|> apiScim
     :<|> apiINTERNAL
 
-apiSSO :: Members '[ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT APISSO (Spar r)
+apiSSO :: Members '[AReqIDStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore] r => Opts -> ServerT APISSO (Spar r)
 apiSSO opts =
   SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
     :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
@@ -131,7 +132,7 @@ authreqPrecheck msucc merr idpid =
     *> return NoContent
 
 authreq ::
-  Member IdPEffect.IdP r =>
+  Members '[AReqIDStore, IdPEffect.IdP] r =>
   NominalDiffTime ->
   DoInitiate ->
   Maybe UserId ->
@@ -187,7 +188,7 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: forall r. Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
+authresp :: forall r. Members '[AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
 authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie

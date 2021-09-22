@@ -123,6 +123,11 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
+import Spar.Sem.AReqIDStore (AReqIDStore)
+import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
+import qualified Polysemy.Reader as ReaderEff
+import Polysemy.Error
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -162,7 +167,7 @@ data Env = Env
 instance HasConfig (Spar r) where
   getConfig = asks (saml . sparCtxOpts)
 
-instance HasNow (Spar r)
+instance HasNow (Spar r) where
 
 instance HasCreateUUID (Spar r)
 
@@ -186,10 +191,10 @@ toLevel = \case
   SAML.Debug -> Log.Debug
   SAML.Trace -> Log.Trace
 
-instance SPStoreID AuthnRequest (Spar r) where
-  storeID i r = wrapMonadClientWithEnv $ Data.storeAReqID i r
-  unStoreID r = wrapMonadClient $ Data.unStoreAReqID r
-  isAliveID r = wrapMonadClient $ Data.isAliveAReqID r
+instance Member AReqIDStore r => SPStoreID AuthnRequest (Spar r) where
+  storeID i r = wrapMonadClientSem $ AReqIDStore.store i r
+  unStoreID r = wrapMonadClientSem $ AReqIDStore.unStore r
+  isAliveID r = wrapMonadClientSem $ AReqIDStore.isAlive r
 
 instance SPStoreID Assertion (Spar r) where
   storeID i r = wrapMonadClientWithEnv $ Data.storeAssID i r
@@ -425,7 +430,9 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> Intra.setStatus buid Active
 
-instance (r ~ '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore, Embed (Cas.Client), Embed IO, Final IO]) => SPHandler SparError (Spar r) where
+instance (r ~ '[ AReqIDStore
+               , ScimExternalIdStore
+               , ScimUserTimesStore, ScimTokenStore, DefaultSsoCode, IdPEffect.IdP, SAMLUserStore, Embed (Cas.Client), ReaderEff.Reader Opts, Error TTLError, Error SparError, Embed IO, Final IO]) => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -434,9 +441,13 @@ instance (r ~ '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, Default
     where
       actionHandler :: Handler (Either SparError a)
       actionHandler =
-        liftIO $
+        fmap join $
+          liftIO $
           runFinal $
             embedToFinal @IO $
+              runError @SparError $
+              ttlErrorToSparError $
+              ReaderEff.runReader (sparCtxOpts ctx) $
               interpretClientToIO (sparCtxCas ctx) $
                 samlUserStoreToCassandra @Cas.Client $
                   idPToCassandra @Cas.Client $
@@ -444,8 +455,9 @@ instance (r ~ '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, Default
                       scimTokenStoreToCassandra $
                         scimUserTimesStoreToCassandra $
                           scimExternalIdStoreToCassandra $
-                            runExceptT $
-                              runReaderT action ctx
+                            aReqIDStoreToCassandra $
+                              runExceptT $
+                                runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

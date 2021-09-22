@@ -195,6 +195,8 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.AReqIDStore (AReqIDStore)
+import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -1254,7 +1256,7 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[ScimExternalIdStore, ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Embed Client, Embed IO, Final IO] a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[AReqIDStore, ScimExternalIdStore, ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
@@ -1268,8 +1270,9 @@ runSpar (Spar.Spar action) = do
                   defaultSsoCodeToCassandra @Cas.Client $
                     scimUserTimesStoreToCassandra @Cas.Client $
                       scimExternalIdStoreToCassandra @Cas.Client $
-                        runExceptT $
-                          action `runReaderT` env
+                        aReqIDStoreToCassandra @Cas.Client $
+                          runExceptT $
+                            action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
