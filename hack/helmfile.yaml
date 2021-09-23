@@ -27,7 +27,7 @@ releases:
     values:
       - './helm_vars/fake-aws/values.yaml'
 
-  - name: 'fake-aws'
+  - name: 'fake-aws-2'
     namespace: {{ .Values.namespaceFed2 }}
     chart: '../.local/charts/fake-aws'
     values:
@@ -37,7 +37,7 @@ releases:
     namespace: {{ .Values.namespace }}
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: 'databases-ephemeral'
+  - name: 'databases-ephemeral-2'
     namespace: {{ .Values.namespaceFed2 }}
     chart: '../.local/charts/databases-ephemeral'
 
@@ -47,7 +47,7 @@ releases:
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: 'nginx-ingress-controller'
+  - name: 'nginx-ingress-controller-2'
     namespace: {{ .Values.namespaceFed2 }}
     chart: '../.local/charts/nginx-ingress-controller'
     values:
@@ -66,7 +66,7 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
 
-  - name: 'nginx-ingress-services'
+  - name: 'nginx-ingress-services-2'
     namespace: {{ .Values.namespaceFed2 }}
     chart: '../.local/charts/nginx-ingress-services'
     values:
@@ -91,7 +91,7 @@ releases:
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain }}
 
-  - name: 'wire-server'
+  - name: 'wire-server-2'
     namespace: {{ .Values.namespaceFed2 }}
     chart: '../.local/charts/wire-server'
     values:

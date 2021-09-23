@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
 
-set -e
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOP_LEVEL="$DIR/../.."
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+NAMESPACE=${NAMESPACE:-test-integration}
+export NAMESPACE_1=$NAMESPACE
+export NAMESPACE_2=$NAMESPACE_1-fed2
+export FEDERATION_DOMAIN_1="." # doesn't matter for destruction
+export FEDERATION_DOMAIN_2="." # doesn't matter for destruction
 
-export NAMESPACE=${NAMESPACE:-test-integration}
+set -ex
 
-$DIR/integration-teardown.sh
-
-# The suffix '-fed2' must be kept in sync with configuration inside
-# charts/brig/templates/tests/configmap.yaml and
-# hack/bin/integration-setup-federation.sh
-export NAMESPACE=${NAMESPACE}-fed2
-
-$DIR/integration-teardown.sh
+helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy
