@@ -22,7 +22,6 @@ module Util.Scim where
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
-import Cassandra
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
@@ -35,9 +34,10 @@ import Data.UUID.V4 as UUID
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
-import Spar.Data as Data
+import Spar.App (liftSem)
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
+import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
 import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
@@ -75,23 +75,23 @@ registerIdPAndScimTokenWithMeta = do
 -- | Create a fresh SCIM token and register it for the team.
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
-  env <- ask
   tok <-
     ScimToken <$> do
       code <- liftIO UUID.nextRandom
       pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
-  runClient (env ^. teCql) $
-    Data.insertScimToken
-      tok
-      ScimTokenInfo
-        { stiTeam = teamid,
-          stiId = scimTokenId,
-          stiCreatedAt = now,
-          stiIdP = midpid,
-          stiDescr = "test token"
-        }
+  runSpar $
+    liftSem $
+      ScimTokenStore.insert
+        tok
+        ScimTokenInfo
+          { stiTeam = teamid,
+            stiId = scimTokenId,
+            stiCreatedAt = now,
+            stiIdP = midpid,
+            stiDescr = "test token"
+          }
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered

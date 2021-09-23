@@ -32,7 +32,6 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), accountStatus, accountUser)
 import Brig.Types.User as Brig
-import Cassandra
 import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Except (MonadError (throwError))
@@ -61,12 +60,12 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Spar.App (liftSem)
-import Spar.Data (lookupScimExternalId)
-import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
-import qualified Spar.Sem.SAMLUser as SAMLUser
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import qualified Text.XML.DSig as SAML
 import qualified URI.ByteString as URI
 import Util
@@ -1319,7 +1318,7 @@ testUpdateExternalId withidp = do
       lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
         runValidExternalId
-          (runSpar . liftSem . SAMLUser.get)
+          (runSpar . liftSem . SAMLUserStore.get)
           ( \email -> do
               let action = SU.scimFindUserByEmail midp tid $ fromEmail email
               result <- runSpar . runExceptT . runMaybeT $ action
@@ -1538,7 +1537,7 @@ specDeleteUser = do
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
       scimUser <-
-        aFewTimes (runSparCass $ Data.readScimUserTimes uid) isNothing
+        aFewTimes (runSpar $ liftSem $ ScimUserTimesStore.read uid) isNothing
       liftIO $
         (brigUser, samlUser, scimUser)
           `shouldBe` (Nothing, Nothing, Nothing)
@@ -1719,7 +1718,6 @@ testDeletedUsersFreeExternalIdNoIdp = do
   env <- ask
   let brig = env ^. teBrig
   let spar = env ^. teSpar
-  let clientState = env ^. teCql
 
   (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
@@ -1743,7 +1741,7 @@ testDeletedUsersFreeExternalIdNoIdp = do
 
   void $
     aFewTimes
-      (runClient clientState $ lookupScimExternalId tid email)
+      (runSpar $ liftSem $ ScimExternalIdStore.lookup tid email)
       (== Nothing)
 
 specSCIMManaged :: SpecWith TestEnv

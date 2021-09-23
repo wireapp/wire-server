@@ -175,17 +175,26 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (liftMonadClient, liftSem, toLevel)
+import Spar.App (liftSem, toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
+import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
+import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
-import Spar.Sem.SAMLUser (SAMLUser)
-import qualified Spar.Sem.SAMLUser as SAMLUser
-import Spar.Sem.SAMLUser.Cassandra
+import Spar.Sem.SAMLUserStore (SAMLUserStore)
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.SAMLUserStore.Cassandra
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
+import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -1211,8 +1220,8 @@ ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
   runSpar $
     runValidExternalId
-      (liftSem . SAMLUser.get)
-      (liftMonadClient . Data.lookupScimExternalId tid)
+      (liftSem . SAMLUserStore.get)
+      (liftSem . ScimExternalIdStore.lookup tid)
       veid
 
 runSparCass ::
@@ -1245,11 +1254,22 @@ runSimpleSP action = do
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
-runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[IdPEffect.IdP, SAMLUser, Embed Client, Embed IO, Final IO] a -> m a
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar '[ScimExternalIdStore, ScimUserTimesStore, DefaultSsoCode, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Embed Client, Embed IO, Final IO] a -> m a
 runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- runFinal $ embedToFinal @IO $ interpretClientToIO (Spar.sparCtxCas env) $ samlUserToCassandra @Cas.Client $ idPToCassandra @Cas.Client $ runExceptT $ action `runReaderT` env
+    result <-
+      runFinal $
+        embedToFinal @IO $
+          interpretClientToIO (Spar.sparCtxCas env) $
+            samlUserStoreToCassandra @Cas.Client $
+              idPToCassandra @Cas.Client $
+                scimTokenStoreToCassandra @Cas.Client $
+                  defaultSsoCodeToCassandra @Cas.Client $
+                    scimUserTimesStoreToCassandra @Cas.Client $
+                      scimExternalIdStoreToCassandra @Cas.Client $
+                        runExceptT $
+                          action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
@@ -1270,7 +1290,7 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
-  aFewTimes (runSpar $ liftSem $ SAMLUser.get uref) isJust
+  aFewTimes (runSpar $ liftSem $ SAMLUserStore.get uref) isJust
 
 checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
 checkErr status mlabel = do

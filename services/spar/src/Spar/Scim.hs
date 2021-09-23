@@ -83,7 +83,10 @@ import Spar.Error
 import Spar.Scim.Auth
 import Spar.Scim.User
 import qualified Spar.Sem.IdP as IdPEffect
-import Spar.Sem.SAMLUser (SAMLUser)
+import Spar.Sem.SAMLUserStore (SAMLUserStore)
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import Spar.Sem.ScimTokenStore (ScimTokenStore)
+import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
@@ -101,7 +104,9 @@ import Wire.API.User.Scim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
-apiScim :: Members [IdPEffect.IdP, SAMLUser] r => ServerT APIScim (Spar r)
+apiScim ::
+  Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
     :<|> apiScimToken
