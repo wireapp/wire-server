@@ -244,14 +244,9 @@ instance A.ToJSON ScimUserExtra where
 instance QC.Arbitrary ScimUserExtra where
   arbitrary = ScimUserExtra <$> QC.arbitrary
 
-instance QC.Arbitrary (RI.WithNormalizedRichFields ScimUserExtra) where
-  arbitrary = do
-    RI.WithNormalizedRichFields ri <- QC.arbitrary
-    pure . RI.WithNormalizedRichFields . ScimUserExtra $ ri
-
-instance QC.Arbitrary (RI.WithNormalizedRichFields (Scim.User SparTag)) where
+instance QC.Arbitrary (Scim.User SparTag) where
   arbitrary =
-    RI.WithNormalizedRichFields <$> (addFields =<< (Scim.empty <$> genSchemas <*> genUserName <*> genExtra))
+    addFields =<< (Scim.empty <$> genSchemas <*> genUserName <*> genExtra)
     where
       addFields :: Scim.User.User tag -> QC.Gen (Scim.User.User tag)
       addFields usr = do
@@ -274,13 +269,13 @@ instance QC.Arbitrary (RI.WithNormalizedRichFields (Scim.User SparTag)) where
       genUserName = cs . QC.getPrintableString <$> QC.arbitrary
 
       genExtra :: QC.Gen ScimUserExtra
-      genExtra = RI.fromWithNormalizedRichFields <$> QC.arbitrary
+      genExtra = QC.arbitrary
 
 instance Scim.Patchable ScimUserExtra where
   applyOperation (ScimUserExtra (RI.RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema sch)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
     | sch == RI.richInfoMapURN =
       let rinf = RI.richInfoMap $ RI.fromRichInfoAssocList rinfRaw
-          unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . (`RI.RichInfoMapAndList` mempty)
+          unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . RI.mkRichInfoMapAndList . fmap (uncurry RI.RichField) . Map.assocs
        in unrinf <$> case o of
             Scim.Remove ->
               pure $ Map.delete ciAttrName rinf
@@ -291,7 +286,7 @@ instance Scim.Patchable ScimUserExtra where
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | sch == RI.richInfoAssocListURN =
       let rinf = RI.richInfoAssocList $ RI.fromRichInfoAssocList rinfRaw
-          unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . (mempty `RI.RichInfoMapAndList`)
+          unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . RI.mkRichInfoMapAndList
           matchesAttrName (RI.RichField k _) = k == ciAttrName
        in unrinf <$> case o of
             Scim.Remove ->

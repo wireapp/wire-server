@@ -554,10 +554,10 @@ testLocation = do
 
 testRichInfo :: TestSpar ()
 testRichInfo = do
-  let richInfo = RichInfo (RichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
-      richInfoOverwritten = RichInfo (RichInfoAssocList [RichField "Platforms" "Windows10"])
-      richInfoPatchedMap = RichInfo (RichInfoAssocList [RichField "Platforms" "Arch, BTW"])
-      richInfoPatchedList = RichInfo (RichInfoAssocList [RichField "Platforms" "none"])
+  let richInfo = RichInfo (mkRichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
+      richInfoOverwritten = RichInfo (mkRichInfoAssocList [RichField "Platforms" "Windows10"])
+      richInfoPatchedMap = RichInfo (mkRichInfoAssocList [RichField "Platforms" "Arch, BTW"])
+      richInfoPatchedList = RichInfo (mkRichInfoAssocList [RichField "Platforms" "none"])
       (Aeson.Success patchOpMap) =
         fromJSON
           [aesonQQ|{

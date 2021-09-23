@@ -22,23 +22,24 @@
 module Wire.API.User.RichInfo
   ( -- * RichInfo
     RichInfo (..),
-    toRichInfoAssocList,
-    fromRichInfoAssocList,
     richInfoSize,
     richInfoMapURN,
 
     -- * RichInfoMapAndList
-    RichInfoMapAndList (..),
+    RichInfoMapAndList (richInfoMap, richInfoAssocList),
+    mkRichInfoMapAndList,
+    toRichInfoAssocList,
+    fromRichInfoAssocList,
 
     -- * RichInfoAssocList
-    RichInfoAssocList (..),
+    RichInfoAssocList (unRichInfoAssocList),
+    mkRichInfoAssocList,
     normalizeRichInfoAssocList,
     richInfoAssocListFromObject,
     richInfoAssocListURN,
 
     -- * RichField
     RichField (..),
-    WithNormalizedRichFields (..),
 
     -- * Swagger
     modelRichInfo,
@@ -78,9 +79,6 @@ instance FromJSON RichInfo where
 instance Arbitrary RichInfo where
   arbitrary = RichInfo <$> arbitrary
 
-instance Arbitrary (WithNormalizedRichFields RichInfo) where
-  arbitrary = WithNormalizedRichFields . RichInfo . fromWithNormalizedRichFields <$> arbitrary
-
 instance Monoid RichInfo where
   mempty = RichInfo mempty
 
@@ -109,6 +107,46 @@ data RichInfoMapAndList = RichInfoMapAndList
     richInfoAssocList :: [RichField]
   }
   deriving stock (Eq, Show, Generic)
+
+-- | Uses 'normalizeRichInfoMapAndList'.
+mkRichInfoMapAndList :: [RichField] -> RichInfoMapAndList
+mkRichInfoMapAndList = normalizeRichInfoMapAndList . RichInfoMapAndList mempty
+
+-- | Remove fields with @""@ values; make both map and assoc list contain the union of their
+-- data; handle case insensitivity.  See also: 'normalizeRichInfo'.
+normalizeRichInfoMapAndList :: RichInfoMapAndList -> RichInfoMapAndList
+normalizeRichInfoMapAndList = fromRichInfoAssocList . toRichInfoAssocList
+
+-- | Lossy transformation of map-and-list representation into list-only representation.  The
+-- order of the list part of 'RichInfo' is not changed in the output; keys in the map that do
+-- not appear in the list are appended in alpha order.
+--
+-- Uses 'mkRichInfoAssocList'; used as one half of 'normalizeRichInfoAssocList'.
+toRichInfoAssocList :: RichInfoMapAndList -> RichInfoAssocList
+toRichInfoAssocList (RichInfoMapAndList mp al) =
+  mkRichInfoAssocList $ foldl' go al (Map.toAscList mp)
+  where
+    go :: [RichField] -> (CI Text, Text) -> [RichField]
+    go rfs (key, val) =
+      case break (\(RichField rfKey _) -> rfKey == key) rfs of
+        (xs, []) -> xs <> [RichField key val]
+        (xs, (_ : ys)) -> xs <> [RichField key val] <> ys
+
+-- | This is called by spar to recover the more type that also contains a map.  Since we don't
+-- know where the data came from when it was posted or where the SCIM peer expects the data to
+-- be (map or assoc list), we copy the assoc list into the map, and provide all attributes
+-- twice.
+--
+-- Used as the other half of 'normalizeRichInfoAssocList' (next to 'toRichInfoAssocList'.
+fromRichInfoAssocList :: RichInfoAssocList -> RichInfoMapAndList
+fromRichInfoAssocList (RichInfoAssocList riList) =
+  RichInfoMapAndList
+    { richInfoMap = riMap,
+      richInfoAssocList = riList'
+    }
+  where
+    riList' = normalizeRichInfoAssocListInt riList
+    riMap = Map.fromList $ (\(RichField k v) -> (k, v)) <$> riList'
 
 -- | TODO: this is model is wrong, it says nothing about the map part.
 modelRichInfo :: Doc.Model
@@ -150,6 +188,7 @@ instance FromJSON RichInfoMapAndList where
           Nothing -> pure mempty
           Just innerObj -> do
             Map.mapKeys CI.mk <$> parseJSON innerObj
+
       extractAssocList :: HashMap (CI Text) Value -> Aeson.Parser [RichField]
       extractAssocList o =
         case HM.lookup (CI.mk richInfoAssocListURN) o of
@@ -163,46 +202,17 @@ instance FromJSON RichInfoMapAndList where
               Array fields -> parseJSON (Array fields)
               v -> Aeson.typeMismatch "Object" v
           Just v -> Aeson.typeMismatch "Object" v
+
       hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
       hmMapKeys f = HashMap.fromList . (map (\(k, v) -> (f k, v))) . HashMap.toList
+
       lookupOrFail :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
       lookupOrFail key theMap = case HM.lookup key theMap of
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
         Just v -> return v
 
 instance Arbitrary RichInfoMapAndList where
-  arbitrary = do
-    RichInfoAssocList richInfoAssocList <- arbitrary
-    richInfoMap <- arbitrary
-    pure RichInfoMapAndList {..}
-
-instance Arbitrary (WithNormalizedRichFields RichInfoMapAndList) where
-  arbitrary = do
-    al <- unRichInfoAssocList . fromWithNormalizedRichFields <$> arbitrary
-    let mp = Map.fromList $ (\(RichField key val) -> (key, val)) <$> al
-    pure . WithNormalizedRichFields $ RichInfoMapAndList mp al
-
--- | Lossy transformation of map-and-list representation into list-only representation.  The
--- order of the list part of 'RichInfo' is not changed in the output; keys in the map that do
--- not appear in the list are appended in alpha order.
-toRichInfoAssocList :: RichInfoMapAndList -> RichInfoAssocList
-toRichInfoAssocList (RichInfoMapAndList mp al) =
-  RichInfoAssocList $ foldl' go al (Map.toAscList mp)
-  where
-    go :: [RichField] -> (CI Text, Text) -> [RichField]
-    go rfs (key, val) =
-      case break (\(RichField rfKey _) -> rfKey == key) rfs of
-        (xs, []) -> xs <> [RichField key val]
-        (xs, (_ : ys)) -> xs <> [RichField key val] <> ys
-
--- | This is called by spar to recover the more type that also contains a map.  Since we don't
--- know where the data came from when it was posted or where the SCIM peer expects the data to
--- be (map or assoc list), we copy the assoc list into the map, and provide all attributes
--- twice.
-fromRichInfoAssocList :: RichInfoAssocList -> RichInfoMapAndList
-fromRichInfoAssocList (RichInfoAssocList riList) = RichInfoMapAndList riMap riList
-  where
-    riMap = Map.fromList $ map (\(RichField key value) -> (key, value)) riList
+  arbitrary = mkRichInfoMapAndList <$> arbitrary
 
 -- | Uniform Resource Names used for serialization of 'RichInfo'.
 richInfoMapURN, richInfoAssocListURN :: Text
@@ -214,6 +224,16 @@ richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
 newtype RichInfoAssocList = RichInfoAssocList {unRichInfoAssocList :: [RichField]}
   deriving stock (Eq, Show, Generic)
+
+-- | Uses 'normalizeRichInfoAssocList'.
+mkRichInfoAssocList :: [RichField] -> RichInfoAssocList
+mkRichInfoAssocList = normalizeRichInfoAssocList . RichInfoAssocList
+
+normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
+normalizeRichInfoAssocList = RichInfoAssocList . normalizeRichInfoAssocListInt . unRichInfoAssocList
+
+normalizeRichInfoAssocListInt :: [RichField] -> [RichField]
+normalizeRichInfoAssocListInt = nubOrdOn richFieldType . filter ((/= mempty) . richFieldValue)
 
 instance Monoid RichInfoAssocList where
   mempty = RichInfoAssocList mempty
@@ -230,7 +250,7 @@ instance ToJSON RichInfoAssocList where
 
 instance FromJSON RichInfoAssocList where
   parseJSON v =
-    RichInfoAssocList <$> withObject "RichInfoAssocList" richInfoAssocListFromObject v
+    mkRichInfoAssocList <$> withObject "RichInfoAssocList" richInfoAssocListFromObject v
 
 richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
 richInfoAssocListFromObject richinfoObj = do
@@ -247,10 +267,8 @@ richInfoAssocListFromObject richinfoObj = do
         ds -> fail ("duplicate fields: " <> show (map head ds))
 
 instance Arbitrary RichInfoAssocList where
-  arbitrary = RichInfoAssocList <$> nubOrdOn richFieldType <$> arbitrary
-
-instance Arbitrary (WithNormalizedRichFields RichInfoAssocList) where
-  arbitrary = WithNormalizedRichFields . normalizeRichInfoAssocList <$> arbitrary
+  arbitrary = mkRichInfoAssocList <$> arbitrary
+  shrink (RichInfoAssocList things) = RichInfoAssocList <$> QC.shrink things
 
 --------------------------------------------------------------------------------
 -- RichField
@@ -292,12 +310,6 @@ instance Arbitrary RichField where
       <$> (CI.mk . cs . QC.getPrintableString <$> arbitrary)
       <*> (cs . QC.getPrintableString <$> arbitrary)
 
-----------------------------------------------------------------------
--- WithNormalizedRichFields
-
-newtype WithNormalizedRichFields a = WithNormalizedRichFields {fromWithNormalizedRichFields :: a}
-  deriving newtype (Eq, Ord, Show, Generic)
-
 --------------------------------------------------------------------------------
 -- convenience functions
 
@@ -308,15 +320,3 @@ newtype WithNormalizedRichFields a = WithNormalizedRichFields {fromWithNormalize
 -- if our JSON encoding changes, existing payloads might become unacceptable.
 richInfoSize :: RichInfo -> Int
 richInfoSize (RichInfo (RichInfoAssocList fields)) = sum [Text.length (CI.original t) + Text.length v | RichField t v <- fields]
-
--- | Remove fields with @""@ values.  See also: 'canonicalizeRichInfo'.
-normalizeRichInfoMapAndList :: RichInfoMapAndList -> RichInfoMapAndList
-normalizeRichInfoMapAndList (RichInfoMapAndList rifMap assocList) =
-  RichInfoMapAndList
-    { richInfoAssocList = filter (not . Text.null . richFieldValue) assocList,
-      richInfoMap = rifMap
-    }
-
-normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
-normalizeRichInfoAssocList (RichInfoAssocList l) =
-  RichInfoAssocList $ filter (not . Text.null . richFieldValue) l
