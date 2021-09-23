@@ -6,9 +6,10 @@ helmDefaults:
 environments:
   default:
     values:
-      # - ./helmfile_globals.yaml
-      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN" }}
-      - namespace: {{ requiredEnv "NAMESPACE" }}
+      - namespace: {{ requiredEnv "NAMESPACE_1" }}
+      - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
+      - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
+      - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
 
 repositories:
   - name: stable
@@ -16,6 +17,8 @@ repositories:
 
 # TODO: explore setting HELM_HOME so this list of repositories doesn't end up polluting the end user's global helm state.
 # TODO explore: have helmfile do the interpolation (and skip the "make charts" step)
+#
+# TODO: get rid of wrapper charts, use helmfile for pinning
 
 releases:
   - name: 'fake-aws'
@@ -24,12 +27,28 @@ releases:
     values:
       - './helm_vars/fake-aws/values.yaml'
 
+  - name: 'fake-aws'
+    namespace: {{ .Values.namespaceFed2 }}
+    chart: '../.local/charts/fake-aws'
+    values:
+      - './helm_vars/fake-aws/values.yaml'
+
   - name: 'databases-ephemeral'
     namespace: {{ .Values.namespace }}
     chart: '../.local/charts/databases-ephemeral'
 
+  - name: 'databases-ephemeral'
+    namespace: {{ .Values.namespaceFed2 }}
+    chart: '../.local/charts/databases-ephemeral'
+
   - name: 'nginx-ingress-controller'
     namespace: {{ .Values.namespace }}
+    chart: '../.local/charts/nginx-ingress-controller'
+    values:
+      - './helm_vars/nginx-ingress-controller/values.yaml'
+
+  - name: 'nginx-ingress-controller'
+    namespace: {{ .Values.namespaceFed2 }}
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
@@ -39,7 +58,7 @@ releases:
     chart: '../.local/charts/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml'
-      - './helm_vars/nginx-ingress-services/certificates.yaml'
+      - './helm_vars/nginx-ingress-services/certificates-namespace1.yaml'
     set:
       # Federation domain is also the SRV record created by the
       # federation-test-helper service. Maybe we can find a way to make these
@@ -47,14 +66,39 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
 
+  - name: 'nginx-ingress-services'
+    namespace: {{ .Values.namespaceFed2 }}
+    chart: '../.local/charts/nginx-ingress-services'
+    values:
+      - './helm_vars/nginx-ingress-services/values.yaml'
+      - './helm_vars/nginx-ingress-services/certificates-namespace2.yaml'
+    set:
+      # Federation domain is also the SRV record created by the
+      # federation-test-helper service. Maybe we can find a way to make these
+      # differ, so we don't make any silly assumptions in the code.
+      - name: config.dns.federator
+        value: {{ .Values.federationDomainFed2 }}
+
   - name: 'wire-server'
     namespace: {{ .Values.namespace }}
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml'
-      - './helm_vars/wire-server/certificates.yaml'
+      - './helm_vars/wire-server/certificates-namespace1.yaml'
     set:
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain }}
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain }}
+
+  - name: 'wire-server'
+    namespace: {{ .Values.namespaceFed2 }}
+    chart: '../.local/charts/wire-server'
+    values:
+      - './helm_vars/wire-server/values.yaml'
+      - './helm_vars/wire-server/certificates-namespace2.yaml'
+    set:
+      - name: brig.config.optSettings.setFederationDomain
+        value: {{ .Values.federationDomainFed2 }}
+      - name: galley.config.settings.federationDomain
+        value: {{ .Values.federationDomainFed2 }}

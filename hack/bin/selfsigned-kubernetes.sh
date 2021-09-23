@@ -6,6 +6,7 @@
 # (The CA certificates are assumed to be re-used across the domains A and B for end2end integration tests.)
 
 set -ex
+SUFFIX=${1:?"need suffix argument"}
 TEMP=${TEMP:-/tmp}
 CSR="$TEMP/csr.json"
 OUTPUTNAME_CA="integration-ca"
@@ -13,8 +14,8 @@ OUTPUTNAME_LEAF_CERT="integration-leaf"
 OUTPUTNAME_CLIENT_CERT="integration-client"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
-OUTPUT_CONFIG_FEDERATOR="$TOP_LEVEL/hack/helm_vars/wire-server/certificates.yaml"
-OUTPUT_CONFIG_INGRESS="$TOP_LEVEL/hack/helm_vars/nginx-ingress-services/certificates.yaml"
+OUTPUT_CONFIG_FEDERATOR="$TOP_LEVEL/hack/helm_vars/wire-server/certificates-$SUFFIX.yaml"
+OUTPUT_CONFIG_INGRESS="$TOP_LEVEL/hack/helm_vars/nginx-ingress-services/certificates-$SUFFIX.yaml"
 
 command -v cfssl >/dev/null 2>&1 || {
     echo >&2 "cfssl is not installed, aborting. See https://github.com/cloudflare/cfssl"
