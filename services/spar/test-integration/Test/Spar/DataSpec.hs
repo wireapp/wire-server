@@ -92,24 +92,24 @@ spec = do
       context "insert and get are \"inverses\"" $ do
         let check vf = it (show vf) $ do
               vid <- nextSAMLID
-              () <- runSparCass $ storeVerdictFormat 1 vid vf
-              mvf <- runSparCass $ getVerdictFormat vid
+              () <- runSpar $ liftSem $ AReqIDStore.storeVerdictFormat 1 vid vf
+              mvf <- runSpar $ liftSem $ AReqIDStore.getVerdictFormat vid
               liftIO $ mvf `shouldBe` Just vf
         check
           `mapM_` [ VerdictFormatWeb,
                     VerdictFormatMobile [uri|https://fw/ooph|] [uri|https://lu/gn|]
                   ]
       context "has timed out" $ do
-        it "getVerdictFormat returns Nothing" $ do
+        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
           vid <- nextSAMLID
-          () <- runSparCass $ storeVerdictFormat 1 vid VerdictFormatWeb
+          () <- runSpar $ liftSem $ AReqIDStore.storeVerdictFormat 1 vid VerdictFormatWeb
           liftIO $ threadDelay 2000000
-          mvf <- runSparCass $ getVerdictFormat vid
+          mvf <- runSpar $ liftSem $ AReqIDStore.getVerdictFormat vid
           liftIO $ mvf `shouldBe` Nothing
       context "does not exist" $ do
-        it "getVerdictFormat returns Nothing" $ do
+        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
           vid <- nextSAMLID
-          mvf <- runSparCass $ getVerdictFormat vid
+          mvf <- runSpar $ liftSem $ AReqIDStore.getVerdictFormat vid
           liftIO $ mvf `shouldBe` Nothing
     describe "User" $ do
       context "user is new" $ do

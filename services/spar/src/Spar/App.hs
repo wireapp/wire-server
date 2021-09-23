@@ -508,14 +508,14 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
+verdictHandler :: HasCallStack => Members '[AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
 verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
   SAML.logger SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
-  format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
+  format :: Maybe VerdictFormat <- wrapMonadClientSem $ AReqIDStore.getVerdictFormat reqid
   resp <- case format of
     Just (VerdictFormatWeb) ->
       verdictHandlerResult cky mbteam verdict >>= verdictHandlerWeb

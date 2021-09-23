@@ -31,6 +31,8 @@ aReqIDStoreToCassandra = interpret $ \case
       Right () -> pure ()
   UnStore itla -> embed @m $ Data.unStoreAReqID itla
   IsAlive itla -> embed @m $ Data.isAliveAReqID itla
+  StoreVerdictFormat ndt itla vf -> embed @m $ Data.storeVerdictFormat ndt itla vf
+  GetVerdictFormat itla -> embed @m $ Data.getVerdictFormat itla
 
 ttlErrorToSparError :: Member (Error SparError) r => Sem (Error TTLError ': r) a -> Sem r a
 ttlErrorToSparError = mapError (SAML.CustomError . SparCassandraTTLError)

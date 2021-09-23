@@ -80,6 +80,7 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
 
 app :: Env -> Application
 app ctx =
@@ -176,7 +177,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
     SAML.authreq authreqttl (sparSPIssuer mbtid) idpid
-  wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
+  wrapMonadClientSem $ AReqIDStore.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
