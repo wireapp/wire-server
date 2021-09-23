@@ -25,8 +25,6 @@ module Spar.App
   ( Spar (..),
     Env (..),
     toLevel,
-    wrapMonadClientWithEnv,
-    wrapMonadClient,
     wrapMonadClientSem,
     verdictHandler,
     GetUserResult (..),
@@ -41,14 +39,12 @@ module Spar.App
     deleteTeam,
     wrapSpar,
     liftSem,
-    liftMonadClient,
   )
 where
 
 import Bilge
 import Brig.Types (ManagedBy (..), User, userId, userTeam)
 import Brig.Types.Intra (AccountStatus (..), accountStatus, accountUser)
-import Cassandra
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
@@ -86,7 +82,6 @@ import SAML2.WebSSO
     SPStoreIdP (getIdPConfigByIssuerOptionalSPId),
     UnqualifiedNameID (..),
     explainDeniedReason,
-    fromTime,
     idpExtraInfo,
     idpId,
     uidTenant,
@@ -95,7 +90,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data (GetIdPResult(..), Env, mkEnv)
+import qualified Spar.Data as Data (GetIdPResult(..))
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
@@ -226,13 +221,6 @@ instance Member IdPEffect.IdP r => SPStoreIdP SparError (Spar r) where
       res@(Data.GetIdPNonUnique _) -> throwSpar $ SparIdPNotFound (cs $ show res)
       res@(Data.GetIdPWrongTeam _) -> throwSpar $ SparIdPNotFound (cs $ show res)
 
--- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
--- don't need either of those, 'wrapMonadClient' will suffice.
-wrapMonadClientWithEnv :: forall r a. ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Spar r a
-wrapMonadClientWithEnv action = do
-  denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
-  either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
-
 instance Member (Final IO) r => Catch.MonadThrow (Sem r) where
   throwM = embedFinal . Catch.throwM @IO
 
@@ -242,22 +230,6 @@ instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
     st <- getInitialStateS
     handler' <- bindS handler
     pure $ m' `Catch.catch` \e -> handler' $ e <$ st
-
--- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
--- Handler.
-wrapMonadClient :: Cas.Client a -> Spar r a
-wrapMonadClient action =
-  Spar $ do
-    ctx <- asks sparCtxCas
-    fromSpar $ wrapMonadClientSem $ embedFinal @IO $ runClient ctx action
-
--- | Lift a cassandra command into the 'Spar' monad. Like 'wrapMonadClient',
--- but doesn't catch any exceptions.
-liftMonadClient :: Cas.Client a -> Spar r a
-liftMonadClient action =
-  Spar $ do
-    ctx <- asks sparCtxCas
-    lift $ lift $ embedFinal @IO $ runClient ctx action
 
 -- | Call a 'Sem' command in the 'Spar' monad.  Catch all (IO) exceptions and
 -- re-throw them as 500 in Handler.
