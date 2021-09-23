@@ -21,40 +21,40 @@ repositories:
 # TODO: get rid of wrapper charts, use helmfile for pinning
 
 releases:
-  - name: 'fake-aws'
-    namespace: {{ .Values.namespace }}
+  - name: '{{ .Values.namespace }}-fake-aws'
+    namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
 
-  - name: 'fake-aws-2'
-    namespace: {{ .Values.namespaceFed2 }}
+  - name: '{{ .Values.namespace }}-fake-aws-2'
+    namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
 
-  - name: 'databases-ephemeral'
-    namespace: {{ .Values.namespace }}
+  - name: '{{ .Values.namespace }}-databases-ephemeral'
+    namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: 'databases-ephemeral-2'
-    namespace: {{ .Values.namespaceFed2 }}
+  - name: '{{ .Values.namespace }}-databases-ephemeral-2'
+    namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: 'nginx-ingress-controller'
-    namespace: {{ .Values.namespace }}
+  - name: '{{ .Values.namespace }}-nginx-ingress-controller'
+    namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: 'nginx-ingress-controller-2'
-    namespace: {{ .Values.namespaceFed2 }}
+  - name: '{{ .Values.namespace }}-nginx-ingress-controller-2'
+    namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: 'nginx-ingress-services'
-    namespace: {{ .Values.namespace }}
+  - name: '{{ .Values.namespace }}-nginx-ingress-services'
+    namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml'
@@ -66,8 +66,8 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
 
-  - name: 'nginx-ingress-services-2'
-    namespace: {{ .Values.namespaceFed2 }}
+  - name: '{{ .Values.namespace }}-nginx-ingress-services-2'
+    namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
       - './helm_vars/nginx-ingress-services/values.yaml'
@@ -79,8 +79,8 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomainFed2 }}
 
-  - name: 'wire-server'
-    namespace: {{ .Values.namespace }}
+  - name: '{{ .Values.namespace }}-wire-server'
+    namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml'
@@ -91,8 +91,8 @@ releases:
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain }}
 
-  - name: 'wire-server-2'
-    namespace: {{ .Values.namespaceFed2 }}
+  - name: '{{ .Values.namespace }}-wire-server-2'
+    namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/wire-server'
     values:
       - './helm_vars/wire-server/values.yaml'
