@@ -2933,48 +2933,49 @@ removeUser :: TestM ()
 removeUser = do
   c <- view tsCannon
   let remoteDomain = Domain "far-away.example.com"
-  alice <- randomUser
-  bob <- randomQualifiedUser
-  carl <- randomQualifiedUser
+  [alice, bob, carl] <- replicateM 3 randomQualifiedUser
   dee <- (`Qualified` remoteDomain) <$> randomId
-  let carl' = qUnqualified carl
-      bob' = qUnqualified bob
-  connectUsers alice (list1 bob' [carl'])
-  conv1 <- decodeConvId <$> postConv alice [bob'] (Just "gossip") [] Nothing Nothing
-  conv2 <- decodeConvId <$> postConv alice [bob', carl'] (Just "gossip2") [] Nothing Nothing
-  conv3 <- decodeConvId <$> postConv alice [carl'] (Just "gossip3") [] Nothing Nothing
-  conv4 <- randomId -- a remote conversation at 'remoteDomain' that Bob and Dee will be in
+  let [alice', bob', carl'] = qUnqualified <$> [alice, bob, carl]
+  connectUsers alice' (list1 bob' [carl'])
+  conv1 <- decodeConvId <$> postConv alice' [bob'] (Just "gossip") [] Nothing Nothing
+  conv2 <- decodeConvId <$> postConv alice' [bob', carl'] (Just "gossip2") [] Nothing Nothing
+  conv3 <- decodeConvId <$> postConv alice' [carl'] (Just "gossip3") [] Nothing Nothing
+  conv4 <- randomId -- a remote conversation at 'remoteDomain' that Alice, Bob and Dee will be in
   let qconv1 = Qualified conv1 (qDomain bob)
       qconv2 = Qualified conv2 (qDomain bob)
-      qconv4 = Qualified conv4 remoteDomain
 
-  let mockedFederatedGalleyResponse :: F.FederatedRequest -> Maybe Value
-      mockedFederatedGalleyResponse req
-        | fmap F.component (F.request req) == Just F.Galley =
-          Just . toJSON . FederatedGalley.LeaveConversationResponse . Right $ ()
-        | otherwise = Nothing
-      mockResponses =
-        joinMockedFederatedResponses
-          (mockedFederatedBrigResponse [(dee, "Dee")])
-          mockedFederatedGalleyResponse
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+  let nc =
+        FederatedGalley.NewRemoteConversation
+          { FederatedGalley.rcTime = now,
+            FederatedGalley.rcOrigUserId = dee,
+            FederatedGalley.rcCnvId = conv4,
+            FederatedGalley.rcCnvType = RegularConv,
+            FederatedGalley.rcCnvAccess = [],
+            FederatedGalley.rcCnvAccessRole = PrivateAccessRole,
+            FederatedGalley.rcCnvName = Just "gossip4",
+            FederatedGalley.rcMembers = Set.fromList $ createOtherMember <$> [dee, alice, bob],
+            FederatedGalley.rcMessageTimer = Nothing,
+            FederatedGalley.rcReceiptMode = Nothing
+          }
+  FederatedGalley.onConversationCreated fedGalleyClient remoteDomain nc
 
-  opts <- view tsGConf
-  (resp, fedRequests) <-
-    withTempMockFederator opts remoteDomain mockResponses $
-      deleteMemberQualified (qUnqualified dee) bob qconv4
-  let leaveRequest =
-        fromJust . decodeStrict . F.body . fromJust . F.request . Imports.head $
-          fedRequests
-  liftIO $ do
-    statusCode resp @?= 200
-    case responseJsonEither resp of
-      Left err -> assertFailure err
-      Right e -> assertLeaveEvent qconv4 dee [bob] e
-    FederatedGalley.lcConvId leaveRequest @?= conv4
-    FederatedGalley.lcLeaver leaveRequest @?= qUnqualified bob
+  WS.bracketR3 c alice' bob' carl' $ \(wsA, wsB, wsC) -> do
+    opts <- view tsGConf
+    (_, fedRequests) <-
+      withTempMockFederator opts remoteDomain (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
+        deleteUser bob' !!! const 200 === statusCode
 
-  WS.bracketR3 c alice bob' carl' $ \(wsA, wsB, wsC) -> do
-    deleteUser bob'
+    req <- assertOne fedRequests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/leave-conversation"
+      Just (Right lc) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      FederatedGalley.lcConvId lc @?= conv4
+      FederatedGalley.lcLeaver lc @?= qUnqualified bob
+
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMembersLeave qconv1 bob [bob]
@@ -2982,9 +2983,9 @@ removeUser = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMembersLeave qconv2 bob [bob]
   -- Check memberships
-  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
-  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
-  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
+  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv1
+  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv2
+  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv3
   let other u = find ((== u) . omQualifiedId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
@@ -2992,3 +2993,11 @@ removeUser = do
     (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
     (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
+  where
+    createOtherMember :: Qualified UserId -> OtherMember
+    createOtherMember quid =
+      OtherMember
+        { omQualifiedId = quid,
+          omService = Nothing,
+          omConvRoleName = roleNameWireAdmin
+        }

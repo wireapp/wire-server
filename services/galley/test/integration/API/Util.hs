@@ -1168,10 +1168,10 @@ deleteClientInternal u c = do
       . zConn "conn"
       . paths ["i", "clients", toByteString' c]
 
-deleteUser :: HasCallStack => UserId -> TestM ()
+deleteUser :: (MonadIO m, MonadCatch m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> m ResponseLBS
 deleteUser u = do
-  g <- view tsGalley
-  delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
+  g <- viewGalley
+  delete (g . path "/i/user" . zUser u)
 
 getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe (Int, Bool) -> Bool -> TestM [(NotificationId, UserId)]
 getTeamQueue zusr msince msize onlyLast =
