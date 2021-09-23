@@ -131,6 +131,9 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Spar.Sem.BindCookieStore (BindCookieStore)
+import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -435,7 +438,8 @@ bindUser buid userref = do
 
 instance
   ( r
-      ~ '[ AssIDStore,
+      ~ '[ BindCookieStore,
+           AssIDStore,
            AReqIDStore,
            ScimExternalIdStore,
            ScimUserTimesStore,
@@ -477,6 +481,7 @@ instance
                                   scimExternalIdStoreToCassandra $
                                     aReqIDStoreToCassandra $
                                       assIDStoreToCassandra $
+                                      bindCookieStoreToCassandra $
                                         runExceptT $
                                           runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
@@ -508,7 +513,10 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => Members '[AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
+verdictHandler
+    :: HasCallStack
+    => Members '[BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
+    => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
 verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
@@ -533,7 +541,10 @@ data VerdictHandlerResult
   | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
   deriving (Eq, Show)
 
-verdictHandlerResult :: HasCallStack => Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResult
+  :: HasCallStack
+  => Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
+  => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
   SAML.logger SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
@@ -572,13 +583,16 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
   wrapMonadClientSem $ SAMLUserStore.delete uid oldUserRef
 
-verdictHandlerResultCore :: HasCallStack => Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResultCore
+  :: HasCallStack
+  => Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
+  => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
 verdictHandlerResultCore bindCky mbteam = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
-      viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
+      viaBindCookie <- maybe (pure Nothing) (wrapMonadClientSem . BindCookieStore.lookup) bindCky
       viaSparCassandra <- getUserIdByUref mbteam userref
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are

@@ -75,6 +75,8 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
+import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
@@ -89,7 +91,8 @@ app ctx =
 
 api ::
   Members
-    '[ AssIDStore,
+    '[ BindCookieStore,
+       AssIDStore,
        AReqIDStore,
        ScimExternalIdStore,
        ScimUserTimesStore,
@@ -111,7 +114,8 @@ api opts =
 
 apiSSO ::
   Members
-    '[ AssIDStore,
+    '[ BindCookieStore,
+       AssIDStore,
        AReqIDStore,
        ScimTokenStore,
        DefaultSsoCode,
@@ -158,7 +162,7 @@ authreqPrecheck msucc merr idpid =
     *> return NoContent
 
 authreq ::
-  Members '[AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
+  Members '[BindCookieStore, AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
   NominalDiffTime ->
   DoInitiate ->
   Maybe UserId ->
@@ -185,7 +189,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
-initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
+initializeBindCookie :: Member BindCookieStore r => Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
 initializeBindCookie zusr authreqttl = do
   DerivedOpts {derivedOptsBindCookiePath} <- asks (derivedOpts . sparCtxOpts)
   msecret <-
@@ -193,7 +197,7 @@ initializeBindCookie zusr authreqttl = do
       then liftIO $ Just . cs . ES.encode <$> randBytes 32
       else pure Nothing
   cky <- fmap SetBindCookie . SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
-  forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
+  forM_ zusr $ \userid -> wrapMonadClientSem $ BindCookieStore.insert cky userid authreqttl
   pure cky
 
 redirectURLMaxLength :: Int
@@ -214,7 +218,9 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp :: forall r. Members '[AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
+authresp
+  :: forall r. Members '[BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
+  => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
 authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie

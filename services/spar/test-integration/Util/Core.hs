@@ -225,6 +225,8 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
+import Spar.Sem.BindCookieStore (BindCookieStore)
+import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1263,7 +1265,8 @@ runSimpleSP action = do
     either (throwIO . ErrorCall . show) pure result
 
 type RealInterpretation =
-  '[ AssIDStore,
+  '[ BindCookieStore,
+     AssIDStore,
      AReqIDStore,
      ScimExternalIdStore,
      ScimUserTimesStore,
@@ -1302,6 +1305,7 @@ runSpar (Spar.Spar action) = do
                               scimExternalIdStoreToCassandra @Cas.Client $
                                 aReqIDStoreToCassandra @Cas.Client $
                                   assIDStoreToCassandra @Cas.Client $
+                                  bindCookieStoreToCassandra @Cas.Client $
                                     runExceptT $
                                       runReaderT action env
     either (throwIO . ErrorCall . show) pure result

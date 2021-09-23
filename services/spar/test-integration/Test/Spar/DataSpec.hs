@@ -51,6 +51,7 @@ import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
 
 spec :: SpecWith TestEnv
 spec = do
@@ -150,21 +151,21 @@ spec = do
       it "insert and get are \"inverses\"" $ do
         uid <- nextWireId
         cky <- mkcky
-        () <- runSparCassWithEnv $ insertBindCookie cky uid 1
-        muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+        () <- runSpar $ liftSem $ BindCookieStore.insert cky uid 1
+        muid <- runSpar $ liftSem $ BindCookieStore.lookup (setBindCookieValue cky)
         liftIO $ muid `shouldBe` Just uid
       context "has timed out" $ do
-        it "lookupBindCookie returns Nothing" $ do
+        it "BindCookieStore.lookup returns Nothing" $ do
           uid <- nextWireId
           cky <- mkcky
-          () <- runSparCassWithEnv $ insertBindCookie cky uid 1
+          () <- runSpar $ liftSem $ BindCookieStore.insert cky uid 1
           liftIO $ threadDelay 2000000
-          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+          muid <- runSpar $ liftSem $ BindCookieStore.lookup (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
       context "does not exist" $ do
-        it "lookupBindCookie returns Nothing" $ do
+        it "BindCookieStore.lookup returns Nothing" $ do
           cky <- mkcky
-          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+          muid <- runSpar $ liftSem $ BindCookieStore.lookup (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
     describe "Team" $ do
       testDeleteTeam
