@@ -120,6 +120,9 @@ import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.BrigAccess (BrigAccess)
+import qualified Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
@@ -265,10 +268,10 @@ insertUser uref uid = wrapMonadClientSem $ SAMLUserStore.insert uref uid
 -- the team with valid SAML credentials.
 --
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR.  (in https://github.com/wireapp/wire-server/pull/1410, undo https://github.com/wireapp/wire-server/pull/1418)
-getUserIdByUref :: Member SAMLUserStore r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult UserId)
+getUserIdByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult UserId)
 getUserIdByUref mbteam uref = userId <$$> getUserByUref mbteam uref
 
-getUserByUref :: Member SAMLUserStore r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult User)
+getUserByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult User)
 getUserByUref mbteam uref = do
   muid <- wrapMonadClientSem $ SAMLUserStore.get uref
   case muid of
@@ -296,7 +299,7 @@ instance Functor GetUserResult where
   fmap _ GetUserWrongTeam = GetUserWrongTeam
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
-getUserIdByScimExternalId :: Member ScimExternalIdStore r => TeamId -> Email -> Spar r (Maybe UserId)
+getUserIdByScimExternalId :: Members '[BrigAccess, ScimExternalIdStore] r => TeamId -> Email -> Spar r (Maybe UserId)
 getUserIdByScimExternalId tid email = do
   muid <- wrapMonadClientSem $ (ScimExternalIdStore.lookup tid email)
   case muid of
@@ -322,7 +325,7 @@ getUserIdByScimExternalId tid email = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: Member SAMLUserStore r => TeamId -> UserId -> SAML.UserRef -> Spar r ()
+createSamlUserWithId :: Members '[BrigAccess, SAMLUserStore] r => TeamId -> UserId -> SAML.UserRef -> Spar r ()
 createSamlUserWithId teamid buid suid = do
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- Intra.createBrigUserSAML suid buid teamid uname ManagedByWire
@@ -331,14 +334,14 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser :: Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
 autoprovisionSamlUser mbteam suid = do
   buid <- Id <$> liftIO UUID.nextRandom
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: forall r. Members '[ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
+autoprovisionSamlUserWithId :: forall r. Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
@@ -362,7 +365,7 @@ autoprovisionSamlUserWithId mbteam buid suid = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: forall r. UserId -> SAML.UserRef -> Spar r ()
+validateEmailIfExists :: forall r. Member BrigAccess r => UserId -> SAML.UserRef -> Spar r ()
 validateEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
   _ -> pure ()
@@ -381,7 +384,7 @@ validateEmailIfExists uid = \case
 --
 -- Before returning, change account status or fail if account is nto active or pending an
 -- invitation.
-bindUser :: Members '[IdPEffect.IdP, SAMLUserStore] r => UserId -> SAML.UserRef -> Spar r UserId
+bindUser :: Members '[BrigAccess, IdPEffect.IdP, SAMLUserStore] r => UserId -> SAML.UserRef -> Spar r UserId
 bindUser buid userref = do
   oldStatus <- do
     let err :: Spar r a
@@ -420,6 +423,7 @@ instance
            IdPEffect.IdP,
            SAMLUserStore,
            Embed (Cas.Client),
+           BrigAccess,
            ReaderEff.Reader Opts,
            Error TTLError,
            Error SparError,
@@ -444,6 +448,7 @@ instance
                 runError @SparError $
                   ttlErrorToSparError $
                     ReaderEff.runReader (sparCtxOpts ctx) $
+                      brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
                       interpretClientToIO (sparCtxCas ctx) $
                         samlUserStoreToCassandra @Cas.Client $
                           idPToCassandra @Cas.Client $
@@ -466,10 +471,8 @@ instance MonadHttp (Spar r) where
     manager <- asks sparCtxHttpManager
     liftIO $ withResponse req manager handler
 
-instance Intra.MonadSparToBrig (Spar r) where
-  call modreq = do
-    req <- asks sparCtxHttpBrig
-    httpLbs req modreq
+instance Member BrigAccess r => Intra.MonadSparToBrig (Spar r) where
+  call = liftSem . BrigAccess.call
 
 instance Intra.MonadSparToGalley (Spar r) where
   call modreq = do
@@ -487,7 +490,7 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -519,7 +522,7 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -544,7 +547,7 @@ catchVerdictErrors = (`catchError` hndlr)
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
 -- traverse the old IdPs in search for the old entry.  Return that old entry.
-findUserIdWithOldIssuer :: forall r. Members '[IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult (SAML.UserRef, UserId))
+findUserIdWithOldIssuer :: forall r. Members '[BrigAccess, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r (GetUserResult (SAML.UserRef, UserId))
 findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
   idp <- getIdPConfigByIssuerOptionalSPId issuer mbteam
   let tryFind :: GetUserResult (SAML.UserRef, UserId) -> Issuer -> Spar r (GetUserResult (SAML.UserRef, UserId))
@@ -556,7 +559,7 @@ findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
-moveUserToNewIssuer :: Member SAMLUserStore r => SAML.UserRef -> SAML.UserRef -> UserId -> Spar r ()
+moveUserToNewIssuer :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> SAML.UserRef -> UserId -> Spar r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   wrapMonadClientSem $ SAMLUserStore.insert newUserRef uid
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
@@ -564,7 +567,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
