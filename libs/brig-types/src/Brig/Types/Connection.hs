@@ -58,6 +58,12 @@ data ConnectionsStatusRequest = ConnectionsStatusRequest
   }
   deriving (Eq, Show, Generic)
 
+-- FUTUREWORK: This needs to get Qualified IDs when implementing
+-- Legalhold + Federation, as it's used in the internal
+-- putConnectionInternal / galley->Brig "/i/users/connections-status"
+-- endpoint.
+-- Internal RPCs need to be updated accordingly.
+-- See https://wearezeta.atlassian.net/browse/SQCORE-973
 data UpdateConnectionsInternal
   = BlockForMissingLHConsent UserId [UserId]
   | RemoveLHBlocksInvolving UserId

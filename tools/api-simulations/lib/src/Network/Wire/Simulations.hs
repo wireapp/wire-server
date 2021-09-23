@@ -74,7 +74,7 @@ prepareConv [_] = error "prepareConv: at least two bots required"
 prepareConv [a, b] = do
   connectIfNeeded a b
   conv <- (>>= ucConvId) <$> runBotSession a (getConnection (botId b))
-  requireMaybe conv $
+  requireMaybe (qUnqualified <$> conv) $
     "Missing 1-1 conversation between: "
       <> Text.concat (Text.pack . show . botId <$> [a, b])
 prepareConv (a : bs) = do
