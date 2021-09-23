@@ -133,7 +133,7 @@ instance P.ToSchema UserConnection where
         <*> ucLastUpdate P..= P.field "last_update" P.schema
         <*> ucConvId P..= P.optField "qualified_conversation" Nothing P.schema
         <* (fmap qUnqualified . ucConvId)
-          P..= optional (P.optField "conversation" Nothing (deprecatedSchema "qualified_conversation" P.schema))
+          P..= P.optField "conversation" Nothing (deprecatedSchema "qualified_conversation" P.schema)
 
 modelConnection :: Doc.Model
 modelConnection = Doc.defineModel "Connection" $ do

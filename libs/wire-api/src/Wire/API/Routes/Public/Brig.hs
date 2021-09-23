@@ -425,7 +425,7 @@ data Api routes = Api
               ]
              (Maybe UserConnection),
     getConnection ::
-      routes :- Summary "Get an existing connection to another user. (deprecated)"
+      routes :- Summary "Get an existing connection to another user (local or remote)."
         :> ZUser
         :> "connections"
         :> QualifiedCaptureUserId "uid"
