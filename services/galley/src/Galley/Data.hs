@@ -62,8 +62,8 @@ module Galley.Data
     localConversationIdsOf,
     remoteConversationStatus,
     localConversationIdsPageFrom,
-    conversationIdRowsForPagination,
-    conversations,
+    localConversationIdRowsForPagination,
+    localConversations,
     conversationMeta,
     conversationsRemote,
     createConnectConversation,
@@ -503,12 +503,12 @@ conversationGC conv = case join (convDeleted <$> conv) of
     return Nothing
   _ -> return conv
 
-conversations ::
+localConversations ::
   (MonadLogger m, MonadUnliftIO m, MonadClient m) =>
   [ConvId] ->
   m [Conversation]
-conversations [] = return []
-conversations ids = do
+localConversations [] = return []
+localConversations ids = do
   convs <- async fetchConvs
   mems <- async $ memberLists ids
   remoteMems <- async $ remoteMemberLists ids
@@ -580,8 +580,8 @@ remoteConversationIdsPageFrom :: (MonadClient m) => UserId -> Maybe PagingState 
 remoteConversationIdsPageFrom usr pagingState max =
   uncurry (flip Qualified) <$$> paginateWithState Cql.selectUserRemoteConvs (paramsPagingState Quorum (Identity usr) max pagingState)
 
-conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)
-conversationIdRowsForPagination usr start (fromRange -> max) =
+localConversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)
+localConversationIdRowsForPagination usr start (fromRange -> max) =
   runIdentity
     <$$> case start of
       Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)

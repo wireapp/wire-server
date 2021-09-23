@@ -2932,19 +2932,50 @@ postTypingIndicators = do
 removeUser :: TestM ()
 removeUser = do
   c <- view tsCannon
-  alice <- randomUser
-  bob <- randomQualifiedUser
-  carl <- randomQualifiedUser
-  let carl' = qUnqualified carl
-  let bob' = qUnqualified bob
-  connectUsers alice (list1 bob' [carl'])
-  conv1 <- decodeConvId <$> postConv alice [bob'] (Just "gossip") [] Nothing Nothing
-  conv2 <- decodeConvId <$> postConv alice [bob', carl'] (Just "gossip2") [] Nothing Nothing
-  conv3 <- decodeConvId <$> postConv alice [carl'] (Just "gossip3") [] Nothing Nothing
+  let remoteDomain = Domain "far-away.example.com"
+  [alice, bob, carl] <- replicateM 3 randomQualifiedUser
+  dee <- (`Qualified` remoteDomain) <$> randomId
+  let [alice', bob', carl'] = qUnqualified <$> [alice, bob, carl]
+  connectUsers alice' (list1 bob' [carl'])
+  conv1 <- decodeConvId <$> postConv alice' [bob'] (Just "gossip") [] Nothing Nothing
+  conv2 <- decodeConvId <$> postConv alice' [bob', carl'] (Just "gossip2") [] Nothing Nothing
+  conv3 <- decodeConvId <$> postConv alice' [carl'] (Just "gossip3") [] Nothing Nothing
+  conv4 <- randomId -- a remote conversation at 'remoteDomain' that Alice, Bob and Dee will be in
   let qconv1 = Qualified conv1 (qDomain bob)
       qconv2 = Qualified conv2 (qDomain bob)
-  WS.bracketR3 c alice bob' carl' $ \(wsA, wsB, wsC) -> do
-    deleteUser bob'
+
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+  let nc =
+        FederatedGalley.NewRemoteConversation
+          { FederatedGalley.rcTime = now,
+            FederatedGalley.rcOrigUserId = dee,
+            FederatedGalley.rcCnvId = conv4,
+            FederatedGalley.rcCnvType = RegularConv,
+            FederatedGalley.rcCnvAccess = [],
+            FederatedGalley.rcCnvAccessRole = PrivateAccessRole,
+            FederatedGalley.rcCnvName = Just "gossip4",
+            FederatedGalley.rcMembers = Set.fromList $ createOtherMember <$> [dee, alice, bob],
+            FederatedGalley.rcMessageTimer = Nothing,
+            FederatedGalley.rcReceiptMode = Nothing
+          }
+  FederatedGalley.onConversationCreated fedGalleyClient remoteDomain nc
+
+  WS.bracketR3 c alice' bob' carl' $ \(wsA, wsB, wsC) -> do
+    opts <- view tsGConf
+    (_, fedRequests) <-
+      withTempMockFederator opts remoteDomain (const (FederatedGalley.LeaveConversationResponse (Right ()))) $
+        deleteUser bob' !!! const 200 === statusCode
+
+    req <- assertOne fedRequests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/leave-conversation"
+      Just (Right lc) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      FederatedGalley.lcConvId lc @?= conv4
+      FederatedGalley.lcLeaver lc @?= qUnqualified bob
+
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMembersLeave qconv1 bob [bob]
@@ -2952,9 +2983,9 @@ removeUser = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMembersLeave qconv2 bob [bob]
   -- Check memberships
-  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
-  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
-  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
+  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv1
+  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv2
+  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice' conv3
   let other u = find ((== u) . omQualifiedId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
@@ -2962,3 +2993,11 @@ removeUser = do
     (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
     (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
+  where
+    createOtherMember :: Qualified UserId -> OtherMember
+    createOtherMember quid =
+      OtherMember
+        { omQualifiedId = quid,
+          omService = Nothing,
+          omConvRoleName = roleNameWireAdmin
+        }
