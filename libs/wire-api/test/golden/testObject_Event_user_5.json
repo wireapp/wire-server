@@ -5,7 +5,12 @@
         "hidden_ref": "\u0008\t\u0018",
         "otr_archived": false,
         "otr_archived_ref": "\u0001J",
-        "otr_muted_ref": "𗋭"
+        "otr_muted_ref": "𗋭",
+        "qualified_target": {
+            "domain": "target.example.com",
+            "id": "afb0e5b1-c554-4ce4-98f5-3e1671f22485"
+        },
+        "target": "afb0e5b1-c554-4ce4-98f5-3e1671f22485"
     },
     "from": "00002a12-0000-73e1-0000-71f700002ec9",
     "qualified_conversation": {

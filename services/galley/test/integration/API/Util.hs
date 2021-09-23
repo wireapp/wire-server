@@ -107,6 +107,7 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation (_EdMembersJoin, _EdMembersLeave)
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
@@ -117,6 +118,7 @@ import qualified Wire.API.Federation.GRPC.Types as F
 import qualified Wire.API.Federation.Mock as Mock
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
 import qualified Wire.API.User.Client as Client
 
@@ -556,7 +558,11 @@ postConvQualified :: (HasGalley m, MonadIO m, MonadMask m, MonadHttp m) => UserI
 postConvQualified u us name a r mtimer = postConvWithRoleQualified us u [] name a r mtimer roleNameWireAdmin
 
 postConvWithRemoteUser :: Domain -> UserProfile -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
-postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
+postConvWithRemoteUser remoteDomain user creatorUnqualified members =
+  postConvWithRemoteUsers remoteDomain [user] creatorUnqualified members
+
+postConvWithRemoteUsers :: Domain -> [UserProfile] -> UserId -> [Qualified UserId] -> TestM (Response (Maybe LByteString))
+postConvWithRemoteUsers remoteDomain users creatorUnqualified members = do
   opts <- view tsGConf
   fmap fst $
     withTempMockFederator
@@ -569,7 +575,7 @@ postConvWithRemoteUser remoteDomain user creatorUnqualified members = do
     respond :: F.FederatedRequest -> Value
     respond req
       | fmap F.component (F.request req) == Just F.Brig =
-        toJSON [user]
+        toJSON users
       | otherwise = toJSON ()
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> TestM ResponseLBS
@@ -860,7 +866,7 @@ listConvIds u paginationOpts = do
 listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
 listRemoteConvs remoteDomain uid = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-  allConvs <- fmap pageConvIds . responseJsonError =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  allConvs <- fmap mtpResults . responseJsonError @_ @ConvIdsPage =<< listConvIds uid paginationOpts <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers :: UserId -> NonEmpty (Qualified UserId) -> ConvId -> TestM ResponseLBS
@@ -957,13 +963,14 @@ putMember u m (Qualified c dom) = do
       . json m
 
 putOtherMemberQualified ::
+  (HasGalley m, MonadIO m, MonadHttp m) =>
   UserId ->
   Qualified UserId ->
   OtherMemberUpdate ->
   Qualified ConvId ->
-  TestM ResponseLBS
+  m ResponseLBS
 putOtherMemberQualified from to m c = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths
@@ -1082,9 +1089,13 @@ putAccessUpdate u c acc = do
       . json acc
 
 putMessageTimerUpdateQualified ::
-  UserId -> Qualified ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
+  (HasGalley m, MonadIO m, MonadHttp m) =>
+  UserId ->
+  Qualified ConvId ->
+  ConversationMessageTimerUpdate ->
+  m ResponseLBS
 putMessageTimerUpdateQualified u c acc = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths
@@ -1157,10 +1168,10 @@ deleteClientInternal u c = do
       . zConn "conn"
       . paths ["i", "clients", toByteString' c]
 
-deleteUser :: HasCallStack => UserId -> TestM ()
+deleteUser :: (MonadIO m, MonadCatch m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> m ResponseLBS
 deleteUser u = do
-  g <- view tsGalley
-  delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
+  g <- viewGalley
+  delete (g . path "/i/user" . zUser u)
 
 getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe (Int, Bool) -> Bool -> TestM [(NotificationId, UserId)]
 getTeamQueue zusr msince msize onlyLast =
@@ -1372,7 +1383,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
   evtFrom e @?= usr
   case evtData e of
     Conv.EdMemberUpdate mis -> do
-      assertEqual "target" (Just target) (misTarget mis)
+      assertEqual "target" (Qualified target (qDomain conv)) (misTarget mis)
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 
@@ -1421,7 +1432,7 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   FederatedGalley.cuOrigUserId cu @?= remover
   FederatedGalley.cuConvId cu @?= qUnqualified qconvId
   sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  FederatedGalley.cuAction cu @?= Public.ConversationActionRemoveMembers (pure victim)
+  FederatedGalley.cuAction cu @?= ConversationActionRemoveMembers (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1463,7 +1474,7 @@ decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
 
 decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
-decodeQualifiedConvIdList = fmap pageConvIds . responseJsonEither
+decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
@@ -1598,7 +1609,7 @@ assertConnections u cstat = do
   unless (all (`elem` cstat') cstat) $
     error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
-    status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
+    status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
     listConnections brig usr = get $ brig . path "connections" . zUser usr
 
 randomUsers :: Int -> TestM [UserId]
@@ -2325,3 +2336,7 @@ fedRequestsForDomain domain component =
           F.domain req == domainText domain
             && fmap F.component (F.request req) == Just component
       )
+
+assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
+assertOne [a] = pure a
+assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs

@@ -21,6 +21,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Generated.Invite_user (testObject_Invite_user_2)
+import Test.Wire.API.Golden.Generated.MemberUpdateData_user
 import Test.Wire.API.Golden.Generated.NewConvUnmanaged_user
 import Test.Wire.API.Golden.Generated.NewOtrMessage_user
 import Test.Wire.API.Golden.Generated.RmClient_user
@@ -78,6 +79,10 @@ tests =
               \'hidden', 'hidden_ref', 'conversation_role'} required."
           )
           "testObject_MemberUpdate_user_3.json",
+      testCase "MemberUpdateData" $
+        testFromJSONObject
+          testObject_MemberUpdateData_user_1
+          "testObject_MemberUpdateData_user_1.json",
       testCase "OtherMemberUpdate" $
         testFromJSONFailure @OtherMemberUpdate "testObject_OtherMemberUpdate_user_2.json",
       testGroup "NewUser: failure" $

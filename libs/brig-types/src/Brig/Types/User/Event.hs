@@ -23,6 +23,7 @@ import Brig.Types
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
+import Data.Qualified (Qualified (Qualified))
 import Imports
 import System.Logger.Class
 
@@ -179,8 +180,14 @@ propEventUserId (PropertySet u _ _) = u
 propEventUserId (PropertyDeleted u _) = u
 propEventUserId (PropertiesCleared u) = u
 
-logConnection :: UserId -> UserId -> Msg -> Msg
-logConnection from to =
+logConnection :: UserId -> Qualified UserId -> Msg -> Msg
+logConnection from (Qualified toUser toDomain) =
+  "connection.from" .= toByteString from
+    ~~ "connection.to" .= toByteString toUser
+    ~~ "connection.to_domain" .= toByteString toDomain
+
+logLocalConnection :: UserId -> UserId -> Msg -> Msg
+logLocalConnection from to =
   "connection.from" .= toByteString from
     ~~ "connection.to" .= toByteString to
 

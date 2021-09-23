@@ -58,7 +58,7 @@ import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword)
 import Data.PEM
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified (Qualified (..))
 import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
@@ -888,7 +888,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             id
             peer
             peerClient
-            convId
+            (qUnqualified convId)
             [ (legalholder, legalholderLHDevice, "cipher")
             ]
             !!! do
@@ -921,7 +921,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
             id
             peer
             peerClient
-            convId
+            (qUnqualified convId)
             [ (legalholder, legalholderLHDevice, "cipher")
             ]
             !!! do

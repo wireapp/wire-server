@@ -18,10 +18,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Test.Wire.API.Golden.Generated.UserConnectionList_user where
 
+import Data.Domain (Domain (..))
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
+import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (..), Maybe (..), fromJust)
+import Imports
 import Wire.API.Connection
   ( Relation (..),
     UserConnection (..),
@@ -34,17 +36,17 @@ testObject_UserConnectionList_user_1 =
     { clConnections =
         [ UserConnection
             { ucFrom = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
-              ucTo = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
+              ucTo = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) (Domain "faraway.golden.example.com"),
               ucStatus = Pending,
               ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-09T06:44:37.367Z"),
               ucConvId = Nothing
             },
           UserConnection
             { ucFrom = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
-              ucTo = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
+              ucTo = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))) (Domain "faraway.golden.example.com"),
               ucStatus = Accepted,
               ucLastUpdate = fromJust (readUTCTimeMillis "1864-05-09T00:43:52.049Z"),
-              ucConvId = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
+              ucConvId = Just $ Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Domain "faraway.folden.example.com")
             }
         ],
       clHasMore = False

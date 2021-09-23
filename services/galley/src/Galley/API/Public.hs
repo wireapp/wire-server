@@ -98,7 +98,7 @@ servantSitemap =
         GalleyAPI.updateConversationNameUnqualified = Update.updateUnqualifiedConversationName,
         GalleyAPI.updateConversationName = Update.updateConversationName,
         GalleyAPI.updateConversationMessageTimerUnqualified =
-          Update.updateLocalConversationMessageTimer,
+          Update.updateConversationMessageTimerUnqualified,
         GalleyAPI.updateConversationMessageTimer = Update.updateConversationMessageTimer,
         GalleyAPI.updateConversationReceiptModeUnqualified =
           Update.updateConversationReceiptModeUnqualified,

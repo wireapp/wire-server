@@ -21,19 +21,29 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
+import Data.Aeson (eitherDecode)
 import Data.ByteString.Conversion (toByteString')
+import qualified Data.ByteString.Lazy as LBS
+import Data.Domain
 import Data.Id
 import Data.List1
+import qualified Data.List1 as List1
 import Data.Qualified
 import Galley.Types
 import Galley.Types.Conversations.Roles
+import Gundeck.Types.Notification (Notification (..))
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation.Action
+import qualified Wire.API.Federation.API.Galley as F
+import qualified Wire.API.Federation.GRPC.Types as F
+import Wire.API.User
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -41,6 +51,8 @@ tests s =
     "Conversation roles"
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
       test s "conversation roles member (and upgrade)" handleConversationRoleMember,
+      test s "conversation role update with remote users present" roleUpdateWithRemotes,
+      test s "conversation role update of remote member" roleUpdateRemoteMember,
       test s "get all conversation roles" testAllConversationRoles
     ]
 
@@ -143,6 +155,135 @@ handleConversationRoleMember = do
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
       wsAssertMemberUpdateWithRole qcid qalice bob roleNameWireAdmin
   wireAdminChecks cid bob alice chuck
+
+roleUpdateRemoteMember :: TestM ()
+roleUpdateRemoteMember = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  qcharlie <- Qualified <$> randomId <*> pure remoteDomain
+  let bob = qUnqualified qbob
+
+  resp <-
+    postConvWithRemoteUsers
+      remoteDomain
+      [mkProfile qalice (Name "Alice"), mkProfile qcharlie (Name "Charlie")]
+      bob
+      [qalice, qcharlie]
+  let qconv = decodeQualifiedConvId resp
+
+  opts <- view tsGConf
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator opts remoteDomain (const ()) $
+        putOtherMemberQualified
+          bob
+          qcharlie
+          (OtherMemberUpdate (Just roleNameWireMember))
+          qconv
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    let mu =
+          MemberUpdateData
+            { misTarget = qcharlie,
+              misOtrMutedStatus = Nothing,
+              misOtrMutedRef = Nothing,
+              misOtrArchived = Nothing,
+              misOtrArchivedRef = Nothing,
+              misHidden = Nothing,
+              misHiddenRef = Nothing,
+              misConvRoleName = Just roleNameWireMember
+            }
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu
+        @?= ConversationActionMemberUpdate mu
+      sort (F.cuAlreadyPresentUsers cu) @?= sort [qUnqualified qalice, qUnqualified qcharlie]
+
+    liftIO . WS.assertMatch_ (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate mu
+
+  conv <- responseJsonError =<< getConvQualified bob qconv <!! const 200 === statusCode
+  let charlieAsMember = find (\m -> omQualifiedId m == qcharlie) (cmOthers (cnvMembers conv))
+  liftIO $
+    charlieAsMember
+      @=? Just
+        OtherMember
+          { omQualifiedId = qcharlie,
+            omService = Nothing,
+            omConvRoleName = roleNameWireMember
+          }
+
+roleUpdateWithRemotes :: TestM ()
+roleUpdateWithRemotes = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  qcharlie <- randomQualifiedUser
+  let bob = qUnqualified qbob
+      charlie = qUnqualified qcharlie
+
+  connectUsers bob (singleton charlie)
+  resp <-
+    postConvWithRemoteUser
+      remoteDomain
+      (mkProfile qalice (Name "Alice"))
+      bob
+      [qalice, qcharlie]
+  let qconv = decodeQualifiedConvId resp
+
+  opts <- view tsGConf
+  WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
+    (_, requests) <-
+      withTempMockFederator opts remoteDomain (const ()) $
+        putOtherMemberQualified
+          bob
+          qcharlie
+          (OtherMemberUpdate (Just roleNameWireAdmin))
+          qconv
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    let mu =
+          MemberUpdateData
+            { misTarget = qcharlie,
+              misOtrMutedStatus = Nothing,
+              misOtrMutedRef = Nothing,
+              misOtrArchived = Nothing,
+              misOtrArchivedRef = Nothing,
+              misHidden = Nothing,
+              misHiddenRef = Nothing,
+              misConvRoleName = Just roleNameWireAdmin
+            }
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu
+        @?= ConversationActionMemberUpdate mu
+      F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
+
+    liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate mu
 
 -- | Given an admin, another admin and a member run all
 --   the necessary checks targeting the admin

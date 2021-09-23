@@ -38,6 +38,7 @@ import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
+import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
@@ -52,12 +53,15 @@ import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
+import qualified Cassandra as C
+import qualified Cassandra as Data
 import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Code as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
@@ -94,7 +98,10 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.ErrorDescription
+import Wire.API.Federation.Error (federationNotImplemented)
 import qualified Wire.API.Properties as Public
+import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Routes.Public.Brig (Api (updateConnectionUnqualified))
 import qualified Wire.API.Routes.Public.Brig as BrigAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
@@ -254,10 +261,14 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createConnection,
+        BrigAPI.createConnectionUnqualified = createLocalConnection,
+        BrigAPI.createConnection = createConnection,
+        BrigAPI.listLocalConnections = listLocalConnections,
         BrigAPI.listConnections = listConnections,
-        BrigAPI.getConnectionUnqualified = getConnection,
-        BrigAPI.updateConnectionUnqualified = updateConnection,
+        BrigAPI.getConnectionUnqualified = getLocalConnection,
+        BrigAPI.getConnection = getConnection,
+        BrigAPI.updateConnectionUnqualified = updateLocalConnection,
+        BrigAPI.updateConnection = updateConnection,
         BrigAPI.searchContacts = Search.search
       }
 
@@ -1074,23 +1085,69 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createConnection self conn cr = do
+createLocalConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createLocalConnection self conn cr = do
   API.createConnection self cr conn !>> connError
 
-updateConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
-updateConnection self conn other update = do
+-- | FUTUREWORK: also create remote connections: https://wearezeta.atlassian.net/browse/SQCORE-958
+createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection self conn (Qualified otherUser otherDomain) = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
+    else throwM federationNotImplemented
+
+updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateLocalConnection self conn other update = do
   let newStatus = Public.cuStatus update
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
 
-listConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
-listConnections uid start msize = do
+-- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
+updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
+updateConnection self conn (Qualified otherUid otherDomain) update = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then updateLocalConnection self conn otherUid update
+    else throwM federationNotImplemented
+
+listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> Handler Public.UserConnectionList
+listLocalConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
-getConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
-getConnection uid uid' = lift $ API.lookupConnection uid uid'
+-- | FUTUREWORK: also list remote connections: https://wearezeta.atlassian.net/browse/SQCORE-963
+listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
+listConnections uid req = do
+  localDomain <- viewFederationDomain
+  let size = Public.gmtprSize req
+  res :: C.PageWithState Data.LocalConnection <- Data.lookupLocalConnectionsPage uid convertedState (rcast size)
+  return (pageToConnectionsPage localDomain Public.PagingLocals res)
+  where
+    pageToConnectionsPage :: Domain -> Public.LocalOrRemoteTable -> Data.PageWithState Data.LocalConnection -> Public.ConnectionsPage
+    pageToConnectionsPage localDomain table page@Data.PageWithState {..} =
+      Public.MultiTablePage
+        { mtpResults = Data.localToUserConn localDomain <$> pwsResults,
+          mtpHasMore = C.pwsHasMore page,
+          -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
+          -- Is this type actually useless? Or the tests not good enough?
+          mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+        }
+    mkState :: ByteString -> C.PagingState
+    mkState = C.PagingState . LBS.fromStrict
+
+    convertedState :: Maybe C.PagingState
+    convertedState = fmap mkState . Public.mtpsState =<< Public.gmtprState req
+
+getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
+getLocalConnection self other = lift $ API.lookupLocalConnection self other
+
+getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
+getConnection self (Qualified otherUser otherDomain) = do
+  localDomain <- viewFederationDomain
+  if localDomain == otherDomain
+    then getLocalConnection self otherUser
+    else throwM federationNotImplemented
 
 deleteUser ::
   UserId ->
