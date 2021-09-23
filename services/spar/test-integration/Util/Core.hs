@@ -185,6 +185,8 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
+import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
@@ -1239,7 +1241,8 @@ runSimpleSP action = do
     either (throwIO . ErrorCall . show) pure result
 
 type RealInterpretation =
-  '[ BindCookieStore,
+  '[ BrigAccess,
+     BindCookieStore,
      AssIDStore,
      AReqIDStore,
      ScimExternalIdStore,
@@ -1280,8 +1283,9 @@ runSpar (Spar.Spar action) = do
                                 aReqIDStoreToCassandra @Cas.Client $
                                   assIDStoreToCassandra @Cas.Client $
                                     bindCookieStoreToCassandra @Cas.Client $
-                                      runExceptT $
-                                        runReaderT action env
+                                      brigAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                        runExceptT $
+                                          runReaderT action env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
