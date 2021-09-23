@@ -285,7 +285,8 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
 idpDelete
-  :: forall r. Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+  :: forall r. Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r
+  => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -341,12 +342,14 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
 idpCreate
-  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r
+  => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML
-  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r
+  => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
