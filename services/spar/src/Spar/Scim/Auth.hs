@@ -50,6 +50,7 @@ import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
 import Spar.App (Spar, sparCtxOpts, wrapMonadClientSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
+import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -59,7 +60,6 @@ import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User.Saml (maxScimTokens)
 import Wire.API.User.Scim
-import Spar.Sem.BrigAccess (BrigAccess)
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) where
