@@ -664,7 +664,7 @@ updateOtherMemberLocalConv lcnv lusr zcon qvictim update = do
       (lUnqualified lusr)
       (lUnqualified lcnv)
   ensureActionAllowedThrowing ModifyOtherConversationMember self
-  void $ ensureOtherMember lusr qvictim (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
+  void $ ensureOtherMember lusr qvictim conv
   Data.updateOtherMemberLocalConv lcnv qvictim update
   void $
     notifyConversationMetadataUpdate

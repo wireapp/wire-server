@@ -377,13 +377,12 @@ getSelfMemberFromLocalsLegacy usr lmems =
 ensureOtherMember ::
   Local a ->
   Qualified UserId ->
-  [LocalMember] ->
-  [RemoteMember] ->
+  Data.Conversation ->
   Galley (Either LocalMember RemoteMember)
-ensureOtherMember loc quid locals remotes =
+ensureOtherMember loc quid conv =
   maybe (throwErrorDescriptionType @ConvMemberNotFound) pure $
-    (Left <$> find ((== quid) . (`Qualified` lDomain loc) . lmId) locals)
-      <|> (Right <$> find ((== quid) . unTagged . rmId) remotes)
+    (Left <$> find ((== quid) . (`Qualified` lDomain loc) . lmId) (Data.convLocalMembers conv))
+      <|> (Right <$> find ((== quid) . unTagged . rmId) (Data.convRemoteMembers conv))
 
 -- | Note that we use 2 nearly identical functions but slightly different
 -- semantics; when using `getSelfMemberQualified`, if that user is _not_ part of
