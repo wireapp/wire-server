@@ -247,7 +247,7 @@ listConnections brig u =
       . path "connections"
       . zUser u
 
-listAllConnections :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Maybe Int -> Maybe (MultiTablePagingState "Connections" LocalOrRemoteTable) -> m ResponseLBS
+listAllConnections :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Maybe Int -> Maybe (MultiTablePagingState "Connections" LocalOrRemoteTable) -> m ResponseLBS
 listAllConnections brig u size state =
   post $
     brig

@@ -130,7 +130,7 @@ lookupRelationWithHistory from to =
   runIdentity
     <$$> retry x1 (query1 relationSelect (params Quorum (from, to)))
 
--- | For a given user 'A', lookup his outgoing connections (A -> X) to other users.
+-- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 lookupLocalConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage LocalConnection)
 lookupLocalConnections from start (fromRange -> size) =
   toResult <$> case start of
@@ -140,7 +140,7 @@ lookupLocalConnections from start (fromRange -> size) =
     toResult = cassandraResultPage . fmap toLocalUserConnection . trim
     trim p = p {result = take (fromIntegral size) (result p)}
 
--- | For a given user 'A', lookup his outgoing connections (A -> X) to other users.
+-- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 -- Similar to lookupLocalConnections
 lookupLocalConnectionsPage ::
   (MonadClient m) =>
