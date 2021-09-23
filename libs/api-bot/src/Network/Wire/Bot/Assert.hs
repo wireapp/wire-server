@@ -123,13 +123,13 @@ connStatus :: UserId -> UserId -> Relation -> Event -> Bool
 connStatus from to rel = \case
   EConnection c _ ->
     ucFrom c == from
-      && ucTo c == to
+      && qUnqualified (ucTo c) == to
       && ucStatus c == rel
   _ -> False
 
 memberJoined :: UserId -> UserId -> Event -> Bool
 memberJoined from other = \case
   EMemberJoin m ->
-    null (toList (fmap smId $ mMembers (convEvtData m)) \\ [other, from])
+    null (toList (smId <$> mMembers (convEvtData m)) \\ [other, from])
       && convEvtFrom m == from
   _ -> False

@@ -379,18 +379,56 @@ data Api routes = Api
              '[JSON]
              (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
              (ResponseForExistedCreated UserConnection),
-    listConnections ::
-      routes :- Summary "List the connections to other users."
+    createConnection ::
+      routes :- Summary "Create a connection to another user"
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NoIdentity
+        -- Config value 'setUserMaxConnections' value in production/by default
+        -- is currently 1000 and has not changed in the last few years.
+        -- While it would be more correct to use the config value here, that
+        -- might not be time well spent.
+        :> Description "You can have no more than 1000 connections in accepted or sent state"
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> QualifiedCaptureUserId "uid"
+        :> MultiVerb
+             'POST
+             '[JSON]
+             (ResponsesForExistedCreated "Connection existed" "Connection was created" UserConnection)
+             (ResponseForExistedCreated UserConnection),
+    listLocalConnections ::
+      routes :- Summary "List the local connections to other users. (deprecated)"
         :> ZUser
         :> "connections"
         :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
         :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)"] "size" (Range 1 500 Int32)
         :> Get '[JSON] UserConnectionList,
+    listConnections ::
+      routes :- Summary "List the connections to other users, including remote users."
+        :> ZUser
+        :> "list-connections"
+        :> ReqBody '[JSON] ListConnectionsRequestPaginated
+        :> Post '[JSON] ConnectionsPage,
     getConnectionUnqualified ::
       routes :- Summary "Get an existing connection to another user. (deprecated)"
         :> ZUser
         :> "connections"
         :> CaptureUserId "uid"
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ EmptyErrorForLegacyReasons 404 "Connection not found",
+                Respond 200 "Connection found" UserConnection
+              ]
+             (Maybe UserConnection),
+    getConnection ::
+      routes :- Summary "Get an existing connection to another user (local or remote)."
+        :> ZUser
+        :> "connections"
+        :> QualifiedCaptureUserId "uid"
         :> MultiVerb
              'GET
              '[JSON]
@@ -416,6 +454,30 @@ data Api routes = Api
         :> ZConn
         :> "connections"
         :> CaptureUserId "uid"
+        :> ReqBody '[JSON] ConnectionUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             ConnectionUpdateResponses
+             (UpdateResult UserConnection),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConnectionUpdated event to self and other, if their connection states change
+    --
+    -- When changing the connection state to Sent or Accepted, this can cause events to be sent
+    -- when joining the connect conversation:
+    -- - MemberJoin event to self and other (via galley)
+    updateConnection ::
+      routes :- Summary "Update a connection to another user. (deprecated)"
+        :> CanThrow MissingLegalholdConsent
+        :> CanThrow InvalidUser
+        :> CanThrow ConnectionLimitReached
+        :> CanThrow NotConnected
+        :> CanThrow InvalidTransition
+        :> CanThrow NoIdentity
+        :> ZUser
+        :> ZConn
+        :> "connections"
+        :> QualifiedCaptureUserId "uid"
         :> ReqBody '[JSON] ConnectionUpdate
         :> MultiVerb
              'PUT

@@ -1609,7 +1609,7 @@ assertConnections u cstat = do
   unless (all (`elem` cstat') cstat) $
     error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
-    status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
+    status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
     listConnections brig usr = get $ brig . path "connections" . zUser usr
 
 randomUsers :: Int -> TestM [UserId]

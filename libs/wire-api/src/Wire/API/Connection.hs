@@ -25,6 +25,9 @@ module Wire.API.Connection
   ( -- * UserConnection
     UserConnection (..),
     UserConnectionList (..),
+    ConnectionsPage,
+    ConnectionPagingState,
+    pattern ConnectionPagingState,
     Relation (..),
     RelationWithHistory (..),
     relationDropHistory,
@@ -32,6 +35,7 @@ module Wire.API.Connection
     -- * Requests
     ConnectionRequest (..),
     ConnectionUpdate (..),
+    ListConnectionsRequestPaginated,
 
     -- * Swagger
     modelConnectionList,
@@ -40,12 +44,14 @@ module Wire.API.Connection
   )
 where
 
+import Control.Applicative (optional)
 import Control.Lens ((?~))
 import Data.Aeson as Aeson
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
 import qualified Data.Schema as P
 import qualified Data.Swagger.Build.Api as Doc
@@ -53,9 +59,23 @@ import Data.Swagger.Schema as S
 import Data.Text as Text
 import Imports
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
+import Wire.API.Routes.MultiTablePaging
 
 --------------------------------------------------------------------------------
 -- UserConnectionList
+
+-- | Request to get a paginated list of connection
+type ListConnectionsRequestPaginated = GetMultiTablePageRequest "Connections" LocalOrRemoteTable 500 100
+
+-- | A page in response to 'ListConnectionsRequestPaginated'
+type ConnectionsPage = MultiTablePage "Connections" "connections" LocalOrRemoteTable UserConnection
+
+type ConnectionPagingName = "ConnectionIds"
+
+type ConnectionPagingState = MultiTablePagingState ConnectionPagingName LocalOrRemoteTable
+
+pattern ConnectionPagingState :: tables -> Maybe ByteString -> MultiTablePagingState name tables
+pattern ConnectionPagingState table state = MultiTablePagingState table state
 
 -- | Response type for endpoints returning lists of connections.
 data UserConnectionList = UserConnectionList
@@ -91,11 +111,11 @@ modelConnectionList = Doc.defineModel "UserConnectionList" $ do
 -- create connections (A, B, Sent) and (B, A, Pending).
 data UserConnection = UserConnection
   { ucFrom :: UserId,
-    ucTo :: UserId,
+    ucTo :: Qualified UserId,
     ucStatus :: Relation,
     -- | When 'ucStatus' was last changed
     ucLastUpdate :: UTCTimeMillis,
-    ucConvId :: Maybe ConvId
+    ucConvId :: Maybe (Qualified ConvId)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserConnection)
@@ -106,10 +126,14 @@ instance P.ToSchema UserConnection where
     P.object "UserConnection" $
       UserConnection
         <$> ucFrom P..= P.field "from" P.schema
-        <*> ucTo P..= P.field "to" P.schema
+        <*> ucTo P..= P.field "qualified_to" P.schema
+        <* (qUnqualified . ucTo)
+          P..= optional (P.field "to" (deprecatedSchema "qualified_to" P.schema))
         <*> ucStatus P..= P.field "status" P.schema
         <*> ucLastUpdate P..= P.field "last_update" P.schema
-        <*> ucConvId P..= P.optField "conversation" Nothing P.schema
+        <*> ucConvId P..= P.optField "qualified_conversation" Nothing P.schema
+        <* (fmap qUnqualified . ucConvId)
+          P..= P.optField "conversation" Nothing (deprecatedSchema "qualified_conversation" P.schema)
 
 modelConnection :: Doc.Model
 modelConnection = Doc.defineModel "Connection" $ do
@@ -238,8 +262,12 @@ instance ToByteString Relation where
 data ConnectionRequest = ConnectionRequest
   { -- | Connection recipient
     crUser :: UserId,
-    -- | Name of the conversation to be created
-    -- FUTUREWORK investigate: shouldn't this name be optional? Do we use this name actually anywhere?
+    -- | Name of the conversation to be created. This is not used in any
+    -- meaningful way anymore. The clients just write the name of the target
+    -- user here and it is ignored later.
+    --
+    -- (In the past, this was used; but due to spam, clients started ignoring
+    -- it)
     crName :: Range 1 256 Text
   }
   deriving stock (Eq, Show, Generic)

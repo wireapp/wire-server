@@ -41,12 +41,14 @@ import Data.Domain (Domain)
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified
 import Data.Range (unsafeRange)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Imports
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -245,6 +247,30 @@ listConnections brig u =
       . path "connections"
       . zUser u
 
+listAllConnections :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Maybe Int -> Maybe (MultiTablePagingState "Connections" LocalOrRemoteTable) -> m ResponseLBS
+listAllConnections brig u size state =
+  post $
+    brig
+      . path "list-connections"
+      . zUser u
+      . expect2xx
+      . contentJson
+      . body
+        ( RequestBodyLBS $
+            encode $
+              object
+                [ "size" .= size,
+                  "paging_state" .= state
+                ]
+        )
+
+getConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+getConnectionQualified brig from (Qualified toUser toDomain) =
+  get $
+    brig
+      . paths ["connections", toByteString' toDomain, toByteString' toUser]
+      . zUser from
+
 setProperty :: Brig -> UserId -> ByteString -> Value -> (MonadIO m, MonadHttp m) => m ResponseLBS
 setProperty brig u k v =
   put $
@@ -290,7 +316,13 @@ assertConnections brig u cs =
     const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
   where
     check xs = all (`elem` xs) cs
-    status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
+    status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
+
+assertConnectionQualified :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Relation -> m ()
+assertConnectionQualified brig u1 qu2 rel =
+  getConnectionQualified brig u1 qu2 !!! do
+    const 200 === statusCode
+    const (Right rel) === fmap ucStatus . responseJsonEither
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =
