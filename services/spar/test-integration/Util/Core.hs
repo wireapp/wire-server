@@ -185,6 +185,8 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
+import Spar.Sem.BindCookieStore (BindCookieStore)
+import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import qualified Spar.Sem.IdP as IdPEffect
@@ -221,8 +223,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
-import Spar.Sem.BindCookieStore (BindCookieStore)
-import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1279,9 +1279,9 @@ runSpar (Spar.Spar action) = do
                               scimExternalIdStoreToCassandra @Cas.Client $
                                 aReqIDStoreToCassandra @Cas.Client $
                                   assIDStoreToCassandra @Cas.Client $
-                                  bindCookieStoreToCassandra @Cas.Client $
-                                    runExceptT $
-                                      runReaderT action env
+                                    bindCookieStoreToCassandra @Cas.Client $
+                                      runExceptT $
+                                        runReaderT action env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId

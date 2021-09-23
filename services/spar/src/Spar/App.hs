@@ -90,7 +90,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data (GetIdPResult(..))
+import qualified Spar.Data as Data (GetIdPResult (..))
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
@@ -101,6 +101,9 @@ import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparErr
 import Spar.Sem.AssIDStore (AssIDStore)
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
+import Spar.Sem.BindCookieStore (BindCookieStore)
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
+import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.IdP (GetIdPResult (..))
@@ -126,9 +129,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Spar.Sem.BindCookieStore (BindCookieStore)
-import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
-import qualified Spar.Sem.BindCookieStore as BindCookieStore
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -453,9 +453,9 @@ instance
                                   scimExternalIdStoreToCassandra $
                                     aReqIDStoreToCassandra $
                                       assIDStoreToCassandra $
-                                      bindCookieStoreToCassandra $
-                                        runExceptT $
-                                          runReaderT action ctx
+                                        bindCookieStoreToCassandra $
+                                          runExceptT $
+                                            runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
@@ -485,10 +485,14 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler
-    :: HasCallStack
-    => Members '[BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
-    => Maybe BindCookie -> Maybe TeamId -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r SAML.ResponseVerdict
+verdictHandler ::
+  HasCallStack =>
+  Members '[BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Maybe BindCookie ->
+  Maybe TeamId ->
+  SAML.AuthnResponse ->
+  SAML.AccessVerdict ->
+  Spar r SAML.ResponseVerdict
 verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
@@ -513,10 +517,13 @@ data VerdictHandlerResult
   | VerifyHandlerError {_vhrLabel :: ST, _vhrMessage :: ST}
   deriving (Eq, Show)
 
-verdictHandlerResult
-  :: HasCallStack
-  => Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
-  => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResult ::
+  HasCallStack =>
+  Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Maybe BindCookie ->
+  Maybe TeamId ->
+  SAML.AccessVerdict ->
+  Spar r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
   SAML.logger SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
@@ -555,10 +562,13 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   Intra.setBrigUserVeid uid (UrefOnly newUserRef)
   wrapMonadClientSem $ SAMLUserStore.delete uid oldUserRef
 
-verdictHandlerResultCore
-  :: HasCallStack
-  => Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
-  => Maybe BindCookie -> Maybe TeamId -> SAML.AccessVerdict -> Spar r VerdictHandlerResult
+verdictHandlerResultCore ::
+  HasCallStack =>
+  Members '[BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Maybe BindCookie ->
+  Maybe TeamId ->
+  SAML.AccessVerdict ->
+  Spar r VerdictHandlerResult
 verdictHandlerResultCore bindCky mbteam = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons

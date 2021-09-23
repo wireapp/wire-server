@@ -37,6 +37,7 @@ import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -51,7 +52,6 @@ import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
-import qualified Spar.Sem.BindCookieStore as BindCookieStore
 
 spec :: SpecWith TestEnv
 spec = do

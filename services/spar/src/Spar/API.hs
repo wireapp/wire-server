@@ -58,14 +58,17 @@ import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.App
-import qualified Spar.Data as Data (GetIdPResult(..), Replacing(..), Replaced(..))
+import qualified Spar.Data as Data (GetIdPResult (..), Replaced (..), Replacing (..))
 import Spar.Error
 import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
 import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
+import Spar.Sem.BindCookieStore (BindCookieStore)
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import qualified Spar.Sem.IdP as IdPEffect
@@ -75,14 +78,11 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.BindCookieStore as BindCookieStore
-import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import qualified Spar.Sem.AReqIDStore as AReqIDStore
 
 app :: Env -> Application
 app ctx =
@@ -218,9 +218,13 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-authresp
-  :: forall r. Members '[BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r
-  => Maybe TeamId -> Maybe ST -> SAML.AuthnResponseBody -> Spar r Void
+authresp ::
+  forall r.
+  Members '[BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Maybe TeamId ->
+  Maybe ST ->
+  SAML.AuthnResponseBody ->
+  Spar r Void
 authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie

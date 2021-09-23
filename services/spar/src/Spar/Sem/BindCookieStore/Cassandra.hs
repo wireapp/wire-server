@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-orphans             #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Spar.Sem.BindCookieStore.Cassandra where
@@ -11,9 +11,9 @@ import Polysemy.Error
 import Polysemy.Reader
 import SAML2.WebSSO (fromTime, getNow)
 import qualified Spar.Data as Data
+import Spar.Sem.AReqIDStore.Cassandra ()
 import Spar.Sem.BindCookieStore
 import Wire.API.User.Saml (Opts, TTLError)
-import Spar.Sem.AReqIDStore.Cassandra ()
 
 bindCookieStoreToCassandra ::
   forall m r a.
@@ -28,4 +28,3 @@ bindCookieStoreToCassandra = interpret $ \case
       Left err -> throw err
       Right () -> pure ()
   Lookup bc -> embed @m $ Data.lookupBindCookie bc
-
