@@ -98,11 +98,12 @@ import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
+import Spar.Sem.GalleyAccess (GalleyAccess)
 
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance Members '[BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r => Scim.UserDB ST.SparTag (Spar r) where
+instance Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r => Scim.UserDB ST.SparTag (Spar r) where
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
@@ -370,7 +371,7 @@ veidEmail (ST.EmailOnly email) = Just email
 createValidScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Spar r)) =>
-  Members '[BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
@@ -452,7 +453,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
   forall m r.
-  Members '[BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r =>
   (m ~ Scim.ScimHandler (Spar r)) =>
   ScimTokenInfo ->
   UserId ->
@@ -507,7 +508,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
           pure newScimStoredUser
 
 updateVsuUref ::
-  Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, SAMLUserStore] r =>
   TeamId ->
   UserId ->
   ST.ValidExternalId ->

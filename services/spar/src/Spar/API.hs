@@ -84,6 +84,7 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Spar.Sem.GalleyAccess (GalleyAccess)
 
 app :: Env -> Application
 app ctx =
@@ -92,7 +93,7 @@ app ctx =
 
 api ::
   Members
-    '[ BrigAccess,
+    '[ GalleyAccess, BrigAccess,
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
@@ -116,7 +117,7 @@ api opts =
 
 apiSSO ::
   Members
-    '[ BrigAccess,
+    '[ GalleyAccess, BrigAccess,
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
@@ -137,7 +138,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => ServerT APIIDP (Spar r)
+apiIDP :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -223,7 +224,7 @@ validateRedirectURL uri = do
 
 authresp ::
   forall r.
-  Members '[BrigAccess, BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe TeamId ->
   Maybe ST ->
   SAML.AuthnResponseBody ->
@@ -255,13 +256,13 @@ ssoSettings = do
 ----------------------------------------------------------------------------
 -- IdP API
 
-idpGet :: Members '[BrigAccess, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Spar r IdP
+idpGet :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
   pure idp
 
-idpGetRaw :: Members '[BrigAccess, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Spar r RawIdPMetadata
+idpGetRaw :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Spar r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -269,7 +270,7 @@ idpGetRaw zusr idpid = do
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
 
-idpGetAll :: Members '[BrigAccess, IdPEffect.IdP] r => Maybe UserId -> Spar r IdPList
+idpGetAll :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
@@ -283,7 +284,8 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete :: forall r. Members '[BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+idpDelete
+  :: forall r. Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -338,11 +340,13 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate :: Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreate
+  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML :: Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreateXML
+  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
@@ -436,10 +440,10 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate :: Members '[BrigAccess, IdPEffect.IdP] r => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
+idpUpdate :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
-idpUpdateXML :: Members '[BrigAccess, IdPEffect.IdP] r => Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP
+idpUpdateXML :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   Galley.assertSSOEnabled teamid
@@ -457,7 +461,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
-  Members '[BrigAccess, IdPEffect.IdP] r =>
+  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r =>
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->

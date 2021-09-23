@@ -9,3 +9,4 @@ brigAccessToHttp :: Member (Embed IO) r => Bilge.Manager -> Bilge.Request -> Sem
 brigAccessToHttp mgr req = interpret $ \case
   Call modreq ->
     embed @IO $ runReaderT (unwrap $ httpLbs req modreq) mgr
+

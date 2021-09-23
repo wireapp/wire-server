@@ -97,6 +97,7 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
+import Spar.Sem.GalleyAccess (GalleyAccess)
 
 -- | SCIM config for our server.
 --
@@ -106,7 +107,7 @@ configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
 apiScim ::
-  Members '[BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))

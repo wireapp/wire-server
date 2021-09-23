@@ -60,6 +60,7 @@ import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User.Saml (maxScimTokens)
 import Wire.API.User.Scim
+import Spar.Sem.GalleyAccess (GalleyAccess)
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) where
@@ -78,7 +79,7 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP] r => ServerT APIScimToken (Spar r)
+apiScimToken :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r => ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -89,7 +90,7 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   forall r.
-  Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -136,7 +137,7 @@ createScimToken zusr CreateScimToken {..} = do
 --
 -- Delete a token belonging to user's team.
 deleteScimToken ::
-  Members '[BrigAccess, ScimTokenStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore] r =>
   -- | Who is trying to delete a token
   Maybe UserId ->
   ScimTokenId ->
@@ -151,7 +152,7 @@ deleteScimToken zusr tokenid = do
 -- List all tokens belonging to user's team. Tokens themselves are not available, only
 -- metadata about them.
 listScimTokens ::
-  Members '[BrigAccess, ScimTokenStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore] r =>
   -- | Who is trying to list tokens
   Maybe UserId ->
   Spar r ScimTokenList

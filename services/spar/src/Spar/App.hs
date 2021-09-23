@@ -132,6 +132,9 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Spar.Sem.GalleyAccess (GalleyAccess)
+import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -334,14 +337,14 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
 autoprovisionSamlUser mbteam suid = do
   buid <- Id <$> liftIO UUID.nextRandom
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: forall r. Members '[BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
+autoprovisionSamlUserWithId :: forall r. Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
@@ -365,7 +368,7 @@ autoprovisionSamlUserWithId mbteam buid suid = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: forall r. Member BrigAccess r => UserId -> SAML.UserRef -> Spar r ()
+validateEmailIfExists :: forall r. Members '[GalleyAccess, BrigAccess] r => UserId -> SAML.UserRef -> Spar r ()
 validateEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
   _ -> pure ()
@@ -424,6 +427,7 @@ instance
            SAMLUserStore,
            Embed (Cas.Client),
            BrigAccess,
+           GalleyAccess,
            ReaderEff.Reader Opts,
            Error TTLError,
            Error SparError,
@@ -448,6 +452,7 @@ instance
                 runError @SparError $
                   ttlErrorToSparError $
                     ReaderEff.runReader (sparCtxOpts ctx) $
+                      galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
                       brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
                         interpretClientToIO (sparCtxCas ctx) $
                           samlUserStoreToCassandra @Cas.Client $
@@ -474,10 +479,8 @@ instance MonadHttp (Spar r) where
 instance Member BrigAccess r => Intra.MonadSparToBrig (Spar r) where
   call = liftSem . BrigAccess.call
 
-instance Intra.MonadSparToGalley (Spar r) where
-  call modreq = do
-    req <- asks sparCtxHttpGalley
-    httpLbs req modreq
+instance Member GalleyAccess r => Intra.MonadSparToGalley (Spar r) where
+  call = liftSem . GalleyAccess.call
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we
@@ -490,7 +493,7 @@ instance Intra.MonadSparToGalley (Spar r) where
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -522,7 +525,7 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -567,7 +570,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members '[BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
