@@ -471,11 +471,6 @@ instance
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
       throwErrorAsHandlerException (Right a) = pure a
 
-instance MonadHttp (Spar r) where
-  handleRequestWithCont req handler = do
-    manager <- asks sparCtxHttpManager
-    liftIO $ withResponse req manager handler
-
 instance Member BrigAccess r => Intra.MonadSparToBrig (Spar r) where
   call = liftSem . BrigAccess.call
 
