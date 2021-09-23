@@ -9,4 +9,3 @@ galleyAccessToHttp :: Member (Embed IO) r => Bilge.Manager -> Bilge.Request -> S
 galleyAccessToHttp mgr req = interpret $ \case
   Call modreq ->
     embed @IO $ runReaderT (unwrap $ httpLbs req modreq) mgr
-

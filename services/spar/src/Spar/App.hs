@@ -109,6 +109,9 @@ import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
+import Spar.Sem.GalleyAccess (GalleyAccess)
+import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdP (GetIdPResult (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
@@ -132,9 +135,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -453,19 +453,19 @@ instance
                   ttlErrorToSparError $
                     ReaderEff.runReader (sparCtxOpts ctx) $
                       galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
-                      brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
-                        interpretClientToIO (sparCtxCas ctx) $
-                          samlUserStoreToCassandra @Cas.Client $
-                            idPToCassandra @Cas.Client $
-                              defaultSsoCodeToCassandra $
-                                scimTokenStoreToCassandra $
-                                  scimUserTimesStoreToCassandra $
-                                    scimExternalIdStoreToCassandra $
-                                      aReqIDStoreToCassandra $
-                                        assIDStoreToCassandra $
-                                          bindCookieStoreToCassandra $
-                                            runExceptT $
-                                              runReaderT action ctx
+                        brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
+                          interpretClientToIO (sparCtxCas ctx) $
+                            samlUserStoreToCassandra @Cas.Client $
+                              idPToCassandra @Cas.Client $
+                                defaultSsoCodeToCassandra $
+                                  scimTokenStoreToCassandra $
+                                    scimUserTimesStoreToCassandra $
+                                      scimExternalIdStoreToCassandra $
+                                        aReqIDStoreToCassandra $
+                                          assIDStoreToCassandra $
+                                            bindCookieStoreToCassandra $
+                                              runExceptT $
+                                                runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

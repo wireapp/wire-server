@@ -189,10 +189,10 @@ import Spar.Sem.BindCookieStore (BindCookieStore)
 import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
+import Spar.Sem.GalleyAccess (GalleyAccess)
+import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -1287,9 +1287,9 @@ runSpar (Spar.Spar action) = do
                                   assIDStoreToCassandra @Cas.Client $
                                     bindCookieStoreToCassandra @Cas.Client $
                                       brigAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
-                                      galleyAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
-                                        runExceptT $
-                                          runReaderT action env
+                                        galleyAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                          runExceptT $
+                                            runReaderT action env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId

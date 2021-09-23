@@ -72,6 +72,7 @@ import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
+import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
@@ -84,7 +85,6 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Spar.Sem.GalleyAccess (GalleyAccess)
 
 app :: Env -> Application
 app ctx =
@@ -93,7 +93,8 @@ app ctx =
 
 api ::
   Members
-    '[ GalleyAccess, BrigAccess,
+    '[ GalleyAccess,
+       BrigAccess,
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
@@ -117,7 +118,8 @@ api opts =
 
 apiSSO ::
   Members
-    '[ GalleyAccess, BrigAccess,
+    '[ GalleyAccess,
+       BrigAccess,
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
@@ -284,9 +286,13 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
-idpDelete
-  :: forall r. Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r
-  => Maybe UserId -> SAML.IdPId -> Maybe Bool -> Spar r NoContent
+idpDelete ::
+  forall r.
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r =>
+  Maybe UserId ->
+  SAML.IdPId ->
+  Maybe Bool ->
+  Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- authorizeIdP zusr idp
@@ -341,15 +347,24 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
-idpCreate
-  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r
-  => Maybe UserId -> IdPMetadataInfo -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreate ::
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r =>
+  Maybe UserId ->
+  IdPMetadataInfo ->
+  Maybe SAML.IdPId ->
+  Maybe WireIdPAPIVersion ->
+  Spar r IdP
 idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreateXML
-  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r
-  => Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Maybe WireIdPAPIVersion -> Spar r IdP
+idpCreateXML ::
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r =>
+  Maybe UserId ->
+  Text ->
+  SAML.IdPMetadata ->
+  Maybe SAML.IdPId ->
+  Maybe WireIdPAPIVersion ->
+  Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
