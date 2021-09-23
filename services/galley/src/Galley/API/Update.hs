@@ -594,10 +594,9 @@ updateSelfMember zusr zcon qcnv update = do
   lusr <- qualifyLocal zusr
   exists <- foldQualified lusr checkLocalMembership checkRemoteMembership qcnv lusr
   unless exists (throwErrorDescriptionType @ConvNotFound)
-  Data.updateMember lusr qcnv lusr update
+  Data.updateSelfMember lusr qcnv lusr update
   now <- liftIO getCurrentTime
-  let up = Data.memberUpdateToData lusr update
-      e = Event MemberStateUpdate qcnv (unTagged lusr) now (EdMemberUpdate up)
+  let e = Event MemberStateUpdate qcnv (unTagged lusr) now (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) e [zusr] []
   where
     checkLocalMembership lcnv lusr =
@@ -606,6 +605,18 @@ updateSelfMember zusr zcon qcnv update = do
     checkRemoteMembership rcnv lusr =
       isJust . Map.lookup rcnv
         <$> Data.remoteConversationStatus (lUnqualified lusr) [rcnv]
+
+    updateData luid =
+      MemberUpdateData
+        { misTarget = unTagged luid,
+          misOtrMutedStatus = mupOtrMuteStatus update,
+          misOtrMutedRef = mupOtrMuteRef update,
+          misOtrArchived = mupOtrArchive update,
+          misOtrArchivedRef = mupOtrArchiveRef update,
+          misHidden = mupHidden update,
+          misHiddenRef = mupHiddenRef update,
+          misConvRoleName = Nothing
+        }
 
 updateUnqualifiedSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
 updateUnqualifiedSelfMember zusr zcon cnv update = do
@@ -654,7 +665,7 @@ updateOtherMemberLocalConv lcnv lusr zcon qvictim update = do
       (lUnqualified lcnv)
   ensureActionAllowedThrowing ModifyOtherConversationMember self
   void $ ensureOtherMember lusr qvictim (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
-  Data.updateMemberLocalConv lcnv qvictim update
+  Data.updateOtherMemberLocalConv lcnv qvictim update
   void $
     notifyConversationMetadataUpdate
       (unTagged lusr)
