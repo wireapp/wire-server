@@ -14,6 +14,8 @@ for chart in "${charts[@]}"; do
     "$DIR/update.sh" "$CHARTS_DIR/$chart"
 done
 
+set -e
+
 echo "Generating funky secrets..."
 
 export NAMESPACE_1="$NAMESPACE"
