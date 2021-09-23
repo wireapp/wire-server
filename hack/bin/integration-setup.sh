@@ -23,7 +23,7 @@ export FEDERATION_DOMAIN_BASE="$NAMESPACE.svc.cluster.local"
 export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"
 "$DIR/selfsigned-kubernetes.sh"
 
-helmfile --file ${TOP_LEVEL}/hack/helmfile.yaml sync --concurrency 1
+helmfile --file ${TOP_LEVEL}/hack/helmfile.yaml sync
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
