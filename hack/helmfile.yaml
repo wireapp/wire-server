@@ -47,14 +47,14 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
 
-  # - name: 'wire-server'
-  #   namespace: {{ .Values.namespace }}
-  #   chart: '../.local/charts/wire-server'
-  #   values:
-  #     - './helm_vars/wire-server/values.yaml'
-  #     - './helm_vars/wire-server/certificates.yaml'
-  #   set:
-  #     - name: brig.config.optSettings.setFederationDomain
-  #       value: {{ .Values.federationDomain }}
-  #     - name: galley.config.settings.federationDomain
-  #       value: {{ .Values.federationDomain }}
+  - name: 'wire-server'
+    namespace: {{ .Values.namespace }}
+    chart: '../.local/charts/wire-server'
+    values:
+      - './helm_vars/wire-server/values.yaml'
+      - './helm_vars/wire-server/certificates.yaml'
+    set:
+      - name: brig.config.optSettings.setFederationDomain
+        value: {{ .Values.federationDomain }}
+      - name: galley.config.settings.federationDomain
+        value: {{ .Values.federationDomain }}

@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/.."
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOP_LEVEL="$DIR/../.."
 
 NAMESPACE=${NAMESPACE:-test-integration}
+export FEDERATION_DOMAIN="." # doesn't matter for destruction
 
 set -ex
 
-echo "NAMESPACE = $NAMESPACE"
-
-helm ls --all --namespace ${NAMESPACE} | grep -v NAME | awk '{print $1}' | xargs -n 1 helm -n "$NAMESPACE" delete
-
-sleep 10
-
-kubectl delete namespace ${NAMESPACE}
+helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy
