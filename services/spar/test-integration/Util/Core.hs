@@ -114,8 +114,6 @@ module Util.Core
     callIdpDeletePurge',
     initCassandra,
     ssoToUidSpar,
-    runSparCass,
-    runSparCassWithEnv,
     runSimpleSP,
     runSpar,
     type RealInterpretation,
@@ -159,7 +157,6 @@ import Data.Range
 import Data.String.Conversions
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
@@ -180,7 +177,6 @@ import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Spar.App (liftSem, toLevel)
 import qualified Spar.App as Spar
-import qualified Spar.Data as Data
 import Spar.Error (SparError)
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
@@ -1233,28 +1229,6 @@ ssoToUidSpar tid ssoid = do
       (liftSem . SAMLUserStore.get)
       (liftSem . ScimExternalIdStore.lookup tid)
       veid
-
-runSparCass ::
-  (HasCallStack, m ~ Client, MonadIO m', MonadReader TestEnv m') =>
-  m a ->
-  m' a
-runSparCass action = do
-  env <- ask
-  liftIO $ runClient (env ^. teCql) action
-
-runSparCassWithEnv ::
-  ( HasCallStack,
-    m ~ ReaderT Data.Env (ExceptT TTLError Cas.Client),
-    MonadIO m',
-    MonadReader TestEnv m'
-  ) =>
-  m a ->
-  m' a
-runSparCassWithEnv action = do
-  env <- ask
-  denv <- Data.mkEnv <$> (pure $ env ^. teOpts) <*> liftIO getCurrentTime
-  val <- runSparCass (runExceptT (action `runReaderT` denv))
-  either (liftIO . throwIO . ErrorCall . show) pure val
 
 runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
 runSimpleSP action = do

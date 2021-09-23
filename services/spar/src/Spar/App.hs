@@ -95,7 +95,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
-import qualified Spar.Data as Data hiding (deleteSAMLUser, deleteSAMLUsersByIssuer, getIdPConfig, getSAMLAnyUserByIssuer, getSAMLSomeUsersByIssuer, getSAMLUser, insertSAMLUser, storeIdPConfig)
+import qualified Spar.Data as Data (GetIdPResult(..), Env, mkEnv)
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra

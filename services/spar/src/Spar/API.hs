@@ -58,7 +58,7 @@ import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.App
-import qualified Spar.Data as Data hiding (clearReplacedBy, deleteIdPRawMetadata, getIdPConfig, getIdPConfigsByTeam, getIdPIdByIssuerWithTeam, getIdPIdByIssuerWithoutTeam, getIdPRawMetadata, setReplacedBy, storeIdPConfig, storeIdPRawMetadata)
+import qualified Spar.Data as Data (GetIdPResult(..), Replacing(..), Replaced(..))
 import Spar.Error
 import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Galley as Galley
