@@ -203,7 +203,7 @@ roleUpdateRemoteMember = do
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
-        @?= ConversationActionMemberUpdate mu
+        @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireMember))
       sort (F.cuAlreadyPresentUsers cu) @?= sort [qUnqualified qalice, qUnqualified qcharlie]
 
     liftIO . WS.assertMatch_ (5 # Second) wsB $ \n -> do
@@ -274,7 +274,7 @@ roleUpdateWithRemotes = do
       Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
-        @?= ConversationActionMemberUpdate mu
+        @?= ConversationActionMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireAdmin))
       F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
 
     liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do

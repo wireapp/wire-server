@@ -452,7 +452,6 @@ data Api routes = Api
         :- Summary "Update self membership properties (deprecated)"
         :> Description "Use `/conversations/:domain/:conv/self` instead."
         :> CanThrow ConvNotFound
-        :> CanThrow ConvAccessDenied
         :> ZUser
         :> ZConn
         :> "conversations"
@@ -469,7 +468,6 @@ data Api routes = Api
         :- Summary "Update self membership properties"
         :> Description "**Note**: at least one field has to be provided."
         :> CanThrow ConvNotFound
-        :> CanThrow ConvAccessDenied
         :> ZUser
         :> ZConn
         :> "conversations"

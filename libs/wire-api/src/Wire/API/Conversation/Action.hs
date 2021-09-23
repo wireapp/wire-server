@@ -18,6 +18,7 @@
 module Wire.API.Conversation.Action
   ( ConversationAction (..),
     conversationActionToEvent,
+    conversationActionTag,
   )
 where
 
@@ -40,7 +41,7 @@ data ConversationAction
   | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
   | ConversationActionRename ConversationRename
   | ConversationActionMessageTimerUpdate ConversationMessageTimerUpdate
-  | ConversationActionMemberUpdate MemberUpdateData
+  | ConversationActionMemberUpdate (Qualified UserId) OtherMemberUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)
@@ -61,5 +62,13 @@ conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
   Event ConvRename qcnv quid now (EdConvRename rename)
 conversationActionToEvent now quid qcnv (ConversationActionMessageTimerUpdate update) =
   Event ConvMessageTimerUpdate qcnv quid now (EdConvMessageTimerUpdate update)
-conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate update) =
-  Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
+conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate target (OtherMemberUpdate role)) =
+  let update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
+   in Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
+
+conversationActionTag :: ConversationAction -> Action
+conversationActionTag (ConversationActionAddMembers _) = AddConversationMember
+conversationActionTag (ConversationActionRemoveMembers _) = RemoveConversationMember
+conversationActionTag (ConversationActionRename _) = ModifyConversationName
+conversationActionTag (ConversationActionMessageTimerUpdate _) = ModifyConversationMessageTimer
+conversationActionTag (ConversationActionMemberUpdate _ _) = ModifyOtherConversationMember

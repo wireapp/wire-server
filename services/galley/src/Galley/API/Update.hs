@@ -118,7 +118,6 @@ import qualified Wire.API.Conversation.Code as Public
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
   ( CodeNotFound,
-    ConvMemberNotFound,
     ConvNotFound,
     MissingLegalholdConsent,
     UnknownClient,
@@ -592,57 +591,26 @@ addMembers zusr zcon convId invite = do
 
 updateSelfMember :: UserId -> ConnId -> Qualified ConvId -> Public.MemberUpdate -> Galley ()
 updateSelfMember zusr zcon qcnv update = do
-  localDomain <- viewFederationDomain
-  if qDomain qcnv == localDomain
-    then updateLocalSelfMember zusr zcon (toLocal qcnv) update
-    else updateRemoteSelfMember zusr zcon (toRemote qcnv) update
+  lusr <- qualifyLocal zusr
+  exists <- foldQualified lusr checkLocalMembership checkRemoteMembership qcnv lusr
+  unless exists (throwErrorDescriptionType @ConvNotFound)
+  Data.updateMember lusr qcnv lusr update
+  now <- liftIO getCurrentTime
+  let up = Data.memberUpdateToData lusr update
+      e = Event MemberStateUpdate qcnv (unTagged lusr) now (EdMemberUpdate up)
+  pushConversationEvent (Just zcon) e [zusr] []
+  where
+    checkLocalMembership lcnv lusr =
+      isMember (lUnqualified lusr)
+        <$> Data.members (lUnqualified lcnv)
+    checkRemoteMembership rcnv lusr =
+      isJust . Map.lookup rcnv
+        <$> Data.remoteConversationStatus (lUnqualified lusr) [rcnv]
 
 updateUnqualifiedSelfMember :: UserId -> ConnId -> ConvId -> Public.MemberUpdate -> Galley ()
-updateUnqualifiedSelfMember zusr zcon cid update = do
-  localDomain <- viewFederationDomain
-  updateLocalSelfMember zusr zcon (toLocal (Qualified cid localDomain)) update
-
-updateLocalSelfMember :: UserId -> ConnId -> Local ConvId -> Public.MemberUpdate -> Galley ()
-updateLocalSelfMember zusr zcon (Tagged qcid) update = do
-  -- FUTUREWORK: no need to fetch the whole conversation here: the
-  -- getConversationAndCheckMembership function results in 3 queries (for the
-  -- conversation metadata, remote members and local members respectively), but
-  -- only one is really needed (local members).
-  conv <- getConversationAndCheckMembership zusr (qUnqualified qcid)
-  m <- getSelfMemberFromLocalsLegacy zusr (Data.convLocalMembers conv)
-  luid <- qualifyLocal zusr
-  let targets = NotificationTargets [lmId m] [] []
-  processUpdateMemberEvent luid zcon qcid targets luid update
-
-updateRemoteSelfMember ::
-  UserId ->
-  ConnId ->
-  Remote ConvId ->
-  Public.MemberUpdate ->
-  Galley ()
-updateRemoteSelfMember zusr zcon rcid update = do
-  statusMap <- Data.remoteConversationStatus zusr [rcid]
-  case Map.lookup rcid statusMap of
-    Nothing -> throwErrorDescriptionType @ConvMemberNotFound
-    Just _ -> do
-      luid <- qualifyLocal zusr
-      let targets = NotificationTargets [zusr] [] []
-      processUpdateMemberEvent luid zcon (unTagged rcid) targets luid update
-
-updateOtherMember ::
-  UserId ->
-  ConnId ->
-  Qualified ConvId ->
-  Qualified UserId ->
-  Public.OtherMemberUpdate ->
-  Galley ()
-updateOtherMember zusr zcon qcid qvictim update = do
-  lusr <- qualifyLocal zusr
-  foldQualified
-    lusr
-    (\lcid -> updateOtherMemberLocalConv lusr zcon lcid qvictim update)
-    (\_ -> throwM federationNotImplemented)
-    qcid
+updateUnqualifiedSelfMember zusr zcon cnv update = do
+  lcnv <- qualifyLocal cnv
+  updateSelfMember zusr zcon (unTagged lcnv) update
 
 updateOtherMemberUnqualified ::
   UserId ->
@@ -655,26 +623,54 @@ updateOtherMemberUnqualified zusr zcon cnv victim update = do
   lusr <- qualifyLocal zusr
   lcnv <- qualifyLocal cnv
   lvictim <- qualifyLocal victim
-  updateOtherMemberLocalConv lusr zcon lcnv (unTagged lvictim) update
+  updateOtherMemberLocalConv lcnv lusr zcon (unTagged lvictim) update
 
-updateOtherMemberLocalConv ::
-  Local UserId ->
+updateOtherMember ::
+  UserId ->
   ConnId ->
-  Local ConvId ->
+  Qualified ConvId ->
   Qualified UserId ->
   Public.OtherMemberUpdate ->
   Galley ()
-updateOtherMemberLocalConv luid zcon lcid qvictim update = do
-  when (unTagged luid == qvictim) $
+updateOtherMember zusr zcon qcnv qvictim update = do
+  lusr <- qualifyLocal zusr
+  let doUpdate = foldQualified lusr updateOtherMemberLocalConv updateOtherMemberRemoteConv
+  doUpdate qcnv lusr zcon qvictim update
+
+updateOtherMemberLocalConv ::
+  Local ConvId ->
+  Local UserId ->
+  ConnId ->
+  Qualified UserId ->
+  Public.OtherMemberUpdate ->
+  Galley ()
+updateOtherMemberLocalConv lcnv lusr zcon qvictim update = do
+  when (unTagged lusr == qvictim) $
     throwM invalidTargetUserOp
   (conv, self) <-
     getConversationAndMemberWithError
       (errorDescriptionTypeToWai @ConvNotFound)
-      (lUnqualified luid)
-      (lUnqualified lcid)
+      (lUnqualified lusr)
+      (lUnqualified lcnv)
   ensureActionAllowedThrowing ModifyOtherConversationMember self
-  void $ ensureOtherMember luid qvictim (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
-  processUpdateMemberEvent luid zcon (unTagged lcid) (convTargets conv) qvictim update
+  void $ ensureOtherMember lusr qvictim (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
+  Data.updateMemberLocalConv lcnv qvictim update
+  void $
+    notifyConversationMetadataUpdate
+      (unTagged lusr)
+      zcon
+      lcnv
+      (ntAdd lusr qvictim (convTargets conv))
+      (ConversationActionMemberUpdate qvictim update)
+
+updateOtherMemberRemoteConv ::
+  Remote ConvId ->
+  Local UserId ->
+  ConnId ->
+  Qualified UserId ->
+  Public.OtherMemberUpdate ->
+  Galley ()
+updateOtherMemberRemoteConv _ _ _ _ _ = throwM federationNotImplemented
 
 -- | A general conversation member removal function used both by the unqualified
 -- and the qualified endpoint for member removal. This is also used to leave a
@@ -1193,43 +1189,6 @@ ensureConvMember :: [LocalMember] -> UserId -> Galley ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $
     throwErrorDescriptionType @ConvNotFound
-
--- | Update a member of a conversation and propagate events.
---
--- Note: the victim is assumed to be a member of the conversation.
-processUpdateMemberEvent ::
-  ( IsNotificationTarget uid,
-    Data.IsMemberUpdate mu uid
-  ) =>
-  -- | Originating user
-  Local UserId ->
-  -- | Connection ID for the originating user
-  ConnId ->
-  -- | Conversation whose members are being updated
-  Qualified ConvId ->
-  -- | Recipients of the notification
-  NotificationTargets ->
-  -- | User being updated
-  uid ->
-  -- | Update structure
-  mu ->
-  Galley ()
-processUpdateMemberEvent lusr zcon qcid targets victim update = do
-  up <-
-    foldQualified
-      lusr
-      Data.updateMember
-      Data.updateMemberRemoteConv
-      qcid
-      victim
-      update
-  void $
-    notifyConversationMetadataUpdate
-      (unTagged lusr)
-      zcon
-      (toLocal qcid)
-      (ntAdd lusr victim targets)
-      (ConversationActionMemberUpdate up)
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation

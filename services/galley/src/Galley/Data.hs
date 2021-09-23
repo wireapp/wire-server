@@ -91,6 +91,7 @@ module Galley.Data
     removeRemoteMembersFromLocalConv,
     removeLocalMembersFromRemoteConv,
     IsMemberUpdate (..),
+    updateMember,
     ToUserRole (..),
     toQualifiedUserRole,
     filterRemoteConvMembers,
@@ -941,24 +942,21 @@ addLocalMembersToRemoteConv qconv users = do
           (u, qDomain qconv, qUnqualified qconv)
 
 class IsMemberUpdate mu uid where
-  updateMember :: MonadClient m => Local ConvId -> uid -> mu -> m MemberUpdateData
-  updateMemberRemoteConv :: MonadClient m => Remote ConvId -> uid -> mu -> m MemberUpdateData
+  updateMemberLocalConv :: MonadClient m => Local ConvId -> uid -> mu -> m ()
+  updateMemberRemoteConv :: MonadClient m => Remote ConvId -> uid -> mu -> m ()
+  memberUpdateToData :: uid -> mu -> MemberUpdateData
 
-memberUpdateToData :: Qualified UserId -> MemberUpdate -> MemberUpdateData
-memberUpdateToData quid mup =
-  MemberUpdateData
-    { misTarget = quid,
-      misOtrMutedStatus = mupOtrMuteStatus mup,
-      misOtrMutedRef = mupOtrMuteRef mup,
-      misOtrArchived = mupOtrArchive mup,
-      misOtrArchivedRef = mupOtrArchiveRef mup,
-      misHidden = mupHidden mup,
-      misHiddenRef = mupHiddenRef mup,
-      misConvRoleName = Nothing
-    }
+updateMember ::
+  (IsMemberUpdate mu uid, MonadClient m) =>
+  Local x ->
+  Qualified ConvId ->
+  uid ->
+  mu ->
+  m ()
+updateMember loc = foldQualified loc updateMemberLocalConv updateMemberRemoteConv
 
 instance IsMemberUpdate MemberUpdate (Local UserId) where
-  updateMember lcid luid mup = do
+  updateMemberLocalConv lcid luid mup = do
     retry x5 . batch $ do
       setType BatchUnLogged
       setConsistency Quorum
@@ -974,7 +972,7 @@ instance IsMemberUpdate MemberUpdate (Local UserId) where
         addPrepQuery
           Cql.updateMemberHidden
           (h, mupHiddenRef mup, lUnqualified lcid, lUnqualified luid)
-    pure (memberUpdateToData (unTagged luid) mup)
+
   updateMemberRemoteConv (Tagged (Qualified cid domain)) luid mup = do
     retry x5 . batch $ do
       setType BatchUnLogged
@@ -991,10 +989,21 @@ instance IsMemberUpdate MemberUpdate (Local UserId) where
         addPrepQuery
           Cql.updateRemoteMemberHidden
           (h, mupHiddenRef mup, domain, cid, lUnqualified luid)
-    pure (memberUpdateToData (unTagged luid) mup)
+
+  memberUpdateToData luid mup =
+    MemberUpdateData
+      { misTarget = unTagged luid,
+        misOtrMutedStatus = mupOtrMuteStatus mup,
+        misOtrMutedRef = mupOtrMuteRef mup,
+        misOtrArchived = mupOtrArchive mup,
+        misOtrArchivedRef = mupOtrArchiveRef mup,
+        misHidden = mupHidden mup,
+        misHiddenRef = mupHiddenRef mup,
+        misConvRoleName = Nothing
+      }
 
 instance IsMemberUpdate OtherMemberUpdate (Qualified UserId) where
-  updateMember lcid quid omu =
+  updateMemberLocalConv lcid quid omu =
     do
       let addQuery r
             | lDomain lcid == qDomain quid =
@@ -1009,31 +1018,21 @@ instance IsMemberUpdate OtherMemberUpdate (Qualified UserId) where
         setType BatchUnLogged
         setConsistency Quorum
         traverse_ addQuery (omuConvRoleName omu)
-      pure
-        MemberUpdateData
-          { misTarget = quid,
-            misOtrMutedStatus = Nothing,
-            misOtrMutedRef = Nothing,
-            misOtrArchived = Nothing,
-            misOtrArchivedRef = Nothing,
-            misHidden = Nothing,
-            misHiddenRef = Nothing,
-            misConvRoleName = omuConvRoleName omu
-          }
 
   -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-887
-  updateMemberRemoteConv _ quid _ =
-    pure
-      MemberUpdateData
-        { misTarget = quid,
-          misOtrMutedStatus = Nothing,
-          misOtrMutedRef = Nothing,
-          misOtrArchived = Nothing,
-          misOtrArchivedRef = Nothing,
-          misHidden = Nothing,
-          misHiddenRef = Nothing,
-          misConvRoleName = Nothing
-        }
+  updateMemberRemoteConv _ _ _ = pure ()
+
+  memberUpdateToData quid omu =
+    MemberUpdateData
+      { misTarget = quid,
+        misOtrMutedStatus = Nothing,
+        misOtrMutedRef = Nothing,
+        misOtrArchived = Nothing,
+        misOtrArchivedRef = Nothing,
+        misHidden = Nothing,
+        misHiddenRef = Nothing,
+        misConvRoleName = omuConvRoleName omu
+      }
 
 -- | Select only the members of a remote conversation from a list of users.
 -- Return the filtered list and a boolean indicating whether the all the input

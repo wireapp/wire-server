@@ -360,7 +360,7 @@ notifyMemberUpdate = do
           }
   notifyUpdate
     [qdee]
-    (ConversationActionMemberUpdate d)
+    (ConversationActionMemberUpdate qdee (OtherMemberUpdate (Just roleNameWireAdmin)))
     MemberStateUpdate
     (EdMemberUpdate d)
 
