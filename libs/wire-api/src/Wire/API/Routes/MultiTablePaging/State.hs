@@ -48,8 +48,8 @@ encodePagingState (MultiTablePagingState table state) =
       encodedState = fromMaybe "" state
    in BS.cons encodedTable encodedState
 
-parseConversationPagingState :: PagingTable tables => ByteString -> Either String (MultiTablePagingState name tables)
-parseConversationPagingState = AB.parseOnly conversationPagingStateParser
+parsePagingState :: PagingTable tables => ByteString -> Either String (MultiTablePagingState name tables)
+parsePagingState = AB.parseOnly conversationPagingStateParser
 
 conversationPagingStateParser :: PagingTable tables => AB.Parser (MultiTablePagingState name tables)
 conversationPagingStateParser = do
@@ -70,4 +70,4 @@ instance (PagingTable tables, KnownSymbol name) => ToSchema (MultiTablePagingSta
     (toBase64Text . encodePagingState)
       .= parsedText
         (Text.pack (symbolVal (Proxy @name)) <> "_PagingState")
-        (parseConversationPagingState <=< fromBase64Text)
+        (parsePagingState <=< fromBase64Text)
