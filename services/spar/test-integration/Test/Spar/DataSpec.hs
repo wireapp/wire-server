@@ -30,10 +30,14 @@ import Data.Kind (Type)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
+import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Data as Data
 import Spar.Intra.Brig (veidFromUserSSOId)
+import qualified Spar.Sem.AReqIDStore as AReqIDStore
+import qualified Spar.Sem.AssIDStore as AssIDStore
+import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import qualified Spar.Sem.IdP as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -68,7 +72,7 @@ spec = do
       (_, _, (^. SAML.idpId) -> idpid) <- registerTestIdP
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
-          probe = runSparCass $ isAliveAReqID (req ^. SAML.rqID)
+          probe = runSpar $ liftSem $ AReqIDStore.isAlive (req ^. SAML.rqID)
           maxttl :: Int -- musec
           maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
       liftIO $ maxttl `shouldSatisfy` (< 60 * 1000 * 1000) -- otherwise the test will be really slow.
@@ -82,31 +86,31 @@ spec = do
       liftIO $ p3 `shouldBe` False -- 1.5 lifetimes after birth
   describe "cql binding" $ do
     describe "AuthnRequest" $ do
-      testSPStoreID storeAReqID unStoreAReqID isAliveAReqID
+      testSPStoreID AReqIDStore.store AReqIDStore.unStore AReqIDStore.isAlive
     describe "Assertion" $ do
-      testSPStoreID storeAssID unStoreAssID isAliveAssID
+      testSPStoreID AssIDStore.store AssIDStore.unStore AssIDStore.isAlive
     describe "VerdictFormat" $ do
       context "insert and get are \"inverses\"" $ do
         let check vf = it (show vf) $ do
               vid <- nextSAMLID
-              () <- runSparCass $ storeVerdictFormat 1 vid vf
-              mvf <- runSparCass $ getVerdictFormat vid
+              () <- runSpar $ liftSem $ AReqIDStore.storeVerdictFormat 1 vid vf
+              mvf <- runSpar $ liftSem $ AReqIDStore.getVerdictFormat vid
               liftIO $ mvf `shouldBe` Just vf
         check
           `mapM_` [ VerdictFormatWeb,
                     VerdictFormatMobile [uri|https://fw/ooph|] [uri|https://lu/gn|]
                   ]
       context "has timed out" $ do
-        it "getVerdictFormat returns Nothing" $ do
+        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
           vid <- nextSAMLID
-          () <- runSparCass $ storeVerdictFormat 1 vid VerdictFormatWeb
+          () <- runSpar $ liftSem $ AReqIDStore.storeVerdictFormat 1 vid VerdictFormatWeb
           liftIO $ threadDelay 2000000
-          mvf <- runSparCass $ getVerdictFormat vid
+          mvf <- runSpar $ liftSem $ AReqIDStore.getVerdictFormat vid
           liftIO $ mvf `shouldBe` Nothing
       context "does not exist" $ do
-        it "getVerdictFormat returns Nothing" $ do
+        it "AReqIDStore.getVerdictFormat returns Nothing" $ do
           vid <- nextSAMLID
-          mvf <- runSparCass $ getVerdictFormat vid
+          mvf <- runSpar $ liftSem $ AReqIDStore.getVerdictFormat vid
           liftIO $ mvf `shouldBe` Nothing
     describe "User" $ do
       context "user is new" $ do
@@ -147,21 +151,21 @@ spec = do
       it "insert and get are \"inverses\"" $ do
         uid <- nextWireId
         cky <- mkcky
-        () <- runSparCassWithEnv $ insertBindCookie cky uid 1
-        muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+        () <- runSpar $ liftSem $ BindCookieStore.insert cky uid 1
+        muid <- runSpar $ liftSem $ BindCookieStore.lookup (setBindCookieValue cky)
         liftIO $ muid `shouldBe` Just uid
       context "has timed out" $ do
-        it "lookupBindCookie returns Nothing" $ do
+        it "BindCookieStore.lookup returns Nothing" $ do
           uid <- nextWireId
           cky <- mkcky
-          () <- runSparCassWithEnv $ insertBindCookie cky uid 1
+          () <- runSpar $ liftSem $ BindCookieStore.insert cky uid 1
           liftIO $ threadDelay 2000000
-          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+          muid <- runSpar $ liftSem $ BindCookieStore.lookup (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
       context "does not exist" $ do
-        it "lookupBindCookie returns Nothing" $ do
+        it "BindCookieStore.lookup returns Nothing" $ do
           cky <- mkcky
-          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
+          muid <- runSpar $ liftSem $ BindCookieStore.lookup (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
     describe "Team" $ do
       testDeleteTeam
@@ -221,12 +225,14 @@ spec = do
           idp2' <- runSpar $ liftSem (IdPEffect.getConfig (idp1 ^. idpId))
           liftIO $ idp2' `shouldBe` Nothing
 
+-- TODO(sandy): This function should be more polymorphic over it's polysemy
+-- constraints than using 'RealInterpretation' in full anger.
 testSPStoreID ::
-  forall m (a :: Type).
-  (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a) =>
-  (SAML.ID a -> SAML.Time -> m ()) ->
-  (SAML.ID a -> m ()) ->
-  (SAML.ID a -> m Bool) ->
+  forall (a :: Type).
+  (Typeable a) =>
+  (SAML.ID a -> SAML.Time -> Sem RealInterpretation ()) ->
+  (SAML.ID a -> Sem RealInterpretation ()) ->
+  (SAML.ID a -> Sem RealInterpretation Bool) ->
   SpecWith TestEnv
 testSPStoreID store unstore isalive = do
   describe ("SPStoreID @" <> show (typeRep @a)) $ do
@@ -234,24 +240,24 @@ testSPStoreID store unstore isalive = do
       it "isAliveID is True" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
-        isit <- runSparCassWithEnv $ isalive xid
+        () <- runSpar $ liftSem $ store xid eol
+        isit <- runSpar $ liftSem $ isalive xid
         liftIO $ isit `shouldBe` True
     context "after TTL" $ do
       it "isAliveID returns False" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 2 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
+        () <- runSpar $ liftSem $ store xid eol
         liftIO $ threadDelay 3000000
-        isit <- runSparCassWithEnv $ isalive xid
+        isit <- runSpar $ liftSem $ isalive xid
         liftIO $ isit `shouldBe` False
     context "after call to unstore" $ do
       it "isAliveID returns False" $ do
         xid :: SAML.ID a <- nextSAMLID
         eol :: Time <- addTime 5 <$> runSimpleSP getNow
-        () <- runSparCassWithEnv $ store xid eol
-        () <- runSparCassWithEnv $ unstore xid
-        isit <- runSparCassWithEnv $ isalive xid
+        () <- runSpar $ liftSem $ store xid eol
+        () <- runSpar $ liftSem $ unstore xid
+        isit <- runSpar $ liftSem $ isalive xid
         liftIO $ isit `shouldBe` False
 
 -- | Test that when a team is deleted, all relevant data is pruned from the
