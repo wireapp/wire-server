@@ -52,6 +52,12 @@ import Imports
 -- FUTUREWORK(federation): allow remote bots
 newtype BotMember = BotMember {fromBotMember :: LocalMember}
 
+instance Eq BotMember where
+  (==) = (==) `on` botMemId
+
+instance Ord BotMember where
+  compare = compare `on` botMemId
+
 newBotMember :: LocalMember -> Maybe BotMember
 newBotMember m = const (BotMember m) <$> lmService m
 

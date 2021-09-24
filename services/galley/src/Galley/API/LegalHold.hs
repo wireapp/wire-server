@@ -46,11 +46,11 @@ import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Split (chunksOf)
 import Data.Misc
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified (Qualified (Qualified))
 import Data.Range (toRange)
+import Data.Tagged
 import Galley.API.Error
 import Galley.API.Query (iterateConversations)
-import Galley.API.Update (removeMember)
+import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -487,7 +487,6 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
   void $
     iterateConversations uid (toRange (Proxy @500)) $ \convs -> do
       for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
-        localDomain <- viewFederationDomain
         let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.convRemoteMembers
 
         membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
@@ -504,13 +503,15 @@ handleGroupConvPolicyConflicts uid hypotheticalLHStatus =
               mems
               uidsLHStatus
 
-        let qconv = Data.convId conv `Qualified` localDomain
+        lcnv <- qualifyLocal (Data.convId conv)
         if any
           ((== ConsentGiven) . consentGiven . snd)
           (filter ((== roleNameWireAdmin) . lmConvRoleName . fst) membersAndLHStatus)
           then do
             for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              removeMember (lmId memberNoConsent `Qualified` localDomain) Nothing qconv (Qualified (lmId memberNoConsent) localDomain)
+              lusr <- qualifyLocal (lmId memberNoConsent)
+              removeMemberFromLocalConv lcnv lusr Nothing (unTagged lusr)
           else do
             for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              removeMember (lmId legalholder `Qualified` localDomain) Nothing qconv (Qualified (lmId legalholder) localDomain)
+              lusr <- qualifyLocal (lmId legalholder)
+              removeMemberFromLocalConv lcnv lusr Nothing (unTagged lusr)

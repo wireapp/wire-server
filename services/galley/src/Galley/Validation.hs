@@ -20,10 +20,7 @@ module Galley.Validation
     rangeCheckedMaybe,
     fromConvSize,
     ConvSizeChecked,
-    ConvMemberAddSizeChecked,
-    fromMemberAddSizeChecked,
     checkedConvSize,
-    checkedMemberAddSize,
   )
 where
 
@@ -56,20 +53,6 @@ checkedConvSize x = do
   if length x < fromIntegral limit
     then return (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
-
--- Between 1 and setMaxConvSize
-data ConvMemberAddSizeChecked f a = ConvMemberAddSizeChecked {fromMemberAddSizeChecked :: f a}
-  deriving (Functor, Foldable, Traversable)
-
-checkedMemberAddSize :: Foldable f => f a -> Galley (ConvMemberAddSizeChecked f a)
-checkedMemberAddSize new
-  | null new =
-    throwErr "List of members (local or remote) to be added must be of at least size 1"
-  | otherwise = do
-    limit <- view (options . optSettings . setMaxConvSize)
-    if length new <= fromIntegral limit
-      then pure (ConvMemberAddSizeChecked new)
-      else throwErr (errorMsg (1 :: Integer) limit "")
 
 throwErr :: String -> Galley a
 throwErr = throwM . invalidRange . fromString

@@ -1322,7 +1322,7 @@ paginateConvListIds = do
               FederatedGalley.cuOrigUserId = qChad,
               FederatedGalley.cuConvId = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
-              FederatedGalley.cuAction = ConversationActionAddMembers $ pure (qAlice, roleNameWireMember)
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
     FederatedGalley.onConversationUpdated fedGalleyClient chadDomain cu
 
@@ -1337,7 +1337,7 @@ paginateConvListIds = do
               FederatedGalley.cuOrigUserId = qDee,
               FederatedGalley.cuConvId = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
-              FederatedGalley.cuAction = ConversationActionAddMembers $ pure (qAlice, roleNameWireMember)
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
     FederatedGalley.onConversationUpdated fedGalleyClient deeDomain cu
 
@@ -1380,7 +1380,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cuOrigUserId = qChad,
               FederatedGalley.cuConvId = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
-              FederatedGalley.cuAction = ConversationActionAddMembers $ pure (qAlice, roleNameWireMember)
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
     FederatedGalley.onConversationUpdated fedGalleyClient chadDomain cu
 
@@ -1396,7 +1396,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               FederatedGalley.cuOrigUserId = qDee,
               FederatedGalley.cuConvId = conv,
               FederatedGalley.cuAlreadyPresentUsers = [],
-              FederatedGalley.cuAction = ConversationActionAddMembers $ pure (qAlice, roleNameWireMember)
+              FederatedGalley.cuAction = ConversationActionAddMembers (pure qAlice) roleNameWireMember
             }
     FederatedGalley.onConversationUpdated fedGalleyClient deeDomain cu
 
@@ -2790,7 +2790,7 @@ putRemoteConvMemberOk update = do
             cuConvId = qUnqualified qconv,
             cuAlreadyPresentUsers = [],
             cuAction =
-              ConversationActionAddMembers (pure (qalice, roleNameWireMember))
+              ConversationActionAddMembers (pure qalice) roleNameWireMember
           }
   FederatedGalley.onConversationUpdated fedGalleyClient remoteDomain cu
 

@@ -37,10 +37,11 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 -- | An update to a conversation, including addition and removal of members.
 -- Used to send notifications to users and to remote backends.
 data ConversationAction
-  = ConversationActionAddMembers (NonEmpty (Qualified UserId, RoleName))
-  | ConversationActionRemoveMembers (NonEmpty (Qualified UserId))
+  = ConversationActionAddMembers (NonEmpty (Qualified UserId)) RoleName
+  | ConversationActionRemoveMember (Qualified UserId)
   | ConversationActionRename ConversationRename
   | ConversationActionMessageTimerUpdate ConversationMessageTimerUpdate
+  | ConversationActionReceiptModeUpdate ConversationReceiptModeUpdate
   | ConversationActionMemberUpdate (Qualified UserId) OtherMemberUpdate
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationAction)
@@ -52,23 +53,26 @@ conversationActionToEvent ::
   Qualified ConvId ->
   ConversationAction ->
   Event
-conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers) =
+conversationActionToEvent now quid qcnv (ConversationActionAddMembers newMembers role) =
   Event MemberJoin qcnv quid now $
-    EdMembersJoin $ SimpleMembers (map (uncurry SimpleMember) . toList $ newMembers)
-conversationActionToEvent now quid qcnv (ConversationActionRemoveMembers removedMembers) =
+    EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
+conversationActionToEvent now quid qcnv (ConversationActionRemoveMember removedMember) =
   Event MemberLeave qcnv quid now $
-    EdMembersLeave . QualifiedUserIdList . toList $ removedMembers
+    EdMembersLeave (QualifiedUserIdList [removedMember])
 conversationActionToEvent now quid qcnv (ConversationActionRename rename) =
   Event ConvRename qcnv quid now (EdConvRename rename)
 conversationActionToEvent now quid qcnv (ConversationActionMessageTimerUpdate update) =
   Event ConvMessageTimerUpdate qcnv quid now (EdConvMessageTimerUpdate update)
+conversationActionToEvent now quid qcnv (ConversationActionReceiptModeUpdate update) =
+  Event ConvReceiptModeUpdate qcnv quid now (EdConvReceiptModeUpdate update)
 conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate target (OtherMemberUpdate role)) =
   let update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
    in Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
 
 conversationActionTag :: ConversationAction -> Action
-conversationActionTag (ConversationActionAddMembers _) = AddConversationMember
-conversationActionTag (ConversationActionRemoveMembers _) = RemoveConversationMember
+conversationActionTag (ConversationActionAddMembers _ _) = AddConversationMember
+conversationActionTag (ConversationActionRemoveMember _) = RemoveConversationMember
 conversationActionTag (ConversationActionRename _) = ModifyConversationName
 conversationActionTag (ConversationActionMessageTimerUpdate _) = ModifyConversationMessageTimer
+conversationActionTag (ConversationActionReceiptModeUpdate _) = ModifyConversationReceiptMode
 conversationActionTag (ConversationActionMemberUpdate _ _) = ModifyOtherConversationMember

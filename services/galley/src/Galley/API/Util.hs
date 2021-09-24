@@ -52,7 +52,7 @@ import Galley.Options (optSettings, setFeatureFlags, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams hiding (Event, MemberJoin)
+import Galley.Types.Teams hiding (Event, MemberJoin, self)
 import Galley.Types.UserList
 import Imports
 import Network.HTTP.Types
@@ -61,7 +61,7 @@ import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
 import UnliftIO (concurrently)
 import qualified Wire.API.Conversation as Public
-import Wire.API.Conversation.Action (ConversationAction (..))
+import Wire.API.Conversation.Action (ConversationAction (..), conversationActionTag)
 import Wire.API.ErrorDescription
 import qualified Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.API.Galley as FederatedGalley
@@ -89,16 +89,18 @@ ensureAccessRole role users = case role of
 --
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
-ensureConnectedOrSameTeam :: UserId -> [UserId] -> Galley ()
+ensureConnectedOrSameTeam :: Qualified UserId -> [UserId] -> Galley ()
 ensureConnectedOrSameTeam _ [] = pure ()
-ensureConnectedOrSameTeam u uids = do
-  uTeams <- Data.userTeams u
-  -- We collect all the relevant uids from same teams as the origin user
-  sameTeamUids <- forM uTeams $ \team ->
-    fmap (view userId) <$> Data.teamMembersLimited team uids
-  -- Do not check connections for users that are on the same team
+ensureConnectedOrSameTeam (Qualified u domain) uids = do
   -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
-  ensureConnected u (uids \\ join sameTeamUids)
+  localDomain <- viewFederationDomain
+  when (localDomain == domain) $ do
+    uTeams <- Data.userTeams u
+    -- We collect all the relevant uids from same teams as the origin user
+    sameTeamUids <- forM uTeams $ \team ->
+      fmap (view userId) <$> Data.teamMembersLimited team uids
+    -- Do not check connections for users that are on the same team
+    ensureConnected u (uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
@@ -126,41 +128,34 @@ ensureReAuthorised u secret = do
   unless reAuthed $
     throwM reAuthFailed
 
--- | Possible outcomes of ensuring an action is allowed.
-data ActionCheckingOutcome
-  = ACOAllowed
-  | ACOActionDenied Action
-  | ACOCustomRolesNotSupported
-
 -- | Given a member in a conversation, check if the given action
--- is permitted.
-ensureActionAllowed :: Action -> RoleName -> ActionCheckingOutcome
-ensureActionAllowed action role = case isActionAllowed action role of
-  Just True -> ACOAllowed
-  Just False -> ACOActionDenied action
-  Nothing -> ACOCustomRolesNotSupported
+-- is permitted. If the user does not have the given permission, throw
+-- 'operationDenied'.
+ensureActionAllowed :: IsConvMember mem => Action -> mem -> Galley ()
+ensureActionAllowed action self = case isActionAllowed action (convMemberRole self) of
+  Just True -> pure ()
+  Just False -> throwErrorDescription (actionDenied action)
+  -- Actually, this will "never" happen due to the
+  -- fact that there can be no custom roles at the moment
+  Nothing -> throwM (badRequest "Custom roles not supported")
 
--- | Given a member in a conversation, check if the given action
--- is permitted.
--- If not, throw 'Member'; if the user is found and does not have the given permission, throw
--- 'operationDenied'.  Otherwise, return the found user.
-ensureActionAllowedThrowing :: Action -> LocalMember -> Galley ()
-ensureActionAllowedThrowing action mem =
-  case ensureActionAllowed action (lmConvRoleName mem) of
-    ACOAllowed -> return ()
-    ACOActionDenied _ -> throwErrorDescription (actionDenied action)
-    ACOCustomRolesNotSupported -> throwM (badRequest "Custom roles not supported")
-
--- Actually, this will "never" happen due to the
--- fact that there can be no custom roles at the moment
+-- | Comprehensive permission check, taking action-specific logic into account.
+ensureConversationActionAllowed :: IsConvMember mem => ConversationAction -> mem -> Galley ()
+ensureConversationActionAllowed action self = do
+  -- general action check
+  ensureActionAllowed (conversationActionTag action) self
+  -- extra action-specific checks
+  case action of
+    ConversationActionAddMembers _ role -> ensureConvRoleNotElevated self role
+    _ -> pure ()
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
-ensureConvRoleNotElevated :: LocalMember -> RoleName -> Galley ()
+ensureConvRoleNotElevated :: IsConvMember mem => mem -> RoleName -> Galley ()
 ensureConvRoleNotElevated origMember targetRole = do
-  case (roleNameToActions targetRole, roleNameToActions (lmConvRoleName origMember)) of
+  case (roleNameToActions targetRole, roleNameToActions (convMemberRole origMember)) of
     (Just targetActions, Just memberActions) ->
       unless (Set.isSubsetOf targetActions memberActions) $
         throwM invalidActions
@@ -262,27 +257,49 @@ isMember u = isJust . find ((u ==) . lmId)
 isRemoteMember :: Foldable m => Remote UserId -> m RemoteMember -> Bool
 isRemoteMember u = isJust . find ((u ==) . rmId)
 
-class IsConvMember uid where
-  isConvMember :: Data.Conversation -> uid -> Bool
+class IsConvMember mem => IsConvMemberId uid mem | uid -> mem where
+  getConvMember :: Local x -> Data.Conversation -> uid -> Maybe mem
 
-  notIsConvMember :: Data.Conversation -> uid -> Bool
-  notIsConvMember conv = not . isConvMember conv
+  isConvMember :: Local x -> Data.Conversation -> uid -> Bool
+  isConvMember loc conv = isJust . getConvMember loc conv
 
-instance IsConvMember UserId where
-  isConvMember conv u = isMember u (Data.convLocalMembers conv)
+  notIsConvMember :: Local x -> Data.Conversation -> uid -> Bool
+  notIsConvMember loc conv = not . isConvMember loc conv
 
-instance IsConvMember (Local UserId) where
-  isConvMember conv = isConvMember conv . lUnqualified
+instance IsConvMemberId UserId LocalMember where
+  getConvMember _ conv u = find ((u ==) . lmId) (Data.convLocalMembers conv)
 
-instance IsConvMember (Remote UserId) where
-  isConvMember conv u = isRemoteMember u (Data.convRemoteMembers conv)
+instance IsConvMemberId (Local UserId) LocalMember where
+  getConvMember loc conv = getConvMember loc conv . lUnqualified
+
+instance IsConvMemberId (Remote UserId) RemoteMember where
+  getConvMember _ conv u = find ((u ==) . rmId) (Data.convRemoteMembers conv)
+
+instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) where
+  getConvMember loc conv =
+    foldQualified
+      loc
+      (fmap Left . getConvMember loc conv)
+      (fmap Right . getConvMember loc conv)
+
+class IsConvMember mem where
+  convMemberRole :: mem -> RoleName
+
+instance IsConvMember LocalMember where
+  convMemberRole = lmConvRoleName
+
+instance IsConvMember RemoteMember where
+  convMemberRole = rmConvRoleName
+
+instance IsConvMember (Either LocalMember RemoteMember) where
+  convMemberRole = either convMemberRole convMemberRole
 
 -- | Remove users that are already present in the conversation.
-ulNewMembers :: Data.Conversation -> UserList UserId -> UserList UserId
-ulNewMembers conv (UserList locals remotes) =
+ulNewMembers :: Local x -> Data.Conversation -> UserList UserId -> UserList UserId
+ulNewMembers loc conv (UserList locals remotes) =
   UserList
-    (filter (notIsConvMember conv) locals)
-    (filter (notIsConvMember conv) remotes)
+    (filter (notIsConvMember loc conv) locals)
+    (filter (notIsConvMember loc conv) remotes)
 
 -- | This is an ad-hoc class to update notification targets based on the type
 -- of the user id. Local user IDs get added to the local targets, remote user IDs
@@ -291,38 +308,44 @@ ulNewMembers conv (UserList locals remotes) =
 class IsNotificationTarget uid where
   ntAdd :: Local x -> uid -> NotificationTargets -> NotificationTargets
 
--- FUTUREWORK: use sets
 data NotificationTargets = NotificationTargets
-  { ntLocals :: [UserId],
-    ntRemotes :: [Remote UserId],
-    ntBots :: [BotMember]
+  { ntLocals :: Set UserId,
+    ntRemotes :: Set (Remote UserId),
+    ntBots :: Set BotMember
   }
 
+instance Semigroup NotificationTargets where
+  NotificationTargets locals1 remotes1 bots1
+    <> NotificationTargets locals2 remotes2 bots2 =
+      NotificationTargets
+        (locals1 <> locals2)
+        (remotes1 <> remotes2)
+        (bots1 <> bots2)
+
+instance Monoid NotificationTargets where
+  mempty = NotificationTargets mempty mempty mempty
+
 instance IsNotificationTarget (Local UserId) where
-  ntAdd _ (Tagged (Qualified uid _)) nt =
-    nt {ntLocals = uid : filter (/= uid) (ntLocals nt)}
+  ntAdd _ luid nt =
+    nt {ntLocals = Set.insert (lUnqualified luid) (ntLocals nt)}
 
 instance IsNotificationTarget (Remote UserId) where
-  ntAdd _ ruid nt = nt {ntRemotes = ruid : filter (/= ruid) (ntRemotes nt)}
+  ntAdd _ ruid nt = nt {ntRemotes = Set.insert ruid (ntRemotes nt)}
 
 instance IsNotificationTarget (Qualified UserId) where
   ntAdd loc = foldQualified loc (ntAdd loc) (ntAdd loc)
 
-ntAddMembers :: [LocalMember] -> [RemoteMember] -> NotificationTargets -> NotificationTargets
-ntAddMembers lmems rmems nt =
-  nt
-    { ntLocals = nubOrd (ntLocals nt <> map lmId lmems),
-      ntRemotes = nubOrd (ntRemotes nt <> map rmId rmems)
-    }
-
-convTargets :: Data.Conversation -> NotificationTargets
-convTargets conv = case localBotsAndUsers (Data.convLocalMembers conv) of
+ntFromMembers :: [LocalMember] -> [RemoteMember] -> NotificationTargets
+ntFromMembers lmems rusers = case localBotsAndUsers lmems of
   (bots, lusers) ->
     NotificationTargets
-      { ntLocals = map lmId lusers,
-        ntRemotes = map rmId (Data.convRemoteMembers conv),
-        ntBots = bots
+      { ntLocals = Set.fromList (map lmId lusers),
+        ntRemotes = Set.fromList (map rmId rusers),
+        ntBots = Set.fromList bots
       }
+
+convTargets :: Data.Conversation -> NotificationTargets
+convTargets conv = ntFromMembers (Data.convLocalMembers conv) (Data.convRemoteMembers conv)
 
 localBotsAndUsers :: Foldable f => f LocalMember -> ([BotMember], [LocalMember])
 localBotsAndUsers = foldMap botOrUser
@@ -430,6 +453,20 @@ getRemoteMember ::
   ExceptT e m RemoteMember
 getRemoteMember = getMember rmId
 
+getQualifiedMember ::
+  Monad m =>
+  Local x ->
+  e ->
+  Qualified UserId ->
+  Data.Conversation ->
+  ExceptT e m (Either LocalMember RemoteMember)
+getQualifiedMember loc e qusr conv =
+  foldQualified
+    loc
+    (\lusr -> Left <$> getLocalMember e (lUnqualified lusr) (Data.convLocalMembers conv))
+    (\rusr -> Right <$> getRemoteMember e rusr (Data.convRemoteMembers conv))
+    qusr
+
 getMember ::
   (Foldable t, Eq userId, Monad m) =>
   -- | A projection from a member type to its user ID
@@ -444,23 +481,29 @@ getMember ::
 getMember p ex u = hoistEither . note ex . find ((u ==) . p)
 
 getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
-getConversationAndCheckMembership uid =
-  fmap fst
-    . getConversationAndMemberWithError (errorDescriptionTypeToWai @ConvAccessDenied) uid
+getConversationAndCheckMembership uid cnv = do
+  (conv, _) <-
+    getConversationAndMemberWithError
+      (errorDescriptionTypeToWai @ConvAccessDenied)
+      uid
+      cnv
+  pure conv
 
 getConversationAndMemberWithError ::
+  IsConvMemberId uid mem =>
   Error ->
-  UserId ->
+  uid ->
   ConvId ->
-  Galley (Data.Conversation, LocalMember)
-getConversationAndMemberWithError ex zusr convId = do
+  Galley (Data.Conversation, mem)
+getConversationAndMemberWithError ex usr convId = do
   c <- Data.conversation convId >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
     throwErrorDescriptionType @ConvNotFound
+  loc <- qualifyLocal ()
   member <-
-    eitherM throwM pure . runExceptT $
-      getLocalMember ex zusr (Data.convLocalMembers c)
+    either throwM pure . note ex $
+      getConvMember loc c usr
   pure (c, member)
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
@@ -481,12 +524,12 @@ canDeleteMember deleter deletee
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
 
 -- | Send an event to local users and bots
-pushConversationEvent :: Maybe ConnId -> Event -> [UserId] -> [BotMember] -> Galley ()
+pushConversationEvent :: Foldable f => Maybe ConnId -> Event -> f UserId -> f BotMember -> Galley ()
 pushConversationEvent conn e users bots = do
   localDomain <- viewFederationDomain
-  for_ (newConversationEventPush localDomain e users) $ \p ->
+  for_ (newConversationEventPush localDomain e (toList users)) $ \p ->
     push1 $ p & set pushConn conn
-  void . forkIO $ void $ External.deliver (bots `zip` repeat e)
+  void . forkIO $ void $ External.deliver (toList bots `zip` repeat e)
 
 verifyReusableCode :: ConversationCode -> Galley DataTypes.Code
 verifyReusableCode convCode = do
@@ -670,40 +713,6 @@ registerRemoteConversationMemberships now localDomain c = do
     registerRemoteConversations rc domain = do
       let rpc = FederatedGalley.onConversationCreated FederatedGalley.clientRoutes localDomain rc
       runFederated domain rpc
-
--- | Notify remote backends about changes to the conversation memberships of the
--- conversation their users are part of.
-notifyRemoteAboutConvUpdate ::
-  -- | The originating user that is doing the update
-  Qualified UserId ->
-  -- | The conversation being updated, assumed local as we shouldn't be sending
-  -- updates for non local conversations.
-  ConvId ->
-  -- | The current time
-  UTCTime ->
-  -- | Action being performed
-  ConversationAction ->
-  -- | Remote members that need to be notified
-  [Remote UserId] ->
-  Galley ()
-notifyRemoteAboutConvUpdate origUser convId time action remotesToNotify = do
-  localDomain <- viewFederationDomain
-  let mkUpdate oth = ConversationUpdate time origUser convId oth action
-  traverse_ (uncurry (notificationRPC localDomain . mkUpdate) . swap)
-    . Map.assocs
-    . partitionQualified
-    . nubOrd
-    . map unTagged
-    $ remotesToNotify
-  where
-    notificationRPC :: Domain -> ConversationUpdate -> Domain -> Galley ()
-    notificationRPC sendingDomain cu receivingDomain = do
-      let rpc =
-            FederatedGalley.onConversationUpdated
-              FederatedGalley.clientRoutes
-              sendingDomain
-              cu
-      runFederated receivingDomain rpc
 
 --------------------------------------------------------------------------------
 -- Legalhold
