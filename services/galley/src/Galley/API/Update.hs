@@ -395,9 +395,7 @@ updateLocalConversation lcnv qusr con action = do
         (lUnqualified lcnv)
 
   -- perform checks
-  lift $ do
-    ensureConversationActionAllowed action self
-    ensureGroupConvThrowing conv
+  lift $ ensureConversationActionAllowed action conv self
 
   -- perform action
   (extraTargets, action') <- performAction qusr conv action
@@ -1131,25 +1129,6 @@ rmBot zusr zcon b = do
 
 -------------------------------------------------------------------------------
 -- Helpers
-
-data GroupConvInvalidOp
-  = GroupConvInvalidOpSelfConv
-  | GroupConvInvalidOpOne2OneConv
-  | GroupConvInvalidOpConnectConv
-
-ensureGroupConv :: ConvType -> Either GroupConvInvalidOp ()
-ensureGroupConv = \case
-  SelfConv -> Left GroupConvInvalidOpSelfConv
-  One2OneConv -> Left GroupConvInvalidOpOne2OneConv
-  ConnectConv -> Left GroupConvInvalidOpConnectConv
-  _ -> Right ()
-
-ensureGroupConvThrowing :: MonadThrow m => Data.Conversation -> m ()
-ensureGroupConvThrowing c = case ensureGroupConv (Data.convType c) of
-  Left GroupConvInvalidOpSelfConv -> throwM invalidSelfOp
-  Left GroupConvInvalidOpOne2OneConv -> throwM invalidOne2OneOp
-  Left GroupConvInvalidOpConnectConv -> throwM invalidConnectOp
-  Right () -> return ()
 
 ensureMemberLimit :: Foldable f => [LocalMember] -> f a -> Galley ()
 ensureMemberLimit old new = do

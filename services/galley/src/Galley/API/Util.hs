@@ -140,14 +140,29 @@ ensureActionAllowed action self = case isActionAllowed action (convMemberRole se
   Nothing -> throwM (badRequest "Custom roles not supported")
 
 -- | Comprehensive permission check, taking action-specific logic into account.
-ensureConversationActionAllowed :: IsConvMember mem => ConversationAction -> mem -> Galley ()
-ensureConversationActionAllowed action self = do
+ensureConversationActionAllowed ::
+  IsConvMember mem =>
+  ConversationAction ->
+  Data.Conversation ->
+  mem ->
+  Galley ()
+ensureConversationActionAllowed action conv self = do
   -- general action check
   ensureActionAllowed (conversationActionTag action) self
+  -- check if it is a group conversation (except for rename actions)
+  when (conversationActionTag action /= ModifyConversationName) $
+    ensureGroupConvThrowing conv
   -- extra action-specific checks
   case action of
     ConversationActionAddMembers _ role -> ensureConvRoleNotElevated self role
     _ -> pure ()
+
+ensureGroupConvThrowing :: Data.Conversation -> Galley ()
+ensureGroupConvThrowing conv = case Data.convType conv of
+  SelfConv -> throwM invalidSelfOp
+  One2OneConv -> throwM invalidOne2OneOp
+  ConnectConv -> throwM invalidConnectOp
+  _ -> pure ()
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
