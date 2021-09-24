@@ -147,10 +147,12 @@ ensureConversationActionAllowed ::
   mem ->
   Galley ()
 ensureConversationActionAllowed action conv self = do
+  loc <- qualifyLocal ()
+  let tag = conversationActionTag (convMemberId loc self) action
   -- general action check
-  ensureActionAllowed (conversationActionTag action) self
+  ensureActionAllowed tag self
   -- check if it is a group conversation (except for rename actions)
-  when (conversationActionTag action /= ModifyConversationName) $
+  when (tag /= ModifyConversationName) $
     ensureGroupConvThrowing conv
   -- extra action-specific checks
   case action of
@@ -299,15 +301,19 @@ instance IsConvMemberId (Qualified UserId) (Either LocalMember RemoteMember) whe
 
 class IsConvMember mem where
   convMemberRole :: mem -> RoleName
+  convMemberId :: Local x -> mem -> Qualified UserId
 
 instance IsConvMember LocalMember where
   convMemberRole = lmConvRoleName
+  convMemberId loc mem = unTagged (qualifyAs loc (lmId mem))
 
 instance IsConvMember RemoteMember where
   convMemberRole = rmConvRoleName
+  convMemberId _ = unTagged . rmId
 
 instance IsConvMember (Either LocalMember RemoteMember) where
   convMemberRole = either convMemberRole convMemberRole
+  convMemberId loc = either (convMemberId loc) (convMemberId loc)
 
 -- | Remove users that are already present in the conversation.
 ulNewMembers :: Local x -> Data.Conversation -> UserList UserId -> UserList UserId

@@ -69,10 +69,12 @@ conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate target (
   let update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
    in Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
 
-conversationActionTag :: ConversationAction -> Action
-conversationActionTag (ConversationActionAddMembers _ _) = AddConversationMember
-conversationActionTag (ConversationActionRemoveMember _) = RemoveConversationMember
-conversationActionTag (ConversationActionRename _) = ModifyConversationName
-conversationActionTag (ConversationActionMessageTimerUpdate _) = ModifyConversationMessageTimer
-conversationActionTag (ConversationActionReceiptModeUpdate _) = ModifyConversationReceiptMode
-conversationActionTag (ConversationActionMemberUpdate _ _) = ModifyOtherConversationMember
+conversationActionTag :: Qualified UserId -> ConversationAction -> Action
+conversationActionTag _ (ConversationActionAddMembers _ _) = AddConversationMember
+conversationActionTag qusr (ConversationActionRemoveMember victim)
+  | qusr == victim = LeaveConversation
+  | otherwise = RemoveConversationMember
+conversationActionTag _ (ConversationActionRename _) = ModifyConversationName
+conversationActionTag _ (ConversationActionMessageTimerUpdate _) = ModifyConversationMessageTimer
+conversationActionTag _ (ConversationActionReceiptModeUpdate _) = ModifyConversationReceiptMode
+conversationActionTag _ (ConversationActionMemberUpdate _ _) = ModifyOtherConversationMember
