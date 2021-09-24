@@ -49,7 +49,6 @@ import Control.Lens.Combinators (dimap)
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
-import qualified Data.CaseInsensitive as CI
 import Data.Domain (Domain)
 import Data.Kind (Constraint)
 import Data.Schema
@@ -403,7 +402,8 @@ defaultAppLockStatus =
 data LowerCaseFirst
 
 instance StringModifier LowerCaseFirst where
-  getStringModifier = CI.foldCase
+  getStringModifier (x : xs) = toLower x : xs
+  getStringModifier [] = []
 
 newtype AllFeatureConfigs = AllFeatureConfigs {_allFeatureConfigs :: Aeson.Object}
   deriving stock (Eq, Show)
