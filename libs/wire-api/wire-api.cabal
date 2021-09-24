@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1dce25e4dabf58eac09c8e4f384829306931a35d0c9b902d22d4f29b7a592aae
+-- hash: db0e289b12b344457a40dfe813de29c63bb9e236a45c4407a0f521833fd8cdbe
 
 name:           wire-api
 version:        0.1.0
@@ -50,6 +50,7 @@ library
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
       Wire.API.Routes.MultiTablePaging
+      Wire.API.Routes.MultiTablePaging.State
       Wire.API.Routes.MultiVerb
       Wire.API.Routes.Public
       Wire.API.Routes.Public.Brig
