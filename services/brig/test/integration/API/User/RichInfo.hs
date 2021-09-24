@@ -45,7 +45,7 @@ tests _cl _at conf p b _c g =
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g,
       test p "missing fields in an update are deleted" $ testDeleteMissingFieldsInUpdates b g,
       test p "fields with empty strings are deleted" $ testDeleteEmptyFields b g,
-      test p "duplicate field names are forbidden" $ testForbidDuplicateFieldNames b,
+      test p "duplicate field names are silently nubbed (first entry wins)" $ testDedupeDuplicateFieldNames b,
       test p "exceeding rich info size limit is forbidden" $ testRichInfoSizeLimit b conf,
       test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b,
       test p "non-members / other membes / guests cannot see rich info" $ testGuestsCannotSeeRichInfo b
@@ -98,15 +98,21 @@ testDeleteEmptyFields brig galley = do
   withoutEmpty <- getRichInfo brig member1 member2
   liftIO $ assertEqual "dangling rich info fields" (Right mempty) withoutEmpty
 
-testForbidDuplicateFieldNames :: Brig -> Http ()
-testForbidDuplicateFieldNames brig = do
+testDedupeDuplicateFieldNames :: Brig -> Http ()
+testDedupeDuplicateFieldNames brig = do
   (owner, _) <- createUserWithTeam brig
-  let bad =
+  let dupes =
         mkRichInfoAssocList
-          [ RichField "department" "blue",
-            RichField "department" "green"
+          [ RichField "dePartment" "blue",
+            RichField "Department" "green"
           ]
-  putRichInfo brig owner bad !!! const 400 === statusCode
+      deduped =
+        mkRichInfoAssocList
+          [ RichField "departMent" "blue"
+          ]
+  putRichInfo brig owner dupes !!! const 200 === statusCode
+  ri <- getRichInfo brig owner owner
+  liftIO $ assertEqual "duplicate rich info fields" (Right deduped) ri
 
 testRichInfoSizeLimit :: HasCallStack => Brig -> Opt.Opts -> Http ()
 testRichInfoSizeLimit brig conf = do
