@@ -22,11 +22,10 @@ module Web.Scim.Schema.Common where
 
 import Data.Aeson
 import qualified Data.CaseInsensitive as CI
-import qualified Data.Char as Char
 import qualified Data.HashMap.Lazy as HML
 import qualified Data.HashMap.Strict as HM
 import Data.String.Conversions (cs)
-import Data.Text hiding (dropWhile, toLower)
+import Data.Text (pack, unpack)
 import qualified Network.URI as Network
 
 data WithId id a = WithId
@@ -83,15 +82,15 @@ serializeOptions =
 parseOptions :: Options
 parseOptions =
   defaultOptions
-    { fieldLabelModifier = toKeyword . fmap Char.toLower
+    { fieldLabelModifier = toKeyword . CI.foldCase
     }
 
 -- | Turn all keys in a JSON object to lowercase recursively.  This is applied to the aeson
 -- 'Value' to be parsed; 'parseOptions' is applied to the keys passed to '(.:)' etc.
 --
--- NB: Because of https://github.com/basvandijk/case-insensitive/issues/31, we need to be
--- careful to not mix 'Data.Text.toLower' and 'Data.CaseInsensitive.foldCase'.  They're not
--- the same thing (yet)!
+-- NB: be careful to not mix 'Data.Text.{toLower,toCaseFold', 'Data.Char.toLower', and
+-- 'Data.CaseInsensitive.foldCase'.  They're not all the same thing!
+-- https://github.com/basvandijk/case-insensitive/issues/31
 --
 -- (FUTUREWORK: The "recursively" part is a bit of a waste and could be dropped, but we would
 -- have to spend more effort in making sure it is always called manually in nested parsers.)

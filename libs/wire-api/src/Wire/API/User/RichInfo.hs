@@ -200,7 +200,7 @@ instance FromJSON RichInfoMapAndList where
                 fields <- richInfoAssocListFromObject richinfoObj
                 pure fields
               Array fields -> parseJSON (Array fields)
-              v -> Aeson.typeMismatch "Object" v
+              v -> Aeson.typeMismatch "Object or Array" v
           Just v -> Aeson.typeMismatch "Object" v
 
       hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
@@ -227,7 +227,7 @@ newtype RichInfoAssocList = RichInfoAssocList {unRichInfoAssocList :: [RichField
 
 -- | Uses 'normalizeRichInfoAssocList'.
 mkRichInfoAssocList :: [RichField] -> RichInfoAssocList
-mkRichInfoAssocList = normalizeRichInfoAssocList . RichInfoAssocList
+mkRichInfoAssocList = RichInfoAssocList . normalizeRichInfoAssocListInt
 
 normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
 normalizeRichInfoAssocList = RichInfoAssocList . normalizeRichInfoAssocListInt . unRichInfoAssocList
@@ -268,7 +268,7 @@ richInfoAssocListFromObject richinfoObj = do
 
 instance Arbitrary RichInfoAssocList where
   arbitrary = mkRichInfoAssocList <$> arbitrary
-  shrink (RichInfoAssocList things) = RichInfoAssocList <$> QC.shrink things
+  shrink (RichInfoAssocList things) = mkRichInfoAssocList <$> QC.shrink things
 
 --------------------------------------------------------------------------------
 -- RichField
@@ -309,6 +309,7 @@ instance Arbitrary RichField where
     RichField
       <$> (CI.mk . cs . QC.getPrintableString <$> arbitrary)
       <*> (cs . QC.getPrintableString <$> arbitrary)
+  shrink (RichField k v) = RichField <$> QC.shrink k <*> QC.shrink v
 
 --------------------------------------------------------------------------------
 -- convenience functions

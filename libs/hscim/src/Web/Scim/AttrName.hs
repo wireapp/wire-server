@@ -22,9 +22,10 @@ module Web.Scim.AttrName where
 
 import Data.Aeson.Types (FromJSONKey, ToJSONKey)
 import Data.Attoparsec.ByteString.Char8
+import qualified Data.CaseInsensitive as CI
 import Data.Hashable
 import Data.String (IsString, fromString)
-import Data.Text (Text, cons, toCaseFold)
+import Data.Text (Text, cons)
 import Data.Text.Encoding (decodeUtf8)
 import Prelude hiding (takeWhile)
 
@@ -38,13 +39,13 @@ newtype AttrName
   deriving (Show, FromJSONKey, ToJSONKey)
 
 instance Eq AttrName where
-  AttrName a == AttrName b = toCaseFold a == toCaseFold b
+  AttrName a == AttrName b = CI.foldCase a == CI.foldCase b
 
 instance Ord AttrName where
-  compare (AttrName a) (AttrName b) = compare (toCaseFold a) (toCaseFold b)
+  compare (AttrName a) (AttrName b) = compare (CI.foldCase a) (CI.foldCase b)
 
 instance Hashable AttrName where
-  hashWithSalt x (AttrName a) = hashWithSalt x (toCaseFold a)
+  hashWithSalt x (AttrName a) = hashWithSalt x (CI.foldCase a)
 
 instance IsString AttrName where
   fromString = AttrName . fromString

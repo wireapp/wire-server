@@ -27,8 +27,9 @@ import Control.Monad.Morph
 import Control.Monad.Reader
 import Control.Monad.STM (STM, atomically)
 import Data.Aeson
+import qualified Data.CaseInsensitive as CI
 import Data.Hashable
-import Data.Text (Text, pack, toCaseFold)
+import Data.Text (Text, pack)
 import Data.Time.Calendar
 import Data.Time.Clock
 import GHC.Exts (sortWith)
@@ -244,7 +245,7 @@ filterUser (FilterAttrCompare (AttrPath schema' attrib subAttr) op val) user
     case (subAttr, val) of
       (Nothing, (ValString str))
         | attrib == "userName" ->
-          Right (compareStr op (toCaseFold (userName user)) (toCaseFold str))
+          Right (compareStr op (CI.foldCase (userName user)) (CI.foldCase str))
       (Nothing, _)
         | attrib == "userName" ->
           Left "usernames can only be compared with strings"

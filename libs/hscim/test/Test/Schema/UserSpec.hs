@@ -25,10 +25,11 @@ module Test.Schema.UserSpec
 where
 
 import Data.Aeson
+import qualified Data.CaseInsensitive as CI
 import Data.Either (isLeft, isRight)
 import Data.Foldable (for_)
 import qualified Data.HashMap.Strict as HM
-import Data.Text (Text, toLower)
+import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
@@ -443,7 +444,7 @@ instance FromJSON UserExtraTest where
       Nothing -> pure UserExtraEmpty
       Just (lowercase -> o2) -> UserExtraObject <$> o2 .: "test"
     where
-      lowercase = HM.fromList . map (over _1 toLower) . HM.toList
+      lowercase = HM.fromList . map (over _1 CI.foldCase) . HM.toList
 
 instance ToJSON UserExtraTest where
   toJSON UserExtraEmpty = object []

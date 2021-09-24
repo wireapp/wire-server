@@ -154,20 +154,12 @@ testRichInfo =
 
 moreRichInfoNormalizationTests :: [TestTree]
 moreRichInfoNormalizationTests =
-  [ testCase "'normalizeRichInfoAssocList'" $ do
-      let f = length . unRichInfoAssocList
-      assertEqual mempty (f (normalizeRichInfoAssocList assocs)) (f assocs)
-      assertEqual mempty (normalizeRichInfoAssocList assocs) assocs,
-    testGroup
+  [ testGroup
       "'toRichInfoAssocList', 'fromRichInfoAssocList'"
       [ testCase "works (counter-example of earlier bug)" $ do
           let x = mkRichInfoMapAndList [RichField "A" "b", RichField "a" "x"]
               y = (fromRichInfoAssocList . toRichInfoAssocList) x
           assertEqual mempty (toRichInfoAssocList x) (toRichInfoAssocList y),
-        testCase "works (counter-example of earlier bug)" $ do
-          assertEqual mempty (jsonroundtrip assocs) assocs
-          assertEqual mempty (toRichInfoAssocList . fromRichInfoAssocList $ assocs) assocs
-          assertEqual mempty (toRichInfoAssocList . jsonroundtrip . fromRichInfoAssocList $ assocs) assocs,
         testProperty "works (property)" $ \(someAssocs :: RichInfoAssocList) ->
           (jsonroundtrip someAssocs) === someAssocs
             .&&. (toRichInfoAssocList . fromRichInfoAssocList $ someAssocs) === someAssocs
@@ -179,6 +171,3 @@ moreRichInfoNormalizationTests =
     jsonroundtrip = unsafeParse . Scim.jsonLower . Aeson.toJSON
       where
         unsafeParse = either (error . show) id . Aeson.parseEither Aeson.parseJSON
-
-    assocs :: RichInfoAssocList
-    assocs = mkRichInfoAssocList [RichField {richFieldType = "0-plIe\176041Sdu]\129492ouXy*]j\49123`jDNJ:N%\32939\&6\183443\\>HSi\6502q,\28951wZ].\11331w`", richFieldValue = "C ny6Nx0f&b\121034\29092r"}, RichField {richFieldType = "[&c;VP9\42304Q.I\43963OS\83057}G ]\175364xYLqO\156677q*ZBtZ`vKc", richFieldValue = "+FEv\28180"}, RichField {richFieldType = "}121@^z{", richFieldValue = "{KZQqjqs Py%ETB>;y1}\142167\181794\164475p"}, RichField {richFieldType = "\48098\&2#-p\68080\&9\37971|\190007K|m(", richFieldValue = ":j7\83424lQ\19571\188281*[)D8\50056\9019n\189416\100233]*!={FX|/!!&my]+8\175071\135759\&0\13316K'(\14120\172092w,2"}, RichField {richFieldType = "\50520MX>\\kQcBz\169538\147873\\\177286FqS!GW]#\20027_n", richFieldValue = "53\190108.?%t[ &9=hd9t:}Q@yj#w~B\164946B# fs!\39091}eEP"}, RichField {richFieldType = "sE7hmj\164437:", richFieldValue = "ns\"EJftf6~g5U\"&tt\20456@]M"}, RichField {richFieldType = "\172698p\41097sHk \37897X0Io\8286OU\173780\18370h\46873&GAOpuQU+T)]rC\5068WCA\68875(-\175596'", richFieldValue = "lRiP"}]

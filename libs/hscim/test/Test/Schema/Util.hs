@@ -26,7 +26,7 @@ where
 
 import Data.Aeson
 import qualified Data.HashMap.Strict as HM
-import Data.Text (Text, toLower, toUpper)
+import Data.Text (Text, toCaseFold, toLower, toUpper)
 import Hedgehog
 import Hedgehog.Gen as Gen
 import Network.URI.Static
@@ -43,6 +43,7 @@ mk_prop_caseInsensitive gen = property $ do
   val <- forAll gen
   fromJSON (withCasing toUpper $ toJSON val) === Success val
   fromJSON (withCasing toLower $ toJSON val) === Success val
+  fromJSON (withCasing toCaseFold $ toJSON val) === Success val
   where
     withCasing :: (Text -> Text) -> Value -> Value
     withCasing toCasing = \case
