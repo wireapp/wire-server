@@ -178,7 +178,7 @@ import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Spar.App (liftSem, toLevel)
 import qualified Spar.App as Spar
 import Spar.Error (SparError)
-import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
 import Spar.Sem.AReqIDStore (AReqIDStore)
@@ -1297,7 +1297,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
+  musr <- aFewTimes (runSpar $ liftSem $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
   pure $ case userIdentity =<< musr of
     Just (SSOIdentity ssoid _ _) -> Just ssoid
     Just (FullIdentity _ _) -> Nothing
