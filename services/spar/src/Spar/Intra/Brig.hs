@@ -19,21 +19,7 @@
 
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig
-  ( veidToUserSSOId,
-    urefToExternalId,
-    urefToEmail,
-    veidFromBrigUser,
-    veidFromUserSSOId,
-    mkUserName,
-    renderValidExternalId,
-    emailFromSAML,
-    emailToSAML,
-    emailToSAMLNameID,
-    emailFromSAMLNameID,
-    getBrigUserAccount,
-    HavePendingInvitations (..),
-    getBrigUser,
-    getBrigUserTeam,
+  ( getBrigUserAccount,
     getBrigUserByHandle,
     getBrigUserByEmail,
     getBrigUserRichInfo,
@@ -47,16 +33,11 @@ module Spar.Intra.Brig
     createBrigUserSAML,
     createBrigUserNoSAML,
     updateEmail,
-    getZUsrCheckPerm,
-    authorizeScimTokenManagement,
     ensureReAuthorised,
     ssoLogin,
-    parseResponse,
-    MonadSparToBrig (..),
     getStatus,
     getStatusMaybe,
     setStatus,
-    giveDefaultHandle,
   )
 where
 
@@ -64,22 +45,17 @@ import Bilge
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin (..))
-import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
-import qualified Data.CaseInsensitive as CI
-import Data.Handle (Handle (Handle, fromHandle))
+import Data.Handle (Handle (fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
-import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Imports
 import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Error
-import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission)
 import qualified System.Logger.Class as Log
 import Web.Cookie
 import Wire.API.User
@@ -94,59 +70,6 @@ veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromE
 urefToUserSSOId :: SAML.UserRef -> UserSSOId
 urefToUserSSOId (SAML.UserRef t s) = UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s)
 
-veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
-veidFromUserSSOId = \case
-  UserSSOId tenant subject ->
-    case (SAML.decodeElem $ cs tenant, SAML.decodeElem $ cs subject) of
-      (Right t, Right s) -> do
-        let uref = SAML.UserRef t s
-        case urefToEmail uref of
-          Nothing -> pure $ UrefOnly uref
-          Just email -> pure $ EmailAndUref email uref
-      (Left msg, _) -> throwError msg
-      (_, Left msg) -> throwError msg
-  UserScimExternalId email ->
-    maybe
-      (throwError "externalId not an email and no issuer")
-      (pure . EmailOnly)
-      (parseEmail email)
-
-urefToExternalId :: SAML.UserRef -> Maybe Text
-urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
-
-urefToEmail :: SAML.UserRef -> Maybe Email
-urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
-  SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
-  _ -> Nothing
-
--- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
--- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
--- construct a return value from that (and an optional saml issuer).  If a user only has a
--- phone number, or no identity at all, throw an error.
---
--- Note: the saml issuer is only needed in the case where a user has been invited via team
--- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
--- to just set it to 'Nothing'.
-veidFromBrigUser :: MonadError String m => User -> Maybe SAML.Issuer -> m ValidExternalId
-veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, _, _) -> veidFromUserSSOId ssoid
-  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (emailToSAMLNameID email))
-  (Nothing, Just email, Nothing) -> pure $ EmailOnly email
-  (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
-
--- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
--- isn't present, use an email address or a saml subject (usually also an email address).  If
--- both are 'Nothing', fail.
-mkUserName :: Maybe Text -> ValidExternalId -> Either String Name
-mkUserName (Just n) = const $ mkName n
-mkUserName Nothing =
-  runValidExternalId
-    (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
-    (\email -> mkName (fromEmail email))
-
-renderValidExternalId :: ValidExternalId -> Maybe Text
-renderValidExternalId = runValidExternalId urefToExternalId (Just . fromEmail)
-
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
 -- (This is the easiest way, since the login-request that we are in the middle of responding to here
@@ -157,22 +80,6 @@ respToCookie resp = do
   let crash = throwSpar SparCouldNotRetrieveCookie
   unless (statusCode resp == 200) crash
   maybe crash (pure . parseSetCookie) $ getHeader "Set-Cookie" resp
-
-emailFromSAML :: HasCallStack => SAMLEmail.Email -> Email
-emailFromSAML = fromJust . parseEmail . SAMLEmail.render
-
-emailToSAML :: HasCallStack => Email -> SAMLEmail.Email
-emailToSAML = CI.original . fromRight (error "emailToSAML") . SAMLEmail.validate . toByteString
-
--- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
--- function total without all that praying and hoping.
-emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
-emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
-
-emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
-emailFromSAMLNameID nid = case nid ^. SAML.nameID of
-  SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
-  _ -> Nothing
 
 ----------------------------------------------------------------------
 
@@ -239,9 +146,6 @@ updateEmail buid email = do
     204 -> pure ()
     202 -> pure ()
     _ -> rethrow "brig" resp
-
-getBrigUser :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe User)
-getBrigUser ifpend = (accountUser <$$>) . getBrigUserAccount ifpend
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe UserAccount)
@@ -412,33 +316,6 @@ deleteBrigUser buid = do
   unless (statusCode resp == 202) $
     rethrow "brig" resp
 
--- | Check that an id maps to an user on brig that is 'Active' (or optionally
--- 'PendingInvitation') and has a team id.
-getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe TeamId)
-getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
-
--- | Pull team id for z-user from brig.  Check permission in galley.  Return team id.  Fail if
--- permission check fails or the user is not in status 'Active'.
-getZUsrCheckPerm ::
-  (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m, IsPerm perm, Show perm) =>
-  Maybe UserId ->
-  perm ->
-  m TeamId
-getZUsrCheckPerm Nothing _ = throwSpar SparMissingZUsr
-getZUsrCheckPerm (Just uid) perm = do
-  getBrigUserTeam NoPendingInvitations uid
-    >>= maybe
-      (throwSpar SparNotInTeam)
-      (\teamid -> teamid <$ Galley.assertHasPermission teamid perm uid)
-
-authorizeScimTokenManagement :: (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) => Maybe UserId -> m TeamId
-authorizeScimTokenManagement Nothing = throwSpar SparMissingZUsr
-authorizeScimTokenManagement (Just uid) = do
-  getBrigUserTeam NoPendingInvitations uid
-    >>= maybe
-      (throwSpar SparNotInTeam)
-      (\teamid -> teamid <$ Galley.assertHasPermission teamid CreateReadDeleteScimToken uid)
-
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::
   (HasCallStack, MonadSparToBrig m) =>
@@ -509,26 +386,3 @@ setStatus uid status = do
   case statusCode resp of
     200 -> pure ()
     _ -> rethrow "brig" resp
-
--- | If the user has no 'Handle', set it to its 'UserId' and update the user in brig.
--- Return the handle the user now has (the old one if it existed, the newly created one
--- otherwise).
---
--- RATIONALE: Finding the handle can fail for users that have been created without scim, and
--- have stopped the onboarding process at the point where they are asked by the client to
--- enter a handle.
---
--- We make up a handle in this case, and the scim peer can find the user, see that the handle
--- is not the one it expects, and update it.
---
--- We cannot simply respond with 404 in this case, because the user exists.  404 would suggest
--- do the scim peer that it should post the user to create it, but that would create a new
--- user instead of finding the old that should be put under scim control.
-giveDefaultHandle :: (HasCallStack, MonadSparToBrig m) => User -> m Handle
-giveDefaultHandle usr = case userHandle usr of
-  Just handle -> pure handle
-  Nothing -> do
-    let handle = Handle . cs . toByteString' $ uid
-        uid = userId usr
-    setBrigUserHandle uid handle
-    pure handle

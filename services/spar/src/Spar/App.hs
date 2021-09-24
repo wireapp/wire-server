@@ -92,8 +92,7 @@ import Servant
 import qualified Servant.Multipart as Multipart
 import qualified Spar.Data as Data (GetIdPResult (..))
 import Spar.Error
-import qualified Spar.Intra.Brig as Intra
-import qualified Spar.Intra.Galley as Intra
+import qualified Spar.Intra.BrigApp as Intra
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
@@ -281,7 +280,7 @@ getUserByUref mbteam uref = do
     Nothing -> pure GetUserNotFound
     Just uid -> do
       let withpending = Intra.WithPendingInvitations -- see haddocks above
-      Intra.getBrigUser withpending uid >>= \case
+      liftSem (Intra.getBrigUser withpending uid) >>= \case
         Nothing -> pure GetUserNotFound
         Just user
           | isNothing (userTeam user) -> pure GetUserNoTeam
@@ -309,7 +308,7 @@ getUserIdByScimExternalId tid email = do
     Nothing -> pure Nothing
     Just uid -> do
       let withpending = Intra.WithPendingInvitations -- see haddocks above
-      itis <- isJust <$> Intra.getBrigUserTeam withpending uid
+      itis <- liftSem $ isJust <$> Intra.getBrigUserTeam withpending uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'UserId', store it on C* locally together with 'SAML.UserRef', then
@@ -331,7 +330,7 @@ getUserIdByScimExternalId tid email = do
 createSamlUserWithId :: Members '[BrigAccess, SAMLUserStore] r => TeamId -> UserId -> SAML.UserRef -> Spar r ()
 createSamlUserWithId teamid buid suid = do
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- Intra.createBrigUserSAML suid buid teamid uname ManagedByWire
+  buid' <- liftSem $ BrigAccess.createSAML suid buid teamid uname ManagedByWire
   assert (buid == buid') $ pure ()
   insertUser suid buid
 
@@ -376,10 +375,10 @@ validateEmailIfExists uid = \case
     doValidate :: SAMLEmail.Email -> Spar r ()
     doValidate email = do
       enabled <- do
-        tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
-        maybe (pure False) Intra.isEmailValidationEnabledTeam tid
+        tid <- liftSem $ Intra.getBrigUserTeam Intra.NoPendingInvitations uid
+        maybe (pure False) (liftSem . GalleyAccess.isEmailValidationEnabledTeam) tid
       when enabled $ do
-        Intra.updateEmail uid (Intra.emailFromSAML email)
+        liftSem $ BrigAccess.updateEmail uid (Intra.emailFromSAML email)
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
 -- register a the user under its SAML credentials and write the 'UserRef' into the
@@ -399,20 +398,20 @@ bindUser buid userref = do
         Data.GetIdPDanglingId _ -> err -- database inconsistency
         Data.GetIdPNonUnique is -> throwSpar $ SparUserRefInNoOrMultipleTeams (cs $ show (buid, is))
         Data.GetIdPWrongTeam _ -> err -- impossible
-    acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
+    acc <- liftSem (BrigAccess.getAccount Intra.WithPendingInvitations buid) >>= maybe err pure
     teamid' :: TeamId <- userTeam (accountUser acc) & maybe err pure
     unless (teamid' == teamid) err
     pure (accountStatus acc)
   insertUser userref buid
   buid <$ do
-    Intra.setBrigUserVeid buid (UrefOnly userref)
+    liftSem $ BrigAccess.setVeid buid (UrefOnly userref)
     let err = throwSpar . SparBindFromBadAccountStatus . cs . show
     case oldStatus of
       Active -> pure ()
       Suspended -> err oldStatus
       Deleted -> err oldStatus
       Ephemeral -> err oldStatus
-      PendingInvitation -> Intra.setStatus buid Active
+      PendingInvitation -> liftSem $ BrigAccess.setStatus buid Active
 
 instance
   ( r
@@ -471,11 +470,11 @@ instance
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
       throwErrorAsHandlerException (Right a) = pure a
 
-instance Member BrigAccess r => Intra.MonadSparToBrig (Spar r) where
-  call = liftSem . BrigAccess.call
+-- instance Member BrigAccess r => Intra.MonadSparToBrig (Spar r) where
+--   call = undefined -- liftSem . BrigAccess.call
 
-instance Member GalleyAccess r => Intra.MonadSparToGalley (Spar r) where
-  call = liftSem . GalleyAccess.call
+-- instance Member GalleyAccess r => Intra.MonadSparToGalley (Spar r) where
+--   call = liftSem . GalleyAccess.call
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we
@@ -560,7 +559,7 @@ findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
 moveUserToNewIssuer :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> SAML.UserRef -> UserId -> Spar r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   wrapMonadClientSem $ SAMLUserStore.insert newUserRef uid
-  Intra.setBrigUserVeid uid (UrefOnly newUserRef)
+  liftSem $ BrigAccess.setVeid uid (UrefOnly newUserRef)
   wrapMonadClientSem $ SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
@@ -615,7 +614,7 @@ verdictHandlerResultCore bindCky mbteam = \case
           -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
           error "impossible."
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)
-    cky <- Intra.ssoLogin uid
+    cky <- liftSem $ BrigAccess.ssoLogin uid
     pure $ VerifyHandlerGranted cky uid
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether

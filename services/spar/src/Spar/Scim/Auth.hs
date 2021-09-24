@@ -45,12 +45,14 @@ import OpenSSL.Random (randBytes)
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
 
 import Polysemy
+import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, sparCtxOpts, wrapMonadClientSem)
+import Spar.App (Spar, sparCtxOpts, wrapMonadClientSem, liftSem)
 import qualified Spar.Error as E
-import qualified Spar.Intra.Brig as Intra.Brig
+import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
+import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
@@ -79,7 +81,9 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r => ServerT APIScimToken (Spar r)
+apiScimToken
+  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r
+  => ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken
@@ -90,7 +94,7 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   forall r.
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -98,8 +102,8 @@ createScimToken ::
   Spar r CreateScimTokenResponse
 createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
-  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  Intra.Brig.ensureReAuthorised zusr createScimTokenPassword
+  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
+  liftSem $ BrigAccess.ensureReAuthorised zusr createScimTokenPassword
   tokenNumber <- fmap length $ wrapMonadClientSem $ ScimTokenStore.getByTeam teamid
   maxTokens <- asks (maxScimTokens . sparCtxOpts)
   unless (tokenNumber < maxTokens) $
@@ -137,13 +141,13 @@ createScimToken zusr CreateScimToken {..} = do
 --
 -- Delete a token belonging to user's team.
 deleteScimToken ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, Error E.SparError] r =>
   -- | Who is trying to delete a token
   Maybe UserId ->
   ScimTokenId ->
   Spar r NoContent
 deleteScimToken zusr tokenid = do
-  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
   wrapMonadClientSem $ ScimTokenStore.delete teamid tokenid
   pure NoContent
 
@@ -152,10 +156,10 @@ deleteScimToken zusr tokenid = do
 -- List all tokens belonging to user's team. Tokens themselves are not available, only
 -- metadata about them.
 listScimTokens ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, Error E.SparError] r =>
   -- | Who is trying to list tokens
   Maybe UserId ->
   Spar r ScimTokenList
 listScimTokens zusr = do
-  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
   ScimTokenList <$> wrapMonadClientSem (ScimTokenStore.getByTeam teamid)

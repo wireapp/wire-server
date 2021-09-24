@@ -60,8 +60,7 @@ import qualified Servant.Multipart as Multipart
 import Spar.App
 import qualified Spar.Data as Data (GetIdPResult (..), Replaced (..), Replacing (..))
 import Spar.Error
-import qualified Spar.Intra.Brig as Brig
-import qualified Spar.Intra.Galley as Galley
+import qualified Spar.Intra.BrigApp as Brig
 import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)
@@ -70,9 +69,11 @@ import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import Spar.Sem.BrigAccess (BrigAccess)
+import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
+import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
@@ -85,6 +86,7 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Polysemy.Error
 
 app :: Env -> Application
 app ctx =
@@ -103,7 +105,8 @@ api ::
        ScimTokenStore,
        DefaultSsoCode,
        IdPEffect.IdP,
-       SAMLUserStore
+       SAMLUserStore,
+       Error SparError
      ]
     r =>
   Opts ->
@@ -140,7 +143,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => ServerT APIIDP (Spar r)
+apiIDP :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Error SparError] r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -258,23 +261,27 @@ ssoSettings = do
 ----------------------------------------------------------------------------
 -- IdP API
 
-idpGet :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Spar r IdP
+idpGet
+    :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
+    => Maybe UserId -> SAML.IdPId -> Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
-  _ <- authorizeIdP zusr idp
+  _ <- liftSem $ authorizeIdP zusr idp
   pure idp
 
-idpGetRaw :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> SAML.IdPId -> Spar r RawIdPMetadata
+idpGetRaw
+    :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
+    => Maybe UserId -> SAML.IdPId -> Spar r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
-  _ <- authorizeIdP zusr idp
+  _ <- liftSem $ authorizeIdP zusr idp
   wrapMonadClientSem (IdPEffect.getRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
 
-idpGetAll :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> Spar r IdPList
+idpGetAll :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r => Maybe UserId -> Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
+  teamid <- liftSem $ Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
   pure IdPList {..}
 
@@ -288,14 +295,14 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- https://github.com/zinfra/backend-issues/issues/1314
 idpDelete ::
   forall r.
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->
   Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- SAML.getIdPConfig idpid
-  _ <- authorizeIdP zusr idp
+  _ <- liftSem $ authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
@@ -304,7 +311,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
       doPurge = do
         some <- wrapMonadClientSem (SAMLUserStore.getSomeByIssuer issuer)
         forM_ some $ \(uref, uid) -> do
-          Brig.deleteBrigUser uid
+          liftSem $ BrigAccess.delete uid
           wrapMonadClientSem (SAMLUserStore.delete uid uref)
         unless (null some) doPurge
   when (not idpIsEmpty) $ do
@@ -348,7 +355,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
 idpCreate ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
@@ -358,7 +365,7 @@ idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr 
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP] r =>
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   Text ->
   SAML.IdPMetadata ->
@@ -366,8 +373,8 @@ idpCreateXML ::
   Maybe WireIdPAPIVersion ->
   Spar r IdP
 idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
-  Galley.assertSSOEnabled teamid
+  teamid <- liftSem $ Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
+  liftSem $ GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
   wrapMonadClientSem $ IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
@@ -458,13 +465,17 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
+idpUpdate
+  :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
+  => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
-idpUpdateXML :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r => Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP
+idpUpdateXML
+  :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
+  => Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
-  Galley.assertSSOEnabled teamid
+  liftSem $ GalleyAccess.assertSSOEnabled teamid
   wrapMonadClientSem $ IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
@@ -479,7 +490,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
-  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP] r =>
+  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
@@ -489,7 +500,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
     wrapMonadClientSem (IdPEffect.getConfig _idpId) >>= \case
       Nothing -> throwError errUnknownIdPId
       Just idp -> pure idp
-  teamId <- authorizeIdP zusr previousIdP
+  teamId <- liftSem $ authorizeIdP zusr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
     throwError errUnknownIdP
   _idpExtraInfo <- do
@@ -527,14 +538,14 @@ withDebugLog msg showval action = do
   pure val
 
 authorizeIdP ::
-  (HasCallStack, MonadError SparError m, SAML.SP m, Galley.MonadSparToGalley m, Brig.MonadSparToBrig m) =>
+  (HasCallStack, Members '[GalleyAccess, BrigAccess, Error SparError] r) =>
   Maybe UserId ->
   IdP ->
-  m TeamId
-authorizeIdP Nothing _ = throwSpar (SparNoPermission (cs $ show CreateUpdateDeleteIdp))
+  Sem r TeamId
+authorizeIdP Nothing _ = throw (SAML.CustomError $ SparNoPermission (cs $ show CreateUpdateDeleteIdp))
 authorizeIdP (Just zusr) idp = do
   let teamid = idp ^. SAML.idpExtraInfo . wiTeam
-  Galley.assertHasPermission teamid CreateUpdateDeleteIdp zusr
+  GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure teamid
 
 enforceHttps :: URI.URI -> Spar r ()
