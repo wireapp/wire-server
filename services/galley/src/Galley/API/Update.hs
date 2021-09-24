@@ -28,13 +28,13 @@ module Galley.API.Update
     getCodeH,
     updateUnqualifiedConversationName,
     updateConversationName,
-    updateConversationAccessH,
     updateConversationReceiptModeUnqualified,
     updateConversationReceiptMode,
     updateLocalConversationMessageTimer,
     updateConversationMessageTimerUnqualified,
     updateConversationMessageTimer,
     updateLocalConversation,
+    updateConversationAccessUnqualified,
 
     -- * Managing Members
     addMembersH,
@@ -118,6 +118,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
   ( CodeNotFound,
     ConvNotFound,
+    InvalidTargetAccess,
     MissingLegalholdConsent,
     UnknownClient,
     mkErrorDescription,
@@ -176,20 +177,20 @@ handleUpdateResult = \case
   Updated ev -> json ev & setStatus status200
   Unchanged -> empty & setStatus status204
 
-updateConversationAccessH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationAccessUpdate -> Galley Response
-updateConversationAccessH (usr ::: zcon ::: cnv ::: req) = do
-  update <- fromJsonBody req
-  handleUpdateResult <$> updateConversationAccess usr zcon cnv update
-
-updateConversationAccess :: UserId -> ConnId -> ConvId -> Public.ConversationAccessUpdate -> Galley (UpdateResult Event)
-updateConversationAccess usr zcon cnv update = do
+updateConversationAccessUnqualified ::
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.ConversationAccessUpdate ->
+  Galley (UpdateResult Event)
+updateConversationAccessUnqualified usr zcon cnv update = do
   let targetAccess = Set.fromList (toList (cupAccess update))
       targetRole = cupAccessRole update
   -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
   -- so on; users are not supposed to be able to make other conversations
   -- have 'PrivateAccessRole'
   when (PrivateAccess `elem` targetAccess || PrivateAccessRole == targetRole) $
-    throwM invalidTargetAccess
+    throwErrorDescriptionType @InvalidTargetAccess
   -- The user who initiated access change has to be a conversation member
   (bots, users) <- localBotsAndUsers <$> Data.members cnv
   ensureConvMember users usr
@@ -201,7 +202,9 @@ updateConversationAccess usr zcon cnv update = do
   -- Team conversations incur another round of checks
   case Data.convTeam conv of
     Just tid -> checkTeamConv tid self
-    Nothing -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
+    Nothing ->
+      when (targetRole == TeamAccessRole) $
+        throwErrorDescriptionType @InvalidTargetAccess
   -- When there is no update to be done, we return 204; otherwise we go
   -- with 'uncheckedUpdateConversationAccess', which will potentially kick
   -- out some users and do DB updates.
