@@ -19,7 +19,8 @@
 
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig
-  ( getBrigUserAccount,
+  ( MonadSparToBrig(..),
+    getBrigUserAccount,
     getBrigUserByHandle,
     getBrigUserByEmail,
     getBrigUserRichInfo,
@@ -342,7 +343,7 @@ ensureReAuthorised (Just uid) secret = do
 --
 -- If brig responds with status >=400;<500, return Nothing.  Otherwise, crash (500).
 ssoLogin ::
-  (HasCallStack, SAML.HasConfig m, MonadSparToBrig m) =>
+  (HasCallStack, MonadSparToBrig m) =>
   UserId ->
   m SetCookie
 ssoLogin buid = do
