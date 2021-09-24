@@ -39,7 +39,7 @@ import Wire.API.Routes.MultiTablePaging.State
 --
 --  * @name@   Name of the resources being paginated through
 --  * @tables@ A (usually finite) type that represent the table currently being
---             used (must be an instance of 'PagingTable'
+--             used (must be an instance of 'PagingTable')
 --  * @max@    Maximum page size
 --  * @def@    Default page size
 --
@@ -141,7 +141,7 @@ instance
         <*> mtpPagingState .= field "paging_state" schema
 
 -- | A type to be used as the @tables@ argument of 'GetMultiTablePageRequest'
--- when the resources being paginate through are split into local and remote.
+-- when the resources being paginated through are split into local and remote.
 data LocalOrRemoteTable
   = PagingLocals
   | PagingRemotes
