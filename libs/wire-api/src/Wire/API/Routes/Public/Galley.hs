@@ -444,7 +444,8 @@ data Api routes = Api
     -- - ConvAccessUpdate event to members
     updateConversationAccessUnqualified ::
       routes
-        :- Summary "Update access modes for a conversation"
+        :- Summary "Update access modes for a conversation (deprecated)"
+        :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
         :> ZUser
         :> ZConn
         :> CanThrow ConvAccessDenied
@@ -452,6 +453,23 @@ data Api routes = Api
         :> CanThrow (InvalidOp "Invalid operation")
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "access"
+        :> ReqBody '[JSON] ConversationAccessUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Access unchanged" "Access updated" Event)
+             (UpdateResult Event),
+    updateConversationAccess ::
+      routes
+        :- Summary "Update access modes for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
         :> "access"
         :> ReqBody '[JSON] ConversationAccessUpdate
         :> MultiVerb

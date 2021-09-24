@@ -35,6 +35,7 @@ module Galley.API.Update
     updateConversationMessageTimer,
     updateLocalConversation,
     updateConversationAccessUnqualified,
+    updateConversationAccess,
 
     -- * Managing Members
     addMembersH,
@@ -177,6 +178,21 @@ handleUpdateResult = \case
   Updated ev -> json ev & setStatus status200
   Unchanged -> empty & setStatus status204
 
+updateConversationAccess ::
+  UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  Public.ConversationAccessUpdate ->
+  Galley (UpdateResult Event)
+updateConversationAccess usr con qcnv update = do
+  lusr <- qualifyLocal usr
+  let doUpdate =
+        foldQualified
+          lusr
+          updateLocalConversationAccess
+          updateRemoteConversationAccess
+  doUpdate qcnv lusr con update
+
 updateConversationAccessUnqualified ::
   UserId ->
   ConnId ->
@@ -184,6 +200,17 @@ updateConversationAccessUnqualified ::
   Public.ConversationAccessUpdate ->
   Galley (UpdateResult Event)
 updateConversationAccessUnqualified usr zcon cnv update = do
+  lusr <- qualifyLocal usr
+  lcnv <- qualifyLocal cnv
+  updateLocalConversationAccess lcnv lusr zcon update
+
+updateLocalConversationAccess ::
+  Local ConvId ->
+  Local UserId ->
+  ConnId ->
+  Public.ConversationAccessUpdate ->
+  Galley (UpdateResult Event)
+updateLocalConversationAccess (lUnqualified -> cnv) (lUnqualified -> usr) zcon update = do
   let targetAccess = Set.fromList (toList (cupAccess update))
       targetRole = cupAccessRole update
   -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
@@ -232,6 +259,14 @@ updateConversationAccessUnqualified usr zcon cnv update = do
       -- Access mode change might result in members being removed from the
       -- conversation, so the user must have the necessary permission flag
       ensureActionAllowed RemoveConversationMember self
+
+updateRemoteConversationAccess ::
+  Remote ConvId ->
+  Local UserId ->
+  ConnId ->
+  Public.ConversationAccessUpdate ->
+  Galley (UpdateResult Event)
+updateRemoteConversationAccess _ _ _ _ = throwM federationNotImplemented
 
 uncheckedUpdateConversationAccess ::
   ConversationAccessUpdate ->
