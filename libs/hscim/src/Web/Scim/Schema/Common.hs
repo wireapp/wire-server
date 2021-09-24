@@ -26,7 +26,7 @@ import qualified Data.Char as Char
 import qualified Data.HashMap.Lazy as HML
 import qualified Data.HashMap.Strict as HM
 import Data.String.Conversions (cs)
-import Data.Text hiding (dropWhile)
+import Data.Text hiding (dropWhile, toLower)
 import qualified Network.URI as Network
 
 data WithId id a = WithId
@@ -89,11 +89,15 @@ parseOptions =
 -- | Turn all keys in a JSON object to lowercase recursively.  This is applied to the aeson
 -- 'Value' to be parsed; 'parseOptions' is applied to the keys passed to '(.:)' etc.
 --
+-- NB: Because of https://github.com/basvandijk/case-insensitive/issues/31, we need to be
+-- careful to not mix 'Data.Text.toLower' and 'Data.CaseInsensitive.foldCase'.  They're not
+-- the same thing (yet)!
+--
 -- (FUTUREWORK: The "recursively" part is a bit of a waste and could be dropped, but we would
 -- have to spend more effort in making sure it is always called manually in nested parsers.)
 jsonLower :: Value -> Value
 jsonLower (Object o) = Object . HM.fromList . fmap lowerPair . HM.toList $ o
   where
-    lowerPair (key, val) = (toLower key, jsonLower val)
+    lowerPair (key, val) = (CI.foldCase key, jsonLower val)
 jsonLower (Array x) = Array (jsonLower <$> x)
 jsonLower x = x
