@@ -62,6 +62,7 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Spar.App (liftSem)
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
+import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.User as SU
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
@@ -806,8 +807,9 @@ testFindProvisionedUser = do
   user <- randomScimUser
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
-  users <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
-  liftIO $ users `shouldBe` [storedUser]
+  [storedUser'] <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
+  liftIO $ storedUser' `shouldBe` storedUser
+  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored user {Scim.User.emails = [] {- only after validation -}}
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]

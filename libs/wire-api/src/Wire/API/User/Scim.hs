@@ -252,7 +252,7 @@ instance QC.Arbitrary (Scim.User SparTag) where
       addFields usr = do
         gexternalId <- cs . QC.getPrintableString <$$> QC.arbitrary
         gdisplayName <- cs . QC.getPrintableString <$$> QC.arbitrary
-        gactive <- Scim.ScimBool <$$> QC.arbitrary
+        gactive <- Just . Scim.ScimBool <$> QC.arbitrary -- (`Nothing` maps on `Just True` and was in the way of a unit test.)
         gemails <- catMaybes <$> (A.decode <$$> QC.listOf (QC.elements ["a@b.c", "x@y,z", "roland@st.uv"]))
         pure
           usr

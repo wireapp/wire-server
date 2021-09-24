@@ -63,7 +63,7 @@ testDefaultRichInfo brig galley = do
   liftIO $
     assertEqual
       "rich info is not empty, or not present"
-      (Right (RichInfoAssocList mempty))
+      (Right (mkRichInfoAssocList mempty))
       richInfo
 
 testDeleteMissingFieldsInUpdates :: Brig -> Galley -> Http ()
@@ -72,12 +72,12 @@ testDeleteMissingFieldsInUpdates brig galley = do
   member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   let superset =
-        RichInfoAssocList
+        mkRichInfoAssocList
           [ RichField "department" "blue",
             RichField "relevance" "meh"
           ]
       subset =
-        RichInfoAssocList
+        mkRichInfoAssocList
           [ RichField "relevance" "meh"
           ]
   putRichInfo brig member2 superset !!! const 200 === statusCode
@@ -91,7 +91,7 @@ testDeleteEmptyFields brig galley = do
   member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   let withEmpty =
-        RichInfoAssocList
+        mkRichInfoAssocList
           [ RichField "department" ""
           ]
   putRichInfo brig member2 withEmpty !!! const 200 === statusCode
@@ -102,7 +102,7 @@ testForbidDuplicateFieldNames :: Brig -> Http ()
 testForbidDuplicateFieldNames brig = do
   (owner, _) <- createUserWithTeam brig
   let bad =
-        RichInfoAssocList
+        mkRichInfoAssocList
           [ RichField "department" "blue",
             RichField "department" "green"
           ]
@@ -113,11 +113,11 @@ testRichInfoSizeLimit brig conf = do
   let maxSize :: Int = setRichInfoLimit $ optSettings conf
   (owner, _) <- createUserWithTeam brig
   let bad1 =
-        RichInfoAssocList
+        mkRichInfoAssocList
           [ RichField "department" (Text.replicate (fromIntegral maxSize) "#")
           ]
       bad2 =
-        RichInfoAssocList $
+        mkRichInfoAssocList $
           [0 .. ((maxSize `div` 2))]
             <&> \i -> RichField (CI.mk $ Text.pack $ show i) "#"
   putRichInfo brig owner bad1 !!! const 413 === statusCode

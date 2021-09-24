@@ -256,7 +256,7 @@ spec = describe "toScimStoredUser'" $ do
 
   describe "normalization" $ do
     let usr :: User SparTag
-        usr = User {schemas = [PatchOp20, CustomSchema "asdf", ResourceType20, CustomSchema "", CustomSchema "", Group20, ServiceProviderConfig20], userName = ">/nP6S3|)RBmeJ/'PqYzRr\96446F\42072HS_izq", externalId = Just "nZ\179219)DZ\13375\\v", name = Nothing, displayName = Just "`b++0RD Ty~ z/S`Z\\\"bDE-\13666\&32>%<\189311", nickName = Nothing, profileUrl = Nothing, title = Nothing, userType = Nothing, preferredLanguage = Nothing, locale = Nothing, active = Nothing, password = Nothing, emails = [], phoneNumbers = [], ims = [], photos = [], addresses = [], entitlements = [], roles = [], x509Certificates = [], extra = ScimUserExtra {_sueRichInfo = RichInfo {unRichInfo = assocs}}}
+        usr = User {schemas = [PatchOp20, CustomSchema "asdf", ResourceType20, CustomSchema "", CustomSchema "", Group20, ServiceProviderConfig20], userName = ">/nP6S3|)RBmeJ/'PqYzRr\96446F\42072HS_izq", externalId = Just "nZ\179219)DZ\13375\\v", name = Nothing, displayName = Just "`b++0RD Ty~ z/S`Z\\\"bDE-\13666\&32>%<\189311", nickName = Nothing, profileUrl = Nothing, title = Nothing, userType = Nothing, preferredLanguage = Nothing, locale = Nothing, active = Just (Scim.ScimBool True), password = Nothing, emails = [], phoneNumbers = [], ims = [], photos = [], addresses = [], entitlements = [], roles = [], x509Certificates = [], extra = ScimUserExtra {_sueRichInfo = RichInfo {unRichInfo = assocs}}}
 
         assocs :: RichInfoAssocList
         assocs = mkRichInfoAssocList [RichField {richFieldType = "0-plIe\176041Sdu]\129492ouXy*]j\49123`jDNJ:N%\32939\&6\183443\\>HSi\6502q,\28951wZ].\11331w`", richFieldValue = "C ny6Nx0f&b\121034\29092r"}, RichField {richFieldType = "[&c;VP9\42304Q.I\43963OS\83057}G ]\175364xYLqO\156677q*ZBtZ`vKc", richFieldValue = "+FEv\28180"}, RichField {richFieldType = "}121@^z{", richFieldValue = "{KZQqjqs Py%ETB>;y1}\142167\181794\164475p"}, RichField {richFieldType = "\48098\&2#-p\68080\&9\37971|\190007K|m(", richFieldValue = ":j7\83424lQ\19571\188281*[)D8\50056\9019n\189416\100233]*!={FX|/!!&my]+8\175071\135759\&0\13316K'(\14120\172092w,2"}, RichField {richFieldType = "\50520MX>\\kQcBz\169538\147873\\\177286FqS!GW]#\20027_n", richFieldValue = "53\190108.?%t[ &9=hd9t:}Q@yj#w~B\164946B# fs!\39091}eEP"}, RichField {richFieldType = "sE7hmj\164437:", richFieldValue = "ns\"EJftf6~g5U\"&tt\20456@]M"}, RichField {richFieldType = "\172698p\41097sHk \37897X0Io\8286OU\173780\18370h\46873&GAOpuQU+T)]rC\5068WCA\68875(-\175596'", richFieldValue = "lRiP"}]
@@ -267,6 +267,6 @@ spec = describe "toScimStoredUser'" $ do
         f (normalizeLikeStored usr) `shouldBe` f usr
         normalizeLikeStored usr `shouldBe` usr
 
-      it "keeps user record intact (property)" . property $
-        \(usr' :: (Scim.User SparTag)) -> counterexample (show usr') $ do
+      it "keeps (already normalized) user record intact (property)" . property $
+        \(usr' :: Scim.User SparTag) -> counterexample (show usr') $ do
           normalizeLikeStored usr' `shouldBe` usr'

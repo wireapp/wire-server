@@ -88,12 +88,19 @@ scimActiveFlagToAccountStatus oldstatus = \case
 
 normalizeLikeStored :: Scim.User.User SparTag -> Scim.User.User SparTag
 normalizeLikeStored usr =
-  lowerSerialized
-    usr
-      { Scim.User.extra = tweakExtra $ Scim.User.extra usr,
-        Scim.User.active = tweakActive $ Scim.User.active usr,
-        Scim.User.phoneNumbers = []
-      }
+  ( lowerSerialized
+      usr
+        { Scim.User.extra = tweakExtra $ Scim.User.extra usr,
+          Scim.User.active = tweakActive $ Scim.User.active usr,
+          Scim.User.phoneNumbers = []
+        }
+  )
+    { Scim.User.schemas =
+        -- 'parseJSON' injects a 'User20', but 'normalizeLikeStored' has no quarrel with the
+        -- original schemas value.  I'm a bit doubtful the injection is such a good idea, but
+        -- I'm scared of touching it.  (fisx)
+        Scim.User.schemas usr
+    }
   where
     lowerSerialized :: Scim.User.User SparTag -> Scim.User.User SparTag
     lowerSerialized =
