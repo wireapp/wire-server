@@ -1044,11 +1044,11 @@ postJoinCodeConvOk = do
       WS.assertMatchN (5 # Second) [wsA, wsB] $
         wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
     -- changing access to non-activated should give eve access
-    let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+    let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- after removing CodeAccess, no further people can join
-    let noCodeAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
+    let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
     putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
     postJoinCodeConv dave payload !!! const 404 === statusCode
 
@@ -1064,11 +1064,14 @@ postConvertCodeConv = do
   deleteConvCode alice conv !!! const 403 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
   -- cannot change to TeamAccessRole as not a team conversation
-  let teamAccess = ConversationAccessUpdate [InviteAccess] TeamAccessRole
+  let teamAccess = ConversationAccessData (Set.singleton InviteAccess) TeamAccessRole
   putAccessUpdate alice conv teamAccess !!! const 403 === statusCode
   -- change access
   WS.bracketR c alice $ \wsA -> do
-    let nonActivatedAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] NonActivatedAccessRole
+    let nonActivatedAccess =
+          ConversationAccessData
+            (Set.fromList [InviteAccess, CodeAccess])
+            NonActivatedAccessRole
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     -- test no-op
     putAccessUpdate alice conv nonActivatedAccess !!! const 204 === statusCode
@@ -1088,7 +1091,7 @@ postConvertCodeConv = do
   getConvCode alice conv !!! const 404 === statusCode
   -- create a new code; then revoking CodeAccess should make existing codes invalid
   void $ postConvCode alice conv
-  let noCodeAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
+  let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
   putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
 
@@ -1125,7 +1128,10 @@ postConvertTeamConv = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
         wsAssertMemberJoinWithRole qconv qmallory [qmallory] roleNameWireMember
   WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
-    let teamAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
+    let teamAccess =
+          ConversationAccessData
+            (Set.fromList [InviteAccess, CodeAccess])
+            TeamAccessRole
     putAccessUpdate alice conv teamAccess !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $

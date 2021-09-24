@@ -182,7 +182,7 @@ updateConversationAccess ::
   UserId ->
   ConnId ->
   Qualified ConvId ->
-  Public.ConversationAccessUpdate ->
+  Public.ConversationAccessData ->
   Galley (UpdateResult Event)
 updateConversationAccess usr con qcnv update = do
   lusr <- qualifyLocal usr
@@ -197,7 +197,7 @@ updateConversationAccessUnqualified ::
   UserId ->
   ConnId ->
   ConvId ->
-  Public.ConversationAccessUpdate ->
+  Public.ConversationAccessData ->
   Galley (UpdateResult Event)
 updateConversationAccessUnqualified usr zcon cnv update = do
   lusr <- qualifyLocal usr
@@ -208,10 +208,10 @@ updateLocalConversationAccess ::
   Local ConvId ->
   Local UserId ->
   ConnId ->
-  Public.ConversationAccessUpdate ->
+  Public.ConversationAccessData ->
   Galley (UpdateResult Event)
 updateLocalConversationAccess (lUnqualified -> cnv) (lUnqualified -> usr) zcon update = do
-  let targetAccess = Set.fromList (toList (cupAccess update))
+  let targetAccess = cupAccess update
       targetRole = cupAccessRole update
   -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
   -- so on; users are not supposed to be able to make other conversations
@@ -264,12 +264,12 @@ updateRemoteConversationAccess ::
   Remote ConvId ->
   Local UserId ->
   ConnId ->
-  Public.ConversationAccessUpdate ->
+  Public.ConversationAccessData ->
   Galley (UpdateResult Event)
 updateRemoteConversationAccess _ _ _ _ = throwM federationNotImplemented
 
 uncheckedUpdateConversationAccess ::
-  ConversationAccessUpdate ->
+  ConversationAccessData ->
   UserId ->
   ConnId ->
   Data.Conversation ->

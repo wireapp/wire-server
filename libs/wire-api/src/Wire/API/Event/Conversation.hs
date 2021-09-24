@@ -51,7 +51,7 @@ module Wire.API.Event.Conversation
     -- * re-exports
     ConversationReceiptModeUpdate (..),
     ConversationRename (..),
-    ConversationAccessUpdate (..),
+    ConversationAccessData (..),
     ConversationMessageTimerUpdate (..),
     ConversationCode (..),
     Conversation (..),
@@ -64,7 +64,7 @@ module Wire.API.Event.Conversation
     modelConnectEvent,
     modelConversationReceiptModeUpdateEvent,
     modelConversationNameUpdateEvent,
-    modelConversationAccessUpdateEvent,
+    modelConversationAccessDataEvent,
     modelConversationMessageTimerUpdateEvent,
     modelConversationCodeUpdateEvent,
     modelConversationCodeDeleteEvent,
@@ -133,7 +133,7 @@ modelEvent = Doc.defineModel "Event" $ do
       modelConnectEvent,
       modelConversationReceiptModeUpdateEvent,
       modelConversationNameUpdateEvent,
-      modelConversationAccessUpdateEvent,
+      modelConversationAccessDataEvent,
       modelConversationMessageTimerUpdateEvent,
       modelConversationCodeUpdateEvent,
       modelConversationCodeDeleteEvent,
@@ -219,7 +219,7 @@ data EventData
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
   | EdConvDelete
-  | EdConvAccessUpdate ConversationAccessUpdate
+  | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
   | EdConvCodeUpdate ConversationCode
   | EdConvCodeDelete
@@ -249,10 +249,10 @@ modelConversationNameUpdateEvent = Doc.defineModel "ConversationNameUpdateEvent"
   Doc.description "conversation update event"
   Doc.property "data" (Doc.ref modelConversationUpdateName) $ Doc.description "conversation name"
 
-modelConversationAccessUpdateEvent :: Doc.Model
-modelConversationAccessUpdateEvent = Doc.defineModel "ConversationAccessUpdateEvent" $ do
+modelConversationAccessDataEvent :: Doc.Model
+modelConversationAccessDataEvent = Doc.defineModel "ConversationAccessDataEvent" $ do
   Doc.description "conversation access update event"
-  Doc.property "data" (Doc.ref modelConversationAccessUpdate) $ Doc.description "conversation access data"
+  Doc.property "data" (Doc.ref modelConversationAccessData) $ Doc.description "conversation access data"
 
 modelConversationMessageTimerUpdateEvent :: Doc.Model
 modelConversationMessageTimerUpdateEvent = Doc.defineModel "ConversationMessageTimerUpdateEvent" $ do

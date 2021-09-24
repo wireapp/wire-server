@@ -1075,7 +1075,7 @@ postJoinCodeConv u j = do
       . zType "access"
       . json j
 
-putAccessUpdate :: UserId -> ConvId -> ConversationAccessUpdate -> TestM ResponseLBS
+putAccessUpdate :: UserId -> ConvId -> ConversationAccessData -> TestM ResponseLBS
 putAccessUpdate u c acc = do
   g <- view tsGalley
   put $
@@ -1385,7 +1385,7 @@ wsAssertMemberUpdateWithRole conv usr target role n = do
       assertEqual "conversation_role" (Just role) (misConvRoleName mis)
     x -> assertFailure $ "Unexpected event data: " ++ show x
 
-wsAssertConvAccessUpdate :: Qualified ConvId -> Qualified UserId -> ConversationAccessUpdate -> Notification -> IO ()
+wsAssertConvAccessUpdate :: Qualified ConvId -> Qualified UserId -> ConversationAccessData -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False

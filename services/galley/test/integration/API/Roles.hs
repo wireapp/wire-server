@@ -29,6 +29,7 @@ import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Qualified
+import qualified Data.Set as Set
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Gundeck.Types.Notification (Notification (..))
@@ -319,9 +320,9 @@ wireAdminChecks cid admin otherAdmin mem = do
   putMessageTimerUpdate admin cid (ConversationMessageTimerUpdate $ Just 2000) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 0) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 1) !!! assertActionSucceeded
-  let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   putAccessUpdate admin cid nonActivatedAccess !!! assertActionSucceeded
-  let activatedAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
+  let activatedAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
@@ -364,7 +365,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- No updates for message timer, receipt mode or access
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
-  let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   putAccessUpdate mem cid nonActivatedAccess !!! assertActionDenied
   -- Finally, you can still do the following actions:
 

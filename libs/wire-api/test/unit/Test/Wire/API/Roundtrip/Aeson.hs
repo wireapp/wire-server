@@ -112,7 +112,7 @@ tests =
       testRoundTrip @Conversation.ConversationCoverView,
       testRoundTrip @Conversation.Invite,
       testRoundTrip @Conversation.ConversationRename,
-      testRoundTrip @Conversation.ConversationAccessUpdate,
+      testRoundTrip @Conversation.ConversationAccessData,
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
       testRoundTrip @Conversation.ConversationMessageTimerUpdate,
       testRoundTrip @Conversation.Bot.AddBot,
