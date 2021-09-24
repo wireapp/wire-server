@@ -119,7 +119,6 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.ErrorDescription
   ( CodeNotFound,
     ConvNotFound,
-    InvalidTargetAccess,
     MissingLegalholdConsent,
     UnknownClient,
     mkErrorDescription,
@@ -210,55 +209,11 @@ updateLocalConversationAccess ::
   ConnId ->
   Public.ConversationAccessData ->
   Galley (UpdateResult Event)
-updateLocalConversationAccess (lUnqualified -> cnv) (lUnqualified -> usr) zcon update = do
-  let targetAccess = cupAccess update
-      targetRole = cupAccessRole update
-  -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
-  -- so on; users are not supposed to be able to make other conversations
-  -- have 'PrivateAccessRole'
-  when (PrivateAccess `elem` targetAccess || PrivateAccessRole == targetRole) $
-    throwErrorDescriptionType @InvalidTargetAccess
-  -- The user who initiated access change has to be a conversation member
-  (bots, users) <- localBotsAndUsers <$> Data.members cnv
-  ensureConvMember users usr
-  conv <- Data.conversation cnv >>= ifNothing (errorDescriptionTypeToWai @ConvNotFound)
-  -- The conversation has to be a group conversation
-  ensureGroupConvThrowing conv
-  self <- getSelfMemberFromLocalsLegacy usr users
-  ensureActionAllowed ModifyConversationAccess self
-  -- Team conversations incur another round of checks
-  case Data.convTeam conv of
-    Just tid -> checkTeamConv tid self
-    Nothing ->
-      when (targetRole == TeamAccessRole) $
-        throwErrorDescriptionType @InvalidTargetAccess
-  -- When there is no update to be done, we return 204; otherwise we go
-  -- with 'uncheckedUpdateConversationAccess', which will potentially kick
-  -- out some users and do DB updates.
-  let currentAccess = Set.fromList (toList $ Data.convAccess conv)
-      currentRole = Data.convAccessRole conv
-  if currentAccess == targetAccess && currentRole == targetRole
-    then pure Unchanged
-    else
-      Updated
-        <$> uncheckedUpdateConversationAccess
-          update
-          usr
-          zcon
-          conv
-          (currentAccess, targetAccess)
-          (currentRole, targetRole)
-          users
-          bots
-  where
-    checkTeamConv tid self = do
-      -- Access mode change for managed conversation is not allowed
-      tcv <- Data.teamConversation tid cnv
-      when (maybe False (view managedConversation) tcv) $
-        throwM invalidManagedConvOp
-      -- Access mode change might result in members being removed from the
-      -- conversation, so the user must have the necessary permission flag
-      ensureActionAllowed RemoveConversationMember self
+updateLocalConversationAccess lcnv lusr con target =
+  getUpdateResult
+    . updateLocalConversation lcnv (unTagged lusr) (Just con)
+    . ConversationActionAccessUpdate
+    $ target
 
 updateRemoteConversationAccess ::
   Remote ConvId ->
@@ -268,39 +223,41 @@ updateRemoteConversationAccess ::
   Galley (UpdateResult Event)
 updateRemoteConversationAccess _ _ _ _ = throwM federationNotImplemented
 
-uncheckedUpdateConversationAccess ::
-  ConversationAccessData ->
-  UserId ->
-  ConnId ->
+performAccessUpdateAction ::
+  Qualified UserId ->
   Data.Conversation ->
-  (Set Access, Set Access) ->
-  (AccessRole, AccessRole) ->
-  [LocalMember] ->
-  [BotMember] ->
-  Galley Event
-uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAccess) (currentRole, targetRole) users bots = do
-  localDomain <- viewFederationDomain
-  let cnv = convId conv
-      qcnv = Qualified cnv localDomain
-      qusr = Qualified usr localDomain
+  ConversationAccessData ->
+  MaybeT Galley ()
+performAccessUpdateAction qusr conv target = do
+  lcnv <- qualifyLocal (Data.convId conv)
+  guard $ Data.convAccessData conv /= target
+  let (bots, users) = localBotsAndUsers (Data.convLocalMembers conv)
   -- Remove conversation codes if CodeAccess is revoked
-  when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
-    key <- mkKey cnv
-    Data.deleteCode key ReusableCode
+  when
+    ( CodeAccess `elem` Data.convAccess conv
+        && CodeAccess `notElem` cupAccess target
+    )
+    $ lift $ do
+      key <- mkKey (lUnqualified lcnv)
+      Data.deleteCode key ReusableCode
   -- Depending on a variety of things, some bots and users have to be
   -- removed from the conversation. We keep track of them using 'State'.
-  (newUsers, newBots) <- flip execStateT (users, bots) $ do
+  (newUsers, newBots) <- lift . flip execStateT (users, bots) $ do
     -- We might have to remove non-activated members
     -- TODO(akshay): Remove Ord instance for AccessRole. It is dangerous
     -- to make assumption about the order of roles and implement policy
     -- based on those assumptions.
-    when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
-      mIds <- map lmId <$> use usersL
-      activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
-      let isActivated user = lmId user `elem` activated
-      usersL %= filter isActivated
+    when
+      ( Data.convAccessRole conv > ActivatedAccessRole
+          && cupAccessRole target <= ActivatedAccessRole
+      )
+      $ do
+        mIds <- map lmId <$> use usersL
+        activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
+        let isActivated user = lmId user `elem` activated
+        usersL %= filter isActivated
     -- In a team-only conversation we also want to remove bots and guests
-    case (targetRole, Data.convTeam conv) of
+    case (cupAccessRole target, Data.convTeam conv) of
       (TeamAccessRole, Just tid) -> do
         currentUsers <- use usersL
         onlyTeamUsers <- flip filterM currentUsers $ \user ->
@@ -308,26 +265,24 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
         assign usersL onlyTeamUsers
         botsL .= []
       _ -> return ()
-  -- Update Cassandra & send an event
-  now <- liftIO getCurrentTime
-  let accessEvent = Event ConvAccessUpdate qcnv qusr now (EdConvAccessUpdate body)
-  Data.updateConversationAccess cnv targetAccess targetRole
-  pushConversationEvent (Just zcon) accessEvent (map lmId users) bots
+  -- Update Cassandra
+  lift $ Data.updateConversationAccess (lUnqualified lcnv) target
   -- Remove users and bots
-  let removedUsers = map lmId users \\ map lmId newUsers
-      removedBots = map botMemId bots \\ map botMemId newBots
-  mapM_ (deleteBot cnv) removedBots
-  for_ (nonEmpty removedUsers) $ \victims -> do
-    -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
-    Data.removeLocalMembersFromLocalConv cnv victims
-    let qvictims = QualifiedUserIdList . map (`Qualified` localDomain) . toList $ victims
-    let e = Event MemberLeave qcnv qusr now (EdMembersLeave qvictims)
-    -- push event to all clients, including zconn
-    -- since updateConversationAccess generates a second (member removal) event here
-    for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
-    void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
-  -- Return the event
-  pure accessEvent
+  lift . void . forkIO $ do
+    let removedUsers = map lmId users \\ map lmId newUsers
+        removedBots = map botMemId bots \\ map botMemId newBots
+    mapM_ (deleteBot (lUnqualified lcnv)) removedBots
+    for_ (nonEmpty removedUsers) $ \victims -> do
+      -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
+      Data.removeLocalMembersFromLocalConv (lUnqualified lcnv) victims
+      now <- liftIO getCurrentTime
+      let qvictims = QualifiedUserIdList . map (unTagged . qualifyAs lcnv) . toList $ victims
+      let e = Event MemberLeave (unTagged lcnv) qusr now (EdMembersLeave qvictims)
+      -- push event to all clients, including zconn
+      -- since updateConversationAccess generates a second (member removal) event here
+      traverse_ push1 $
+        newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> users)
+      void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   where
     usersL :: Lens' ([LocalMember], [BotMember]) [LocalMember]
     usersL = _1
@@ -477,6 +432,9 @@ performAction qusr conv action = case action of
     lcnv <- qualifyLocal (Data.convId conv)
     void $ ensureOtherMember lcnv target conv
     Data.updateOtherMemberLocalConv lcnv target update
+    pure (mempty, action)
+  ConversationActionAccessUpdate update -> do
+    performAccessUpdateAction qusr conv update
     pure (mempty, action)
 
 addCodeH :: UserId ::: ConnId ::: ConvId -> Galley Response
