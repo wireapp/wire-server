@@ -562,8 +562,9 @@ joinConversation zusr zcon cnv access = do
     -- NOTE: When joining conversations, all users become members
     -- as this is our desired behavior for these types of conversations
     -- where there is no way to control who joins, etc.
+    let users = filter (notIsConvMember lusr conv) [zusr]
     (extraTargets, action) <-
-      addMembersToLocalConversation lcnv (UserList [zusr] []) roleNameWireMember
+      addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
     lift $
       notifyConversationMetadataUpdate
         (unTagged lusr)
