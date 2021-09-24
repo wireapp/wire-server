@@ -6,11 +6,11 @@ import Data.Handle (Handle)
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword)
 import Imports
+import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
 import Wire.API.User.RichInfo as RichInfo
 import Wire.API.User.Scim (ValidExternalId (..))
-import Polysemy
 
 data BrigAccess m a where
   CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> BrigAccess m UserId

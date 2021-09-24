@@ -54,6 +54,7 @@ import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Imports
 import OpenSSL.Random (randBytes)
 import Polysemy
+import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
@@ -86,7 +87,6 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Polysemy.Error
 
 app :: Env -> Application
 app ctx =
@@ -261,17 +261,21 @@ ssoSettings = do
 ----------------------------------------------------------------------------
 -- IdP API
 
-idpGet
-    :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
-    => Maybe UserId -> SAML.IdPId -> Spar r IdP
+idpGet ::
+  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Maybe UserId ->
+  SAML.IdPId ->
+  Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   _ <- liftSem $ authorizeIdP zusr idp
   pure idp
 
-idpGetRaw
-    :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
-    => Maybe UserId -> SAML.IdPId -> Spar r RawIdPMetadata
+idpGetRaw ::
+  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Maybe UserId ->
+  SAML.IdPId ->
+  Spar r RawIdPMetadata
 idpGetRaw zusr idpid = do
   idp <- SAML.getIdPConfig idpid
   _ <- liftSem $ authorizeIdP zusr idp
@@ -465,14 +469,21 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
-idpUpdate
-  :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
-  => Maybe UserId -> IdPMetadataInfo -> SAML.IdPId -> Spar r IdP
+idpUpdate ::
+  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Maybe UserId ->
+  IdPMetadataInfo ->
+  SAML.IdPId ->
+  Spar r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
-idpUpdateXML
-  :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r
-  => Maybe UserId -> Text -> SAML.IdPMetadata -> SAML.IdPId -> Spar r IdP
+idpUpdateXML ::
+  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Maybe UserId ->
+  Text ->
+  SAML.IdPMetadata ->
+  SAML.IdPId ->
+  Spar r IdP
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   liftSem $ GalleyAccess.assertSSOEnabled teamid

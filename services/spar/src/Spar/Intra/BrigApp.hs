@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
@@ -52,17 +52,17 @@ import Data.Id (TeamId, UserId)
 import Data.String.Conversions
 import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Imports
+import Polysemy
+import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Error
-import Wire.API.User
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalId)
-import qualified Spar.Sem.BrigAccess as BrigAccess
-import Polysemy
 import Spar.Sem.BrigAccess (BrigAccess)
-import Polysemy.Error
+import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Wire.API.User
+import Wire.API.User.Scim (ValidExternalId (..), runValidExternalId)
 
 ----------------------------------------------------------------------
 
@@ -153,8 +153,8 @@ getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
 
 -- | Pull team id for z-user from brig.  Check permission in galley.  Return team id.  Fail if
 -- permission check fails or the user is not in status 'Active'.
-getZUsrCheckPerm
-  :: forall r perm.
+getZUsrCheckPerm ::
+  forall r perm.
   (HasCallStack, Members '[BrigAccess, GalleyAccess, Error SparError] r, IsPerm perm, Show perm) =>
   Maybe UserId ->
   perm ->
@@ -166,10 +166,11 @@ getZUsrCheckPerm (Just uid) perm = do
       (throw $ SAML.CustomError SparNotInTeam)
       (\teamid -> teamid <$ GalleyAccess.assertHasPermission teamid perm uid)
 
-authorizeScimTokenManagement
-    :: forall r
-     . (HasCallStack, Members '[BrigAccess, GalleyAccess, Error SparError] r)
-    => Maybe UserId -> Sem r TeamId
+authorizeScimTokenManagement ::
+  forall r.
+  (HasCallStack, Members '[BrigAccess, GalleyAccess, Error SparError] r) =>
+  Maybe UserId ->
+  Sem r TeamId
 authorizeScimTokenManagement Nothing = throw $ SAML.CustomError SparMissingZUsr
 authorizeScimTokenManagement (Just uid) = do
   getBrigUserTeam NoPendingInvitations uid
@@ -199,4 +200,3 @@ giveDefaultHandle usr = case userHandle usr of
         uid = userId usr
     BrigAccess.setHandle uid handle
     pure handle
-

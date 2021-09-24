@@ -69,6 +69,7 @@ import Control.Monad.Except
 import Data.String.Conversions (cs)
 import Imports
 import Polysemy
+import Polysemy.Error (Error)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
@@ -98,7 +99,6 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
-import Polysemy.Error (Error)
 
 -- | SCIM config for our server.
 --

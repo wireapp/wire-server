@@ -65,7 +65,7 @@ import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClientSem, liftSem)
+import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, sparCtxOpts, validateEmailIfExists, wrapMonadClientSem)
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
@@ -499,11 +499,12 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
           when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo) $ do
             liftSem $ BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
 
-          liftSem $ BrigAccess.getStatusMaybe uid >>= \case
-            Nothing -> pure ()
-            Just old -> do
-              let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
-              when (new /= old) $ BrigAccess.setStatus uid new
+          liftSem $
+            BrigAccess.getStatusMaybe uid >>= \case
+              Nothing -> pure ()
+              Just old -> do
+                let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
+                when (new /= old) $ BrigAccess.setStatus uid new
 
           wrapMonadClientSem $ ScimUserTimesStore.write newScimStoredUser
           pure newScimStoredUser
@@ -792,9 +793,12 @@ synthesizeScimUser info =
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive
         }
 
-scimFindUserByHandle
-  :: Members '[BrigAccess, ScimUserTimesStore] r
-  => Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
+scimFindUserByHandle ::
+  Members '[BrigAccess, ScimUserTimesStore] r =>
+  Maybe IdP ->
+  TeamId ->
+  Text ->
+  MaybeT (Scim.ScimHandler (Spar r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByHandle mIdpConfig stiTeam hndl = do
   handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
   brigUser <- MaybeT . lift . liftSem . BrigAccess.getByHandle $ handle

@@ -19,7 +19,7 @@
 
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig
-  ( MonadSparToBrig(..),
+  ( MonadSparToBrig (..),
     getBrigUserAccount,
     getBrigUserByHandle,
     getBrigUserByEmail,

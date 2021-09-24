@@ -48,7 +48,7 @@ import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, sparCtxOpts, wrapMonadClientSem, liftSem)
+import Spar.App (Spar, liftSem, sparCtxOpts, wrapMonadClientSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -81,9 +81,9 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
-apiScimToken
-  :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r
-  => ServerT APIScimToken (Spar r)
+apiScimToken ::
+  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
+  ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
     :<|> deleteScimToken

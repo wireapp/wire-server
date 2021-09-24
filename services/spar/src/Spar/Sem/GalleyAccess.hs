@@ -1,9 +1,9 @@
 module Spar.Sem.GalleyAccess where
 
-import Imports
-import Polysemy
 import Data.Id (TeamId, UserId)
 import Galley.Types.Teams (IsPerm, TeamMember)
+import Imports
+import Polysemy
 
 -- FUTUREWORK: A better effect here would be to exactly model the requests we
 -- want to make of Galley. This would allow for non-HTTP interpretations.

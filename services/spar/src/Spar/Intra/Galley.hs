@@ -92,4 +92,3 @@ isEmailValidationEnabledTeam tid = do
                == Just (TeamFeatureStatusNoConfig TeamFeatureEnabled)
            )
     )
-
