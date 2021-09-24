@@ -470,12 +470,6 @@ instance
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
       throwErrorAsHandlerException (Right a) = pure a
 
--- instance Member BrigAccess r => Intra.MonadSparToBrig (Spar r) where
---   call = undefined -- liftSem . BrigAccess.call
-
--- instance Member GalleyAccess r => Intra.MonadSparToGalley (Spar r) where
---   call = liftSem . GalleyAccess.call
-
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we
 -- call either 'verdictHandlerWeb' or 'verdictHandlerMobile', resp., on the 'SAML.AccessVerdict'.
