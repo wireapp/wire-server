@@ -99,4 +99,7 @@ jsonLower (Object o) = Object . HM.fromList . fmap lowerPair . HM.toList $ o
   where
     lowerPair (key, val) = (CI.foldCase key, jsonLower val)
 jsonLower (Array x) = Array (jsonLower <$> x)
-jsonLower x = x
+jsonLower same@(String _) = same -- (only objetc attributes, not all texts in the value side of objects!)
+jsonLower same@(Number _) = same
+jsonLower same@(Bool _) = same
+jsonLower same@Null = same
