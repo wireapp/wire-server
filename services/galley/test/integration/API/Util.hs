@@ -1033,6 +1033,24 @@ putConversationName u c n = do
         . json update
     )
 
+putQualifiedReceiptMode ::
+  (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
+  UserId ->
+  Qualified ConvId ->
+  ReceiptMode ->
+  m ResponseLBS
+putQualifiedReceiptMode u (Qualified c dom) r = do
+  g <- viewGalley
+  let update = ConversationReceiptModeUpdate r
+  put
+    ( g
+        . paths ["conversations", toByteString' dom, toByteString' c, "receipt-mode"]
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . json update
+    )
+
 putReceiptMode :: UserId -> ConvId -> ReceiptMode -> TestM ResponseLBS
 putReceiptMode u c r = do
   g <- view tsGalley

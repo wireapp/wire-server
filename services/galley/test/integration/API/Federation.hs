@@ -71,6 +71,7 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about conversation rename" notifyConvRename,
       test s "POST /federation/on-conversation-updated : Notify local user about message timer update" notifyMessageTimer,
       test s "POST /federation/on-conversation-updated : Notify local user about member update" notifyMemberUpdate,
+      test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update" notifyReceiptMode,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -354,6 +355,15 @@ notifyMessageTimer = do
     (ConversationActionMessageTimerUpdate d)
     ConvMessageTimerUpdate
     (EdConvMessageTimerUpdate d)
+
+notifyReceiptMode :: TestM ()
+notifyReceiptMode = do
+  let d = ConversationReceiptModeUpdate (ReceiptMode 42)
+  notifyUpdate
+    []
+    (ConversationActionReceiptModeUpdate d)
+    ConvReceiptModeUpdate
+    (EdConvReceiptModeUpdate d)
 
 notifyMemberUpdate :: TestM ()
 notifyMemberUpdate = do
