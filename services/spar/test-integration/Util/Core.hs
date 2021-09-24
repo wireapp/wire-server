@@ -1286,8 +1286,8 @@ runSpar (Spar.Spar action) = do
                                 aReqIDStoreToCassandra @Cas.Client $
                                   assIDStoreToCassandra @Cas.Client $
                                     bindCookieStoreToCassandra @Cas.Client $
-                                      brigAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
-                                        galleyAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                      brigAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                        galleyAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
                                           runExceptT $
                                             runReaderT action env
     either (throwIO . ErrorCall . show) pure result

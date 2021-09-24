@@ -451,8 +451,8 @@ instance
                 runError @SparError $
                   ttlErrorToSparError $
                     ReaderEff.runReader (sparCtxOpts ctx) $
-                      galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
-                        brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
+                      galleyAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
+                        brigAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
                           interpretClientToIO (sparCtxCas ctx) $
                             samlUserStoreToCassandra @Cas.Client $
                               idPToCassandra @Cas.Client $
