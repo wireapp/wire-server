@@ -42,8 +42,6 @@ module Spar.Scim.Types where
 
 import Brig.Types.Intra (AccountStatus (..))
 import Control.Lens (view)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
 import Imports
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.User as Scim.User
@@ -88,27 +86,12 @@ scimActiveFlagToAccountStatus oldstatus = \case
 
 normalizeLikeStored :: Scim.User.User SparTag -> Scim.User.User SparTag
 normalizeLikeStored usr =
-  ( lowerSerialized
-      usr
-        { Scim.User.extra = tweakExtra $ Scim.User.extra usr,
-          Scim.User.active = tweakActive $ Scim.User.active usr,
-          Scim.User.phoneNumbers = []
-        }
-  )
-    { Scim.User.schemas =
-        -- 'parseJSON' injects a 'User20', but 'normalizeLikeStored' has no quarrel with the
-        -- original schemas value.  I'm a bit doubtful the injection is such a good idea, but
-        -- I'm scared of touching it.  (fisx)
-        Scim.User.schemas usr
+  usr
+    { Scim.User.extra = tweakExtra $ Scim.User.extra usr,
+      Scim.User.active = tweakActive $ Scim.User.active usr,
+      Scim.User.phoneNumbers = []
     }
   where
-    lowerSerialized :: Scim.User.User SparTag -> Scim.User.User SparTag
-    lowerSerialized =
-      either (error . show {- impossible; evidence: roundtrip tests -}) id
-        . Aeson.parseEither Aeson.parseJSON
-        . Scim.jsonLower
-        . Aeson.toJSON
-
     tweakExtra :: ScimUserExtra -> ScimUserExtra
     tweakExtra = ScimUserExtra . RichInfo . normalizeRichInfoAssocList . unRichInfo . view sueRichInfo
 
