@@ -118,7 +118,6 @@ tests s =
       test s "add team conversation with role" testAddTeamConvWithRole,
       test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner,
       test s "add managed conversation through public endpoint (fail)" testAddManagedConv,
-      test s "add managed team conversation ignores given users" testAddTeamConvWithUsers,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "add team member to conversation without connection" (testAddTeamMemberToConv >> ensureQueueEmpty),
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
@@ -809,11 +808,7 @@ testAddTeamConvWithRole = do
   mem2 <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [extern, mem2 ^. userId])
   tid <- Util.createNonBindingTeam "foo" owner [mem2]
-  WS.bracketRN c [owner, extern, mem1 ^. userId, mem2 ^. userId] $ \ws@[wsOwner, wsExtern, wsMem1, wsMem2] -> do
-    -- Managed conversation:
-    cid1 <- Util.createManagedConv owner tid [] (Just "gossip") Nothing Nothing
-    checkConvCreateEvent cid1 wsOwner
-    checkConvCreateEvent cid1 wsMem2
+  WS.bracketRN c [owner, extern, mem1 ^. userId, mem2 ^. userId] $ \[wsOwner, wsExtern, wsMem1, wsMem2] -> do
     -- Regular conversation:
     cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
     checkConvCreateEvent cid2 wsOwner
@@ -832,21 +827,8 @@ testAddTeamConvWithRole = do
     checkTeamMemberJoin tid (mem1 ^. userId) wsOwner
     checkTeamMemberJoin tid (mem1 ^. userId) wsMem1
     checkTeamMemberJoin tid (mem1 ^. userId) wsMem2
-    -- New team members are added automatically to managed conversations ...
-    Util.assertConvMember (mem1 ^. userId) cid1
     -- ... but not to regular ones.
     Util.assertNotConvMember (mem1 ^. userId) cid2
-    -- Managed team conversations get all team members added implicitly.
-    cid4 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
-    for_ [owner, mem1 ^. userId, mem2 ^. userId] $ \u ->
-      Util.assertConvMember u cid4
-    checkConvCreateEvent cid4 wsOwner
-    checkConvCreateEvent cid4 wsMem1
-    checkConvCreateEvent cid4 wsMem2
-    -- Non team members are never added implicitly.
-    for_ [cid1, cid4] $
-      Util.assertNotConvMember extern
-    WS.assertNoEvent timeout ws
 
 testAddTeamConvAsExternalPartner :: TestM ()
 testAddTeamConvAsExternalPartner = do
@@ -892,19 +874,6 @@ testAddManagedConv = do
         . json conv
     )
     !!! const 400 === statusCode
-
-testAddTeamConvWithUsers :: TestM ()
-testAddTeamConvWithUsers = do
-  owner <- Util.randomUser
-  extern <- Util.randomUser
-  Util.connectUsers owner (list1 extern [])
-  tid <- Util.createNonBindingTeam "foo" owner []
-  -- Create managed team conversation and erroneously specify external users.
-  cid <- Util.createManagedConv owner tid [extern] (Just "gossip") Nothing Nothing
-  -- External users have been ignored.
-  Util.assertNotConvMember extern cid
-  -- Team members are present.
-  Util.assertConvMember owner cid
 
 testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do
