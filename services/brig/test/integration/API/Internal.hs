@@ -20,6 +20,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as T
 import Imports
+import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
 import System.Random (randomIO)
 import Test.Tasty
@@ -103,7 +104,7 @@ scaffolding brig gundeck = do
       return $ PushToken.pushToken PushToken.APNSSandbox (PushToken.AppName "test") tok c
 
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
-ejpdRequestClientM = Client.client (Proxy @IAPI.ServantAPI)
+(ejpdRequestClientM :<|> _ :<|> _ :<|> _) = Client.client (Proxy @IAPI.ServantAPI)
 
 ejpdRequestClient :: TestConstraints m => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
 ejpdRequestClient brigep mgr includeContacts ejpdReqBody = do

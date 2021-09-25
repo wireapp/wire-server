@@ -46,6 +46,7 @@ module Brig.Data.User
     lookupUserTeam,
     lookupServiceUsers,
     lookupServiceUsersForTeam,
+    lookupFeatureConferenceCalling,
 
     -- * Updates
     updateUser,
@@ -60,6 +61,7 @@ module Brig.Data.User
     updateStatus,
     updateHandle,
     updateRichInfo,
+    updateFeatureConferenceCalling,
 
     -- * Deletions
     deleteEmail,
@@ -90,6 +92,7 @@ import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 import Imports
+import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User.RichInfo
 
 -- | Authentication errors.
@@ -298,6 +301,15 @@ updatePassword u t = do
 updateRichInfo :: UserId -> RichInfoAssocList -> AppIO ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params Quorum (ri, u))
 
+updateFeatureConferenceCalling :: UserId -> Maybe ApiFt.TeamFeatureStatusNoConfig -> AppIO (Maybe ApiFt.TeamFeatureStatusNoConfig)
+updateFeatureConferenceCalling uid mbStatus = do
+  let flag = ApiFt.tfwoStatus <$> mbStatus
+  retry x5 $ write update (params Quorum (flag, uid))
+  pure mbStatus
+  where
+    update :: PrepQuery W (Maybe ApiFt.TeamFeatureStatusValue, UserId) ()
+    update = fromString $ "update user set feature_conference_calling = ? where id = ?"
+
 deleteEmail :: UserId -> AppIO ()
 deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
 
@@ -451,6 +463,15 @@ lookupServiceUsersForTeam pid sid tid =
     cql =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
+
+lookupFeatureConferenceCalling :: UserId -> AppIO (Maybe ApiFt.TeamFeatureStatusNoConfig)
+lookupFeatureConferenceCalling uid = do
+  let q = query1 select (params Quorum (Identity uid))
+  mStatusValue <- (>>= runIdentity) <$> retry x1 q
+  pure $ ApiFt.TeamFeatureStatusNoConfig <$> mStatusValue
+  where
+    select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.TeamFeatureStatusValue))
+    select = fromString $ "select feature_conference_calling from user where id = ?"
 
 -------------------------------------------------------------------------------
 -- Queries

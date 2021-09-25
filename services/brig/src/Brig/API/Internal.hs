@@ -73,6 +73,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription
+import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
 import Wire.API.User.Client (UserClientsFull (..))
 import Wire.API.User.RichInfo
@@ -98,13 +99,61 @@ type EJPDRequest =
     :> Servant.ReqBody '[Servant.JSON] EJPD.EJPDRequestBody
     :> Post '[Servant.JSON] EJPD.EJPDResponseBody
 
+type GetAccountFeatureConfig =
+  Summary
+    "Read access to cassandra field `brig.user.feature_conference_calling"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "features"
+    :> "conferenceCalling"
+    :> Get '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.TeamFeatureConferenceCalling)
+
+type PutAccountFeatureConfig =
+  Summary
+    "Read access to cassandra field `brig.user.feature_conference_calling"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "features"
+    :> "conferenceCalling"
+    :> Servant.ReqBody '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Get '[Servant.JSON] NoContent
+
+type DeleteAccountFeatureConfig =
+  Summary
+    "Read access to cassandra field `brig.user.feature_conference_calling"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "features"
+    :> "conferenceCalling"
+    :> Delete '[Servant.JSON] NoContent
+
 type ServantAPI =
   "i"
     :> ( EJPDRequest
+           :<|> GetAccountFeatureConfig
+           :<|> PutAccountFeatureConfig
+           :<|> DeleteAccountFeatureConfig
        )
 
 servantSitemap :: ServerT ServantAPI Handler
-servantSitemap = Brig.User.EJPD.ejpdRequest
+servantSitemap =
+  Brig.User.EJPD.ejpdRequest
+    :<|> getAccountFeatureConfig
+    :<|> putAccountFeatureConfig
+    :<|> deleteAccountFeatureConfig
+
+getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
+getAccountFeatureConfig uid =
+  lift (Data.lookupFeatureConferenceCalling uid)
+    >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
+
+putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> Handler NoContent
+putAccountFeatureConfig uid status =
+  lift $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
+
+deleteAccountFeatureConfig :: UserId -> Handler NoContent
+deleteAccountFeatureConfig uid =
+  lift $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
