@@ -30,11 +30,11 @@ module Test.Brig.Types.User where
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Intra (NewUserScimInvitation (..), ReAuthUser (..))
 import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
-import Brig.Types.User.EJPD (EJPDRequestBody (..), EJPDResponseBody (..))
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip, testRoundTripWithSwagger)
 import Test.QuickCheck (Arbitrary (arbitrary))
 import Test.Tasty
+import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (..), EJPDResponseBody (..))
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ roundtripTests

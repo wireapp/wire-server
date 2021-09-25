@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: db0e289b12b344457a40dfe813de29c63bb9e236a45c4407a0f521833fd8cdbe
+-- hash: 7abd4338ccffa1ed3fdf81a01e5b67e0b1e63472db911d854e0b531a3b39ba4d
 
 name:           wire-api
 version:        0.1.0
@@ -49,6 +49,8 @@ library
       Wire.API.Provider.Service.Tag
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
+      Wire.API.Routes.Internal.Brig
+      Wire.API.Routes.Internal.Brig.EJPD
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State
       Wire.API.Routes.MultiVerb
@@ -152,6 +154,7 @@ library
     , servant-multipart
     , servant-server
     , servant-swagger
+    , servant-swagger-ui
     , singletons
     , sop-core
     , string-conversions
@@ -448,6 +451,7 @@ test-suite wire-api-tests
     , pem
     , pretty
     , proto-lens
+    , servant-swagger-ui
     , string-conversions
     , swagger2
     , tasty
