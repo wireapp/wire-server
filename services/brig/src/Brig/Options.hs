@@ -485,8 +485,6 @@ data Settings = Settings
     -- | Do not allow certain user creation flows.
     -- docs/reference/user/registration.md {#RefRestrictRegistration}.
     setRestrictUserCreation :: !(Maybe Bool),
-    -- Customer extensions
-
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
     setCustomerExtensions :: !(Maybe CustomerExtensions),
     -- | When set; instead of using SRV lookups to discover SFTs the calls
