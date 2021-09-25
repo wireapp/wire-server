@@ -8,7 +8,6 @@ import Bilge
 import qualified Brig.API.Internal as IAPI
 import qualified Brig.Options as Opt
 import Brig.Types
-import Brig.Types.User.EJPD as EJPD
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadCatch, throwM)
 import qualified Data.ByteString.Base16 as B16
@@ -29,6 +28,7 @@ import Util
 import Util.Options (Endpoint, epHost, epPort)
 import qualified Wire.API.Connection as Conn
 import qualified Wire.API.Push.V2.Token as PushToken
+import Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import qualified Wire.API.Team.Member as Team
 
 tests :: Opt.Opts -> Manager -> Brig -> Endpoint -> Gundeck -> IO TestTree
@@ -104,7 +104,7 @@ scaffolding brig gundeck = do
       return $ PushToken.pushToken PushToken.APNSSandbox (PushToken.AppName "test") tok c
 
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
-(ejpdRequestClientM :<|> _ :<|> _ :<|> _) = Client.client (Proxy @IAPI.ServantAPI)
+(ejpdRequestClientM :<|> _ :<|> _ :<|> _) = Client.client (Proxy @IAPI.API)
 
 ejpdRequestClient :: TestConstraints m => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
 ejpdRequestClient brigep mgr includeContacts ejpdReqBody = do
