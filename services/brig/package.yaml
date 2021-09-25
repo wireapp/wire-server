@@ -198,6 +198,7 @@ executables:
     - cassandra-util
     - containers
     - cookie
+    - cql-io
     - data-timeout
     - email-validate
     - exceptions
