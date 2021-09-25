@@ -464,7 +464,7 @@ lookupServiceUsersForTeam pid sid tid =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
 
-lookupFeatureConferenceCalling :: UserId -> AppIO (Maybe ApiFt.TeamFeatureStatusNoConfig)
+lookupFeatureConferenceCalling :: MonadClient m => UserId -> m (Maybe ApiFt.TeamFeatureStatusNoConfig)
 lookupFeatureConferenceCalling uid = do
   let q = query1 select (params Quorum (Identity uid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q

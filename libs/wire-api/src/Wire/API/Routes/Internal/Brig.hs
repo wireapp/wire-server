@@ -55,7 +55,7 @@ type EJPDRequest =
 
 type GetAccountFeatureConfig =
   Summary
-    "Read access to cassandra field `brig.user.feature_conference_calling"
+    "Read cassandra field `brig.user.feature_conference_calling`"
     :> "users"
     :> Capture "uid" UserId
     :> "features"
@@ -64,7 +64,7 @@ type GetAccountFeatureConfig =
 
 type PutAccountFeatureConfig =
   Summary
-    "Read access to cassandra field `brig.user.feature_conference_calling"
+    "Write to cassandra field `brig.user.feature_conference_calling`"
     :> "users"
     :> Capture "uid" UserId
     :> "features"
@@ -74,7 +74,7 @@ type PutAccountFeatureConfig =
 
 type DeleteAccountFeatureConfig =
   Summary
-    "Read access to cassandra field `brig.user.feature_conference_calling"
+    "Reset cassandra field `brig.user.feature_conference_calling` to `null`"
     :> "users"
     :> Capture "uid" UserId
     :> "features"
