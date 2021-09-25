@@ -25,10 +25,10 @@ import Control.Lens ((^.))
 import Data.Id (Id (Id))
 import qualified Data.UUID as UUID
 import Imports hiding (head)
+import Spar.App (liftSem)
 import qualified Spar.Intra.BrigApp as Intra
 import Util
 import qualified Web.Scim.Schema.User as Scim.User
-import Spar.App (liftSem)
 
 spec :: SpecWith TestEnv
 spec = do

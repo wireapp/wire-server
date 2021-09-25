@@ -63,6 +63,7 @@ import Spar.App (liftSem)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
+import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
@@ -85,7 +86,6 @@ import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
-import qualified Spar.Sem.BrigAccess as BrigAccess
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
