@@ -45,6 +45,8 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
+import qualified Wire.API.Team.Feature as ApiFT
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -485,6 +487,8 @@ data Settings = Settings
     -- | Do not allow certain user creation flows.
     -- docs/reference/user/registration.md {#RefRestrictRegistration}.
     setRestrictUserCreation :: !(Maybe Bool),
+    -- | The analog to `Galley.Options.setFeatureFlags`.  See 'AccountFeatureConfigs'.
+    setFeatureFlags :: !(Maybe AccountFeatureConfigs),
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
     setCustomerExtensions :: !(Maybe CustomerExtensions),
     -- | When set; instead of using SRV lookups to discover SFTs the calls
@@ -494,6 +498,64 @@ data Settings = Settings
     setSftStaticUrl :: !(Maybe HttpsUrl)
   }
   deriving (Show, Generic)
+
+-- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
+-- express our current cloud business logic.
+--
+-- FUTUREWORK: it would be nice to have a system of feature configs that allows to coherently
+-- express arbitrary logic accross personal and team accounts, teams, and instances; including
+-- default values for new records, default for records that have a NULL value (eg., because
+-- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
+-- messages).  For now, we have something quick & simple.
+data AccountFeatureConfigs = AccountFeatureConfigs
+  { afcConferenceCallingDefNew :: !(ApiFT.TeamFeatureStatus 'ApiFT.TeamFeatureConferenceCalling),
+    afcConferenceCallingDefNull :: !(ApiFT.TeamFeatureStatus 'ApiFT.TeamFeatureConferenceCalling)
+  }
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform AccountFeatureConfigs)
+
+instance FromJSON AccountFeatureConfigs where
+  parseJSON =
+    Aeson.withObject
+      "AccountFeatureConfigs"
+      ( \obj -> do
+          confCallInit <- obj Aeson..: "conferenceCalling"
+          Aeson.withObject
+            "conferenceCalling"
+            ( \obj' -> do
+                AccountFeatureConfigs
+                  <$> obj' Aeson..: "defaultForNew"
+                  <*> obj' Aeson..: "defaultForNull"
+            )
+            confCallInit
+      )
+
+instance ToJSON AccountFeatureConfigs where
+  toJSON
+    AccountFeatureConfigs
+      { afcConferenceCallingDefNew,
+        afcConferenceCallingDefNull
+      } =
+      Aeson.object
+        [ "conferenceCalling"
+            Aeson..= Aeson.object
+              [ "defaultForNew" Aeson..= afcConferenceCallingDefNew,
+                "defaultForNull" Aeson..= afcConferenceCallingDefNull
+              ]
+        ]
+
+getAfcConferenceCallingDefNew :: Lens.Getter Settings ApiFT.TeamFeatureStatusNoConfig
+getAfcConferenceCallingDefNew = Lens.to (afcConferenceCallingDefNew . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
+
+getAfcConferenceCallingDefNull :: Lens.Getter Settings ApiFT.TeamFeatureStatusNoConfig
+getAfcConferenceCallingDefNull = Lens.to (afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
+
+defAccountFeatureConfigs :: AccountFeatureConfigs
+defAccountFeatureConfigs =
+  AccountFeatureConfigs
+    { afcConferenceCallingDefNew = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureDisabled,
+      afcConferenceCallingDefNull = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureEnabled
+    }
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them
 -- at your own risk!  If you use the default server config and do not set

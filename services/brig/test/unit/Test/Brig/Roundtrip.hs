@@ -15,27 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Test.Brig.Roundtrip (tests) where
 
+import qualified Brig.Options as Options
+import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
+import Data.Aeson.Types (parseEither)
 import Imports
-import qualified Test.Brig.API.Error
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
-import Test.Tasty
+import qualified Test.Tasty as T
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
+import Type.Reflection (typeRep)
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.API.Error.tests,
-        Test.Brig.Roundtrip.tests
-      ]
+tests :: T.TestTree
+tests =
+  T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
+    [ testRoundTrip @Options.AccountFeatureConfigs
+    ]
+
+testRoundTrip ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
+  T.TestTree
+testRoundTrip = testProperty msg trip
+  where
+    msg = show (typeRep @a)
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (parseEither parseJSON . toJSON) v
