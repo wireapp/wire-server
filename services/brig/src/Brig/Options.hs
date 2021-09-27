@@ -544,6 +544,12 @@ instance ToJSON AccountFeatureConfigs where
               ]
         ]
 
+getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe ApiFT.TeamFeatureStatusNoConfig)
+getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew))
+
+getAfcConferenceCallingDefNullMaybe :: Lens.Getter Settings (Maybe ApiFT.TeamFeatureStatusNoConfig)
+getAfcConferenceCallingDefNullMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNull))
+
 getAfcConferenceCallingDefNew :: Lens.Getter Settings ApiFT.TeamFeatureStatusNoConfig
 getAfcConferenceCallingDefNew = Lens.to (afcConferenceCallingDefNew . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 

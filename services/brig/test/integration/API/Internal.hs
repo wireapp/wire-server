@@ -84,10 +84,9 @@ testEJPDRequest mgr brig brigep gundeck = do
 
 testFeatureConferenceCallingByAccount :: forall m. TestConstraints m => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
 testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig brigep galley = do
-  uid <- userId <$> createUser "joe" brig
-
   let check :: HasCallStack => ApiFt.TeamFeatureStatusNoConfig -> m ()
       check status = do
+        uid <- userId <$> createUser "joe" brig
         _ <-
           aFewTimes 12 (putAccountFeatureConfigClient brigep mgr uid status) isRight
             >>= either (liftIO . throwIO . ErrorCall . ("putAccountFeatureConfigClient: " <>) . show) pure
@@ -101,20 +100,38 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
         featureConfigsConfCalling <- getFeatureConfig ApiFt.TeamFeatureConferenceCalling galley uid
         liftIO $ assertEqual "3" status (responseJsonUnsafe featureConfigsConfCalling)
 
-      check' :: HasCallStack => m ()
+      check' :: m ()
       check' = do
+        uid <- userId <$> createUser "joe" brig
+        let defaultIfNull :: ApiFt.TeamFeatureStatusNoConfig
+            defaultIfNull = settings ^. Opt.getAfcConferenceCallingDefNull
+
+            defaultIfNewRaw :: Maybe ApiFt.TeamFeatureStatusNoConfig
+            defaultIfNewRaw =
+              -- tested manually: whether we remove `defaultForNew` from `brig.yaml` or set it
+              -- to `enabled` or `disabled`, this test always passes.
+              settings ^. Opt.getAfcConferenceCallingDefNewMaybe
+
+        do
+          cassandraResp :: Maybe ApiFt.TeamFeatureStatusNoConfig <-
+            aFewTimes
+              12
+              (Cass.runClient db (lookupFeatureConferenceCalling uid))
+              isJust
+          liftIO $ assertEqual mempty defaultIfNewRaw cassandraResp
+
         _ <-
           aFewTimes 12 (deleteAccountFeatureConfigClient brigep mgr uid) isRight
             >>= either (liftIO . throwIO . ErrorCall . ("deleteAccountFeatureConfigClient: " <>) . show) pure
 
-        cassandraResp :: Maybe ApiFt.TeamFeatureStatusNoConfig <-
-          aFewTimes
-            12
-            (Cass.runClient db (lookupFeatureConferenceCalling uid))
-            isJust
-        liftIO $ assertEqual mempty Nothing cassandraResp
+        do
+          cassandraResp :: Maybe ApiFt.TeamFeatureStatusNoConfig <-
+            aFewTimes
+              12
+              (Cass.runClient db (lookupFeatureConferenceCalling uid))
+              isJust
+          liftIO $ assertEqual mempty Nothing cassandraResp
 
-        let defaultIfNull = settings ^. Opt.getAfcConferenceCallingDefNull
         mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
         liftIO $ assertEqual "1" (Right defaultIfNull) mbStatus'
 
