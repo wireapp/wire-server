@@ -233,10 +233,7 @@ normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
 normalizeRichInfoAssocList = RichInfoAssocList . normalizeRichInfoAssocListInt . unRichInfoAssocList
 
 normalizeRichInfoAssocListInt :: [RichField] -> [RichField]
-normalizeRichInfoAssocListInt = nubOrdOn nubber . filter ((/= mempty) . richFieldValue)
-  where
-    -- see also: https://github.com/basvandijk/case-insensitive/issues/31
-    nubber = Text.toLower . Text.toCaseFold . CI.foldedCase . richFieldType
+normalizeRichInfoAssocListInt = nubOrdOn richFieldType . filter ((/= mempty) . richFieldValue)
 
 instance Monoid RichInfoAssocList where
   mempty = RichInfoAssocList mempty
