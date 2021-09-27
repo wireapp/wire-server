@@ -13,6 +13,8 @@ dependencies:
 - containers >=0.5
 - imports
 - types-common >=0.16
+- case-insensitive
+- hscim
 library:
   source-dirs: src
   dependencies:
@@ -22,7 +24,6 @@ library:
   - binary
   - bytestring >=0.9
   - bytestring-conversion >=0.2
-  - case-insensitive
   - cassandra-util
   - cassava >= 0.5
   - cereal
@@ -40,7 +41,6 @@ library:
   - ghc-prim
   - hashable
   - hostname-validate
-  - hscim
   - http-api-data
   - http-media
   - http-types

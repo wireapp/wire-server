@@ -62,6 +62,7 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import Spar.App (liftSem)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim
+import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.User as SU
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
@@ -555,10 +556,10 @@ testLocation = do
 
 testRichInfo :: TestSpar ()
 testRichInfo = do
-  let richInfo = RichInfo (RichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
-      richInfoOverwritten = RichInfo (RichInfoAssocList [RichField "Platforms" "Windows10"])
-      richInfoPatchedMap = RichInfo (RichInfoAssocList [RichField "Platforms" "Arch, BTW"])
-      richInfoPatchedList = RichInfo (RichInfoAssocList [RichField "Platforms" "none"])
+  let richInfo = RichInfo (mkRichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
+      richInfoOverwritten = RichInfo (mkRichInfoAssocList [RichField "Platforms" "Windows10"])
+      richInfoPatchedMap = RichInfo (mkRichInfoAssocList [RichField "Platforms" "Arch, BTW"])
+      richInfoPatchedList = RichInfo (mkRichInfoAssocList [RichField "Platforms" "none"])
       (Aeson.Success patchOpMap) =
         fromJSON
           [aesonQQ|{
@@ -807,8 +808,9 @@ testFindProvisionedUser = do
   user <- randomScimUser
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
-  users <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
-  liftIO $ users `shouldBe` [storedUser]
+  [storedUser'] <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
+  liftIO $ storedUser' `shouldBe` storedUser
+  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored user {Scim.User.emails = [] {- only after validation -}}
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]

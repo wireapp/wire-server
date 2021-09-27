@@ -116,7 +116,7 @@ randomScimUserWithSubjectAndRichInfo ::
   RichInfo ->
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
-  suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+  suffix <- cs <$> replicateM 20 (getRandomR ('a', 'z'))
   emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'

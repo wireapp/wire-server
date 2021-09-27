@@ -23,9 +23,9 @@ import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON), Value (String), 
 import qualified Data.Aeson.Types as Aeson
 import Data.Attoparsec.ByteString (Parser, endOfInput, parseOnly)
 import Data.Bifunctor (first)
-import qualified Data.HashMap.Strict as HM
+import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HashMap
-import Data.Text (Text, toCaseFold, toLower)
+import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Web.Scim.AttrName (AttrName (..))
 import Web.Scim.Filter (AttrPath (..), SubAttr (..), ValuePath (..), pAttrPath, pSubAttr, pValuePath, rAttrPath, rSubAttr, rValuePath)
@@ -85,7 +85,7 @@ rPath (IntoValuePath valuePath subAttr) = rValuePath valuePath <> maybe "" rSubA
 -- can't control what errors FromJSON throws :/
 instance UserTypes tag => FromJSON (PatchOp tag) where
   parseJSON = withObject "PatchOp" $ \v -> do
-    let o = HashMap.fromList . map (first toLower) . HashMap.toList $ v
+    let o = HashMap.fromList . map (first CI.foldCase) . HashMap.toList $ v
     schemas' :: [Schema] <- o .: "schemas"
     guard $ PatchOp20 `elem` schemas'
     operations <- Aeson.explicitParseField (Aeson.listParser $ operationFromJSON (supportedSchemas @tag)) o "operations"
@@ -100,7 +100,7 @@ instance ToJSON (PatchOp tag) where
 operationFromJSON :: [Schema] -> Value -> Aeson.Parser Operation
 operationFromJSON schemas' =
   withObject "Operation" $ \v -> do
-    let o = HashMap.fromList . map (first toLower) . HashMap.toList $ v
+    let o = HashMap.fromList . map (first CI.foldCase) . HashMap.toList $ v
     Operation
       <$> (o .: "op")
       <*> (Aeson.explicitParseFieldMaybe (pathFromJSON schemas') o "path")
@@ -120,7 +120,7 @@ instance ToJSON Operation where
 
 instance FromJSON Op where
   parseJSON = withText "Op" $ \op' ->
-    case toCaseFold op' of
+    case CI.foldCase op' of
       "add" -> pure Add
       "replace" -> pure Replace
       "remove" -> pure Remove
@@ -139,9 +139,9 @@ instance ToJSON Path where
 class Patchable a where
   applyOperation :: (MonadError ScimError m) => a -> Operation -> m a
 
-instance Patchable (HM.HashMap Text Text) where
+instance Patchable (HashMap.HashMap Text Text) where
   applyOperation theMap (Operation Remove (Just (NormalPath (AttrPath _schema (AttrName attrName) _subAttr))) _) =
-    pure $ HM.delete attrName theMap
+    pure $ HashMap.delete attrName theMap
   applyOperation theMap (Operation _AddOrReplace (Just (NormalPath (AttrPath _schema (AttrName attrName) _subAttr))) (Just (String val))) =
-    pure $ HM.insert attrName val theMap
+    pure $ HashMap.insert attrName val theMap
   applyOperation _ _ = throwError $ badRequest InvalidValue $ Just "Unsupported operation"
