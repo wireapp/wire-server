@@ -1058,6 +1058,7 @@ CREATE TABLE brig_test.user (
     country ascii,
     email text,
     expires timestamp,
+    feature_conference_calling int,
     handle text,
     language ascii,
     managed_by int,
