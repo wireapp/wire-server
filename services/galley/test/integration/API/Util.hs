@@ -1086,6 +1086,22 @@ putAccessUpdate u c acc = do
       . zType "access"
       . json acc
 
+putQualifiedAccessUpdate ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  UserId ->
+  Qualified ConvId ->
+  ConversationAccessData ->
+  m ResponseLBS
+putQualifiedAccessUpdate u (Qualified c domain) acc = do
+  g <- viewGalley
+  put $
+    g
+      . paths ["/conversations", toByteString' domain, toByteString' c, "access"]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+      . json acc
+
 putMessageTimerUpdateQualified ::
   (HasGalley m, MonadIO m, MonadHttp m) =>
   UserId ->
