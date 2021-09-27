@@ -146,7 +146,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Error SparError] r => ServerT APIIDP (Spar r)
+apiIDP :: Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Error SparError] r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -266,7 +266,7 @@ ssoSettings = do
 -- IdP API
 
 idpGet ::
-  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPId ->
   Spar r IdP
@@ -287,7 +287,7 @@ idpGetRaw zusr idpid = do
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
 
-idpGetAll :: Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r => Maybe UserId -> Spar r IdPList
+idpGetAll :: Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r => Maybe UserId -> Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- liftSem $ Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
@@ -303,7 +303,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- https://github.com/zinfra/backend-issues/issues/1314
 idpDelete ::
   forall r.
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->
@@ -363,7 +363,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
 idpCreate ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
@@ -373,7 +373,7 @@ idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr 
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   Text ->
   SAML.IdPMetadata ->
@@ -427,7 +427,7 @@ assertNoScimOrNoIdP teamid = do
 validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
-  Member IdPEffect.IdP r =>
+  Members '[Random, IdPEffect.IdP] r =>
   WireIdPAPIVersion ->
   SAML.IdPMetadata ->
   TeamId ->
@@ -474,7 +474,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
 idpUpdate ::
-  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   IdPMetadataInfo ->
   SAML.IdPId ->
@@ -482,7 +482,7 @@ idpUpdate ::
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
 idpUpdateXML ::
-  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   Text ->
   SAML.IdPMetadata ->
@@ -505,7 +505,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
-  Members '[GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->

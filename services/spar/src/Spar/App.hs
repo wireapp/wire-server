@@ -177,7 +177,8 @@ instance HasConfig (Spar r) where
 
 instance HasNow (Spar r)
 
-instance HasCreateUUID (Spar r)
+instance Member Random r => HasCreateUUID (Spar r) where
+  createUUID = liftSem Random.uuid
 
 instance HasLogger (Spar r) where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
