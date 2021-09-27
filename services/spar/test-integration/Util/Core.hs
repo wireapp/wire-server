@@ -197,6 +197,8 @@ import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
 import Spar.Sem.Random (Random)
 import Spar.Sem.Random.IO (randomToIO)
+import Spar.Sem.Logger (Logger, mapLogger)
+import Spar.Sem.Logger.TinyLog (loggerToTinyLog, toLevel)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Cassandra
@@ -207,8 +209,7 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.Logger (Logger, mapLogger)
-import Spar.Sem.Logger.TinyLog (loggerToTinyLog, toLevel)
+import qualified System.Logger as TinyLog
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -231,7 +232,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
-import qualified System.Logger as TinyLog
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1283,24 +1283,24 @@ runSpar (Spar.Spar action) = do
           embedToFinal @IO $
             randomToIO $
             loggerToTinyLog (Spar.sparCtxLogger env) $
-             mapLogger @String TinyLog.msg $
-              ErrorEff.runError @SparError $
-                ttlErrorToSparError $
-                  ReaderEff.runReader (Spar.sparCtxOpts env) $
-                    interpretClientToIO (Spar.sparCtxCas env) $
-                      samlUserStoreToCassandra @Cas.Client $
-                        idPToCassandra @Cas.Client $
-                          defaultSsoCodeToCassandra @Cas.Client $
-                            scimTokenStoreToCassandra @Cas.Client $
-                              scimUserTimesStoreToCassandra @Cas.Client $
-                                scimExternalIdStoreToCassandra @Cas.Client $
-                                  aReqIDStoreToCassandra @Cas.Client $
-                                    assIDStoreToCassandra @Cas.Client $
-                                      bindCookieStoreToCassandra @Cas.Client $
-                                        brigAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
-                                          galleyAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
-                                            runExceptT $
-                                              runReaderT action env
+              mapLogger @String TinyLog.msg $
+                ErrorEff.runError @SparError $
+                  ttlErrorToSparError $
+                    ReaderEff.runReader (Spar.sparCtxOpts env) $
+                      interpretClientToIO (Spar.sparCtxCas env) $
+                        samlUserStoreToCassandra @Cas.Client $
+                          idPToCassandra @Cas.Client $
+                            defaultSsoCodeToCassandra @Cas.Client $
+                              scimTokenStoreToCassandra @Cas.Client $
+                                scimUserTimesStoreToCassandra @Cas.Client $
+                                  scimExternalIdStoreToCassandra @Cas.Client $
+                                    aReqIDStoreToCassandra @Cas.Client $
+                                      assIDStoreToCassandra @Cas.Client $
+                                        bindCookieStoreToCassandra @Cas.Client $
+                                          brigAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                            galleyAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                              runExceptT $
+                                                runReaderT action env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
