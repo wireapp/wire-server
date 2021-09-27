@@ -1,11 +1,12 @@
 module Spar.Sem.Logger
-  ( module Spar.Sem.Logger
-  , SAML.Level (..)
-  ) where
+  ( module Spar.Sem.Logger,
+    SAML.Level (..),
+  )
+where
 
+import Imports hiding (log)
 import Polysemy
 import qualified SAML2.WebSSO as SAML
-import Imports hiding (log)
 
 data Logger msg m a where
   Log :: SAML.Level -> msg -> Logger msg m ()
@@ -13,11 +14,12 @@ data Logger msg m a where
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''Logger
 
-
-mapLogger
-  :: forall msg msg' r a
-   . Member (Logger msg') r
-  => (msg -> msg') -> Sem (Logger msg ': r) a -> Sem r a
+mapLogger ::
+  forall msg msg' r a.
+  Member (Logger msg') r =>
+  (msg -> msg') ->
+  Sem (Logger msg ': r) a ->
+  Sem r a
 mapLogger f = interpret $ \case
   Log lvl msg -> log lvl $ f msg
 
@@ -38,4 +40,3 @@ warn = log SAML.Warn
 
 fatal :: Member (Logger msg) r => msg -> Sem r ()
 fatal = log SAML.Fatal
-

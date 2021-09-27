@@ -77,19 +77,20 @@ import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
+import Spar.Sem.Logger (Logger)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Spar.Sem.Logger (Logger)
-import System.Logger (Msg)
+import qualified Spar.Sem.Logger as Logger
 
 app :: Env -> Application
 app ctx =
@@ -200,7 +201,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
     SAML.authreq authreqttl (sparSPIssuer mbtid) idpid
   wrapMonadClientSem $ AReqIDStore.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
-  SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
+  liftSem $ Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
 
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
@@ -460,8 +461,8 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
   idp <- wrapSpar $ getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId
-  SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
+  liftSem $ Logger.log SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  liftSem $ Logger.log SAML.Debug $ show (_idpId, oldIssuers, idp)
 
   let handleIdPClash :: Either id idp -> m ()
       -- (HINT: using type vars above instead of the actual types constitutes a proof that
@@ -560,12 +561,12 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
     errUnknownIdPId = SAML.UnknownIdP . cs . SAML.idPIdToST $ _idpId
 
-withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
+withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Spar r a -> Spar r a
 withDebugLog msg showval action = do
-  SAML.logger SAML.Debug $ "entering " ++ msg
+  liftSem $ Logger.log SAML.Debug $ "entering " ++ msg
   val <- action
   let mshowedval = showval val
-  SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  liftSem $ Logger.log SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
 authorizeIdP ::
