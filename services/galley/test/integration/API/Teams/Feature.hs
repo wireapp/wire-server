@@ -411,7 +411,9 @@ testAllFeatures = do
               TeamFeatureEnabled
               (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
           toS TeamFeatureConferenceCalling
-            .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled
+            .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled
+            -- (...  or whatever is configured in `brig.yaml` in `settings . setFeatureFlags
+            -- . conferenceCalling . defaultForNew`.)
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'
