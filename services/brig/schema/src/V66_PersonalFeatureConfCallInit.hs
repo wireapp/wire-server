@@ -28,5 +28,5 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 65 "Add personal account feature: conf call initiation" $ do
+migration = Migration 66 "Add personal account feature: conf call initiation" $ do
   schema' [r| ALTER TABLE user ADD feature_conference_calling int; |]
