@@ -36,6 +36,11 @@ module Brig.Data.Connection
     lookupContactListWithRelation,
     countConnections,
     deleteConnections,
+    remoteConnectionInsert,
+    remoteConnectionSelect,
+    remoteConnectionSelectFrom,
+    remoteConnectionDelete,
+    remoteConnectionClear,
 
     -- * Re-exports
     module T,
@@ -232,22 +237,22 @@ connectionDelete = "DELETE FROM connection WHERE left = ? AND right = ?"
 connectionClear :: PrepQuery W (Identity UserId) ()
 connectionClear = "DELETE FROM connection WHERE left = ?"
 
--- FUTUREWORK: uncomment these in the next PR
--- TODO: Add conv id if we agree
--- remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis) ()
--- remoteConnectionInsert = "INSERT INTO connection_remote (left, right_domain, right_user, status, last_update) VALUES (?, ?, ?, ?, ?)"
+-- Remote connections
 
--- remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
--- remoteConnectionSelect = "SELECT right_domain, right_user, status FROM connection_remote where left = ?"
+remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ()
+remoteConnectionInsert = "INSERT INTO connection_remote (left, right_domain, right_user, status, last_update, conv_domain, conv_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
 
--- remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (Identity RelationWithHistory)
--- remoteConnectionSelectFrom = "SELECT status FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory, Domain, ConvId)
+remoteConnectionSelect = "SELECT right_domain, right_user, status, conv_domain, conv_id FROM connection_remote where left = ?"
 
--- remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
--- remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, Domain, ConvId)
+remoteConnectionSelectFrom = "SELECT status, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
 
--- remoteConnectionClear :: PrepQuery W (Identity UserId) ()
--- remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
+remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
+remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+
+remoteConnectionClear :: PrepQuery W (Identity UserId) ()
+remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
 
 -- Conversions
 
