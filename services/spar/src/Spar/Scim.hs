@@ -69,6 +69,7 @@ import Control.Monad.Except
 import Data.String.Conversions (cs)
 import Imports
 import Polysemy
+import Polysemy.Error (Error)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
@@ -82,6 +83,8 @@ import Spar.Error
   )
 import Spar.Scim.Auth
 import Spar.Scim.User
+import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -105,7 +108,7 @@ configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
 apiScim ::
-  Members '[ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
