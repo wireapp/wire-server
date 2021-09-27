@@ -85,10 +85,10 @@ servantSitemap =
     :<|> putAccountFeatureConfig
     :<|> deleteAccountFeatureConfig
 
-getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
+-- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
+getAccountFeatureConfig :: UserId -> Handler (Maybe ApiFt.TeamFeatureStatusNoConfig)
 getAccountFeatureConfig uid =
   lift (Data.lookupFeatureConferenceCalling uid)
-    >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
 
 putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> Handler NoContent
 putAccountFeatureConfig uid status =

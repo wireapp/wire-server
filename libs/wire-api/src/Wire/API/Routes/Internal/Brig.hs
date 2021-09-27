@@ -60,7 +60,7 @@ type GetAccountFeatureConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Get '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Get '[Servant.JSON] (Maybe (ApiFt.TeamFeatureStatus 'ApiFt.TeamFeatureConferenceCalling))
 
 type PutAccountFeatureConfig =
   Summary
@@ -70,7 +70,7 @@ type PutAccountFeatureConfig =
     :> "features"
     :> "conferenceCalling"
     :> Servant.ReqBody '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.TeamFeatureConferenceCalling)
-    :> Get '[Servant.JSON] NoContent
+    :> Put '[Servant.JSON] NoContent
 
 type DeleteAccountFeatureConfig =
   Summary
