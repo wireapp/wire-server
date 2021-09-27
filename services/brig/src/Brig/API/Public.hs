@@ -1099,7 +1099,9 @@ createConnection self conn target = do
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
   let newStatus = Public.cuStatus update
-  mc <- API.updateConnection self other newStatus (Just conn) !>> connError
+  lself <- qualifyLocal self
+  lother <- qualifyLocal other
+  mc <- API.updateConnection lself lother newStatus (Just conn) !>> connError
   return $ maybe Public.Unchanged Public.Updated mc
 
 -- | FUTUREWORK: also update remote connections: https://wearezeta.atlassian.net/browse/SQCORE-959
@@ -1118,15 +1120,15 @@ listLocalConnections uid start msize = do
 -- | FUTUREWORK: also list remote connections: https://wearezeta.atlassian.net/browse/SQCORE-963
 listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
 listConnections uid req = do
-  localDomain <- viewFederationDomain
+  self <- qualifyLocal uid
   let size = Public.gmtprSize req
-  res :: C.PageWithState Data.LocalConnection <- Data.lookupLocalConnectionsPage uid convertedState (rcast size)
-  return (pageToConnectionsPage localDomain Public.PagingLocals res)
+  res :: C.PageWithState Public.UserConnection <- Data.lookupLocalConnectionsPage self convertedState (rcast size)
+  return (pageToConnectionsPage Public.PagingLocals res)
   where
-    pageToConnectionsPage :: Domain -> Public.LocalOrRemoteTable -> Data.PageWithState Data.LocalConnection -> Public.ConnectionsPage
-    pageToConnectionsPage localDomain table page@Data.PageWithState {..} =
+    pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Public.UserConnection -> Public.ConnectionsPage
+    pageToConnectionsPage table page@Data.PageWithState {..} =
       Public.MultiTablePage
-        { mtpResults = Data.localToUserConn localDomain <$> pwsResults,
+        { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
           -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
           -- Is this type actually useless? Or the tests not good enough?
@@ -1139,7 +1141,10 @@ listConnections uid req = do
     convertedState = fmap mkState . Public.mtpsState =<< Public.gmtprState req
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
-getLocalConnection self other = lift $ API.lookupLocalConnection self other
+getLocalConnection self other = do
+  lself <- qualifyLocal self
+  lother <- qualifyLocal other
+  lift $ Data.lookupConnection lself (unTagged lother)
 
 getConnection :: UserId -> Qualified UserId -> Handler (Maybe Public.UserConnection)
 getConnection self (Qualified otherUser otherDomain) = do
