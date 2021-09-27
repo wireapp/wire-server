@@ -47,7 +47,7 @@ import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import Control.Error hiding (bool)
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
@@ -86,9 +86,10 @@ servantSitemap =
     :<|> deleteAccountFeatureConfig
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountFeatureConfig :: UserId -> Handler (Maybe ApiFt.TeamFeatureStatusNoConfig)
+getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
 getAccountFeatureConfig uid =
   lift (Data.lookupFeatureConferenceCalling uid)
+    >>= maybe (asks (^. settings . getAfcConferenceCallingDefNull)) pure
 
 putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> Handler NoContent
 putAccountFeatureConfig uid status =

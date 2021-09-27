@@ -93,7 +93,7 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
             >>= either (liftIO . throwIO . ErrorCall . ("putAccountFeatureConfigClient: " <>) . show) pure
 
         mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
-        liftIO $ assertEqual mempty (Right (Just status)) mbStatus'
+        liftIO $ assertEqual mempty (Right status) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
         liftIO $ assertEqual mempty status (readFeatureConfigs featureConfigs)
@@ -114,10 +114,10 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
             isJust
         liftIO $ assertEqual mempty Nothing cassandraResp
 
-        mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
-        liftIO $ assertEqual mempty (Right Nothing) mbStatus'
-
         let defaultIfNull = settings ^. Opt.getAfcConferenceCallingDefNull
+        mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
+        liftIO $ assertEqual mempty (Right defaultIfNull) mbStatus'
+
         featureConfigs <- getAllFeatureConfigs galley uid
         liftIO $ assertEqual mempty defaultIfNull (readFeatureConfigs featureConfigs)
 

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0341ec52f506f40a39b7329c4eeccdccf25bcffc81318f535602bfc17e655f58
+-- hash: eec0bf281ec553d1cea2cf91647e0e7dde751d58e02b2619c17a4979acb36747
 
 name:           galley
 version:        0.83.0
@@ -125,6 +125,7 @@ library
     , safe-exceptions >=0.1
     , saml2-web-sso >=0.18
     , servant
+    , servant-client
     , servant-server
     , servant-swagger
     , servant-swagger-ui
@@ -175,6 +176,7 @@ executable galley
     , imports
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
     , tagged
     , types-common
@@ -314,6 +316,7 @@ executable galley-migrate-data
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
     , tagged
     , text
@@ -378,6 +381,7 @@ executable galley-schema
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
     , tagged
     , text
@@ -415,6 +419,7 @@ test-suite galley-types-tests
     , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , servant-swagger
     , ssl-util
     , tagged

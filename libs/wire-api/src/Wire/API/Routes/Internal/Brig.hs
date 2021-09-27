@@ -60,7 +60,7 @@ type GetAccountFeatureConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Get '[Servant.JSON] (Maybe (ApiFt.TeamFeatureStatus 'ApiFt.TeamFeatureConferenceCalling))
+    :> Get '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.TeamFeatureConferenceCalling)
 
 type PutAccountFeatureConfig =
   Summary

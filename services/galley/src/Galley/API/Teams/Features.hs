@@ -42,12 +42,14 @@ module Galley.API.Teams.Features
   )
 where
 
+import Bilge (MonadHttp)
 import Control.Lens
 import Control.Monad.Catch
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
+import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
@@ -61,12 +63,17 @@ import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush, push1)
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
+import Network.HTTP.Client (Manager)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities
+import Servant.API ((:<|>) ((:<|>)))
+import qualified Servant.Client as Client
 import qualified System.Logger.Class as Log
+import Util.Options (Endpoint, epHost, epPort)
 import Wire.API.Event.FeatureConfig (EventData (EdFeatureWithoutConfigChanged))
 import qualified Wire.API.Event.FeatureConfig as Event
+import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
@@ -138,6 +145,19 @@ getAllFeatureConfigs zusr = do
         status <- getter mbTeam
         let feature = Public.knownTeamFeatureName @a
         pure $ (cs (toByteString' feature) Aeson..= status)
+
+      viaAccount ::
+        forall (a :: Public.TeamFeatureName).
+        ( Public.KnownTeamFeatureName a,
+          Aeson.ToJSON (Public.TeamFeatureStatus a)
+        ) =>
+        (UserId -> Galley (Public.TeamFeatureStatus a)) ->
+        Galley (Text, Aeson.Value)
+      viaAccount getter = do
+        status <- getter zusr
+        let feature = Public.knownTeamFeatureName @a
+        pure $ (cs (toByteString' feature) Aeson..= status)
+
   AllFeatureConfigs . HashMap.fromList
     <$> sequence
       [ getStatus @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
@@ -148,7 +168,9 @@ getAllFeatureConfigs zusr = do
         getStatus @'Public.TeamFeatureAppLock getAppLockInternal,
         getStatus @'Public.TeamFeatureFileSharing getFileSharingInternal,
         getStatus @'Public.TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
+        case mbTeam of
+          Nothing -> viaAccount @'Public.TeamFeatureConferenceCalling getFeatureConfigViaAccount
+          Just _ -> getStatus @'Public.TeamFeatureConferenceCalling getConferenceCallingInternal
       ]
 
 getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
@@ -360,3 +382,44 @@ pushFeatureConfigEvent tid event = do
   for_
     (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
     push1
+
+-- | (Currently, we only have 'Public.TeamFeatureConferenceCalling' here, but we may have to
+-- extend this in the future.)
+getFeatureConfigViaAccount :: flag ~ 'Public.TeamFeatureConferenceCalling => UserId -> Galley (Public.TeamFeatureStatus flag)
+getFeatureConfigViaAccount uid = do
+  mgr <- asks (^. manager)
+  brigep <- asks (^. brig)
+  getAccountFeatureConfigClient brigep mgr uid >>= handleResp
+  where
+    handleResp ::
+      Either Client.ClientError Public.TeamFeatureStatusNoConfig ->
+      Galley Public.TeamFeatureStatusNoConfig
+    handleResp (Right cfg) = pure cfg
+    handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+
+    getAccountFeatureConfigClient ::
+      (HasCallStack, MonadIO m, MonadHttp m) =>
+      Endpoint ->
+      Manager ->
+      UserId ->
+      m (Either Client.ClientError Public.TeamFeatureStatusNoConfig)
+    getAccountFeatureConfigClient brigep mgr = runHereClientM brigep mgr . getAccountFeatureConfigClientM
+
+    getAccountFeatureConfigClientM ::
+      UserId -> Client.ClientM Public.TeamFeatureStatusNoConfig
+    ( _
+        :<|> getAccountFeatureConfigClientM
+        :<|> _
+        :<|> _
+      ) = Client.client (Proxy @IAPI.API)
+
+    runHereClientM ::
+      (HasCallStack, MonadIO m, MonadHttp m) =>
+      Endpoint ->
+      Manager ->
+      Client.ClientM a ->
+      m (Either Client.ClientError a)
+    runHereClientM brigep mgr action = do
+      let env = Client.mkClientEnv mgr baseurl
+          baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
+      liftIO $ Client.runClientM action env

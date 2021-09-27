@@ -101,7 +101,7 @@ scaffolding brig gundeck = do
       return $ PushToken.pushToken PushToken.APNSSandbox (PushToken.AppName "test") tok c
 
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
-getAccountFeatureConfigClientM :: UserId -> Client.ClientM (Maybe Public.TeamFeatureStatusNoConfig)
+getAccountFeatureConfigClientM :: UserId -> Client.ClientM Public.TeamFeatureStatusNoConfig
 putAccountFeatureConfigClientM :: UserId -> Public.TeamFeatureStatusNoConfig -> Client.ClientM NoContent
 deleteAccountFeatureConfigClientM :: UserId -> Client.ClientM NoContent
 ( ejpdRequestClientM
@@ -113,7 +113,7 @@ deleteAccountFeatureConfigClientM :: UserId -> Client.ClientM NoContent
 ejpdRequestClient :: (HasCallStack, MonadThrow m, MonadIO m, MonadHttp m) => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
 ejpdRequestClient brigep mgr includeContacts ejpdReqBody = runHereClientM brigep mgr (ejpdRequestClientM includeContacts ejpdReqBody) >>= either throwM pure
 
-getAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError (Maybe Public.TeamFeatureStatusNoConfig))
+getAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError Public.TeamFeatureStatusNoConfig)
 getAccountFeatureConfigClient brigep mgr uid = runHereClientM brigep mgr (getAccountFeatureConfigClientM uid)
 
 putAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> Public.TeamFeatureStatusNoConfig -> m (Either Client.ClientError NoContent)
