@@ -30,7 +30,7 @@ tls:
   #
   useCertManager: false
   # the validation depth between a federator client certificate and tlsClientCA
-  verify-depth: 1
+  verify_depth: 1
 
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted
