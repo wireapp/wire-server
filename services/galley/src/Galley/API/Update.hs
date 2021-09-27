@@ -279,17 +279,15 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   let removedUsers = map lmId users \\ map lmId newUsers
       removedBots = map botMemId bots \\ map botMemId newBots
   mapM_ (deleteBot cnv) removedBots
-  case nonEmpty removedUsers of
-    Nothing -> return ()
-    Just victims -> do
-      -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
-      Data.removeLocalMembersFromLocalConv cnv victims
-      let qvictims = QualifiedUserIdList . map (`Qualified` localDomain) . toList $ victims
-      let e = Event MemberLeave qcnv qusr now (EdMembersLeave qvictims)
-      -- push event to all clients, including zconn
-      -- since updateConversationAccess generates a second (member removal) event here
-      for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
-      void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
+  for_ (nonEmpty removedUsers) $ \victims -> do
+    -- FUTUREWORK: deal with remote members, too, see updateLocalConversation (Jira SQCORE-903)
+    Data.removeLocalMembersFromLocalConv cnv victims
+    let qvictims = QualifiedUserIdList . map (`Qualified` localDomain) . toList $ victims
+    let e = Event MemberLeave qcnv qusr now (EdMembersLeave qvictims)
+    -- push event to all clients, including zconn
+    -- since updateConversationAccess generates a second (member removal) event here
+    for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+    void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
   -- Return the event
   pure accessEvent
   where
