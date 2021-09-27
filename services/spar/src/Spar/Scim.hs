@@ -99,6 +99,7 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
+import Spar.Sem.Random (Random)
 
 -- | SCIM config for our server.
 --
@@ -108,7 +109,7 @@ configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
 apiScim ::
-  Members '[Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))

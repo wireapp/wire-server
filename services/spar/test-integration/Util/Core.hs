@@ -227,6 +227,8 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
+import Spar.Sem.Random (Random)
+import Spar.Sem.Random.IO (randomToIO)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1258,6 +1260,7 @@ type RealInterpretation =
      ReaderEff.Reader Opts,
      ErrorEff.Error TTLError,
      ErrorEff.Error SparError,
+     Random,
      Embed IO,
      Final IO
    ]
@@ -1273,6 +1276,7 @@ runSpar (Spar.Spar action) = do
       fmap join $
         runFinal $
           embedToFinal @IO $
+            randomToIO $
             ErrorEff.runError @SparError $
               ttlErrorToSparError $
                 ReaderEff.runReader (Spar.sparCtxOpts env) $

@@ -52,7 +52,6 @@ import Data.String.Conversions
 import Data.Time
 import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Imports
-import OpenSSL.Random (randBytes)
 import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
@@ -87,6 +86,8 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import qualified Spar.Sem.Random as Random
+import Spar.Sem.Random (Random)
 
 app :: Env -> Application
 app ctx =
@@ -106,6 +107,7 @@ api ::
        DefaultSsoCode,
        IdPEffect.IdP,
        SAMLUserStore,
+       Random,
        Error SparError
      ]
     r =>
@@ -129,6 +131,7 @@ apiSSO ::
        ScimTokenStore,
        DefaultSsoCode,
        IdPEffect.IdP,
+       Random,
        SAMLUserStore
      ]
     r =>
@@ -171,7 +174,7 @@ authreqPrecheck msucc merr idpid =
     *> return NoContent
 
 authreq ::
-  Members '[BindCookieStore, AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
+  Members '[Random, BindCookieStore, AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
   NominalDiffTime ->
   DoInitiate ->
   Maybe UserId ->
@@ -198,12 +201,12 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
-initializeBindCookie :: Member BindCookieStore r => Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
+initializeBindCookie :: Members '[Random, BindCookieStore] r => Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
 initializeBindCookie zusr authreqttl = do
   DerivedOpts {derivedOptsBindCookiePath} <- asks (derivedOpts . sparCtxOpts)
   msecret <-
     if isJust zusr
-      then liftIO $ Just . cs . ES.encode <$> randBytes 32
+      then liftSem $ Just . cs . ES.encode <$> Random.bytes 32
       else pure Nothing
   cky <- fmap SetBindCookie . SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
   forM_ zusr $ \userid -> wrapMonadClientSem $ BindCookieStore.insert cky userid authreqttl
@@ -229,7 +232,8 @@ validateRedirectURL uri = do
 
 authresp ::
   forall r.
-  Members '[GalleyAccess, BrigAccess, BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[ Random,
+             GalleyAccess, BrigAccess, BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe TeamId ->
   Maybe ST ->
   SAML.AuthnResponseBody ->

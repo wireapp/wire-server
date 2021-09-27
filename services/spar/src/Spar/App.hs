@@ -59,7 +59,6 @@ import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Lazy as LT
-import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -134,6 +133,9 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import qualified Spar.Sem.Random as Random
+import Spar.Sem.Random (Random)
+import Spar.Sem.Random.IO (randomToIO)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -336,9 +338,9 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser :: Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
 autoprovisionSamlUser mbteam suid = do
-  buid <- Id <$> liftIO UUID.nextRandom
+  buid <- liftSem $ Id <$> Random.uuid
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
@@ -430,6 +432,7 @@ instance
            ReaderEff.Reader Opts,
            Error TTLError,
            Error SparError,
+           Random,
            Embed IO,
            Final IO
          ]
@@ -448,6 +451,7 @@ instance
           liftIO $
             runFinal $
               embedToFinal @IO $
+                randomToIO $
                 runError @SparError $
                   ttlErrorToSparError $
                     ReaderEff.runReader (sparCtxOpts ctx) $
@@ -481,7 +485,7 @@ instance
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -513,7 +517,7 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -558,7 +562,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members '[GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
