@@ -78,6 +78,7 @@ import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.Logger (Logger)
+import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -90,7 +91,6 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import qualified Spar.Sem.Logger as Logger
 
 app :: Env -> Application
 app ctx =
@@ -304,7 +304,10 @@ idpGetRaw zusr idpid = do
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
 
-idpGetAll :: Members '[Random, Logger String, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r => Maybe UserId -> Spar r IdPList
+idpGetAll ::
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Maybe UserId ->
+  Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- liftSem $ Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
@@ -320,7 +323,18 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- https://github.com/zinfra/backend-issues/issues/1314
 idpDelete ::
   forall r.
-  Members '[Random, Logger String, GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP, Error SparError] r =>
+  Members
+    '[ Random,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       SAMLUserStore,
+       IdPEffect.IdP,
+       Error SparError
+     ]
+    r =>
+>>>>>>> 0404e6650 (make format)
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->

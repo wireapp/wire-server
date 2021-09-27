@@ -116,6 +116,8 @@ import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.Random.IO (randomToIO)
+import Spar.Sem.Logger as Logger
+import Spar.Sem.Logger.TinyLog (loggerToTinyLog)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Cassandra (interpretClientToIO, samlUserStoreToCassandra)
@@ -127,8 +129,8 @@ import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.Logger as Logger
 import qualified System.Logger as Log
+import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Cookie
@@ -136,8 +138,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Spar.Sem.Logger.TinyLog (loggerToTinyLog)
-import qualified System.Logger as TinyLog
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -450,24 +450,24 @@ instance
               embedToFinal @IO $
                 randomToIO $
                 loggerToTinyLog (sparCtxLogger ctx) $
-                mapLogger @String TinyLog.msg $
-                runError @SparError $
-                  ttlErrorToSparError $
-                    ReaderEff.runReader (sparCtxOpts ctx) $
-                      galleyAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
-                        brigAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
-                          interpretClientToIO (sparCtxCas ctx) $
-                            samlUserStoreToCassandra @Cas.Client $
-                              idPToCassandra @Cas.Client $
-                                defaultSsoCodeToCassandra $
-                                  scimTokenStoreToCassandra $
-                                    scimUserTimesStoreToCassandra $
-                                      scimExternalIdStoreToCassandra $
-                                        aReqIDStoreToCassandra $
-                                          assIDStoreToCassandra $
-                                            bindCookieStoreToCassandra $
-                                              runExceptT $
-                                                runReaderT action ctx
+                  mapLogger @String TinyLog.msg $
+                    runError @SparError $
+                      ttlErrorToSparError $
+                        ReaderEff.runReader (sparCtxOpts ctx) $
+                          galleyAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
+                            brigAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
+                              interpretClientToIO (sparCtxCas ctx) $
+                                samlUserStoreToCassandra @Cas.Client $
+                                  idPToCassandra @Cas.Client $
+                                    defaultSsoCodeToCassandra $
+                                      scimTokenStoreToCassandra $
+                                        scimUserTimesStoreToCassandra $
+                                          scimExternalIdStoreToCassandra $
+                                            aReqIDStoreToCassandra $
+                                              assIDStoreToCassandra $
+                                                bindCookieStoreToCassandra $
+                                                  runExceptT $
+                                                    runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
