@@ -93,13 +93,13 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
             >>= either (liftIO . throwIO . ErrorCall . ("putAccountFeatureConfigClient: " <>) . show) pure
 
         mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
-        liftIO $ assertEqual mempty (Right status) mbStatus'
+        liftIO $ assertEqual "1" (Right status) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
-        liftIO $ assertEqual mempty status (readFeatureConfigs featureConfigs)
+        liftIO $ assertEqual "2" status (readFeatureConfigs featureConfigs)
 
         featureConfigsConfCalling <- getFeatureConfig ApiFt.TeamFeatureConferenceCalling galley uid
-        liftIO $ assertEqual mempty status (responseJsonUnsafe featureConfigsConfCalling)
+        liftIO $ assertEqual "3" status (responseJsonUnsafe featureConfigsConfCalling)
 
       check' :: HasCallStack => m ()
       check' = do
@@ -116,13 +116,13 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
 
         let defaultIfNull = settings ^. Opt.getAfcConferenceCallingDefNull
         mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
-        liftIO $ assertEqual mempty (Right defaultIfNull) mbStatus'
+        liftIO $ assertEqual "1" (Right defaultIfNull) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
-        liftIO $ assertEqual mempty defaultIfNull (readFeatureConfigs featureConfigs)
+        liftIO $ assertEqual "2" defaultIfNull (readFeatureConfigs featureConfigs)
 
         featureConfigsConfCalling <- getFeatureConfig ApiFt.TeamFeatureConferenceCalling galley uid
-        liftIO $ assertEqual mempty defaultIfNull (responseJsonUnsafe featureConfigsConfCalling)
+        liftIO $ assertEqual "3" defaultIfNull (responseJsonUnsafe featureConfigsConfCalling)
 
       readFeatureConfigs :: HasCallStack => ResponseLBS -> ApiFt.TeamFeatureStatusNoConfig
       readFeatureConfigs =
