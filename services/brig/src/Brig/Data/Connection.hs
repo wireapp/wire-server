@@ -18,15 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Data.Connection
-  ( -- * DB Types
-    LocalConnection (..),
-    RemoteConnection (..),
-    localToUserConn,
-
-    -- * DB Operations
-    insertLocalConnection,
-    updateLocalConnection,
-    lookupLocalConnection,
+  ( -- * DB Operations
+    insertConnection,
+    updateConnection,
+    lookupConnection,
     lookupLocalConnectionsPage,
     lookupRelationWithHistory,
     lookupLocalConnections,
@@ -47,12 +42,14 @@ module Brig.Data.Connection
   )
 where
 
-import Brig.App (AppIO)
+import Brig.App (AppIO, qualifyLocal)
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
+import Control.Monad.Morph
+import Control.Monad.Trans.Maybe
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Domain (Domain)
@@ -60,69 +57,75 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
 import Data.Range
+import Data.Tagged
 import Data.Time (getCurrentTime)
-import Imports
+import Imports hiding (local)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Connection
 
-data LocalConnection = LocalConnection
-  { lcFrom :: UserId,
-    lcTo :: UserId,
-    lcStatus :: Relation,
-    -- | Why is this a Maybe? Are there actually any users who have this as null in DB?
-    lcConv :: Maybe ConvId,
-    lcLastUpdated :: UTCTimeMillis
-  }
-
-localToUserConn :: Domain -> LocalConnection -> UserConnection
-localToUserConn localDomain lc =
-  UserConnection
-    { ucFrom = lcFrom lc,
-      ucTo = Qualified (lcTo lc) localDomain,
-      ucStatus = lcStatus lc,
-      ucLastUpdate = lcLastUpdated lc,
-      ucConvId = flip Qualified localDomain <$> lcConv lc
-    }
-
-data RemoteConnection = RemoteConnection
-  { rcFrom :: UserId,
-    rcTo :: Qualified UserId,
-    rcRelationWithHistory :: Relation,
-    rcConv :: Qualified ConvId
-  }
-
-insertLocalConnection ::
-  -- | From
-  UserId ->
-  -- | To
-  UserId ->
+insertConnection ::
+  Local UserId ->
+  Qualified UserId ->
   RelationWithHistory ->
-  ConvId ->
-  AppIO LocalConnection
-insertLocalConnection from to status cid = do
+  Qualified ConvId ->
+  AppIO UserConnection
+insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 . write connectionInsert $ params Quorum (from, to, status, now, cid)
-  return $ toLocalUserConnection (from, to, status, now, Just cid)
+  let local (lUnqualified -> ltarget) =
+        write connectionInsert $
+          params Quorum (lUnqualified self, ltarget, rel, now, cnv)
+  let remote (unTagged -> Qualified rtarget domain) =
+        write remoteConnectionInsert $
+          params Quorum (lUnqualified self, domain, rtarget, rel, now, cdomain, cnv)
+  retry x5 $ foldQualified self local remote target
+  pure $
+    UserConnection
+      { ucFrom = lUnqualified self,
+        ucTo = target,
+        ucStatus = relationDropHistory rel,
+        ucLastUpdate = now,
+        ucConvId = Just qcnv
+      }
 
-updateLocalConnection :: LocalConnection -> RelationWithHistory -> AppIO LocalConnection
-updateLocalConnection c@LocalConnection {..} status = do
+updateConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
+updateConnection c status = do
+  self <- qualifyLocal (ucFrom c)
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 . write connectionUpdate $ params Quorum (status, now, lcFrom, lcTo)
-  return $
+  let local (lUnqualified -> ltarget) =
+        write connectionUpdate $
+          params Quorum (status, now, lUnqualified self, ltarget)
+  let remote (unTagged -> Qualified rtarget domain) =
+        write remoteConnectionUpdate $
+          params Quorum (status, now, lUnqualified self, domain, rtarget)
+  retry x5 $ foldQualified self local remote (ucTo c)
+  pure $
     c
-      { lcStatus = relationDropHistory status,
-        lcLastUpdated = now
+      { ucStatus = relationDropHistory status,
+        ucLastUpdate = now
       }
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
-lookupLocalConnection ::
-  -- | User 'A'
-  UserId ->
-  -- | User 'B'
-  UserId ->
-  AppIO (Maybe LocalConnection)
-lookupLocalConnection from to =
-  toLocalUserConnection <$$> retry x1 (query1 connectionSelect (params Quorum (from, to)))
+lookupConnection :: Local UserId -> Qualified UserId -> MaybeT AppIO UserConnection
+lookupConnection self target = do
+  let local (lUnqualified -> ltarget) = do
+        (_, _, rel, time, mcnv) <-
+          MaybeT . query1 connectionSelect $
+            params Quorum (lUnqualified self, ltarget)
+        pure (rel, time, fmap (unTagged . qualifyAs self) mcnv)
+  let remote (unTagged -> Qualified rtarget domain) = do
+        (rel, time, cdomain, cnv) <-
+          MaybeT . query1 remoteConnectionSelectFrom $
+            params Quorum (lUnqualified self, domain, rtarget)
+        pure (rel, time, Just (Qualified cnv cdomain))
+  (rel, time, mqcnv) <- hoist (retry x1) $ foldQualified self local remote target
+  pure $
+    UserConnection
+      { ucFrom = lUnqualified self,
+        ucTo = target,
+        ucStatus = relationDropHistory rel,
+        ucLastUpdate = time,
+        ucConvId = mqcnv
+      }
 
 -- | 'lookupConnection' with more 'Relation' info.
 lookupRelationWithHistory ::
@@ -136,25 +139,29 @@ lookupRelationWithHistory from to =
     <$$> retry x1 (query1 relationSelect (params Quorum (from, to)))
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
-lookupLocalConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage LocalConnection)
-lookupLocalConnections from start (fromRange -> size) =
+lookupLocalConnections :: Local UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
+lookupLocalConnections lfrom start (fromRange -> size) =
   toResult <$> case start of
-    Just u -> retry x1 $ paginate connectionsSelectFrom (paramsP Quorum (from, u) (size + 1))
-    Nothing -> retry x1 $ paginate connectionsSelect (paramsP Quorum (Identity from) (size + 1))
+    Just u ->
+      retry x1 $
+        paginate connectionsSelectFrom (paramsP Quorum (lUnqualified lfrom, u) (size + 1))
+    Nothing ->
+      retry x1 $
+        paginate connectionsSelect (paramsP Quorum (Identity (lUnqualified lfrom)) (size + 1))
   where
-    toResult = cassandraResultPage . fmap toLocalUserConnection . trim
+    toResult = cassandraResultPage . fmap (toLocalUserConnection lfrom) . trim
     trim p = p {result = take (fromIntegral size) (result p)}
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 -- Similar to lookupLocalConnections
 lookupLocalConnectionsPage ::
   (MonadClient m) =>
-  UserId ->
+  Local UserId ->
   Maybe PagingState ->
   Range 1 1000 Int32 ->
-  m (PageWithState LocalConnection)
-lookupLocalConnectionsPage usr pagingState (fromRange -> size) =
-  fmap toLocalUserConnection <$> paginateWithState connectionsSelect (paramsPagingState Quorum (Identity usr) size pagingState)
+  m (PageWithState UserConnection)
+lookupLocalConnectionsPage self pagingState (fromRange -> size) =
+  fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState Quorum (Identity (lUnqualified self)) size pagingState)
 
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus :: [UserId] -> [UserId] -> AppIO [ConnectionStatus]
@@ -242,11 +249,14 @@ connectionClear = "DELETE FROM connection WHERE left = ?"
 remoteConnectionInsert :: PrepQuery W (UserId, Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId) ()
 remoteConnectionInsert = "INSERT INTO connection_remote (left, right_domain, right_user, status, last_update, conv_domain, conv_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
 
-remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory, Domain, ConvId)
-remoteConnectionSelect = "SELECT right_domain, right_user, status, conv_domain, conv_id FROM connection_remote where left = ?"
+remoteConnectionSelect :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory, UTCTimeMillis, Domain, ConvId)
+remoteConnectionSelect = "SELECT right_domain, right_user, status, last_update, conv_domain, conv_id FROM connection_remote where left = ?"
 
-remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, Domain, ConvId)
-remoteConnectionSelectFrom = "SELECT status, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+remoteConnectionSelectFrom :: PrepQuery R (UserId, Domain, UserId) (RelationWithHistory, UTCTimeMillis, Domain, ConvId)
+remoteConnectionSelectFrom = "SELECT status, last_update, conv_domain, conv_id FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
+
+remoteConnectionUpdate :: PrepQuery W (RelationWithHistory, UTCTimeMillis, UserId, Domain, UserId) ()
+remoteConnectionUpdate = "UPDATE connection_remote set status = ?, last_update = ? WHERE left = ? and right_domain = ? and right_user = ?"
 
 remoteConnectionDelete :: PrepQuery W (UserId, Domain, UserId) ()
 remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right_domain = ? AND right = ?"
@@ -256,8 +266,12 @@ remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
 
 -- Conversions
 
-toLocalUserConnection :: (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) -> LocalConnection
-toLocalUserConnection (l, r, relationDropHistory -> rel, time, cid) = LocalConnection l r rel cid time
+toLocalUserConnection ::
+  Local x ->
+  (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) ->
+  UserConnection
+toLocalUserConnection loc (l, r, relationDropHistory -> rel, time, cid) =
+  UserConnection l (unTagged (qualifyAs loc r)) rel time (fmap (unTagged . qualifyAs loc) cid)
 
 toConnectionStatus :: (UserId, UserId, RelationWithHistory) -> ConnectionStatus
 toConnectionStatus (l, r, relationDropHistory -> rel) = ConnectionStatus l r rel
