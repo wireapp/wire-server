@@ -64,6 +64,7 @@ module Brig.App
     forkAppIO,
     locationOf,
     viewFederationDomain,
+    qualifyLocal,
   )
 where
 
@@ -106,6 +107,7 @@ import Data.List1 (List1, list1)
 import Data.Metrics (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Misc
+import Data.Qualified (Local, Qualified (..), toLocal)
 import Data.Text (unpack)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -540,3 +542,6 @@ readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Te
 
 viewFederationDomain :: MonadReader Env m => m (Domain)
 viewFederationDomain = view (settings . Opt.federationDomain)
+
+qualifyLocal :: MonadReader Env m => a -> m (Local a)
+qualifyLocal a = fmap (toLocal . Qualified a) viewFederationDomain

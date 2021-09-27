@@ -22,7 +22,7 @@
 -- User connection logic.
 module Brig.API.Connection
   ( -- * Connections
-    createConnection,
+    createConnectionToUser,
     updateConnection,
     UpdateConnectionsInternal (..),
     updateConnectionInternal,
@@ -52,7 +52,7 @@ import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import qualified Data.LegalHold as LH
 import Data.Proxy (Proxy (Proxy))
-import Data.Qualified (Qualified (Qualified))
+import Data.Qualified
 import Data.Range
 import Galley.Types (ConvType (..), cnvType)
 import Imports
@@ -61,46 +61,52 @@ import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
 import qualified Wire.API.Conversation as Conv
 import Wire.API.ErrorDescription
+import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+
+type ConnectionM = ExceptT ConnectionError AppIO
 
 lookupLocalConnection :: UserId -> UserId -> AppIO (Maybe UserConnection)
 lookupLocalConnection uid1 uid2 = do
   localDomain <- viewFederationDomain
   Data.localToUserConn localDomain <$$> Data.lookupLocalConnection uid1 uid2
 
-createConnection ::
-  UserId ->
-  ConnectionRequest ->
+createConnectionToUser ::
+  Local UserId ->
   ConnId ->
-  ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
-createConnection self req conn =
-  createConnectionToLocalUser self (crUser req) req conn
+  Qualified UserId ->
+  ConnectionM (ResponseForExistedCreated UserConnection)
+createConnectionToUser lusr con target = do
+  let connect =
+        foldQualified
+          lusr
+          createConnectionToLocalUser
+          createConnectionToRemoteUser
+  connect target lusr con
 
 createConnectionToLocalUser ::
-  UserId ->
-  UserId ->
-  ConnectionRequest ->
+  Local UserId ->
+  Local UserId ->
   ConnId ->
-  ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
-createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
-  when (self == crUser) $
-    throwE $
-      InvalidUser crUser
+  ConnectionM (ResponseForExistedCreated UserConnection)
+createConnectionToLocalUser (lUnqualified -> target) (lUnqualified -> self) conn = do
+  when (self == target) $
+    throwE (InvalidUser target)
   selfActive <- lift $ Data.isActivated self
   unless selfActive $
     throwE ConnectNoIdentity
-  otherActive <- lift $ Data.isActivated crUser
+  otherActive <- lift $ Data.isActivated target
   unless otherActive $
     throwE $
-      InvalidUser crUser
-  checkLegalholdPolicyConflict self crUser
+      InvalidUser target
+  checkLegalholdPolicyConflict self target
   -- Users belonging to the same team are always treated as connected, so creating a
   -- connection between them is useless. {#RefConnectionTeam}
   sameTeam <- lift belongSameTeam
   when sameTeam $
     throwE ConnectSameBindingTeamUsers
-  s2o <- lift $ Data.lookupLocalConnection self crUser
-  o2s <- lift $ Data.lookupLocalConnection crUser self
+  s2o <- lift $ Data.lookupLocalConnection self target
+  o2s <- lift $ Data.lookupLocalConnection target self
   localDomain <- viewFederationDomain
   case update <$> s2o <*> o2s of
     Just rs -> localToUserConn localDomain <$$> rs
@@ -112,11 +118,11 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
     insert s2o o2s = lift $ do
       localDomain <- viewFederationDomain
       Log.info $
-        logConnection self (Qualified crUser localDomain)
+        logConnection self (Qualified target localDomain)
           . msg (val "Creating connection")
-      cnv <- Intra.createConnectConv self crUser (Just (fromRange crName)) (Just conn)
-      s2o' <- Data.insertLocalConnection self crUser SentWithHistory cnv
-      o2s' <- Data.insertLocalConnection crUser self PendingWithHistory cnv
+      cnv <- Intra.createConnectConv self target Nothing (Just conn)
+      s2o' <- Data.insertLocalConnection self target SentWithHistory cnv
+      o2s' <- Data.insertLocalConnection target self PendingWithHistory cnv
       e2o <- ConnectionUpdated (localToUserConn localDomain o2s') (lcStatus <$> o2s) <$> Data.lookupName self
       let e2s = ConnectionUpdated (localToUserConn localDomain s2o') (lcStatus <$> s2o) Nothing
       mapM_ (Intra.onConnectionEvent self (Just conn)) [e2o, e2s]
@@ -173,8 +179,15 @@ createConnectionToLocalUser self crUser ConnectionRequest {crName} conn = do
     belongSameTeam :: AppIO Bool
     belongSameTeam = do
       selfTeam <- Intra.getTeamId self
-      crTeam <- Intra.getTeamId crUser
+      crTeam <- Intra.getTeamId target
       pure $ isJust selfTeam && selfTeam == crTeam
+
+createConnectionToRemoteUser ::
+  Remote UserId ->
+  Local UserId ->
+  ConnId ->
+  ConnectionM (ResponseForExistedCreated UserConnection)
+createConnectionToRemoteUser _ _ _ = throwM federationNotImplemented
 
 -- | Throw error if one user has a LH device and the other status `no_consent` or vice versa.
 --

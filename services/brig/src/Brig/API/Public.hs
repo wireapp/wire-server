@@ -261,7 +261,7 @@ servantSitemap =
         BrigAPI.getClient = getClient,
         BrigAPI.getClientCapabilities = getClientCapabilities,
         BrigAPI.getClientPrekeys = getClientPrekeys,
-        BrigAPI.createConnectionUnqualified = createLocalConnection,
+        BrigAPI.createConnectionUnqualified = createConnectionUnqualified,
         BrigAPI.createConnection = createConnection,
         BrigAPI.listLocalConnections = listLocalConnections,
         BrigAPI.listConnections = listConnections,
@@ -1085,17 +1085,16 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createLocalConnection :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createLocalConnection self conn cr = do
-  API.createConnection self cr conn !>> connError
+createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
+createConnectionUnqualified self conn cr = do
+  lself <- qualifyLocal self
+  target <- qualifyLocal (Public.crUser cr)
+  API.createConnectionToUser lself conn (unTagged target) !>> connError
 
--- | FUTUREWORK: also create remote connections: https://wearezeta.atlassian.net/browse/SQCORE-958
 createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
-createConnection self conn (Qualified otherUser otherDomain) = do
-  localDomain <- viewFederationDomain
-  if localDomain == otherDomain
-    then createLocalConnection self conn (Public.ConnectionRequest otherUser (unsafeRange "_"))
-    else throwM federationNotImplemented
+createConnection self conn target = do
+  lself <- qualifyLocal self
+  API.createConnectionToUser lself conn target !>> connError
 
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
