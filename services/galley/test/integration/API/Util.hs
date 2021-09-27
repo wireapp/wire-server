@@ -523,26 +523,6 @@ updateTeamConv zusr convid upd = do
         . json upd
     )
 
--- | See Note [managed conversations]
-createManagedConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
-createManagedConv u tid us name acc mtimer = do
-  g <- view tsGalley
-  let tinfo = ConvTeamInfo tid True
-  let conv =
-        NewConvManaged $
-          NewConv us [] name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing roleNameWireAdmin
-  r <-
-    post
-      ( g
-          . path "i/conversations/managed"
-          . zUser u
-          . zConn "conn"
-          . zType "access"
-          . json conv
-      )
-      <!! const 201 === statusCode
-  fromBS (getHeader' "Location" r)
-
 createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM ResponseLBS
 createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley

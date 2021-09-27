@@ -605,8 +605,8 @@ testRemoveNonBindingTeamMember = do
   mext3 <- Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [mem2 ^. userId, mext1, mext2, mext3])
   tid <- Util.createNonBindingTeam "foo" owner [mem1, mem2]
-  -- Managed conversation:
-  void $ Util.createManagedConv owner tid [] (Just "gossip") Nothing Nothing
+  -- This used to be a managed conversation:
+  void $ Util.createTeamConv owner tid [] (Just "gossip") Nothing Nothing
   -- Regular conversation:
   cid2 <- Util.createTeamConv owner tid [mem1 ^. userId, mem2 ^. userId, mext1] (Just "blaa") Nothing Nothing
   -- Member external 2 is a guest and not a part of any conversation that mem1 is a part of
@@ -979,10 +979,11 @@ testDeleteTeam = do
   let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
   member <- newTeamMember' p <$> Util.randomUser
   extern <- Util.randomUser
+  let members = [owner, member ^. userId]
   Util.connectUsers owner (list1 (member ^. userId) [extern])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  cid2 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
+  cid2 <- Util.createTeamConv owner tid members (Just "blup") Nothing Nothing
   Util.assertConvMember owner cid2
   Util.assertConvMember (member ^. userId) cid2
   Util.assertNotConvMember extern cid2
@@ -1165,6 +1166,7 @@ testDeleteTeamConv = do
   owner <- Util.randomUser
   let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
   member <- newTeamMember' p <$> Util.randomUser
+  let members = [owner, member ^. userId]
   extern <- Util.randomUser
   Util.connectUsers owner (list1 (member ^. userId) [extern])
   tid <- Util.createNonBindingTeam "foo" owner [member]
@@ -1172,7 +1174,7 @@ testDeleteTeamConv = do
   let access = ConversationAccessUpdate [InviteAccess, CodeAccess] ActivatedAccessRole
   putAccessUpdate owner cid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
-  cid2 <- Util.createManagedConv owner tid [] (Just "blup") Nothing Nothing
+  cid2 <- Util.createTeamConv owner tid members (Just "blup") Nothing Nothing
   Util.postMembers owner (list1 extern [member ^. userId]) cid1 !!! const 200 === statusCode
   for_ [owner, member ^. userId, extern] $ \u -> Util.assertConvMember u cid1
   for_ [owner, member ^. userId] $ \u -> Util.assertConvMember u cid2
