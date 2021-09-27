@@ -1,2 +1,1 @@
 Convert the `PUT /conversations/:cnv/access` endpoint to Servant
-
