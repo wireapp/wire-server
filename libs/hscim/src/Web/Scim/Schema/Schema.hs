@@ -41,6 +41,9 @@ data Schema
   | CustomSchema Text
   deriving (Show, Eq)
 
+-- | 'Schema' is *almost* a straight-forward enum type, except for 'CustomSchema'.
+-- Enumerations are nice because they let you write quickcheck generators as @elements
+-- [minBound..]@.  'fakeEnumSchema' is a work-around.
 fakeEnumSchema :: [Schema]
 fakeEnumSchema =
   [ User20,
