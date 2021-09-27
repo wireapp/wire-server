@@ -175,7 +175,7 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (liftSem, toLevel)
+import Spar.App (liftSem)
 import qualified Spar.App as Spar
 import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
@@ -207,6 +207,8 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.Logger (Logger, mapLogger)
+import Spar.Sem.Logger.TinyLog (loggerToTinyLog, toLevel)
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -229,6 +231,7 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
+import qualified System.Logger as TinyLog
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1260,6 +1263,8 @@ type RealInterpretation =
      ReaderEff.Reader Opts,
      ErrorEff.Error TTLError,
      ErrorEff.Error SparError,
+     Logger String,
+     Logger (TinyLog.Msg -> TinyLog.Msg),
      Random,
      Embed IO,
      Final IO
@@ -1277,6 +1282,8 @@ runSpar (Spar.Spar action) = do
         runFinal $
           embedToFinal @IO $
             randomToIO $
+            loggerToTinyLog (Spar.sparCtxLogger env) $
+             mapLogger @String TinyLog.msg $
               ErrorEff.runError @SparError $
                 ttlErrorToSparError $
                   ReaderEff.runReader (Spar.sparCtxOpts env) $

@@ -1,4 +1,4 @@
-module Spar.Sem.Logger.TinyLog (loggerToTinyLog) where
+module Spar.Sem.Logger.TinyLog (loggerToTinyLog, toLevel) where
 
 import Imports
 import Polysemy

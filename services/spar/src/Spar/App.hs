@@ -24,7 +24,6 @@
 module Spar.App
   ( Spar (..),
     Env (..),
-    toLevel,
     wrapMonadClientSem,
     verdictHandler,
     GetUserResult (..),
@@ -129,7 +128,6 @@ import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import qualified System.Logger as Log
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
@@ -169,7 +167,7 @@ instance Member (Logger String) r => HasLogger (Spar r) where
 
 data Env = Env
   { sparCtxOpts :: Opts,
-    sparCtxLogger :: Log.Logger,
+    sparCtxLogger :: TinyLog.Logger,
     sparCtxCas :: Cas.ClientState,
     sparCtxHttpManager :: Bilge.Manager,
     sparCtxHttpBrig :: Bilge.Request,
@@ -184,15 +182,6 @@ instance HasNow (Spar r)
 
 instance Member Random r => HasCreateUUID (Spar r) where
   createUUID = liftSem Random.uuid
-
-toLevel :: SAML.Level -> Log.Level
-toLevel = \case
-  SAML.Fatal -> Log.Fatal
-  SAML.Error -> Log.Error
-  SAML.Warn -> Log.Warn
-  SAML.Info -> Log.Info
-  SAML.Debug -> Log.Debug
-  SAML.Trace -> Log.Trace
 
 instance Member AReqIDStore r => SPStoreID AuthnRequest (Spar r) where
   storeID i r = wrapMonadClientSem $ AReqIDStore.store i r
@@ -429,6 +418,7 @@ instance
            Error SparError,
            Logger String,
            Logger (Log.Msg -> Log.Msg),
+           Logger (TinyLog.Msg -> TinyLog.Msg),
            Random,
            Embed IO,
            Final IO
