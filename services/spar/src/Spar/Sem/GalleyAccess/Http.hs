@@ -12,11 +12,11 @@ import Spar.Intra.Brig (MonadSparToBrig (..))
 import Spar.Intra.Galley (MonadSparToGalley)
 import qualified Spar.Intra.Galley as Intra
 import Spar.Sem.GalleyAccess
-import qualified System.Logger as TinyLog
-import qualified System.Logger.Class as TinyLog
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Logger.TinyLog (fromLevel)
+import qualified System.Logger as TinyLog
+import qualified System.Logger.Class as TinyLog
 
 data RunHttpEnv r = RunHttpEnv
   { rheLogger :: Logger.Level -> (TinyLog.Msg -> TinyLog.Msg) -> Sem r (),
@@ -33,8 +33,11 @@ instance Member (Embed IO) r => MonadIO (RunHttp r) where
   liftIO = semToRunHttp . embed
 
 instance Member (Embed IO) r => MonadHttp (RunHttp r) where
-  handleRequestWithCont r fribia = RunHttp $ lift $ lift $
-    handleRequestWithCont r fribia
+  handleRequestWithCont r fribia =
+    RunHttp $
+      lift $
+        lift $
+          handleRequestWithCont r fribia
 
 semToRunHttp :: Sem r a -> RunHttp r a
 semToRunHttp = RunHttp . lift . lift . lift
