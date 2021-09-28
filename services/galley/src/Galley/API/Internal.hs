@@ -35,6 +35,7 @@ import Data.List1 (maybeList1)
 import Data.Qualified (Local, Qualified (..), Remote, lUnqualified, partitionRemoteOrLocalIds')
 import Data.Range
 import Data.String.Conversions (cs)
+import Data.Time
 import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
@@ -56,7 +57,7 @@ import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
-import Galley.Types.Teams
+import Galley.Types.Teams hiding (MemberLeave)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
@@ -478,12 +479,15 @@ rmUser user conn = do
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
           | user `isMember` Data.convLocalMembers c -> do
-            e <-
-              Data.removeLocalMembersFromLocalConv
-                localDomain
-                c
-                (Qualified user localDomain)
-                (pure user)
+            Data.removeLocalMembersFromLocalConv (Data.convId c) (pure user)
+            now <- liftIO getCurrentTime
+            let e =
+                  Event
+                    MemberLeave
+                    (Qualified (Data.convId c) localDomain)
+                    (Qualified user localDomain)
+                    now
+                    (EdMembersLeave (QualifiedUserIdList [Qualified user localDomain]))
             return $
               Intra.newPushLocal ListComplete user (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
@@ -494,8 +498,9 @@ rmUser user conn = do
         Intra.push
 
     leaveRemoteConversations :: Foldable t => Local UserId -> t (Remote ConvId) -> Galley ()
-    leaveRemoteConversations (unTagged -> qusr) cids =
-      for_ cids $ \(Tagged cid) -> Update.removeMember qusr Nothing cid qusr
+    leaveRemoteConversations lusr cids =
+      for_ cids $ \cid ->
+        Update.removeMemberFromRemoteConv cid lusr Nothing (unTagged lusr)
 
 deleteLoop :: Galley ()
 deleteLoop = do

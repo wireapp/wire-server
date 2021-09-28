@@ -34,7 +34,7 @@ import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Data as Data
-import Spar.Intra.Brig (veidFromUserSSOId)
+import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import qualified Spar.Sem.BindCookieStore as BindCookieStore

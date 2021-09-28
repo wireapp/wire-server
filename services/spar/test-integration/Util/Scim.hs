@@ -35,7 +35,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.App (liftSem)
-import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Test.QuickCheck (arbitrary, generate)
@@ -116,7 +116,7 @@ randomScimUserWithSubjectAndRichInfo ::
   RichInfo ->
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
-  suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+  suffix <- cs <$> replicateM 20 (getRandomR ('a', 'z'))
   emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'

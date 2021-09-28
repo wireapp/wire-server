@@ -178,7 +178,7 @@ import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Spar.App (liftSem, toLevel)
 import qualified Spar.App as Spar
 import Spar.Error (SparError)
-import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
 import Spar.Sem.AReqIDStore (AReqIDStore)
@@ -187,8 +187,12 @@ import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
+import Spar.Sem.BrigAccess (BrigAccess)
+import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
+import Spar.Sem.GalleyAccess (GalleyAccess)
+import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -1239,7 +1243,9 @@ runSimpleSP action = do
     either (throwIO . ErrorCall . show) pure result
 
 type RealInterpretation =
-  '[ BindCookieStore,
+  '[ GalleyAccess,
+     BrigAccess,
+     BindCookieStore,
      AssIDStore,
      AReqIDStore,
      ScimExternalIdStore,
@@ -1280,8 +1286,10 @@ runSpar (Spar.Spar action) = do
                                 aReqIDStoreToCassandra @Cas.Client $
                                   assIDStoreToCassandra @Cas.Client $
                                     bindCookieStoreToCassandra @Cas.Client $
-                                      runExceptT $
-                                        runReaderT action env
+                                      brigAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                        galleyAccessToHttp (Spar.sparCtxLogger env) (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
+                                          runExceptT $
+                                            runReaderT action env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
@@ -1289,7 +1297,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
+  musr <- aFewTimes (runSpar $ liftSem $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
   pure $ case userIdentity =<< musr of
     Just (SSOIdentity ssoid _ _) -> Just ssoid
     Just (FullIdentity _ _) -> Nothing

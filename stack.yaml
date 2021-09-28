@@ -220,16 +220,21 @@ extra-deps:
 - mu-grpc-common-0.4.0.0
 - compendium-client-0.2.1.1
 # dependencies of mu
-- http2-client-0.10.0.0
 - http2-grpc-types-0.5.0.0
 - http2-grpc-proto3-wire-0.1.0.0
 - warp-grpc-0.4.0.1
 - proto3-wire-1.2.0
 - parameterized-0.5.0.0
 
-# Fix in PR: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
-- git: https://github.com/akshaymankar/http2-grpc-haskell
-  commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+# Unreleased master.
+# Needed for https://github.com/lucasdicioccio/http2-client/pull/75
+- git: https://github.com/lucasdicioccio/http2-client
+  commit: 73f5975e18eda9d071aa5548fcea6b5a51e61769
+
+# Fix in PRs: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
+# and https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/46
+- git: https://github.com/wireapp/http2-grpc-haskell
+  commit: eea98418672626eafbace3181ca34bf44bee91c0
   subdirs:
     - http2-client-grpc
 

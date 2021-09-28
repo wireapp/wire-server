@@ -18,7 +18,7 @@ module Galley.API.Federation where
 
 import Control.Lens (itraversed, (<.>))
 import Control.Monad.Catch (throwM)
-import Control.Monad.Except (runExceptT)
+import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
@@ -35,7 +35,7 @@ import Galley.API.Error (invalidPayload)
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message (MessageMetadata (..), UserType (..), postQualifiedOtrMessage, sendLocalMessages)
 import qualified Galley.API.Update as API
-import Galley.API.Util (fromNewRemoteConversation, pushConversationEvent, viewFederationDomain)
+import Galley.API.Util
 import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Galley.Types.Conversations.Members (LocalMember (..), defMemberStatus)
@@ -61,6 +61,7 @@ import Wire.API.Federation.API.Galley
     RemoteMessage (..),
   )
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
+import Wire.API.Routes.Public.Galley.Responses (RemoveFromConversationError (..))
 import Wire.API.ServantProto (FromProto (..))
 import Wire.API.User.Client (userClientMap)
 
@@ -130,17 +131,18 @@ onConversationUpdated requestingDomain cu = do
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
   extraTargets <- case cuAction cu of
-    ConversationActionAddMembers toAdd -> do
-      let localUsers = getLocalUsers localDomain (fmap fst toAdd)
+    ConversationActionAddMembers toAdd _ -> do
+      let localUsers = getLocalUsers localDomain toAdd
       Data.addLocalMembersToRemoteConv qconvId localUsers
       pure localUsers
-    ConversationActionRemoveMembers toRemove -> do
-      let localUsers = getLocalUsers localDomain toRemove
+    ConversationActionRemoveMember toRemove -> do
+      let localUsers = getLocalUsers localDomain (pure toRemove)
       Data.removeLocalMembersFromRemoteConv qconvId localUsers
       pure []
     ConversationActionRename _ -> pure []
     ConversationActionMessageTimerUpdate _ -> pure []
-    ConversationActionMemberUpdate _ -> pure []
+    ConversationActionMemberUpdate _ _ -> pure []
+    ConversationActionReceiptModeUpdate _ -> pure []
 
   -- Send notifications
   let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)
@@ -159,14 +161,23 @@ onConversationUpdated requestingDomain cu = do
   -- FUTUREWORK: support bots?
   pushConversationEvent Nothing event targets []
 
+-- FUTUREWORK: actually return errors as part of the response instead of throwing
 leaveConversation ::
   Domain ->
   LeaveConversationRequest ->
   Galley LeaveConversationResponse
 leaveConversation requestingDomain lc = do
   let leaver = Qualified (lcLeaver lc) requestingDomain
-  fmap LeaveConversationResponse . runExceptT . void $
-    API.removeMemberFromLocalConv leaver Nothing (lcConvId lc) leaver
+  lcnv <- qualifyLocal (lcConvId lc)
+  fmap
+    ( LeaveConversationResponse
+        . maybe (Left RemoveFromConversationErrorUnchanged) Right
+    )
+    . runMaybeT
+    . void
+    . API.updateLocalConversation lcnv leaver Nothing
+    . ConversationActionRemoveMember
+    $ leaver
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients

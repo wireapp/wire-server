@@ -13,15 +13,12 @@
                     "domain": "golden.example.com",
                     "id": "00000000-0000-0000-0000-000100004007"
                 },
-                "wire_member"
-            ],
-            [
                 {
                     "domain": "golden2.example.com",
                     "id": "00000000-0000-0000-0000-000100005007"
-                },
-                "wire_admin"
-            ]
+                }
+            ],
+            "wire_admin"
         ]
     },
     "conv_id": "00000000-0000-0000-0000-000100000006"

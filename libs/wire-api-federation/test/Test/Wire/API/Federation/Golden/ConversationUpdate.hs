@@ -28,7 +28,7 @@ import Data.Qualified (Qualified (Qualified))
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API.Galley (ConversationUpdate (..))
 
 qAlice, qBob :: Qualified UserId
@@ -56,7 +56,7 @@ testObject_ConversationUpdate1 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [],
-      cuAction = ConversationActionAddMembers ((qAlice, roleNameWireMember) :| [(qBob, roleNameWireAdmin)])
+      cuAction = ConversationActionAddMembers (qAlice :| [qBob]) roleNameWireAdmin
     }
 
 testObject_ConversationUpdate2 :: ConversationUpdate
@@ -70,5 +70,5 @@ testObject_ConversationUpdate2 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [chad, dee],
-      cuAction = ConversationActionRemoveMembers (qAlice :| [qBob])
+      cuAction = ConversationActionRemoveMember (qAlice)
     }
