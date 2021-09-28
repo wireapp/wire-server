@@ -1,4 +1,6 @@
-module Spar.Sem.Logger.TinyLog (loggerToTinyLog, toLevel) where
+module Spar.Sem.Logger.TinyLog
+  (loggerToTinyLog, toLevel, fromLevel)
+    where
 
 import Imports
 import Polysemy
@@ -22,3 +24,14 @@ toLevel = \case
   Info -> Log.Info
   Debug -> Log.Debug
   Trace -> Log.Trace
+
+
+fromLevel :: Log.Level -> Level
+fromLevel = \case
+  Log.Fatal -> Fatal
+  Log.Error -> Error
+  Log.Warn -> Warn
+  Log.Info -> Info
+  Log.Debug -> Debug
+  Log.Trace -> Trace
+
