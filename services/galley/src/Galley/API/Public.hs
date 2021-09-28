@@ -103,6 +103,9 @@ servantSitemap =
         GalleyAPI.updateConversationReceiptModeUnqualified =
           Update.updateConversationReceiptModeUnqualified,
         GalleyAPI.updateConversationReceiptMode = Update.updateConversationReceiptMode,
+        GalleyAPI.updateConversationAccessUnqualified =
+          Update.updateConversationAccessUnqualified,
+        GalleyAPI.updateConversationAccess = Update.updateConversationAccess,
         GalleyAPI.getConversationSelfUnqualified = Query.getLocalSelf,
         GalleyAPI.updateConversationSelfUnqualified = Update.updateUnqualifiedSelfMember,
         GalleyAPI.updateConversationSelf = Update.updateSelfMember,
@@ -640,30 +643,6 @@ sitemap = do
     response 200 "Conversation Code" end
     errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
     errorResponse Error.invalidAccessOp
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members, if members get removed
-  -- - ConvAccessUpdate event to members
-  put "/conversations/:cnv/access" (continue Update.updateConversationAccessH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.ConversationAccessUpdate
-  document "PUT" "updateConversationAccess" $ do
-    summary "Update access modes for a conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelEvent)
-    response 200 "Conversation access updated." end
-    response 204 "Conversation access unchanged." end
-    body (ref Public.modelConversationAccessUpdate) $
-      description "JSON body"
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvNotFound)
-    errorResponse (Error.errorDescriptionTypeToWai @Error.ConvAccessDenied)
-    errorResponse Error.invalidTargetAccess
-    errorResponse Error.invalidSelfOp
-    errorResponse Error.invalidOne2OneOp
-    errorResponse Error.invalidConnectOp
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members

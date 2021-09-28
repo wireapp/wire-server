@@ -439,6 +439,44 @@ data Api routes = Api
              '[JSON]
              (UpdateResponses "Receipt mode unchanged" "Receipt mode updated" Event)
              (UpdateResult Event),
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members, if members get removed
+    -- - ConvAccessUpdate event to members
+    updateConversationAccessUnqualified ::
+      routes
+        :- Summary "Update access modes for a conversation (deprecated)"
+        :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "access"
+        :> ReqBody '[JSON] ConversationAccessUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Access unchanged" "Access updated" Event)
+             (UpdateResult Event),
+    updateConversationAccess ::
+      routes
+        :- Summary "Update access modes for a conversation"
+        :> ZUser
+        :> ZConn
+        :> CanThrow ConvAccessDenied
+        :> CanThrow ConvNotFound
+        :> CanThrow (InvalidOp "Invalid operation")
+        :> "conversations"
+        :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+        :> "access"
+        :> ReqBody '[JSON] ConversationAccessUpdate
+        :> MultiVerb
+             'PUT
+             '[JSON]
+             (UpdateResponses "Access unchanged" "Access updated" Event)
+             (UpdateResult Event),
     getConversationSelfUnqualified ::
       routes
         :- Summary "Get self membership properties (deprecated)"

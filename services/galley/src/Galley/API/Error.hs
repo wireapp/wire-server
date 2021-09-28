@@ -87,9 +87,6 @@ invalidAccessOp = invalidOp "invalid operation for conversation without 'code' a
 invalidManagedConvOp :: Error
 invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
 
-invalidTargetAccess :: Error
-invalidTargetAccess = invalidOp "invalid target access"
-
 invalidTargetUserOp :: Error
 invalidTargetUserOp = invalidOp "invalid target user for the given operation"
 
