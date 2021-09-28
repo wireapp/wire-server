@@ -9,7 +9,6 @@ import qualified Spar.Intra.Brig as Intra
 import Spar.Sem.BrigAccess
 import Spar.Sem.GalleyAccess.Http (RunHttpEnv (..), viaRunHttp)
 import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
 import qualified System.Logger as TinyLog
 
 brigAccessToHttp ::
@@ -20,7 +19,7 @@ brigAccessToHttp ::
   Sem r a
 brigAccessToHttp mgr req =
   interpret $
-    viaRunHttp (RunHttpEnv (\lvl msg -> Logger.log lvl msg) mgr req) . \case
+    viaRunHttp (RunHttpEnv mgr req) . \case
       CreateSAML u itlu itlt n m -> Intra.createBrigUserSAML u itlu itlt n m
       CreateNoSAML e itlt n -> Intra.createBrigUserNoSAML e itlt n
       UpdateEmail itlu e -> Intra.updateEmail itlu e

@@ -19,8 +19,7 @@ import qualified System.Logger as TinyLog
 import qualified System.Logger.Class as TinyLog
 
 data RunHttpEnv r = RunHttpEnv
-  { rheLogger :: Logger.Level -> (TinyLog.Msg -> TinyLog.Msg) -> Sem r (),
-    rheManager :: Bilge.Manager,
+  { rheManager :: Bilge.Manager,
     rheRequest :: Bilge.Request
   }
 
@@ -53,17 +52,15 @@ viaRunHttp env m = do
     Left err -> throw err
     Right a -> pure a
 
-instance TinyLog.MonadLogger (RunHttp r) where
-  log lvl msg = do
-    logger <- asks rheLogger
-    semToRunHttp $ logger (fromLevel lvl) msg
+instance Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r => TinyLog.MonadLogger (RunHttp r) where
+  log lvl msg = semToRunHttp $ Logger.log (fromLevel lvl) msg
 
-instance Member (Embed IO) r => MonadSparToGalley (RunHttp r) where
+instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSparToGalley (RunHttp r) where
   call modreq = do
     req <- asks rheRequest
     httpLbs req modreq
 
-instance Member (Embed IO) r => MonadSparToBrig (RunHttp r) where
+instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSparToBrig (RunHttp r) where
   call modreq = do
     req <- asks rheRequest
     httpLbs req modreq
@@ -76,7 +73,7 @@ galleyAccessToHttp ::
   Sem r a
 galleyAccessToHttp mgr req =
   interpret $
-    viaRunHttp (RunHttpEnv (\lvl msg -> Logger.log lvl msg) mgr req) . \case
+    viaRunHttp (RunHttpEnv mgr req) . \case
       GetTeamMembers itlt -> Intra.getTeamMembers itlt
       AssertHasPermission itlt perm itlu -> Intra.assertHasPermission itlt perm itlu
       AssertSSOEnabled itlt -> Intra.assertSSOEnabled itlt
