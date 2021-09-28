@@ -60,12 +60,12 @@ import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Lazy as LT
 import Imports hiding (log)
-import Imports hiding (log, MonadReader, asks)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
+import Polysemy.Input (Input, input, inputs, runInputConst)
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( Assertion (..),
@@ -138,7 +138,6 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
-import Polysemy.Input (Input, input, runInputConst, inputs)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ExceptT SparError (Sem r) a}
   deriving (Functor)
@@ -321,14 +320,39 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser ::
+  Members
+    '[ Random,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
+  Maybe TeamId ->
+  SAML.UserRef ->
+  Spar r UserId
 autoprovisionSamlUser mbteam suid = do
   buid <- liftSem $ Id <$> Random.uuid
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: forall r. Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
+autoprovisionSamlUserWithId ::
+  forall r.
+  Members
+    '[ GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
+  Maybe TeamId ->
+  UserId ->
+  SAML.UserRef ->
+  Spar r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
@@ -399,29 +423,29 @@ bindUser buid userref = do
       PendingInvitation -> liftSem $ BrigAccess.setStatus buid Active
 
 type RealInterpretation =
-        '[ BindCookieStore,
-           AssIDStore,
-           AReqIDStore,
-           ScimExternalIdStore,
-           ScimUserTimesStore,
-           ScimTokenStore,
-           DefaultSsoCode,
-           IdPEffect.IdP,
-           SAMLUserStore,
-           Embed (Cas.Client),
-           BrigAccess,
-           GalleyAccess,
-           Error TTLError,
-           Error SparError,
-           -- TODO(sandy): Make this a Logger Text instead
-           Logger String,
-           Logger (TinyLog.Msg -> TinyLog.Msg),
-           Input Opts,
-           Input TinyLog.Logger,
-           Random,
-           Embed IO,
-           Final IO
-         ]
+  '[ BindCookieStore,
+     AssIDStore,
+     AReqIDStore,
+     ScimExternalIdStore,
+     ScimUserTimesStore,
+     ScimTokenStore,
+     DefaultSsoCode,
+     IdPEffect.IdP,
+     SAMLUserStore,
+     Embed (Cas.Client),
+     BrigAccess,
+     GalleyAccess,
+     Error TTLError,
+     Error SparError,
+     -- TODO(sandy): Make this a Logger Text instead
+     Logger String,
+     Logger (TinyLog.Msg -> TinyLog.Msg),
+     Input Opts,
+     Input TinyLog.Logger,
+     Random,
+     Embed IO,
+     Final IO
+   ]
 
 instance r ~ RealInterpretation => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
@@ -443,7 +467,6 @@ instance r ~ RealInterpretation => SPHandler SparError (Spar r) where
           . stringLoggerToTinyLog
           . runError @SparError
           . ttlErrorToSparError
-          . ReaderEff.runReader (sparCtxOpts ctx)
           . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
           . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
           . interpretClientToIO (sparCtxCas ctx)
@@ -456,8 +479,7 @@ instance r ~ RealInterpretation => SPHandler SparError (Spar r) where
           . aReqIDStoreToCassandra
           . assIDStoreToCassandra
           . bindCookieStoreToCassandra
-          . runExceptT
-          $ runReaderT action ctx
+          $ runExceptT action
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
@@ -474,7 +496,19 @@ instance r ~ RealInterpretation => SPHandler SparError (Spar r) where
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[Random, Input TinyLog.Logger, Logger String, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Input TinyLog.Logger,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       BindCookieStore,
+       AReqIDStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -506,7 +540,18 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[Random, Input TinyLog.Logger, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Input TinyLog.Logger,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       BindCookieStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -552,7 +597,17 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       BindCookieStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->

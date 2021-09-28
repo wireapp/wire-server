@@ -170,12 +170,13 @@ import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
 import Polysemy
 import Polysemy.Error (runError)
+import Polysemy.Input
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (type RealInterpretation, liftSem)
+import Spar.App (liftSem, type RealInterpretation)
 import qualified Spar.App as Spar
 import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
@@ -188,18 +189,14 @@ import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
 import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdP.Cassandra
-import Spar.Sem.Logger (Logger)
 import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog, toLevel)
-import Spar.Sem.Random (Random)
 import Spar.Sem.Random.IO (randomToIO)
-import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Cassandra
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import qualified System.Logger as TinyLog
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -222,7 +219,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalId)
-import Polysemy.Input
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1247,30 +1243,29 @@ runSpar (Spar.Spar action) = do
   liftIO $ do
     result <-
       fmap join
+        . liftIO
         . runFinal
         . embedToFinal @IO
         . randomToIO
         . runInputConst (Spar.sparCtxLogger ctx)
         . runInputConst (Spar.sparCtxOpts ctx)
-        . loggerToTinyLog (Spar.sparCtxLogger env)
+        . loggerToTinyLog (Spar.sparCtxLogger ctx)
         . stringLoggerToTinyLog
-        . ErrorEff.runError @SparError
+        . runError @SparError
         . ttlErrorToSparError
-        . ReaderEff.runReader (Spar.sparCtxOpts env)
-        . interpretClientToIO (Spar.sparCtxCas env)
+        . galleyAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpGalley ctx)
+        . brigAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpBrig ctx)
+        . interpretClientToIO (Spar.sparCtxCas ctx)
         . samlUserStoreToCassandra @Cas.Client
         . idPToCassandra @Cas.Client
-        . defaultSsoCodeToCassandra @Cas.Client
-        . scimTokenStoreToCassandra @Cas.Client
-        . scimUserTimesStoreToCassandra @Cas.Client
-        . scimExternalIdStoreToCassandra @Cas.Client
-        . aReqIDStoreToCassandra @Cas.Client
-        . assIDStoreToCassandra @Cas.Client
-        . bindCookieStoreToCassandra @Cas.Client
-        . brigAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env)
-        . galleyAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env)
-        . runExceptT
-        $ runReaderT action env
+        . defaultSsoCodeToCassandra
+        . scimTokenStoreToCassandra
+        . scimUserTimesStoreToCassandra
+        . scimExternalIdStoreToCassandra
+        . aReqIDStoreToCassandra
+        . assIDStoreToCassandra
+        . bindCookieStoreToCassandra
+        $ runExceptT action
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId

@@ -8,12 +8,12 @@ import Control.Monad.Except (runExceptT)
 import Imports hiding (MonadReader (..), Reader)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import SAML2.WebSSO (fromTime, getNow)
 import qualified Spar.Data as Data
 import Spar.Sem.AReqIDStore.Cassandra ()
 import Spar.Sem.BindCookieStore
 import Wire.API.User.Saml (Opts, TTLError)
-import Polysemy.Input
 
 bindCookieStoreToCassandra ::
   forall m r a.

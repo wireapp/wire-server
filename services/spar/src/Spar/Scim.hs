@@ -94,6 +94,7 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import System.Logger (Msg)
+import qualified System.Logger as TinyLog
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
@@ -102,10 +103,8 @@ import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
-import Wire.API.User.Scim
-import Polysemy.Input (Input)
 import Wire.API.User.Saml (Opts)
-import qualified System.Logger as TinyLog
+import Wire.API.User.Scim
 
 -- | SCIM config for our server.
 --
@@ -116,8 +115,22 @@ configuration = Scim.Meta.empty
 
 apiScim ::
   forall r.
-    Members '[ Input TinyLog.Logger, Random,
-               Input Opts, Logger (Msg -> Msg), Logger String, Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Input TinyLog.Logger,
+       Random,
+       Input Opts,
+       Logger (Msg -> Msg),
+       Logger String,
+       Error SparError,
+       GalleyAccess,
+       BrigAccess,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))

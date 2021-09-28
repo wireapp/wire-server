@@ -7,13 +7,13 @@ import Control.Monad.Except (runExceptT)
 import Imports hiding (MonadReader (..), Reader)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input, input)
 import SAML2.WebSSO (HasNow, fromTime, getNow)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Error
 import Spar.Sem.AReqIDStore
 import Wire.API.User.Saml (Opts, TTLError)
-import Polysemy.Input (Input, input)
 
 instance Member (Embed IO) r => HasNow (Sem r)
 

@@ -46,6 +46,7 @@ import Imports
 
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
 import Spar.App (Spar, liftSem, wrapMonadClientSem)
@@ -63,9 +64,8 @@ import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
-import Wire.API.User.Saml (maxScimTokens, Opts)
+import Wire.API.User.Saml (Opts, maxScimTokens)
 import Wire.API.User.Scim
-import Polysemy.Input
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) where
@@ -85,7 +85,16 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
 apiScimToken ::
-  Members '[Random, Input Opts, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
+  Members
+    '[ Random,
+       Input Opts,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       Error E.SparError
+     ]
+    r =>
   ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
@@ -97,7 +106,16 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   forall r.
-  Members '[Random, Input Opts, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
+  Members
+    '[ Random,
+       Input Opts,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       Error E.SparError
+     ]
+    r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body

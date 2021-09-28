@@ -64,6 +64,7 @@ import qualified Data.UUID as UUID
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
+import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, validateEmailIfExists, wrapMonadClientSem)
 import qualified Spar.Intra.BrigApp as Brig
@@ -101,19 +102,29 @@ import qualified Web.Scim.Schema.User as Scim.User (schemas)
 import Wire.API.User (Email)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
-import Wire.API.User.Saml (derivedOpts, derivedOptsScimBaseURI, richInfoLimit, Opts)
+import Wire.API.User.Saml (Opts, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
-import Polysemy.Input
 
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance Members '[ Logger (Msg -> Msg),
-                    Logger String,
-                    Random,
-                    Input Opts,
-                    GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r => Scim.UserDB ST.SparTag (Spar r) where
+instance
+  Members
+    '[ Logger (Msg -> Msg),
+       Logger String,
+       Random,
+       Input Opts,
+       GalleyAccess,
+       BrigAccess,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
+  Scim.UserDB ST.SparTag (Spar r)
+  where
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
@@ -381,7 +392,18 @@ veidEmail (ST.EmailOnly email) = Just email
 createValidScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Spar r)) =>
-  Members '[Random, Input Opts, Logger (Msg -> Msg), Logger String, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Input Opts,
+       Logger (Msg -> Msg),
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       SAMLUserStore
+     ]
+    r =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
@@ -464,8 +486,19 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
   forall m r.
-  Members '[Random, Input Opts,
-           Logger (Msg -> Msg), Logger String, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Input Opts,
+       Logger (Msg -> Msg),
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   (m ~ Scim.ScimHandler (Spar r)) =>
   ScimTokenInfo ->
   UserId ->
@@ -521,7 +554,13 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
           pure newScimStoredUser
 
 updateVsuUref ::
-  Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, SAMLUserStore] r =>
+  Members
+    '[ GalleyAccess,
+       BrigAccess,
+       ScimExternalIdStore,
+       SAMLUserStore
+     ]
+    r =>
   TeamId ->
   UserId ->
   ST.ValidExternalId ->
@@ -594,7 +633,15 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
         }
 
 deleteScimUser ::
-  Members '[Logger (Msg -> Msg), BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore, IdPEffect.IdP] r =>
+  Members
+    '[ Logger (Msg -> Msg),
+       BrigAccess,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       SAMLUserStore,
+       IdPEffect.IdP
+     ]
+    r =>
   ScimTokenInfo ->
   UserId ->
   Scim.ScimHandler (Spar r) ()
@@ -718,7 +765,18 @@ assertHandleNotUsedElsewhere uid hndl = do
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
-synthesizeStoredUser :: forall r. Members '[Input Opts, Logger (Msg -> Msg), BrigAccess, ScimUserTimesStore] r => UserAccount -> ST.ValidExternalId -> Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
+synthesizeStoredUser ::
+  forall r.
+  Members
+    '[ Input Opts,
+       Logger (Msg -> Msg),
+       BrigAccess,
+       ScimUserTimesStore
+     ]
+    r =>
+  UserAccount ->
+  ST.ValidExternalId ->
+  Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser usr veid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
@@ -805,7 +863,13 @@ synthesizeScimUser info =
         }
 
 scimFindUserByHandle ::
-  Members '[Input Opts, Logger (Msg -> Msg), BrigAccess, ScimUserTimesStore] r =>
+  Members
+    '[ Input Opts,
+       Logger (Msg -> Msg),
+       BrigAccess,
+       ScimUserTimesStore
+     ]
+    r =>
   Maybe IdP ->
   TeamId ->
   Text ->
@@ -826,7 +890,15 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 -- successful authentication with their SAML credentials.
 scimFindUserByEmail ::
   forall r.
-  Members '[Input Opts, Logger (Msg -> Msg), BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
+  Members
+    '[ Input Opts,
+       Logger (Msg -> Msg),
+       BrigAccess,
+       ScimExternalIdStore,
+       ScimUserTimesStore,
+       SAMLUserStore
+     ]
+    r =>
   Maybe IdP ->
   TeamId ->
   Text ->
