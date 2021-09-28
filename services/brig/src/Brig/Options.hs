@@ -559,7 +559,7 @@ getAfcConferenceCallingDefNull = Lens.to (afcConferenceCallingDefNull . fromMayb
 defAccountFeatureConfigs :: AccountFeatureConfigs
 defAccountFeatureConfigs =
   AccountFeatureConfigs
-    { afcConferenceCallingDefNew = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureDisabled,
+    { afcConferenceCallingDefNew = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureEnabled,
       afcConferenceCallingDefNull = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureEnabled
     }
 
