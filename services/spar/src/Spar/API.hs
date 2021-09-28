@@ -91,6 +91,8 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Polysemy.Input
+import qualified System.Logger as TinyLog
 
 app :: Env -> Application
 app ctx =
@@ -101,6 +103,8 @@ api ::
   Members
     '[ GalleyAccess,
        BrigAccess,
+       Input TinyLog.Logger,
+       Input Opts,
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
@@ -130,6 +134,8 @@ apiSSO ::
   Members
     '[ GalleyAccess,
        Logger String,
+       Input TinyLog.Logger,
+       Input Opts,
        BrigAccess,
        BindCookieStore,
        AssIDStore,
@@ -180,7 +186,8 @@ authreqPrecheck msucc merr idpid =
     *> return NoContent
 
 authreq ::
-  Members '[Random, Logger String, BindCookieStore, AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
+  Members '[ Random, Input Opts,
+             Logger String, BindCookieStore, AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
   NominalDiffTime ->
   DoInitiate ->
   Maybe UserId ->
@@ -207,9 +214,11 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
-initializeBindCookie :: Members '[Random, Logger String, BindCookieStore] r => Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
+initializeBindCookie
+    :: Members '[Random, Input Opts, Logger String, BindCookieStore] r
+    => Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
 initializeBindCookie zusr authreqttl = do
-  DerivedOpts {derivedOptsBindCookiePath} <- asks (derivedOpts . sparCtxOpts)
+  DerivedOpts {derivedOptsBindCookiePath} <- liftSem $ inputs derivedOpts
   msecret <-
     if isJust zusr
       then liftSem $ Just . cs . ES.encode <$> Random.bytes 32
@@ -241,6 +250,8 @@ authresp ::
   Members
     '[ Random,
        Logger String,
+       Input Opts,
+       Input TinyLog.Logger,
        GalleyAccess,
        BrigAccess,
        BindCookieStore,

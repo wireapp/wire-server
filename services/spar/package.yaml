@@ -14,7 +14,7 @@ description:   'See README.md'
 ghc-options:
 - -j
 - -Wno-redundant-constraints
-- -Werror
+# - -Werror
 
 dependencies:
   - aeson

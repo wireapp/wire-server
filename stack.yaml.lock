@@ -527,6 +527,13 @@ packages:
   original:
     hackage: cryptonite-0.28
 - completed:
+    hackage: polysemy-1.6.0.0@sha256:29a73b1bf3d0049b12041016b7ee25e76bd8f6e99f9c37c2dde2b46368246697,6184
+    pantry-tree:
+      size: 4577
+      sha256: c4ca508b4a6786fc27e0f484344ce8dba119ea2f7fe47fb7379a51313a94cd10
+  original:
+    hackage: polysemy-1.6.0.0
+- completed:
     name: servant-swagger
     version: 1.1.11
     git: https://github.com/haskell-servant/servant-swagger

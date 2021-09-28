@@ -175,6 +175,7 @@ extra-deps:
 - servant-swagger-ui-0.3.4.3.36.1
 - tls-1.5.5
 - cryptonite-0.28
+- polysemy-1.6.0.0
 
 # For changes from #128 and #135, not released to hackage yet
 - git: https://github.com/haskell-servant/servant-swagger

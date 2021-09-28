@@ -38,6 +38,7 @@ module Spar.App
     deleteTeam,
     wrapSpar,
     liftSem,
+    type RealInterpretation,
   )
 where
 
@@ -59,12 +60,12 @@ import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Lazy as LT
 import Imports hiding (log)
+import Imports hiding (log, MonadReader, asks)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
-import qualified Polysemy.Reader as ReaderEff
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( Assertion (..),
@@ -137,6 +138,7 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Polysemy.Input (Input, input, runInputConst, inputs)
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -152,10 +154,6 @@ instance Monad (Spar r) where
   return = pure
   f >>= a = Spar $ fromSpar f >>= fromSpar . a
 
-instance MonadReader Env (Spar r) where
-  ask = Spar ask
-  local f m = Spar $ local f $ fromSpar m
-
 instance MonadError SparError (Spar r) where
   throwError err = Spar $ throwError err
   catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
@@ -163,7 +161,7 @@ instance MonadError SparError (Spar r) where
 instance MonadIO (Spar r) where
   liftIO m = Spar $ lift $ lift $ embedFinal m
 
-instance Member (Logger String) r => HasLogger (Spar r) where
+instance Members '[Input Opts, Logger String] r => HasLogger (Spar r) where
   logger lvl = liftSem . Logger.log lvl
 
 data Env = Env
@@ -176,8 +174,9 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
-instance HasConfig (Spar r) where
-  getConfig = asks (saml . sparCtxOpts)
+-- TODO(sandy): This is the only use of the Reader effect
+instance Member (Input Opts) r => HasConfig (Spar r) where
+  getConfig = liftSem $ inputs saml
 
 instance HasNow (Spar r)
 
@@ -400,9 +399,8 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> liftSem $ BrigAccess.setStatus buid Active
 
-instance
-  ( r
-      ~ '[ BindCookieStore,
+type RealInterpretation =
+        '[ BindCookieStore,
            AssIDStore,
            AReqIDStore,
            ScimExternalIdStore,
@@ -414,19 +412,19 @@ instance
            Embed (Cas.Client),
            BrigAccess,
            GalleyAccess,
-           ReaderEff.Reader Opts,
            Error TTLError,
            Error SparError,
            -- TODO(sandy): Make this a Logger Text instead
            Logger String,
            Logger (TinyLog.Msg -> TinyLog.Msg),
+           Input Opts,
+           Input TinyLog.Logger,
            Random,
            Embed IO,
            Final IO
          ]
-  ) =>
-  SPHandler SparError (Spar r)
-  where
+
+instance r ~ RealInterpretation => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -440,6 +438,8 @@ instance
           . runFinal
           . embedToFinal @IO
           . randomToIO
+          . runInputConst (sparCtxLogger ctx)
+          . runInputConst (sparCtxOpts ctx)
           . loggerToTinyLog (sparCtxLogger ctx)
           . stringLoggerToTinyLog
           . runError @SparError
@@ -475,7 +475,7 @@ instance
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Input TinyLog.Logger, Logger String, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -507,7 +507,7 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Input TinyLog.Logger, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -518,12 +518,13 @@ verdictHandlerResult bindCky mbteam verdict = do
   liftSem $ Logger.log SAML.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
-catchVerdictErrors :: Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
+catchVerdictErrors :: forall r. Member (Input TinyLog.Logger) r => Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
 catchVerdictErrors = (`catchError` hndlr)
   where
     hndlr :: SparError -> Spar r VerdictHandlerResult
     hndlr err = do
-      logr <- asks sparCtxLogger
+      logr <- liftSem input
+      -- TODO(sandy): When we remove this line, we can get rid of the @Input TinyLog.Logger@ effect
       waiErr <- renderSparErrorWithLogging logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
@@ -724,7 +725,7 @@ verdictHandlerMobile granted denied = \case
 -- | When getting stuck during login finalization, show a nice HTML error rather than the json
 -- blob.  Show lots of debugging info for the customer to paste in any issue they might open.
 errorPage :: SparError -> [Multipart.Input] -> Maybe Text -> ServerError
-errorPage err inputs mcky =
+errorPage err mp_inputs mcky =
   ServerError
     { errHTTPCode = Http.statusCode $ Wai.code werr,
       errReasonPhrase = cs $ Wai.label werr,
@@ -742,7 +743,7 @@ errorPage err inputs mcky =
         "</body>",
         "  sorry, something went wrong :(<br>",
         "  please copy the following debug information to your clipboard and provide it when opening an issue in our customer support.<br><br>",
-        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, inputs, mcky)) <> "</pre>",
+        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, mp_inputs, mcky)) <> "</pre>",
         "</body>"
       ]
 
