@@ -140,11 +140,11 @@ import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
 import Polysemy.Input (Input, input, runInputConst, inputs)
 
-newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
+newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ExceptT SparError (Sem r) a}
   deriving (Functor)
 
 liftSem :: Sem r a -> Spar r a
-liftSem r = Spar $ lift $ lift r
+liftSem r = Spar $ lift r
 
 instance Applicative (Spar r) where
   pure a = Spar $ pure a
@@ -159,7 +159,7 @@ instance MonadError SparError (Spar r) where
   catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
 
 instance MonadIO (Spar r) where
-  liftIO m = Spar $ lift $ lift $ embedFinal m
+  liftIO m = Spar $ lift $ embedFinal m
 
 instance Members '[Input Opts, Logger String] r => HasLogger (Spar r) where
   logger lvl = liftSem . Logger.log lvl
@@ -227,14 +227,13 @@ instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
 wrapMonadClientSem :: Sem r a -> Spar r a
 wrapMonadClientSem action =
   Spar $
-    (lift $ lift action)
+    lift action
       `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
 wrapSpar :: Spar r a -> Spar r a
 wrapSpar action = Spar $ do
-  env <- ask
   fromSpar $
-    wrapMonadClientSem (runExceptT $ flip runReaderT env $ fromSpar action) >>= Spar . lift . except
+    wrapMonadClientSem (runExceptT $ fromSpar action) >>= Spar . except
 
 insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUserStore.insert uref uid

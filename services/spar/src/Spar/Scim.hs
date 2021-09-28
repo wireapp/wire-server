@@ -70,11 +70,12 @@ import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 import Polysemy.Error (Error)
+import Polysemy.Input (Input, input)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
-import Spar.App (Env (..), Spar (..))
+import Spar.App (Spar (..))
 import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
@@ -104,6 +105,7 @@ import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
 import Polysemy.Input (Input)
 import Wire.API.User.Saml (Opts)
+import qualified System.Logger as TinyLog
 
 -- | SCIM config for our server.
 --
@@ -113,7 +115,9 @@ configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
 apiScim ::
-  Members '[Random, Input Opts, Logger (Msg -> Msg), Logger String, Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  forall r.
+    Members '[ Input TinyLog.Logger, Random,
+               Input Opts, Logger (Msg -> Msg), Logger String, Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))
@@ -132,8 +136,8 @@ apiScim =
     -- for why it's hard to catch impure exceptions.
     wrapScimErrors :: Spar r a -> Spar r a
     wrapScimErrors act = Spar $
-      ReaderT $ \env -> ExceptT $ do
-        result :: Either SomeException (Either SparError a) <- try $ runExceptT $ runReaderT (fromSpar $ act) env
+      ExceptT $ do
+        result :: Either SomeException (Either SparError a) <- try $ runExceptT $ fromSpar $ act
         case result of
           Left someException -> do
             -- We caught an exception that's not a Spar exception at all. It is wrapped into
@@ -146,7 +150,8 @@ apiScim =
           Right (Left sparError) -> do
             -- We caught some other Spar exception. It is rendered and wrapped into a scim error
             -- with the same status and message, and no scim error type.
-            err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging (sparCtxLogger env) sparError
+            logger <- input @TinyLog.Logger
+            err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging logger sparError
             pure . Left . SAML.CustomError . SparScimError $
               Scim.ScimError
                 { schemas = [Scim.Schema.Error20],
