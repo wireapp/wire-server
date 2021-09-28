@@ -71,6 +71,7 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about conversation rename" notifyConvRename,
       test s "POST /federation/on-conversation-updated : Notify local user about message timer update" notifyMessageTimer,
       test s "POST /federation/on-conversation-updated : Notify local user about member update" notifyMemberUpdate,
+      test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update" notifyReceiptMode,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -166,7 +167,7 @@ addLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [charlie],
             FedGalley.cuAction =
-              ConversationActionAddMembers (pure (qalice, roleNameWireMember))
+              ConversationActionAddMembers (pure qalice) roleNameWireMember
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     FedGalley.onConversationUpdated fedGalleyClient remoteDomain cu
@@ -205,7 +206,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
-              ConversationActionAddMembers (pure (qAlice, roleNameWireMember))
+              ConversationActionAddMembers (pure qAlice) roleNameWireMember
           }
       cuRemove =
         FedGalley.ConversationUpdate
@@ -214,7 +215,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
-              ConversationActionRemoveMembers (pure qAlice)
+              ConversationActionRemoveMember qAlice
           }
 
   WS.bracketR c alice $ \ws -> do
@@ -268,26 +269,37 @@ removeRemoteUser = do
   now <- liftIO getCurrentTime
 
   registerRemoteConv qconv qBob (Just "gossip") (Set.fromList [aliceAsOtherMember, deeAsOtherMember, eveAsOtherMember])
-  let cuRemove =
+
+  let cuRemove user =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = addUTCTime (secondsToNominalDiffTime 5) now,
             FedGalley.cuOrigUserId = qBob,
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              ConversationActionRemoveMembers (qEve :| [qDee, qFlo])
+              ConversationActionRemoveMember user
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
-    FedGalley.onConversationUpdated fedGalleyClient remoteDomain cuRemove
-    afterRemoval <- listRemoteConvs remoteDomain alice
+    FedGalley.onConversationUpdated fedGalleyClient remoteDomain (cuRemove qEve)
     liftIO $ do
       WS.assertMatchN_ (3 # Second) [wsA, wsD] $
-        wsAssertMembersLeave qconv qBob [qDee, qEve, qFlo]
-      WS.assertNoEvent (1 # Second) [wsC]
-      WS.assertNoEvent (1 # Second) [wsF]
+        wsAssertMembersLeave qconv qBob [qEve]
+      WS.assertNoEvent (1 # Second) [wsC, wsF]
+
+  WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
+    FedGalley.onConversationUpdated fedGalleyClient remoteDomain (cuRemove qDee)
     liftIO $ do
-      afterRemoval @?= [qconv]
+      WS.assertMatchN_ (3 # Second) [wsA, wsD] $
+        wsAssertMembersLeave qconv qBob [qDee]
+      WS.assertNoEvent (1 # Second) [wsC, wsF]
+
+  WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
+    FedGalley.onConversationUpdated fedGalleyClient remoteDomain (cuRemove qFlo)
+    liftIO $ do
+      WS.assertMatchN_ (3 # Second) [wsA] $
+        wsAssertMembersLeave qconv qBob [qFlo]
+      WS.assertNoEvent (1 # Second) [wsC, wsF, wsD]
 
 notifyUpdate :: [Qualified UserId] -> ConversationAction -> EventType -> EventData -> TestM ()
 notifyUpdate extras action etype edata = do
@@ -344,6 +356,15 @@ notifyMessageTimer = do
     ConvMessageTimerUpdate
     (EdConvMessageTimerUpdate d)
 
+notifyReceiptMode :: TestM ()
+notifyReceiptMode = do
+  let d = ConversationReceiptModeUpdate (ReceiptMode 42)
+  notifyUpdate
+    []
+    (ConversationActionReceiptModeUpdate d)
+    ConvReceiptModeUpdate
+    (EdConvReceiptModeUpdate d)
+
 notifyMemberUpdate :: TestM ()
 notifyMemberUpdate = do
   qdee <- randomQualifiedUser
@@ -360,7 +381,7 @@ notifyMemberUpdate = do
           }
   notifyUpdate
     [qdee]
-    (ConversationActionMemberUpdate d)
+    (ConversationActionMemberUpdate qdee (OtherMemberUpdate (Just roleNameWireAdmin)))
     MemberStateUpdate
     (EdMemberUpdate d)
 
@@ -407,7 +428,7 @@ addRemoteUser = do
             FedGalley.cuConvId = qUnqualified qconv,
             FedGalley.cuAlreadyPresentUsers = (map qUnqualified [qalice, qcharlie]),
             FedGalley.cuAction =
-              ConversationActionAddMembers ((qdee, roleNameWireMember) :| [(qeve, roleNameWireMember), (qflo, roleNameWireMember)])
+              ConversationActionAddMembers (qdee :| [qeve, qflo]) roleNameWireMember
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
     FedGalley.onConversationUpdated fedGalleyClient bdom cu
@@ -502,7 +523,7 @@ onMessageSent = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
-              ConversationActionAddMembers (pure (qalice, roleNameWireMember))
+              ConversationActionAddMembers (pure qalice) roleNameWireMember
           }
   FedGalley.onConversationUpdated fedGalleyClient bdom cu
 

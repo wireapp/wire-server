@@ -523,26 +523,6 @@ updateTeamConv zusr convid upd = do
         . json upd
     )
 
--- | See Note [managed conversations]
-createManagedConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
-createManagedConv u tid us name acc mtimer = do
-  g <- view tsGalley
-  let tinfo = ConvTeamInfo tid True
-  let conv =
-        NewConvManaged $
-          NewConv us [] name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing roleNameWireAdmin
-  r <-
-    post
-      ( g
-          . path "i/conversations/managed"
-          . zUser u
-          . zConn "conn"
-          . zType "access"
-          . json conv
-      )
-      <!! const 201 === statusCode
-  fromBS (getHeader' "Location" r)
-
 createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM ResponseLBS
 createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley
@@ -1033,6 +1013,24 @@ putConversationName u c n = do
         . json update
     )
 
+putQualifiedReceiptMode ::
+  (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
+  UserId ->
+  Qualified ConvId ->
+  ReceiptMode ->
+  m ResponseLBS
+putQualifiedReceiptMode u (Qualified c dom) r = do
+  g <- viewGalley
+  let update = ConversationReceiptModeUpdate r
+  put
+    ( g
+        . paths ["conversations", toByteString' dom, toByteString' c, "receipt-mode"]
+        . zUser u
+        . zConn "conn"
+        . zType "access"
+        . json update
+    )
+
 putReceiptMode :: UserId -> ConvId -> ReceiptMode -> TestM ResponseLBS
 putReceiptMode u c r = do
   g <- view tsGalley
@@ -1432,7 +1430,7 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   FederatedGalley.cuOrigUserId cu @?= remover
   FederatedGalley.cuConvId cu @?= qUnqualified qconvId
   sort (FederatedGalley.cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  FederatedGalley.cuAction cu @?= ConversationActionRemoveMembers (pure victim)
+  FederatedGalley.cuAction cu @?= ConversationActionRemoveMember victim
 
 -------------------------------------------------------------------------------
 -- Helpers
