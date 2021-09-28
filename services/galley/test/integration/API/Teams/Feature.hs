@@ -392,7 +392,7 @@ testAllFeatures = do
   randomPersonalUser <- Util.randomUser
   Util.getAllTeamFeaturesPersonal randomPersonalUser !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just (expected TeamFeatureDisabled {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
     expected confCalling =
       object
