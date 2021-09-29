@@ -17,6 +17,10 @@
 
 module Wire.API.Routes.Internal.Brig
   ( API,
+    EJPDRequest,
+    GetAccountFeatureConfig,
+    PutAccountFeatureConfig,
+    DeleteAccountFeatureConfig,
     SwaggerDocsAPI,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
