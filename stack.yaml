@@ -249,8 +249,8 @@ extra-deps:
   commit: b0e5c08af48911caecffa4fa6a3e74872018b258 # master (Sep 03, 2021)
 
 # Error handling fix: https://github.com/vincenthz/hs-certificate/pull/125
-- git: https://github.com/wireapp/hs-certificate
-  commit: e3ea2e1166f0569982a85aad9bc9de8f5b2994c1 # master (Aug 31, 2021)
+- git: https://github.com/vincenthz/hs-certificate
+  commit: a899bda3d7666d25143be7be8f3105fc076703d9 # master (Sep 29, 2021)
   subdirs:
     - x509-store
 
