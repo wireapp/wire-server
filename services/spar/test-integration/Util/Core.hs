@@ -766,7 +766,7 @@ ping req = void . get $ req . path "/i/status" . expect2xx
 
 makeTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
 makeTestIdP = do
-  apiversion <- asks (^. teWireIdPAPIVersion)
+  apiversion <- view teWireIdPAPIVersion
   SampleIdP md _ _ _ <- makeSampleIdPMetadata
   IdPConfig
     <$> (IdPId <$> liftIO UUID.nextRandom)
@@ -818,7 +818,7 @@ registerTestIdPFrom ::
   SparReq ->
   m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do
-  apiVersion <- asks (^. teWireIdPAPIVersion)
+  apiVersion <- view teWireIdPAPIVersion
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
     (uid,tid,) <$> callIdpCreate apiVersion spar (Just uid) metadata

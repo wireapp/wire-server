@@ -406,7 +406,7 @@ createUser new = do
 
 initAccountFeatureConfig :: UserId -> AppIO ()
 initAccountFeatureConfig uid = do
-  mbCciDefNew <- asks (^. settings . getAfcConferenceCallingDefNewMaybe)
+  mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
   forM_ mbCciDefNew $ Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions

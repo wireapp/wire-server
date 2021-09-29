@@ -47,7 +47,7 @@ import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
@@ -89,7 +89,7 @@ servantSitemap =
 getAccountFeatureConfig :: UserId -> Handler ApiFt.TeamFeatureStatusNoConfig
 getAccountFeatureConfig uid =
   lift (Data.lookupFeatureConferenceCalling uid)
-    >>= maybe (asks (^. settings . getAfcConferenceCallingDefNull)) pure
+    >>= maybe (view (settings . getAfcConferenceCallingDefNull)) pure
 
 putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> Handler NoContent
 putAccountFeatureConfig uid status =
