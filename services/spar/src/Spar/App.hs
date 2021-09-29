@@ -127,8 +127,8 @@ import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.Logger as Logger
 import qualified System.Logger as Log
-import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Cookie
@@ -136,6 +136,8 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Spar.Sem.Logger.TinyLog (loggerToTinyLog)
+import qualified System.Logger as TinyLog
 
 newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
   deriving (Functor)
@@ -162,6 +164,9 @@ instance MonadError SparError (Spar r) where
 instance MonadIO (Spar r) where
   liftIO m = Spar $ lift $ lift $ embedFinal m
 
+instance Member (Logger String) r => HasLogger (Spar r) where
+  logger lvl = liftSem . Logger.log lvl
+
 data Env = Env
   { sparCtxOpts :: Opts,
     sparCtxLogger :: Log.Logger,
@@ -179,17 +184,6 @@ instance HasNow (Spar r)
 
 instance Member Random r => HasCreateUUID (Spar r) where
   createUUID = liftSem Random.uuid
-
-instance HasLogger (Spar r) where
-  -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
-  logger lv = log (toLevel lv) . Log.msg
-
-instance MonadLogger (Spar r) where
-  log level mg = do
-    lg <- asks sparCtxLogger
-    reqid <- asks sparCtxRequestId
-    let fields = Log.field "request" (unRequestId reqid)
-    Spar $ lift $ lift $ embedFinal $ Log.log lg level $ fields Log.~~ mg
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
@@ -433,6 +427,8 @@ instance
            ReaderEff.Reader Opts,
            Error TTLError,
            Error SparError,
+           Logger String,
+           Logger (Log.Msg -> Log.Msg),
            Random,
            Embed IO,
            Final IO
@@ -453,23 +449,25 @@ instance
             runFinal $
               embedToFinal @IO $
                 randomToIO $
-                  runError @SparError $
-                    ttlErrorToSparError $
-                      ReaderEff.runReader (sparCtxOpts ctx) $
-                        galleyAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
-                          brigAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
-                            interpretClientToIO (sparCtxCas ctx) $
-                              samlUserStoreToCassandra @Cas.Client $
-                                idPToCassandra @Cas.Client $
-                                  defaultSsoCodeToCassandra $
-                                    scimTokenStoreToCassandra $
-                                      scimUserTimesStoreToCassandra $
-                                        scimExternalIdStoreToCassandra $
-                                          aReqIDStoreToCassandra $
-                                            assIDStoreToCassandra $
-                                              bindCookieStoreToCassandra $
-                                                runExceptT $
-                                                  runReaderT action ctx
+                loggerToTinyLog (sparCtxLogger ctx) $
+                mapLogger @String TinyLog.msg $
+                runError @SparError $
+                  ttlErrorToSparError $
+                    ReaderEff.runReader (sparCtxOpts ctx) $
+                      galleyAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
+                        brigAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
+                          interpretClientToIO (sparCtxCas ctx) $
+                            samlUserStoreToCassandra @Cas.Client $
+                              idPToCassandra @Cas.Client $
+                                defaultSsoCodeToCassandra $
+                                  scimTokenStoreToCassandra $
+                                    scimUserTimesStoreToCassandra $
+                                      scimExternalIdStoreToCassandra $
+                                        aReqIDStoreToCassandra $
+                                          assIDStoreToCassandra $
+                                            bindCookieStoreToCassandra $
+                                              runExceptT $
+                                                runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
@@ -486,7 +484,7 @@ instance
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -496,7 +494,7 @@ verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
-  SAML.logger SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
+  liftSem $ Logger.log SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClientSem $ AReqIDStore.getVerdictFormat reqid
   resp <- case format of
@@ -507,7 +505,7 @@ verdictHandler cky mbteam aresp verdict = do
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSpar SparNoSuchRequest
-  SAML.logger SAML.Debug $ "leaving verdictHandler: " <> show resp
+  liftSem $ Logger.log SAML.Debug $ "leaving verdictHandler: " <> show resp
   pure resp
 
 data VerdictHandlerResult
@@ -518,15 +516,15 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
   Spar r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
-  SAML.logger SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
+  liftSem $ Logger.log SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
-  SAML.logger SAML.Debug $ "leaving verdictHandlerResult" <> show result
+  liftSem $ Logger.log SAML.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
 catchVerdictErrors :: Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
@@ -563,7 +561,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -612,7 +610,7 @@ verdictHandlerResultCore bindCky mbteam = \case
         (Just _, GetUserFound _, GetUserFound _) ->
           -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
           error "impossible."
-    SAML.logger SAML.Debug ("granting sso login for " <> show uid)
+    liftSem $ Logger.log SAML.Debug ("granting sso login for " <> show uid)
     cky <- liftSem $ BrigAccess.ssoLogin uid
     pure $ VerifyHandlerGranted cky uid
 
