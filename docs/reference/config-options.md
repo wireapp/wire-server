@@ -300,7 +300,10 @@ settings:
 ```
 
 You can omit the entire `conferenceCalling` block, but not parts of
-it.  Built-in defaults are as above.
+it.  Built-in defaults: `defaultForNew: null` (user record attribute
+is left empty); `defaultForNull: enabled`.  This maintains behavior
+prior to the introduction of this change, while allowing site owners
+to postpone the decision about the default setting.
 
 When new users are created, their config will be initialized with
 what's in `defaultForNew`.
