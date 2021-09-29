@@ -195,8 +195,8 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra
-import Spar.Sem.Logger (Logger, mapLogger)
-import Spar.Sem.Logger.TinyLog (loggerToTinyLog, toLevel)
+import Spar.Sem.Logger (Logger)
+import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog, toLevel)
 import Spar.Sem.Random (Random)
 import Spar.Sem.Random.IO (randomToIO)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -1278,29 +1278,29 @@ runSpar (Spar.Spar action) = do
   env <- (^. teSparEnv) <$> ask
   liftIO $ do
     result <-
-      fmap join $
-        runFinal $
-          embedToFinal @IO $
-            randomToIO $
-              loggerToTinyLog (Spar.sparCtxLogger env) $
-                mapLogger @String TinyLog.msg $
-                  ErrorEff.runError @SparError $
-                    ttlErrorToSparError $
-                      ReaderEff.runReader (Spar.sparCtxOpts env) $
-                        interpretClientToIO (Spar.sparCtxCas env) $
-                          samlUserStoreToCassandra @Cas.Client $
-                            idPToCassandra @Cas.Client $
-                              defaultSsoCodeToCassandra @Cas.Client $
-                                scimTokenStoreToCassandra @Cas.Client $
-                                  scimUserTimesStoreToCassandra @Cas.Client $
-                                    scimExternalIdStoreToCassandra @Cas.Client $
-                                      aReqIDStoreToCassandra @Cas.Client $
-                                        assIDStoreToCassandra @Cas.Client $
-                                          bindCookieStoreToCassandra @Cas.Client $
-                                            brigAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
-                                              galleyAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env) $
-                                                runExceptT $
-                                                  runReaderT action env
+      fmap join
+        . runFinal
+        . embedToFinal @IO
+        . randomToIO
+        . loggerToTinyLog (Spar.sparCtxLogger env)
+        . stringLoggerToTinyLog
+        . ErrorEff.runError @SparError
+        . ttlErrorToSparError
+        . ReaderEff.runReader (Spar.sparCtxOpts env)
+        . interpretClientToIO (Spar.sparCtxCas env)
+        . samlUserStoreToCassandra @Cas.Client
+        . idPToCassandra @Cas.Client
+        . defaultSsoCodeToCassandra @Cas.Client
+        . scimTokenStoreToCassandra @Cas.Client
+        . scimUserTimesStoreToCassandra @Cas.Client
+        . scimExternalIdStoreToCassandra @Cas.Client
+        . aReqIDStoreToCassandra @Cas.Client
+        . assIDStoreToCassandra @Cas.Client
+        . bindCookieStoreToCassandra @Cas.Client
+        . brigAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env)
+        . galleyAccessToHttp (Spar.sparCtxHttpManager env) (Spar.sparCtxHttpBrig env)
+        . runExceptT
+        $ runReaderT action env
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId

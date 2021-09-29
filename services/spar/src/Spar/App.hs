@@ -112,8 +112,9 @@ import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdP (GetIdPResult (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
-import Spar.Sem.Logger as Logger
-import Spar.Sem.Logger.TinyLog (loggerToTinyLog)
+import Spar.Sem.Logger (Logger)
+import qualified Spar.Sem.Logger as Logger
+import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.Random.IO (randomToIO)
@@ -416,6 +417,7 @@ instance
            ReaderEff.Reader Opts,
            Error TTLError,
            Error SparError,
+           -- TODO(sandy): Make this a Logger Text instead
            Logger String,
            Logger (TinyLog.Msg -> TinyLog.Msg),
            Random,
@@ -433,30 +435,30 @@ instance
     where
       actionHandler :: Handler (Either SparError a)
       actionHandler =
-        fmap join $
-          liftIO $
-            runFinal $
-              embedToFinal @IO $
-                randomToIO $
-                  loggerToTinyLog (sparCtxLogger ctx) $
-                    mapLogger @String TinyLog.msg $
-                      runError @SparError $
-                        ttlErrorToSparError $
-                          ReaderEff.runReader (sparCtxOpts ctx) $
-                            galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
-                              brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
-                                interpretClientToIO (sparCtxCas ctx) $
-                                  samlUserStoreToCassandra @Cas.Client $
-                                    idPToCassandra @Cas.Client $
-                                      defaultSsoCodeToCassandra $
-                                        scimTokenStoreToCassandra $
-                                          scimUserTimesStoreToCassandra $
-                                            scimExternalIdStoreToCassandra $
-                                              aReqIDStoreToCassandra $
-                                                assIDStoreToCassandra $
-                                                  bindCookieStoreToCassandra $
-                                                    runExceptT $
-                                                      runReaderT action ctx
+        fmap join
+          . liftIO
+          . runFinal
+          . embedToFinal @IO
+          . randomToIO
+          . loggerToTinyLog (sparCtxLogger ctx)
+          . stringLoggerToTinyLog
+          . runError @SparError
+          . ttlErrorToSparError
+          . ReaderEff.runReader (sparCtxOpts ctx)
+          . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
+          . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
+          . interpretClientToIO (sparCtxCas ctx)
+          . samlUserStoreToCassandra @Cas.Client
+          . idPToCassandra @Cas.Client
+          . defaultSsoCodeToCassandra
+          . scimTokenStoreToCassandra
+          . scimUserTimesStoreToCassandra
+          . scimExternalIdStoreToCassandra
+          . aReqIDStoreToCassandra
+          . assIDStoreToCassandra
+          . bindCookieStoreToCassandra
+          . runExceptT
+          $ runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError

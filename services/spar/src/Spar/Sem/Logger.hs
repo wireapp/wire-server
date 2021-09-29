@@ -35,8 +35,8 @@ info = log SAML.Info
 warn :: Member (Logger msg) r => msg -> Sem r ()
 warn = log SAML.Warn
 
--- err :: Member (Logger msg) r => msg -> Sem r ()
--- err = log SAML.Error
+err :: Member (Logger msg) r => msg -> Sem r ()
+err = log SAML.Error
 
 fatal :: Member (Logger msg) r => msg -> Sem r ()
 fatal = log SAML.Fatal

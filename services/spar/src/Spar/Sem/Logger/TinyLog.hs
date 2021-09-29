@@ -1,8 +1,8 @@
-module Spar.Sem.Logger.TinyLog (loggerToTinyLog, toLevel, fromLevel) where
+module Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog, toLevel, fromLevel) where
 
 import Imports
 import Polysemy
-import Spar.Sem.Logger (Level (..), Logger (..))
+import Spar.Sem.Logger (Level (..), Logger (..), mapLogger)
 import qualified System.Logger as Log
 
 loggerToTinyLog ::
@@ -13,6 +13,9 @@ loggerToTinyLog ::
 loggerToTinyLog tinylog = interpret $ \case
   Log lvl msg ->
     embed @IO $ Log.log tinylog (toLevel lvl) msg
+
+stringLoggerToTinyLog :: Member (Logger (Log.Msg -> Log.Msg)) r => Sem (Logger String ': r) a -> Sem r a
+stringLoggerToTinyLog = mapLogger @String Log.msg
 
 toLevel :: Level -> Log.Level
 toLevel = \case
