@@ -75,6 +75,8 @@ import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Random (Random)
+import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -86,8 +88,6 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import qualified Spar.Sem.Random as Random
-import Spar.Sem.Random (Random)
 
 app :: Env -> Application
 app ctx =
@@ -232,8 +232,18 @@ validateRedirectURL uri = do
 
 authresp ::
   forall r.
-  Members '[ Random,
-             GalleyAccess, BrigAccess, BindCookieStore, AssIDStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       GalleyAccess,
+       BrigAccess,
+       BindCookieStore,
+       AssIDStore,
+       AReqIDStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   Maybe TeamId ->
   Maybe ST ->
   SAML.AuthnResponseBody ->

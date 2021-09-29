@@ -1,9 +1,9 @@
 module Spar.Sem.Random where
 
-import Imports
-import Polysemy
 import Data.Id (ScimTokenId)
 import Data.UUID (UUID)
+import Imports
+import Polysemy
 
 data Random m a where
   Bytes :: Int -> Random m ByteString
@@ -11,4 +11,3 @@ data Random m a where
   ScimTokenId :: Random m ScimTokenId
 
 makeSem ''Random
-
