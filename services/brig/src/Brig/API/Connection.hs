@@ -69,20 +69,18 @@ createConnection ::
   ConnId ->
   Qualified UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
-createConnection lusr con target = do
-  let connect =
-        foldQualified
-          lusr
-          createConnectionToLocalUser
-          createConnectionToRemoteUser
-  connect target lusr con
+createConnection lusr con =
+  foldQualified
+    lusr
+    (createConnectionToLocalUser lusr con)
+    (createConnectionToRemoteUser lusr con)
 
 createConnectionToLocalUser ::
   Local UserId ->
-  Local UserId ->
   ConnId ->
+  Local UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
-createConnectionToLocalUser self target conn = do
+createConnectionToLocalUser self conn target = do
   when (self == target) $
     throwE (InvalidUser (unTagged target))
   selfActive <- lift $ Data.isActivated (lUnqualified self)
@@ -178,9 +176,9 @@ createConnectionToLocalUser self target conn = do
       pure $ isJust selfTeam && selfTeam == crTeam
 
 createConnectionToRemoteUser ::
-  Remote UserId ->
   Local UserId ->
   ConnId ->
+  Remote UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser _ _ _ = throwM federationNotImplemented
 
