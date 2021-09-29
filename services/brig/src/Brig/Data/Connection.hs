@@ -105,8 +105,8 @@ updateConnection c status = do
       }
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
-lookupConnection :: Local UserId -> Qualified UserId -> MaybeT AppIO UserConnection
-lookupConnection self target = do
+lookupConnection :: Local UserId -> Qualified UserId -> AppIO (Maybe UserConnection)
+lookupConnection self target = runMaybeT $ do
   let local (lUnqualified -> ltarget) = do
         (_, _, rel, time, mcnv) <-
           MaybeT . query1 connectionSelect $
@@ -130,13 +130,16 @@ lookupConnection self target = do
 -- | 'lookupConnection' with more 'Relation' info.
 lookupRelationWithHistory ::
   -- | User 'A'
-  UserId ->
+  Local UserId ->
   -- | User 'B'
-  UserId ->
+  Qualified UserId ->
   AppIO (Maybe RelationWithHistory)
-lookupRelationWithHistory from to =
-  runIdentity
-    <$$> retry x1 (query1 relationSelect (params Quorum (from, to)))
+lookupRelationWithHistory self target = do
+  let local (lUnqualified -> ltarget) =
+        query1 relationSelect (params Quorum (lUnqualified self, ltarget))
+  let remote (unTagged -> Qualified rtarget domain) =
+        query1 remoteRelationSelect (params Quorum (lUnqualified self, domain, rtarget))
+  runIdentity <$$> retry x1 (foldQualified self local remote target)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 lookupLocalConnections :: Local UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
@@ -189,9 +192,9 @@ lookupContactListWithRelation u =
 -- | Count the number of connections a user has in a specific relation status.
 -- (If you want to distinguish 'RelationWithHistory', write a new function.)
 -- Note: The count is eventually consistent.
-countConnections :: UserId -> [Relation] -> AppIO Int64
+countConnections :: Local UserId -> [Relation] -> AppIO Int64
 countConnections u r = do
-  rels <- retry x1 . query selectStatus $ params One (Identity u)
+  rels <- retry x1 . query selectStatus $ params One (Identity (lUnqualified u))
   return $ foldl' count 0 rels
   where
     selectStatus :: QueryString R (Identity UserId) (Identity RelationWithHistory)
@@ -263,6 +266,9 @@ remoteConnectionDelete = "DELETE FROM connection_remote where left = ? AND right
 
 remoteConnectionClear :: PrepQuery W (Identity UserId) ()
 remoteConnectionClear = "DELETE FROM connection_remote where left = ?"
+
+remoteRelationSelect :: PrepQuery R (UserId, Domain, UserId) (Identity RelationWithHistory)
+remoteRelationSelect = "SELECT status FROM connection_remote WHERE left = ? AND right_domain = ? AND right_user = ?"
 
 -- Conversions
 
