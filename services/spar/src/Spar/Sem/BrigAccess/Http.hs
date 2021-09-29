@@ -8,18 +8,18 @@ import Spar.Error (SparError)
 import qualified Spar.Intra.Brig as Intra
 import Spar.Sem.BrigAccess
 import Spar.Sem.GalleyAccess.Http (RunHttpEnv (..), viaRunHttp)
-import qualified System.Logger as Log
+import Spar.Sem.Logger (Logger)
+import qualified System.Logger as TinyLog
 
 brigAccessToHttp ::
-  Members '[Error SparError, Embed IO] r =>
-  Log.Logger ->
+  Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Error SparError, Embed IO] r =>
   Bilge.Manager ->
   Bilge.Request ->
   Sem (BrigAccess ': r) a ->
   Sem r a
-brigAccessToHttp logger mgr req =
+brigAccessToHttp mgr req =
   interpret $
-    viaRunHttp (RunHttpEnv logger mgr req) . \case
+    viaRunHttp (RunHttpEnv mgr req) . \case
       CreateSAML u itlu itlt n m -> Intra.createBrigUserSAML u itlu itlt n m
       CreateNoSAML e itlt n -> Intra.createBrigUserNoSAML e itlt n
       UpdateEmail itlu e -> Intra.updateEmail itlu e

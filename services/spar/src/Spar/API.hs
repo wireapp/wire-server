@@ -75,6 +75,8 @@ import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Logger (Logger)
+import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -83,6 +85,7 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
@@ -108,6 +111,8 @@ api ::
        IdPEffect.IdP,
        SAMLUserStore,
        Random,
+       Logger String,
+       Logger (Msg -> Msg),
        Error SparError
      ]
     r =>
@@ -124,6 +129,7 @@ api opts =
 apiSSO ::
   Members
     '[ GalleyAccess,
+       Logger String,
        BrigAccess,
        BindCookieStore,
        AssIDStore,
@@ -146,7 +152,7 @@ apiSSO opts =
     :<|> authresp . Just
     :<|> ssoSettings
 
-apiIDP :: Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Error SparError] r => ServerT APIIDP (Spar r)
+apiIDP :: Members '[Random, Logger String, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore, Error SparError] r => ServerT APIIDP (Spar r)
 apiIDP =
   idpGet
     :<|> idpGetRaw
@@ -174,7 +180,7 @@ authreqPrecheck msucc merr idpid =
     *> return NoContent
 
 authreq ::
-  Members '[Random, BindCookieStore, AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
+  Members '[Random, Logger String, BindCookieStore, AssIDStore, AReqIDStore, IdPEffect.IdP] r =>
   NominalDiffTime ->
   DoInitiate ->
   Maybe UserId ->
@@ -195,13 +201,13 @@ authreq authreqttl _ zusr msucc merr idpid = do
     SAML.authreq authreqttl (sparSPIssuer mbtid) idpid
   wrapMonadClientSem $ AReqIDStore.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
-  SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
+  liftSem $ Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
 
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
-initializeBindCookie :: Members '[Random, BindCookieStore] r => Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
+initializeBindCookie :: Members '[Random, Logger String, BindCookieStore] r => Maybe UserId -> NominalDiffTime -> Spar r SetBindCookie
 initializeBindCookie zusr authreqttl = do
   DerivedOpts {derivedOptsBindCookiePath} <- asks (derivedOpts . sparCtxOpts)
   msecret <-
@@ -234,6 +240,7 @@ authresp ::
   forall r.
   Members
     '[ Random,
+       Logger String,
        GalleyAccess,
        BrigAccess,
        BindCookieStore,
@@ -276,7 +283,7 @@ ssoSettings = do
 -- IdP API
 
 idpGet ::
-  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPId ->
   Spar r IdP
@@ -297,7 +304,10 @@ idpGetRaw zusr idpid = do
     Just txt -> pure $ RawIdPMetadata txt
     Nothing -> throwSpar $ SparIdPNotFound (cs $ show idpid)
 
-idpGetAll :: Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r => Maybe UserId -> Spar r IdPList
+idpGetAll ::
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Maybe UserId ->
+  Spar r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- liftSem $ Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid
@@ -313,7 +323,17 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- https://github.com/zinfra/backend-issues/issues/1314
 idpDelete ::
   forall r.
-  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, SAMLUserStore, IdPEffect.IdP, Error SparError] r =>
+  Members
+    '[ Random,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       SAMLUserStore,
+       IdPEffect.IdP,
+       Error SparError
+     ]
+    r =>
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->
@@ -373,7 +393,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
 idpCreate ::
-  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
@@ -383,7 +403,7 @@ idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr 
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML ::
-  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   Text ->
   SAML.IdPMetadata ->
@@ -437,7 +457,7 @@ assertNoScimOrNoIdP teamid = do
 validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
-  Members '[Random, IdPEffect.IdP] r =>
+  Members '[Random, Logger String, IdPEffect.IdP] r =>
   WireIdPAPIVersion ->
   SAML.IdPMetadata ->
   TeamId ->
@@ -454,8 +474,8 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
   idp <- wrapSpar $ getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId
-  SAML.logger SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  SAML.logger SAML.Debug $ show (_idpId, oldIssuers, idp)
+  liftSem $ Logger.log SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  liftSem $ Logger.log SAML.Debug $ show (_idpId, oldIssuers, idp)
 
   let handleIdPClash :: Either id idp -> m ()
       -- (HINT: using type vars above instead of the actual types constitutes a proof that
@@ -484,7 +504,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
 idpUpdate ::
-  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   IdPMetadataInfo ->
   SAML.IdPId ->
@@ -492,7 +512,7 @@ idpUpdate ::
 idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
 
 idpUpdateXML ::
-  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   Text ->
   SAML.IdPMetadata ->
@@ -515,7 +535,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
 validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Spar r) =>
-  Members '[Random, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
+  Members '[Random, Logger String, GalleyAccess, BrigAccess, IdPEffect.IdP, Error SparError] r =>
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
@@ -554,12 +574,12 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
     errUnknownIdPId = SAML.UnknownIdP . cs . SAML.idPIdToST $ _idpId
 
-withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
+withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Spar r a -> Spar r a
 withDebugLog msg showval action = do
-  SAML.logger SAML.Debug $ "entering " ++ msg
+  liftSem $ Logger.log SAML.Debug $ "entering " ++ msg
   val <- action
   let mshowedval = showval val
-  SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  liftSem $ Logger.log SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
 authorizeIdP ::

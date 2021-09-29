@@ -72,6 +72,8 @@ import qualified Spar.Scim.Types as ST
 import Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Logger (Logger)
+import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -105,7 +107,7 @@ import qualified Wire.API.User.Scim as ST
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance Members '[Random, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r => Scim.UserDB ST.SparTag (Spar r) where
+instance Members '[Random, Logger (Msg -> Msg), Logger String, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r => Scim.UserDB ST.SparTag (Spar r) where
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
@@ -319,7 +321,7 @@ mkValidExternalId (Just idp) (Just extid) = do
               Scim.InvalidValue
               (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
-logScim :: forall m r a. (m ~ Scim.ScimHandler (Spar r)) => (Msg -> Msg) -> m a -> m a
+logScim :: forall r a. (Member (Logger (Msg -> Msg)) r) => (Msg -> Msg) -> Scim.ScimHandler (Spar r) a -> Scim.ScimHandler (Spar r) a
 logScim context action =
   flip mapExceptT action $ \action' -> do
     eith <- action'
@@ -329,10 +331,10 @@ logScim context action =
               case Scim.detail e of
                 Just d -> d
                 Nothing -> cs (Aeson.encode e)
-        Log.warn $ context . Log.msg errorMsg
+        liftSem $ Logger.warn $ context . Log.msg errorMsg
         pure (Left e)
       Right x -> do
-        Log.info $ context . Log.msg @Text "call without exception"
+        liftSem $ Logger.info $ context . Log.msg @Text "call without exception"
         pure (Right x)
 
 logEmail :: Email -> (Msg -> Msg)
@@ -373,7 +375,7 @@ veidEmail (ST.EmailOnly email) = Just email
 createValidScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Spar r)) =>
-  Members '[Random, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
+  Members '[Random, Logger (Msg -> Msg), Logger String, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
@@ -406,7 +408,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
               )
               veid
 
-          Log.debug (Log.msg $ "createValidScimUser: brig says " <> show buid)
+          liftSem $ Logger.debug ("createValidScimUser: brig says " <> show buid)
 
           -- {If we crash now, we have an active user that cannot login. And can not
           -- be bound this will be a zombie user that needs to be manually cleaned
@@ -431,7 +433,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
           lift (liftSem $ BrigAccess.getAccount Brig.WithPendingInvitations buid)
             >>= maybe (throwError $ Scim.serverError "Server error: user vanished") pure
         synthesizeStoredUser acc veid
-      lift $ Log.debug (Log.msg $ "createValidScimUser: spar says " <> show storedUser)
+      lift $ liftSem $ Logger.debug ("createValidScimUser: spar says " <> show storedUser)
 
       -- {(arianvp): these two actions we probably want to make transactional.}
       lift . wrapMonadClientSem $ do
@@ -456,7 +458,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
   forall m r.
-  Members '[Random, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Logger (Msg -> Msg), Logger String, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r =>
   (m ~ Scim.ScimHandler (Spar r)) =>
   ScimTokenInfo ->
   UserId ->
@@ -585,7 +587,7 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
         }
 
 deleteScimUser ::
-  Members '[BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore, IdPEffect.IdP] r =>
+  Members '[Logger (Msg -> Msg), BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore, IdPEffect.IdP] r =>
   ScimTokenInfo ->
   UserId ->
   Scim.ScimHandler (Spar r) ()
@@ -709,7 +711,7 @@ assertHandleNotUsedElsewhere uid hndl = do
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
-synthesizeStoredUser :: forall r. Members '[BrigAccess, ScimUserTimesStore] r => UserAccount -> ST.ValidExternalId -> Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
+synthesizeStoredUser :: forall r. Members '[Logger (Msg -> Msg), BrigAccess, ScimUserTimesStore] r => UserAccount -> ST.ValidExternalId -> Scim.ScimHandler (Spar r) (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser usr veid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
@@ -796,7 +798,7 @@ synthesizeScimUser info =
         }
 
 scimFindUserByHandle ::
-  Members '[BrigAccess, ScimUserTimesStore] r =>
+  Members '[Logger (Msg -> Msg), BrigAccess, ScimUserTimesStore] r =>
   Maybe IdP ->
   TeamId ->
   Text ->
@@ -817,7 +819,7 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 -- successful authentication with their SAML credentials.
 scimFindUserByEmail ::
   forall r.
-  Members '[BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
+  Members '[Logger (Msg -> Msg), BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
   Maybe IdP ->
   TeamId ->
   Text ->
