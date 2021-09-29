@@ -134,6 +134,7 @@ tests s =
           test s "page through list-conversations (local conversations only)" listConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
           test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
+          test s "M:N conversation creation with N - 1 invitees should be allowed" postConvLimitOk,
           test s "M:N conversation creation must have <N members" postConvFailNumMembers,
           test s "M:N conversation creation must have <N qualified members" postConvQualifiedFailNumMembers,
           test s "fail to create conversation when blocked" postConvFailBlocked,
@@ -1492,6 +1493,15 @@ postConvQualifiedFailNotConnected = do
   postConvQualified alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
+
+postConvLimitOk :: TestM ()
+postConvLimitOk = do
+  n <- fromIntegral . pred <$> view tsMaxConvSize
+  alice <- randomUser
+  bob : others <- replicateM n randomUser
+  connectUsers alice (list1 bob others)
+  postConv alice (bob : others) Nothing [] Nothing Nothing !!! do
+    const 201 === statusCode
 
 postConvFailNumMembers :: TestM ()
 postConvFailNumMembers = do
