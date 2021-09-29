@@ -23,6 +23,7 @@ import Bilge.Assert
 import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
+import Data.Domain
 import Data.Handle (Handle (..))
 import Data.Id (Id (..), UserId)
 import qualified Data.Map as Map
@@ -34,9 +35,9 @@ import Imports
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (generate)
 import Test.Tasty
-import Test.Tasty.HUnit (assertEqual, assertFailure)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure)
 import Util
-import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest))
+import Wire.API.Federation.API.Brig (GetUserClients (..), NewConnectionRequest (..), NewConnectionResponse (..), SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
@@ -47,19 +48,20 @@ tests m brig fedBrigClient =
   return $
     testGroup
       "federation"
-      [ test m "GET /federation/search-users : Found" (testSearchSuccess brig fedBrigClient),
-        test m "GET /federation/search-users : NotFound" (testSearchNotFound fedBrigClient),
-        test m "GET /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
-        test m "GET /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess brig fedBrigClient),
-        test m "GET /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound fedBrigClient),
-        test m "GET /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
-        test m "GET /federation/get-users-by-ids : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
-        test m "GET /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
-        test m "GET /federation/claim-prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
-        test m "GET /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
+      [ test m "POST /federation/search-users : Found" (testSearchSuccess brig fedBrigClient),
+        test m "POST /federation/search-users : NotFound" (testSearchNotFound fedBrigClient),
+        test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
+        test m "POST /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess brig fedBrigClient),
+        test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound fedBrigClient),
+        test m "POST /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
+        test m "POST /federation/get-users-by-ids : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
+        test m "POST /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
+        test m "POST /federation/claim-prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
+        test m "POST /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
-        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient)
+        test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
+        test m "POST /federation/send-connection-request : " (testSendConnectionRequest brig fedBrigClient)
       ]
 
 testSearchSuccess :: Brig -> FedBrigClient -> Http ()
@@ -210,3 +212,17 @@ testGetUserClientsNotFound fedBrigClient = do
       "client set for user should match"
       (Just (Set.fromList []))
       (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)
+
+testSendConnectionRequest :: Brig -> FedBrigClient -> Http ()
+testSendConnectionRequest brig fedBrigClient = do
+  remoteUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
+  localUserId <- userId <$> randomUser brig
+  let domain = Domain "faraway.example.com"
+  let req =
+        NewConnectionRequest
+          { ncrFrom = remoteUserId,
+            ncrTo = localUserId,
+            ncrConversationId = Nothing
+          }
+  NewConnectionResponse mConvId <- FedBrig.sendConnectionRequest fedBrigClient domain req
+  liftIO $ assertBool "ncrConversationId is Nothing. When a conversationId is not created on a requestor's backend, it needs to be created and returned on the receiving backend" (isJust mConvId)

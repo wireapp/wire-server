@@ -20,7 +20,7 @@ module Wire.API.Federation.API.Brig where
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Handle (Handle)
-import Data.Id (ClientId, UserId)
+import Data.Id
 import Imports
 import Servant.API
 import Servant.API.Generic
@@ -28,6 +28,7 @@ import Servant.Client.Generic (AsClientT, genericClient)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientFailure, FederatorClient)
+import Wire.API.Federation.Domain (OriginDomainHeader)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
@@ -92,7 +93,14 @@ data Api routes = Api
         :- "federation"
         :> "get-user-clients"
         :> ReqBody '[JSON] GetUserClients
-        :> Post '[JSON] (UserMap (Set PubClient))
+        :> Post '[JSON] (UserMap (Set PubClient)),
+    sendConnectionRequest ::
+      routes
+        :- "federation"
+        :> "send-connection-request"
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] NewConnectionRequest
+        :> Post '[JSON] NewConnectionResponse
   }
   deriving (Generic)
 
@@ -101,6 +109,62 @@ newtype GetUserClients = GetUserClients
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
+
+-- NOTE: ConversationId for remote connections
+--
+-- The plan is to model the connect/one2one conversationId as deterministically derived from
+-- the combination of both userIds and both domains. It may be in the domain
+-- of the sending OR the receiving backend (with a 50/50 probability).
+-- However at the level of the federation API, we are only concerned about
+-- the question of which backend has the authority over the conversationId.
+--
+-- (Backend A should not prescribe backend B to use a certain UUID for its
+-- conversation; as that could lead to a potential malicious override of an
+-- existing conversation)
+--
+-- The deterministic conversation Id should be seen as a 'best effort'
+-- attempt only. (we cannot guarantee a backend won't change the code in the
+-- future)
+
+data NewConnectionRequest = NewConnectionRequest
+  { -- | The 'from' userId is understood to always have the domain of the backend making the connection request
+    ncrFrom :: UserId,
+    -- | The 'to' userId is understood to always have the domain of the receiving backend.
+    ncrTo :: UserId,
+    -- See also NOTE: ConversationId for remote connections
+    --
+    -- In the case where the sending backend is one2one conversation owner,
+    -- scrConversationId will be a Just (and understood to be in the domain of
+    -- the sending backend)
+    -- In the case where the receiving backend is one2one conversation owner,
+    -- this will be a Nothing; and it's up to the receiver to compute
+    -- conversation Id and send it back.
+    --
+    -- If it's in the sending backend's domain, the conversation should exist when
+    -- this request is made; otherwise the receiving backend should create the
+    -- conversation.
+    ncrConversationId :: Maybe ConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionRequest)
+
+newtype NewConnectionResponse = NewConnectionResponse
+  { -- | See also NOTE: ConversationId for remote connections
+    --
+    -- * Nothing when the conversation is hosted on the ConnectionRequest's
+    -- sending backend
+    -- * Just <id> when the conversation has been created on the remote
+    --   (if set, the conversationId is understood to have the domain of the remote backend)
+    nConversationId :: Maybe ConvId
+    -- TODO: do we need another field here to differentiate between
+    --  * a newConnection/conversation was created state
+    --  * a connection-already-existed state
+    -- ?
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
+  deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
 
 clientRoutes :: (MonadError FederationClientFailure m, MonadIO m) => Api (AsClientT (FederatorClient 'Proto.Brig m))
 clientRoutes = genericClient
