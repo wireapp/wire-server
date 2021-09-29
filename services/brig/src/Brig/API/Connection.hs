@@ -22,7 +22,7 @@
 -- User connection logic.
 module Brig.API.Connection
   ( -- * Connections
-    createConnectionToUser,
+    createConnection,
     updateConnection,
     UpdateConnectionsInternal (..),
     updateConnectionInternal,
@@ -64,12 +64,12 @@ import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 type ConnectionM = ExceptT ConnectionError AppIO
 
-createConnectionToUser ::
+createConnection ::
   Local UserId ->
   ConnId ->
   Qualified UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
-createConnectionToUser lusr con target = do
+createConnection lusr con target = do
   let connect =
         foldQualified
           lusr

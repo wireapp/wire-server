@@ -1089,12 +1089,12 @@ createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> H
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
-  API.createConnectionToUser lself conn (unTagged target) !>> connError
+  API.createConnection lself conn (unTagged target) !>> connError
 
 createConnection :: UserId -> ConnId -> Qualified UserId -> Handler (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
   lself <- qualifyLocal self
-  API.createConnectionToUser lself conn target !>> connError
+  API.createConnection lself conn target !>> connError
 
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> Handler (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
