@@ -135,7 +135,7 @@ runTests iConf brigOpts otherArgs = do
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g c f brigTwo galleyTwo
   federationEndpoints <- API.Federation.tests mg b fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
-  internalApi <- API.Internal.tests brigOpts mg b (brig iConf) gd
+  internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"

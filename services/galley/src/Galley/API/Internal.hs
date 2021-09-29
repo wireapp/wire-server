@@ -256,7 +256,7 @@ servantSitemap =
 iGetTeamFeature ::
   forall a.
   Public.KnownTeamFeatureName a =>
-  (Maybe TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  (Features.GetFeatureInternalParam -> Galley (Public.TeamFeatureStatus a)) ->
   TeamId ->
   Galley (Public.TeamFeatureStatus a)
 iGetTeamFeature getter = Features.getFeatureStatus @a getter DontDoAuth

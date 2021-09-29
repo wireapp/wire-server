@@ -125,18 +125,6 @@ instance Cql TeamStatus where
     n -> Left $ "unexpected team-status: " ++ show n
   fromCql _ = Left "team-status: int expected"
 
-instance Cql Public.TeamFeatureStatusValue where
-  ctype = Tagged IntColumn
-
-  fromCql (CqlInt n) = case n of
-    0 -> pure $ Public.TeamFeatureDisabled
-    1 -> pure $ Public.TeamFeatureEnabled
-    _ -> Left "fromCql: Invalid TeamFeatureStatusValue"
-  fromCql _ = Left "fromCql: TeamFeatureStatusValue: CqlInt expected"
-
-  toCql Public.TeamFeatureDisabled = CqlInt 0
-  toCql Public.TeamFeatureEnabled = CqlInt 1
-
 instance Cql TeamSearchVisibility where
   ctype = Tagged IntColumn
 

@@ -126,7 +126,7 @@ mkApp o = do
         (customFormatters :. Servant.EmptyContext)
         ( swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
-            :<|> Servant.hoistServer (Proxy @IAPI.ServantAPI) (toServantHandler e) IAPI.servantSitemap
+            :<|> Servant.hoistServer (Proxy @IAPI.API) (toServantHandler e) IAPI.servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationBrig.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
@@ -134,7 +134,7 @@ mkApp o = do
 type ServantCombinedAPI =
   ( SwaggerDocsAPI
       :<|> ServantAPI
-      :<|> IAPI.ServantAPI
+      :<|> IAPI.API
       :<|> ToServantApi FederationBrig.Api
       :<|> Servant.Raw
   )

@@ -13,6 +13,7 @@ dependencies:
 - containers >=0.5
 - imports
 - types-common >=0.16
+- servant-swagger-ui
 - case-insensitive
 - hscim
 library:

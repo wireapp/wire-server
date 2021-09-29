@@ -5,7 +5,7 @@ Fragment.
 This page is about the yaml files that determine the configuration of
 the Wire backend services.
 
-## Settings
+## Settings in galley
 
 ```
 # [galley.yaml]
@@ -141,6 +141,8 @@ conferenceCalling:
 
 The `conferenceCalling` section is optional in `featureFlags`. If it is omitted then it is assumed to be `enabled`.
 
+See also: conference falling for personal accounts (below).
+
 ### File Sharing
 
 File sharing is enabled by default.  If you want to disable it for all teams, add this to your feature config settings:
@@ -270,3 +272,40 @@ federator:
     clientCertificate: client.pem
     clientPrivateKey: client-key.pem
 ```
+
+## Settings in brig
+
+Some features (as of the time of writing this: only
+`conferenceCalling`) allow to set defaults for personal accounts in
+brig.  Those are taken into account in galley's end-points `GET
+/feature-configs*`.
+
+To be specific:
+
+### Conference Calling
+
+Two values can be configured for personal accounts: a default for when
+the user record contains `null` as feature config, and default that
+should be inserted into the user record when creating new users:
+
+```
+# [brig.yaml]
+settings:
+  setFeatureFlags:
+    conferenceCalling:
+      defaultForNew:
+        status: disabled
+      defaultForNull:
+        status: enabled
+```
+
+You can omit the entire `conferenceCalling` block, but not parts of
+it.  Built-in defaults are as above.
+
+When new users are created, their config will be initialized with
+what's in `defaultForNew`.
+
+When a `null` value is encountered, it is assumed to be
+`defaultForNull`.
+
+(Introduced in https://github.com/wireapp/wire-server/pull/1811.)

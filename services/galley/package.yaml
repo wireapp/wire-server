@@ -19,6 +19,7 @@ dependencies:
 - wire-api
 - wire-api-federation
 - tagged
+- servant-client
 
 library:
   source-dirs: src

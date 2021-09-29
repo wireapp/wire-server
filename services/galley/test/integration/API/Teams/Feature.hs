@@ -384,17 +384,17 @@ testAllFeatures = do
   (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   Util.getAllTeamFeatures member tid !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just expected)
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled {- determined by default in galley -}))
   Util.getAllTeamFeaturesPersonal member !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just expected)
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled {- determined by default in galley -}))
 
   randomPersonalUser <- Util.randomUser
   Util.getAllTeamFeaturesPersonal randomPersonalUser !!! do
     statusCode === const 200
-    responseJsonMaybe === const (Just expected)
+    responseJsonMaybe === const (Just (expected TeamFeatureEnabled {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
-    expected =
+    expected confCalling =
       object
         [ toS TeamFeatureLegalHold .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
           toS TeamFeatureSSO .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
@@ -411,7 +411,7 @@ testAllFeatures = do
               TeamFeatureEnabled
               (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
           toS TeamFeatureConferenceCalling
-            .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled
+            .= Public.TeamFeatureStatusNoConfig confCalling
         ]
     toS :: TeamFeatureName -> Text
     toS = TE.decodeUtf8 . toByteString'

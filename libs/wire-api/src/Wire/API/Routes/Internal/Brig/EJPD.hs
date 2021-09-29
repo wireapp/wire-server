@@ -18,7 +18,7 @@
 -- | Identify users for law enforcement.  (Wire has legal requirements to cooperate with the
 -- authorities.  The wire backend operations team uses this to answer identification requests
 -- manually.)
-module Brig.Types.User.EJPD
+module Wire.API.Routes.Internal.Brig.EJPD
   ( EJPDRequestBody (EJPDRequestBody, ejpdRequestBody),
     EJPDResponseBody (EJPDResponseBody, ejpdResponseBody),
     EJPDResponseItem (EJPDResponseItem, ejpdResponseHandle, ejpdResponsePushTokens, ejpdResponseContacts),

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 40cef77c160c1ffa8500043f465ab4ee307cf751450745d55010ef637b03b152
+-- hash: d5382afdfc45e225067c7848e99d40349897ddd6eeb69be59038373e57ada716
 
 name:           brig
 version:        1.35.0
@@ -268,6 +268,7 @@ executable brig-integration
       API.Calling
       API.Federation
       API.Internal
+      API.Internal.Util
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -318,6 +319,7 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
+    , cql-io
     , data-timeout
     , email-validate
     , exceptions
@@ -436,6 +438,7 @@ executable brig-schema
       V63_AddUsersPendingActivation
       V64_ClientCapabilities
       V65_FederatedConnections
+      V66_PersonalFeatureConfCallInit
       V9
       Paths_brig
   hs-source-dirs:
@@ -461,6 +464,7 @@ test-suite brig-tests
       Test.Brig.API.Error
       Test.Brig.Calling
       Test.Brig.Calling.Internal
+      Test.Brig.Roundtrip
       Test.Brig.User.Search.Index.Types
       Paths_brig
   hs-source-dirs:
@@ -484,6 +488,7 @@ test-suite brig-tests
     , servant-client-core
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , time
     , tinylog
     , types-common
