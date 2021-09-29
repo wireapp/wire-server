@@ -75,10 +75,10 @@ import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
-import Spar.Sem.Random (Random)
-import qualified Spar.Sem.Random as Random
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
+import Spar.Sem.Random (Random)
+import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -334,7 +334,6 @@ idpDelete ::
        Error SparError
      ]
     r =>
->>>>>>> 0404e6650 (make format)
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->

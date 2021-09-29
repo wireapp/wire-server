@@ -86,8 +86,8 @@ import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
-import Spar.Sem.Random (Random)
 import Spar.Sem.Logger (Logger)
+import Spar.Sem.Random (Random)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
