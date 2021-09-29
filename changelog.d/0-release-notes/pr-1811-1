@@ -1,0 +1,1 @@
+The conference call initiation feature can now be configured for personal accounts in `brig.yaml`.  `enabled` is the default and the previous behavior.  If you want to change that, read [/docs/reference/config-options.md#conference-calling-1](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#conference-calling-1) (#1811)
