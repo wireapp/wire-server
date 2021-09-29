@@ -86,6 +86,7 @@ import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Random (Random)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
@@ -108,7 +109,7 @@ configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
 apiScim ::
-  Members '[Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, Error SparError, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   ServerT APIScim (Spar r)
 apiScim =
   hoistScim (toServant (server configuration))

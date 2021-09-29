@@ -36,11 +36,10 @@ where
 
 import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
-import Data.Id (ScimTokenId, UserId, randomId)
+import Data.Id (ScimTokenId, UserId)
 import Data.String.Conversions (cs)
 import Data.Time (getCurrentTime)
 import Imports
-import OpenSSL.Random (randBytes)
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
 
@@ -55,6 +54,8 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Random (Random)
+import qualified Spar.Sem.Random as Random
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
@@ -82,7 +83,7 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
 apiScimToken ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
   ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
@@ -94,7 +95,7 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   forall r.
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
+  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -112,8 +113,8 @@ createScimToken zusr CreateScimToken {..} = do
 
   let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar r CreateScimTokenResponse
       caseOneOrNoIdP midpid = do
-        token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
-        tokenid <- randomId
+        token <- liftSem $ ScimToken . cs . ES.encode <$> Random.bytes 32
+        tokenid <- liftSem $ Random.scimTokenId
         now <- liftIO getCurrentTime
         let info =
               ScimTokenInfo

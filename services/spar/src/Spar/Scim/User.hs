@@ -60,7 +60,6 @@ import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
@@ -73,6 +72,8 @@ import qualified Spar.Scim.Types as ST
 import Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Random (Random)
+import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -104,7 +105,7 @@ import qualified Wire.API.User.Scim as ST
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r => Scim.UserDB ST.SparTag (Spar r) where
+instance Members '[Random, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r => Scim.UserDB ST.SparTag (Spar r) where
   getUsers ::
     ScimTokenInfo ->
     Maybe Scim.Filter ->
@@ -372,7 +373,7 @@ veidEmail (ST.EmailOnly email) = Just email
 createValidScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Spar r)) =>
-  Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, SAMLUserStore] r =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
@@ -396,9 +397,9 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
           buid <-
             ST.runValidExternalId
               ( \uref ->
-                  do
-                    uid <- liftIO $ Id <$> UUID.nextRandom
-                    liftSem $ BrigAccess.createSAML uref uid stiTeam name ManagedByScim
+                  liftSem $ do
+                    uid <- Id <$> Random.uuid
+                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim
               )
               ( \email -> do
                   liftSem $ BrigAccess.createNoSAML email stiTeam name
@@ -455,7 +456,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
   forall m r.
-  Members '[GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, ScimExternalIdStore, ScimUserTimesStore, IdPEffect.IdP, SAMLUserStore] r =>
   (m ~ Scim.ScimHandler (Spar r)) =>
   ScimTokenInfo ->
   UserId ->

@@ -59,7 +59,6 @@ import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Lazy as LT
-import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -114,6 +113,9 @@ import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdP (GetIdPResult (..))
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.IdP.Cassandra (idPToCassandra)
+import Spar.Sem.Random (Random)
+import qualified Spar.Sem.Random as Random
+import Spar.Sem.Random.IO (randomToIO)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Cassandra (interpretClientToIO, samlUserStoreToCassandra)
@@ -175,7 +177,8 @@ instance HasConfig (Spar r) where
 
 instance HasNow (Spar r)
 
-instance HasCreateUUID (Spar r)
+instance Member Random r => HasCreateUUID (Spar r) where
+  createUUID = liftSem Random.uuid
 
 instance HasLogger (Spar r) where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
@@ -336,9 +339,9 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser :: Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
 autoprovisionSamlUser mbteam suid = do
-  buid <- Id <$> liftIO UUID.nextRandom
+  buid <- liftSem $ Id <$> Random.uuid
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
@@ -430,6 +433,7 @@ instance
            ReaderEff.Reader Opts,
            Error TTLError,
            Error SparError,
+           Random,
            Embed IO,
            Final IO
          ]
@@ -448,23 +452,24 @@ instance
           liftIO $
             runFinal $
               embedToFinal @IO $
-                runError @SparError $
-                  ttlErrorToSparError $
-                    ReaderEff.runReader (sparCtxOpts ctx) $
-                      galleyAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
-                        brigAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
-                          interpretClientToIO (sparCtxCas ctx) $
-                            samlUserStoreToCassandra @Cas.Client $
-                              idPToCassandra @Cas.Client $
-                                defaultSsoCodeToCassandra $
-                                  scimTokenStoreToCassandra $
-                                    scimUserTimesStoreToCassandra $
-                                      scimExternalIdStoreToCassandra $
-                                        aReqIDStoreToCassandra $
-                                          assIDStoreToCassandra $
-                                            bindCookieStoreToCassandra $
-                                              runExceptT $
-                                                runReaderT action ctx
+                randomToIO $
+                  runError @SparError $
+                    ttlErrorToSparError $
+                      ReaderEff.runReader (sparCtxOpts ctx) $
+                        galleyAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx) $
+                          brigAccessToHttp (sparCtxLogger ctx) (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx) $
+                            interpretClientToIO (sparCtxCas ctx) $
+                              samlUserStoreToCassandra @Cas.Client $
+                                idPToCassandra @Cas.Client $
+                                  defaultSsoCodeToCassandra $
+                                    scimTokenStoreToCassandra $
+                                      scimUserTimesStoreToCassandra $
+                                        scimExternalIdStoreToCassandra $
+                                          aReqIDStoreToCassandra $
+                                            assIDStoreToCassandra $
+                                              bindCookieStoreToCassandra $
+                                                runExceptT $
+                                                  runReaderT action ctx
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
@@ -481,7 +486,7 @@ instance
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -513,7 +518,7 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -558,7 +563,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members '[GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members '[Random, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
