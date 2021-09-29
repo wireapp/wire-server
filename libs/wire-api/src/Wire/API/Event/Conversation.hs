@@ -64,7 +64,7 @@ module Wire.API.Event.Conversation
     modelConnectEvent,
     modelConversationReceiptModeUpdateEvent,
     modelConversationNameUpdateEvent,
-    modelConversationAccessDataEvent,
+    modelConversationAccessUpdateEvent,
     modelConversationMessageTimerUpdateEvent,
     modelConversationCodeUpdateEvent,
     modelConversationCodeDeleteEvent,
@@ -133,7 +133,7 @@ modelEvent = Doc.defineModel "Event" $ do
       modelConnectEvent,
       modelConversationReceiptModeUpdateEvent,
       modelConversationNameUpdateEvent,
-      modelConversationAccessDataEvent,
+      modelConversationAccessUpdateEvent,
       modelConversationMessageTimerUpdateEvent,
       modelConversationCodeUpdateEvent,
       modelConversationCodeDeleteEvent,
@@ -249,8 +249,8 @@ modelConversationNameUpdateEvent = Doc.defineModel "ConversationNameUpdateEvent"
   Doc.description "conversation update event"
   Doc.property "data" (Doc.ref modelConversationUpdateName) $ Doc.description "conversation name"
 
-modelConversationAccessDataEvent :: Doc.Model
-modelConversationAccessDataEvent = Doc.defineModel "ConversationAccessDataEvent" $ do
+modelConversationAccessUpdateEvent :: Doc.Model
+modelConversationAccessUpdateEvent = Doc.defineModel "ConversationAccessUpdateEvent" $ do
   Doc.description "conversation access update event"
   Doc.property "data" (Doc.ref modelConversationAccessData) $ Doc.description "conversation access data"
 

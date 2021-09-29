@@ -83,7 +83,7 @@ models =
     Event.Conversation.modelConnectEvent,
     Event.Conversation.modelConversationReceiptModeUpdateEvent,
     Event.Conversation.modelConversationNameUpdateEvent,
-    Event.Conversation.modelConversationAccessDataEvent,
+    Event.Conversation.modelConversationAccessUpdateEvent,
     Event.Conversation.modelConversationMessageTimerUpdateEvent,
     Event.Conversation.modelConversationCodeUpdateEvent,
     Event.Conversation.modelConversationCodeDeleteEvent,
