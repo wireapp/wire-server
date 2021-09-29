@@ -11,7 +11,6 @@ where
 
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import Bilge
-import qualified Brig.API.Internal as IAPI
 import Brig.Types
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
@@ -24,14 +23,14 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as T
 import Imports
-import Servant.API ((:<|>) ((:<|>)))
+import Servant.API ((:>))
 import Servant.API.ContentTypes (NoContent)
 import qualified Servant.Client as Client
 import System.Random (randomIO)
 import Util
 import Util.Options (Endpoint, epHost, epPort)
 import qualified Wire.API.Push.V2.Token as PushToken
-import Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig as IAPI
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Team
 
@@ -101,14 +100,16 @@ scaffolding brig gundeck = do
       return $ PushToken.pushToken PushToken.APNSSandbox (PushToken.AppName "test") tok c
 
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
+ejpdRequestClientM = Client.client (Proxy @("i" :> IAPI.EJPDRequest))
+
 getAccountFeatureConfigClientM :: UserId -> Client.ClientM Public.TeamFeatureStatusNoConfig
+getAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.GetAccountFeatureConfig))
+
 putAccountFeatureConfigClientM :: UserId -> Public.TeamFeatureStatusNoConfig -> Client.ClientM NoContent
+putAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.PutAccountFeatureConfig))
+
 deleteAccountFeatureConfigClientM :: UserId -> Client.ClientM NoContent
-( ejpdRequestClientM
-    :<|> getAccountFeatureConfigClientM
-    :<|> putAccountFeatureConfigClientM
-    :<|> deleteAccountFeatureConfigClientM
-  ) = Client.client (Proxy @IAPI.API)
+deleteAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.DeleteAccountFeatureConfig))
 
 ejpdRequestClient :: (HasCallStack, MonadThrow m, MonadIO m, MonadHttp m) => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
 ejpdRequestClient brigep mgr includeContacts ejpdReqBody = runHereClientM brigep mgr (ejpdRequestClientM includeContacts ejpdReqBody) >>= either throwM pure

@@ -92,13 +92,13 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
             >>= either (liftIO . throwIO . ErrorCall . ("putAccountFeatureConfigClient: " <>) . show) pure
 
         mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
-        liftIO $ assertEqual "1" (Right status) mbStatus'
+        liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right status) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
-        liftIO $ assertEqual "2" status (readFeatureConfigs featureConfigs)
+        liftIO $ assertEqual "GET /feature-configs" status (readFeatureConfigs featureConfigs)
 
         featureConfigsConfCalling <- getFeatureConfig ApiFt.TeamFeatureConferenceCalling galley uid
-        liftIO $ assertEqual "3" status (responseJsonUnsafe featureConfigsConfCalling)
+        liftIO $ assertEqual "GET /feature-configs/conferenceCalling" status (responseJsonUnsafe featureConfigsConfCalling)
 
       check' :: m ()
       check' = do
@@ -133,13 +133,13 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
           liftIO $ assertEqual mempty Nothing cassandraResp
 
         mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
-        liftIO $ assertEqual "1" (Right defaultIfNull) mbStatus'
+        liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right defaultIfNull) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
-        liftIO $ assertEqual "2" defaultIfNull (readFeatureConfigs featureConfigs)
+        liftIO $ assertEqual "GET /feature-configs" defaultIfNull (readFeatureConfigs featureConfigs)
 
         featureConfigsConfCalling <- getFeatureConfig ApiFt.TeamFeatureConferenceCalling galley uid
-        liftIO $ assertEqual "3" defaultIfNull (responseJsonUnsafe featureConfigsConfCalling)
+        liftIO $ assertEqual "GET /feature-configs/conferenceCalling" defaultIfNull (responseJsonUnsafe featureConfigsConfCalling)
 
       readFeatureConfigs :: HasCallStack => ResponseLBS -> ApiFt.TeamFeatureStatusNoConfig
       readFeatureConfigs =

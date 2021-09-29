@@ -21,7 +21,7 @@ module Util.Email where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Lens ((^.), (^?))
+import Control.Lens (view, (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -124,7 +124,7 @@ checkEmail ::
   Maybe Email ->
   TestSpar ()
 checkEmail uid expectedEmail = do
-  brig <- asks (^. teBrig)
+  brig <- view teBrig
   call $
     get (brig . path "/self" . zUser uid) !!! do
       const 200 === statusCode
@@ -157,7 +157,7 @@ getActivationCode brig ep = do
 
 enableSamlEmailValidation :: HasCallStack => TeamId -> TestSpar ()
 enableSamlEmailValidation tid = do
-  galley <- asks (^. teGalley)
+  galley <- view teGalley
   let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig Feature.TeamFeatureEnabled)
       p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
   call req !!! const 200 === statusCode

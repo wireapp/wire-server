@@ -43,7 +43,7 @@ where
 import Bilge
 import Cassandra as Cas
 import Control.Exception
-import Control.Lens (makeLenses, (^.))
+import Control.Lens (makeLenses, view)
 import Crypto.Random.Types (MonadRandom (..))
 import Data.Aeson
 import qualified Data.Aeson as Aeson
@@ -132,5 +132,5 @@ _unitTestTestErrorLabel = do
 -- improvement that we can get out of this.)
 skipIdPAPIVersions :: (MonadIO m, MonadReader TestEnv m) => [WireIdPAPIVersion] -> m ()
 skipIdPAPIVersions skip = do
-  asks (^. teWireIdPAPIVersion) >>= \vers -> when (vers `elem` skip) . liftIO $ do
+  view teWireIdPAPIVersion >>= \vers -> when (vers `elem` skip) . liftIO $ do
     pendingWith $ "skipping " <> show vers <> " for this test case (behavior covered by other versions)"

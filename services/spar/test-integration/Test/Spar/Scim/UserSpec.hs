@@ -581,7 +581,7 @@ testRichInfo = do
                                                       }]
                                                     }|]
 
-  brig <- asks (view teBrig)
+  brig <- view teBrig
   -- set things up
   (user, _) <- randomScimUserWithSubjectAndRichInfo richInfo
   (userOverwritten, _) <- randomScimUserWithSubjectAndRichInfo richInfoOverwritten
@@ -767,7 +767,7 @@ testCreateUserTimeout = do
       tryquery (filterBy "externalId" $ fromEmail email)
 
     waitUserExpiration = do
-      timeoutSecs <- asks (cfgBrigSettingsTeamInvitationTimeout . view teTstOpts)
+      timeoutSecs <- view (teTstOpts . to cfgBrigSettingsTeamInvitationTimeout)
       Control.Exception.assert (timeoutSecs < 30) $ do
         threadDelay $ (timeoutSecs + 1) * 1_000_000
 
@@ -797,7 +797,7 @@ specListUsers = describe "GET /Users" $ do
 -- via SCIM are not listed.
 testListProvisionedUsers :: TestSpar ()
 testListProvisionedUsers = do
-  spar <- asks (^. teSpar)
+  spar <- view teSpar
   (tok, _) <- registerIdPAndScimToken
   listUsers_ (Just tok) Nothing spar !!! do
     const 400 === statusCode
@@ -1203,7 +1203,7 @@ testScimSideIsUpdated = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
+  richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1258,7 +1258,7 @@ testUpdateSameHandle = do
   storedUser' <- getUser tok userid
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
+  richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1700,7 +1700,7 @@ specEmailValidation = do
               mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
           uid :: UserId <-
             getUserIdViaRef uref
-          brig <- asks (^. teBrig)
+          brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
           -- it doesn't if the feature is disabled.
           if enabled

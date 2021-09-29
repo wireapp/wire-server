@@ -71,7 +71,7 @@ So usually with these safeguards in place, and backwards-compatible changes, we 
 * At time t=0, old schema, old code serves traffic; all good.
 * At time t=1, new schema, old code serves traffic: all good since backwards compatible.
 * At time t=2, new schema, old code AND new code serve traffic: all good since backwards compatible.
-* At time t=3, new schema, new code serves traffic: all good since backwards compatible.
+* At time t=3, new schema, new code serves traffic: all good!
 
 If this order (apply schema first; then deploy code) is not safeguarded, then there will be code running in e.g. production which `SELECT my_new_field FROM my_new_table` even though this doesn't yet exist, leading to 500 server errors for as long as the mismatch between applied schema and code version persists.
 

@@ -16,7 +16,7 @@
 ## Features
 
 * Disallow changing phone number to a black listed phone number (#1758)
-* Support using a single IDP with a single EntityID (aka issuer ID) to set up two teams. Required to support multiple teams in environments where the IDP software cannot present anything but one EntityID (E.G.: DualShield). (#1755)
+* Support using a single IDP with a single EntityID (aka issuer ID) to set up two teams. Sets up a migration, and makes teamID + EntityID unique, rather than relying on EntityID to be unique. Required to support multiple teams in environments where the IDP software cannot present anything but one EntityID (E.G.: DualShield). (#1755)
 
 ## Documentation
 

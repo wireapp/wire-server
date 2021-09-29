@@ -219,6 +219,8 @@ setFeatureStatusNoConfig applyState tid status = do
     Event.Event Event.Update (Public.knownTeamFeatureName @a) (EdFeatureWithoutConfigChanged newStatus)
   pure newStatus
 
+-- | FUTUREWORK(fisx): (thanks pcapriotti) this should probably be a type family dependent on
+-- the feature flag, so that we get more type safety.
 type GetFeatureInternalParam = Either (Maybe UserId) TeamId
 
 getSSOStatusInternal :: GetFeatureInternalParam -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
