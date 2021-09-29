@@ -50,7 +50,7 @@ checkedConvSize x = do
   o <- view options
   let minV :: Integer = 0
       limit = o ^. optSettings . setMaxConvSize - 1
-  if length x < fromIntegral limit
+  if length x <= fromIntegral limit
     then return (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
