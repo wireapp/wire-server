@@ -1,31 +1,39 @@
-cabal-version:       >=1.10
+cabal-version: 1.12
 
-name:                rex
-version:             0.3.0
-synopsis:            Scrape and expose restund metrics for prometheus
-description:         @rex@ = @restund-exporter@ in prometheus jargon
-category:            Network
-author:              Wire Swiss GmbH
-maintainer:          Wire Swiss GmbH <backend@wire.com>
-license:             AGPL-3
-license-file:        LICENSE
-build-type:          Simple
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 2ec1bf7c5daf9330a7e4dc5dc5fe7b9f32a9e6e79a803ce304fd8b44d10cf34b
+
+name:           rex
+version:        0.3.0
+synopsis:       Scrape and expose restund metrics for prometheus
+description:    rex short for "restund-exporter" in prometheus jargon
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
 
 flag static
-    Description: Enable static linking
-    Default:     False
+  description: Enable static linking
+  manual: True
+  default: False
 
 executable rex
-  main-is:
-    Main.hs
-
+  main-is: Main.hs
+  other-modules:
+      Paths_rex
+  ghc-options: -Wall -O1 -funbox-small-strict-fields
   build-depends:
       async
     , attoparsec
-    , base           == 4.*
+    , base
     , bytestring
     , clock
-    , dns            >= 2.0.8
+    , dns
     , exceptions
     , http-types
     , iproute
@@ -38,12 +46,6 @@ executable rex
     , unordered-containers
     , wai
     , warp
-
-  ghc-options:
-    -Wall -O1 -funbox-small-strict-fields
-
   if flag(static)
     ld-options: -static
-
-  default-language:
-    Haskell2010
+  default-language: Haskell2010

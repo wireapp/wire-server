@@ -1,0 +1,46 @@
+name:                rex
+version:             0.3.0
+synopsis: Scrape and expose restund metrics for prometheus
+description:         rex short for "restund-exporter" in prometheus jargon
+category:            Network
+author:              Wire Swiss GmbH
+maintainer:          Wire Swiss GmbH <backend@wire.com>
+license:             AGPL-3
+license-file:        LICENSE
+
+flags:
+  static:
+    description: Enable static linking
+    manual: true
+    default: false
+
+executables:
+  rex:
+    main: Main.hs
+    ghc-options:
+      - -Wall
+      - -O1
+      - -funbox-small-strict-fields
+    when:
+    - condition: flag(static)
+      ld-options: -static
+
+    dependencies:
+      - async
+      - attoparsec
+      - base
+      - bytestring
+      - clock
+      - dns
+      - exceptions
+      - http-types
+      - iproute
+      - mtl
+      - network
+      - optparse-applicative
+      - prometheus
+      - text
+      - tinylog
+      - unordered-containers
+      - wai
+      - warp

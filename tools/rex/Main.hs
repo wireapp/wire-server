@@ -63,6 +63,7 @@ import qualified System.Metrics.Prometheus.Metric.Histogram as Histo
 import System.Metrics.Prometheus.MetricId
 import System.Metrics.Prometheus.Registry (RegistrySample)
 import System.Timeout (timeout)
+import Prelude
 
 data Opts = Opts
   { optExposePort :: !Word16,
