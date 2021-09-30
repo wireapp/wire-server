@@ -72,6 +72,7 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about message timer update" notifyMessageTimer,
       test s "POST /federation/on-conversation-updated : Notify local user about member update" notifyMemberUpdate,
       test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update" notifyReceiptMode,
+      test s "POST /federation/on-conversation-updated : Notify local user about access update" notifyAccess,
       test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage
@@ -364,6 +365,15 @@ notifyReceiptMode = do
     (ConversationActionReceiptModeUpdate d)
     ConvReceiptModeUpdate
     (EdConvReceiptModeUpdate d)
+
+notifyAccess :: TestM ()
+notifyAccess = do
+  let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) TeamAccessRole
+  notifyUpdate
+    []
+    (ConversationActionAccessUpdate d)
+    ConvAccessUpdate
+    (EdConvAccessUpdate d)
 
 notifyMemberUpdate :: TestM ()
 notifyMemberUpdate = do

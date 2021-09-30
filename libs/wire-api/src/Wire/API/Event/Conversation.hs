@@ -51,7 +51,7 @@ module Wire.API.Event.Conversation
     -- * re-exports
     ConversationReceiptModeUpdate (..),
     ConversationRename (..),
-    ConversationAccessUpdate (..),
+    ConversationAccessData (..),
     ConversationMessageTimerUpdate (..),
     ConversationCode (..),
     Conversation (..),
@@ -219,7 +219,7 @@ data EventData
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
   | EdConvDelete
-  | EdConvAccessUpdate ConversationAccessUpdate
+  | EdConvAccessUpdate ConversationAccessData
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
   | EdConvCodeUpdate ConversationCode
   | EdConvCodeDelete
@@ -252,7 +252,7 @@ modelConversationNameUpdateEvent = Doc.defineModel "ConversationNameUpdateEvent"
 modelConversationAccessUpdateEvent :: Doc.Model
 modelConversationAccessUpdateEvent = Doc.defineModel "ConversationAccessUpdateEvent" $ do
   Doc.description "conversation access update event"
-  Doc.property "data" (Doc.ref modelConversationAccessUpdate) $ Doc.description "conversation access data"
+  Doc.property "data" (Doc.ref modelConversationAccessData) $ Doc.description "conversation access data"
 
 modelConversationMessageTimerUpdateEvent :: Doc.Model
 modelConversationMessageTimerUpdateEvent = Doc.defineModel "ConversationMessageTimerUpdateEvent" $ do

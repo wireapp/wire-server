@@ -157,6 +157,28 @@ ensureConversationActionAllowed action conv self = do
   -- extra action-specific checks
   case action of
     ConversationActionAddMembers _ role -> ensureConvRoleNotElevated self role
+    ConversationActionAccessUpdate target -> do
+      -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
+      -- so on; users are not supposed to be able to make other conversations
+      -- have 'PrivateAccessRole'
+      when
+        ( PrivateAccess `elem` Public.cupAccess target
+            || PrivateAccessRole == Public.cupAccessRole target
+        )
+        $ throwErrorDescriptionType @InvalidTargetAccess
+      -- Team conversations incur another round of checks
+      case Data.convTeam conv of
+        Just tid -> do
+          -- Access mode change for managed conversation is not allowed
+          tcv <- Data.teamConversation tid (Data.convId conv)
+          when (maybe False (view managedConversation) tcv) $
+            throwM invalidManagedConvOp
+          -- Access mode change might result in members being removed from the
+          -- conversation, so the user must have the necessary permission flag
+          ensureActionAllowed RemoveConversationMember self
+        Nothing ->
+          when (Public.cupAccessRole target == TeamAccessRole) $
+            throwErrorDescriptionType @InvalidTargetAccess
     _ -> pure ()
 
 ensureGroupConvThrowing :: Data.Conversation -> Galley ()

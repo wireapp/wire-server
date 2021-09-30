@@ -65,7 +65,7 @@ module Wire.API.Conversation
 
     -- * update
     ConversationRename (..),
-    ConversationAccessUpdate (..),
+    ConversationAccessData (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
 
@@ -80,7 +80,7 @@ module Wire.API.Conversation
     modelNewConversation,
     modelTeamInfo,
     modelConversationUpdateName,
-    modelConversationAccessUpdate,
+    modelConversationAccessData,
     modelConversationReceiptModeUpdate,
     modelConversationMessageTimerUpdate,
     typeConversationType,
@@ -791,23 +791,23 @@ modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
   Doc.property "name" Doc.string' $
     Doc.description "The new conversation name"
 
-data ConversationAccessUpdate = ConversationAccessUpdate
-  { cupAccess :: [Access],
+data ConversationAccessData = ConversationAccessData
+  { cupAccess :: Set Access,
     cupAccessRole :: AccessRole
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationAccessUpdate)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationAccessUpdate
+  deriving (Arbitrary) via (GenericUniform ConversationAccessData)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationAccessData
 
-instance ToSchema ConversationAccessUpdate where
+instance ToSchema ConversationAccessData where
   schema =
-    object "ConversationAccessUpdate" $
-      ConversationAccessUpdate
-        <$> cupAccess .= field "access" (array schema)
+    object "ConversationAccessData" $
+      ConversationAccessData
+        <$> cupAccess .= field "access" (set schema)
         <*> cupAccessRole .= field "access_role" schema
 
-modelConversationAccessUpdate :: Doc.Model
-modelConversationAccessUpdate = Doc.defineModel "ConversationAccessUpdate" $ do
+modelConversationAccessData :: Doc.Model
+modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do
   Doc.description "Contains conversation properties to update"
   Doc.property "access" (Doc.unique $ Doc.array typeAccess) $
     Doc.description "List of conversation access modes."

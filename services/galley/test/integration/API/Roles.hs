@@ -29,6 +29,7 @@ import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Qualified
+import qualified Data.Set as Set
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Gundeck.Types.Notification (Notification (..))
@@ -52,6 +53,7 @@ tests s =
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
       test s "conversation roles member (and upgrade)" handleConversationRoleMember,
       test s "conversation role update with remote users present" roleUpdateWithRemotes,
+      test s "conversation access update with remote users present" accessUpdateWithRemotes,
       test s "conversation role update of remote member" roleUpdateRemoteMember,
       test s "get all conversation roles" testAllConversationRoles
     ]
@@ -285,6 +287,51 @@ roleUpdateWithRemotes = do
       evtFrom e @?= qbob
       evtData e @?= EdMemberUpdate mu
 
+accessUpdateWithRemotes :: TestM ()
+accessUpdateWithRemotes = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  qcharlie <- randomQualifiedUser
+  let bob = qUnqualified qbob
+      charlie = qUnqualified qcharlie
+
+  connectUsers bob (singleton charlie)
+  resp <-
+    postConvWithRemoteUser
+      remoteDomain
+      (mkProfile qalice (Name "Alice"))
+      bob
+      [qalice, qcharlie]
+  let qconv = decodeQualifiedConvId resp
+
+  opts <- view tsGConf
+  let access = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
+  WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
+    (_, requests) <-
+      withTempMockFederator opts remoteDomain (const ()) $
+        putQualifiedAccessUpdate bob qconv access
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      F.domain req @?= domainText remoteDomain
+      fmap F.component (F.request req) @?= Just F.Galley
+      fmap F.path (F.request req) @?= Just "/federation/on-conversation-updated"
+      Just (Right cu) <- pure $ fmap (eitherDecode . LBS.fromStrict . F.body) (F.request req)
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu @?= ConversationActionAccessUpdate access
+      F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
+
+    liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvAccessUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdConvAccessUpdate access
+
 -- | Given an admin, another admin and a member run all
 --   the necessary checks targeting the admin
 wireAdminChecks ::
@@ -319,9 +366,9 @@ wireAdminChecks cid admin otherAdmin mem = do
   putMessageTimerUpdate admin cid (ConversationMessageTimerUpdate $ Just 2000) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 0) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 1) !!! assertActionSucceeded
-  let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   putAccessUpdate admin cid nonActivatedAccess !!! assertActionSucceeded
-  let activatedAccess = ConversationAccessUpdate [InviteAccess] NonActivatedAccessRole
+  let activatedAccess = ConversationAccessData (Set.singleton InviteAccess) NonActivatedAccessRole
   putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
@@ -364,7 +411,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- No updates for message timer, receipt mode or access
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
-  let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
+  let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) NonActivatedAccessRole
   putAccessUpdate mem cid nonActivatedAccess !!! assertActionDenied
   -- Finally, you can still do the following actions:
 

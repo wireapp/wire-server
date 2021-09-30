@@ -56,6 +56,7 @@ module Galley.Data
     -- * Conversations
     Conversation (..),
     convMetadata,
+    convAccessData,
     acceptConnect,
     conversation,
     conversationIdsFrom,
@@ -709,8 +710,10 @@ createOne2OneConversation loc a b name ti = do
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
 
-updateConversationAccess :: MonadClient m => ConvId -> Set.Set Access -> AccessRole -> m ()
-updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
+updateConversationAccess :: MonadClient m => ConvId -> ConversationAccessData -> m ()
+updateConversationAccess cid (ConversationAccessData acc role) =
+  retry x5 $
+    write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
 
 updateConversationReceiptMode :: MonadClient m => ConvId -> ReceiptMode -> m ()
 updateConversationReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params Quorum (receiptMode, cid))
@@ -779,6 +782,12 @@ convMetadata localDomain c =
     (convTeam c)
     (convMessageTimer c)
     (convReceiptMode c)
+
+convAccessData :: Conversation -> ConversationAccessData
+convAccessData conv =
+  ConversationAccessData
+    (Set.fromList (convAccess conv))
+    (convAccessRole conv)
 
 defAccess :: ConvType -> Maybe (Set Access) -> [Access]
 defAccess SelfConv Nothing = [PrivateAccess]

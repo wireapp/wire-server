@@ -43,6 +43,7 @@ data ConversationAction
   | ConversationActionMessageTimerUpdate ConversationMessageTimerUpdate
   | ConversationActionReceiptModeUpdate ConversationReceiptModeUpdate
   | ConversationActionMemberUpdate (Qualified UserId) OtherMemberUpdate
+  | ConversationActionAccessUpdate ConversationAccessData
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationAction)
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationAction)
@@ -68,6 +69,8 @@ conversationActionToEvent now quid qcnv (ConversationActionReceiptModeUpdate upd
 conversationActionToEvent now quid qcnv (ConversationActionMemberUpdate target (OtherMemberUpdate role)) =
   let update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role
    in Event MemberStateUpdate qcnv quid now (EdMemberUpdate update)
+conversationActionToEvent now quid qcnv (ConversationActionAccessUpdate update) =
+  Event ConvAccessUpdate qcnv quid now (EdConvAccessUpdate update)
 
 conversationActionTag :: Qualified UserId -> ConversationAction -> Action
 conversationActionTag _ (ConversationActionAddMembers _ _) = AddConversationMember
@@ -78,3 +81,4 @@ conversationActionTag _ (ConversationActionRename _) = ModifyConversationName
 conversationActionTag _ (ConversationActionMessageTimerUpdate _) = ModifyConversationMessageTimer
 conversationActionTag _ (ConversationActionReceiptModeUpdate _) = ModifyConversationReceiptMode
 conversationActionTag _ (ConversationActionMemberUpdate _ _) = ModifyOtherConversationMember
+conversationActionTag _ (ConversationActionAccessUpdate _) = ModifyConversationAccess
