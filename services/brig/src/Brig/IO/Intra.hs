@@ -288,7 +288,7 @@ rawPush (toList -> events) usrs orig route conn = do
           g
           ( method POST
               . path "/i/push/v2"
-              . zUser orig
+              . zUser orig -- FUTUREWORK: Remove, because gundeck handler ignores this.
               . json (map (mkPush rcps . snd) events)
               . expect2xx
           )
