@@ -33,6 +33,8 @@ module Brig.API.Connection
   )
 where
 
+import Brig.API.Connection.Remote
+import Brig.API.Connection.Util
 import Brig.API.Error (errorDescriptionTypeToWai)
 import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
@@ -59,10 +61,7 @@ import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.ErrorDescription
-import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
-
-type ConnectionM = ExceptT ConnectionError AppIO
 
 ensureIsActivated :: Local x -> Qualified UserId -> MaybeT AppIO ()
 ensureIsActivated loc qusr = do
@@ -77,7 +76,7 @@ ensureIsActivated loc qusr = do
 
 ensureNotSameTeam :: Local UserId -> Qualified UserId -> ConnectionM ()
 ensureNotSameTeam self target = do
-  selfTeam <- Intra.getTeamId (lUnqualified self)
+  selfTeam <- lift $ Intra.getTeamId (lUnqualified self)
   targetTeam <-
     lift $
       foldQualified
@@ -85,7 +84,7 @@ ensureNotSameTeam self target = do
         (Intra.getTeamId . lUnqualified)
         (const (pure Nothing))
         target
-  when (isJust selfTeam && selfTeam == crTeam) $
+  when (isJust selfTeam && selfTeam == targetTeam) $
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
@@ -93,42 +92,23 @@ createConnection ::
   ConnId ->
   Qualified UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
-createConnection lusr con target = do
+createConnection self con target = do
+  -- basic checks: no need to distinguish between local and remote at this point
   when (unTagged self == target) $
     throwE (InvalidUser target)
   noteT ConnectNoIdentity $
-    ensureIsActivated self
+    ensureIsActivated self (unTagged self)
   noteT (InvalidUser target) $
-    ensureIsActivated target
+    ensureIsActivated self target
   checkLegalholdPolicyConflictQualified self target
   ensureNotSameTeam self target
-  -- the action that we take only depends on the local status of the connection
-  connection <- lift $ Data.lookupConnection self target
-  case fmap ucStatus s2o of
-    Nothing -> do
-      checkLimit self
-      Created <$> insert connection
-    Just Sent -> resend
-    Just Pending -> accept
-    Just MissingLegalholdConsent -> blocked
-    Just Blocked -> blocked
-    Just Accepted -> unchanged
-    Just Cancelled -> cancel
-  where
-    insert :: Maybe UserConnection -> ExceptT ConnectionError AppIO UserConnection
-    insert connection = lift $ do
-      Log.info $
-        logConnection (lUnqualified self) target
-          . msg (val "Creating connection")
-      qcnv <- Intra.createConnectConv self (unTagged target) Nothing (Just conn)
-      s2o' <- Data.insertConnection self (unTagged target) SentWithHistory qcnv
-      o2s' <- Data.insertConnection target (unTagged self) PendingWithHistory qcnv
-      e2o <-
-        ConnectionUpdated o2s' (ucStatus <$> o2s)
-          <$> Data.lookupName (lUnqualified self)
-      let e2s = ConnectionUpdated s2o' (ucStatus <$> connection) Nothing
-      mapM_ (Intra.onConnectionEvent (lUnqualified self) (Just conn)) [e2o, e2s]
-      return s2o'
+
+  -- branch according to whether we are connecting to a local or remote user
+  foldQualified
+    self
+    (createConnectionToLocalUser self con)
+    (createConnectionToRemoteUser self con)
+    target
 
 createConnectionToLocalUser ::
   Local UserId ->
@@ -136,20 +116,6 @@ createConnectionToLocalUser ::
   Local UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToLocalUser self conn target = do
-  when (self == target) $
-    throwE (InvalidUser (unTagged target))
-  selfActive <- lift $ Data.isActivated (lUnqualified self)
-  unless selfActive $
-    throwE ConnectNoIdentity
-  otherActive <- lift $ Data.isActivated (lUnqualified target)
-  unless otherActive $
-    throwE (InvalidUser (unTagged target))
-  checkLegalholdPolicyConflict (lUnqualified self) (lUnqualified target)
-  -- Users belonging to the same team are always treated as connected, so creating a
-  -- connection between them is useless. {#RefConnectionTeam}
-  sameTeam <- lift belongSameTeam
-  when sameTeam $
-    throwE ConnectSameBindingTeamUsers
   s2o <- lift $ Data.lookupConnection self (unTagged target)
   o2s <- lift $ Data.lookupConnection target (unTagged self)
 
@@ -224,24 +190,11 @@ createConnectionToLocalUser self conn target = do
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError AppIO (ResponseForExistedCreated UserConnection)
     change c s = Existed <$> lift (Data.updateConnection c s)
 
-    belongSameTeam :: AppIO Bool
-    belongSameTeam = do
-      selfTeam <- Intra.getTeamId (lUnqualified self)
-      crTeam <- Intra.getTeamId (lUnqualified target)
-      pure $ isJust selfTeam && selfTeam == crTeam
-
-createConnectionToRemoteUser ::
-  Local UserId ->
-  ConnId ->
-  Remote UserId ->
-  ConnectionM (ResponseForExistedCreated UserConnection)
-createConnectionToRemoteUser _ _ _ = throwM federationNotImplemented
-
 checkLegalholdPolicyConflictQualified :: Local UserId -> Qualified UserId -> ConnectionM ()
 checkLegalholdPolicyConflictQualified self =
   foldQualified
     self
-    (checkLegalholdPolicyConflict lself . lUnqualified)
+    (checkLegalholdPolicyConflict (lUnqualified self) . lUnqualified)
     -- FUTUREWORK: legal hold policy conflicts across backends
     (\_ -> pure ())
 
