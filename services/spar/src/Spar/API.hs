@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -64,6 +64,8 @@ import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Orphans ()
 import Spar.Scim
+import Spar.Sem.SAML2 (SAML2)
+import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
@@ -80,12 +82,17 @@ import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
+import Spar.Sem.Now (Now)
+import Spar.Sem.SAML2 (SAML2)
+import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Spar.Sem.SparRoute as SparRoute
+import Spar.Sem.SparRoute (SparRoute)
 import System.Logger (Msg)
 import qualified System.Logger as TinyLog
 import qualified URI.ByteString as URI
@@ -97,7 +104,7 @@ import Wire.API.User.Saml
 app :: Env -> Application
 app ctx =
   SAML.setHttpCachePolicy $
-    serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @(Spar _) ctx) (api $ sparCtxOpts ctx) :: Server API)
+    serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api @RealInterpretation $ sparCtxOpts ctx) :: Server API)
 
 api ::
   Members
@@ -115,6 +122,10 @@ api ::
        IdPEffect.IdP,
        SAMLUserStore,
        Random,
+       Error SparError,
+       SAML2,
+       Now,
+       SparRoute,
        Logger String,
        Logger (Msg -> Msg),
        Error SparError
@@ -144,14 +155,17 @@ apiSSO ::
        DefaultSsoCode,
        IdPEffect.IdP,
        Random,
+       Error SparError,
+       SAML2,
+       SparRoute,
        SAMLUserStore
      ]
     r =>
   Opts ->
   ServerT APISSO (Spar r)
 apiSSO opts =
-  SAML.meta appName (sparSPIssuer Nothing) (sparResponseURI Nothing)
-    :<|> (\tid -> SAML.meta appName (sparSPIssuer (Just tid)) (sparResponseURI (Just tid)))
+  (liftSem $ SAML2.meta appName (SparRoute.spIssuer Nothing) (SparRoute.responseURI Nothing))
+    :<|> (\tid -> liftSem $ SAML2.meta appName (SparRoute.spIssuer (Just tid)) (SparRoute.responseURI (Just tid)))
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
     :<|> authresp Nothing
@@ -202,7 +216,7 @@ appName = "spar"
 authreqPrecheck :: Member IdPEffect.IdP r => Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar r NoContent
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
-    *> SAML.getIdPConfig idpid
+    *> getIdPConfig' idpid
     *> return NoContent
 
 authreq ::
@@ -213,6 +227,8 @@ authreq ::
        BindCookieStore,
        AssIDStore,
        AReqIDStore,
+       SAML2,
+       SparRoute,
        IdPEffect.IdP
      ]
     r =>
@@ -233,7 +249,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
-    SAML.authreq authreqttl (sparSPIssuer mbtid) idpid
+    liftSem $ SAML2.authReq authreqttl (SparRoute.spIssuer mbtid) idpid
   wrapMonadClientSem $ AReqIDStore.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   liftSem $ Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
@@ -243,7 +259,8 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
 initializeBindCookie ::
-  Members '[Random, Input Opts, Logger String, BindCookieStore] r =>
+  Members '[ Random,
+             SAML2, Input Opts, Logger String, BindCookieStore] r =>
   Maybe UserId ->
   NominalDiffTime ->
   Spar r SetBindCookie
@@ -253,7 +270,7 @@ initializeBindCookie zusr authreqttl = do
     if isJust zusr
       then liftSem $ Just . cs . ES.encode <$> Random.bytes 32
       else pure Nothing
-  cky <- fmap SetBindCookie . SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
+  cky <- fmap SetBindCookie . liftSem . SAML2.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
   forM_ zusr $ \userid -> wrapMonadClientSem $ BindCookieStore.insert cky userid authreqttl
   pure cky
 
@@ -275,6 +292,11 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
+
+runSparInSem :: Spar r a -> Sem r a
+runSparInSem = undefined
+
+
 authresp ::
   forall r.
   Members
@@ -289,6 +311,9 @@ authresp ::
        AReqIDStore,
        ScimTokenStore,
        IdPEffect.IdP,
+       SAML2,
+       SparRoute,
+       Error SparError,
        SAMLUserStore
      ]
     r =>
@@ -296,15 +321,15 @@ authresp ::
   Maybe ST ->
   SAML.AuthnResponseBody ->
   Spar r Void
-authresp mbtid ckyraw arbody = logErrors $ SAML.authresp mbtid (sparSPIssuer mbtid) (sparResponseURI mbtid) go arbody
+authresp mbtid ckyraw arbody = logErrors $ liftSem $ SAML2.authResp mbtid (SparRoute.spIssuer mbtid) (SparRoute.responseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader
 
-    go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Spar r Void
+    go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Sem r Void
     go resp verdict = do
-      result :: SAML.ResponseVerdict <- verdictHandler cky mbtid resp verdict
-      throwError $ SAML.CustomServant result
+      result :: SAML.ResponseVerdict <- runSparInSem $ verdictHandler cky mbtid resp verdict
+      throw @SparError $ SAML.CustomServant result
 
     logErrors :: Spar r Void -> Spar r Void
     logErrors = flip catchError $ \case
@@ -337,7 +362,7 @@ idpGet ::
   SAML.IdPId ->
   Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
-  idp <- SAML.getIdPConfig idpid
+  idp <- getIdPConfig' idpid
   _ <- liftSem $ authorizeIdP zusr idp
   pure idp
 
@@ -347,7 +372,7 @@ idpGetRaw ::
   SAML.IdPId ->
   Spar r RawIdPMetadata
 idpGetRaw zusr idpid = do
-  idp <- SAML.getIdPConfig idpid
+  idp <- getIdPConfig' idpid
   _ <- liftSem $ authorizeIdP zusr idp
   wrapMonadClientSem (IdPEffect.getRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
@@ -396,7 +421,7 @@ idpDelete ::
   Maybe Bool ->
   Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
-  idp <- SAML.getIdPConfig idpid
+  idp <- getIdPConfig' idpid
   _ <- liftSem $ authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
@@ -491,7 +516,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   assertNoScimOrNoIdP teamid
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
   wrapMonadClientSem $ IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
-  SAML.storeIdPConfig idp
+  storeIdPConfig' idp
   forM_ mReplaces $ \replaces -> wrapMonadClientSem $ do
     IdPEffect.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
   pure idp
@@ -539,7 +564,7 @@ validateNewIdP ::
   Maybe SAML.IdPId ->
   m IdP
 validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
-  _idpId <- SAML.IdPId <$> SAML.createUUID
+  _idpId <- SAML.IdPId <$> liftSem Random.uuid
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
@@ -616,7 +641,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
   -- try again, which would clean up cassandra state.)
-  SAML.storeIdPConfig idp
+  storeIdPConfig' idp
   pure idp
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in

@@ -191,12 +191,17 @@ import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdP.Cassandra
 import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog, toLevel)
 import Spar.Sem.Random.IO (randomToIO)
+import Spar.Sem.Now.IO (nowToIO)
+import Spar.Sem.SAML2.SAML2WebSso (saml2ToSaml2WebSso)
+import Spar.Sem.Random.IO (randomToIO)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Cassandra
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.SparRoute.Servant (sparRouteToServant)
+import qualified System.Logger as TinyLog
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -1243,10 +1248,9 @@ runSpar (Spar.Spar action) = do
   liftIO $ do
     result <-
       fmap join
-        . liftIO
         . runFinal
         . embedToFinal @IO
-        . randomToIO
+        . nowToIO
         . runInputConst (Spar.sparCtxLogger ctx)
         . runInputConst (Spar.sparCtxOpts ctx)
         . loggerToTinyLog (Spar.sparCtxLogger ctx)
@@ -1256,8 +1260,8 @@ runSpar (Spar.Spar action) = do
         . galleyAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpGalley ctx)
         . brigAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpBrig ctx)
         . interpretClientToIO (Spar.sparCtxCas ctx)
-        . samlUserStoreToCassandra @Cas.Client
-        . idPToCassandra @Cas.Client
+        . samlUserStoreToCassandra
+        . idPToCassandra
         . defaultSsoCodeToCassandra
         . scimTokenStoreToCassandra
         . scimUserTimesStoreToCassandra
@@ -1265,6 +1269,8 @@ runSpar (Spar.Spar action) = do
         . aReqIDStoreToCassandra
         . assIDStoreToCassandra
         . bindCookieStoreToCassandra
+        . sparRouteToServant (saml $ Spar.sparCtxOpts ctx)
+        . saml2ToSaml2WebSso
         $ runExceptT action
     either (throwIO . ErrorCall . show) pure result
 
