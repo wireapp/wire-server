@@ -99,7 +99,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
   let allUsers = newConvMembers lusr body
   checkedUsers <- checkedConvSize allUsers
-  ensureConnected zusr (ulLocals allUsers)
+  ensureConnected lusr allUsers
   checkRemoteUsersExist (ulRemotes allUsers)
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   c <-
@@ -204,7 +204,7 @@ createLocalOne2OneConversation lusr zcon name mteam lother = do
       | otherwise ->
         checkBindingTeamPermissions lusr lother (cnvTeamId ti)
     Nothing -> do
-      ensureConnected (lUnqualified lusr) [lUnqualified lother]
+      ensureConnectedToLocals (lUnqualified lusr) [lUnqualified lother]
   n <- rangeCheckedMaybe name
   c <- Data.conversation (Data.one2OneConvId x y)
   maybe (create x y n mteam) (conversationExisted (lUnqualified lusr)) c

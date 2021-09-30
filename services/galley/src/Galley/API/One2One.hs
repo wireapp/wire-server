@@ -33,7 +33,9 @@ import Data.Id
 import Data.Qualified
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
+import Galley.API.Util
 import Galley.App
+import Galley.Types.UserList
 import Imports
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Galley (ConversationResponse)
@@ -129,4 +131,6 @@ convId a b = case compareDomains a b of
 
 createRemoteOne2OneConversation ::
   Local UserId -> ConnId -> Remote UserId -> Galley ConversationResponse
-createRemoteOne2OneConversation _ _ _ = throwM federationNotImplemented
+createRemoteOne2OneConversation self _con rother = do
+  ensureConnected self (UserList [] [rother])
+  throwM federationNotImplemented

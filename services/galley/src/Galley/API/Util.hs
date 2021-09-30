@@ -99,18 +99,17 @@ ensureConnectedOrSameTeam (Qualified u domain) uids = do
     sameTeamUids <- forM uTeams $ \team ->
       fmap (view userId) <$> Data.teamMembersLimited team uids
     -- Do not check connections for users that are on the same team
-    ensureConnected u (uids \\ join sameTeamUids)
+    ensureConnectedToLocals u (uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: UserId -> [UserId] -> Galley ()
-ensureConnected _ [] = pure ()
-ensureConnected u localUserIds = do
+ensureConnected :: Local UserId -> UserList UserId -> Galley ()
+ensureConnected self others = do
   -- FUTUREWORK(federation, #1262): check remote connections
-  ensureConnectedToLocals u localUserIds
+  ensureConnectedToLocals (lUnqualified self) (ulLocals others)
 
 ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
 ensureConnectedToLocals _ [] = pure ()
