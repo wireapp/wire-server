@@ -211,7 +211,7 @@ messageTimerChangeO2O = do
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
-  cid <- assertConv rsp One2OneConv alice alice [bob] (Just "chat") Nothing
+  cid <- assertConv rsp One2OneConv alice alice [bob] Nothing Nothing
   -- Try to change the timer and observe failure
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
     const 403 === statusCode
