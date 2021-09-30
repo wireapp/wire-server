@@ -15,14 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.One2One
-  ( convId,
-    createRemoteOne2OneConversation,
-  )
-where
+module Galley.API.One2One (one2OneConvId) where
 
 import Control.Error (atMay)
-import Control.Monad.Catch
 import qualified Crypto.Hash as Crypto
 import Data.Bits
 import Data.ByteArray (convert)
@@ -33,12 +28,7 @@ import Data.Id
 import Data.Qualified
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
-import Galley.API.Util
-import Galley.App
-import Galley.Types.UserList
 import Imports
-import Wire.API.Federation.Error (federationNotImplemented)
-import Wire.API.Routes.Public.Galley (ConversationResponse)
 
 -- | The hash function used to obtain the 1-1 conversation ID for a pair of users.
 --
@@ -106,9 +96,9 @@ setUUIDv5 x = case UUID.toWords x of
 -- the most significant bit of the octet at index 16) is 0, and B otherwise.
 -- This is well-defined, because we assumed the number of bits of x to be
 -- strictly larger than 128.
-convId :: Qualified UserId -> Qualified UserId -> Qualified ConvId
-convId a b = case compareDomains a b of
-  GT -> convId b a
+one2OneConvId :: Qualified UserId -> Qualified UserId -> Qualified ConvId
+one2OneConvId a b = case compareDomains a b of
+  GT -> one2OneConvId b a
   _ ->
     let c =
           mconcat
@@ -128,9 +118,3 @@ convId a b = case compareDomains a b of
           | (fromMaybe 0 (atMay (B.unpack x) 16)) .&. 0x80 == 0 = qDomain a
           | otherwise = qDomain b
      in Qualified (Id result) domain
-
-createRemoteOne2OneConversation ::
-  Local UserId -> ConnId -> Remote UserId -> Galley ConversationResponse
-createRemoteOne2OneConversation self _con rother = do
-  ensureConnected self (UserList [] [rother])
-  throwM federationNotImplemented

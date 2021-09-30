@@ -69,6 +69,7 @@ module Galley.Data
     conversationsRemote,
     createConnectConversation,
     createConversation,
+    createLegacyOne2OneConversation,
     createOne2OneConversation,
     createSelfConversation,
     isConvAlive,
@@ -156,7 +157,14 @@ import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams hiding (Event, EventType (..), teamConversations, teamMembers)
+import Galley.Types.Teams hiding
+  ( Event,
+    EventType (..),
+    self,
+    teamConversations,
+    teamMembers,
+  )
+import qualified Galley.Types.Teams as Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Galley.Validation
@@ -435,7 +443,7 @@ updateTeamMember oldPerms tid uid newPerms = do
     when (SetBilling `Set.member` lostPerms) $
       addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
   where
-    permDiff = Set.difference `on` view self
+    permDiff = Set.difference `on` view Teams.self
     acquiredPerms = newPerms `permDiff` oldPerms
     lostPerms = oldPerms `permDiff` newPerms
 
@@ -681,7 +689,7 @@ createConnectConversation loc a b name = do
   (lmems, rmems) <- addMembers lconv (UserList [a'] [])
   pure $ newConv conv ConnectConv a' lmems rmems [PrivateAccess] privateRole name Nothing Nothing Nothing
 
-createOne2OneConversation ::
+createLegacyOne2OneConversation ::
   MonadClient m =>
   Local x ->
   U.UUID U.V4 ->
@@ -689,21 +697,36 @@ createOne2OneConversation ::
   Maybe (Range 1 256 Text) ->
   Maybe TeamId ->
   m Conversation
-createOne2OneConversation loc a b name ti = do
+createLegacyOne2OneConversation loc a b name ti = do
   let conv = one2OneConvId a b
       lconv = qualifyAs loc conv
       a' = Id (U.unpack a)
       b' = Id (U.unpack b)
-  retry x5 $ case ti of
-    Nothing -> write Cql.insertConv (params Quorum (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
+  createOne2OneConversation
+    lconv
+    (qualifyAs loc a')
+    (unTagged (qualifyAs loc b'))
+    name
+    ti
+
+createOne2OneConversation ::
+  MonadClient m =>
+  Local ConvId ->
+  Local UserId ->
+  Qualified UserId ->
+  Maybe (Range 1 256 Text) ->
+  Maybe TeamId ->
+  m Conversation
+createOne2OneConversation lconv self other name mtid = do
+  retry x5 $ case mtid of
+    Nothing -> write Cql.insertConv (params Quorum (lUnqualified lconv, One2OneConv, lUnqualified self, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency Quorum
-      addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
-      addPrepQuery Cql.insertTeamConv (tid, conv, False)
-  -- FUTUREWORK: federated one2one
-  (lmems, rmems) <- addMembers lconv (UserList [a', b'] [])
-  pure $ newConv conv One2OneConv a' lmems rmems [PrivateAccess] privateRole name ti Nothing Nothing
+      addPrepQuery Cql.insertConv (lUnqualified lconv, One2OneConv, lUnqualified self, privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
+      addPrepQuery Cql.insertTeamConv (tid, lUnqualified lconv, False)
+  (lmems, rmems) <- addMembers lconv (toUserList self [unTagged self, other])
+  pure $ newConv (lUnqualified lconv) One2OneConv (lUnqualified self) lmems rmems [PrivateAccess] privateRole name mtid Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
