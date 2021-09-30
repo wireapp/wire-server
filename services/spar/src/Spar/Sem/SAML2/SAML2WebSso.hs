@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Spar.Sem.SAML2.SAML2WebSso where
+module Spar.Sem.SAML2.SAML2WebSso (saml2ToSaml2WebSso) where
 
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
@@ -27,49 +27,49 @@ import Spar.Sem.SAML2
 import Wire.API.User.IdentityProvider (WireIdP)
 import Wire.API.User.Saml
 
-wrapMonadClientBlah :: Members '[Error SparError, Final IO] r => Sem r a -> Blah r a
-wrapMonadClientBlah action =
-  Blah $
+wrapMonadClientSPImpl :: Members '[Error SparError, Final IO] r => Sem r a -> SPImpl r a
+wrapMonadClientSPImpl action =
+  SPImpl $
     action
       `Catch.catch` (throw . SAML.CustomError . SparCassandraError . cs . show @SomeException)
 
-newtype Blah r a = Blah {unBlah :: Sem r a}
+newtype SPImpl r a = SPImpl {unSPImpl :: Sem r a}
   deriving (Functor, Applicative, Monad)
 
-instance Member (Input Opts) r => HasConfig (Blah r) where
-  getConfig = Blah $ inputs saml
+instance Member (Input Opts) r => HasConfig (SPImpl r) where
+  getConfig = SPImpl $ inputs saml
 
-instance Members '[Input Opts, Logger String] r => HasLogger (Blah r) where
-  logger lvl = Blah . Logger.log lvl
+instance Members '[Input Opts, Logger String] r => HasLogger (SPImpl r) where
+  logger lvl = SPImpl . Logger.log lvl
 
-instance Member (Embed IO) r => MonadIO (Blah r) where
-  liftIO = Blah . embed @IO
+instance Member (Embed IO) r => MonadIO (SPImpl r) where
+  liftIO = SPImpl . embed @IO
 
-instance Member (Embed IO) r => HasCreateUUID (Blah r)
+instance Member (Embed IO) r => HasCreateUUID (SPImpl r)
 
-instance Member (Embed IO) r => HasNow (Blah r)
+instance Member (Embed IO) r => HasNow (SPImpl r)
 
-instance Members '[Error SparError, Final IO, AReqIDStore] r => SPStoreID AuthnRequest (Blah r) where
-  storeID = (wrapMonadClientBlah .) . AReqIDStore.store
-  unStoreID = wrapMonadClientBlah . AReqIDStore.unStore
-  isAliveID = wrapMonadClientBlah . AReqIDStore.isAlive
+instance Members '[Error SparError, Final IO, AReqIDStore] r => SPStoreID AuthnRequest (SPImpl r) where
+  storeID = (wrapMonadClientSPImpl .) . AReqIDStore.store
+  unStoreID = wrapMonadClientSPImpl . AReqIDStore.unStore
+  isAliveID = wrapMonadClientSPImpl . AReqIDStore.isAlive
 
-instance Members '[Error SparError, Final IO, AssIDStore] r => SPStoreID Assertion (Blah r) where
-  storeID = (wrapMonadClientBlah .) . AssIDStore.store
-  unStoreID = wrapMonadClientBlah . AssIDStore.unStore
-  isAliveID = wrapMonadClientBlah . AssIDStore.isAlive
+instance Members '[Error SparError, Final IO, AssIDStore] r => SPStoreID Assertion (SPImpl r) where
+  storeID = (wrapMonadClientSPImpl .) . AssIDStore.store
+  unStoreID = wrapMonadClientSPImpl . AssIDStore.unStore
+  isAliveID = wrapMonadClientSPImpl . AssIDStore.isAlive
 
-instance Members '[Error SparError, IdPEffect.IdP, Final IO] r => SPStoreIdP SparError (Blah r) where
-  type IdPConfigExtra (Blah r) = WireIdP
-  type IdPConfigSPId (Blah r) = TeamId
+instance Members '[Error SparError, IdPEffect.IdP, Final IO] r => SPStoreIdP SparError (SPImpl r) where
+  type IdPConfigExtra (SPImpl r) = WireIdP
+  type IdPConfigSPId (SPImpl r) = TeamId
 
-  storeIdPConfig = Blah . App.runSparInSem . App.storeIdPConfig
-  getIdPConfig = Blah . App.runSparInSem . App.getIdPConfig
-  getIdPConfigByIssuerOptionalSPId a = Blah . App.runSparInSem . App.getIdPConfigByIssuerOptionalSPId a
+  storeIdPConfig = SPImpl . App.runSparInSem . App.storeIdPConfig
+  getIdPConfig = SPImpl . App.runSparInSem . App.getIdPConfig
+  getIdPConfigByIssuerOptionalSPId a = SPImpl . App.runSparInSem . App.getIdPConfigByIssuerOptionalSPId a
 
-instance Member (Error SparError) r => MonadError SparError (Blah r) where
-  throwError = Blah . throw
-  catchError m handler = Blah $ catch (unBlah m) $ unBlah . handler
+instance Member (Error SparError) r => MonadError SparError (SPImpl r) where
+  throwError = SPImpl . throw
+  catchError m handler = SPImpl $ catch (unSPImpl m) $ unSPImpl . handler
 
 saml2ToSaml2WebSso ::
   forall r a.
@@ -91,7 +91,7 @@ saml2ToSaml2WebSso =
     AuthReq n ma i -> do
       get_a <- runT ma
       ins <- getInspectorT
-      x <- raise $ unBlah $ SAML.authreq @_ @SparError n (inspectOrBomb ins get_a) i
+      x <- raise $ unSPImpl $ SAML.authreq @_ @SparError n (inspectOrBomb ins get_a) i
       s <- getInitialStateT
       pure $ x <$ s
     AuthResp mitlt ma mb mc ab -> do
@@ -101,17 +101,17 @@ saml2ToSaml2WebSso =
       ins <- getInspectorT
       s <- getInitialStateT
 
-      x <- raise $ unBlah $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y -> inspectOrBomb ins $ get_c $ (x, y) <$ s) ab
+      x <- raise $ unSPImpl $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y -> inspectOrBomb ins $ get_c $ (x, y) <$ s) ab
       pure $ x <$ s
     Meta t ma mb -> do
       get_a <- runT ma
       get_b <- runT mb
       ins <- getInspectorT
-      x <- raise $ unBlah $ SAML.meta t (inspectOrBomb ins get_a) (inspectOrBomb ins get_b)
+      x <- raise $ unSPImpl $ SAML.meta t (inspectOrBomb ins get_a) (inspectOrBomb ins get_b)
       s <- getInitialStateT
       pure $ x <$ s
     ToggleCookie sbs mp -> do
-      liftT $ unBlah $ SAML.toggleCookie sbs mp
+      liftT $ unSPImpl $ SAML.toggleCookie sbs mp
 
 inspectOrBomb ::
   Members
@@ -127,9 +127,9 @@ inspectOrBomb ::
     r =>
   Inspector f ->
   Sem (SAML2 : r) (f b) ->
-  Blah r b
+  SPImpl r b
 inspectOrBomb ins get_a = do
-  fa <- Blah $ saml2ToSaml2WebSso get_a
+  fa <- SPImpl $ saml2ToSaml2WebSso get_a
   maybe
     (error "saml2ToSaml2WebSso called with an uninspectable weaving functor")
     pure
