@@ -25,7 +25,7 @@ import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
 import Data.Domain
 import Data.Handle (Handle (..))
-import Data.Id (Id (..), UserId)
+import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified (qUnqualified)
 import qualified Data.Set as Set
@@ -216,13 +216,19 @@ testGetUserClientsNotFound fedBrigClient = do
 testSendConnectionRequest :: Brig -> FedBrigClient -> Http ()
 testSendConnectionRequest brig fedBrigClient = do
   remoteUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
+  convId :: ConvId <- Id <$> lift UUIDv4.nextRandom
+
   localUserId <- userId <$> randomUser brig
   let domain = Domain "faraway.example.com"
   let req =
         NewConnectionRequest
           { ncrFrom = remoteUserId,
             ncrTo = localUserId,
-            ncrConversationId = Nothing
+            ncrConversationId = Just convId
           }
   NewConnectionResponse mConvId <- FedBrig.sendConnectionRequest fedBrigClient domain req
-  liftIO $ assertBool "ncrConversationId is Nothing. When a conversationId is not created on a requestor's backend, it needs to be created and returned on the receiving backend" (isJust mConvId)
+  liftIO $
+    assertBool
+      "ncrConversationId is Just. When a conversationId was created requestor's backend \
+      \the receiving backend should not create or return a conversation."
+      (isNothing mConvId)
