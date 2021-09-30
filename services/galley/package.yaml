@@ -31,6 +31,7 @@ library:
   - base >=4.6 && <5
   - base64-bytestring >=1.0
   - bilge >=0.21.1
+  - binary
   - brig-types >=0.73.1
   - bytestring >=0.9
   - bytestring-conversion >=0.2
@@ -38,6 +39,7 @@ library:
   - cassava >= 0.5.2
   - cereal >=0.4
   - containers >=0.5
+  - cryptonite
   - currency-codes >=2.0
   - data-default >=0.5
   - enclosed-exceptions >=1.0
@@ -56,6 +58,7 @@ library:
   - http2-client-grpc
   - insert-ordered-containers
   - lens >=4.4
+  - memory
   - metrics-wai >=0.4
   - mtl >=2.2
   - optparse-applicative >=0.10

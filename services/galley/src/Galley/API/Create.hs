@@ -36,6 +36,7 @@ import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
 import Galley.API.Mapping
+import Galley.API.One2One
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -51,7 +52,6 @@ import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription (MissingLegalholdConsent)
-import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -226,10 +226,6 @@ createLocalOne2OneConversation lusr zcon name mteam lother = do
       c <- Data.createOne2OneConversation lusr x y n (cnvTeamId <$> tinfo)
       notifyCreatedConversation Nothing (lUnqualified lusr) (Just zcon) c
       conversationCreated (lUnqualified lusr) c
-
-createRemoteOne2OneConversation ::
-  Local UserId -> ConnId -> Remote UserId -> Galley ConversationResponse
-createRemoteOne2OneConversation _ _ _ = throwM federationNotImplemented
 
 createConnectConversationH :: UserId ::: Maybe ConnId ::: JsonRequest Connect -> Galley Response
 createConnectConversationH (usr ::: conn ::: req) = do

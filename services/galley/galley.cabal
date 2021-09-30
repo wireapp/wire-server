@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a5b2ec0bd44d4fcabec564b4e7683a01cfb75cdb1c78a6eee520d6c48c95bb1d
+-- hash: 7ca3c61253dfbb1c69f3cf336a7bf166a1b50d9f92bc327012b395045112d7b7
 
 name:           galley
 version:        0.83.0
@@ -35,6 +35,7 @@ library
       Galley.API.LegalHold.Conflicts
       Galley.API.Mapping
       Galley.API.Message
+      Galley.API.One2One
       Galley.API.Public
       Galley.API.Query
       Galley.API.Teams
@@ -87,6 +88,7 @@ library
     , base >=4.6 && <5
     , base64-bytestring >=1.0
     , bilge >=0.21.1
+    , binary
     , brig-types >=0.73.1
     , bytestring >=0.9
     , bytestring-conversion >=0.2
@@ -95,6 +97,7 @@ library
     , cassava >=0.5.2
     , cereal >=0.4
     , containers >=0.5
+    , cryptonite
     , currency-codes >=2.0
     , data-default >=0.5
     , enclosed-exceptions >=1.0
@@ -113,6 +116,7 @@ library
     , imports
     , insert-ordered-containers
     , lens >=4.4
+    , memory
     , metrics-wai >=0.4
     , mtl >=2.2
     , optparse-applicative >=0.10
