@@ -1129,7 +1129,7 @@ listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler P
 listConnections uid Public.GetMultiTablePageRequest {..} = do
   self <- qualifyLocal uid
   case gmtprState of
-    Just (Public.ConnectionPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gmtprSize)
+    Just (Public.ConnectionPagingState Public.PagingRemotes stateBS) -> remotesOnly self (mkState <$> stateBS) (fromRange gmtprSize)
     _ -> localsAndRemotes self (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
     pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Public.UserConnection -> Public.ConnectionsPage
@@ -1152,11 +1152,12 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
       if Public.mtpHasMore localPage || remainingSize <= 0
         then pure localPage {Public.mtpHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
         else do
-          remotePage <- remotesOnly Nothing remainingSize
+          remotePage <- remotesOnly self Nothing remainingSize
           pure remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
 
-    remotesOnly :: Maybe C.PagingState -> Int32 -> Handler Public.ConnectionsPage
-    remotesOnly _pagingState _size = undefined
+    remotesOnly :: Local UserId -> Maybe C.PagingState -> Int32 -> Handler Public.ConnectionsPage
+    remotesOnly self pagingState size =
+      pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getLocalConnection self other = do
