@@ -70,7 +70,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
+import Data.Qualified (Local, Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
 import Data.String.Interpolate as QQ
 import qualified Data.Swagger as S
@@ -1117,13 +1117,20 @@ listLocalConnections uid start msize = do
   let defaultSize = toRange (Proxy @100)
   lift $ API.lookupConnections uid start (fromMaybe defaultSize msize)
 
--- | FUTUREWORK: also list remote connections: https://wearezeta.atlassian.net/browse/SQCORE-963
+-- | Lists connection IDs for the logged in user in a paginated way.
+--
+-- Pagination requires an order, in this case the order is defined as:
+--
+-- - First all the local connections are listed ordered by their id
+--
+-- - After local connections, remote connections are listed ordered
+-- - lexicographically by their domain and then by their id.
 listConnections :: UserId -> Public.ListConnectionsRequestPaginated -> Handler Public.ConnectionsPage
-listConnections uid req = do
+listConnections uid Public.GetMultiTablePageRequest {..} = do
   self <- qualifyLocal uid
-  let size = Public.gmtprSize req
-  res :: C.PageWithState Public.UserConnection <- Data.lookupLocalConnectionsPage self convertedState (rcast size)
-  return (pageToConnectionsPage Public.PagingLocals res)
+  case gmtprState of
+    Just (Public.ConnectionPagingState Public.PagingRemotes stateBS) -> remotesOnly (mkState <$> stateBS) (fromRange gmtprSize)
+    _ -> localsAndRemotes self (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
     pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Public.UserConnection -> Public.ConnectionsPage
     pageToConnectionsPage table page@Data.PageWithState {..} =
@@ -1134,11 +1141,22 @@ listConnections uid req = do
           -- Is this type actually useless? Or the tests not good enough?
           mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
+
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
 
-    convertedState :: Maybe C.PagingState
-    convertedState = fmap mkState . Public.mtpsState =<< Public.gmtprState req
+    localsAndRemotes :: Local UserId -> Maybe C.PagingState -> Range 1 500 Int32 -> Handler Public.ConnectionsPage
+    localsAndRemotes self pagingState size = do
+      localPage <- pageToConnectionsPage Public.PagingLocals <$> Data.lookupLocalConnectionsPage self pagingState (rcast size)
+      let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
+      if Public.mtpHasMore localPage || remainingSize <= 0
+        then pure localPage {Public.mtpHasMore = True} -- We haven't check the remotes yet, so has_more must always be True here.
+        else do
+          remotePage <- remotesOnly Nothing remainingSize
+          pure remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
+
+    remotesOnly :: Maybe C.PagingState -> Int32 -> Handler Public.ConnectionsPage
+    remotesOnly _pagingState _size = undefined
 
 getLocalConnection :: UserId -> UserId -> Handler (Maybe Public.UserConnection)
 getLocalConnection self other = do
