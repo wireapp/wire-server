@@ -1602,10 +1602,10 @@ postO2OConvOk = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
-  a <- postO2OConv alice bob (Just "chat") <!! const 200 === statusCode
-  c <- postO2OConv alice bob (Just "chat") <!! const 200 === statusCode
-  aId <- assertConv a One2OneConv alice alice [bob] (Just "chat") Nothing
-  cId <- assertConv c One2OneConv alice alice [bob] (Just "chat") Nothing
+  a <- postO2OConv alice bob Nothing <!! const 200 === statusCode
+  c <- postO2OConv alice bob Nothing <!! const 200 === statusCode
+  aId <- assertConv a One2OneConv alice alice [bob] Nothing Nothing
+  cId <- assertConv c One2OneConv alice alice [bob] Nothing Nothing
   liftIO $ aId @=? cId
 
 postConvO2OFailWithSelf :: TestM ()
