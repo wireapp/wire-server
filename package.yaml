@@ -1,0 +1,1206 @@
+name: wire-server
+description: Backend of the Wire collaboration platform
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2020 Wire Swiss GmbH
+license: AGPL-3
+defaults:
+  local: package-defaults.yaml
+cpp-options: -DWIRE_SINGLE_PACKAGE
+
+dependencies:
+- cryptohash-sha1
+- HaskellNet-SSL
+- base
+- yaml
+- mtl
+- stm-containers
+- servant-client-core
+- servant-multipart
+- mime-mail
+- amazonka-s3
+- insert-ordered-containers
+- hostname-validate
+- wai-predicates
+- snappy
+- HsOpenSSL-x509-system
+- lens-family-core
+- tasty-hunit
+- template
+- template-haskell
+- amazonka-core
+- safe
+- servant-swagger
+- mwc-random
+- cryptobox-haskell
+- protobuf
+- mime
+- wai-middleware-prometheus
+- cql-io-tinylog
+- wai-conduit
+- html-entities
+- exceptions
+- swagger2
+- megaparsec
+- servant-client
+- geoip2
+- cookie
+- mu-grpc-server
+- retry
+- conduit-extra
+- http2-client
+- wai-routing
+- http-media
+- base-prelude
+- resourcet
+- enclosed-exceptions
+- time
+- data-default-class
+- base16-bytestring
+- saml2-web-sso
+- prometheus-client
+- servant-server
+- text-latin1
+- profunctors
+- types-common-journal-proto
+- tls
+- mmorph
+- wai-middleware-gunzip
+- mu-schema
+- deepseq
+- servant-swagger-ui
+- generic-random
+- swagger
+- snappy-framing
+- wai
+- network-bsd
+- cereal
+- cryptohash-md5
+- hspec-expectations
+- hspec
+- bifunctors
+- aeson
+- connection
+- mu-protobuf
+- hedgehog
+- proto-lens-runtime
+- singletons
+- unliftio-core
+- ghc-prim
+- hw-hspec-hedgehog
+- api-field-json-th
+- cql-io
+- time-locale-compat
+- random-shuffle
+- text-icu-translit
+- data-timeout
+- iproute
+- extra
+- cryptonite
+- stache
+- servant
+- transformers-base
+- hashable
+- amazonka-ses
+- bloodhound
+- network
+- wai-websockets
+- vector
+- cereal-conduit
+- lens
+- psqueues
+- case-insensitive
+- unliftio
+- bytestring-conversion
+- uri-bytestring
+- amazonka-sns
+- unordered-containers
+- mu-grpc-client
+- HsOpenSSL
+- wai-route
+- string-conversions
+- wai-extra
+- filepath
+- either
+- network-uri
+- HaskellNet
+- lifted-base
+- deriving-aeson
+- http-api-data
+- http-client-tls
+- mu-rpc
+- http-types
+- iso3166-country-codes
+- binary
+- auto-update
+- comonad
+- proto-lens
+- currency-codes
+- sop-core
+- pipes
+- cql
+- wire-message-proto-lens
+- shelly
+- strict
+- data-default
+- tinylog
+- raw-strings-qq
+- conduit
+- email-validate
+- fsnotify
+- containers
+- x509
+- pem
+- multihash
+- bytestring
+- cassava
+- unix
+- scientific
+- wreq
+- async
+- configurator
+- random
+- iso639
+- lens-aeson
+- byteable
+- resource-pool
+- split
+- statistics
+- warp
+- QuickCheck
+- http-client
+- immortal
+- amazonka-sqs
+- hspec-wai
+- scrypt
+- http2-client-grpc
+- http-reverse-proxy
+- attoparsec
+- memory
+- MonadRandom
+- monad-control
+- tagged
+- safe-exceptions
+- base64-bytestring
+- http-client-openssl
+- list-t
+- stm
+- optparse-applicative
+- stomp-queue
+- amazonka-dynamodb
+- text
+- xml-conduit
+- dns
+- microlens
+- tasty
+- errors
+- lens-datetime
+- amazonka
+- interpolate
+- streaming-commons
+- polysemy
+- process
+- system-filepath
+- websockets
+- transformers
+- aeson-qq
+- network-conduit-tls
+- ansi-terminal
+- sodium-crypto-sign
+- redis-io
+- quickcheck-instances
+- uuid
+executables:
+  api-loadtest:
+    dependencies:
+    - unliftio
+    - base
+    - mime
+    - http-client-tls
+    - mwc-random
+    - text
+    - wire-server
+    - tinylog
+    - uuid
+    - http-client
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T
+    main: Main.hs
+    source-dirs:
+    - tools/api-simulations/loadtest/src
+  api-smoketest:
+    dependencies:
+    - unliftio
+    - base
+    - optparse-applicative
+    - mime
+    - http-client-tls
+    - text
+    - wire-server
+    - tinylog
+    - lens
+    - http-client
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T
+    main: Main.hs
+    source-dirs:
+    - tools/api-simulations/smoketest/src
+  auto-whitelist:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/auto-whitelist/src
+  billing-team-member-backfill:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/billing-team-member-backfill/src
+  bonanza:
+    dependencies:
+    - base
+    - wire-server
+    ghc-options:
+    - -funbox-small-strict-fields
+    - -fno-warn-unused-do-bind
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-T
+    - -with-rtsopts=-N
+    main: tools/bonanza/main/Main.hs
+    source-dirs: []
+  brig:
+    dependencies:
+    - base
+    - optparse-applicative
+    - wire-server
+    - HsOpenSSL
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N1
+    - -with-rtsopts=-T
+    - -rtsopts
+    main: services/brig/exe/Main.hs
+    source-dirs: []
+  brig-index:
+    dependencies:
+    - base
+    - optparse-applicative
+    - wire-server
+    - tinylog
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: services/brig/index/src/Main.hs
+    source-dirs: []
+  brig-integration:
+    dependencies:
+    - base
+    - yaml
+    - servant-client-core
+    - tasty-hunit
+    - warp-tls
+    - safe
+    - mime
+    - temporary
+    - exceptions
+    - servant-client
+    - mu-grpc-server
+    - cookie
+    - retry
+    - time
+    - base16-bytestring
+    - saml2-web-sso
+    - wai
+    - aeson
+    - random-shuffle
+    - data-timeout
+    - servant
+    - bloodhound
+    - network
+    - vector
+    - lens
+    - case-insensitive
+    - bytestring-conversion
+    - unliftio
+    - uri-bytestring
+    - unordered-containers
+    - HsOpenSSL
+    - wai-route
+    - string-conversions
+    - filepath
+    - wai-extra
+    - http-api-data
+    - http-client-tls
+    - wire-server
+    - mu-rpc
+    - http-types
+    - proto-lens
+    - tinylog
+    - raw-strings-qq
+    - email-validate
+    - containers
+    - pem
+    - bytestring
+    - async
+    - random
+    - lens-aeson
+    - warp
+    - QuickCheck
+    - http-client
+    - attoparsec
+    - MonadRandom
+    - optparse-applicative
+    - text
+    - transformers
+    - tasty
+    - uuid
+    main: Main.hs
+    source-dirs:
+    - services/brig/test/integration
+  brig-schema:
+    dependencies:
+    - base
+    - optparse-applicative
+    - wire-server
+    - text
+    - tinylog
+    - raw-strings-qq
+    main: Main.hs
+    source-dirs:
+    - services/brig/schema/src
+  cannon:
+    dependencies:
+    - base
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T
+    - -with-rtsopts=-M1g
+    - -with-rtsopts=-ki4k
+    main: services/cannon/exe/Main.hs
+    source-dirs: []
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  cargohold:
+    dependencies:
+    - base
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-T
+    main: services/cargohold/exe/Main.hs
+    source-dirs: []
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  cargohold-integration:
+    dependencies:
+    - base
+    - optparse-applicative
+    - http-client-tls
+    - wire-server
+    - time
+    - tasty-hunit
+    - tasty
+    - tagged
+    - lens
+    - uuid
+    main: Main.hs
+    source-dirs:
+    - services/cargohold/test/integration
+  federator:
+    dependencies:
+    - base
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N1
+    - -with-rtsopts=-T
+    - -rtsopts
+    main: Main.hs
+    source-dirs:
+    - services/federator/exec
+  federator-integration:
+    dependencies:
+    - hspec
+    - cryptonite
+    - yaml
+    - mtl
+    - optparse-applicative
+    - wire-server
+    - tasty
+    - tasty-hunit
+    - random
+    - retry
+    main: Main.hs
+    source-dirs:
+    - services/federator/test/integration
+  find-undead:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/find-undead/src
+  galley:
+    dependencies:
+    - base
+    - wire-server
+    - HsOpenSSL
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-T
+    - -rtsopts
+    main: services/galley/exe/Main.hs
+    source-dirs: []
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  galley-integration:
+    dependencies:
+    - case-insensitive
+    - base
+    - bytestring-conversion
+    - unliftio
+    - uri-bytestring
+    - lens-aeson
+    - mtl
+    - yaml
+    - servant-client-core
+    - lens
+    - unordered-containers
+    - QuickCheck
+    - warp
+    - time
+    - HsOpenSSL
+    - http-client
+    - string-conversions
+    - wai-extra
+    - amazonka-sqs
+    - quickcheck-instances
+    - servant-server
+    - http-client-tls
+    - HsOpenSSL-x509-system
+    - tls
+    - wire-server
+    - http-types
+    - tasty-hunit
+    - wai
+    - http-client-openssl
+    - cereal
+    - tagged
+    - base64-bytestring
+    - hspec
+    - proto-lens
+    - currency-codes
+    - sop-core
+    - warp-tls
+    - aeson
+    - wire-message-proto-lens
+    - optparse-applicative
+    - servant-swagger
+    - text
+    - tinylog
+    - tasty
+    - containers
+    - errors
+    - pem
+    - protobuf
+    - amazonka
+    - data-timeout
+    - bytestring
+    - cassava
+    - aeson-qq
+    - exceptions
+    - servant
+    - servant-client
+    - async
+    - vector
+    - random
+    - cookie
+    - uuid
+    - retry
+    ghc-options:
+    - -threaded
+    main: Main.hs
+    source-dirs:
+    - services/galley/test/integration
+  galley-migrate-data:
+    dependencies:
+    - unliftio
+    - base
+    - exceptions
+    - optparse-applicative
+    - text
+    - time
+    - wire-server
+    - tinylog
+    - conduit
+    - containers
+    - lens
+    main: Main.hs
+    source-dirs:
+    - services/galley/migrate-data/src
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  galley-schema:
+    dependencies:
+    - base
+    - optparse-applicative
+    - wire-server
+    - text
+    - tinylog
+    main: Main.hs
+    source-dirs:
+    - services/galley/schema/src
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  gundeck:
+    dependencies:
+    - uuid
+    - base
+    - wire-server
+    - lens
+    - HsOpenSSL
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-T
+    main: services/gundeck/exe/Main.hs
+    source-dirs: []
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  gundeck-integration:
+    dependencies:
+    - base
+    - bytestring-conversion
+    - yaml
+    - lens-aeson
+    - mtl
+    - unordered-containers
+    - time
+    - HsOpenSSL
+    - http-client
+    - base16-bytestring
+    - network-uri
+    - http-client-tls
+    - wire-server
+    - tasty-hunit
+    - tagged
+    - aeson
+    - optparse-applicative
+    - safe
+    - text
+    - tinylog
+    - tasty
+    - containers
+    - bytestring
+    - websockets
+    - exceptions
+    - async
+    - random
+    - lens
+    - uuid
+    - retry
+    ghc-options:
+    - -threaded
+    main: Main.hs
+    source-dirs:
+    - services/gundeck/test/integration
+  gundeck-schema:
+    dependencies:
+    - base
+    - optparse-applicative
+    - wire-server
+    - text
+    - tinylog
+    - raw-strings-qq
+    ghc-options:
+    - -threaded
+    main: Main.hs
+    source-dirs:
+    - services/gundeck/schema/src
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  hscim-server:
+    dependencies:
+    - wire-server
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - libs/hscim/server
+  kibana-raw:
+    dependencies:
+    - cryptonite
+    - base
+    - aeson
+    - optparse-applicative
+    - clock
+    - wire-server
+    - time
+    ghc-options:
+    - -funbox-small-strict-fields
+    - -rtsopts
+    main: tools/bonanza/main/KibanaRaw.hs
+    source-dirs: []
+  kibanana:
+    dependencies:
+    - base
+    - http-conduit
+    - optparse-applicative
+    - stm
+    - http-client-tls
+    - wire-server
+    - async
+    - containers
+    - errors
+    - http-client
+    ghc-options:
+    - -funbox-small-strict-fields
+    - -fno-warn-unused-do-bind
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-T
+    - -with-rtsopts=-N
+    main: tools/bonanza/main/Kibanana.hs
+    source-dirs: []
+  makedeb:
+    dependencies:
+    - optparse-applicative
+    - base
+    - wire-server
+    ghc-options:
+    - -threaded
+    main: tools/makedeb/exe/Main.hs
+    source-dirs: []
+  migrate-sso-feature-flag:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/migrate-sso-feature-flag/src
+  move-team:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/move-team/move-team
+  move-team-generate:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/move-team/move-team-generate
+  proxy:
+    dependencies:
+    - base
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-T
+    main: services/proxy/exe/Main.hs
+    source-dirs: []
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  repair-handles:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/repair-handles/repair-handles
+    - tools/db/repair-handles/src
+  rex:
+    dependencies:
+    - base
+    - mtl
+    - unordered-containers
+    - warp
+    - clock
+    - wire-server
+    - http-types
+    - attoparsec
+    - wai
+    - prometheus
+    - optparse-applicative
+    - text
+    - dns
+    - tinylog
+    - iproute
+    - bytestring
+    - exceptions
+    - network
+    - async
+    ghc-options:
+    - -Wall
+    - -O1
+    - -funbox-small-strict-fields
+    main: tools/rex/Main.hs
+    source-dirs: []
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  service-backfill:
+    dependencies:
+    - wire-server
+    main: Main.hs
+    source-dirs:
+    - tools/db/service-backfill/src
+  spar:
+    dependencies:
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -with-rtsopts=-T
+    main: Main.hs
+    source-dirs:
+    - services/spar/exec
+  spar-integration:
+    build-tools:
+    - hspec-discover:hspec-discover
+    dependencies:
+    - hspec
+    - wai-extra
+    - aeson-qq
+    - wai
+    - lens-aeson
+    - hspec-wai
+    - wire-server
+    - silently
+    - xml-conduit
+    - tinylog
+    - QuickCheck
+    - MonadRandom
+    - tasty-hunit
+    - random
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Spec.hs
+    source-dirs:
+    - services/spar/test-integration
+  spar-migrate-data:
+    dependencies:
+    - conduit
+    - wire-server
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - services/spar/migrate-data/src
+  spar-schema:
+    dependencies:
+    - wire-server
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - services/spar/schema/src
+  stern:
+    dependencies:
+    - base
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-T
+    main: tools/stern/exe/Main.hs
+    source-dirs: []
+    when:
+    - condition: flag(static)
+      ld-options: -static
+  zauth:
+    dependencies:
+    - bytestring
+    - base
+    - bytestring-conversion
+    - optparse-applicative
+    - sodium-crypto-sign
+    - wire-server
+    - errors
+    - lens
+    - uuid
+    - base64-bytestring
+    main: Main.hs
+    source-dirs:
+    - libs/zauth/main
+flags:
+  arbitrary:
+    default: false
+    description: Enable quickcheck's arbitrary instances
+    manual: true
+  protobuf:
+    default: false
+    description: Enable protocol buffers instances
+    manual: true
+  static:
+    default: false
+    description: Enable static linking
+    manual: true
+library:
+  dependencies: []
+  source-dirs:
+  - libs/hscim/src
+  - libs/imports/src
+  - tools/bonanza/src
+  - libs/cassandra-util/src
+  - libs/deriving-swagger2/src
+  - libs/dns-util/src
+  - libs/extended/src
+  - tools/makedeb/src
+  - libs/metrics-core/src
+  - libs/polysemy-wire-zoo/src
+  - libs/ropes/src
+  - libs/schema-profunctor/src
+  - libs/ssl-util/src
+  - libs/types-common-aws/src
+  - libs/zauth/src
+  - libs/metrics-wai/src
+  - libs/types-common/src
+  - libs/bilge/src
+  - libs/types-common-journal/src
+  - libs/wai-utilities/src
+  - libs/wire-api/src
+  - libs/api-client/src
+  - libs/brig-types/src
+  - libs/cargohold-types/src
+  - libs/galley-types/src
+  - libs/gundeck-types/src
+  - services/proxy/src
+  - libs/wire-api-federation/src
+  - libs/api-bot/src
+  - services/cannon/src
+  - services/cargohold/src
+  - services/federator/src
+  - services/gundeck/src
+  - services/spar/src
+  - tools/stern/src
+  - libs/tasty-cannon/src
+  - tools/api-simulations/lib/src
+  - services/brig/src
+  - services/galley/src
+  - tools/db/move-team/src
+tests:
+  bonanza-tests:
+    dependencies:
+    - tasty-quickcheck
+    - base
+    - aeson
+    - tasty
+    - wire-server
+    - scientific
+    - time
+    - QuickCheck
+    - http-types
+    - attoparsec
+    - vector
+    - lens
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - tools/bonanza/test/unit
+  brig-tests:
+    dependencies:
+    - unliftio
+    - base
+    - uri-bytestring
+    - servant-client-core
+    - time
+    - wire-server
+    - http-types
+    - tasty-hunit
+    - uuid
+    - aeson
+    - dns
+    - tinylog
+    - containers
+    - polysemy
+    - bloodhound
+    - tasty
+    - retry
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - services/brig/test/unit
+  brig-types-tests:
+    dependencies:
+    - tasty
+    - tasty-quickcheck
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - libs/brig-types/test/unit
+  cannon-tests:
+    dependencies:
+    - bytestring
+    - tasty-quickcheck
+    - base
+    - tasty
+    - wire-server
+    - QuickCheck
+    - async
+    - tasty-hunit
+    - random
+    - uuid
+    - criterion
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - services/cannon/test
+  dns-util-spec:
+    build-tools:
+    - hspec-discover:hspec-discover
+    dependencies:
+    - hspec
+    - wire-server
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Spec.hs
+    source-dirs:
+    - libs/dns-util/test
+  federator-tests:
+    dependencies:
+    - bytestring
+    - yaml
+    - wire-server
+    - polysemy-mocks
+    - tasty
+    - tasty-hunit
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - services/federator/test/unit
+  galley-galley-types-tests:
+    dependencies:
+    - tasty-quickcheck
+    - base
+    - wai
+    - wai-predicates
+    - servant-swagger
+    - wire-server
+    - QuickCheck
+    - http-types
+    - tasty-hspec
+    - tasty
+    - containers
+    - tasty-hunit
+    - lens
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - services/galley/test/unit
+  galley-types-tests:
+    dependencies:
+    - tasty-quickcheck
+    - base
+    - aeson
+    - wire-server
+    - QuickCheck
+    - tasty
+    - containers
+    - tasty-hunit
+    - lens
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - libs/galley-types/test/unit
+  gundeck-tests:
+    dependencies:
+    - tasty-quickcheck
+    - base
+    - mtl
+    - multiset
+    - unordered-containers
+    - QuickCheck
+    - time
+    - HsOpenSSL
+    - string-conversions
+    - network-uri
+    - quickcheck-state-machine
+    - wire-server
+    - tasty-hunit
+    - MonadRandom
+    - aeson
+    - text
+    - tinylog
+    - tasty
+    - containers
+    - aeson-pretty
+    - amazonka
+    - bytestring
+    - async
+    - exceptions
+    - scientific
+    - tree-diff
+    - quickcheck-instances
+    - lens
+    - uuid
+    ghc-options:
+    - -threaded
+    main: Main.hs
+    source-dirs:
+    - services/gundeck/test/unit
+  schemas-tests:
+    dependencies:
+    - insert-ordered-containers
+    - base
+    - aeson
+    - aeson-qq
+    - swagger2
+    - wire-server
+    - text
+    - tasty
+    - tasty-hunit
+    - lens
+    main: Main.hs
+    source-dirs:
+    - libs/schema-profunctor/test/unit
+  spar-spec:
+    build-tools:
+    - hspec-discover:hspec-discover
+    dependencies:
+    - hspec
+    - uri-bytestring
+    - lens-aeson
+    - wire-server
+    - QuickCheck
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Spec.hs
+    source-dirs:
+    - services/spar/test
+  spec:
+    build-tools:
+    - hspec-discover:hspec-discover
+    dependencies:
+    - wire-server
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Spec.hs
+    source-dirs:
+    - libs/hscim/test
+  tests:
+    dependencies:
+    - tasty-quickcheck
+    - base
+    - bytestring-conversion
+    - unordered-containers
+    - QuickCheck
+    - time
+    - base16-bytestring
+    - string-conversions
+    - wire-server
+    - tasty-hunit
+    - cereal
+    - base64-bytestring
+    - aeson
+    - text
+    - protobuf
+    - bytestring
+    - tasty
+    - uuid
+    ghc-options: -threaded
+    main: Main.hs
+    source-dirs:
+    - libs/types-common/test
+  unit:
+    build-tools:
+    - hspec-discover:hspec-discover
+    dependencies:
+    - hspec
+    - wire-server
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Spec.hs
+    source-dirs:
+    - libs/metrics-wai/test
+  wire-api-federation-spec:
+    build-tools:
+    - hspec-discover:hspec-discover
+    dependencies:
+    - hspec
+    - wire-server
+    - network
+    - containers
+    - aeson-pretty
+    - HUnit
+    - uuid
+    - retry
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    main: Spec.hs
+    source-dirs:
+    - libs/wire-api-federation/test
+  wire-api-tests:
+    dependencies:
+    - tasty-quickcheck
+    - iso639
+    - base
+    - bytestring-conversion
+    - uri-bytestring
+    - unordered-containers
+    - time
+    - tasty-expected-failure
+    - string-conversions
+    - wire-server
+    - iso3166-country-codes
+    - tasty-hunit
+    - currency-codes
+    - directory
+    - aeson-pretty
+    - pem
+    - mime
+    - bytestring
+    - cassava
+    - aeson-qq
+    - swagger2
+    - tasty
+    - vector
+    - lens
+    - uuid
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+    - libs/wire-api/test/unit
+  zauth-unit:
+    dependencies:
+    - bytestring
+    - tasty-quickcheck
+    - base
+    - bytestring-conversion
+    - sodium-crypto-sign
+    - wire-server
+    - tasty-hunit
+    - tasty
+    - errors
+    - lens
+    - uuid
+    main: Unit.hs
+    source-dirs:
+    - libs/zauth/test
