@@ -96,11 +96,7 @@ createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley Convers
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   lusr <- qualifyLocal zusr
   name <- rangeCheckedMaybe (newConvName body)
-  let unqualifiedUserIds = newConvUsers body
-      qualifiedUserIds = newConvQualifiedUsers body
-      allUsers =
-        toUserList lusr $
-          map (qUntagged . qualifyAs lusr) unqualifiedUserIds <> qualifiedUserIds
+  let allUsers = newConvMembers lusr body
   checkedUsers <- checkedConvSize allUsers
   ensureConnected zusr (ulLocals allUsers)
   checkRemoteUsersExist (ulRemotes allUsers)
@@ -125,11 +121,7 @@ createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv
 createTeamGroupConv zusr zcon tinfo body = do
   lusr <- qualifyLocal zusr
   name <- rangeCheckedMaybe (newConvName body)
-  let unqualifiedUserIds = newConvUsers body
-      qualifiedUserIds = newConvQualifiedUsers body
-      allUsers =
-        toUserList lusr $
-          map (qUntagged . qualifyAs lusr) unqualifiedUserIds <> qualifiedUserIds
+  let allUsers = newConvMembers lusr body
       convTeam = cnvTeamId tinfo
 
   zusrMembership <- Data.teamMember convTeam zusr
@@ -343,3 +335,8 @@ access :: NewConv -> [Access]
 access a = case Set.toList (newConvAccess a) of
   [] -> Data.defRegularConvAccess
   (x : xs) -> x : xs
+
+newConvMembers :: Local x -> NewConv -> UserList UserId
+newConvMembers loc body =
+  UserList (newConvUsers body) []
+    <> toUserList loc (newConvQualifiedUsers body)
