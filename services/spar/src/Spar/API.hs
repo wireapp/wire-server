@@ -59,6 +59,7 @@ import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.App
+import Spar.CanonicalInterpreter
 import qualified Spar.Data as Data (GetIdPResult (..), Replaced (..), Replacing (..))
 import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
@@ -102,7 +103,7 @@ import Wire.API.User.Saml
 app :: Env -> Application
 app ctx =
   SAML.setHttpCachePolicy $
-    serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api @RealInterpretation $ sparCtxOpts ctx) :: Server API)
+    serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server API)
 
 api ::
   Members
@@ -126,7 +127,9 @@ api ::
        SparRoute,
        Logger String,
        Logger (Msg -> Msg),
-       Error SparError
+       Error SparError,
+       -- TODO(sandy): Remove me when we get rid of runSparInSem
+       Final IO
      ]
     r =>
   Opts ->
@@ -156,7 +159,9 @@ apiSSO ::
        Error SparError,
        SAML2,
        SparRoute,
-       SAMLUserStore
+       SAMLUserStore,
+       -- TODO(sandy): Remove me when we get rid of runSparInSem
+       Final IO
      ]
     r =>
   Opts ->
@@ -214,7 +219,7 @@ appName = "spar"
 authreqPrecheck :: Member IdPEffect.IdP r => Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar r NoContent
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
-    *> getIdPConfig' idpid
+    *> getIdPConfig idpid
     *> return NoContent
 
 authreq ::
@@ -296,9 +301,6 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-runSparInSem :: Spar r a -> Sem r a
-runSparInSem = undefined
-
 authresp ::
   forall r.
   Members
@@ -316,7 +318,9 @@ authresp ::
        SAML2,
        SparRoute,
        Error SparError,
-       SAMLUserStore
+       SAMLUserStore,
+       -- TODO(sandy): Remove me when we get rid of runSparInSem
+       Final IO
      ]
     r =>
   Maybe TeamId ->
@@ -364,7 +368,7 @@ idpGet ::
   SAML.IdPId ->
   Spar r IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
-  idp <- getIdPConfig' idpid
+  idp <- getIdPConfig idpid
   _ <- liftSem $ authorizeIdP zusr idp
   pure idp
 
@@ -374,7 +378,7 @@ idpGetRaw ::
   SAML.IdPId ->
   Spar r RawIdPMetadata
 idpGetRaw zusr idpid = do
-  idp <- getIdPConfig' idpid
+  idp <- getIdPConfig idpid
   _ <- liftSem $ authorizeIdP zusr idp
   wrapMonadClientSem (IdPEffect.getRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
@@ -423,7 +427,7 @@ idpDelete ::
   Maybe Bool ->
   Spar r NoContent
 idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
-  idp <- getIdPConfig' idpid
+  idp <- getIdPConfig idpid
   _ <- liftSem $ authorizeIdP zusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
@@ -518,7 +522,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   assertNoScimOrNoIdP teamid
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
   wrapMonadClientSem $ IdPEffect.storeRawMetadata (idp ^. SAML.idpId) raw
-  storeIdPConfig' idp
+  storeIdPConfig idp
   forM_ mReplaces $ \replaces -> wrapMonadClientSem $ do
     IdPEffect.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
   pure idp
@@ -643,7 +647,7 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
   -- try again, which would clean up cassandra state.)
-  storeIdPConfig' idp
+  storeIdPConfig idp
   pure idp
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in

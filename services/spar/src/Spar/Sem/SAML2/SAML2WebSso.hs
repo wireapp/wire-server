@@ -3,15 +3,19 @@
 
 module Spar.Sem.SAML2.SAML2WebSso where
 
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Id (TeamId)
+import Data.String.Conversions (cs)
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal.Tactics
-import SAML2.WebSSO
-import qualified SAML2.WebSSO as SAML
-import Spar.Error (SparError)
+import SAML2.WebSSO hiding (Error)
+import qualified SAML2.WebSSO as SAML hiding (Error)
+import qualified Spar.App as App
+import Spar.Error (SparCustomError (SparCassandraError), SparError)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
@@ -23,8 +27,11 @@ import Spar.Sem.SAML2
 import Wire.API.User.IdentityProvider (WireIdP)
 import Wire.API.User.Saml
 
-wrapMonadClientSem :: a -> a
-wrapMonadClientSem = id
+wrapMonadClientBlah :: Members '[Error SparError, Final IO] r => Sem r a -> Blah r a
+wrapMonadClientBlah action =
+  Blah $
+    action
+      `Catch.catch` (throw . SAML.CustomError . SparCassandraError . cs . show @SomeException)
 
 newtype Blah r a = Blah {unBlah :: Sem r a}
   deriving (Functor, Applicative, Monad)
@@ -42,31 +49,41 @@ instance Member (Embed IO) r => HasCreateUUID (Blah r)
 
 instance Member (Embed IO) r => HasNow (Blah r)
 
-instance Member AReqIDStore r => SPStoreID AuthnRequest (Blah r) where
-  storeID i r = Blah $ wrapMonadClientSem $ AReqIDStore.store i r
-  unStoreID r = Blah $ wrapMonadClientSem $ AReqIDStore.unStore r
-  isAliveID r = Blah $ wrapMonadClientSem $ AReqIDStore.isAlive r
+instance Members '[Error SparError, Final IO, AReqIDStore] r => SPStoreID AuthnRequest (Blah r) where
+  storeID = (wrapMonadClientBlah .) . AReqIDStore.store
+  unStoreID = wrapMonadClientBlah . AReqIDStore.unStore
+  isAliveID = wrapMonadClientBlah . AReqIDStore.isAlive
 
-instance Member AssIDStore r => SPStoreID Assertion (Blah r) where
-  storeID i r = Blah $ wrapMonadClientSem $ AssIDStore.store i r
-  unStoreID r = Blah $ wrapMonadClientSem $ AssIDStore.unStore r
-  isAliveID r = Blah $ wrapMonadClientSem $ AssIDStore.isAlive r
+instance Members '[Error SparError, Final IO, AssIDStore] r => SPStoreID Assertion (Blah r) where
+  storeID = (wrapMonadClientBlah .) . AssIDStore.store
+  unStoreID = wrapMonadClientBlah . AssIDStore.unStore
+  isAliveID = wrapMonadClientBlah . AssIDStore.isAlive
 
-instance Member IdPEffect.IdP r => SPStoreIdP SparError (Blah r) where
+instance Members '[Error SparError, IdPEffect.IdP, Final IO] r => SPStoreIdP SparError (Blah r) where
   type IdPConfigExtra (Blah r) = WireIdP
   type IdPConfigSPId (Blah r) = TeamId
 
-  storeIdPConfig = undefined -- storeIdPConfig'
-  getIdPConfig = undefined -- getIdPConfig'
-  getIdPConfigByIssuerOptionalSPId = undefined -- getIdPConfigByIssuerOptionalSPId'
+  storeIdPConfig = Blah . App.runSparInSem . App.storeIdPConfig
+  getIdPConfig = Blah . App.runSparInSem . App.getIdPConfig
+  getIdPConfigByIssuerOptionalSPId a = Blah . App.runSparInSem . App.getIdPConfigByIssuerOptionalSPId a
 
-instance MonadError SparError (Blah r) where
-  throwError = undefined
-  catchError = undefined
+instance Member (Error SparError) r => MonadError SparError (Blah r) where
+  throwError = Blah . throw
+  catchError m handler = Blah $ catch (unBlah m) $ unBlah . handler
 
 saml2ToSaml2WebSso ::
   forall r a.
-  Members '[AReqIDStore, AssIDStore, IdPEffect.IdP, Input Opts, Logger String, Embed IO] r =>
+  Members
+    '[ AReqIDStore,
+       AssIDStore,
+       Error SparError,
+       IdPEffect.IdP,
+       Input Opts,
+       Logger String,
+       Embed IO,
+       Final IO
+     ]
+    r =>
   Sem (SAML2 ': r) a ->
   Sem r a
 saml2ToSaml2WebSso =
@@ -97,7 +114,17 @@ saml2ToSaml2WebSso =
       liftT $ unBlah $ SAML.toggleCookie sbs mp
 
 inspectOrBomb ::
-  Members '[AReqIDStore, AssIDStore, IdPEffect.IdP, Logger String, Input Opts, Embed IO] r =>
+  Members
+    '[ AReqIDStore,
+       AssIDStore,
+       Error SparError,
+       IdPEffect.IdP,
+       Logger String,
+       Input Opts,
+       Embed IO,
+       Final IO
+     ]
+    r =>
   Inspector f ->
   Sem (SAML2 : r) (f b) ->
   Blah r b

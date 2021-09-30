@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7444133699c3e278b9a64262a49265403644c7e462294e8fdf04ae7c8dd705bb
+-- hash: 82d7ad03f637cd11a132d9237c35df9e3cc6038790f50999a27f3d287f5e02f0
 
 name:           spar
 version:        0.1
@@ -22,6 +22,7 @@ library
   exposed-modules:
       Spar.API
       Spar.App
+      Spar.CanonicalInterpreter
       Spar.Data
       Spar.Data.Instances
       Spar.Error

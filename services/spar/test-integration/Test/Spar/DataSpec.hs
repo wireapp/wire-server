@@ -230,9 +230,9 @@ spec = do
 testSPStoreID ::
   forall (a :: Type).
   (Typeable a) =>
-  (SAML.ID a -> SAML.Time -> Sem RealInterpretation ()) ->
-  (SAML.ID a -> Sem RealInterpretation ()) ->
-  (SAML.ID a -> Sem RealInterpretation Bool) ->
+  (SAML.ID a -> SAML.Time -> Sem CanonicalEffs ()) ->
+  (SAML.ID a -> Sem CanonicalEffs ()) ->
+  (SAML.ID a -> Sem CanonicalEffs Bool) ->
   SpecWith TestEnv
 testSPStoreID store unstore isalive = do
   describe ("SPStoreID @" <> show (typeRep @a)) $ do

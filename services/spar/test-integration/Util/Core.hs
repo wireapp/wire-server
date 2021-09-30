@@ -117,7 +117,7 @@ module Util.Core
     ssoToUidSpar,
     runSimpleSP,
     runSpar,
-    type RealInterpretation,
+    type CanonicalEffs,
     getSsoidViaSelf,
     getSsoidViaSelf',
     getUserIdViaRef,
@@ -173,8 +173,9 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
-import Spar.App (liftSem, type RealInterpretation)
+import Spar.App (liftSem)
 import qualified Spar.App as Spar
+import Spar.CanonicalInterpreter
 import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
@@ -1220,12 +1221,12 @@ runSimpleSP action = do
 
 runSpar ::
   (MonadReader TestEnv m, MonadIO m) =>
-  Spar.Spar RealInterpretation a ->
+  Spar.Spar CanonicalEffs a ->
   m a
 runSpar action = do
   ctx <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <- Spar.runSparToIO ctx action
+    result <- runSparToIO ctx action
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
