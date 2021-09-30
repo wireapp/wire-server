@@ -14,6 +14,7 @@ DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
+EXECUTABLES_COMPONENTS := wire-server:$(NAME) wire-server:$(NAME)-integration wire-server:$(NAME)-schema
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
 
@@ -31,18 +32,18 @@ init:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" ../../dist/
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: clean
 clean:

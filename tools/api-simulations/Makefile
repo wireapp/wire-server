@@ -6,6 +6,7 @@ BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+EXECUTABLES_COMPONENTS := wire-server:api-loadtest wire-server:api-smoketest
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -22,20 +23,19 @@ init:
 
 .PHONY: clean
 clean:
-	stack clean api-simulations
 	-rm -f .metadata
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata

@@ -7,6 +7,7 @@ BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_$(ARCH).deb
+EXECUTABLES_COMPONENTS := wire-server:$(NAME)
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -23,16 +24,15 @@ init:
 
 .PHONY: clean
 clean:
-	stack clean makedeb
 	-rm -f .metadata
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata

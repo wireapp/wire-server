@@ -13,6 +13,7 @@ DEB_IT           := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA       := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_MIGRATE_DATA := $(NAME)-migrate-data_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES      := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-migrate-data
+EXECUTABLES_COMPONENTS := wire-server:$(NAME) wire-server:$(NAME)-integration wire-server:$(NAME)-schema wire-server:$(NAME)-migrate-data
 DOCKER_USER      ?= quay.io/wire
 DOCKER_TAG       ?= local
 
@@ -36,15 +37,15 @@ clean:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_MIGRATE_DATA) .metadata

@@ -13,6 +13,7 @@ DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_INDEX     := dist/$(NAME)-index_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-index
+EXECUTABLES_COMPONENTS := wire-server:$(NAME) wire-server:$(NAME)-integration wire-server:$(NAME)-schema wire-server:$(NAME)-index
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
 INTEGRATION_USE_NGINZ ?= 1
@@ -30,11 +31,11 @@ init:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: clean
 clean:
@@ -43,7 +44,7 @@ clean:
 
 .PHONY: compile
 compile:
-	stack build . --fast --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --fast --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_INDEX) .metadata

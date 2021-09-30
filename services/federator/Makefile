@@ -2,6 +2,7 @@ LANG                       := en_US.UTF-8
 SHELL                      := /usr/bin/env bash
 NAME                       := federator
 EXE_IT                     := ../../dist/$(NAME)-integration
+EXECUTABLES_COMPONENTS     := wire-server:$(NAME) wire-server:$(NAME)-integration
 INTEGRATION_USE_NGINZ      ?= 0
 
 default: fast
@@ -11,15 +12,15 @@ init:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist $(WIRE_STACK_OPTIONS)
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: compile
 compile:
-	stack build . --fast --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --fast --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: run
 run: fast

@@ -10,6 +10,7 @@ DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
 EXECUTABLES   := $(NAME) $(NAME)-integration
+EXECUTABLES_COMPONENTS  := wire-server:$(NAME) wire-server:$(NAME)-integration
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
 
@@ -27,15 +28,15 @@ init:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: clean
 clean: init

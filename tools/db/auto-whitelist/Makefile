@@ -1,6 +1,6 @@
 LANG := en_US.UTF-8
-
 SHELL := /usr/bin/env bash
+EXECUTABLES_COMPONENTS := wire-server:auto-whitelist
 
 default: all
 
@@ -20,8 +20,8 @@ compile:
 
 .PHONY: install
 install: init
-	stack install --pedantic --local-bin-path=dist
+	stack install --pedantic --local-bin-path=dist $(EXECUTABLES_COMPONENTS)
 
 .PHONY: fast
 fast: init
-	stack install --fast --local-bin-path=dist
+	stack install --fast --local-bin-path=dist $(EXECUTABLES_COMPONENTS)

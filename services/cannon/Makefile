@@ -30,15 +30,15 @@ clean:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install wire-server:$(NAME) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install wire-server:$(NAME) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build wire-server:$(NAME) --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata

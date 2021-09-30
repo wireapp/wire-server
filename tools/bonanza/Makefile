@@ -4,6 +4,7 @@ NAME         := bonanza
 VERSION      ?=
 BUILD_NUMBER ?= 0
 DEB          := dist/$(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
+EXECUTABLES_COMPONENTS := wire-server:bonanza wire-server:kibanana wire-server:kibana-raw
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -24,11 +25,11 @@ clean:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
+	stack build $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: dist
 dist: guard-VERSION $(DEB)

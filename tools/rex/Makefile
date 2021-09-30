@@ -2,6 +2,7 @@ LANG         := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 SRC          := Main.hs
 NAME         := rex
+EXECUTABLES_COMPONENTS = wire-server:rex
 VERSION      ?=
 
 default: clean install
@@ -14,7 +15,6 @@ guard-%:
 
 .PHONY: clean
 clean:
-	stack clean $(NAME)
 	rm -f rex *.docker *.aci *.asc
 
 init:
@@ -23,16 +23,16 @@ init:
 # dynamically compiled rex added to ../../dist/
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 # dynamically compiled rex added to ../../dist/
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build $(EXECUTABLES_COMPONENTS) --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 # build a statically linked binary by compiling on alpine. Will result in a 'rex-static' binary in dist.
 .PHONY: static

@@ -4,6 +4,8 @@ SHELL := /usr/bin/env bash
 
 NAME := find-undead
 
+EXECUTABLES_COMPONENTS := wire-server:find-undead
+
 default: all
 
 all: install
@@ -18,8 +20,8 @@ compile:
 
 .PHONY: install
 install:
-	stack install --pedantic --local-bin-path=dist .
+	stack install --pedantic --local-bin-path=dist $(EXECUTABLES_COMPONENTS)
 
 .PHONY: fast
 fast:
-	stack install --fast --local-bin-path=dist .
+	stack install --fast --local-bin-path=dist $(EXECUTABLES_COMPONENTS)
