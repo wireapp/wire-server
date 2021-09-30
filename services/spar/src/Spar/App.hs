@@ -173,7 +173,6 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
--- TODO(sandy): This is the only use of the Reader effect
 instance Member (Input Opts) r => HasConfig (Spar r) where
   getConfig = liftSem $ inputs saml
 
@@ -779,7 +778,7 @@ verdictHandlerMobile granted denied = \case
 -- | When getting stuck during login finalization, show a nice HTML error rather than the json
 -- blob.  Show lots of debugging info for the customer to paste in any issue they might open.
 errorPage :: SparError -> [Multipart.Input] -> Maybe Text -> ServerError
-errorPage err mp_inputs mcky =
+errorPage err mpInputs mcky =
   ServerError
     { errHTTPCode = Http.statusCode $ Wai.code werr,
       errReasonPhrase = cs $ Wai.label werr,
@@ -797,7 +796,7 @@ errorPage err mp_inputs mcky =
         "</body>",
         "  sorry, something went wrong :(<br>",
         "  please copy the following debug information to your clipboard and provide it when opening an issue in our customer support.<br><br>",
-        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, mp_inputs, mcky)) <> "</pre>",
+        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, mpInputs, mcky)) <> "</pre>",
         "</body>"
       ]
 
