@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 89df7eafc25d3da1a95a405d6e6509ee3dc7d488291d449ca7a01b9afdb00747
+-- hash: d5382afdfc45e225067c7848e99d40349897ddd6eeb69be59038373e57ada716
 
 name:           brig
 version:        1.35.0
@@ -106,6 +106,7 @@ library
       Brig.User.Template
       Brig.Whitelist
       Brig.ZAuth
+      Main
   other-modules:
       Paths_brig
   hs-source-dirs:
@@ -233,7 +234,7 @@ library
   default-language: Haskell2010
 
 executable brig
-  main-is: exe/Main.hs
+  main-is: src/Main.hs
   other-modules:
       Paths_brig
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
@@ -267,6 +268,7 @@ executable brig-integration
       API.Calling
       API.Federation
       API.Internal
+      API.Internal.Util
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -317,6 +319,7 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
+    , cql-io
     , data-timeout
     , email-validate
     , exceptions
@@ -434,6 +437,8 @@ executable brig-schema
       V62_RemoveFederationIdMapping
       V63_AddUsersPendingActivation
       V64_ClientCapabilities
+      V65_FederatedConnections
+      V66_PersonalFeatureConfCallInit
       V9
       Paths_brig
   hs-source-dirs:
@@ -459,6 +464,7 @@ test-suite brig-tests
       Test.Brig.API.Error
       Test.Brig.Calling
       Test.Brig.Calling.Internal
+      Test.Brig.Roundtrip
       Test.Brig.User.Search.Index.Types
       Paths_brig
   hs-source-dirs:
@@ -482,6 +488,7 @@ test-suite brig-tests
     , servant-client-core
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , time
     , tinylog
     , types-common

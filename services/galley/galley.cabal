@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 66eafd08ffd55824f2f008f82c66d8e9a4c66436dce603ad17b67fa76fee055e
+-- hash: a5b2ec0bd44d4fcabec564b4e7683a01cfb75cdb1c78a6eee520d6c48c95bb1d
 
 name:           galley
 version:        0.83.0
@@ -67,7 +67,9 @@ library
       Galley.Queue
       Galley.Run
       Galley.Types.Clients
+      Galley.Types.UserList
       Galley.Validation
+      Main
   other-modules:
       Paths_galley
   hs-source-dirs:
@@ -88,6 +90,7 @@ library
     , brig-types >=0.73.1
     , bytestring >=0.9
     , bytestring-conversion >=0.2
+    , case-insensitive
     , cassandra-util >=0.16.2
     , cassava >=0.5.2
     , cereal >=0.4
@@ -123,6 +126,7 @@ library
     , safe-exceptions >=0.1
     , saml2-web-sso >=0.18
     , servant
+    , servant-client
     , servant-server
     , servant-swagger
     , servant-swagger-ui
@@ -158,7 +162,7 @@ library
   default-language: Haskell2010
 
 executable galley
-  main-is: exe/Main.hs
+  main-is: src/Main.hs
   other-modules:
       Paths_galley
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
@@ -166,13 +170,16 @@ executable galley
   build-depends:
       HsOpenSSL
     , base
+    , case-insensitive
     , extended
     , galley
     , galley-types
     , imports
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
+    , tagged
     , types-common
     , wire-api
     , wire-api-federation
@@ -250,6 +257,7 @@ executable galley-integration
     , raw-strings-qq >=1.0
     , retry
     , safe >=0.3
+    , schema-profunctor
     , servant
     , servant-client
     , servant-client-core
@@ -297,6 +305,7 @@ executable galley-migrate-data
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
+    , case-insensitive
     , cassandra-util
     , conduit
     , containers
@@ -308,7 +317,9 @@ executable galley-migrate-data
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
+    , tagged
     , text
     , time
     , tinylog
@@ -354,6 +365,9 @@ executable galley-schema
       V48_DeleteRemoteIdentifiers
       V49_ReAddRemoteIdentifiers
       V50_AddLegalholdWhitelisted
+      V51_FeatureFileSharing
+      V52_FeatureConferenceCalling
+      V53_AddRemoteConvStatus
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -361,13 +375,16 @@ executable galley-schema
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base
+    , case-insensitive
     , cassandra-util
     , extended
     , imports
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , ssl-util
+    , tagged
     , text
     , tinylog
     , wire-api
@@ -393,6 +410,7 @@ test-suite galley-types-tests
   build-depends:
       QuickCheck
     , base
+    , case-insensitive
     , containers
     , extended
     , galley
@@ -402,8 +420,10 @@ test-suite galley-types-tests
     , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
+    , servant-client
     , servant-swagger
     , ssl-util
+    , tagged
     , tasty
     , tasty-hspec
     , tasty-hunit
