@@ -51,6 +51,7 @@ import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import Wire.API.ErrorDescription (MissingLegalholdConsent)
+import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -178,39 +179,57 @@ createSelfConversation zusr = do
 createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   lusr <- qualifyLocal zusr
-  otherUserId <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
-  (x, y) <- toUUIDs zusr otherUserId
-  when (x == y) $
-    throwM $
-      invalidOp "Cannot create a 1-1 with yourself"
-  case newConvTeam j of
+  let allUsers = newConvMembers lusr j
+  other <- ensureOne (ulAll lusr allUsers)
+  when (unTagged lusr == other) $
+    throwM (invalidOp "Cannot create a 1-1 with yourself")
+  foldQualified
+    lusr
+    (createLocalOne2OneConversation lusr zcon (newConvName j) (newConvTeam j))
+    (createRemoteOne2OneConversation lusr zcon)
+    other
+
+createLocalOne2OneConversation ::
+  Local UserId ->
+  ConnId ->
+  Maybe Text ->
+  Maybe ConvTeamInfo ->
+  Local UserId ->
+  Galley ConversationResponse
+createLocalOne2OneConversation lusr zcon name mteam lother = do
+  (x, y) <- toUUIDs (lUnqualified lusr) (lUnqualified lother)
+  case mteam of
     Just ti
       | cnvManaged ti -> throwM noManagedTeamConv
       | otherwise ->
-        checkBindingTeamPermissions zusr otherUserId (cnvTeamId ti)
+        checkBindingTeamPermissions lusr lother (cnvTeamId ti)
     Nothing -> do
-      ensureConnected zusr [otherUserId]
-  n <- rangeCheckedMaybe (newConvName j)
+      ensureConnected (lUnqualified lusr) [lUnqualified lother]
+  n <- rangeCheckedMaybe name
   c <- Data.conversation (Data.one2OneConvId x y)
-  maybe (create lusr x y n $ newConvTeam j) (conversationExisted zusr) c
+  maybe (create x y n mteam) (conversationExisted (lUnqualified lusr)) c
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u
       when (isNothing membership) $
         throwM noBindingTeamMembers
     checkBindingTeamPermissions x y tid = do
-      zusrMembership <- Data.teamMember tid zusr
+      zusrMembership <- Data.teamMember tid (lUnqualified lusr)
       void $ permissionCheck CreateConversation zusrMembership
       Data.teamBinding tid >>= \case
         Just Binding -> do
-          verifyMembership tid x
-          verifyMembership tid y
+          verifyMembership tid (lUnqualified x)
+          verifyMembership tid (lUnqualified y)
         Just _ -> throwM nonBindingTeam
         Nothing -> throwM teamNotFound
-    create lusr x y n tinfo = do
+    create x y n tinfo = do
       c <- Data.createOne2OneConversation lusr x y n (cnvTeamId <$> tinfo)
-      notifyCreatedConversation Nothing zusr (Just zcon) c
-      conversationCreated zusr c
+      notifyCreatedConversation Nothing (lUnqualified lusr) (Just zcon) c
+      conversationCreated (lUnqualified lusr) c
+
+createRemoteOne2OneConversation ::
+  Local UserId -> ConnId -> Remote UserId -> Galley ConversationResponse
+createRemoteOne2OneConversation _ _ _ = throwM federationNotImplemented
 
 createConnectConversationH :: UserId ::: Maybe ConnId ::: JsonRequest Connect -> Galley Response
 createConnectConversationH (usr ::: conn ::: req) = do
@@ -340,3 +359,7 @@ newConvMembers :: Local x -> NewConv -> UserList UserId
 newConvMembers loc body =
   UserList (newConvUsers body) []
     <> toUserList loc (newConvQualifiedUsers body)
+
+ensureOne :: [a] -> Galley a
+ensureOne [x] = pure x
+ensureOne _ = throwM (invalidRange "One-to-one conversations can only have a single invited member")
