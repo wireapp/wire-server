@@ -76,10 +76,10 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
-import Spar.Sem.Random (Random)
-import qualified Spar.Sem.Random as Random
 import Spar.Sem.Now (Now)
 import qualified Spar.Sem.Now as Now
+import Spar.Sem.Random (Random)
+import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -397,7 +397,7 @@ createValidScimUser ::
   (m ~ Scim.ScimHandler (Spar r)) =>
   Members
     '[ Random,
-      Now,
+       Now,
        Input Opts,
        Logger (Msg -> Msg),
        Logger String,

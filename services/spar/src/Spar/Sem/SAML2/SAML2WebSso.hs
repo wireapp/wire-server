@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Spar.Sem.SAML2.SAML2WebSso where
@@ -7,12 +7,6 @@ import Control.Monad.Except
 import Data.Id (TeamId)
 import Imports
 import Polysemy
-import Spar.Sem.SAML2
-import Imports
-import qualified SAML2.WebSSO as SAML
-import SAML2.WebSSO
-import qualified Spar.Sem.Logger as Logger
-import Wire.API.User.Saml
 import Polysemy.Input
 import Polysemy.Internal.Tactics
 import SAML2.WebSSO
@@ -32,7 +26,7 @@ import Wire.API.User.Saml
 wrapMonadClientSem :: a -> a
 wrapMonadClientSem = id
 
-newtype Blah r a = Blah { unBlah :: Sem r a }
+newtype Blah r a = Blah {unBlah :: Sem r a}
   deriving (Functor, Applicative, Monad)
 
 instance Member (Input Opts) r => HasConfig (Blah r) where
@@ -83,7 +77,6 @@ saml2ToSaml2WebSso =
       x <- raise $ unBlah $ SAML.authreq @_ @SparError n (inspectOrBomb ins get_a) i
       s <- getInitialStateT
       pure $ x <$ s
-
     AuthResp mitlt ma mb mc ab -> do
       get_a <- runT ma
       get_b <- runT mb
@@ -93,7 +86,6 @@ saml2ToSaml2WebSso =
 
       x <- raise $ unBlah $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y -> inspectOrBomb ins $ get_c $ (x, y) <$ s) ab
       pure $ x <$ s
-
     Meta t ma mb -> do
       get_a <- runT ma
       get_b <- runT mb
@@ -113,6 +105,5 @@ inspectOrBomb ins get_a = do
   fa <- Blah $ saml2ToSaml2WebSso get_a
   maybe
     (error "saml2ToSaml2WebSso called with an uninspectable weaving functor")
-    pure $ inspect ins fa
-
-
+    pure
+    $ inspect ins fa

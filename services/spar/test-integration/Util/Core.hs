@@ -168,9 +168,6 @@ import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Options.Applicative as OPA
-import Polysemy
-import Polysemy.Error (runError)
-import Polysemy.Input
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
@@ -178,30 +175,12 @@ import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Spar.App (liftSem, type RealInterpretation)
 import qualified Spar.App as Spar
-import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
-import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
-import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
-import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
-import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
-import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
-import Spar.Sem.IdP.Cassandra
-import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog, toLevel)
-import Spar.Sem.Random.IO (randomToIO)
-import Spar.Sem.Now.IO (nowToIO)
-import Spar.Sem.SAML2.SAML2WebSso (saml2ToSaml2WebSso)
-import Spar.Sem.Random.IO (randomToIO)
+import Spar.Sem.Logger.TinyLog (toLevel)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.SAMLUserStore.Cassandra
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
-import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
-import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
-import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.SparRoute.Servant (sparRouteToServant)
-import qualified System.Logger as TinyLog
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
@@ -1243,35 +1222,10 @@ runSpar ::
   (MonadReader TestEnv m, MonadIO m) =>
   Spar.Spar RealInterpretation a ->
   m a
-runSpar (Spar.Spar action) = do
+runSpar action = do
   ctx <- (^. teSparEnv) <$> ask
   liftIO $ do
-    result <-
-      fmap join
-        . runFinal
-        . embedToFinal @IO
-        . nowToIO
-        . runInputConst (Spar.sparCtxLogger ctx)
-        . runInputConst (Spar.sparCtxOpts ctx)
-        . loggerToTinyLog (Spar.sparCtxLogger ctx)
-        . stringLoggerToTinyLog
-        . runError @SparError
-        . ttlErrorToSparError
-        . galleyAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpGalley ctx)
-        . brigAccessToHttp (Spar.sparCtxHttpManager ctx) (Spar.sparCtxHttpBrig ctx)
-        . interpretClientToIO (Spar.sparCtxCas ctx)
-        . samlUserStoreToCassandra
-        . idPToCassandra
-        . defaultSsoCodeToCassandra
-        . scimTokenStoreToCassandra
-        . scimUserTimesStoreToCassandra
-        . scimExternalIdStoreToCassandra
-        . aReqIDStoreToCassandra
-        . assIDStoreToCassandra
-        . bindCookieStoreToCassandra
-        . sparRouteToServant (saml $ Spar.sparCtxOpts ctx)
-        . saml2ToSaml2WebSso
-        $ runExceptT action
+    result <- Spar.runSparToIO ctx action
     either (throwIO . ErrorCall . show) pure result
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId

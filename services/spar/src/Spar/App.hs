@@ -74,9 +74,6 @@ import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( IdPId (..),
     Issuer (..),
-    SPHandler (..),
-    SPStoreID (..),
-    SPStoreIdP (getIdPConfigByIssuerOptionalSPId),
     UnqualifiedNameID (..),
     explainDeniedReason,
     idpExtraInfo,
@@ -95,7 +92,6 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra, ttlErrorToSparError)
 import Spar.Sem.AssIDStore (AssIDStore)
-import qualified Spar.Sem.AssIDStore as AssIDStore
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
 import Spar.Sem.BindCookieStore (BindCookieStore)
 import qualified Spar.Sem.BindCookieStore as BindCookieStore
@@ -114,11 +110,11 @@ import Spar.Sem.IdP.Cassandra (idPToCassandra)
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
+import Spar.Sem.Now (Now)
+import Spar.Sem.Now.IO (nowToIO)
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.Random.IO (randomToIO)
-import Spar.Sem.Now (Now)
-import Spar.Sem.Now.IO (nowToIO)
 import Spar.Sem.SAML2 (SAML2)
 import Spar.Sem.SAML2.SAML2WebSso (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -132,6 +128,8 @@ import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
+import Spar.Sem.SparRoute (SparRoute)
+import Spar.Sem.SparRoute.Servant (sparRouteToServant)
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
@@ -432,6 +430,7 @@ runSparToIO ctx (Spar action) =
     . runFinal
     . embedToFinal @IO
     . nowToIO
+    . randomToIO
     . runInputConst (sparCtxLogger ctx)
     . runInputConst (sparCtxOpts ctx)
     . loggerToTinyLog (sparCtxLogger ctx)
@@ -456,13 +455,13 @@ runSparToIO ctx (Spar action) =
 
 runSparToHandler :: Env -> Spar RealInterpretation a -> Handler a
 runSparToHandler ctx spar = do
-    err <- liftIO $ runSparToIO ctx spar
-    throwErrorAsHandlerException err
+  err <- liftIO $ runSparToIO ctx spar
+  throwErrorAsHandlerException err
   where
-      throwErrorAsHandlerException :: Either SparError a -> Handler a
-      throwErrorAsHandlerException (Left err) =
-        sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
-      throwErrorAsHandlerException (Right a) = pure a
+    throwErrorAsHandlerException :: Either SparError a -> Handler a
+    throwErrorAsHandlerException (Left err) =
+      sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
+    throwErrorAsHandlerException (Right a) = pure a
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we

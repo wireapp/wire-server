@@ -10,12 +10,18 @@ import SAML2.WebSSO
 import URI.ByteString (URI)
 
 data SAML2 m a where
-  AuthReq
-      :: NominalDiffTime
-      -> m Issuer -> IdPId -> SAML2 m (FormRedirect AuthnRequest)
-  AuthResp
-      :: Maybe TeamId
-      -> m Issuer -> m URI -> (AuthnResponse -> AccessVerdict -> m resp) -> AuthnResponseBody -> SAML2 m resp
+  AuthReq ::
+    NominalDiffTime ->
+    m Issuer ->
+    IdPId ->
+    SAML2 m (FormRedirect AuthnRequest)
+  AuthResp ::
+    Maybe TeamId ->
+    m Issuer ->
+    m URI ->
+    (AuthnResponse -> AccessVerdict -> m resp) ->
+    AuthnResponseBody ->
+    SAML2 m resp
   Meta :: ST -> m Issuer -> m URI -> SAML2 m SPMetadata
   ToggleCookie ::
     KnownSymbol name =>
@@ -25,4 +31,3 @@ data SAML2 m a where
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''SAML2
-

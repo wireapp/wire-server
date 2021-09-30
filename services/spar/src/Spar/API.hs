@@ -1,4 +1,4 @@
-{# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -64,8 +64,6 @@ import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Orphans ()
 import Spar.Scim
-import Spar.Sem.SAML2 (SAML2)
-import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
@@ -80,9 +78,9 @@ import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import qualified Spar.Sem.IdP as IdPEffect
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
+import Spar.Sem.Now (Now)
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
-import Spar.Sem.Now (Now)
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -91,8 +89,8 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import qualified Spar.Sem.SparRoute as SparRoute
 import Spar.Sem.SparRoute (SparRoute)
+import qualified Spar.Sem.SparRoute as SparRoute
 import System.Logger (Msg)
 import qualified System.Logger as TinyLog
 import qualified URI.ByteString as URI
@@ -259,8 +257,14 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
 -- value that deletes any bind cookies on the client.
 initializeBindCookie ::
-  Members '[ Random,
-             SAML2, Input Opts, Logger String, BindCookieStore] r =>
+  Members
+    '[ Random,
+       SAML2,
+       Input Opts,
+       Logger String,
+       BindCookieStore
+     ]
+    r =>
   Maybe UserId ->
   NominalDiffTime ->
   Spar r SetBindCookie
@@ -292,10 +296,8 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-
 runSparInSem :: Spar r a -> Sem r a
 runSparInSem = undefined
-
 
 authresp ::
   forall r.
