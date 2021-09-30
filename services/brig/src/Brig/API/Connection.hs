@@ -64,16 +64,71 @@ import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 type ConnectionM = ExceptT ConnectionError AppIO
 
+ensureIsActivated :: Local x -> Qualified UserId -> MaybeT AppIO ()
+ensureIsActivated loc qusr = do
+  active <-
+    lift $
+      foldQualified
+        loc
+        (Data.isActivated . lUnqualified)
+        (const (pure True))
+        qusr
+  guard active
+
+ensureNotSameTeam :: Local UserId -> Qualified UserId -> ConnectionM ()
+ensureNotSameTeam self target = do
+  selfTeam <- Intra.getTeamId (lUnqualified self)
+  targetTeam <-
+    lift $
+      foldQualified
+        self
+        (Intra.getTeamId . lUnqualified)
+        (const (pure Nothing))
+        target
+  when (isJust selfTeam && selfTeam == crTeam) $
+    throwE ConnectSameBindingTeamUsers
+
 createConnection ::
   Local UserId ->
   ConnId ->
   Qualified UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
-createConnection lusr con =
-  foldQualified
-    lusr
-    (createConnectionToLocalUser lusr con)
-    (createConnectionToRemoteUser lusr con)
+createConnection lusr con target = do
+  when (unTagged self == target) $
+    throwE (InvalidUser target)
+  noteT ConnectNoIdentity $
+    ensureIsActivated self
+  noteT (InvalidUser target) $
+    ensureIsActivated target
+  checkLegalholdPolicyConflictQualified self target
+  ensureNotSameTeam self target
+  -- the action that we take only depends on the local status of the connection
+  connection <- lift $ Data.lookupConnection self target
+  case fmap ucStatus s2o of
+    Nothing -> do
+      checkLimit self
+      Created <$> insert connection
+    Just Sent -> resend
+    Just Pending -> accept
+    Just MissingLegalholdConsent -> blocked
+    Just Blocked -> blocked
+    Just Accepted -> unchanged
+    Just Cancelled -> cancel
+  where
+    insert :: Maybe UserConnection -> ExceptT ConnectionError AppIO UserConnection
+    insert connection = lift $ do
+      Log.info $
+        logConnection (lUnqualified self) target
+          . msg (val "Creating connection")
+      qcnv <- Intra.createConnectConv self (unTagged target) Nothing (Just conn)
+      s2o' <- Data.insertConnection self (unTagged target) SentWithHistory qcnv
+      o2s' <- Data.insertConnection target (unTagged self) PendingWithHistory qcnv
+      e2o <-
+        ConnectionUpdated o2s' (ucStatus <$> o2s)
+          <$> Data.lookupName (lUnqualified self)
+      let e2s = ConnectionUpdated s2o' (ucStatus <$> connection) Nothing
+      mapM_ (Intra.onConnectionEvent (lUnqualified self) (Just conn)) [e2o, e2s]
+      return s2o'
 
 createConnectionToLocalUser ::
   Local UserId ->
@@ -181,6 +236,14 @@ createConnectionToRemoteUser ::
   Remote UserId ->
   ConnectionM (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser _ _ _ = throwM federationNotImplemented
+
+checkLegalholdPolicyConflictQualified :: Local UserId -> Qualified UserId -> ConnectionM ()
+checkLegalholdPolicyConflictQualified self =
+  foldQualified
+    self
+    (checkLegalholdPolicyConflict lself . lUnqualified)
+    -- FUTUREWORK: legal hold policy conflicts across backends
+    (\_ -> pure ())
 
 -- | Throw error if one user has a LH device and the other status `no_consent` or vice versa.
 --
