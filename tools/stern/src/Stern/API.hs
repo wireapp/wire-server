@@ -262,6 +262,18 @@ routes = do
     Doc.response 403 "Only teams with 1 user can be deleted" (Doc.model Doc.errorModel)
     Doc.response 404 "Binding team mismatch" (Doc.model Doc.errorModel)
 
+  get "/ejpd-info" (continue ejpdInfoByHandles) $
+    param "handles"
+      .&. def False (query "include_contacts")
+  document "GET" "ejpd-info" $ do
+    Doc.summary "internal wire.com process: https://wearezeta.atlassian.net/wiki/spaces/~463749889/pages/256738296/EJPD+official+requests+process"
+    Doc.parameter Doc.Query "handles" Doc.string' $
+      Doc.description "Handles of the user, separated by comments"
+    Doc.parameter Doc.Query "include_contacts" Doc.bool' $ do
+      Doc.description "If 'true', this gives you more more exhaustive information about this user (including social network)"
+      Doc.optional
+    Doc.response 200 "Required information about the listed users (where found)" Doc.end
+
   head "/users/blacklist" (continue isUserKeyBlacklisted) $
     (query "email" ||| phoneParam)
   document "HEAD" "checkBlacklistStatus" $ do
@@ -487,6 +499,9 @@ usersByIds = liftM json . Intra.getUserProfiles . Left . fromList
 
 usersByHandles :: List Handle -> Handler Response
 usersByHandles = liftM json . Intra.getUserProfiles . Right . fromList
+
+ejpdInfoByHandles :: (List Handle ::: Bool) -> Handler Response
+ejpdInfoByHandles (handles ::: includeContacts) = json <$> Intra.getEjpdInfo (fromList handles) includeContacts
 
 userConnections :: UserId -> Handler Response
 userConnections uid = do
