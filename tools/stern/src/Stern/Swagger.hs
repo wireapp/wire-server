@@ -44,9 +44,18 @@ typeTeamFeatureNameNoConfig =
     cs . toByteString'
       <$> [ Public.TeamFeatureLegalHold,
             Public.TeamFeatureSSO,
-            Public.TeamFeatureSearchVisibility,
+            Public.TeamFeatureSearchVisibility,  -- TODO: is this working?  then remove the custom entry below.
             Public.TeamFeatureValidateSAMLEmails,
-            Public.TeamFeatureDigitalSignatures
+            Public.TeamFeatureDigitalSignatures,
+            Public.TeamFeatureFileSharing,
+            Public.TeamFeatureClassifiedDomains,
+            Public.TeamFeatureConferenceCalling
+            -- you can keep this list updated by pulling all constructors `c`
+            -- `Public.TeamFeatureName` for which `TeamFeatureStatus c ~
+            -- TeamFeatureStatusNoConfig`
+            --
+            -- TODO: since we can't do this in code without dependent types, make an assertion
+            -- that we have not missed any.
           ]
 
 emailUpdate :: Model
