@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -45,9 +46,10 @@ import Imports
 
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, liftSem, sparCtxOpts, wrapMonadClientSem)
+import Spar.App (Spar, liftSem, wrapMonadClientSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -62,7 +64,7 @@ import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
-import Wire.API.User.Saml (maxScimTokens)
+import Wire.API.User.Saml (Opts, maxScimTokens)
 import Wire.API.User.Scim
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
@@ -83,7 +85,16 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Spar r) wher
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
 apiScimToken ::
-  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
+  Members
+    '[ Random,
+       Input Opts,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       Error E.SparError
+     ]
+    r =>
   ServerT APIScimToken (Spar r)
 apiScimToken =
   createScimToken
@@ -95,7 +106,16 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   forall r.
-  Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, Error E.SparError] r =>
+  Members
+    '[ Random,
+       Input Opts,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       Error E.SparError
+     ]
+    r =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -106,7 +126,7 @@ createScimToken zusr CreateScimToken {..} = do
   teamid <- liftSem $ Intra.Brig.authorizeScimTokenManagement zusr
   liftSem $ BrigAccess.ensureReAuthorised zusr createScimTokenPassword
   tokenNumber <- fmap length $ wrapMonadClientSem $ ScimTokenStore.getByTeam teamid
-  maxTokens <- asks (maxScimTokens . sparCtxOpts)
+  maxTokens <- liftSem $ inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
     E.throwSpar E.SparProvisioningTokenLimitReached
   idps <- wrapMonadClientSem $ IdPEffect.getConfigsByTeam teamid

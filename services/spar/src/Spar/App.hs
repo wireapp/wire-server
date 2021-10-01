@@ -38,6 +38,7 @@ module Spar.App
     deleteTeam,
     wrapSpar,
     liftSem,
+    type RealInterpretation,
   )
 where
 
@@ -64,7 +65,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
-import qualified Polysemy.Reader as ReaderEff
+import Polysemy.Input (Input, input, inputs, runInputConst)
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( Assertion (..),
@@ -138,11 +139,11 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
 
-newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ReaderT Env (ExceptT SparError (Sem r)) a}
+newtype Spar r a = Spar {fromSpar :: Member (Final IO) r => ExceptT SparError (Sem r) a}
   deriving (Functor)
 
 liftSem :: Sem r a -> Spar r a
-liftSem r = Spar $ lift $ lift r
+liftSem r = Spar $ lift r
 
 instance Applicative (Spar r) where
   pure a = Spar $ pure a
@@ -152,18 +153,14 @@ instance Monad (Spar r) where
   return = pure
   f >>= a = Spar $ fromSpar f >>= fromSpar . a
 
-instance MonadReader Env (Spar r) where
-  ask = Spar ask
-  local f m = Spar $ local f $ fromSpar m
-
 instance MonadError SparError (Spar r) where
   throwError err = Spar $ throwError err
   catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
 
 instance MonadIO (Spar r) where
-  liftIO m = Spar $ lift $ lift $ embedFinal m
+  liftIO m = Spar $ lift $ embedFinal m
 
-instance Member (Logger String) r => HasLogger (Spar r) where
+instance Members '[Input Opts, Logger String] r => HasLogger (Spar r) where
   logger lvl = liftSem . Logger.log lvl
 
 data Env = Env
@@ -176,8 +173,8 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
-instance HasConfig (Spar r) where
-  getConfig = asks (saml . sparCtxOpts)
+instance Member (Input Opts) r => HasConfig (Spar r) where
+  getConfig = liftSem $ inputs saml
 
 instance HasNow (Spar r)
 
@@ -228,14 +225,13 @@ instance Member (Final IO) r => Catch.MonadCatch (Sem r) where
 wrapMonadClientSem :: Sem r a -> Spar r a
 wrapMonadClientSem action =
   Spar $
-    (lift $ lift action)
+    lift action
       `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
 wrapSpar :: Spar r a -> Spar r a
 wrapSpar action = Spar $ do
-  env <- ask
   fromSpar $
-    wrapMonadClientSem (runExceptT $ flip runReaderT env $ fromSpar action) >>= Spar . lift . except
+    wrapMonadClientSem (runExceptT $ fromSpar action) >>= Spar . except
 
 insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Spar r ()
 insertUser uref uid = wrapMonadClientSem $ SAMLUserStore.insert uref uid
@@ -323,14 +319,39 @@ createSamlUserWithId teamid buid suid = do
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: Members '[Random, GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Spar r UserId
+autoprovisionSamlUser ::
+  Members
+    '[ Random,
+       GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
+  Maybe TeamId ->
+  SAML.UserRef ->
+  Spar r UserId
 autoprovisionSamlUser mbteam suid = do
   buid <- liftSem $ Id <$> Random.uuid
   autoprovisionSamlUserWithId mbteam buid suid
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: forall r. Members '[GalleyAccess, BrigAccess, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r => Maybe TeamId -> UserId -> SAML.UserRef -> Spar r ()
+autoprovisionSamlUserWithId ::
+  forall r.
+  Members
+    '[ GalleyAccess,
+       BrigAccess,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
+  Maybe TeamId ->
+  UserId ->
+  SAML.UserRef ->
+  Spar r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
   idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
   guardReplacedIdP idp
@@ -400,33 +421,32 @@ bindUser buid userref = do
       Ephemeral -> err oldStatus
       PendingInvitation -> liftSem $ BrigAccess.setStatus buid Active
 
-instance
-  ( r
-      ~ '[ BindCookieStore,
-           AssIDStore,
-           AReqIDStore,
-           ScimExternalIdStore,
-           ScimUserTimesStore,
-           ScimTokenStore,
-           DefaultSsoCode,
-           IdPEffect.IdP,
-           SAMLUserStore,
-           Embed (Cas.Client),
-           BrigAccess,
-           GalleyAccess,
-           ReaderEff.Reader Opts,
-           Error TTLError,
-           Error SparError,
-           -- TODO(sandy): Make this a Logger Text instead
-           Logger String,
-           Logger (TinyLog.Msg -> TinyLog.Msg),
-           Random,
-           Embed IO,
-           Final IO
-         ]
-  ) =>
-  SPHandler SparError (Spar r)
-  where
+type RealInterpretation =
+  '[ BindCookieStore,
+     AssIDStore,
+     AReqIDStore,
+     ScimExternalIdStore,
+     ScimUserTimesStore,
+     ScimTokenStore,
+     DefaultSsoCode,
+     IdPEffect.IdP,
+     SAMLUserStore,
+     Embed (Cas.Client),
+     BrigAccess,
+     GalleyAccess,
+     Error TTLError,
+     Error SparError,
+     -- TODO(sandy): Make this a Logger Text instead
+     Logger String,
+     Logger (TinyLog.Msg -> TinyLog.Msg),
+     Input Opts,
+     Input TinyLog.Logger,
+     Random,
+     Embed IO,
+     Final IO
+   ]
+
+instance r ~ RealInterpretation => SPHandler SparError (Spar r) where
   type NTCTX (Spar r) = Env
   nt :: forall a. Env -> Spar r a -> Handler a
   nt ctx (Spar action) = do
@@ -440,11 +460,12 @@ instance
           . runFinal
           . embedToFinal @IO
           . randomToIO
+          . runInputConst (sparCtxLogger ctx)
+          . runInputConst (sparCtxOpts ctx)
           . loggerToTinyLog (sparCtxLogger ctx)
           . stringLoggerToTinyLog
           . runError @SparError
           . ttlErrorToSparError
-          . ReaderEff.runReader (sparCtxOpts ctx)
           . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
           . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
           . interpretClientToIO (sparCtxCas ctx)
@@ -457,8 +478,7 @@ instance
           . aReqIDStoreToCassandra
           . assIDStoreToCassandra
           . bindCookieStoreToCassandra
-          . runExceptT
-          $ runReaderT action ctx
+          $ runExceptT action
       throwErrorAsHandlerException :: Either SparError a -> Handler a
       throwErrorAsHandlerException (Left err) =
         sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
@@ -475,7 +495,19 @@ instance
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, AReqIDStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Input TinyLog.Logger,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       BindCookieStore,
+       AReqIDStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AuthnResponse ->
@@ -507,7 +539,18 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Input TinyLog.Logger,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       BindCookieStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -518,12 +561,13 @@ verdictHandlerResult bindCky mbteam verdict = do
   liftSem $ Logger.log SAML.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
-catchVerdictErrors :: Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
+catchVerdictErrors :: forall r. Member (Input TinyLog.Logger) r => Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
 catchVerdictErrors = (`catchError` hndlr)
   where
     hndlr :: SparError -> Spar r VerdictHandlerResult
     hndlr err = do
-      logr <- asks sparCtxLogger
+      logr <- liftSem input
+      -- TODO(sandy): When we remove this line, we can get rid of the @Input TinyLog.Logger@ effect
       waiErr <- renderSparErrorWithLogging logr err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
@@ -552,7 +596,17 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members '[Random, Logger String, GalleyAccess, BrigAccess, BindCookieStore, ScimTokenStore, IdPEffect.IdP, SAMLUserStore] r =>
+  Members
+    '[ Random,
+       Logger String,
+       GalleyAccess,
+       BrigAccess,
+       BindCookieStore,
+       ScimTokenStore,
+       IdPEffect.IdP,
+       SAMLUserStore
+     ]
+    r =>
   Maybe BindCookie ->
   Maybe TeamId ->
   SAML.AccessVerdict ->
@@ -724,7 +778,7 @@ verdictHandlerMobile granted denied = \case
 -- | When getting stuck during login finalization, show a nice HTML error rather than the json
 -- blob.  Show lots of debugging info for the customer to paste in any issue they might open.
 errorPage :: SparError -> [Multipart.Input] -> Maybe Text -> ServerError
-errorPage err inputs mcky =
+errorPage err mpInputs mcky =
   ServerError
     { errHTTPCode = Http.statusCode $ Wai.code werr,
       errReasonPhrase = cs $ Wai.label werr,
@@ -742,7 +796,7 @@ errorPage err inputs mcky =
         "</body>",
         "  sorry, something went wrong :(<br>",
         "  please copy the following debug information to your clipboard and provide it when opening an issue in our customer support.<br><br>",
-        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, inputs, mcky)) <> "</pre>",
+        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, mpInputs, mcky)) <> "</pre>",
         "</body>"
       ]
 
