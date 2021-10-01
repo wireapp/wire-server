@@ -154,6 +154,9 @@ createBindingTeamWithMembers numUsers = do
   members <- forM [2 .. numUsers] $ \n -> do
     mem <- addUserToTeam owner tid
     SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
+    -- 'refreshIndex' needs to happen here to make tests more realistic.  one effect of
+    -- refreshing the index once at the end would be that the hard member limit wouldn't hold
+    -- any more.
     refreshIndex
     return $ view Galley.Types.Teams.userId mem
 
