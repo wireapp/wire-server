@@ -234,8 +234,9 @@ testCsvData ::
   UserId ->
   Maybe Text {- externalId -} ->
   Maybe UserSSOId ->
+  Bool ->
   TestSpar ()
-testCsvData tid owner uid mbeid mbsaml = do
+testCsvData tid owner uid mbeid mbsaml hasissuer = do
   usersInCsv <- do
     g <- view teGalley
     resp <-
@@ -260,6 +261,7 @@ testCsvData tid owner uid mbeid mbsaml = do
                 $ cs issuer
             Just (UserScimExternalId _) -> Nothing
             Nothing -> Nothing
+      ('h', haveIssuer) `shouldSatisfy` bool isNothing isJust hasissuer . snd
       ('i', CsvExport.tExportIdpIssuer export) `shouldBe` ('i', haveIssuer)
 
       let haveSubject :: Text
@@ -362,7 +364,7 @@ testCreateUserNoIdP = do
   -- csv download should work
   let eid = Scim.User.externalId scimUser
       sml = Nothing
-   in testCsvData tid owner userid eid sml
+   in testCsvData tid owner userid eid sml False
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
@@ -438,7 +440,7 @@ testCreateUserWithSamlIdP = do
       eid = Scim.User.externalId user
       sml :: HasCallStack => UserSSOId
       sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
-   in testCsvData tid owner uid eid (Just sml)
+   in testCsvData tid owner uid eid (Just sml) True
 
   -- members table contains an entry
   -- (this really shouldn't be tested here, but by the type system!)
