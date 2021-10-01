@@ -44,7 +44,7 @@ typeTeamFeatureNameNoConfig =
     cs . toByteString'
       <$> [ Public.TeamFeatureLegalHold,
             Public.TeamFeatureSSO,
-            Public.TeamFeatureSearchVisibility,  -- TODO: is this working?  then remove the custom entry below.
+            Public.TeamFeatureSearchVisibility, -- TODO: is this working?  then remove the custom entry below.
             Public.TeamFeatureValidateSAMLEmails,
             Public.TeamFeatureDigitalSignatures,
             Public.TeamFeatureFileSharing,
