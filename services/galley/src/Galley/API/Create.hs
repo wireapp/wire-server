@@ -20,7 +20,7 @@ module Galley.API.Create
     internalCreateManagedConversationH,
     createSelfConversation,
     createOne2OneConversation,
-    createConnectConversationH,
+    createConnectConversation,
   )
 where
 
@@ -277,12 +277,11 @@ createOne2OneConversationRemotely ::
 createOne2OneConversationRemotely _ _ _ _ _ _ =
   throwM federationNotImplemented
 
-createConnectConversationH :: UserId ::: Maybe ConnId ::: JsonRequest Connect -> Galley Response
-createConnectConversationH (usr ::: conn ::: req) = do
-  j <- fromJsonBody req
-  handleConversationResponse <$> createConnectConversation usr conn j
-
-createConnectConversation :: UserId -> Maybe ConnId -> Connect -> Galley ConversationResponse
+createConnectConversation ::
+  UserId ->
+  Maybe ConnId ->
+  Connect ->
+  Galley ConversationResponse
 createConnectConversation usr conn j = do
   lusr <- qualifyLocal usr
   (x, y) <- toUUIDs usr (cRecipient j)

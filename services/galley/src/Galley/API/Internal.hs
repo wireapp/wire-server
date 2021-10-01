@@ -79,6 +79,7 @@ import Wire.API.ErrorDescription (MissingLegalholdConsent)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Public (ZOptConn, ZUser)
+import Wire.API.Routes.Public.Galley (ConversationVerb)
 import qualified Wire.API.Team.Feature as Public
 
 data InternalApi routes = InternalApi
@@ -175,7 +176,20 @@ data InternalApi routes = InternalApi
         :> ZOptConn
         :> "i"
         :> "user"
-        :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
+        :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] (),
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to self, if conversation did not exist before
+    -- - ConvConnect event to self, if other didn't join the connect conversation before
+    iConnect ::
+      routes
+        :- Summary "Create a connect conversation (deprecated)"
+        :> ZUser
+        :> ZOptConn
+        :> "i"
+        :> "conversations"
+        :> "connect"
+        :> ReqBody '[Servant.JSON] Connect
+        :> ConversationVerb
   }
   deriving (Generic)
 
@@ -250,7 +264,8 @@ servantSitemap =
         iTeamFeatureStatusClassifiedDomainsGet = iGetTeamFeature @'Public.TeamFeatureClassifiedDomains Features.getClassifiedDomainsInternal,
         iTeamFeatureStatusConferenceCallingPut = iPutTeamFeature @'Public.TeamFeatureConferenceCalling Features.setConferenceCallingInternal,
         iTeamFeatureStatusConferenceCallingGet = iGetTeamFeature @'Public.TeamFeatureConferenceCalling Features.getConferenceCallingInternal,
-        iDeleteUser = rmUser
+        iDeleteUser = rmUser,
+        iConnect = Create.createConnectConversation
       }
 
 iGetTeamFeature ::
@@ -289,14 +304,6 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @NewConvManaged
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to self, if conversation did not exist before
-  -- - ConvConnect event to self, if other didn't join the connect conversation before
-  post "/i/conversations/connect" (continue Create.createConnectConversationH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. jsonRequest @Connect
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before
