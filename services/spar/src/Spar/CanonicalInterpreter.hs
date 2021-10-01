@@ -33,23 +33,23 @@ import Spar.Sem.Now.IO (nowToIO)
 import Spar.Sem.Random (Random)
 import Spar.Sem.Random.IO (randomToIO)
 import Spar.Sem.SAML2 (SAML2)
-import Spar.Sem.SAML2.SAML2WebSso (saml2ToSaml2WebSso)
+import Spar.Sem.SAML2.Library (saml2ToSaml2WebSso)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.SAMLUserStore.Cassandra (interpretClientToIO, samlUserStoreToCassandra)
+import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
+import Spar.Sem.SamlProtocolSettings.Servant (sparRouteToServant)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimExternalIdStore.Cassandra (scimExternalIdStoreToCassandra)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.SparRoute (SparRoute)
-import Spar.Sem.SparRoute.Servant (sparRouteToServant)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
 
 type CanonicalEffs =
   '[ SAML2,
-     SparRoute,
+     SamlProtocolSettings,
      BindCookieStore,
      AssIDStore,
      AReqIDStore,

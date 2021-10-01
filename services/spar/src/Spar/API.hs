@@ -86,12 +86,12 @@ import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
+import Spar.Sem.SamlProtocolSettings (SamlProtocolSettings)
+import qualified Spar.Sem.SamlProtocolSettings as SamlProtocolSettings
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
-import Spar.Sem.SparRoute (SparRoute)
-import qualified Spar.Sem.SparRoute as SparRoute
 import System.Logger (Msg)
 import qualified System.Logger as TinyLog
 import qualified URI.ByteString as URI
@@ -124,10 +124,9 @@ api ::
        Error SparError,
        SAML2,
        Now,
-       SparRoute,
+       SamlProtocolSettings,
        Logger String,
        Logger (Msg -> Msg),
-       Error SparError,
        -- TODO(sandy): Remove me when we get rid of runSparInSem
        Final IO
      ]
@@ -158,7 +157,7 @@ apiSSO ::
        Random,
        Error SparError,
        SAML2,
-       SparRoute,
+       SamlProtocolSettings,
        SAMLUserStore,
        -- TODO(sandy): Remove me when we get rid of runSparInSem
        Final IO
@@ -167,8 +166,8 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Spar r)
 apiSSO opts =
-  (liftSem $ SAML2.meta appName (SparRoute.spIssuer Nothing) (SparRoute.responseURI Nothing))
-    :<|> (\tid -> liftSem $ SAML2.meta appName (SparRoute.spIssuer (Just tid)) (SparRoute.responseURI (Just tid)))
+  (liftSem $ SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
+    :<|> (\tid -> liftSem $ SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
     :<|> authresp Nothing
@@ -231,7 +230,7 @@ authreq ::
        AssIDStore,
        AReqIDStore,
        SAML2,
-       SparRoute,
+       SamlProtocolSettings,
        IdPEffect.IdP
      ]
     r =>
@@ -252,7 +251,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
-    liftSem $ SAML2.authReq authreqttl (SparRoute.spIssuer mbtid) idpid
+    liftSem $ SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
   wrapMonadClientSem $ AReqIDStore.storeVerdictFormat authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
   liftSem $ Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
@@ -316,7 +315,7 @@ authresp ::
        ScimTokenStore,
        IdPEffect.IdP,
        SAML2,
-       SparRoute,
+       SamlProtocolSettings,
        Error SparError,
        SAMLUserStore,
        -- TODO(sandy): Remove me when we get rid of runSparInSem
@@ -327,7 +326,7 @@ authresp ::
   Maybe ST ->
   SAML.AuthnResponseBody ->
   Spar r Void
-authresp mbtid ckyraw arbody = logErrors $ liftSem $ SAML2.authResp mbtid (SparRoute.spIssuer mbtid) (SparRoute.responseURI mbtid) go arbody
+authresp mbtid ckyraw arbody = logErrors $ liftSem $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
     cky :: Maybe BindCookie
     cky = ckyraw >>= bindCookieFromHeader

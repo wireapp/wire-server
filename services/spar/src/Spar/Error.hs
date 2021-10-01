@@ -100,6 +100,7 @@ data SparCustomError
   | SparIdPIssuerInUse
   | SparProvisioningMoreThanOneIdP LT
   | SparProvisioningTokenLimitReached
+  | SparInternalError LT
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
   deriving (Eq, Show)
@@ -184,6 +185,7 @@ renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right 
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.mkError status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- SCIM errors
 renderSparError (SAML.CustomError (SparScimError err)) = Left $ Scim.scimToServerError err
+renderSparError (SAML.CustomError (SparInternalError err)) = Right $ Wai.mkError status500 "server-error" ("Internal error: " <> err)
 -- Other
 renderSparError (SAML.CustomServant err) = Left err
 

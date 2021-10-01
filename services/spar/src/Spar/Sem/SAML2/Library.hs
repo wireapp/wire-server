@@ -1,7 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Spar.Sem.SAML2.SAML2WebSso (saml2ToSaml2WebSso) where
+module Spar.Sem.SAML2.Library (saml2ToSaml2WebSso) where
 
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
@@ -15,7 +16,7 @@ import Polysemy.Internal.Tactics
 import SAML2.WebSSO hiding (Error)
 import qualified SAML2.WebSSO as SAML hiding (Error)
 import qualified Spar.App as App
-import Spar.Error (SparCustomError (SparCassandraError), SparError)
+import Spar.Error (SparCustomError (..), SparError)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
@@ -131,6 +132,6 @@ inspectOrBomb ::
 inspectOrBomb ins get_a = do
   fa <- SPImpl $ saml2ToSaml2WebSso get_a
   maybe
-    (error "saml2ToSaml2WebSso called with an uninspectable weaving functor")
+    (SPImpl . throw @SparError $ SAML.CustomError $ SparInternalError "saml2ToSaml2WebSso called with an uninspectable weaving functor")
     pure
     $ inspect ins fa

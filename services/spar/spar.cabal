@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 82d7ad03f637cd11a132d9237c35df9e3cc6038790f50999a27f3d287f5e02f0
+-- hash: fe28e95f2571e0a2583e7d160ff87f80422801408c265139b1cd2392a425fd72
 
 name:           spar
 version:        0.1
@@ -58,7 +58,9 @@ library
       Spar.Sem.Random
       Spar.Sem.Random.IO
       Spar.Sem.SAML2
-      Spar.Sem.SAML2.SAML2WebSso
+      Spar.Sem.SAML2.Library
+      Spar.Sem.SamlProtocolSettings
+      Spar.Sem.SamlProtocolSettings.Servant
       Spar.Sem.SAMLUserStore
       Spar.Sem.SAMLUserStore.Cassandra
       Spar.Sem.ScimExternalIdStore
@@ -67,8 +69,6 @@ library
       Spar.Sem.ScimTokenStore.Cassandra
       Spar.Sem.ScimUserTimesStore
       Spar.Sem.ScimUserTimesStore.Cassandra
-      Spar.Sem.SparRoute
-      Spar.Sem.SparRoute.Servant
   other-modules:
       Paths_spar
   hs-source-dirs:
