@@ -21,6 +21,7 @@ module Brig.Data.Connection
   ( -- * DB Operations
     insertConnection,
     updateConnection,
+    updateConnectionStatus,
     lookupConnection,
     lookupLocalConnectionsPage,
     lookupRelationWithHistory,
@@ -90,6 +91,15 @@ insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
 updateConnection :: UserConnection -> RelationWithHistory -> AppIO UserConnection
 updateConnection c status = do
   self <- qualifyLocal (ucFrom c)
+  now <- updateConnectionStatus self (ucTo c) status
+  pure $
+    c
+      { ucStatus = relationDropHistory status,
+        ucLastUpdate = now
+      }
+
+updateConnectionStatus :: Local UserId -> Qualified UserId -> RelationWithHistory -> AppIO UTCTimeMillis
+updateConnectionStatus self target status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (lUnqualified -> ltarget) =
         write connectionUpdate $
@@ -97,12 +107,8 @@ updateConnection c status = do
   let remote (unTagged -> Qualified rtarget domain) =
         write remoteConnectionUpdate $
           params Quorum (status, now, lUnqualified self, domain, rtarget)
-  retry x5 $ foldQualified self local remote (ucTo c)
-  pure $
-    c
-      { ucStatus = relationDropHistory status,
-        ucLastUpdate = now
-      }
+  retry x5 $ foldQualified self local remote target
+  pure now
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
 lookupConnection :: Local UserId -> Qualified UserId -> AppIO (Maybe UserConnection)
@@ -140,6 +146,12 @@ lookupRelationWithHistory self target = do
   let remote (unTagged -> Qualified rtarget domain) =
         query1 remoteRelationSelect (params Quorum (lUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
+
+lookupRelation :: Local UserId -> Qualified UserId -> AppIO Relation
+lookupRelation self target =
+  lookupRelationWithHistory self target >>= \case
+    Nothing -> CancelledWithHistory
+    Just relh -> relationDropHistory relh
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
 lookupLocalConnections :: Local UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)

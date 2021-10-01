@@ -34,63 +34,124 @@ import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.Federation.Error (federationNotImplemented)
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
+data LocalConnectionAction
+  = LocalConnect
+  | LocalBlock
+  | LocalIgnore
+  | LocalRescind
+
+data RemoteConnectionAction
+  = RemoteConnect
+  | RemoteRescind
+
 data ConnectionAction
-  = Send
-  | Resend
-  | Block
-  | Cancel
-  | Accept
+  = LCA LocalConnectionAction
+  | RCA RemoteConnectionAction
 
-actionLogMessage :: ConnectionAction -> ByteString
-actionLogMessage Send = "Creating connection request"
-actionLogMessage Resend = "Resending connection request"
-actionLogMessage Accept = "Accepting connection"
-actionLogMessage Block = "Blocking connection"
-actionLogMessage Cancel = "Cancelling connection"
+-- Inventory of states on both backends.
+--
+-- good: the two backends agree on the state of the connection
+-- bad: no user action can result in the (A,A) state being reached
+-- inconsistent: the two backends disagree on the state of the connection, but
+--   it is not a bad state
+--
+-- A A good
+-- A B good
+-- A C inconsistent
+-- A I inconsistent
+-- A P inconsistent
+-- A S bad
+-- B B good
+-- B C good
+-- B I good
+-- B P good
+-- B S good
+-- C C good
+-- C I inconsistent
+-- C P inconsistent
+-- C S inconsistent
+-- I I good
+-- I P inconsistent
+-- I S good
+-- P P inconsistent
+-- P S good
+-- S S bad
 
-logAction :: Local UserId -> Qualified UserId -> ConnectionAction -> AppIO ()
-logAction self target action =
-  Log.info $
-    logConnection (lUnqualified self) target
-      . msg (val (actionLogMessage action))
+-- LC (local connect): A communicates that they now want to connect. This transitions P → A, and every other state (but including S) to S.
+-- LB (local block): A communicates that they do not want to connect. This transitions every state except B to B.
+-- LI (local ignore): A ignores the connection. P → I.
+-- LR (local rescind): A withdraws their intention to connect. S → C, A → P.
+-- RC (remote connect): B communicates that they now want to connect. S → A, C → P, A → A.
+-- RR (remote rescind): B withdraws their intention to connect. P → C, A → S.
+transition :: ConnectionAction -> Relation -> Maybe Relation
+-- MissingLegalholdConsent is treated exactly like blocked
+transition action MissingLegalholdConsent = transition action Blocked
+transition (LCA LocalConnect) Pending = Just Accepted
+transition (LCA LocalConnect) Accepted = Just Accepted
+transition (LCA LocalConnect) _ = Just Sent
+transition (LCA LocalBlock) Blocked = Nothing
+transition (LCA LocalBlock) _ = Just Blocked
+transition (LCA LocalIgnore) Pending = Just Ignored
+transition (LCA LocalIgnore) _ = Nothing
+transition (LCA LocalRescind) Sent = Just Cancelled
+-- The following transition is to make sure we always end up in state P
+-- when we start in S and receive the two actions RC and LR in an arbitrary
+-- order.
+transition (LCA LocalRescind) Accepted = Just Pending
+transition (LCA LocalRescind) _ = Nothing
+transition (RCA RemoteConnect) Sent = Just Accepted
+transition (RCA RemoteConnect) Accepted = Just Accepted
+transition (RCA RemoteConnect) Blocked = Nothing
+transition (RCA RemoteConnect) _ = Just Pending
+transition (RCA RemoteRescind) Pending = Just Cancelled
+-- The following transition is to make sure we always end up in state S
+-- when we start in P and receive the two actions LC and RR in an arbitrary
+-- order.
+transition (RCA RemoteRescind) Accepted = Just Sent
+transition (RCA RemoteRescind) _ = Nothing
 
-newAction :: Maybe UserConnection -> Either UserConnection ConnectionAction
-newAction Nothing = Right Send
-newAction (Just connection) = case ucStatus connection of
-  Sent -> Right Resend
-  Pending -> Right Accept
-  _ -> Left connection
+remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
+remoteAction LocalConnect = Just RemoteConnect
+remoteAction LocalRescind = Just RemoteRescind
+remoteAction _ = Nothing
 
-performAction ::
+executeTransition :: ConnectionAction -> Relation -> Galley Relation
+executeTransition action rel = case transition action rel of
+  Nothing -> pure rel
+  Just Accepted -> undefined
+
+reaction :: Relation -> Maybe RemoteConnectionAction
+reaction Accepted = Just RemoteConnect
+reaction Sent = Just RemoteConnect
+reaction _ = Nothing
+
+performLocalAction ::
   Local UserId ->
-  ConnId ->
   Remote UserId ->
-  ConnectionAction ->
-  AppIO (ResponseForExistedCreated UserConnection)
-performAction self conn target Resend = do
-  -- recreate the whole connection with a "Sent" state, to fix any possible
-  -- local or remote inconsistencies
-  performAction self conn target Send
-performAction self conn target Send = do
-  -- TODO: send RPC
-  qcnv <- Intra.createConnectConv self (unTagged target) Nothing (Just conn)
-  connection <- Data.insertConnection self (unTagged target) SentWithHistory qcnv
-  let e2s = ConnectionUpdated connection (Just (ucStatus connection)) Nothing
-  -- TODO: implement remote 1-1 conversation creation
-  traverse_ (Intra.onConnectionEvent (lUnqualified self) (Just conn)) [e2s]
-  pure (Created connection)
-performAction _ _ _ _ = throwM federationNotImplemented
+  LocalConnectionAction ->
+  Galley ()
+performLocalAction self other action = do
+  mreaction <- join <$> traverse_ notifyRemote (remoteAction self other action)
+  rel0 <- Data.lookupRelation self other
+  let rel1 = transition (LCA action) rel0
+      rel2 = maybe id (fmap (transition . RCA) mreaction) rel1
+  Data.updateConnectionStatus self other (relationWithHistory rel2)
 
-createConnectionToRemoteUser ::
+performRemoteAction ::
   Local UserId ->
-  ConnId ->
   Remote UserId ->
-  ConnectionM (ResponseForExistedCreated UserConnection)
-createConnectionToRemoteUser self conn target = do
-  mconnection <- lift $ Data.lookupConnection self (unTagged target)
-  -- the action that we take only depends on the local status of the connection
-  case newAction mconnection of
-    Right action -> lift $ do
-      logAction self (unTagged target) action
-      performAction self conn target action
-    Left connection -> pure (Existed connection)
+  RemoteConnectionAction ->
+  Galley (Maybe RemoteConnectionAction)
+performRemoteAction self other action = do
+  rel0 <- Data.lookupRelation self other
+  let rel1 = transition (RCA action) rel0
+  Data.updateConnectionStatus self other (relationWithHistory rel1)
+  pure (reaction rel1)
+
+-- send an RPC to the remote backend
+notifyRemote ::
+  Local UserId ->
+  Remote UserId ->
+  RemoteConnectionAction ->
+  Galley (Maybe RemoteConnectionAction)
+notifyRemote self other action = error "TODO"
