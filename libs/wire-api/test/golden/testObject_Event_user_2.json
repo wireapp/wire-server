@@ -2,11 +2,9 @@
     "conversation": "0000064d-0000-7a7f-0000-5749000029e1",
     "data": {
         "access": [
-            "invite",
-            "link",
             "private",
             "invite",
-            "invite"
+            "link"
         ],
         "access_role": "activated"
     },

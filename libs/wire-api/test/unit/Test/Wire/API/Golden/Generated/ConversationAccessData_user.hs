@@ -16,18 +16,18 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Test.Wire.API.Golden.Generated.ConversationAccessUpdate_user where
+module Test.Wire.API.Golden.Generated.ConversationAccessData_user where
 
 import Wire.API.Conversation
   ( Access (InviteAccess),
     AccessRole (ActivatedAccessRole, NonActivatedAccessRole),
-    ConversationAccessUpdate (..),
+    ConversationAccessData (..),
   )
 
-testObject_ConversationAccessUpdate_user_1 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_1 =
-  ConversationAccessUpdate {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
+testObject_ConversationAccessData_user_1 :: ConversationAccessData
+testObject_ConversationAccessData_user_1 =
+  ConversationAccessData {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
 
-testObject_ConversationAccessUpdate_user_2 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_2 =
-  ConversationAccessUpdate {cupAccess = [InviteAccess], cupAccessRole = ActivatedAccessRole}
+testObject_ConversationAccessData_user_2 :: ConversationAccessData
+testObject_ConversationAccessData_user_2 =
+  ConversationAccessData {cupAccess = [InviteAccess], cupAccessRole = ActivatedAccessRole}

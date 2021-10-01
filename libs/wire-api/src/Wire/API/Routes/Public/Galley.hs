@@ -454,7 +454,7 @@ data Api routes = Api
         :> "conversations"
         :> Capture' '[Description "Conversation ID"] "cnv" ConvId
         :> "access"
-        :> ReqBody '[JSON] ConversationAccessUpdate
+        :> ReqBody '[JSON] ConversationAccessData
         :> MultiVerb
              'PUT
              '[JSON]
@@ -471,7 +471,7 @@ data Api routes = Api
         :> "conversations"
         :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
         :> "access"
-        :> ReqBody '[JSON] ConversationAccessUpdate
+        :> ReqBody '[JSON] ConversationAccessData
         :> MultiVerb
              'PUT
              '[JSON]

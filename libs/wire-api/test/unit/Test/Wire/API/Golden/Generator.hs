@@ -166,7 +166,7 @@ generateTestModule = do
   generateBindingModule @Conversation.ConvTeamInfo "user" ref
   generateBindingModule @Conversation.Invite "user" ref
   generateBindingModule @Conversation.ConversationRename "user" ref
-  generateBindingModule @Conversation.ConversationAccessUpdate "user" ref
+  generateBindingModule @Conversation.ConversationAccessData "user" ref
   generateBindingModule @Conversation.ConversationReceiptModeUpdate "user" ref
   generateBindingModule @Conversation.ConversationMessageTimerUpdate "user" ref
   generateBindingModule @Conversation.Bot.AddBot "user" ref

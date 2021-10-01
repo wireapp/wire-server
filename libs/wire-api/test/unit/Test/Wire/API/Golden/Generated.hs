@@ -58,7 +58,7 @@ import qualified Test.Wire.API.Golden.Generated.Contact_user
 import qualified Test.Wire.API.Golden.Generated.ConvMembers_user
 import qualified Test.Wire.API.Golden.Generated.ConvTeamInfo_user
 import qualified Test.Wire.API.Golden.Generated.ConvType_user
-import qualified Test.Wire.API.Golden.Generated.ConversationAccessUpdate_user
+import qualified Test.Wire.API.Golden.Generated.ConversationAccessData_user
 import qualified Test.Wire.API.Golden.Generated.ConversationCode_user
 import qualified Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user
 import qualified Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user
@@ -484,13 +484,13 @@ tests =
               "testObject_ConversationRename_user_1.json"
             )
           ],
-      testGroup "Golden: ConversationAccessUpdate_user" $
+      testGroup "Golden: ConversationAccessData_user" $
         testObjects
-          [ ( Test.Wire.API.Golden.Generated.ConversationAccessUpdate_user.testObject_ConversationAccessUpdate_user_1,
-              "testObject_ConversationAccessUpdate_user_1.json"
+          [ ( Test.Wire.API.Golden.Generated.ConversationAccessData_user.testObject_ConversationAccessData_user_1,
+              "testObject_ConversationAccessData_user_1.json"
             ),
-            ( Test.Wire.API.Golden.Generated.ConversationAccessUpdate_user.testObject_ConversationAccessUpdate_user_2,
-              "testObject_ConversationAccessUpdate_user_2.json"
+            ( Test.Wire.API.Golden.Generated.ConversationAccessData_user.testObject_ConversationAccessData_user_2,
+              "testObject_ConversationAccessData_user_2.json"
             )
           ],
       testGroup "Golden: ConversationReceiptModeUpdate_user" $

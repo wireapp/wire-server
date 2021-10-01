@@ -59,7 +59,7 @@ module Galley.Types
     AccessRole (..),
     ConversationList (..),
     ConversationRename (..),
-    ConversationAccessUpdate (..),
+    ConversationAccessData (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
     ConvType (..),

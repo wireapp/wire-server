@@ -143,6 +143,7 @@ onConversationUpdated requestingDomain cu = do
     ConversationActionMessageTimerUpdate _ -> pure []
     ConversationActionMemberUpdate _ _ -> pure []
     ConversationActionReceiptModeUpdate _ -> pure []
+    ConversationActionAccessUpdate _ -> pure []
 
   -- Send notifications
   let event = conversationActionToEvent (cuTime cu) (cuOrigUserId cu) qconvId (cuAction cu)
