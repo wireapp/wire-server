@@ -705,7 +705,7 @@ createLegacyOne2OneConversation loc a b name ti = do
   createOne2OneConversation
     lconv
     (qualifyAs loc a')
-    (unTagged (qualifyAs loc b'))
+    (qUntagged (qualifyAs loc b'))
     name
     ti
 
@@ -719,14 +719,14 @@ createOne2OneConversation ::
   m Conversation
 createOne2OneConversation lconv self other name mtid = do
   retry x5 $ case mtid of
-    Nothing -> write Cql.insertConv (params Quorum (lUnqualified lconv, One2OneConv, lUnqualified self, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
+    Nothing -> write Cql.insertConv (params Quorum (tUnqualified lconv, One2OneConv, tUnqualified self, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency Quorum
-      addPrepQuery Cql.insertConv (lUnqualified lconv, One2OneConv, lUnqualified self, privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
-      addPrepQuery Cql.insertTeamConv (tid, lUnqualified lconv, False)
-  (lmems, rmems) <- addMembers lconv (toUserList self [unTagged self, other])
-  pure $ newConv (lUnqualified lconv) One2OneConv (lUnqualified self) lmems rmems [PrivateAccess] privateRole name mtid Nothing Nothing
+      addPrepQuery Cql.insertConv (tUnqualified lconv, One2OneConv, tUnqualified self, privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
+      addPrepQuery Cql.insertTeamConv (tid, tUnqualified lconv, False)
+  (lmems, rmems) <- addMembers lconv (toUserList self [qUntagged self, other])
+  pure $ newConv (tUnqualified lconv) One2OneConv (tUnqualified self) lmems rmems [PrivateAccess] privateRole name mtid Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))

@@ -533,7 +533,7 @@ createSelfConv u = do
         . zUser u
         . expect2xx
 
--- | Calls 'Galley.API.createConnectConversationH'.
+-- | Calls 'Galley.API.Create.createConnectConversation'.
 createLocalConnectConv ::
   Local UserId ->
   Local UserId ->
@@ -545,18 +545,17 @@ createLocalConnectConv from to cname conn = do
     logConnection (tUnqualified from) (qUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
+  let req =
+        path "/i/conversations/connect"
+          . zUser (tUnqualified from)
+          . maybe id (header "Z-Connection" . fromConnId) conn
+          . contentJson
+          . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
+          . expect2xx
   r <- galleyRequest POST req
   maybe (error "invalid conv id") return $
     fromByteString $
       getHeader' "Location" r
-  where
-    req =
-      path "/i/conversations/connect"
-        . zUser (tUnqualified from)
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . contentJson
-        . lbytes (encode $ Connect (tUnqualified to) Nothing cname Nothing)
-        . expect2xx
 
 createConnectConv ::
   Qualified UserId ->

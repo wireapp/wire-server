@@ -182,7 +182,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   lusr <- qualifyLocal zusr
   let allUsers = newConvMembers lusr j
   other <- ensureOne (ulAll lusr allUsers)
-  when (unTagged lusr == other) $
+  when (qUntagged lusr == other) $
     throwM (invalidOp "Cannot create a 1-1 with yourself")
   mtid <- case newConvTeam j of
     Just ti
@@ -198,7 +198,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   foldQualified
     lusr
     (createLegacyOne2OneConversationUnchecked lusr zcon n mtid)
-    (createOne2OneConversationUnchecked lusr zcon n mtid . unTagged)
+    (createOne2OneConversationUnchecked lusr zcon n mtid . qUntagged)
     other
   where
     verifyMembership tid u = do
@@ -206,12 +206,12 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       when (isNothing membership) $
         throwM noBindingTeamMembers
     checkBindingTeamPermissions lusr lother tid = do
-      zusrMembership <- Data.teamMember tid (lUnqualified lusr)
+      zusrMembership <- Data.teamMember tid (tUnqualified lusr)
       void $ permissionCheck CreateConversation zusrMembership
       Data.teamBinding tid >>= \case
         Just Binding -> do
-          verifyMembership tid (lUnqualified lusr)
-          verifyMembership tid (lUnqualified lother)
+          verifyMembership tid (tUnqualified lusr)
+          verifyMembership tid (tUnqualified lother)
           pure (Just tid)
         Just _ -> throwM nonBindingTeam
         Nothing -> throwM teamNotFound
@@ -225,14 +225,14 @@ createLegacyOne2OneConversationUnchecked ::
   Galley ConversationResponse
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
-  mc <- Data.conversation (lUnqualified lcnv)
+  mc <- Data.conversation (tUnqualified lcnv)
   case mc of
-    Just c -> conversationExisted (lUnqualified self) c
+    Just c -> conversationExisted (tUnqualified self) c
     Nothing -> do
-      (x, y) <- toUUIDs (lUnqualified self) (lUnqualified other)
+      (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
       c <- Data.createLegacyOne2OneConversation self x y name mtid
-      notifyCreatedConversation Nothing (lUnqualified self) (Just zcon) c
-      conversationCreated (lUnqualified self) c
+      notifyCreatedConversation Nothing (tUnqualified self) (Just zcon) c
+      conversationCreated (tUnqualified self) c
 
 createOne2OneConversationUnchecked ::
   Local UserId ->
@@ -247,7 +247,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
           self
           createOne2OneConversationLocally
           createOne2OneConversationRemotely
-  create (one2OneConvId (unTagged self) other) self zcon name mtid other
+  create (one2OneConvId (qUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
   Local ConvId ->
@@ -258,13 +258,13 @@ createOne2OneConversationLocally ::
   Qualified UserId ->
   Galley ConversationResponse
 createOne2OneConversationLocally lcnv self zcon name mtid other = do
-  mc <- Data.conversation (lUnqualified lcnv)
+  mc <- Data.conversation (tUnqualified lcnv)
   case mc of
-    Just c -> conversationExisted (lUnqualified self) c
+    Just c -> conversationExisted (tUnqualified self) c
     Nothing -> do
       c <- Data.createOne2OneConversation lcnv self other name mtid
-      notifyCreatedConversation Nothing (lUnqualified self) (Just zcon) c
-      conversationCreated (lUnqualified self) c
+      notifyCreatedConversation Nothing (tUnqualified self) (Just zcon) c
+      conversationCreated (tUnqualified self) c
 
 createOne2OneConversationRemotely ::
   Remote ConvId ->
@@ -283,8 +283,12 @@ createConnectConversation ::
   Connect ->
   Galley ConversationResponse
 createConnectConversation usr conn j = do
+  localDomain <- viewFederationDomain
+  let qrecipient = cRecipient j
+  when (qDomain qrecipient /= localDomain) $
+    throwM federationNotImplemented
   lusr <- qualifyLocal usr
-  (x, y) <- toUUIDs usr (cRecipient j)
+  (x, y) <- toUUIDs usr (qUnqualified qrecipient)
   n <- rangeCheckedMaybe (cName j)
   conv <- Data.conversation (Data.one2OneConvId x y)
   maybe (create lusr x y n) (update n) conv
@@ -388,7 +392,7 @@ notifyCreatedConversation dtime usr conn c = do
 
 localOne2OneConvId :: Local UserId -> Local UserId -> Galley (Local ConvId)
 localOne2OneConvId self other = do
-  (x, y) <- toUUIDs (lUnqualified self) (lUnqualified other)
+  (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
   pure . qualifyAs self $ Data.one2OneConvId x y
 
 toUUIDs :: UserId -> UserId -> Galley (U.UUID U.V4, U.UUID U.V4)

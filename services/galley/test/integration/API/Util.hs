@@ -594,6 +594,7 @@ postO2OConv u1 u2 n = do
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
 postConnectConv a b name msg email = do
+  qb <- Qualified <$> pure b <*> viewFederationDomain
   g <- view tsGalley
   post $
     g
@@ -601,7 +602,7 @@ postConnectConv a b name msg email = do
       . zUser a
       . zConn "conn"
       . zType "access"
-      . json (Connect b (Just msg) (Just name) email)
+      . json (Connect qb (Just msg) (Just name) email)
 
 putConvAccept :: UserId -> ConvId -> TestM ResponseLBS
 putConvAccept invited cid = do

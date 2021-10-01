@@ -214,7 +214,10 @@ testObject_Event_user_10 =
     (read "1864-05-25 01:31:49.802 UTC")
     ( EdConnect
         ( Connect
-            { cRecipient = Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000600000001")),
+            { cRecipient =
+                Qualified
+                  (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000600000001")))
+                  (Domain "faraway.example.com"),
               cMessage = Just "L",
               cName = Just "fq",
               cEmail = Just "\992986"
