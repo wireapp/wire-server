@@ -283,38 +283,54 @@ createConnectConversation ::
   Connect ->
   Galley ConversationResponse
 createConnectConversation usr conn j = do
-  localDomain <- viewFederationDomain
-  let qrecipient = cRecipient j
-  when (qDomain qrecipient /= localDomain) $
-    throwM federationNotImplemented
   lusr <- qualifyLocal usr
-  (x, y) <- toUUIDs usr (qUnqualified qrecipient)
+  foldQualified
+    lusr
+    (\lrcpt -> createLegacyConnectConversation lusr conn lrcpt j)
+    (createConnectConversationWithRemote lusr conn)
+    (cRecipient j)
+
+createConnectConversationWithRemote ::
+  Local UserId ->
+  Maybe ConnId ->
+  Remote UserId ->
+  Galley ConversationResponse
+createConnectConversationWithRemote _ _ _ =
+  throwM federationNotImplemented
+
+createLegacyConnectConversation ::
+  Local UserId ->
+  Maybe ConnId ->
+  Local UserId ->
+  Connect ->
+  Galley ConversationResponse
+createLegacyConnectConversation lusr conn lrecipient j = do
+  (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
   conv <- Data.conversation (Data.one2OneConvId x y)
-  maybe (create lusr x y n) (update n) conv
+  maybe (create x y n) (update n) conv
   where
-    create lusr x y n = do
+    create x y n = do
       c <- Data.createConnectConversation lusr x y n
       now <- liftIO getCurrentTime
       let lcid = qualifyAs lusr (Data.convId c)
           e = Event ConvConnect (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
-      notifyCreatedConversation Nothing usr conn c
-      for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
+      notifyCreatedConversation Nothing (tUnqualified lusr) conn c
+      for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         push1 $
           p
             & pushRoute .~ RouteDirect
             & pushConn .~ conn
-      conversationCreated usr c
+      conversationCreated (tUnqualified lusr) c
     update n conv = do
       let mems = Data.convLocalMembers conv
-       in conversationExisted usr
+       in conversationExisted (tUnqualified lusr)
             =<< if
-                | usr `isMember` mems ->
+                | (tUnqualified lusr) `isMember` mems ->
                   -- we already were in the conversation, maybe also other
                   connect n conv
                 | otherwise -> do
                   lcid <- qualifyLocal (Data.convId conv)
-                  lusr <- qualifyLocal usr
                   mm <- Data.addMember lcid lusr
                   let conv' =
                         conv
@@ -326,7 +342,7 @@ createConnectConversation usr conn j = do
                       connect n conv'
                     else do
                       -- we were not in the conversation, but someone else
-                      conv'' <- acceptOne2One usr conv' conn
+                      conv'' <- acceptOne2One (tUnqualified lusr) conv' conn
                       if Data.convType conv'' == ConnectConv
                         then connect n conv''
                         else return conv''
@@ -334,15 +350,14 @@ createConnectConversation usr conn j = do
       | Data.convType conv == ConnectConv = do
         localDomain <- viewFederationDomain
         let qconv = Qualified (Data.convId conv) localDomain
-            qusr = Qualified usr localDomain
         n' <- case n of
           Just x -> do
             Data.updateConversation (Data.convId conv) x
             return . Just $ fromRange x
           Nothing -> return $ Data.convName conv
         t <- liftIO getCurrentTime
-        let e = Event ConvConnect qconv qusr t (EdConnect j)
-        for_ (newPushLocal ListComplete usr (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
+        let e = Event ConvConnect qconv (qUntagged lusr) t (EdConnect j)
+        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
           push1 $
             p
               & pushRoute .~ RouteDirect
