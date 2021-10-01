@@ -122,7 +122,7 @@ runTests iConf brigOpts otherArgs = do
   let fedBrigClient = mkFedBrigClient mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
-  userApi <- User.tests brigOpts mg b c ch g n awsEnv
+  userApi <- User.tests brigOpts mg b c ch g n awsEnv db
   providerApi <- Provider.tests localDomain (provider iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
