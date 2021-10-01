@@ -429,7 +429,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     defaultEncodeOptions :: EncodeOptions
     defaultEncodeOptions =
       EncodeOptions
-        { encDelimiter = 44, -- comma
+        { encDelimiter = fromIntegral (ord ','),
           encUseCrLf = True, -- to be compatible with Mac and Windows
           encIncludeHeader = False, -- (so we can flush when the header is on the wire)
           encQuoting = QuoteAll
