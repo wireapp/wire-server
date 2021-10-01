@@ -338,10 +338,10 @@ authresp mbtid ckyraw arbody = logErrors $ liftSem $ SAML2.authResp mbtid (SparR
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Spar r Void -> Spar r Void
-    logErrors = flip catchError $ \case
-      e@(SAML.CustomServant _) -> throwError e
+    logErrors x = liftSem . catch @SparError (runSparInSem x) $ \case
+      e@(SAML.CustomServant _) -> throw e
       e -> do
-        throwError . SAML.CustomServant $
+        throw @SparError . SAML.CustomServant $
           errorPage
             e
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
