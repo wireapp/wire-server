@@ -1,1 +1,0 @@
-4 endpoints for create/update/get/list connections designed for remote users in mind. So far, the implementation only works for local users (actual implementation will come as a follow-up)

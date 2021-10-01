@@ -1,1 +1,0 @@
-Convert the `PUT /conversations/:cnv/members/:usr` endpoint to Servant

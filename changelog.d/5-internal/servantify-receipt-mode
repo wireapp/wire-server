@@ -1,1 +1,0 @@
-Convert the `PUT /conversations/:cnv/receipt-mode` endpoint to Servant

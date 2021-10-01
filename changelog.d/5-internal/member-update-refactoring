@@ -1,3 +1,0 @@
-Refactored a few functions dealing with conversation updates, in an attempt to
-make the conversation update code paths more uniform, and also reduce special
-cases for local and remote objects.

@@ -1,1 +1,0 @@
-This PR pulls apart the Spar.Intra.(Brig|Galley) modules into polysemy effects, as part of ongoing work to excise all IO from Spar.
