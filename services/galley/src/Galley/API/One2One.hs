@@ -28,6 +28,7 @@ import Data.Id
 import Data.Qualified
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
+import qualified Data.UUID.Tagged as U
 import Imports
 
 -- | The hash function used to obtain the 1-1 conversation ID for a pair of users.
@@ -47,15 +48,6 @@ compareDomains (Qualified a1 dom1) (Qualified a2 dom2) =
 
 quidToByteString :: Qualified UserId -> ByteString
 quidToByteString (Qualified uid domain) = toByteString' uid <> toByteString' domain
-
-setUUIDv5 :: UUID -> UUID
-setUUIDv5 x = case UUID.toWords x of
-  (w0, w1, w2, w3) ->
-    UUID.fromWords
-      w0
-      (w1 .&. 0xffff0fff .|. 0x5000)
-      (w2 .&. 0x3fffffff .|. 0x80000000)
-      w3
 
 -- | This function returns the 1-1 conversation for a given pair of users.
 --
@@ -108,7 +100,7 @@ one2OneConvId a b = case compareDomains a b of
             ]
         x = hash c
         result =
-          setUUIDv5
+          U.toUUID . U.mk @U.V5
             . fromMaybe UUID.nil
             . UUID.fromByteString
             . L.fromStrict

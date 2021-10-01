@@ -17,13 +17,16 @@
 
 module Data.UUID.Tagged
   ( UUID,
+    toUUID,
     V4,
+    V5,
     Version (..),
     version,
     variant,
     addv4,
     unpack,
     create,
+    mk,
   )
 where
 
@@ -31,35 +34,43 @@ import Data.Bits
 import qualified Data.UUID as D
 import qualified Data.UUID.V4 as D4
 import Imports
-import Test.QuickCheck (Arbitrary, arbitrary)
 
 -- | Versioned UUID.
-newtype UUID v = UUID D.UUID deriving (Eq, Ord, Show)
+newtype UUID v = UUID {toUUID :: D.UUID}
+  deriving (Eq, Ord, Show)
 
 instance NFData (UUID v) where rnf (UUID a) = seq a ()
 
 class Version v where
   -- | Try to turn a plain UUID into a versioned UUID.
   fromUUID :: D.UUID -> Maybe (UUID v)
+  fromUUID u = guard (version u == versionValue @v) $> UUID u
+
+  versionValue :: Word32
 
 data V4
 
 instance Version V4 where
-  fromUUID u = case version u of
-    4 -> Just (UUID u)
-    _ -> Nothing
+  versionValue = 4
+
+data V5
+
+instance Version V5 where
+  versionValue = 5
+
+mk :: forall v. Version v => D.UUID -> UUID v
+mk u = UUID $
+  case D.toWords u of
+    (x0, x1, x2, x3) ->
+      D.fromWords
+        x0
+        (retainVersion (versionValue @v) x1)
+        (retainVariant 2 x2)
+        x3
 
 -- | Create a fresh UUIDv4.
 create :: IO (UUID V4)
 create = UUID <$> D4.nextRandom
-
-instance Arbitrary (UUID V4) where
-  arbitrary = do
-    a <- arbitrary
-    b <- retainVersion 4 <$> arbitrary
-    c <- retainVariant 2 <$> arbitrary
-    d <- arbitrary
-    pure $ UUID $ D.fromWords a b c d
 
 -- | Extract the 'D.UUID' from a versioned UUID.
 unpack :: UUID v -> D.UUID
