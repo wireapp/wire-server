@@ -23,6 +23,7 @@ module Data.UUID.Tagged
     variant,
     addv4,
     unpack,
+    create,
   )
 where
 
@@ -38,19 +39,19 @@ newtype UUID v = UUID D.UUID deriving (Eq, Ord, Show)
 instance NFData (UUID v) where rnf (UUID a) = seq a ()
 
 class Version v where
-  -- | Create a fresh versioned UUID.
-  create :: IO (UUID v)
-
   -- | Try to turn a plain UUID into a versioned UUID.
   fromUUID :: D.UUID -> Maybe (UUID v)
 
 data V4
 
 instance Version V4 where
-  create = UUID <$> D4.nextRandom
   fromUUID u = case version u of
     4 -> Just (UUID u)
     _ -> Nothing
+
+-- | Create a fresh UUIDv4.
+create :: IO (UUID V4)
+create = UUID <$> D4.nextRandom
 
 instance Arbitrary (UUID V4) where
   arbitrary = do
