@@ -2,17 +2,17 @@
 
 module Spar.Sem.SAMLUserStore.Cassandra where
 
-import qualified Control.Monad.Catch as Catch
 import Cassandra
+import qualified Control.Monad.Catch as Catch
+import Data.String.Conversions (cs)
 import Imports
 import Polysemy
-import qualified Spar.Data as Data
-import Spar.Sem.SAMLUserStore
-import Polysemy.Final
-import Spar.Error
 import Polysemy.Error
-import Data.String.Conversions (cs)
+import Polysemy.Final
 import qualified SAML2.WebSSO.Error as SAML
+import qualified Spar.Data as Data
+import Spar.Error
+import Spar.Sem.SAMLUserStore
 
 samlUserStoreToCassandra ::
   forall m r a.
@@ -40,4 +40,3 @@ interpretClientToIO ctx = interpret $ \case
     st <- getInitialStateS
     handler' <- bindS $ throw @SparError . SAML.CustomError . SparCassandraError . cs . show @SomeException
     pure $ action' `Catch.catch` \e -> handler' $ e <$ st
-

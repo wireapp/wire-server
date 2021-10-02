@@ -111,9 +111,9 @@ data SparCustomError
   deriving (Eq, Show)
 
 sparToServerErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m ServerError
-sparToServerErrorWithLogging logger err = do
+sparToServerErrorWithLogging _logger err = do
   let errServant = sparToServerError err
-  liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (servantToWaiError errServant)
+  -- liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (servantToWaiError errServant)
   pure errServant
 
 servantToWaiError :: ServerError -> Wai.Error
@@ -132,10 +132,10 @@ waiToServant waierr@(Wai.Error status label _ _) =
       errHeaders = []
     }
 
-renderSparErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m (Either ServerError Wai.Error)
-renderSparErrorWithLogging logger err = do
+renderSparErrorWithLogging :: Applicative m => Log.Logger -> SparError -> m (Either ServerError Wai.Error)
+renderSparErrorWithLogging _logger err = do
   let errPossiblyWai = renderSparError err
-  liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (either servantToWaiError id $ errPossiblyWai)
+  -- liftIO $ Wai.logError logger (Nothing :: Maybe Wai.Request) (either servantToWaiError id $ errPossiblyWai)
   pure errPossiblyWai
 
 renderSparError :: SparError -> Either ServerError Wai.Error

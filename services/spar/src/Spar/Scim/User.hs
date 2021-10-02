@@ -66,7 +66,7 @@ import Network.URI (URI, parseURI)
 import Polysemy
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, validateEmailIfExists, liftSem)
+import Spar.App (GetUserResult (..), Spar, getUserIdByScimExternalId, getUserIdByUref, liftSem, validateEmailIfExists)
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)

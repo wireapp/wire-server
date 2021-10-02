@@ -70,7 +70,7 @@ import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 import Polysemy.Error (Error)
-import Polysemy.Input (Input, input)
+import Polysemy.Input (Input)
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Generic
@@ -95,7 +95,6 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import System.Logger (Msg)
-import qualified System.Logger as TinyLog
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
@@ -117,8 +116,7 @@ configuration = Scim.Meta.empty
 apiScim ::
   forall r.
   Members
-    '[ Input TinyLog.Logger,
-       Random,
+    '[ Random,
        Input Opts,
        Logger (Msg -> Msg),
        Logger String,
@@ -165,8 +163,7 @@ apiScim =
           Right (Left sparError) -> do
             -- We caught some other Spar exception. It is rendered and wrapped into a scim error
             -- with the same status and message, and no scim error type.
-            logger <- input @TinyLog.Logger
-            err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging logger sparError
+            err :: ServerError <- embedFinal @IO $ sparToServerErrorWithLogging undefined sparError
             pure . Left . SAML.CustomError . SparScimError $
               Scim.ScimError
                 { schemas = [Scim.Schema.Error20],

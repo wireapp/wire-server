@@ -39,7 +39,6 @@ import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
 import Data.Id (ScimTokenId, UserId)
 import Data.String.Conversions (cs)
-import Data.Time (getCurrentTime)
 import Imports
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
@@ -49,13 +48,15 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
-import Spar.App (Spar, liftSem, liftSem)
+import Spar.App (Spar, liftSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.IdP as IdPEffect
+import Spar.Sem.Now (Now)
+import qualified Spar.Sem.Now as Now
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
@@ -91,6 +92,7 @@ apiScimToken ::
        GalleyAccess,
        BrigAccess,
        ScimTokenStore,
+       Now,
        IdPEffect.IdP,
        Error E.SparError
      ]
@@ -113,6 +115,7 @@ createScimToken ::
        BrigAccess,
        ScimTokenStore,
        IdPEffect.IdP,
+       Now,
        Error E.SparError
      ]
     r =>
@@ -135,12 +138,12 @@ createScimToken zusr CreateScimToken {..} = do
       caseOneOrNoIdP midpid = do
         token <- liftSem $ ScimToken . cs . ES.encode <$> Random.bytes 32
         tokenid <- liftSem $ Random.scimTokenId
-        now <- liftIO getCurrentTime
+        now <- liftSem Now.get
         let info =
               ScimTokenInfo
                 { stiId = tokenid,
                   stiTeam = teamid,
-                  stiCreatedAt = now,
+                  stiCreatedAt = SAML.fromTime now,
                   stiIdP = midpid,
                   stiDescr = descr
                 }

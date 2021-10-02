@@ -93,7 +93,6 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import System.Logger (Msg)
-import qualified System.Logger as TinyLog
 import qualified URI.ByteString as URI
 import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
@@ -109,7 +108,6 @@ api ::
   Members
     '[ GalleyAccess,
        BrigAccess,
-       Input TinyLog.Logger,
        Input Opts,
        BindCookieStore,
        AssIDStore,
@@ -145,7 +143,6 @@ apiSSO ::
   Members
     '[ GalleyAccess,
        Logger String,
-       Input TinyLog.Logger,
        Input Opts,
        BrigAccess,
        BindCookieStore,
@@ -306,7 +303,6 @@ authresp ::
     '[ Random,
        Logger String,
        Input Opts,
-       Input TinyLog.Logger,
        GalleyAccess,
        BrigAccess,
        BindCookieStore,

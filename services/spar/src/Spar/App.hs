@@ -65,7 +65,6 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
-import Polysemy.Input (Input, input)
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( IdPId (..),
@@ -130,9 +129,6 @@ instance Monad (Spar r) where
 instance MonadError SparError (Spar r) where
   throwError err = Spar $ throwError err
   catchError m handler = Spar $ catchError (fromSpar m) $ fromSpar . handler
-
-instance MonadIO (Spar r) where
-  liftIO m = Spar $ lift $ embedFinal m
 
 data Env = Env
   { sparCtxOpts :: Opts,
@@ -376,7 +372,6 @@ verdictHandler ::
   HasCallStack =>
   Members
     '[ Random,
-       Input TinyLog.Logger,
        Logger String,
        GalleyAccess,
        BrigAccess,
@@ -420,7 +415,6 @@ verdictHandlerResult ::
   HasCallStack =>
   Members
     '[ Random,
-       Input TinyLog.Logger,
        Logger String,
        GalleyAccess,
        BrigAccess,
@@ -440,14 +434,13 @@ verdictHandlerResult bindCky mbteam verdict = do
   liftSem $ Logger.log SAML.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
-catchVerdictErrors :: forall r. Member (Input TinyLog.Logger) r => Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
+catchVerdictErrors :: forall r. Spar r VerdictHandlerResult -> Spar r VerdictHandlerResult
 catchVerdictErrors = (`catchError` hndlr)
   where
     hndlr :: SparError -> Spar r VerdictHandlerResult
     hndlr err = do
-      logr <- liftSem input
       -- TODO(sandy): When we remove this line, we can get rid of the @Input TinyLog.Logger@ effect
-      waiErr <- renderSparErrorWithLogging logr err
+      waiErr <- renderSparErrorWithLogging undefined err
       pure $ case waiErr of
         Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
         Left (serr :: ServerError) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
